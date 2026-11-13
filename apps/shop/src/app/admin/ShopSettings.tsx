@@ -63,6 +63,7 @@ import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 import { useShopWords } from "./shopWords";
 import { WhatYouSellCard } from "./WhatYouSellCard";
+import { MONEY_SIGN } from "./moneySign";
 
 export function ShopSettings({ 
   activeTab, 
@@ -1822,7 +1823,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
         <SettingsAnchor id="pay-currency">
           <SectionCard title="Currency">
-            <p className="rp-hint" style={{ margin: 0 }}>Charged in CA$. Other currencies are display only.</p>
+            <p className="rp-hint" style={{ margin: 0 }}>Charged in {MONEY_SIGN}. Other currencies are display only.</p>
           </SectionCard>
         </SettingsAnchor>
         {!platformCards && (

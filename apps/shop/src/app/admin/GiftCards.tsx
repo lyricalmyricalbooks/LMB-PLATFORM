@@ -20,6 +20,7 @@ import { shopDate } from "../features/site/preorder";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
 import { GoogleSheetLink } from "./GoogleSheetLink";
 import { FirstRows, SheetChoice } from "./SheetChoice";
+import { MONEY_SIGN } from "./moneySign";
 
 const LINK = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 } as const;
 
@@ -105,7 +106,7 @@ export function IssueDialog({ onClose, onIssued, initial, credit = false }: {
           </div>
         )}
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-          <TextField label="Amount (CA$)" type="number" min={1} max={10000} step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} data-autofocus hint="Between CA$1 and CA$10,000." />
+          <TextField label={`Amount (${MONEY_SIGN})`} type="number" min={1} max={10000} step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} data-autofocus hint={`Between ${MONEY_SIGN}1 and ${MONEY_SIGN}10,000.`} />
           <TextField label="Expiry date (optional)" type="date" value={form.expiresOn} onChange={(e) => set("expiresOn", e.target.value)} hint="Leave blank so it never expires. Check your province's gift card rules first." />
           <TextField label="Recipient's name (optional)" value={form.recipientName} maxLength={100} onChange={(e) => set("recipientName", e.target.value)} />
           <TextField label="Recipient's email (optional)" type="email" value={form.recipientEmail} maxLength={320} onChange={(e) => set("recipientEmail", e.target.value)} />
@@ -262,7 +263,7 @@ function AdjustDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
         <PrimaryButton onClick={save} disabled={saving || locked}>{saving ? "Saving…" : "Save adjustment"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 16 }}>
-        <TextField label="Amount to add (CA$)" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} data-autofocus
+        <TextField label={`Amount to add (${MONEY_SIGN})`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} data-autofocus
           hint={after !== null && delta ? `New balance: ${formatMinor(after)}. Use a minus sign to remove money, e.g. -10.` : "Use a minus sign to remove money, e.g. -10."} />
         <TextField label="Reason" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Customer paid part in cash" />
         {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}

@@ -1,9 +1,10 @@
+import { MONEY_SIGN } from "./moneySign";
 // How admin order views describe the newer kinds of order line: paid add-ons (signed copy,
 // inscription, gift wrap), box sets and their books, gift cards and the free gift, plus the
 // automatic-discount label and gift-card payments. Pure, tested; shared by Order detail, the
 // packing checklist, packing slips / pick lists and the Orders CSV.
 
-const money = (n: any) => `CA$${(Number(n) || 0).toFixed(2)}`;
+const money = (n: any) => `${MONEY_SIGN}${(Number(n) || 0).toFixed(2)}`;
 
 /** "Signed copy" / "Personal inscription: “For Sam, love Mum”" — one entry per add-on. */
 export function addOnLines(item: any): string[] {

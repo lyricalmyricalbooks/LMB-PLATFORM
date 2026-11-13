@@ -7,6 +7,7 @@ import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/comp
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
 import { GoogleSheetLink } from "./GoogleSheetLink";
 import { FirstRows, SheetChoice } from "./SheetChoice";
+import { MONEY_SIGN } from "./moneySign";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
 
@@ -110,7 +111,7 @@ export function DiscountMoveDialog({ existing, onClose, onDone }: { existing: st
               <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18, maxHeight: 220, overflow: "auto" }}>
                 {file.codes.slice(0, 200).map((d) => (
                   <li key={d.code}><span className="rp-mono">{d.code}</span>: {describeMoved(d)}
-                    {d.minOrderAmount ? `, on orders of CA$${d.minOrderAmount.toFixed(2)} or more` : d.minQuantity ? `, on ${d.minQuantity} items or more` : ""}
+                    {d.minOrderAmount ? `, on orders of ${MONEY_SIGN}${d.minOrderAmount.toFixed(2)} or more` : d.minQuantity ? `, on ${d.minQuantity} items or more` : ""}
                     {d.usageLimit != null ? `, ${plural(d.usageLimit, "use")} left` : ""}{d.expiryDate ? `, until ${d.expiryDate}` : ""}</li>
                 ))}
               </ul>

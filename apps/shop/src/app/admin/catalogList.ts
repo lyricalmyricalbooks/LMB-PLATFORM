@@ -8,6 +8,7 @@ import { preorderActive } from "../features/site/preorder";
 import { bundleAvailable, isBundle, isGiftCardProduct } from "../features/site/promotions";
 import { displayPrice, editionPrices, showsSale } from "../features/site/displayPrice";
 import type { BadgeTone } from "./riso/components";
+import { MONEY_SIGN } from "./moneySign";
 
 /** One low-stock threshold for the catalog list and the book editor. */
 export const LOW_STOCK = 5;
@@ -137,7 +138,7 @@ export interface PriceInfo {
   text: string;
 }
 
-const cad = (n: number) => `CA$${n.toFixed(2)}`;
+const cad = (n: number) => `${MONEY_SIGN}${n.toFixed(2)}`;
 
 export function priceInfo(book: any, now: Date = new Date()): PriceInfo {
   const price = displayPrice(book, false, now);

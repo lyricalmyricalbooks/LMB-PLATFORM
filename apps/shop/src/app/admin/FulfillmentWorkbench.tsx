@@ -29,6 +29,7 @@ import {
   StatusBadge,
 } from "./riso/components";
 import "./fulfillment.css";
+import { MONEY_SIGN } from "./moneySign";
 
 type Props = {
   order: any;
@@ -502,7 +503,7 @@ export function FulfillmentWorkbench({
                 {order.shippingMethod && (
                   <p className="fw-summary">
                     Customer chose: <strong>{order.shippingMethod}</strong>
-                    {Number.isFinite(Number(order.shipping)) ? ` · paid CA$${Number(order.shipping).toFixed(2)}` : ""}
+                    {Number.isFinite(Number(order.shipping)) ? ` · paid ${MONEY_SIGN}${Number(order.shipping).toFixed(2)}` : ""}
                   </p>
                 )}
                 {testLabel && (
@@ -511,7 +512,7 @@ export function FulfillmentWorkbench({
                 {!order.labelUrl && order.trackingSource === "inventory-app" && order.trackingNumber && (
                   <p className="fw-summary" role="status">
                     <StatusBadge tone="info">Inventory app</StatusBadge> Label bought in the inventory app · {order.trackingCarrier || "Carrier"} · {order.trackingNumber}
-                    {Number.isFinite(Number(order.operations?.externalLabel?.cost)) && order.operations?.externalLabel?.cost != null ? ` · CA$${Number(order.operations.externalLabel.cost).toFixed(2)}` : ""}.
+                    {Number.isFinite(Number(order.operations?.externalLabel?.cost)) && order.operations?.externalLabel?.cost != null ? ` · ${MONEY_SIGN}${Number(order.operations.externalLabel.cost).toFixed(2)}` : ""}.
                     {" "}Marking the parcel shipped there dispatches this order and emails the customer. Don't buy a second label here.
                     {onClearAppLabel && <>{" "}<button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit" }}
                       disabled={busy} onClick={onClearAppLabel}>Remove the inventory app label</button></>}

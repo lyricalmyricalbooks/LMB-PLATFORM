@@ -6,6 +6,7 @@ import { goodRate, mergePastOrderFiles, readPastOrders, readyToSend, type PastOr
 import { Dialog, GhostButton, PrimaryButton, SecondaryButton, StatusBadge, TextField } from "./riso/components";
 import { SPREADSHEET_ACCEPT, readProblem, spreadsheetText } from "./spreadsheetFile";
 import { GoogleSheetLink } from "./GoogleSheetLink";
+import { MONEY_SIGN } from "./moneySign";
 
 /**
  * Orders › Bring past orders over (plan 23.7): the old shop's order file → a preview → the server saves each order as
@@ -16,7 +17,7 @@ import { GoogleSheetLink } from "./GoogleSheetLink";
  */
 const BATCH = 500;
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
-const dollars = (n: number) => `CA$${n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const dollars = (n: number) => `${MONEY_SIGN}${n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 /** Names one run, so the whole run can be taken back at once (plan 23.15). */
 const newBatch = () => `run-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`}`.toLowerCase().slice(0, 40);
 const dayWords = (d: string) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "");

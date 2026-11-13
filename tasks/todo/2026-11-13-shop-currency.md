@@ -15,9 +15,9 @@ A shop has one **shop currency** (CAD or USD for now). Every stored amount is in
 nothing changes for a shop that exists today. The shopper's currency picker still converts, from the shop currency.
 
 ## Updates (each small, each its own PR)
-- [ ] 1. The shop knows its currency. `SHOP_CURRENCY` in the shop's server record, `currency` in the public profile,
+- [x] 1. (PR #766) The shop knows its currency. `SHOP_CURRENCY` in the shop's server record, `currency` in the public profile,
       one shared rule (`src/shared/shopCurrency.ts`) for the code, sign and words. Nothing reads it for money yet.
-- [ ] 2. The admin shows it: every "CA$" and "Canadian dollars" in the admin comes from the shop currency.
+- [x] 2. The admin shows it (`admin/moneySign.ts`): every "CA$" and "Canadian dollars" in the admin comes from the shop currency.
 - [ ] 3. Checkout: rates saved against the shop currency (feed base, sane ranges), the shopper's picker and the
       charge start from it, emails and receipts say it. Payment-integrity tests for a USD shop.
 - [ ] 4. Reports, bookkeeping, stockroom money and tax: labelled and summed in the shop currency. Sales tax for a US

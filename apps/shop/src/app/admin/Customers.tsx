@@ -17,8 +17,9 @@ import {
   DataTable, PageActions, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
 } from "./riso/components";
+import { MONEY_SIGN } from "./moneySign";
 
-const money = (n: number) => `CA$${n.toFixed(2)}`;
+const money = (n: number) => `${MONEY_SIGN}${n.toFixed(2)}`;
 const TONE: Record<CustomerSegment, BadgeTone> = { vip: "primary", "vip-lapsed": "danger", returning: "success", new: "info", "at-risk": "warning", moved: "neutral" };
 const CONSENT_TONE: Record<Consent, BadgeTone> = { subscribed: "success", "opted-out": "danger", none: "neutral" };
 // Opened rarely, so it loads only when asked for (plan 3.1).

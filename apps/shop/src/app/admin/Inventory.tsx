@@ -21,6 +21,7 @@ import {
   PageActions, Pagination, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs,
   ToastProvider, useRisoToast, type BadgeTone, type Column,
 } from "./riso/components";
+import { MONEY_SIGN } from "./moneySign";
 
 const TONE: Record<StockStatus, BadgeTone> = {
   out: "danger", low: "warning", reprint: "info", ok: "success", digital: "neutral", untracked: "neutral", bundle: "primary", giftCard: "neutral",
@@ -34,7 +35,7 @@ const TAB_LABELS: [Tab, string][] = [
   ["digital", "Digital"], ["untracked", "Not tracked"], ["other", "Box sets & gift cards"],
 ];
 const inTab = (r: InventoryRow, t: Tab) => t === "all" || (t === "other" ? r.status === "bundle" || r.status === "giftCard" : r.status === t);
-const money = (n: number) => `CA$${n.toFixed(2)}`;
+const money = (n: number) => `${MONEY_SIGN}${n.toFixed(2)}`;
 
 /** Non-destructive yes/no question (the Riso ConfirmDialog is styled for deleting). */
 function useAsk() {
@@ -355,7 +356,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
             value={receive[r.id] ?? ""} disabled={bulkSaving} onChange={(e) => setReceive((d) => ({ ...d, [r.id]: e.target.value }))} />
           {results[r.id] && <div className="rp-hint" role="status" style={{ color: results[r.id].ok ? "var(--rp-success)" : "var(--rp-danger)" }}>{results[r.id].ok ? "✓ " : "✕ "}{results[r.id].text}</div>}
         </div>) : "—" } as Column<InventoryRow>,
-      { key: "cost", header: "Cost / copy (CA$)", render: (r: InventoryRow) => firstRowOfBook.has(r.id) && r.kind !== "giftCard" ? (
+      { key: "cost", header: `Cost / copy (${MONEY_SIGN})`, render: (r: InventoryRow) => firstRowOfBook.has(r.id) && r.kind !== "giftCard" ? (
         <input className="rp-input rp-mono" style={{ width: 84 }} inputMode="decimal" aria-label={`Cost price per copy for ${r.title}`}
           value={costDrafts[r.bookId] ?? (costs[r.bookId] ? String(costs[r.bookId]) : "")} disabled={bulkSaving}
           onChange={(e) => setCostDrafts((d) => ({ ...d, [r.bookId]: e.target.value }))} />) : "" } as Column<InventoryRow>,

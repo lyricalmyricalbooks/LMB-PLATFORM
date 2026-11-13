@@ -70,6 +70,7 @@ import {
 } from "./riso/components";
 import { StatusBar } from "./riso/FormKit";
 import { orderNextStep, type OrderNextAct } from "./orderNextStep";
+import { MONEY_SIGN } from "./moneySign";
 
 // "Placed Oct 16, 2026, 9:24 a.m." instead of the browser's numeric date (10/16/2026 could be read either way).
 const placedAt = (value: any) => {
@@ -657,7 +658,7 @@ export function OrderDetail({
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )
     .filter((e: any) => timelineFilter === "all" || e.type === timelineFilter);
-  const money = (n?: number) => `CA$${Number(n || 0).toFixed(2)}`;
+  const money = (n?: number) => `${MONEY_SIGN}${Number(n || 0).toFixed(2)}`;
 
   const queue = queueOf(order);
   const problem = dispatchProblem(order);
