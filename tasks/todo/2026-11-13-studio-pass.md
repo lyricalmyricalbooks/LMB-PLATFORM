@@ -66,3 +66,13 @@ Owner-written names (pages, products, saved themes) are never reworded; only bui
 
 ### Review
 adminCompat.css squares every Tailwind-rounded control with `!important`, so Studio's corners need `!important` too. Night mode uses the same tokens; not separately screenshotted.
+
+## Round 7: night mode
+
+- [x] Fixture `?night=1` wraps Studio the way the admin's night mode does
+- [x] Bug: ink buttons (Publish, chosen preview size, selected chips) were dark on dark at night; they now use the primary pair
+- [x] Phone Sections / Preview / Edit switch in the rounded look
+- [x] Browser check: Publish and the chosen preview size are readable at night
+
+### Review
+Checked Page layout, Theme settings, Text & labels, Themes and Essentials at night on desktop, and Page layout on a phone.

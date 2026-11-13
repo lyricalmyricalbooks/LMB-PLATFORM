@@ -1972,6 +1972,18 @@ await check("a phone opens on the phone preview", { width: 390, height: 844 }, a
   if (pressed !== "true") throw new Error("a phone did not open on the phone preview");
 }, FIRST_VISIT);
 
+// At night Publish and the chosen preview size were dark words on a dark button: nobody could read them.
+await check("in night mode Publish and the chosen preview size can be read", desktop, async page => {
+  const low = await page.evaluate(() => {
+    const lum = c => { const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratio = el => { const s = getComputedStyle(el), a = lum(s.color), b = lum(s.backgroundColor); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+    const top = document.querySelector(".studio-topbar");
+    const marks = [[...top.querySelectorAll("button")].find(b => b.textContent.trim() === "Publish"), top.querySelector('[aria-label="Computer preview"]')];
+    return marks.map(el => el ? `${el.getAttribute("aria-label") || el.textContent.trim()} ${ratio(el).toFixed(1)}` : "missing 0").filter(t => Number(t.split(" ").pop()) < 4.5);
+  });
+  if (low.length) throw new Error(`hard to read at night: ${low.join(", ")}`);
+}, "?night=1");
+
 // The phone top bar used to wrap to five rows and push the preview half off the screen.
 await check("on a phone the top bar is two rows of full-size buttons, with View website under Theme actions", { width: 390, height: 844 }, async page => {
   const bar = await page.evaluate(() => {
