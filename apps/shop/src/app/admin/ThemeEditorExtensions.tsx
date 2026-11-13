@@ -203,13 +203,14 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     category: "Trust",
     defaults: {
       title: "FREQUENTLY ASKED QUESTIONS",
+      showSearch: true,
       items: [
-        { question: "Do you ship internationally?", answer: "Yes, we ship worldwide." },
-        { question: "How long is delivery?", answer: "Usually 3–7 business days." },
+        { question: "Do you ship internationally?", answer: "Yes, we ship worldwide.", group: "Shipping" },
+        { question: "How long is delivery?", answer: "Usually 3–7 business days.", group: "Shipping" },
       ],
     },
     blockType: "faq",
-    blockDefaults: { question: "New question?", answer: "New answer." },
+    blockDefaults: { question: "New question?", answer: "New answer.", group: "" },
     blockLabel: "FAQ item",
   },
   {
@@ -780,6 +781,7 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
   FAQSection: [
     { key: "question", label: "Question", kind: "text" },
     { key: "answer", label: "Answer", kind: "textarea", rows: 3 },
+    { key: "group", label: "Topic (questions with the same topic sit together)", kind: "text" },
   ],
   MulticolumnSection: [
     { key: "imageUrl", label: "Image", kind: "image" },
@@ -1647,6 +1649,11 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   FAQSection: [
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+    { key: "showSearch", label: "Search box above the questions", kind: "toggle" },
+    { key: "searchPlaceholder", label: "Search box words", kind: "text" },
+    { key: "noMatchText", label: "Words when no question matches", kind: "text" },
+    { key: "contactText", label: "Contact link words", kind: "text" },
+    { key: "contactUrl", label: "Contact link (empty = no link)", kind: "link" },
     { key: "accentColor", label: "Accent color", kind: "color" },
   ],
   NewsletterSection: [

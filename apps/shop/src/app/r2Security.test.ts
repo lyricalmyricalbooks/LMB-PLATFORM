@@ -68,7 +68,8 @@ describe("connected book details are escaped inside HTML fields (#119)", () => {
 
   it("every section that draws HTML is listed (so a new one can't skip escaping)", () => {
     const source = read("src/app/components/SectionComponents.tsx");
-    const used = [...source.matchAll(/__html: (?:sampleHtml\()?([A-Za-z.]+)/g)].map(m => m[1].split(".").pop()!);
+    // safeJson (features/site/faqHelp.ts) writes JSON for a <script type="application/ld+json"> with every "<" escaped.
+    const used = [...source.matchAll(/__html: (?:sampleHtml\()?([A-Za-z.]+)/g)].map(m => m[1].split(".").pop()!).filter(key => key !== "safeJson");
     const known = new Set([...Object.values(HTML_SETTING_KEYS).flat(), "body"]);
     for (const key of used) expect(known.has(key), `dangerouslySetInnerHTML field "${key}" must be in HTML_SETTING_KEYS`).toBe(true);
   });
