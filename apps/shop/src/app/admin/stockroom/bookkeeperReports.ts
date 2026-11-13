@@ -30,9 +30,9 @@ export function bookkeeperReports(input: StatementInput, pressName: string): Boo
   return {
     day: input.today, pressName, currency: balance.currency, balance, yearEnd: balanceSheet(input, `${year - 1}-12-31`),
     // Dated items only (the usual-sales line is in the weeks), and the first 80: the copy stays small.
-    // Invoice lines lose who was billed: the copy carries no customer names.
+    // Invoice lines (sent and repeating) lose who was billed: the copy carries no customer names.
     forecast: { ...forecast, items: forecast.items.filter((it) => it.source !== "sales").slice(0, 80)
-      .map((it) => (it.source === "invoice" ? { ...it, label: it.label.replace(/ from .*$/, "") } : it)) }, pl,
+      .map((it) => (it.source === "invoice" || it.source === "repeat" ? { ...it, label: it.label.replace(/ from .*$/, "") } : it)) }, pl,
   };
 }
 

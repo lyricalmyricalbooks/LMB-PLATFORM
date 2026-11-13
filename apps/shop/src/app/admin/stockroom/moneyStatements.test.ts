@@ -117,6 +117,43 @@ describe("cash flow forecast", () => {
   });
 });
 
+describe("supplier bills and repeating invoices", () => {
+  const withBills: StockroomRecords = {
+    ...records,
+    states: { salt: { ...records.states.salt, recurringInvoices: [{ id: "rp1", storeName: "Corner Books", every: "month", nextDate: "2026-12-01", total: 40, currency: "CA$", dueDays: 14, status: "active" }] } },
+    taxCenter: {
+      ...records.taxCenter,
+      bills: [
+        { id: "b1", supplier: "Ink Co", amount: 80, currency: "CAD", billDate: "2026-11-01", dueDate: "2026-11-20", ref: "B-7", status: "open" },
+        { id: "b2", supplier: "Paper Mill", amount: 25, currency: "CAD", billDate: "2026-10-01", dueDate: "2026-10-15", status: "paid", paidDate: "2026-10-15" },
+      ],
+    },
+  };
+  const billInput = () => ({ ...input(), records: withBills, sources: sourcesOf(withBills) });
+
+  it("owes the unpaid bills on the balance sheet, and a paid one only before it was paid", () => {
+    const line = (asOf: string) => balanceSheet(billInput(), asOf).liabilities.find((l) => l.id === "bills");
+    expect(line("2026-11-13")).toMatchObject({ amount: 80, note: "1 unpaid bill" });
+    expect(line("2026-10-10")).toMatchObject({ amount: 25 });
+    // No bills on file: no line at all.
+    expect(balanceSheet(input(), "2026-11-13").liabilities.find((l) => l.id === "bills")).toBeUndefined();
+  });
+
+  it("puts the bill and each repeating invoice on their days in the forecast", () => {
+    const f = cashForecast(billInput());
+    const dated = f.items.filter((it) => it.source === "bill" || it.source === "repeat").map((it) => [it.date, it.kind, it.amount, it.source]);
+    expect(dated).toEqual([
+      ["2026-11-20", "out", 80, "bill"],
+      ["2026-12-15", "in", 40, "repeat"],
+      ["2027-01-15", "in", 40, "repeat"],
+    ]);
+    // February's invoice is made on the 1st but due on the 15th, after the 90 days end (2027-02-10).
+    expect(f.items.find((it) => it.source === "bill")?.label).toBe("Bill B-7 to Ink Co");
+    // The accountant's copy keeps no customer names, repeating invoices included.
+    expect(JSON.stringify(bookkeeperReports(billInput(), "Moth Press").forecast.items)).not.toContain("Corner Books");
+  });
+});
+
 describe("tax pack", () => {
   it("names every file so an accountant can follow it, with the receipts listed", () => {
     const { files, receipts } = taxPackFiles({ ...input(), pressName: "Moth Press", year: "2026", yearReport: { text: "YR" }, taxSeason: { text: "TS" }, ledger: { text: "LG" } });
