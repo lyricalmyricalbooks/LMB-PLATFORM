@@ -14,7 +14,7 @@ const { shopConfig } = require("./shopConfig");
 const PLATFORM_SERVICE_KEY = defineSecret("PLATFORM_SERVICE_KEY");
 
 /** Does this shop call the platform's services (payments through the platform, or the platform's email sender)? */
-const usesPlatformServices = (config = shopConfig) => config.paymentMode === "platform" || Boolean(config.platformEmailUrl) || Boolean(config.platformDomainsUrl) || Boolean(config.platformAccountingUrl) || Boolean(config.platformSocialUrl) || Boolean(config.platformAccountsUrl) || Boolean(config.platformAppsUrl) || Boolean(config.platformReceiptsUrl);
+const usesPlatformServices = (config = shopConfig) => config.paymentMode === "platform" || Boolean(config.platformEmailUrl) || Boolean(config.platformDomainsUrl) || Boolean(config.platformAccountingUrl) || Boolean(config.platformSocialUrl) || Boolean(config.platformAccountsUrl) || Boolean(config.platformAppsUrl) || Boolean(config.platformReceiptsUrl) || Boolean(config.platformBankFeedUrl);
 
 // A shop's own provider keys. A shop on the platform's services has none of them as Functions secrets: the shared server
 // is one deploy for every shop, its payments and email go through the platform, and a press's own Shippo or PayPal

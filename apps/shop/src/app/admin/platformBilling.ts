@@ -29,7 +29,11 @@ export type BillingStatus = {
   usage?: { fee: string; lastMonth: { month: string; monthWords: string; cents: number; text: string } | null; alert: { cents: number; text: string } };
   /** The language of the platform's emails: the choice, and what "auto" comes to ("fr+en" for a Quebec address). */
   emailLanguage?: { choice: "auto" | "fr" | "en"; sends: "fr" | "en" | "fr+en" };
+  /** Paid add-ons. Bank feed (beta): absent until the platform has opened it. */
+  addOns?: { bankFeed?: BankFeedAddOn | null };
 };
+/** The bank feed add-on as the platform tells it: its price in the shop's billing currency and the banks connected now. */
+export type BankFeedAddOn = { on: boolean; price: string; extraPrice: string; included: number; banks: number; plusTax?: boolean };
 export type StatusAnswer = { billing: BillingStatus | null; accountPage: string; changesNeedTwoStep: boolean };
 export type PlanPreview = { plan: PlanId; planName: string; price: string; from: PlanId | null; adds: string[]; closes: string[]; immediate: boolean; closesAt: string | null; downloadUntil: string | null; prorate: boolean; prorated: { amount: number; text: string } | null };
 export type SavedCard = { id: string; words: string; brand: string; last4: string; expMonth: number | null; expYear: number | null; primary: boolean; expired: boolean };
@@ -236,4 +240,17 @@ export function alertCents(typed: string): number | null {
 /** The plan's price in words: the fee, and under pay what you use the running cost on top. */
 export function priceWords(billing: Pick<BillingStatus, "price" | "plusTax" | "usage">, fee = billing.price): string {
   return `${fee} a month${billing.usage ? " + running cost" : ""}${billing.plusTax ? " plus tax" : ""}`;
+}
+
+/** "CA$4 a month, up to two banks. CA$1.50 for each extra bank." The add-on's price on the Plan page. Pure. */
+export function bankFeedPriceWords(addOn: Pick<BankFeedAddOn, "price" | "extraPrice" | "included" | "plusTax">): string {
+  const count = ["no", "one", "two", "three", "four"][addOn.included] ?? String(addOn.included);
+  return `${addOn.price} a month${addOn.plusTax ? " plus tax" : ""}, up to ${count} bank${addOn.included === 1 ? "" : "s"}.${addOn.extraPrice ? ` ${addOn.extraPrice} for each extra bank.` : ""}`;
+}
+
+/** What this month's add-on line comes to, in words: "2 banks connected" or "3 banks connected: 1 extra". Pure. */
+export function bankFeedBanksWords(addOn: Pick<BankFeedAddOn, "banks" | "included">): string {
+  if (!addOn.banks) return "No bank connected yet";
+  const extra = Math.max(0, addOn.banks - addOn.included);
+  return `${addOn.banks} bank${addOn.banks === 1 ? "" : "s"} connected${extra ? `: ${extra} extra` : ""}`;
 }

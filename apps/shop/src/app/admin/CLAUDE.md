@@ -948,3 +948,21 @@ receipts). **Check and add** opens the Log expense page with `emailReceipt` (`Lo
 first, the expense is saved with it attached in one write, then the email is cleared; a failed file adds nothing. Not a
 port of the old Gmail receipt finder (Julian didn't like it): no Gmail sign-in, no scanning a mailbox. Fixture:
 `admin-fixture.html?page=stockroom/receipts` (`&receipts=off|soon|code`).
+
+## Bank feed (beta, a paid add-on, 13 November 2026)
+
+Bookkeeping › Transactions opens with the **Bank feed** card (`stockroom/BankFeed.tsx`, above `ReconcileView`), always
+marked Beta and "with Plaid" (`PlaidLogo.tsx`, Plaid's own logo in the text colour; the owner asked for Plaid to be
+named and shown). States: Opening soon (`available: false`) · the add-on's price with **Add bank feed** (to Settings ›
+Plan) · **Connect your bank with Plaid** (Plaid Link, loaded only on that press, `bankFeedApi.connect`) · the banks and
+**To review**. `bankMatch.ts` (pure) says what each line most likely is: a card payout (`reconcileModel` net amount,
+a day before to five days after), an expense already in the books (same amount and currency within four days), else a
+new expense under the sorting rules' category (`categoryFromRules`). Confirm, Add expense (saved with `saveTaxCenter` +
+`addBusinessExpense` under one stable id per line, then `decide` marks it `added`) or Skip; **Confirm all** covers
+payouts and existing expenses only. Without `onTaxCenter` (the bookkeeper) the card is read-only.
+- **The add-on** is `AddOnsCard` on Settings › Plan (`BillingHub.tsx`, `addOns.css`), shown only when the billing
+  status carries `addOns.bankFeed` (the platform has opened it); `billingCall(plan, "add-on", { addOn: "bank-feed", on })`.
+  The words say when it is billed (after a calendar month a bank was connected; nothing in the trial) and that turning
+  it off disconnects the banks.
+- Fixture: `admin-fixture.html?page=stockroom/reconcile` (`&bank=soon|off|connect|signin|empty`) and
+  `?plan=open&page=settings/plan` (`&bankaddon=on|none`). Tests: `BankFeed.test.tsx`, `bankMatch.test.ts`.

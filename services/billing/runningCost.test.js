@@ -135,3 +135,29 @@ test("the heads-up email goes once a month when the bill looks set to pass the p
   assert.deepEqual(await w.billing.runningCostAlerts({ month: "2027-01", soFar: { "moth-press": 300 } }), [], "under their own amount");
   await assert.rejects(w.billing.setCostAlert({ shopId: "moth-press", cents: -1 }), /\$0 to \$10,000/);
 });
+
+test("the bank feed add-on goes on the next bill once per month a bank was connected, in the shop's currency, never in the trial", async () => {
+  const w = make();
+  await w.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await w.billing.startTrial({ account: { ...ACCOUNT, accountId: "acct-2", email: "two@example.com" }, shopId: "trial-press", pressName: "Trial Press", plan: "both" });
+  await w.billing.startTrial({ account: { ...ACCOUNT, accountId: "acct-3", email: "three@example.com" }, shopId: "no-bank", pressName: "No Bank", plan: "both" });
+  await w.stores.subscriptions.set("moth-press", { ...(await w.stores.subscriptions.get("moth-press")), status: "active", trialEnd: "2026-10-20T00:00:00Z" });
+  await w.stores.subscriptions.set("no-bank", { ...(await w.stores.subscriptions.get("no-bank")), status: "active", trialEnd: "2026-10-20T00:00:00Z" });
+  const cents = (currency, banks) => (currency === "USD" ? 300 : 400) + Math.max(0, banks - 2) * 150;
+
+  const run = await w.billing.billBankFeed({ month: "2026-11", banks: { "moth-press": 3, "trial-press": 1 }, cents });
+  assert.deepEqual(run.billed, [{ shopId: "moth-press", cents: 550 }, { shopId: "trial-press", cents: 0 }]);
+  const items = [...w.stripe.world.invoiceItems.values()];
+  assert.equal(items.length, 1, "no bank, no line; a trial month costs nothing");
+  assert.deepEqual([items[0].amount, items[0].currency, items[0].discountable, items[0].metadata.lmb_kind, items[0].metadata.lmb_banks], [550, "cad", "false", "bank-feed", "3"]);
+  assert.match(items[0].description, /^Bank feed, November 2026 \/ Flux bancaire$/);
+
+  // Again (the job runs daily), and after a record that didn't save: never a second line.
+  assert.deepEqual((await w.billing.billBankFeed({ month: "2026-11", banks: { "moth-press": 3 }, cents })).billed, []);
+  await w.stores.subscriptions.set("moth-press", { ...(await w.stores.subscriptions.get("moth-press")), bankFeedBills: {} });
+  assert.deepEqual((await w.billing.billBankFeed({ month: "2026-11", banks: { "moth-press": 3 }, cents })).billed, [{ shopId: "moth-press", cents: 550 }]);
+  assert.equal(w.stripe.world.invoiceItems.size, 1);
+  // A running-cost line for the same month is its own line.
+  await w.billing.billRunningCosts({ month: "2026-11", costs: { "moth-press": 100, "trial-press": 0, "no-bank": 0 } });
+  assert.equal(w.stripe.world.invoiceItems.size, 2);
+});

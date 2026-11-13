@@ -134,7 +134,7 @@ describe("wiring", () => {
   const jobsSrc = readFileSync(new URL("./scheduledJobs.js", import.meta.url), "utf8");
   it("registers all fourteen sweeps by name and keeps exactly one real scheduler job", () => {
     const names = [...(index + jobsSrc).matchAll(/onSchedule\(\s*\{[^}]*?name: "(\w+)"/g)].map(m => m[1]);
-    expect(names.sort()).toEqual(["abandonedCartSweep", "backInStockSweep", "dailyOrderDigest", "fairDaySummary", "inventoryLinkSweep",
+    expect(names.sort()).toEqual(["abandonedCartSweep", "backInStockSweep", "bankFeedSweep", "dailyOrderDigest", "fairDaySummary", "inventoryLinkSweep",
       "moveReminder", "nightlyFirestoreBackup", "paymentPageSweep", "receiptInboxSweep", "refreshExchangeRates", "socialPostSweep", "storageImageSweep", "teamExpirySweep", "unpaidPaymentSweep", "weeklySummary"]);
     expect(index.match(/onScheduleReal\(/g)).toHaveLength(1);
     expect(index).toMatch(/exports\.tick = onScheduleReal\(/);

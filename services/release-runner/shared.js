@@ -41,7 +41,7 @@ const usable = (version) => (version && version !== "unknown" && !version.includ
 /**
  * The shared server's settings file (functions/.env.<project>): what is the same for every shop. Each shop's own
  * settings (SHOP_KEYS in setup/sharedSteps.js) are fields of its record, read per request (functions/shopConfig.js).
- * `platformUrl` is the platform's address (its /api/payments, /api/email/shop, /api/domains, /api/google, /api/apps and /api/receipts doors).
+ * `platformUrl` is the platform's address (its /api/payments, /api/email/shop, /api/domains, /api/google, /api/apps, /api/receipts and /api/bank-feed doors).
  */
 export function sharedServerEnv({ platformUrl, region = REGION }) {
   const base = String(platformUrl ?? "").replace(/\/+$/, "");
@@ -69,6 +69,9 @@ export function sharedServerEnv({ platformUrl, region = REGION }) {
     // Receipts by email (services/receipts, beta): Bookkeeping › Receipts gives the shop its receipts address and
     // collects what was forwarded to it. Until the platform has RECEIPT_MAIL on, the card says "Opening soon".
     `PLATFORM_RECEIPTS_URL="${base}/api/receipts"`,
+    // Bank feed (services/bankfeed, beta, a paid add-on): Bookkeeping › Transactions connects the shop's bank through
+    // Plaid. Until the platform has BANK_FEED on, the card says "Opening soon".
+    `PLATFORM_BANK_FEED_URL="${base}/api/bank-feed"`,
     "",
   ].join("\n");
 }

@@ -28,6 +28,7 @@ export const FIXED_TIMES = Object.freeze({
   // Before the running costs, which bill by the meters it writes.
   "usage-meters": "35 2 * * *",
   "running-costs": "45 2 * * *",
+  "bank-feed": "55 2 * * *",
   "income-record": "30 2 * * *",
   "self-checks": "0 3 * * *",
   bookkeeping: "30 3 * * *",

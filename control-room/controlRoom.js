@@ -500,6 +500,8 @@ export function createControlRoom({
           email: row.emailSending ?? null,
           // Receipts by email (services/receipts): on or off, since when and today's count. Never the address itself.
           receipts: row.receiptMail ? { on: row.receiptMail.on === true, since: row.receiptMail.startedAt ?? null, today: row.receiptMail.day === now().toISOString().slice(0, 10) ? Number(row.receiptMail.handed) || 0 : 0 } : null,
+          // The bank feed add-on (services/bankfeed): on or off, since when and the banks by name. Never their access.
+          bankFeed: row.bankFeed ? { on: row.bankFeed.on === true, since: row.bankFeed.onSince ?? null, offAt: row.bankFeed.offAt ?? null, banks: (row.bankFeed.banks ?? []).map((b) => String(b.name ?? "Bank")) } : null,
         },
         fee: { ...fee, next, defaults: feeDefaults },
         lastChecks: checks.slice(-5).reverse(),

@@ -28,6 +28,8 @@
 //   POST /api/billing/details/save             { shopId, name, email, address, taxNumber } -> { saved }
 //   POST /api/billing/upcoming                 { shopId } -> { bill }: the next bill line by line, or null
 //   POST /api/billing/pay-now                  { shopId } -> { paid } or { needsConfirming, url }
+//   POST /api/billing/add-on                   { shopId, addOn: "bank-feed", on } -> { addOns }: the bank feed add-on
+//                                  (given `bankFeed`, services/bankfeed); off disconnects the shop's banks first
 //   The download, when the door is given `exports` (the shop admin's door; the account page has its own button):
 //   POST /api/billing/download                 { shopId } -> { emailedTo, expiresAt }: a copy of everything, the
 //                                  closed app's records included while they're kept (services/export forOwner: once a day)
@@ -51,7 +53,7 @@ export const billingPage = (settings, shopId) => `${settings.platformUrl}/accoun
  * Every billing call, by name, for both doors: { run(shopId, body, { returnUrl }), secondStep }. `secondStep` (true, or
  * a test of the body) marks the changes a paid plan's owner needs two-step sign-in for (plan 14.1); looking is free.
  */
-export function billingCalls({ billing, paymentWay = null, settings, exports = null }) {
+export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null }) {
   // The card and the billing details are the paying account's (one Stripe customer for every shop it pays for), so only
   // that person changes them: a co-owner's card would otherwise pay the account holder's other shops too.
   const payerOnly = (run) => async (shopId, body, context) => {
@@ -61,7 +63,14 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
     return run(shopId, body, context);
   };
   const calls = {
-    status: { run: async (shopId) => ({ billing: await billing.status(shopId) }) },
+    status: {
+      run: async (shopId) => {
+        const status = await billing.status(shopId);
+        // Add-ons (the bank feed, beta): shown on the Plan page only once the platform has opened them.
+        const addOn = status && bankFeed ? await bankFeed.addOnView(shopId) : null;
+        return { billing: addOn ? { ...status, addOns: { bankFeed: addOn } } : status };
+      },
+    },
     "email-language": { run: async (shopId, { language }) => billing.setEmailLanguage({ shopId, language }) },
     // Pay what you use: the amount a month's bill may pass before the press is emailed (0 turns the email off).
     "cost-alert": { run: async (shopId, { cents }) => billing.setCostAlert({ shopId, cents }) },
@@ -111,6 +120,21 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
       "pay-now": { run: async (shopId) => billing.payNow({ shopId }) },
     });
   }
+  if (bankFeed) {
+    // The bank feed add-on (services/bankfeed): on, or off (which disconnects the shop's banks first). It is billed
+    // after each month a bank was connected, as its own line on the plan's bill.
+    calls["add-on"] = {
+      run: async (shopId, { addOn, on }, context) => {
+        if (addOn !== "bank-feed" || typeof on !== "boolean") throw new BillingError(400, "Which add-on?");
+        if (on) {
+          const status = await billing.status(shopId);
+          if (!status || status.access !== "open") throw new BillingError(409, "Bring your plan back first, then add the bank feed.");
+        }
+        return { addOns: { bankFeed: await bankFeed.setAddOn(shopId, on, context?.claims?.email ?? "") } };
+      },
+      secondStep: (asked) => asked.on === true,
+    };
+  }
   if (exports) {
     // The same once-a-day copy as the account page's Download all your data, emailed to the shop's owner.
     calls.download = { run: async (shopId, _body, { claims }) => { const { emailedTo, expiresAt } = await exports.forOwner(claims, { shopId }); return { emailedTo, expiresAt }; } };
@@ -137,7 +161,7 @@ export function billingCallLog({ registry, auditLog, now, source = "billing-door
   };
 }
 
-export function billingRoutes({ billing, paymentWay = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
+export function billingRoutes({ billing, paymentWay = null, bankFeed = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   const log = billingCallLog({ registry, auditLog, now });
 
@@ -169,7 +193,7 @@ export function billingRoutes({ billing, paymentWay = null, accounts, registry, 
     };
   }
 
-  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
+  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings, bankFeed })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
 }
 
 /**
