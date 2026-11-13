@@ -1024,3 +1024,13 @@ script's two-shop checks). Fixture: `admin-fixture.html?page=stockroom/bkreports
 - **Alerts:** Dashboard keeps the automatic runs' alerts by id (`reminderAlerts`), so one never hides another.
 - **For the forecast and balance sheet:** `moneyDue.ts` (`openInvoices`, `openBills`, `expectedRepeats`, `moneyDue`)
   gives one row shape (kind, direction in/out, amount in its own currency, due day, late). Read it; don't re-derive.
+
+## Live visitors (13 November 2026, gap list 34)
+
+Analytics' "on the shop now" uses Google's figure when Google is connected, otherwise the shop's own count:
+`src/app/lib/liveVisitors.ts`. Each storefront tab that `trackingAllowed()` lets count, while on screen, adds one to the
+current UTC minute of `live/<UTC day>` (`m.<minute of the day>`) once a minute (`startLivePings`, started from
+`useSiteData`). The admin watches today's doc (`adminApi.watchLiveVisitors`) and shows the larger of the last full minute
+and this one (`liveNow`). `firestore.rules` › `live`: a visitor raises one minute within two of the server clock by one,
+on the server's day, and can't rewrite or remove anything; only the admin reads it (emulator checks, two-shop check).
+One small doc per day; a browser whose clock is off by more than two minutes isn't counted.

@@ -593,6 +593,39 @@ service cloud.firestore {
         );
         allow delete: if isAdmin();
       }
+      // Live visitors (src/app/lib/liveVisitors.ts): one doc per UTC day, `m` = minute of the day -> open shop tabs.
+      // A visitor raises one minute within two of the server clock by one, on the server's own day, and can't remove
+      // or rewrite anything, so a forged client can't fake a crowd. Only the admin reads it.
+      match /live/{docId} {
+        allow read: if isAdminReader();
+        allow delete: if isAdmin();
+        function liveMin(d) {
+          return string(request.time.hours() * 60 + request.time.minutes() + d);
+        }
+        function liveStep(n, o, k) {
+          return n.get(k, 0) is int && n.get(k, 0) - o.get(k, 0) >= 0 && n.get(k, 0) - o.get(k, 0) <= 1;
+        }
+        function liveMapOk(n, o) {
+          return n is map && n.size() <= 1440
+            && n.diff(o).removedKeys().size() == 0
+            && n.diff(o).affectedKeys().size() <= 1
+            && n.diff(o).affectedKeys().hasOnly([liveMin(-2), liveMin(-1), liveMin(0), liveMin(1), liveMin(2)])
+            && liveStep(n, o, liveMin(-2)) && liveStep(n, o, liveMin(-1)) && liveStep(n, o, liveMin(0))
+            && liveStep(n, o, liveMin(1)) && liveStep(n, o, liveMin(2));
+        }
+        function liveDayOk() {
+          return docId.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && request.resource.data.get('date', '') == docId
+            && request.time >= timestamp.date(int(docId.split('-')[0]), int(docId.split('-')[1]), int(docId.split('-')[2]))
+            && request.time < timestamp.date(int(docId.split('-')[0]), int(docId.split('-')[1]), int(docId.split('-')[2])) + duration.value(1, 'd');
+        }
+        allow create: if liveDayOk()
+          && request.resource.data.keys().hasOnly(['date', 'm'])
+          && liveMapOk(request.resource.data.get('m', {}), {});
+        allow update: if liveDayOk()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['m'])
+          && liveMapOk(request.resource.data.get('m', {}), resource.data.get('m', {}));
+      }
       // Gift cards (functions/giftCards.js): the admin reads them; only Functions create, spend or change them.
       match /giftCards/{cardId} {
         allow read: if isAdminReader() || isBookkeeper();

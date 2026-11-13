@@ -61,6 +61,22 @@ await check("made-up day refused", assertFails(setDoc(doc(anon, "analytics", "19
 await check("bad id refused", assertFails(setDoc(doc(anon, "analytics", "spam-doc"), { date: "spam-doc" }, { merge: true })));
 await check("mismatched date refused", assertFails(setDoc(doc(anon, "analytics", today), { date: "2020-01-01" }, { merge: true })));
 
+// live visitors: one more on the server's current minute, nothing else
+{
+  const now = new Date();
+  const liveDay = now.toISOString().slice(0, 10);
+  const minute = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const liveRef = doc(anon, "live", liveDay);
+  await check("a shop tab adds one to this minute", assertSucceeds(setDoc(liveRef, { date: liveDay, m: { [String(minute)]: increment(1) } }, { merge: true })));
+  await check("and again (another tab)", assertSucceeds(setDoc(liveRef, { date: liveDay, m: { [String(minute)]: increment(1) } }, { merge: true })));
+  await check("a live count can't jump by more than one", assertFails(setDoc(liveRef, { date: liveDay, m: { [String(minute)]: 500 } }, { merge: true })));
+  await check("a live count far from now refused", assertFails(setDoc(liveRef, { date: liveDay, m: { [String((minute + 300) % 1440)]: increment(1) } }, { merge: true })));
+  await check("a live count can't be wiped", assertFails(setDoc(liveRef, { date: liveDay, m: {} })));
+  await check("another day's live doc refused", assertFails(setDoc(doc(anon, "live", "2020-01-01"), { date: "2020-01-01", m: { [String(minute)]: increment(1) } }, { merge: true })));
+  await check("extra fields on the live doc refused", assertFails(setDoc(liveRef, { date: liveDay, spam: "x" }, { merge: true })));
+  await check("anon can't read the live count", assertFails(getDoc(liveRef)));
+}
+
 // newsletter: double opt-in means browsers can't add (or read) subscribers at all
 await check("anon can't add a newsletter signup", assertFails(setDoc(doc(anon, "newsletter/stranger@example.com"), { email: "stranger@example.com", subscribedAt: "x", source: "website" })));
 await check("anon can't pre-confirm a signup", assertFails(setDoc(doc(anon, "newsletter/stranger@example.com"), { email: "stranger@example.com", status: "confirmed", subscribedAt: "x" })));
@@ -339,6 +355,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner adds staff", assertSucceeds(setDoc(doc(owner, "members/sam@press.test"), { role: "staff", addedBy: "owner@example.com" })));
   await check("owner role adds staff", assertSucceeds(setDoc(doc(ownerRole, "members/lee@press.test"), { role: "staff" })));
   await check("owner reads the Team", assertSucceeds(getDocs(collection(owner, "members"))));
+  await check("owner reads live visitors", assertSucceeds(getDoc(doc(owner, "live/" + new Date().toISOString().slice(0, 10)))));
   await check("staff can't read the Team", assertFails(getDocs(collection(staff, "members"))));
   await check("staff can't promote themselves", assertFails(setDoc(doc(staff, "members/sam@press.test"), { role: "owner" })));
   await check("Team role must be known", assertFails(setDoc(doc(owner, "members/x@press.test"), { role: "boss" })));
@@ -571,6 +588,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't write another shop's licence keys", assertFails(setDoc(doc(ownerHereInS2, "licenceKeys/pub"), { available: ["X"], givenCount: 0, updatedAt: "2026-11-13" })));
   await check("owner can't write another shop's customer groups", assertFails(setDoc(doc(ownerHereInS2, "adminPrefs/customerGroups"), { data: "[]", updatedAt: Date.now() })));
   await check("owner can't write another shop's sheet switch", assertFails(setDoc(doc(ownerHereInS2, "adminPrefs/sheets"), { data: "{}", updatedAt: Date.now() })));
+  await check("owner can't read another shop's live visitors", assertFails(getDoc(doc(ownerHereInS2, "live/" + new Date().toISOString().slice(0, 10)))));
   await check("owner can't list another shop's orders", assertFails(getDocs(collection(ownerHereInS2, "orders"))));
   await check("the other shop's owner can't read this shop's orders", assertFails(getDoc(doc(ownerThereInS1, "orders/o1"))));
   await check("the other shop's staff can't write this shop's books", assertFails(setDoc(doc(staffThereInS1, "books/new"), { status: "draft", title: "x" })));
