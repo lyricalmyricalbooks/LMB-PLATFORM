@@ -62,7 +62,9 @@ export interface ProductMove {
 }
 
 const key = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const unguard = (value: string) => String(value ?? "").trim().replace(/^'([=+\-@\t\r])/, "$1");
+// A leading apostrophe is a spreadsheet guard: before a formula sign, and before a code that a spreadsheet would
+// otherwise mangle ('0123, 'MS-001, '+15145550100). A title such as "'Tis the Season" has no digit and keeps its own.
+const unguard = (value: string) => String(value ?? "").trim().replace(/^'([=+\-@\t\r])/, "$1").replace(/^'(?=\S*\d)(?=\S+$)(?!.*')/, "");
 
 /** Reads a table by heading, whatever order the columns are in. */
 function columns(headings: string[]) {
@@ -128,8 +130,28 @@ export function htmlToDescription(html: string): string {
 const money = (value: string) => { const n = parseMoney(value); return Number.isNaN(n) ? NaN : n; };
 const count = (value: string): number | null => { const s = value.replace(/[\s,]/g, ""); return /^-?\d+$/.test(s) ? Math.max(0, Number(s)) : null; };
 const list = (value: string, sep: RegExp = /,/) => [...new Set(value.split(sep).map(s => s.trim()).filter(Boolean))];
-const https = (value: string) => { try { const u = new URL(value.trim()); return u.protocol === "https:" ? u.href : ""; } catch { return ""; } };
+/**
+ * A photo's https address. Older exports still write http:// or //host/… for photos their host serves over https, so
+ * those are read as https; a bare file name from the shop builder that keeps its pictures at one fixed media address
+ * ("a9ff3b_1c2d…~mv2.jpg") is read at that address. "" when the cell is no address at all.
+ */
+const https = (value: string) => {
+  let v = String(value ?? "").trim();
+  if (!v) return "";
+  if (v.startsWith("//")) v = `https:${v}`;
+  else if (/^http:\/\//i.test(v)) v = v.replace(/^http:/i, "https:");
+  else if (/^[0-9a-f]{6}_[0-9a-f]{20,}(~mv2)?\.(jpe?g|png|gif|webp)$/i.test(v)) v = `https://static.wixstatic.com/media/${v}`;
+  try { const u = new URL(v); return u.protocol === "https:" && u.hostname.includes(".") ? u.href : ""; } catch { return ""; }
+};
+const kilos = (value: string) => { const n = Number(value); return Number.isFinite(n) && n > 0 ? metricWeightValue(`${n} kg`) : ""; };
 const grams = (value: string) => { const n = Number(value); return Number.isFinite(n) && n > 0 ? `${Math.round(n)} g` : ""; };
+
+const yes = (v: string) => /^(y|yes|true|1)$/i.test(v.trim());
+const no = (v: string) => /^(n|no|false|0)$/i.test(v.trim());
+const hiddenNote = "This product was hidden in your old shop.";
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+/** Gift cards are left out: a gift card here is made by the shop itself, with its own codes and balances. */
+const giftCardNotice = (names: string[]) => `${names.length} gift card product${plural(names.length, " was", "s were")} left out (${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}). This shop sells its own gift cards: turn them on under Gift cards.`;
 
 /** Price and sale price, from a regular price and a lower "was"/sale price in either order. */
 function prices(price: string, other: string, otherIsWas: boolean): { price: number; salePrice: number } {
@@ -168,7 +190,11 @@ function optionsOf(editions: MovedEdition[]): ProductOption[] {
 
 function book(line: number, cells: Record<string, string>, editions: MovedEdition[], photos: string[], oldPaths: string[], notes: string[] = []): MovedBook {
   const out: Record<string, string> = { ...cells };
+  // Some exports write a name's "&" as "&amp;".
+  if (out.Title) out.Title = decode(out.Title);
   const urls = [...new Set(photos.map(https).filter(Boolean))];
+  const lost = photos.filter(p => String(p ?? "").trim() && !https(p)).length;
+  if (lost) notes.push(`${lost} photo${lost === 1 ? "" : "s"} couldn't be brought over: the file gives no web address for ${lost === 1 ? "it" : "them"}. Add ${lost === 1 ? "it" : "them"} in the book editor.`);
   if (urls.length) out["Image URL"] = urls[0];
   if (urls.length > 1) out["Extra image URLs"] = urls.slice(1).join("|");
   const real = editions.filter(e => !Number.isNaN(e.price));
@@ -187,7 +213,10 @@ function book(line: number, cells: Record<string, string>, editions: MovedEditio
     const unpriced = editions.filter(e => Number.isNaN(e.price));
     if (unpriced.length) notes.push(`${unpriced.map(e => e.name || "An edition").join(", ")} had no price in the file, so ${unpriced.length === 1 ? "it was" : "they were"} left out.`);
     const kept = editions.filter(e => !Number.isNaN(e.price));
-    if (kept.length === 1) return book(line, out, kept, [], oldPaths, notes);
+    if (kept.length === 1) return { ...book(line, out, kept, [], oldPaths, notes), line };
+    // An edition has one price here, so a sale on one edition comes over at its regular price, and says so.
+    const onSale = kept.filter(e => e.salePrice > 0);
+    if (onSale.length) notes.push(`${onSale.map(e => `${e.name || "An edition"} (${e.salePrice.toFixed(2)})`).join(", ")} ${onSale.length === 1 ? "was" : "were"} on sale in your old shop. Each edition has one price here, so ${onSale.length === 1 ? "it comes" : "they come"} over at the regular price; change it in the book editor to keep the sale.`);
     if (kept.length) out.Price = String(Math.min(...kept.map(e => e.price)));
     const stock = kept.map(e => e.stock).filter((n): n is number => n !== null);
     if (stock.length) out.Stock = String(stock.reduce((t, n) => t + n, 0));
@@ -211,7 +240,7 @@ const EDITION_PHOTO = ["Variant Image", "Variant image URL"];
 // Which system counts an edition's stock; blank means nobody does (digital files, services, untracked goods).
 const TRACKER = ["Variant Inventory Tracker", "Inventory tracker"];
 
-function fromHandleRows(table: string[][]): MovedBook[] {
+function fromHandleRows(table: string[][], notices: string[]): MovedBook[] {
   const c = columns(table[0]);
   // "Barcode" became "Barcodes"; a file that has both is read from Barcodes.
   const BARCODE = c.has("Barcodes") ? ["Barcodes"] : ["Variant Barcode", "Barcode"];
@@ -223,8 +252,10 @@ function fromHandleRows(table: string[][]): MovedBook[] {
     if (!groups.has(handle)) groups.set(handle, { line: i + 2, rows: [] });
     groups.get(handle)!.rows.push(row);
   });
-  return [...groups.entries()].map(([handle, { line, rows }]) => {
+  const giftCards: string[] = [];
+  const out = [...groups.entries()].map(([handle, { line, rows }]) => {
     const head = rows.find(r => c.get(r, "Title")) || rows[0];
+    if (yes(c.get(head, "Gift Card"))) { giftCards.push(c.get(head, "Title") || handle); return null; }
     const editions: MovedEdition[] = [];
     const photos: { at: number; url: string }[] = [];
     rows.forEach((r, i) => {
@@ -253,11 +284,16 @@ function fromHandleRows(table: string[][]): MovedBook[] {
     if (seoDescription) cells["SEO description"] = seoDescription;
     // A file made from an old shop's address (plan 23.2) says where each product's page was.
     const oldPage = c.get(head, "Old page address");
-    return book(line, cells, editions, photos.sort((a, b) => a.at - b.at).map(p => p.url), [oldPage.startsWith("/") ? oldPage : `/products/${handle}`]);
-  });
+    // Status says draft or archived; files without it say Published false.
+    const status = c.get(head, "Status").toLowerCase();
+    const hidden = status ? status !== "active" : no(c.get(head, "Published"));
+    return book(line, cells, editions, photos.sort((a, b) => a.at - b.at).map(p => p.url), [oldPage.startsWith("/") ? oldPage : `/products/${handle}`], hidden ? [hiddenNote] : []);
+  }).filter((b): b is MovedBook => !!b);
+  if (giftCards.length) notices.push(giftCardNotice(giftCards));
+  return out;
 }
 
-function fromProductIdRows(table: string[][]): MovedBook[] {
+function fromProductIdRows(table: string[][], notices: string[]): MovedBook[] {
   const c = columns(table[0]);
   const optionHeads = table[0].map(h => key(h)).filter(k => /^option value \d+$/.test(k));
   const out: { line: number; head: string[]; rows: string[][] }[] = [];
@@ -267,7 +303,9 @@ function fromProductIdRows(table: string[][]): MovedBook[] {
     if (c.get(row, "Title") || !last || (id && id !== c.get(last.head, "Product ID [Non Editable]"))) out.push({ line: i + 2, head: row, rows: [row] });
     else last.rows.push(row);
   });
-  return out.map(({ line, head, rows }) => {
+  const giftCards: string[] = [];
+  const books = out.map(({ line, head, rows }) => {
+    if (/gift/i.test(c.get(head, "Product Type [Non Editable]"))) { giftCards.push(c.get(head, "Title")); return null; }
     const editions = rows.map(r => {
       const onSale = /^(yes|true|1)$/i.test(c.get(r, "On Sale"));
       const p = prices(c.get(r, "Price"), onSale ? c.get(r, "Sale Price") : "", false);
@@ -281,12 +319,15 @@ function fromProductIdRows(table: string[][]): MovedBook[] {
     if (description) cells.Description = description;
     const tags = list(c.get(head, "Tags"));
     if (tags.length) cells.Tags = tags.join(";");
-    const categories = list(c.get(head, "Categories"));
-    if (categories.length) cells.Categories = categories.join(";");
+    // A category is written by name, or as its address under the shop page ("/shop/poetry").
+    const categories = list(c.get(head, "Categories")).map(v => (v.startsWith("/") ? v.split("/").filter(Boolean).pop() || "" : v)).filter(Boolean);
+    if (categories.length) cells.Categories = [...new Set(categories)].join(";");
     const page = c.get(head, "Product Page").replace(/^\/+|\/+$/g, ""), slug = c.get(head, "Product URL").replace(/^\/+|\/+$/g, "");
     const oldPaths = page && slug ? [`/${page}/p/${slug}`, `/${page}/${slug}`] : [];
-    return book(line, cells, editions, list(c.get(head, "Hosted Image URLs"), /\s+/), oldPaths);
-  });
+    return book(line, cells, editions, list(c.get(head, "Hosted Image URLs"), /\s+/), oldPaths, no(c.get(head, "Visible")) ? [hiddenNote] : []);
+  }).filter((b): b is MovedBook => !!b);
+  if (giftCards.length) notices.push(giftCardNotice(giftCards));
+  return books;
 }
 
 function fromParentRows(table: string[][], notices: string[]): MovedBook[] {
@@ -295,20 +336,24 @@ function fromParentRows(table: string[][], notices: string[]): MovedBook[] {
   const unit = /\blbs?\b/.test(key(weightHeading)) ? "lb" : /\boz\b/.test(key(weightHeading)) ? "oz" : /\bg\b/.test(key(weightHeading)) ? "g" : "kg";
   const weight = (row: string[]) => { const n = Number(c.get(row, weightHeading)); return weightHeading && Number.isFinite(n) && n > 0 ? metricWeightValue(`${n} ${unit}`) : ""; };
   const attributeHeads = table[0].map(h => key(h)).filter(k => /^attribute \d+ value s$/.test(k));
-  const text = (row: string[], ...names: string[]) => c.get(row, ...names).replace(/\\n/g, "\n");
+  // A line break is written "\n"; inside HTML it is a break, which a bare new line would not be.
+  const text = (row: string[], ...names: string[]) => { const v = c.get(row, ...names); return v.replace(/\\n/g, /<[a-z][^>]*>/i.test(v) ? "<br>" : "\n"); };
+  const codeHeading = c.heading(/\b(gtin|isbn|ean)\b/);
   const products: { line: number; row: string[]; variations: string[][] }[] = [];
   const byRef = new Map<string, (typeof products)[number]>();
   const variations: string[][] = [];
+  const other: string[] = [];
   table.slice(1).forEach((row, i) => {
     const type = c.get(row, "Type").toLowerCase();
     if (/\bvariation\b/.test(type)) { variations.push(row); return; }
-    if (!/\b(simple|variable)\b/.test(type)) return;
+    if (!/\b(simple|variable)\b/.test(type)) { if (c.get(row, "Name")) other.push(c.get(row, "Name")); return; }
     const p = { line: i + 2, row, variations: [] as string[][] };
     products.push(p);
     const id = c.get(row, "ID"), sku = c.get(row, "SKU");
     if (id) byRef.set(`id:${id}`, p);
     if (sku) byRef.set(sku.toLowerCase(), p);
   });
+  if (other.length) notices.push(`${other.length} line${plural(other.length, " was", "s were")} left out (${other.slice(0, 3).join(", ")}${other.length > 3 ? "…" : ""}): a product set, a link to another shop or another kind of line that isn't a product on its own.`);
   const orphans: string[] = [];
   for (const v of variations) {
     const parent = c.get(v, "Parent");
@@ -333,14 +378,21 @@ function fromParentRows(table: string[][], notices: string[]): MovedBook[] {
     if (tags.length) cells.Tags = tags.join(";");
     const w = weight(row);
     if (w) cells.Weight = w;
+    const isbn = codeHeading && !vs.length ? c.get(row, codeHeading) : "";
+    if (isbn && validIsbn(isbn)) cells.ISBN = isbn;
     const notes = /\b(variable)\b/i.test(c.get(row, "Type")) && !vs.length ? ["This product had choices in your old shop, but none of them were in the file."] : [];
+    // Published is 1; 0 is private and -1 a draft.
+    if (/^(0|-1)$/.test(c.get(row, "Published"))) notes.push(hiddenNote);
     return book(line, cells, editions, list(c.get(row, "Images")), [], notes);
   });
 }
 
-function fromListingRows(table: string[][]): MovedBook[] {
+function fromListingRows(table: string[][], notices: string[]): MovedBook[] {
   const c = columns(table[0]);
   const imageHeads = table[0].map(h => key(h)).filter(k => /^image\d+$/.test(k)).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5)));
+  // The file says which currency its prices are in; this shop's prices are in Canadian dollars.
+  const currencies = [...new Set(table.slice(1).map(r => c.get(r, "CURRENCY_CODE").toUpperCase()).filter(v => /^[A-Z]{3}$/.test(v) && v !== "CAD"))];
+  if (currencies.length) notices.push(`The prices in this file are in ${currencies.join(" and ")}. They come over as the same numbers in Canadian dollars, so check each price before you publish.`);
   return table.slice(1).map((row, i) => {
     const cells: Record<string, string> = { Title: c.get(row, "TITLE") };
     const description = htmlToDescription(c.get(row, "DESCRIPTION"));
@@ -352,7 +404,9 @@ function fromListingRows(table: string[][]): MovedBook[] {
       const values = c.get(row, `VARIATION ${n} VALUES`);
       if (values) notes.push(`Your old shop offered ${c.get(row, `VARIATION ${n} NAME`, `VARIATION ${n} TYPE`) || "choices"} (${values}) without a price or stock for each, so add them as editions in the book editor.`);
     }
-    const edition: MovedEdition = { name: "", ...prices(c.get(row, "PRICE"), "", false), stock: count(c.get(row, "QUANTITY")), sku: c.get(row, "SKU"), weight: "", photoUrl: "" };
+    // A listing with choices lists every choice's SKU in one cell; none of them is the product's own.
+    const sku = c.get(row, "SKU");
+    const edition: MovedEdition = { name: "", ...prices(c.get(row, "PRICE"), "", false), stock: count(c.get(row, "QUANTITY")), sku: notes.length && sku.includes(",") ? "" : sku, weight: "", photoUrl: "" };
     return book(i + 2, cells, [edition], imageHeads.map(h => c.get(row, h)), [], notes);
   }).filter(b => b.cells.Title || b.cells.Price);
 }
@@ -446,7 +500,7 @@ function fromVariationNameRows(table: string[][], notices: string[]): MovedBook[
       return {
         name: rows.length === 1 && /^regular$/i.test(variation) ? "" : variation,
         ...prices(c.get(r, "Price"), c.get(r, "Online Sale Price"), false),
-        stock: counts.length ? counts.reduce((t, n) => t + n, 0) : null, sku: c.get(r, "SKU"), weight: "", photoUrl: "", ...(picks ? { picks } : {}),
+        stock: counts.length ? counts.reduce((t, n) => t + n, 0) : null, sku: c.get(r, "SKU"), weight: kilos(c.get(r, "Weight (kg)")), photoUrl: "", ...(picks ? { picks } : {}),
       };
     });
     const cells: Record<string, string> = { Title: c.get(head, "Item Name") };
@@ -459,7 +513,8 @@ function fromVariationNameRows(table: string[][], notices: string[]): MovedBook[
     if (seoDescription) cells["SEO description"] = seoDescription;
     const gtin = rows.length === 1 ? c.get(head, "GTIN") : "";
     if (gtin && validIsbn(gtin)) cells.ISBN = gtin;
-    return book(line, cells, editions, [], [], []);
+    const visibility = c.get(head, "Square Online Item Visibility", "Item Visibility", "Visibility").toLowerCase();
+    return book(line, cells, editions, [], [], /^(hidden|unavailable)$/.test(visibility) ? [hiddenNote] : []);
   });
 }
 
@@ -467,10 +522,7 @@ function fromVariationNameRows(table: string[][], notices: string[]): MovedBook[
 // Each groups a product line with the lines under it. Weights are left out: these files don't say whether they are in
 // pounds or kilograms. Category cells that are only numbers (ids, not names) are left out too.
 
-const yes = (v: string) => /^(y|yes|true|1)$/i.test(v.trim());
-const no = (v: string) => /^(n|no|false|0)$/i.test(v.trim());
 const named = (values: string[]) => values.filter(v => v && !/^\d+$/.test(v));
-const hiddenNote = "This product was hidden in your old shop.";
 
 /**
  * Choices written as "Type=Dropdown|Name=Size|Value=M" pairs, with any separator between them or none
@@ -639,15 +691,16 @@ export function readProductExport(text: string): ProductMove | null {
   const shape = recognizeExport(table[0]);
   if (!shape) return null;
   const notices: string[] = [];
-  const books = shape === "handle-rows" ? fromHandleRows(table)
-    : shape === "product-id-rows" ? fromProductIdRows(table)
+  const books = shape === "handle-rows" ? fromHandleRows(table, notices)
+    : shape === "product-id-rows" ? fromProductIdRows(table, notices)
     : shape === "parent-rows" ? fromParentRows(table, notices)
     : shape === "field-type-rows" ? fromFieldTypeRows(table, notices)
     : shape === "variation-name-rows" ? fromVariationNameRows(table, notices)
+    : shape === "listing-rows" ? fromListingRows(table, notices)
     : shape === "item-rows" ? fromItemRows(table)
     : shape === "sku-rows" ? fromSkuRows(table)
     : shape === "typed-rows" ? fromTypedRows(table, notices)
-    : fromListingRows(table);
+    : fromListingRows(table, notices);
   const problems = books.length ? [] : ["This export has no products in it. Export your products again from your old shop, including every product, and choose that file."];
   if (books.length > MAX_IMPORT_ROWS) problems.push(`The export has ${books.length} products; bring over up to ${MAX_IMPORT_ROWS} at a time.`);
   const { has } = columns(table[0]);
@@ -829,7 +882,7 @@ export function readCustomerExport(text: string): CustomerMove {
       : signUps ? !leftList
       : null;
     const orders = count(c.get(row, "Total Orders", "Orders", "Order Count", "Transaction Count"));
-    const spentRaw = c.get(row, "Total Spent", "Total Spend", "Money Spent", "Spent");
+    const spentRaw = c.get(row, "Total Spent", "Total Spend", "Lifetime Spend", "Money Spent", "Spent");
     const spent = spentRaw ? money(spentRaw) : NaN;
     customers.push({ line, email, name, place, tags: parseTags(c.get(row, "Tags", "Labels", "Groups").replace(/;/g, ",")), note: c.get(row, "Note", "Notes", "Memo"), acceptsEmail, orders, spent: Number.isNaN(spent) ? null : spent });
   });

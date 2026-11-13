@@ -75,6 +75,15 @@ async function readBook(book: Book, sheet?: string): Promise<SpreadsheetRead> {
 export function decodeText(bytes: Uint8Array): string {
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes.subarray(2));
   if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+  // Two-byte text saved without its marker: plain letters leave every other byte empty.
+  const sample = bytes.subarray(0, Math.min(bytes.length, 2000) & ~1);
+  if (sample.length >= 8) {
+    let even = 0, odd = 0;
+    for (let i = 0; i < sample.length; i += 2) { if (sample[i] === 0) even++; if (sample[i + 1] === 0) odd++; }
+    const half = sample.length / 2;
+    if (odd > half * 0.6 && even < half * 0.1) return new TextDecoder("utf-16le").decode(bytes);
+    if (even > half * 0.6 && odd < half * 0.1) return new TextDecoder("utf-16be").decode(bytes);
+  }
   const body = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? bytes.subarray(3) : bytes;
   try { return new TextDecoder("utf-8", { fatal: true }).decode(body); }
   catch { return new TextDecoder("windows-1252").decode(body); }

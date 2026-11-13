@@ -44,7 +44,7 @@ const LAST = ["billing last name", "buyer last name", "last name", "shipping las
 // "total collected" and "net sales" last: a till's transactions file and a store-analytics list have no other total.
 const TOTAL = ["total", "order total", "total price", "grand total", "order total amount", "order total inc tax", "amount", "total collected", "net sales"];
 const SUBTOTAL = ["subtotal", "order subtotal", "items total", "subtotal price", "subtotal ex tax", "order value"];
-const SHIPPING = ["shipping", "shipping total", "shipping cost", "order shipping", "shipping amount", "shipping price", "order shipping price", "shipping cost ex tax", "shipping rate"];
+const SHIPPING = ["shipping", "shipping total", "shipping cost", "order shipping", "shipping amount", "shipping price", "order shipping price", "shipping cost ex tax", "shipping rate", "total shipping"];
 const TAX = ["taxes", "tax", "taxes total", "tax total", "sales tax", "order tax", "total tax", "order tax total", "order sales tax"];
 const DISCOUNT = ["discount amount", "discount", "discount total", "cart discount", "order discount", "total discount", "discounts"];
 const CURRENCY = ["currency", "currency code", "order currency", "order currency code"];
@@ -198,7 +198,10 @@ export function readPastOrders(text: string, now = new Date()): PastOrderFile {
       const title = cell(r, col.item);
       if (!title) continue;
       const packed = packedItems(title);
-      const these = packed ?? [{ title: title.slice(0, 200), quantity: Math.max(1, Math.round(num(r, col.qty) ?? 1)), price: Math.max(0, num(r, col.price) ?? 0), ...(cell(r, col.sku) ? { sku: cell(r, col.sku).slice(0, 80) } : {}) }];
+      // A file with only what each line came to gives the price of one: the line's total over its quantity.
+      const qty = Math.max(1, Math.round(num(r, col.qty) ?? 1));
+      const each = num(r, col.price) ?? (num(r, col.lineTotal) !== undefined ? cents(num(r, col.lineTotal)! / qty) : 0);
+      const these = packed ?? [{ title: title.slice(0, 200), quantity: qty, price: Math.max(0, each), ...(cell(r, col.sku) ? { sku: cell(r, col.sku).slice(0, 80) } : {}) }];
       items.push(...these);
       linesSum += num(r, col.lineTotal) ?? these.reduce((t, i) => t + i.quantity * i.price, 0);
     }

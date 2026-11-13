@@ -1,0 +1,6 @@
+Customer ID,First Name,Last Name,Email,Accepts Email Marketing,Default Address Company,Default Address Address1,Default Address Address2,Default Address City,Default Address Province Code,Default Address Country Code,Default Address Zip,Default Address Phone,Phone,Accepts SMS Marketing,Total Spent,Total Orders,Note,Tax Exempt,Tags
+'7001,Zoë,Brontë,Zoe@Example.com,yes,,12 Rue de l'Église,Apt 3,Montréal,QC,CA,'H2X 1Y4,,,no,64.41,1,"Likes signed copies",no,"vip, poetry"
+'7002,Sam,Okafor,sam@example.com,no,,1 Main St,,Portland,OR,US,'97201,,'+15035550100,no,48.00,1,,no,
+'7003,,,,no,,,,,,,,,'+14165550101,yes,0.00,0,,no,
+'7004,Lee,Wu,lee@example,no,,,,Toronto,ON,CA,,,,no,15.75,1,,no,
+'7005,Zoe,Bronte,zoe@example.com,yes,,,,,,,,,,no,0.00,0,,no,

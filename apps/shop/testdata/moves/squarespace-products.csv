@@ -1,0 +1,7 @@
+Product ID [Non Editable],Variant ID [Non Editable],Product Type [Non Editable],Product Page,Product URL,Title,Description,SKU,Option Name 1,Option Value 1,Option Name 2,Option Value 2,Option Name 3,Option Value 3,Price,Sale Price,On Sale,Stock,Categories,Tags,Weight,Length,Width,Height,Visible,Hosted Image URLs
+5f1a,9a01,PHYSICAL,shop,moth-songs,Moth Songs,<p>Poems for night readers.</p>,SQ0000001,,,,,,,18.00,0.00,No,12,/shop/poetry,"poetry, risograph",0.4,0,0,0,Yes,https://images.squarespace-cdn.com/content/v1/abc/moth-front.jpg https://images.squarespace-cdn.com/content/v1/abc/moth-back.jpg
+5f1b,9b01,PHYSICAL,shop,tide-tee,Tide Tee,<p>Soft cotton tee.</p>,SQ0000002,Size,S,Colour,Black,,,30.00,25.00,Yes,4,/shop/merch,tee,0.3,0,0,0,Yes,https://images.squarespace-cdn.com/content/v1/abc/tee-black.jpg
+,9b02,,,,,,SQ0000003,Size,M,Colour,Cream,,,32.00,0.00,No,Unlimited,,,0.3,0,0,0,,
+5f1c,9c01,DIGITAL,shop,night-zine,Night Zine (PDF),<p>A digital zine.</p>,SQ0000004,,,,,,,5.00,0.00,No,Unlimited,/shop/zines,,0,0,0,0,No,
+5f1d,9d01,SERVICE,shop,workshop,Printing Workshop,<p>Two hours.</p>,SQ0000005,,,,,,,60.00,0.00,No,8,,,0,0,0,0,Yes,
+5f1e,9e01,GIFT_CARD,shop,gift-card,Gift Card,,SQ0000006,Value,$25,,,,,25.00,0.00,No,Unlimited,,,0,0,0,0,Yes,
