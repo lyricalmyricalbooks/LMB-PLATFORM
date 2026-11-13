@@ -7,7 +7,10 @@
 // - The general test shop (`test-goods`) answers at a second Hosting site of the same project and sells other things
 //   (sign-up's "Something else"): the admin uses general words and hides the book-only parts.
 //
-// Every update goes to both, and real shops only get a version that passed the release check on both.
+// - The US dollar test shop (`test-press-us`, 13 November 2026) is a second book shop at a third Hosting site, signed
+//   up from the United States: every price, charge and report in it is in US dollars (tasks/todo/2026-11-13-shop-currency.md).
+//
+// Every update goes to all of them, and real shops only get a version that passed the release check on each.
 import { sellsBooks } from "../shared/sells/sells.js";
 
 export const TEST_PROJECT = "lmb-test-shop";
@@ -15,6 +18,7 @@ export const TEST_PROJECT = "lmb-test-shop";
 export const TEST_SHOPS = Object.freeze([
   Object.freeze({ shopId: "test-press", kind: "books", pressName: "Test Press", publishes: "books", site: TEST_PROJECT, address: `${TEST_PROJECT}.web.app` }),
   Object.freeze({ shopId: "test-goods", kind: "general", pressName: "Test Goods", publishes: "other", site: "lmb-test-goods", address: "lmb-test-goods.web.app" }),
+  Object.freeze({ shopId: "test-press-us", kind: "books", pressName: "Test Press US", publishes: "books", site: "lmb-test-press-us", address: "lmb-test-press-us.web.app", country: "US", currency: "USD" }),
 ]);
 
 /** The book test shop: the one every older tool and doc calls "the test shop". */

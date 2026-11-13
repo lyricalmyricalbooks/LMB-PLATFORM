@@ -22,6 +22,12 @@ that sells books and on one that doesn't before any press gets it:
   `services/release-runner/shared.js`), checks that both shops answer, and runs the release check on both. Real shops
   only get a version that passed on both; a failure names the shop.
 - Each has its own starter catalogue (`setup/test-catalogue.js`, by what the shop sells).
+- **A third, in US dollars (13 November 2026):** `test-press-us` ("Test Press US", lmb-test-press-us.web.app, a third
+  Hosting site) is a book shop signed up from the United States, so every price, charge, email and report in it is in
+  US dollars (`country: "US"`, `currency: "USD"` in `setup/testShopPlace.js`). "Make the test shop" makes it with the
+  other two; from then on every release is copied to it and checked on it too. Its starter catalogue is the book
+  shop's, with the same numbers read as US dollars, and it still ships to Canada only, as the release check buys from a
+  Canadian address.
 
 ### Sample records
 

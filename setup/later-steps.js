@@ -325,7 +325,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
           if (errors.length) throw new Error(`the shop refused the test books' links: ${errors.map((e) => `${e.bookId}: ${e.reason}`).join("; ")}`);
         }
         // Then the sample records, only those missing: a record changed while trying the shop stays.
-        const samples = await writeTestSamples({ shop: shopData, stockroom }, shop.shopId, testShopKind(shop), { now: now(), pressName: shop.pressName });
+        const samples = await writeTestSamples({ shop: shopData, stockroom }, shop.shopId, testShopKind(shop), { now: now(), pressName: shop.pressName, currency: shop.currency });
         return { detail: { created, stockroomBooks: missing.map((book) => book.id), linked: toLink.map((link) => link.shopBookId), samples } };
       },
     },

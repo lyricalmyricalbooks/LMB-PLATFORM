@@ -68,7 +68,7 @@ test("a dry run changes nothing anywhere", async () => {
   assert.ok(lines.includes("The rest waits until the project is ready."));
 });
 
-test("a real run readies the project, retires the old test shop, sends the first release and makes both test shops", async () => {
+test("a real run readies the project, retires the old test shop, sends the first release and makes every test shop", async () => {
   const { registry, stepClients, calls, published, copies, run } = setup();
   const result = await run(true);
   assert.deepEqual(result, { ok: true, stage: "done" });
@@ -96,8 +96,17 @@ test("a real run readies the project, retires the old test shop, sends the first
   assert.deepEqual([goods.projectId, goods.status, goods.testShop, goods.testMode, goods.freeAddress, goods.publishes], [TEST_PROJECT, "live", true, true, "lmb-test-goods.web.app", "other"]);
   assert.equal(stepClients.shared.addresses.map.get("lmb-test-goods.web.app").shopId, "test-goods");
   assert.equal((await registry.getProfile("test-goods")).sells, "other");
-  assert.deepEqual(copies, ["lmb-test-goods"]);
-  assert.deepEqual(published, [TEST_SHOP_ID, "test-goods"]);
+  assert.deepEqual(copies, ["lmb-test-goods", "lmb-test-press-us"]);
+  assert.deepEqual(published, [TEST_SHOP_ID, "test-goods", "test-press-us"]);
+
+  // The US dollar test shop: a book shop signed up from the United States, at a third site. Its server record and
+  // its pages' profile both say US dollars; the other two say nothing new and stay in Canadian dollars.
+  const us = await registry.getShop("test-press-us");
+  assert.deepEqual([us.projectId, us.status, us.testShop, us.testMode, us.freeAddress, us.publishes, us.country, us.currency],
+    [TEST_PROJECT, "live", true, true, "lmb-test-press-us.web.app", "books", "US", "USD"]);
+  assert.equal((await registry.getProfile("test-press-us")).currency, "USD");
+  assert.equal((await registry.getProfile(TEST_SHOP_ID)).currency, undefined);
+  assert.deepEqual([row.country, row.currency, goods.currency], ["CA", "CAD", "CAD"]);
 
   // Run again: the release goes through the staged update now, and the shop is left as it is.
   calls.length = 0;

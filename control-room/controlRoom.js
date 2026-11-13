@@ -422,7 +422,7 @@ export function createControlRoom({
           shopId: row.shopId,
           pressName: row.pressName ?? row.shopId,
           kind,
-          kindWords: kind === "books" ? "Book test shop" : "General test shop",
+          kindWords: `${kind === "books" ? "Book test shop" : "General test shop"}${row.currency === "USD" ? ", US dollars" : ""}`,
           status: row.status ?? null,
           version: row.release?.version ?? null,
           updatedAt: row.release?.at ?? null,
@@ -453,7 +453,7 @@ export function createControlRoom({
       await log(shopId, "test-shop-reset", { by, books: docs.map((d) => d.path) });
       for (const { path, data } of docs) await shopData.set(shopId, path, data);
       const stockroom = stockroomData && (await stockroomData.ready(shopId)) ? stockroomData : null;
-      const samples = await writeTestSamples({ shop: shopData, stockroom }, shopId, kind, { replace: true, now: now(), pressName: row.pressName });
+      const samples = await writeTestSamples({ shop: shopData, stockroom }, shopId, kind, { replace: true, now: now(), pressName: row.pressName, currency: row.currency });
       return { shopId, reset: docs.length, samples: samples.length, stockroom: Boolean(stockroom) };
     },
 
