@@ -15,7 +15,7 @@ run it through the readers, fix what breaks, and keep the files as tests (`apps/
       category addresses, `&amp;` in names, a list of SKUs not taken as one, another currency said, sale on one edition
       said, weights, European prices (1.250,00), two-byte text without its marker, shipping and line prices in order
       files, lifetime spend in a till's customer list
-- [ ] PR 2, saving: take back a product import (only the drafts it made, untouched since), customers too; save big
+- [x] PR 2, saving (products done; customers left for later): take back a product import (only the drafts it made, untouched since), customers too; save big
       files several at a time with a clear count
 - [ ] PR 3, screen: preview and result on a phone, in the bento look; book-only words only for book shops
 - [ ] Shops that sell in US dollars: past orders and price notes still say Canadian dollars

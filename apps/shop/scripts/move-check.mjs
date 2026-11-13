@@ -181,6 +181,35 @@ try {
   check(/2 of 5 done/.test(await card.innerText()), "Show it again brings it back, with We had none counted (2 of 5)");
   await shot("8-overview-shown-again");
 
+  // Books › Import spreadsheet with a real product file from an old shop, then take the whole import back.
+  const MOVES = fileURLToPath(new URL("../testdata/moves/", import.meta.url));
+  const booksCalls = (name) => page.evaluate((n) => window.__adminFixture.calls.filter((c) => c[0] === n).length, name);
+  for (const [width, name] of [[1280, "desktop"], [390, "phone"]]) {
+    await page.setViewportSize({ width, height: 900 });
+    await open("catalog");
+    await page.getByRole("button", { name: /^Import( spreadsheet)?$/ }).first().click();
+    const made = await booksCalls("createBook");
+    const gone = await booksCalls("deleteBook");
+    await page.setInputFiles('input[aria-label="Spreadsheet file"]', join(MOVES, "shopify-products.csv"));
+    const dialog = page.getByRole("dialog");
+    const start = dialog.getByRole("button", { name: /^(Import|Add|Save)\b/ }).last();
+    await start.waitFor({ timeout: 10000 });
+    await shot(`9-books-preview-${name}`);
+    await start.click();
+    const back = dialog.getByRole("button", { name: "Take this import back" });
+    await back.waitFor({ timeout: 15000 });
+    const added = (await booksCalls("createBook")) - made;
+    check(added > 0, `${name}: the product file is imported as drafts`, String(added));
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name}: the import window fits the screen`);
+    await shot(`9-books-imported-${name}`);
+    await back.click();
+    await page.getByRole("button", { name: /^Take it back$|^Take back$|^Yes/ }).last().click();
+    await dialog.getByText(/^Taken back:/).waitFor({ timeout: 15000 });
+    check((await booksCalls("deleteBook")) - gone === added, `${name}: Take this import back deletes exactly the drafts it added`, `${(await booksCalls("deleteBook")) - gone} of ${added}`);
+    await shot(`9-books-taken-back-${name}`);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+
   check(crashes.length === 0, "no page crash", crashes.join(" | "));
 } catch (err) {
   check(false, "the move ran to the end", err?.message || String(err));
