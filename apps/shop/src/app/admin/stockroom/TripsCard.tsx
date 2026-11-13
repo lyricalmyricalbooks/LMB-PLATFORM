@@ -8,6 +8,7 @@ import { saveTaxCenter, type SaveNote } from "./saveTaxCenter";
 import { DEFAULT_SHOP_NAME } from "../../../shared/shopIdentity";
 import { shopProfile } from "../../../lib/shopProfile";
 import { tripReportHtml } from "./tripReport";
+import { distanceText, tripDrives } from "./mileage";
 import { deleteTrip, findTrip, saveTrip, tripCsv, tripExpenseCount, tripProblem, tripToForm, type TripForm } from "./taxTrips";
 
 type Row = Record<string, any>;
@@ -45,13 +46,14 @@ export function TripsCard({ trips, taxCenter, money, baseCurrency, onSaved }: {
   }
   const setForm = (patch: Partial<TripForm>) => setEditing((e) => (e ? { ...e, form: { ...e.form, ...patch } } : e));
   const rec = shown ? findTrip(taxCenter, shown.name) : null;
+  const shownDrives = shown ? tripDrives(taxCenter, shown.name, baseCurrency) : null;
   function printTrip(t: TripRow) {
     // The window opens in the click itself: one opened after a wait is blocked as a pop-up.
     const win = window.open("", "_blank", "width=900,height=1000");
     if (!win) { setNote({ tone: "error", text: "Your browser blocked the report window. Allow pop-ups for this site and try again." }); return; }
     win.document.write(tripReportHtml({
       name: t.name, items: t.items || [], total: t.total, deductible: t.deductible, categories: t.categories || {},
-      record: findTrip(taxCenter, t.name), budget: budgets[t.name], baseCurrency,
+      record: findTrip(taxCenter, t.name), budget: budgets[t.name], baseCurrency, drives: tripDrives(taxCenter, t.name, baseCurrency).drives,
       pressName: shopProfile.name || DEFAULT_SHOP_NAME, printedOn: new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
     }));
     win.document.close(); win.focus();
@@ -84,6 +86,15 @@ export function TripsCard({ trips, taxCenter, money, baseCurrency, onSaved }: {
           </>}>
           <p>{shown.count} {shown.count === 1 ? "expense" : "expenses"}, {money(shown.total)} spent{budgets[shown.name] > 0 ? ` of a ${money(budgets[shown.name])} budget` : ""}.</p>
           {rec?.notes && <p className="rp-money-note">{rec.notes}</p>}
+          {shownDrives && shownDrives.drives.length > 0 && (
+            <DataTable stackOnPhone caption={`Drives, ${money(shownDrives.deduction)} deduction`} rowKey={(d) => String(d.id)} rows={shownDrives.drives}
+              columns={[
+                { key: "d", header: "Date", render: (d) => d.date },
+                { key: "r", header: "Route", lead: true, render: (d) => `${d.from ? `${d.from} to ${d.to}` : d.to}${d.roundTrip ? " and back" : ""}` },
+                { key: "k", header: "Distance", numeric: true, render: (d) => distanceText(d.total, d.unit) },
+                { key: "x", header: "Deduction", numeric: true, render: (d) => money(d.deduction) },
+              ]} />
+          )}
           <DataTable stackOnPhone caption="Spent by category" rowKey={(c) => c[0]} rows={Object.entries(shown.categories || {})}
             columns={[{ key: "c", header: "Category", lead: true, render: (c) => c[0] }, { key: "a", header: "Spent", numeric: true, render: (c) => money(c[1]) }]} />
           <DataTable stackOnPhone caption="Expenses" rowKey={(e) => String(e.id)} rows={[...(shown.items || [])].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))}
