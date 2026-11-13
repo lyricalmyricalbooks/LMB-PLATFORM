@@ -150,7 +150,7 @@ export function ShopSettings({
               quickbooks={{ status: quickBooksStatus, panel: <BookkeepingSettings taxRates={settings.taxes?.rates || []} /> }} />
           )}
           {activeTab === "plan" && <PlanSettings />}
-          {activeTab === "billing" && <BillingSettings />}
+          {activeTab === "billing" && <BillingSettings focusClose={subTab === "close-shop"} />}
           {/* Communications was retired: its links open Notifications. */}
           {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </m.div>

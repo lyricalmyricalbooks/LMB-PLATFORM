@@ -2448,3 +2448,14 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look] .rp .rp-fk-card :is(.rp-input, .rp-textarea, .rp-select):focus { outline: none; box-shadow: 0 0 0 2px var(--rp-info); }
 :root[data-admin-look] .rp .rp-fk-card :is(.rp-input, .rp-textarea, .rp-select)[aria-invalid="true"] { box-shadow: inset 0 0 0 1.5px var(--rp-warning); }
 :root[data-admin-look] .rp .rp-fk-card .rp-hint { font-size: 12px; color: var(--rp-text-subtle); }
+
+/* Close your shop (Settings › Billing, CloseShopCard.tsx): three numbered steps, the timeline as label/words rows. */
+.rp:not(.studio-editor) .rp-close-steps { display: grid; gap: 20px; margin: 0; padding: 0; list-style: none; }
+.rp:not(.studio-editor) .rp-close-steps > li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 14px; align-items: start; }
+.rp:not(.studio-editor) .rp-close-num { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; background: var(--rp-tile-mint, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); font: 600 var(--rp-text-sm)/1 var(--rp-font-mono); }
+.rp:not(.studio-editor) .rp-close-timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-radius: var(--rp-radius); background: var(--rp-surface-2); }
+.rp:not(.studio-editor) .rp-close-timeline > li { display: grid; grid-template-columns: minmax(150px, 34%) minmax(0, 1fr); gap: 4px 16px; padding: 12px 16px; border-top: 1px solid var(--rp-border); }
+.rp:not(.studio-editor) .rp-close-timeline > li:first-child { border-top: 0; }
+@media (max-width: 640px) {
+  .rp:not(.studio-editor) .rp-close-timeline > li { grid-template-columns: minmax(0, 1fr); }
+}

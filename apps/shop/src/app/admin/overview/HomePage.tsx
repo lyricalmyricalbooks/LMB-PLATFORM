@@ -16,6 +16,7 @@ import { useFairToday } from "../FairToday";
 import { stockroomBridge } from "../stockroomBridge";
 import { ConnectGoogleCard } from "../ConnectGoogleCard";
 import { SetupStart } from "./SetupStart";
+import { ClosingTile } from "./ClosingTile";
 import { HomeToday } from "./HomeToday";
 import { RunRow, RunTiles } from "./OverviewParts";
 import { stockroomRunRows, useStockroomTodos } from "./StockroomTodos";
@@ -167,6 +168,8 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
 
   return (
     <>
+      {/* A cancelled plan: the day the shop closes, with the download and Keep my plan (ClosingTile.tsx). */}
+      <ClosingTile />
       {/* Plans 6.3 and 6.9: only a shop whose setup wrote the sign-up answers shows Choose your look, then the guide. */}
       <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness}
         settings={launch.parts ? launch.parts.settings : launch.error ? null : undefined}

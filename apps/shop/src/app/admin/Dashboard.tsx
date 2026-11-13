@@ -34,6 +34,8 @@ import { WhatsNew } from "./WhatsNew";
 import { applyAdminLook } from "./riso/adminLook";
 import { SupportBanner } from "./SupportBanner";
 import { PlanBannerBar } from "./PlanBanner";
+// Home shows its own closing tile for a cancelled plan, so the banner stays off there (overview/ClosingTile.tsx).
+import { closingDay } from "./overview/ClosingTile";
 import { TwoStepReminder } from "./TwoStepReminder";
 import type { ReadinessItem } from "./launchReadiness";
 import { LaunchChecklist } from "./LaunchChecklist";
@@ -993,7 +995,7 @@ export function Dashboard() {
         }
       >
         <SupportBanner visit={supportVisit} onSignOut={() => { void adminApi.logout(); }} />
-        {!(activeTab === "settings" && (settingsTab === "billing" || settingsTab === "plan")) && <PlanBannerBar plan={platformPlan} />}
+        {!(activeTab === "settings" && (settingsTab === "billing" || settingsTab === "plan")) && !(activeTab === "overview" && closingDay(platformPlan)) && <PlanBannerBar plan={platformPlan} />}
         {/* The control room's messages to the press (platform/messages, code plan 19.14): admin only, never the storefront. */}
         <PlatformMessagesBar enabled={!!user} />
         {!!user && !supportVisit && <LocalBackupAuto />}

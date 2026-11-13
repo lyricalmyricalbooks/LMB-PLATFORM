@@ -530,6 +530,8 @@ export const PRESS_TEMPLATES_FR = {
       greeting: "Bonjour,",
       paragraphs: [
         `Vous avez annulé votre forfait ${settings.platformName} pour ${pressName}. La boutique reste ouverte jusqu'au ${day}, et plus rien ne vous sera facturé.`,
+        "Avant de partir, téléchargez tout : connectez-vous, ouvrez les réglages (Settings), puis la facturation (Billing), et appuyez sur Télécharger votre boutique (Download your shop) sous Fermer votre boutique. Vous obtenez un seul zip avec vos produits, clients, commandes, pages et photos.",
+        `Après le ${day}, la boutique ferme aux clients. Pendant 90 jours, vous pouvez encore vous connecter, tout télécharger ou recommencer; nous vous écrivons 30 jours et 7 jours avant la suppression.`,
         "Vous avez changé d'avis? Vous pouvez garder votre forfait en un clic d'ici là.",
       ],
       buttons: [["Garder mon forfait", safeLink(link)]],
@@ -542,7 +544,7 @@ export const PRESS_TEMPLATES_FR = {
     subject: `${pressName} est fermée`,
     greeting: "Bonjour,",
     paragraphs: [
-      `Votre forfait ${settings.platformName} pour ${pressName} est terminé, la boutique est donc fermée. Pendant 90 jours, connectez-vous, ouvrez les réglages (Settings), puis le forfait, et appuyez sur Télécharger votre boutique (Download your shop) pour tout obtenir dans un seul zip; ensuite, tout est supprimé, et nous vous écrivons 30 jours et 7 jours avant.`,
+      `Votre forfait ${settings.platformName} pour ${pressName} est terminé, la boutique est donc fermée. Pendant 90 jours, connectez-vous, ouvrez les réglages (Settings), puis la facturation (Billing), et appuyez sur Télécharger votre boutique (Download your shop) pour tout obtenir dans un seul zip; ensuite, tout est supprimé, et nous vous écrivons 30 jours et 7 jours avant.`,
       "Vous pouvez reprendre un forfait d'ici là et continuer là où vous étiez.",
     ],
     buttons: [["Reprendre un forfait", safeLink(link)]],

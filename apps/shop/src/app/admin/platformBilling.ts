@@ -58,7 +58,8 @@ export class BillingCallError extends Error {
 
 type Fetch = typeof fetch;
 type TokenSource = () => Promise<string | null>;
-const currentToken: TokenSource = async () => (auth.currentUser ? auth.currentUser.getIdToken() : null);
+// The admin fixture (dev only) signs nothing in: its `__fixtureIdToken` stands in, as for oldShopApi.
+const currentToken: TokenSource = async () => (auth.currentUser ? auth.currentUser.getIdToken() : (import.meta.env.DEV ? (globalThis as any).__fixtureIdToken ?? null : null));
 
 /** The call's address: the hub plus the call's name, only ever on https. */
 export function callAddress(hub: string, call: string): string {
