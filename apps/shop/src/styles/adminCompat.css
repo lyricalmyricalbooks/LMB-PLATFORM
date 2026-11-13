@@ -689,8 +689,12 @@
  * admin canvas). Studio's own dark controls (primary buttons, selected tabs/devices, Publish)
  * use `bg-neutral-900 text-white`, which turned into dark-on-dark. Repeat the attribute to
  * out-rank the compat selectors. */
+/* Night mode (13 November 2026): the ink buttons take the primary pair, which flips to cream with ink words at
+ * night. They used the info ink on the inverse fill, which is dark on dark at night (Publish could not be read). */
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900,
-[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 *,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 * {
+  color: var(--rp-on-primary) !important;
+}
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700,
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700 *,
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-red-600,

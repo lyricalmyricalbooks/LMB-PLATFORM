@@ -39,13 +39,15 @@ setAiTransport(async body => {
 // `?sells=clothing` shows Studio as a shop that doesn't sell books sees it (the admin's words, shopWords.tsx).
 const sells = new URLSearchParams(location.search).get("sells");
 const words = wordsFor(sells);
+// `?night=1` shows Studio as the admin's night mode does (the same wrapper Dashboard.tsx puts around it).
+const night = new URLSearchParams(location.search).has("night");
 
 createRoot(document.getElementById("root")!).render(
   <ShopSellsContext.Provider value={sells}>
   <ShopWordsContext.Provider value={words}>
-  <div className="admin-light admin-reso" data-admin-theme="reso" style={{ background: "transparent" }}>
+  <div className={`${night ? "" : "admin-light"} admin-reso`} data-admin-theme={night ? "dark" : "reso"} style={{ background: "transparent" }}>
     <div className="fixed inset-0 z-[200] bg-black">
-      <StudioEditor settings={fixture.settings} appearance="light" initialLocation={parseStudioLocation(location.hash) || undefined} onExit={() => { (window as any).__studioExited = true; }} />
+      <StudioEditor settings={fixture.settings} appearance={night ? "dark" : "light"} initialLocation={parseStudioLocation(location.hash) || undefined} onExit={() => { (window as any).__studioExited = true; }} />
     </div>
   </div>
   </ShopWordsContext.Provider>

@@ -74,7 +74,7 @@
 .studio-editor :is(.text-neutral-900, .text-neutral-700, .text-neutral-600) { color: var(--rp-text); }
 .studio-editor :is(.text-neutral-500, .text-neutral-400) { color: var(--rp-text-subtle); }
 .studio-editor :is(.border-neutral-200, .border-neutral-300) { border-color: var(--rp-divider); }
-.studio-editor .bg-neutral-900 { background-color: var(--rp-inverse); color: var(--rp-on-inverse); }
+.studio-editor .bg-neutral-900 { background-color: var(--rp-primary); color: var(--rp-on-primary); }
 .studio-editor .rp-dialog-root { z-index: 450; }
 @media (max-width: 1099px) {
   .studio-title { display: none; }
@@ -784,4 +784,10 @@
   .studio-topbar .studio-picker-trigger { width: 100%; min-width: 0; max-width: none; }
   .studio-topbar [data-studio-mode-switch], .studio-topbar > button[aria-label^="Undo"], .studio-topbar > button[aria-label^="Redo"], .studio-topbar .studio-tools-menu { order: 4; }
   .studio-breadcrumb .studio-back { min-height: 44px; }
+}
+/* Phone workspace switch (Sections / Preview / Edit) as the admin's rounded switch. */
+@media (max-width: 767px) {
+  :root[data-admin-look="colophon"] .studio-editor .studio-mobile-tabs { gap: 4px; margin: 8px; padding: 4px; border: 0; border-radius: 999px; background: var(--rp-surface-sunken); }
+  :root[data-admin-look="colophon"] .studio-editor .studio-mobile-tabs button { min-height: 44px; border: 0; border-radius: 999px !important; background: transparent; color: var(--rp-text-muted); font-weight: 700; box-shadow: none; }
+  :root[data-admin-look="colophon"] .studio-editor .studio-mobile-tabs button[aria-selected=true] { background: var(--rp-primary); color: var(--rp-on-primary); }
 }
