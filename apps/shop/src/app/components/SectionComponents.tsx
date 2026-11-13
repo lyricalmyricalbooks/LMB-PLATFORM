@@ -11,6 +11,7 @@ import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFil
 import { resolveSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { fb } from "./sectionFallbacks";
+import { faqAnchors, faqJsonLd, filterFaq, groupFaq, safeJson, type FaqItem } from "../features/site/faqHelp";
 import { submitContactMessage } from "../features/site/contactMessages";
 import { useSectionCopy, useSectionDesign, useSectionPage, useShopName } from "./sectionCopy";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
@@ -658,7 +659,22 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function FAQSection({ settings, enableAnimations }: any) {
-  const items = visibleBlocks(settings.items || settings.blocks || []);
+  const items = sampleInPreview(visibleBlocks(settings.items || settings.blocks || []), [{ question: "Sample question?", answer: "Sample answer." }]) as FaqItem[];
+  const [query, setQuery] = useState("");
+  const searchId = useId();
+  // Help centre (gap list 29): topics, a search box, an address per question and an FAQPage for search engines.
+  const anchors = faqAnchors(items);
+  const anchorOf = new Map(items.map((item, idx) => [item, anchors[idx]]));
+  const indexOf = new Map(items.map((item, idx) => [item, idx]));
+  const groups = groupFaq(filterFaq(items, query));
+  const ld = inStudioPreview() ? null : faqJsonLd(items);
+  const contactUrl = settings.contactUrl || (inStudioPreview() ? "#" : "");
+  useEffect(() => {
+    const id = typeof window !== "undefined" ? decodeURIComponent(window.location.hash.slice(1)) : "";
+    if (!id.startsWith("faq-")) return;
+    const el = document.getElementById(id);
+    if (el instanceof HTMLDetailsElement) { el.open = true; el.scrollIntoView({ block: "start" }); }
+  }, []);
   return (
     <section style={bgStyle(settings)}>
       <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
@@ -671,14 +687,46 @@ export function FAQSection({ settings, enableAnimations }: any) {
               <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
-          <div className="space-y-3">
-            {sampleInPreview(items, [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
-              <details key={idx} {...blockEditAttrs(item, idx)} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
-                <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)} data-theme-field="question">{item.question}</summary>
-                <p className="text-white/60 text-sm mt-3" style={bStyle(settings)} data-theme-field="answer">{item.answer}</p>
-              </details>
+          {settings.showSearch && (
+            <div className="mb-6">
+              <label htmlFor={searchId} className="sr-only">{settings.searchPlaceholder ?? fb("FAQSection.searchPlaceholder")}</label>
+              <input
+                id={searchId}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={settings.searchPlaceholder ?? fb("FAQSection.searchPlaceholder")}
+                className="w-full min-h-11 bg-white/[0.03] border border-white/10 rounded-xl px-4 text-sm text-white"
+                style={bStyle(settings)}
+                data-theme-field="searchPlaceholder"
+              />
+            </div>
+          )}
+          <div className="space-y-8" aria-live="polite">
+            {groups.map((group) => (
+              <div key={group.group || "_"} className="space-y-3">
+                {group.group && <h3 className="text-lg font-bold text-white" style={hStyle(settings)}>{group.group}</h3>}
+                {group.items.map((item: any) => {
+                  const idx = indexOf.get(item) ?? 0;
+                  return (
+                    <details key={anchorOf.get(item)} id={anchorOf.get(item)} {...blockEditAttrs(item, idx)} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+                      <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)} data-theme-field="question">{item.question}</summary>
+                      <p className="text-white/60 text-sm mt-3" style={bStyle(settings)} data-theme-field="answer">{item.answer}</p>
+                    </details>
+                  );
+                })}
+              </div>
             ))}
+            {!groups.length && query.trim() && (
+              <p className="text-white/60 text-sm" style={bStyle(settings)} data-theme-field="noMatchText">{settings.noMatchText ?? fb("FAQSection.noMatchText")}</p>
+            )}
           </div>
+          {contactUrl && (
+            <p className="mt-8 text-sm">
+              <a href={siteHref(contactUrl)} className="underline text-white/80" style={bStyle(settings)} data-theme-field="contactText">{settings.contactText ?? fb("FAQSection.contactText")}</a>
+            </p>
+          )}
+          {ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJson(ld) }} />}
         </AnimationContainer>
       </div>
     </section>

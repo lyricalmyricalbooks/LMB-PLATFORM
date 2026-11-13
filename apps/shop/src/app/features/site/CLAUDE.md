@@ -756,3 +756,12 @@ every shop, including those on Colophon, since there is no one-click connection 
 - The build (`generate-sitemap.mjs`) takes the base from `settings/website.sells` through the Functions' copy of the
   shared rules and hands it to the sitemap, the shopping and social files and llms.txt (`productBase` option, default
   `books`). The Functions use `productBase(sells)` for back-in-stock and review emails and social posts.
+
+## Help centre in the FAQ section (13 November 2026, gap list 29)
+
+`FAQSection` (`components/SectionComponents.tsx`) groups questions by each item's `group` (Topic) in first-seen order, gives
+each `<details>` an `id` from `faqAnchors` (`#faq-<words>` opens it on arrival), and offers `showSearch` (every typed word, accents
+ignored, `filterFaq`), `noMatchText` and a `contactText`/`contactUrl` link (no link while `contactUrl` is empty). It emits an
+FAQPage JSON-LD script (`faqJsonLd`, written with `safeJson`, which escapes `<`; `r2Security.test.ts` allows only that helper
+besides the HTML keys). Pure rules in `features/site/faqHelp.ts`; words are the section's own fields with fallbacks in
+`sectionFallbacks.ts`. Not in the Studio preview's JSON-LD.
