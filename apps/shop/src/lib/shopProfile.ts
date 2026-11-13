@@ -165,6 +165,11 @@ export function readShopProfile(source: unknown = typeof window === "undefined" 
 
 export const shopProfile: ShopProfile = readShopProfile();
 
+/** "Canada" or "United States": the shop's own country by name, the starting choice wherever a country is asked for. */
+export function homeCountryName(profile: ShopProfile = shopProfile): string {
+  return shopCountryOf(profile.currency) === "US" ? "United States" : "Canada";
+}
+
 /** "CA" or "US": the country the shop is in (shared/shopCurrency shopCountryOf: a US dollar shop is an American shop). */
 export function shopCountry(profile: ShopProfile = shopProfile): ShopCountry {
   return shopCountryOf(profile.currency);

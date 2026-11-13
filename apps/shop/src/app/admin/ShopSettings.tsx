@@ -21,7 +21,7 @@ import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
 import { FormField, FormPage, FormReadOnly, FormRow, FormSection, StatusBar, formStatus } from "./riso/FormKit";
-import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile } from "../../lib/shopProfile";
+import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile, homeCountryName } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
@@ -64,7 +64,7 @@ import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 import { useShopWords } from "./shopWords";
 import { WhatYouSellCard } from "./WhatYouSellCard";
-import { BANK_TRANSFER, BANK_TRANSFER_FULL, MONEY_SIGN, US_SHOP } from "./moneySign";
+import { BANK_TRANSFER, BANK_TRANSFER_FULL, MONEY_SIGN, US_SHOP, POSTAL_LABEL } from "./moneySign";
 
 export function ShopSettings({ 
   activeTab, 
@@ -229,13 +229,13 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 {(a) => <input {...a} value={settings.location?.street || ""} placeholder="123 Example Street" autoComplete="street-address" onChange={(e) => set("location", { street: e.target.value })} />}
               </FormField>
               <FormRow>
-                <FormField label="City">{(a) => <input {...a} value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />}</FormField>
-                <FormField label="Province or state">{(a) => <input {...a} value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />}</FormField>
+                <FormField label="City">{(a) => <input {...a} value={settings.location?.city || ""} placeholder={US_SHOP ? "Portland" : "Toronto"} onChange={(e) => set("location", { city: e.target.value })} />}</FormField>
+                <FormField label={US_SHOP ? "State" : "Province or state"}>{(a) => <input {...a} value={settings.location?.state || ""} placeholder={US_SHOP ? "Oregon" : "Ontario"} onChange={(e) => set("location", { state: e.target.value })} />}</FormField>
               </FormRow>
               <FormRow>
-                <FormField label="Postal code">{(a) => <input {...a} value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />}</FormField>
+                <FormField label={POSTAL_LABEL}>{(a) => <input {...a} value={settings.location?.zip || ""} placeholder={US_SHOP ? "97205" : "M6G 3H1"} autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />}</FormField>
                 <FormField label="Country">
-                  {(a) => <select {...a} value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+                  {(a) => <select {...a} value={settings.location?.country || homeCountryName()} onChange={(e) => set("location", { country: e.target.value })}>
                     {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
                   </select>}
                 </FormField>

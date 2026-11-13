@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { POSTAL_LABEL, US_SHOP } from "../moneySign";
 import { adminApi } from "../api";
 import { COUNTRIES } from "../../features/site/shippingZones";
 import { pressDetailsFrom, pressDetailsPatch, pressDetailsProblems, type PressDetails, type PressDetailsField } from "../pressDetails";
@@ -66,8 +67,8 @@ export function PressDetailsStage({ settings, onDone, onRetrySettings }: {
           autoComplete="address-line1" hint="Your orders ship from here." onChange={(e) => set("street", e.target.value)} />
         <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
           <TextField label="City" value={current.city} error={errors.city} autoComplete="address-level2" onChange={(e) => set("city", e.target.value)} />
-          <TextField label="State / province" value={current.state} autoComplete="address-level1" onChange={(e) => set("state", e.target.value)} />
-          <TextField label="Postal code" value={current.zip} error={errors.zip} autoComplete="postal-code" onChange={(e) => set("zip", e.target.value)} />
+          <TextField label={US_SHOP ? "State" : "State / province"} value={current.state} autoComplete="address-level1" onChange={(e) => set("state", e.target.value)} />
+          <TextField label={POSTAL_LABEL} value={current.zip} error={errors.zip} autoComplete="postal-code" onChange={(e) => set("zip", e.target.value)} />
           <SelectField label="Country" value={current.country} error={errors.country} onChange={(e) => set("country", e.target.value)}>
             {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
           </SelectField>

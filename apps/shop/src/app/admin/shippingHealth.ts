@@ -1,4 +1,5 @@
 import { findCountry } from "../features/site/shippingZones";
+import { US_SHOP } from "./moneySign";
 
 export type ShippingIssue = {
   id: string;
@@ -203,10 +204,18 @@ export function describeRateConditions(rate: any): string {
   return parts.join(" · ");
 }
 
-/** Ready-made zones for a new profile: Canada, USA and everywhere else. */
+/** Ready-made zones for a new profile: the shop's own country, its neighbour and everywhere else. */
 export function starterZones(newId: () => string) {
   const rate = (name: string, base: number, additional: number, deliveryDays: string, extra: any = {}) =>
     ({ id: newId(), name, type: "flat", enabled: true, base, additional, deliveryDays, minPrice: null, maxPrice: null, ...extra });
+  const home = [
+    rate("Standard Shipping", 8, 3, "3-7"), rate("Free shipping over $75", 0, 0, "3-7", { type: "free", minPrice: 75 }) ];
+  // An American shop's home zone is the United States, with Canada as the neighbour.
+  if (US_SHOP) return [
+    { id: newId(), name: "United States", countries: ["US"], continents: [], restOfWorld: false, rates: home },
+    { id: newId(), name: "Canada", countries: ["CA"], continents: [], restOfWorld: false, rates: [ rate("Standard Shipping", 12, 4, "5-10") ] },
+    { id: newId(), name: "Rest of world", countries: [], continents: [], restOfWorld: true, rates: [ rate("International Shipping", 20, 6, "10-21") ] },
+  ];
   return [
     { id: newId(), name: "Canada", countries: ["CA"], continents: [], restOfWorld: false, rates: [
       rate("Standard Shipping", 8, 3, "3-7"), rate("Free shipping over $75", 0, 0, "3-7", { type: "free", minPrice: 75 }) ] },

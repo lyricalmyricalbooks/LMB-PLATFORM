@@ -1,4 +1,5 @@
 import { CATEGORIES } from "../features/site/constants";
+import { US_SHOP } from "./moneySign";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../features/site/risoNoir";
 import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 
@@ -28,7 +29,7 @@ export const defaultSettings = (): any => ({
   // Blank until the press enters its own: emails, labels and the legal pages must carry the seller's real address, and
   // the launch checklist blocks until it is saved (launchReadiness.ts "mailing-address").
   location: { street: "", city: "", state: "", zip: "", country: "" },
-  localization: { timezone: "(GMT-05:00) Eastern Time (US & Canada)", currency: "Canadian Dollar (CAD $)" },
+  localization: { timezone: "(GMT-05:00) Eastern Time (US & Canada)", currency: US_SHOP ? "US Dollar (USD $)" : "Canadian Dollar (CAD $)" },
   aiShield: { blockTraining: false, blockShopping: false },
   policies: { shipping: "", returns: "", privacy: "", terms: "", legal: "" },
   communications: {

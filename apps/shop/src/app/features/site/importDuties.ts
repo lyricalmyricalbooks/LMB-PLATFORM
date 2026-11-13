@@ -1,3 +1,4 @@
+import { homeCountryName } from "../../../lib/shopProfile";
 // Import duties notice (plan 12.11). A press that ships abroad can switch on a note at checkout for parcels leaving its
 // home country: the buyer's country may charge duties and import tax on delivery, with an optional estimate. Display only.
 // The charge is never changed here (the server prices the order), and the press does not collect or pay these.
@@ -27,7 +28,7 @@ export function parseCountryRates(text: unknown): Map<string, number> {
 export function dutiesNote(duties: DutiesSetting | null | undefined, country: unknown, goodsTotal: number): DutiesNote | null {
   if (!duties || duties.on !== true) return null;
   const to = norm(country);
-  if (!to || to === norm(duties.home || "Canada")) return null;
+  if (!to || to === norm(duties.home || homeCountryName())) return null;
   const percent = parseCountryRates(duties.countryRates).get(to) ?? Number(duties.estimateRate);
   const rate = Number.isFinite(percent) && percent > 0 && percent <= 100 ? percent : null;
   const goods = Number(goodsTotal);

@@ -11,4 +11,7 @@ const shopSign = () => currencySign(shopCurrency());
 /** "CA" or "US": the country the shop is in (shared/shopCurrency shopCountryOf). */
 const shopCountry = () => shopCountryOf(shopCurrency());
 
-module.exports = { shopCurrency, shopSign, shopCountry };
+/** "Canada" or "United States": the fallback wherever an order or the shop's own address has no country. */
+const shopCountryName = () => (shopCountry() === "US" ? "United States" : "Canada");
+
+module.exports = { shopCurrency, shopSign, shopCountry, shopCountryName };

@@ -1,5 +1,6 @@
 // When checkout asks the carrier for live shipping rates, and when it must ask again.
 import { addressMissing } from "./addressRules";
+import { homeCountryName } from "../../../lib/shopProfile";
 
 /**
  * The address is complete enough for a live carrier quote: the same boxes Pay requires
@@ -8,7 +9,7 @@ import { addressMissing } from "./addressRules";
  * otherwise it shows profile rates the server then refuses.
  */
 export function liveRatesAddressReady(address: any): boolean {
-  return addressMissing({ ...(address || {}), country: address?.country || "Canada" }).length === 0;
+  return addressMissing({ ...(address || {}), country: address?.country || homeCountryName() }).length === 0;
 }
 
 /** Server code for "the rate you picked isn't one of the carrier's current rates". */

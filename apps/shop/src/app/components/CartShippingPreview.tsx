@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { homeCountryName } from "../../lib/shopProfile";
 import { functionFetch } from "../lib/functionsBase";
 import { getCopy } from "../features/site/storeCopy";
 import { COUNTRIES } from "../features/site/shippingZones";
@@ -10,7 +11,7 @@ export function CartShippingPreview({ cart, design, formatPrice, onEstimate }: {
   const id = useId();
   const [saved] = useState(readCartDestination);
   // Same first guess checkout makes (browser language), not a fixed country.
-  const [country, setCountry] = useState(() => saved?.country || [guessCountryName()].find(name => name && COUNTRIES.some(value => value.name === name)) || "Canada");
+  const [country, setCountry] = useState(() => saved?.country || [guessCountryName()].find(name => name && COUNTRIES.some(value => value.name === name)) || homeCountryName());
   const [postalCode, setPostalCode] = useState(saved?.postalCode || "");
   const [quotes, setQuotes] = useState<ShippingQuote[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error" | "digital">("idle");

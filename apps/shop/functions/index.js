@@ -155,7 +155,7 @@ const { OWNER_ONLY_MESSAGE, adminRole, booksReader, removeExpiredMembers, stampT
 const { inviteKey, teamChange, teamInviteEmail } = require("./teamInvite");
 const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
-const { shopCurrency, shopSign } = require("./shopMoney");
+const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
@@ -812,7 +812,7 @@ function getStateCode(stateName) {
 // country, phone). Blank fields stay blank (shopSettings.js), the country defaulting to Canada.
 function originAddress(settings) {
   const origin = shopOrigin(settings);
-  return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || "CA" };
+  return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || shopCountry() };
 }
 
 // fetch() with a hard timeout so a slow/hung third party can never stall a
