@@ -1347,7 +1347,7 @@ await check("Themes saves the draft as a theme, previews a look without changing
   // Preview a ready-made look: the canvas changes, the draft doesn't.
   const before = JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign"));
   const preset = panel.locator("[data-theme-card^='preset:']").first();
-  await preset.getByRole("button", { name: "Preview" }).click();
+  await preset.getByRole("button", { name: "Preview", exact: true }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
   if (await page.locator("[data-studio-status=\"unsaved\"]").isVisible()) throw new Error("previewing a look changed the draft");
   await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
@@ -1369,12 +1369,12 @@ await check("a ready-made look offers its layout and starter pages after the loo
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Themes", exact: true }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  const card = panel.locator("[data-theme-card='preset:press-riso']");
+  const card = panel.locator("[data-theme-card='preset:press-marquee']");
   await card.locator("[data-preset-content]").waitFor({ timeout: 5000 });
   if (!/Home layout/.test(await card.locator("[data-preset-content]").innerText())) throw new Error("the card doesn't say it comes with a Home layout");
   // Skipping keeps only the look: no page is made.
   await card.getByRole("button", { name: "Use this look" }).click();
-  const ask = page.getByRole("dialog", { name: /Also use “Riso Paper” layout and starter pages\?/ });
+  const ask = page.getByRole("dialog", { name: /Also use “Marquee” layout and starter pages\?/ });
   await ask.waitFor({ timeout: 5000 });
   if (!/Kept as they are: your own About page/.test(await ask.innerText())) throw new Error("the dialog doesn't say the shop's own About page is kept");
   await ask.getByRole("button", { name: "Cancel" }).click();
@@ -1394,14 +1394,14 @@ await check("a ready-made look offers its layout and starter pages after the loo
 
 await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  // An own edit in Essentials that Zine replaces (the title font), then open Themes.
+  // An own edit in Essentials that Marquee replaces (the title font), then open Themes.
   const essentials = page.locator('[data-studio-panel="essentials"]');
   await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
   await essentials.getByRole("button", { name: "Browse looks" }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  const card = panel.locator("[data-theme-card='preset:press-zine']");
+  const card = panel.locator("[data-theme-card='preset:press-marquee']");
   await card.getByRole("button", { name: "Use this look" }).click();
-  const ask = page.getByRole("dialog", { name: /Also use “Zine” layout and starter pages\?/ });
+  const ask = page.getByRole("dialog", { name: /Also use “Marquee” layout and starter pages\?/ });
   await ask.waitFor({ timeout: 5000 });
   await ask.getByRole("button", { name: "Cancel" }).click();
   const report = panel.locator("[data-switch-report]");
@@ -1419,10 +1419,10 @@ await check("switching looks lists what carried over, Bring back restores a repl
   await page.getByRole("button", { name: "Essentials" }).first().click();
   if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Oswald") throw new Error("Bring back didn't restore the title font");
   await page.getByRole("button", { name: "Themes", exact: true }).click();
-  // Switching to Index replaces the list with Index's own.
-  await panel.locator("[data-theme-card='preset:press-index']").getByRole("button", { name: "Use this look" }).click();
-  await page.getByRole("dialog", { name: /Also use “Index” layout/ }).getByRole("button", { name: "Cancel" }).click();
-  await report.getByText("After switching to Index").waitFor({ timeout: 5000 });
+  // Switching to Atlas replaces the list with Atlas's own.
+  await panel.locator("[data-theme-card='preset:press-atlas']").getByRole("button", { name: "Use this look" }).click();
+  await page.getByRole("dialog", { name: /Also use “Atlas” layout/ }).getByRole("button", { name: "Cancel" }).click();
+  await report.getByText("After switching to Atlas").waitFor({ timeout: 5000 });
   await report.getByRole("button", { name: "Done" }).click();
   await report.waitFor({ state: "detached", timeout: 5000 });
 }, FIRST_VISIT);
@@ -1432,11 +1432,11 @@ await check("Themes keeps the press's own changes apart from their look, and Use
   const essentials = page.locator('[data-studio-panel="essentials"]');
   await essentials.getByRole("button", { name: "Browse looks" }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  await panel.locator("[data-theme-card='preset:press-zine']").getByRole("button", { name: "Use this look" }).click();
-  await page.getByRole("dialog", { name: /Also use “Zine” layout/ }).getByRole("button", { name: "Cancel" }).click();
+  await panel.locator("[data-theme-card='preset:press-marquee']").getByRole("button", { name: "Use this look" }).click();
+  await page.getByRole("dialog", { name: /Also use “Marquee” layout/ }).getByRole("button", { name: "Cancel" }).click();
   await panel.locator("[data-switch-report]").getByRole("button", { name: "Done" }).click();
   const own = panel.locator("[data-own-edits]");
-  await own.getByText("Your changes to Zine").waitFor({ timeout: 5000 });
+  await own.getByText("Your changes to Marquee").waitFor({ timeout: 5000 });
   if (!/Nothing changed yet/.test(await own.innerText())) throw new Error("a fresh look already lists changes");
   // Change the title font in Essentials: Themes now lists it as the press's own.
   await page.getByRole("button", { name: "Essentials" }).first().click();
@@ -1445,12 +1445,12 @@ await check("Themes keeps the press's own changes apart from their look, and Use
   await own.getByText("1 setting is yours").waitFor({ timeout: 5000 });
   await own.getByText("Show your changes (1)").click();
   const item = own.locator("[data-own-edit-list] li", { hasText: "Heading font" });
-  if (!/Archivo Black[\s\S]*Oswald/.test(await item.innerText())) throw new Error("the change doesn't show the theme's font and the press's");
+  if (!/Big Shoulders Display[\s\S]*Oswald/.test(await item.innerText())) throw new Error("the change doesn't show the theme's font and the press's");
   await item.getByRole("button", { name: /^Use the theme's / }).click();
   await expectText(page, "is the theme's again");
   await own.getByText("Nothing changed yet").waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: "Essentials" }).first().click();
-  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Archivo Black") throw new Error("Use the theme's didn't restore Zine's title font");
+  if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Big Shoulders Display") throw new Error("Use the theme's didn't restore Marquee's title font");
 }, FIRST_VISIT);
 
 await check("the hero's Height control (found by the theme check) changes the hero in the preview", desktop, async page => {
@@ -1495,7 +1495,7 @@ await check("an edit while a theme preview is showing ends the preview, and the 
   await expectText(page, "Home · 1 section");
   await page.getByRole("button", { name: "Themes", exact: true }).click();
   const panel = page.locator("[data-studio-panel='themes']");
-  await panel.locator("[data-theme-card^='preset:']").first().getByRole("button", { name: "Preview" }).click();
+  await panel.locator("[data-theme-card^='preset:']").first().getByRole("button", { name: "Preview", exact: true }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
   // Undo changes the draft: the canvas must stop showing the previewed look and follow the draft.
   await page.locator("[data-studio-theme-preview]").click({ position: { x: 4, y: 4 } });

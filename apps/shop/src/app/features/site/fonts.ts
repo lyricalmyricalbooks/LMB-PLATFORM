@@ -12,6 +12,7 @@ export const FONT_CHOICES: FontChoice[] = [
   { name: "Archivo Black", weights: [400] },
   { name: "Archivo Narrow", weights: [400, 500, 600, 700] },
   { name: "Bebas Neue", weights: [400] },
+  { name: "Big Shoulders Display", weights: [400, 600, 700, 800, 900] },
   { name: "Oswald", weights: [400, 500, 600, 700] },
   { name: "Space Grotesk", weights: [400, 500, 600, 700] },
   { name: "Space Mono", weights: [400, 700] },

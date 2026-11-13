@@ -640,6 +640,11 @@ width: it is hidden until the Sections tab opens), and the tips name nothing a p
 no photo draw `NoPhoto` (`SectionComponents.tsx`: `placeholderImage(design)`, as the shop grid and product page do);
 `noPhotoCards.test.tsx` lists the sections, so add a new card section there. The fixture calls `applyAdminLook()`.
 
+**Checks that run here (13 November 2026).** Root CI job `shop-studio` runs `pnpm run test:studio` on every pull request
+(three shards). A look's `headingFont` / `bodyFont` must be a `FONT_CHOICES` family in a weight it lists
+(`themeFonts.test.ts`): a font outside the list reads "Default (not set)" in the pickers and loads only 400 and 700.
+Browser checks that pick a look must pick one the picker offers (the ten in `lookGallery.ts`).
+
 ## Studio organization
 
 Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages

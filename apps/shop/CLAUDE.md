@@ -170,6 +170,7 @@ npm run logs
   axe-core 4.14.0 (WCAG 2.1 A/AA) in Chromium over every `THEME_LIBRARY` theme and the starting look, on home, a book
   page and checkout, through `a11y-fixture.html` (sample books, shop data never answered). Known problems sit in
   `scripts/a11y-baseline.json` (`<theme> <page> <rule>`: nodes); more fails, `--update` only lowers it. Fix, never raise.
+- **Studio in this repo's CI:** root job `shop-studio` runs `pnpm run test:studio` (three shards) on every pull request; the control check is not in CI yet.
 - **Studio fixture:** `pnpm dev` then open `/studio-fixture.html` — the real Studio with in-memory data
   (`studio/fixture/fakeStudioApi.ts`; writes are recorded in `window.__studioFixture.calls`, nothing reaches
   Firestore). `pnpm run test:studio` drives it in Chromium (`CHROMIUM_PATH` to reuse an installed browser,
