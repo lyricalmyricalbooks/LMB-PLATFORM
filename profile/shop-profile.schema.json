@@ -38,6 +38,11 @@
       "maxLength": 80,
       "description": "The press's name as given at sign-up. Optional. The stockroom starts its download file names with it; the shop's own name lives in its settings."
     },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "The currency the shop prices and sells in (sign-up's country: USD for the United States). Optional. Missing, or one the shop doesn't know: Canadian dollars."
+    },
     "sells": {
       "type": "string",
       "pattern": "^[a-z][a-z-]{1,30}$",

@@ -99,6 +99,8 @@ export function envFileText(shop, { senderEmail, paymentsServiceUrl, region = RE
     // Every shop the platform makes takes payments through the platform's payment service (plan 2.2), with no provider
     // key of its own; the shop refuses to start in this mode without the service's address.
     `SHOP_PAYMENT_MODE="platform"`,
+    // The currency the shop prices and sells in (sign-up's country). The shop treats one it doesn't know as CAD.
+    `SHOP_CURRENCY=${quote(/^[A-Za-z]{3}$/.test(shop.currency ?? "") ? shop.currency.toUpperCase() : "CAD")}`,
     `SHOP_PAYMENTS_SERVICE_URL=${quote(paymentsServiceUrl)}`,
     // Where the server code runs (step 8 deploys it there); the shop reads it for its function addresses.
     `SHOP_FUNCTIONS_REGION=${quote(region)}`,

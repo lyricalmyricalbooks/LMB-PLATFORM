@@ -92,3 +92,12 @@ test("the walkthrough's local shop address is used on the emulators only", () =>
   expect(readShopConfig({ ...local, FUNCTIONS_EMULATOR: undefined }).siteUrl).toBe("https://demo-colophon-test.web.app");
   expect(readShopConfig({ ...local, DEMO_SHOP_URL: "http://evil.example" }).siteUrl).toBe("https://demo-colophon-test.web.app");
 });
+
+describe('the shop currency', () => {
+  test('is Canadian dollars unless the record says US dollars', () => {
+    expect(readShopConfig({}).currency).toBe('CAD');
+    expect(readShopConfig({ SHOP_CURRENCY: 'USD' }).currency).toBe('USD');
+    expect(readShopConfig({ SHOP_CURRENCY: 'GBP' }).currency).toBe('CAD');
+    expect(require('./shopConfig').configForShop('moth-press', { server: { SHOP_CURRENCY: 'USD' } }, {}).currency).toBe('USD');
+  });
+});

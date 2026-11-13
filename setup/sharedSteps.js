@@ -44,7 +44,7 @@ import { domainOrigins, normalDomain } from "../services/domains/names.js";
  */
 export const SHOP_KEYS = Object.freeze([
   "SHOP_SENDER_NAME", "SHOP_SENDER_EMAIL", "SHOP_SITE_URL", "SHOP_EXTRA_ORIGINS", "SHOP_PAYMENT_PROVIDER",
-  "SHOP_PAYMENT_MODE", "SHOP_PAYMENT_EARLIER", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE",
+  "SHOP_PAYMENT_MODE", "SHOP_PAYMENT_EARLIER", "SHOP_TEST_SHOP", "SHOP_STOCKROOM_DATABASE", "SHOP_CURRENCY",
 ]);
 
 /** Every shop gets the shop and the stockroom: the plan the steps build is always "both". */

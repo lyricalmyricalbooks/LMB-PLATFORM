@@ -7,11 +7,15 @@
 // values below, so nothing changes for this shop. Plan, test mode, the platform fee and secret keys are never in here;
 // `payments` holds only what the card form needs on the page (plan 2.2), and the server never trusts it.
 
+import { shopCurrencyOf, type ShopCurrency } from "../shared/shopCurrency";
+
 export type ShopProfile = {
   version: 1;
   shopId: string;
   /** The press's name as given at sign-up (the shop's own name lives in its settings). */
   name?: string;
+  /** The currency the shop prices and sells in (shared/shopCurrency). Missing: Canadian dollars. */
+  currency?: string;
   /** What the shop sells, its sign-up answer (plan 10.23). The admin reads it from `firstWeek/start` today. */
   sells?: string;
   firebase: {
@@ -135,6 +139,8 @@ export function parseShopProfile(value: unknown): ShopProfile | null {
     version: 1,
     shopId: profile.shopId,
     ...(profile.name !== undefined ? { name: profile.name } : {}),
+    // A currency the shop doesn't know is left out, which reads as Canadian dollars (shared/shopCurrency).
+    ...(typeof profile.currency === "string" && shopCurrencyOf(profile.currency) === profile.currency ? { currency: profile.currency } : {}),
     firebase: Object.fromEntries(FIREBASE_KEYS.map(key => [key, firebase[key]])) as ShopProfile["firebase"],
     ...(profile.tenant !== undefined ? { tenant: profile.tenant } : {}),
     functionsRegion: profile.functionsRegion,
@@ -158,6 +164,11 @@ export function readShopProfile(source: unknown = typeof window === "undefined" 
 }
 
 export const shopProfile: ShopProfile = readShopProfile();
+
+/** The currency every price and total of this shop is in: "CAD" unless its profile says "USD". */
+export function shopCurrency(profile: ShopProfile = shopProfile): ShopCurrency {
+  return shopCurrencyOf(profile.currency);
+}
 
 /**
  * The press's plan includes the stockroom (the profile's `apps`, rewritten when an app is added or dropped). A

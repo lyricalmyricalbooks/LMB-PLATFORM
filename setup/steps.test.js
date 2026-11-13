@@ -321,3 +321,9 @@ test("every database gets seven days of recovery, also one made before (plan 13.
   assert.deepEqual(google.calls.map(([name, , id]) => [name, id]), [["firestore.enablePointInTimeRecovery", "(default)"], ["firestore.enablePointInTimeRecovery", STOCKROOM_DATABASE]]);
   assert.equal(await steps[4].check({ shop: TEST_SHOP }), true);
 });
+
+test("shopProfile names the shop's currency only when it isn't Canadian dollars", () => {
+  const settings = { apiKey: "k", authDomain: "a", projectId: "lmb-test-shop", storageBucket: "b", messagingSenderId: "1", appId: "x" };
+  assert.equal("currency" in shopProfile({ ...TEST_SHOP, currency: "CAD" }, settings), false);
+  assert.equal(shopProfile({ ...TEST_SHOP, currency: "usd" }, settings).currency, "USD");
+});

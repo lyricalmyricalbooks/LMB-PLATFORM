@@ -255,3 +255,9 @@ test("an address another Firebase project holds stops step 9 for a person", asyn
   assert.equal(result.waiting, undefined);
   assert.match(result.error, /a person looks at it/);
 });
+
+test("the shop's server record carries its currency", () => {
+  const ctx = { senderEmail: "shops@example.com", paymentsServiceUrl: "https://payments.platform.example", siteUrl: "https://a.example" };
+  assert.equal(serverSettings(PRESS, ctx).SHOP_CURRENCY, "CAD");
+  assert.equal(serverSettings({ ...PRESS, country: "US", currency: "USD" }, ctx).SHOP_CURRENCY, "USD");
+});
