@@ -2760,23 +2760,23 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
-        <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} /> {beforeShop ? "Done" : "Exit"}</button>
+        <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} aria-hidden="true" /> <span className="studio-topbar-label">{beforeShop ? "Done" : "Exit"}</span></button>
         <strong className="studio-title">Design studio</strong>
-        <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
+        <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} aria-hidden="true" /> <span className="studio-topbar-label">Find</span> <kbd aria-hidden="true">Ctrl K</kbd></button>
         <TemplatePicker options={pickerList} current={pickerCurrent} onPick={pickPage} />
-        <div className="flex items-center gap-0.5" role="group" aria-label="Preview size">
+        <div className="studio-device-group flex items-center gap-0.5" role="group" aria-label="Preview size">
           {([["desktop", Monitor, "Computer"], ["tablet", Tablet, "Tablet"], ["mobile", Smartphone, "Phone"]] as const).map(([d, Icon, name]) => (
             <button key={d} className={`${iconBtn} ${device === d ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""}`}
               onClick={() => setDevice(d)} aria-label={`${name} preview`} title={`${name} preview`} aria-pressed={device === d}><Icon size={15} /></button>
           ))}
         </div>
-        <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}
+        <button className={btn} data-studio-mode-switch aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}
           title={mode === "edit" ? "You are in Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "You are in Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."}>
-          {mode === "edit" ? <Globe size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />} {mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"}</button>
+          {mode === "edit" ? <Globe size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />} <span className="studio-topbar-label">{mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"}</span></button>
 
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => stepHistory("undo")} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => stepHistory("redo")} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
-        <div className="flex-1" />
+        <div className="studio-topbar-gap flex-1" />
         {/* Two short lines keep the bar on one row; the text still reads "Not saved yet · shop unchanged". */}
         <span className="studio-status text-xs px-2 py-1 rounded-full bg-neutral-100" role="status" data-studio-status={dirtyDraft ? "unsaved" : unpublished ? "draft" : "live"}
           title={statusTitle}>
@@ -2785,6 +2785,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             : <><strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span></>}
         </span>
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
+          ...(narrow && !beforeShop ? [{ label: "View website", icon: <Eye size={14} />, onSelect: openPreviewTab }] : []),
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
           ...(beforeShop ? [] : [{ label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) }]),

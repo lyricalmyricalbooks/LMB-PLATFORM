@@ -732,3 +732,56 @@
 .studio-essential > .studio-hint { margin: 0; font-size: 12px; line-height: 1.45; color: var(--rp-text-subtle); }
 .studio-essential > button { justify-self: start; }
 .studio-essentials-more { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--rp-text-subtle); }
+
+/* Colophon bento look for Studio (13 November 2026): soft corners, pill buttons in the top bar, a mint tips tile and
+   no hard ink outlines, so Studio matches the rest of the admin. The !important corners beat adminCompat.css, which
+   squares every Tailwind-rounded control. Colours stay tokens (adminThemes.css). */
+:root[data-admin-look="colophon"] .studio-editor { --rp-radius-sm: 12px; --rp-radius: 14px; --rp-radius-lg: 22px; }
+:root[data-admin-look="colophon"] .studio-editor button[class*="rounded-"],
+:root[data-admin-look="colophon"] .studio-editor a[class*="rounded-"] { border-radius: 12px !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-topbar button,
+:root[data-admin-look="colophon"] .studio-editor .studio-topbar a,
+:root[data-admin-look="colophon"] .studio-editor .studio-breadcrumb .studio-back,
+:root[data-admin-look="colophon"] .studio-editor .studio-find-chip { border-radius: 999px !important; }
+:root[data-admin-look="colophon"] .studio-editor :is(input:not([type=checkbox], [type=radio], [type=range], [type=color]), select, textarea) { border-radius: 10px !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-picker-trigger { border: 1px solid var(--rp-border); border-radius: 14px !important; }
+:root[data-admin-look="colophon"] .studio-editor :is(.studio-picker-panel, .studio-field-picker-panel, .studio-row-menu > div) { border: 1px solid var(--rp-border); border-radius: 14px; box-shadow: var(--rp-shadow-lg); }
+:root[data-admin-look="colophon"] .studio-editor .studio-rail { gap: 6px; padding: 10px 8px; }
+:root[data-admin-look="colophon"] .studio-editor .studio-rail button { border: 0; border-radius: 14px !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-rail button[aria-pressed=true] { background: var(--rp-primary); color: var(--rp-on-primary); box-shadow: none; }
+:root[data-admin-look="colophon"] .studio-editor .studio-tips { border: 0; border-radius: 22px; padding: 16px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+:root[data-admin-look="colophon"] .studio-editor .studio-tips :is(a, button, strong, h2, h3, p, li) { color: inherit; }
+:root[data-admin-look="colophon"] .studio-editor .studio-click-hint { border: 0; border-radius: 14px; padding: 10px 12px; background: var(--rp-surface-sunken); }
+:root[data-admin-look="colophon"] .studio-editor :is(.studio-overrides, .studio-media-note, .studio-ai-menu, .studio-ai-draft, .studio-shop-map, .studio-template-card, .studio-workbench, .studio-essential, .studio-control-card, .studio-region-context) { border: 1px solid var(--rp-border); border-radius: 14px; }
+:root[data-admin-look="colophon"] .studio-editor .studio-workbench { overflow: hidden; }
+:root[data-admin-look="colophon"] .studio-editor :is(.studio-changed-link, .studio-bulk-bar, .studio-switch, .studio-own-update) { border: 0; border-radius: 14px !important; }
+:root[data-admin-look="colophon"] .studio-editor :is(.studio-category-card, .studio-link-button, .studio-tree-section) { border-radius: 12px !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-find-box { border: 1px solid var(--rp-border); border-radius: 14px; }
+:root[data-admin-look="colophon"] .studio-editor .studio-tree-row { border-radius: 10px; }
+:root[data-admin-look="colophon"] .studio-editor .studio-tree-row[data-selected=true] { box-shadow: none; background: var(--rp-surface-2); }
+:root[data-admin-look="colophon"] .studio-editor :is(.studio-library-card:hover, .studio-library-card:focus-visible, .studio-library-card[aria-pressed="true"], .studio-library-card[aria-checked="true"]) { box-shadow: 0 0 0 2px var(--rp-primary); }
+:root[data-admin-look="colophon"] .studio-editor .studio-library-card { border-radius: 14px !important; overflow: hidden; }
+:root[data-admin-look="colophon"] .studio-editor .studio-brand-steps [aria-current="step"] button { box-shadow: none; }
+:root[data-admin-look="colophon"] .studio-editor .studio-workbench-bar button { border-radius: 0 !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-preview-frame { border-radius: 14px; }
+:root[data-admin-look="colophon"] .studio-editor :is(div, section, article, label, li)[class*="rounded-lg"],
+:root[data-admin-look="colophon"] .studio-editor :is(div, section, article, label, li)[class*="rounded-xl"] { border-radius: 14px !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-shop-map-block { border-radius: 10px !important; }
+:root[data-admin-look="colophon"] .studio-editor .studio-theme-card { border-radius: 14px; }
+:root[data-admin-look="colophon"] .studio-editor .studio-theme-thumb { border-radius: 8px; }
+
+/* Phone top bar (13 November 2026): two rows instead of five. Row 1 is Exit, Find, the saved state, Save draft and
+   Publish; row 2 is the page picker, Browse mode, undo, redo and Theme actions (which holds View website on a phone).
+   Labels of icon buttons hide (their names stay for screen readers), and every button is a 44px tap target. */
+@media (max-width: 767px) {
+  .studio-topbar { min-height: 0; gap: 6px; }
+  .studio-topbar .studio-topbar-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .studio-topbar kbd, .studio-topbar .studio-device-group, .studio-topbar .studio-topbar-gap, .studio-topbar [data-studio-view-website], .studio-topbar .studio-status > :not(strong) { display: none; }
+  .studio-topbar button { min-height: 44px; min-width: 44px; justify-content: center; }
+  .studio-topbar .studio-status { order: 1; flex: 1; min-width: 0; padding: 0 4px; background: none; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .studio-topbar > button:nth-last-of-type(-n+2) { order: 2; }
+  .studio-topbar .studio-picker { order: 3; flex: 1 1 calc(100% - 200px); min-width: 0; }
+  .studio-topbar .studio-picker-trigger { width: 100%; min-width: 0; max-width: none; }
+  .studio-topbar [data-studio-mode-switch], .studio-topbar > button[aria-label^="Undo"], .studio-topbar > button[aria-label^="Redo"], .studio-topbar .studio-tools-menu { order: 4; }
+  .studio-breadcrumb .studio-back { min-height: 44px; }
+}

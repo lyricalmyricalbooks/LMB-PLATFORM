@@ -1967,9 +1967,25 @@ await check("phone-sized editor loads without errors", { width: 390, height: 844
 
 // A phone used to open on the computer preview: a 1200px page drawn 390px wide, too small to read or tap.
 await check("a phone opens on the phone preview", { width: 390, height: 844 }, async page => {
-  const pressed = await page.getByRole("button", { name: "Phone preview" }).getAttribute("aria-pressed");
+  // The preview-size buttons are hidden on a phone (the bar is two rows), so read the state, not the visible button.
+  const pressed = await page.locator('[aria-label="Phone preview"]').getAttribute("aria-pressed");
   if (pressed !== "true") throw new Error("a phone did not open on the phone preview");
 }, FIRST_VISIT);
+
+// The phone top bar used to wrap to five rows and push the preview half off the screen.
+await check("on a phone the top bar is two rows of full-size buttons, with View website under Theme actions", { width: 390, height: 844 }, async page => {
+  const bar = await page.evaluate(() => {
+    const top = document.querySelector(".studio-topbar");
+    const shown = [...top.querySelectorAll("button")].filter(b => b.getBoundingClientRect().width > 0);
+    return { height: Math.round(top.getBoundingClientRect().height), small: shown.filter(b => b.getBoundingClientRect().height < 44 || b.getBoundingClientRect().width < 44).map(b => b.getAttribute("aria-label") || b.textContent.trim()),
+      unnamed: shown.filter(b => !(b.getAttribute("aria-label") || b.textContent.trim())).length };
+  });
+  if (bar.height > 120) throw new Error(`the phone top bar is ${bar.height}px tall`);
+  if (bar.small.length) throw new Error(`small tap targets in the top bar: ${bar.small.join(", ")}`);
+  if (bar.unnamed) throw new Error(`${bar.unnamed} top bar buttons have no name`);
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "View website" }).waitFor({ timeout: 5000 });
+});
 
 await check("a computer opens on the computer preview", desktop, async page => {
   const pressed = await page.getByRole("button", { name: "Computer preview" }).getAttribute("aria-pressed");

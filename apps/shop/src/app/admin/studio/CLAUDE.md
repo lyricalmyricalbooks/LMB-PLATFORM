@@ -764,3 +764,7 @@ StudioEditor tests: about a fifth less time per click in development React.
 **`beforeShop` (10 November 2026):** Studio for a press with no store yet (`src/designFirst/`, admin CLAUDE.md › Design
 before the store): saves 1.2 s after each edit to the press's setup record, Done saves first, and no publish, draft,
 discard, schedule or View website controls. Keep new top-bar actions that need a real shop behind `!beforeShop`.
+
+## Studio look and phone top bar (13 November 2026)
+
+Studio wears the Colophon look through one block at the end of `studio.css`, scoped `:root[data-admin-look="colophon"] .studio-editor` (the radius tokens, pill top bar, filled rail tile, mint tips tile, 1px borders). Corners carry `!important` because `adminCompat.css` squares every Tailwind-rounded control. New Studio boxes: add the class to that block's lists instead of a 2px ink border. On a phone (767px and under) the top bar is two rows: labels inside `.studio-topbar-label` hide visually (still read aloud), the preview-size group and View website hide (View website is then the first Theme actions item), and top bar buttons are 44px. A browser check holds the bar to 120px.
