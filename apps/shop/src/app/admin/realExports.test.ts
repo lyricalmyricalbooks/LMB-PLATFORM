@@ -4,7 +4,7 @@
 // Each is read end to end, and read again over what the first run made: a second import must add nothing.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseMoney } from "./catalogImport";
+import { parseMoney, planImport } from "./catalogImport";
 import { readPastOrders } from "./pastOrders";
 import { planShopMove, readCustomerExport } from "./shopMove";
 import { decodeText, spreadsheetText } from "./spreadsheetFile";
@@ -195,5 +195,36 @@ describe("a big shop", () => {
     const again = planShopMove(text, first.plan.rows.map((r, i) => ({ id: `b${i}`, ...r.patch })));
     expect(again.plan.counts).toEqual({ create: 0, update: 0, unchanged: 2000, error: 0 });
     expect(Date.now() - start).toBeLessThan(15000);
+  });
+});
+
+describe("a shop that doesn't sell books", () => {
+  const FILE = "Title,Barcode,SKU,Price\nTide Tee,036000291452,,30\nCanvas Tote,,TOTE-1,18\n";
+
+  it("saves new products as its own kind, with no book format, and keeps a barcode that isn't an ISBN", () => {
+    const plan = planImport(FILE, [], [], { newKind: "clothing" });
+    expect(plan.rows.map(r => r.action)).toEqual(["create", "create"]);
+    expect(plan.rows[0].patch).toMatchObject({ kind: "clothing", format: "", barcode: "036000291452", isbn: "" });
+    expect(plan.rows[0].warnings.join(" ")).not.toMatch(/ISBN/);
+  });
+
+  it("finds the product again by its barcode, so a second import adds nothing", () => {
+    const first = planImport(FILE, [], [], { newKind: "clothing" });
+    const saved = first.rows.map((r, i) => ({ id: `p${i}`, ...r.patch }));
+    const again = planImport(FILE, saved, [], { newKind: "clothing" });
+    expect(again.counts).toMatchObject({ create: 0, update: 0, unchanged: 2 });
+  });
+
+  it("leaves a books shop as it was: Paperback, no kind, and a word about a code that isn't an ISBN", () => {
+    const plan = planImport(FILE, [], []);
+    expect(plan.rows[0].patch).toMatchObject({ format: "Paperback", isbn: "036000291452" });
+    expect(plan.rows[0].patch.kind).toBeUndefined();
+    expect(plan.rows[0].warnings.join(" ")).toMatch(/ISBN/);
+  });
+
+  it("brings a barcode that isn't an ISBN over from an old shop's file", () => {
+    const text = "Handle,Title,Variant SKU,Variant Price,Variant Barcode\ntide-tee,Tide Tee,TEE-1,30,036000291452\n";
+    const { plan } = planShopMove(text, [], [], { newKind: "clothing" }, { keepOptions: true });
+    expect(plan.rows[0].patch).toMatchObject({ barcode: "036000291452", kind: "clothing" });
   });
 });

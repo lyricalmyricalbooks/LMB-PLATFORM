@@ -278,7 +278,7 @@ function fromHandleRows(table: string[][], notices: string[]): MovedBook[] {
     const type = c.get(head, "Type", "Product Type");
     if (type) cells.Categories = type;
     const barcode = editions.length === 1 ? c.get(rows.find(r => c.get(r, ...BARCODE)) || head, ...BARCODE) : "";
-    if (barcode && validIsbn(barcode)) cells.ISBN = barcode;
+    if (barcode) cells[validIsbn(barcode) ? "ISBN" : "Barcode / UPC"] = barcode;
     const seoTitle = c.get(head, "SEO title"), seoDescription = c.get(head, "SEO description");
     if (seoTitle) cells["SEO title"] = seoTitle;
     if (seoDescription) cells["SEO description"] = seoDescription;
@@ -379,7 +379,7 @@ function fromParentRows(table: string[][], notices: string[]): MovedBook[] {
     const w = weight(row);
     if (w) cells.Weight = w;
     const isbn = codeHeading && !vs.length ? c.get(row, codeHeading) : "";
-    if (isbn && validIsbn(isbn)) cells.ISBN = isbn;
+    if (isbn) cells[validIsbn(isbn) ? "ISBN" : "Barcode / UPC"] = isbn;
     const notes = /\b(variable)\b/i.test(c.get(row, "Type")) && !vs.length ? ["This product had choices in your old shop, but none of them were in the file."] : [];
     // Published is 1; 0 is private and -1 a draft.
     if (/^(0|-1)$/.test(c.get(row, "Published"))) notes.push(hiddenNote);
@@ -512,7 +512,7 @@ function fromVariationNameRows(table: string[][], notices: string[]): MovedBook[
     if (seoTitle) cells["SEO title"] = seoTitle;
     if (seoDescription) cells["SEO description"] = seoDescription;
     const gtin = rows.length === 1 ? c.get(head, "GTIN") : "";
-    if (gtin && validIsbn(gtin)) cells.ISBN = gtin;
+    if (gtin) cells[validIsbn(gtin) ? "ISBN" : "Barcode / UPC"] = gtin;
     const visibility = c.get(head, "Square Online Item Visibility", "Item Visibility", "Visibility").toLowerCase();
     return book(line, cells, editions, [], [], /^(hidden|unavailable)$/.test(visibility) ? [hiddenNote] : []);
   });
@@ -576,7 +576,7 @@ function fromItemRows(table: string[][]): MovedBook[] {
     if (seoTitle) cells["SEO title"] = seoTitle;
     if (seoDescription) cells["SEO description"] = seoDescription;
     const isbn = c.get(head, "Global Trade Number", "UPC/EAN");
-    if (validIsbn(isbn)) cells.ISBN = isbn;
+    if (isbn) cells[validIsbn(isbn) ? "ISBN" : "Barcode / UPC"] = isbn;
     const images = under.filter(r => item(r) === "image");
     const photos = [...images.filter(r => yes(c.get(r, "Image is Thumbnail"))), ...images.filter(r => !yes(c.get(r, "Image is Thumbnail")))].map(r => c.get(r, "Internal Image URL (Export)", "Image URL (Import)"));
     const path = c.get(head, "Product URL");
@@ -707,7 +707,7 @@ export function readProductExport(text: string): ProductMove | null {
   return { shape, books, problems, notices, blankIsUncounted: shape !== "handle-rows" || TRACKER.some(n => has(n)) };
 }
 
-const LABELS = ["Title", "Description", "ISBN", "SKU", "Price", "Sale price", "Stock", "Categories", "Tags", "Weight", "Image URL", "Extra image URLs", "SEO title", "SEO description"];
+const LABELS = ["Title", "Description", "ISBN", "Barcode / UPC", "SKU", "Price", "Sale price", "Stock", "Categories", "Tags", "Weight", "Image URL", "Extra image URLs", "SEO title", "SEO description"];
 const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
 /** The products as a spreadsheet in this shop's own import columns, one line per book. */

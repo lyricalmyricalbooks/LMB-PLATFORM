@@ -554,6 +554,12 @@ system** (`shopMove.test.ts` checks `SHAPE_WORDS` and `ShopMoveDialogs.tsx`); co
   result screen and, for an earlier run, on the start screen. Imports save four at a time (`runPool`) with `{ quiet: true }`
   on `createBook`/`updateBook`/`deleteBook`, and write one activity-log line per run. `pnpm run test:move` clicks it through
   on desktop and phone (the fixture's move mode keeps books in memory).
+- **Imports in a shop that doesn't sell books (13 November 2026):** `planImport`'s `newKind` option (the dialog passes
+  `startingKind(sells)`) saves new products with that `kind` and no book format, and moves a code in an ISBN/barcode
+  column that isn't an ISBN to `barcode`. The new `barcode` field (label "Barcode / UPC"; the plain heading "Barcode"
+  still means ISBN for a books shop) is matched after ISBN and before SKU. The dialog hides `BOOK_ONLY` columns from its
+  list, template and Match columns for such a shop (a file that has them is still read), and row notes pass through
+  `noteWords` (importPreview.tsx), which never rewords text in “quotes” or (brackets).
 
 ## Set up your shop (28 October 2026, code plan 6.3 and 6.9; was Your first week, 3.3)
 

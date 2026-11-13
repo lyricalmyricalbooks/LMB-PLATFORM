@@ -104,7 +104,7 @@ describe("products", () => {
 
   it("writes the shop's own import columns", () => {
     const text = movedBooksCsv(readProductExport(HANDLE_ROWS)!.books);
-    expect(text.split("\n")[0]).toBe("Title,Description,ISBN,SKU,Price,Sale price,Stock,Categories,Tags,Weight,Image URL,Extra image URLs,SEO title,SEO description");
+    expect(text.split("\n")[0]).toBe("Title,Description,ISBN,Barcode / UPC,SKU,Price,Sale price,Stock,Categories,Tags,Weight,Image URL,Extra image URLs,SEO title,SEO description");
   });
 });
 
