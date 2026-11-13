@@ -49,3 +49,36 @@ export function readCountSession(): CountSession | null {
 export function writeCountSession(s: CountSession | null) {
   try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); else localStorage.removeItem(KEY); } catch { /* storage blocked: progress lasts this visit */ }
 }
+
+/** The difference report shown after a count: what changed, by how many, and what that is worth at cost price. */
+export type ReportItem = { id: string; title: string; sub?: string; cost?: number };
+export type ReportRow = { id: string; title: string; sub: string; from: number; to: number; diff: number; value: number | null };
+export type CountReport = { rows: ReportRow[]; missing: number; found: number; valueMissing: number; valueFound: number; noCost: number; matched: number };
+
+export function countReport(items: ReportItem[], changes: { id: string; from: number; to: number }[], counted: number): CountReport {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const rows: ReportRow[] = [];
+  let missing = 0, found = 0, valueMissing = 0, valueFound = 0, noCost = 0;
+  for (const c of changes) {
+    const it = byId.get(c.id);
+    const diff = c.to - c.from;
+    const cost = it?.cost && it.cost > 0 ? it.cost : null;
+    const value = cost === null ? null : Math.round(diff * cost * 100) / 100;
+    if (diff < 0) { missing -= diff; if (value !== null) valueMissing -= value; }
+    else { found += diff; if (value !== null) valueFound += value; }
+    if (value === null) noCost++;
+    rows.push({ id: c.id, title: it?.title || c.id, sub: it?.sub || "", from: c.from, to: c.to, diff, value });
+  }
+  // Biggest loss first: what the owner most needs to look into.
+  rows.sort((a, b) => (a.value ?? a.diff) - (b.value ?? b.diff) || a.diff - b.diff || a.title.localeCompare(b.title));
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return { rows, missing, found, valueMissing: round(valueMissing), valueFound: round(valueFound), noCost, matched: Math.max(0, counted - rows.length) };
+}
+
+/** The report as spreadsheet rows (header first), for "Download report". */
+export function countReportRows(report: CountReport, countedAt: string): string[][] {
+  return [
+    ["Counted", "Item", "Details", "Expected", "Counted", "Difference", "Value at cost"],
+    ...report.rows.map((r) => [countedAt, r.title, r.sub, String(r.from), String(r.to), String(r.diff), r.value === null ? "" : r.value.toFixed(2)]),
+  ];
+}
