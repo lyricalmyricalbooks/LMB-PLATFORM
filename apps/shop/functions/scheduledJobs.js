@@ -5,6 +5,7 @@
 
 const { withPlatformKey } = require("./platformKey");
 const { shopTimeZone } = require("./shared/shopTimeZone");
+const { SHOP_ZONE } = require("./tick");
 const { lowStockLine, lowStockRows, newlyLow, lowStockLabel, lowStockEmailEnabled } = require("./lowStockAlert");
 const { sayer, shopLanguage } = require("./emailFrench");
 
@@ -19,11 +20,11 @@ function scheduledJobs({
   // ──────────────────────────────────────────────────────────────
   // 7. Abandoned cart sweep: every hour, recover carts older than 1h
   // ──────────────────────────────────────────────────────────────
-  // Daily 8am (Toronto) email to the publisher listing paid parcels not shipped after
+  // Daily 8am (the shop's own time, tick.js SHOP_ZONE) email to the publisher listing paid parcels not shipped after
   // 3 days, parcels in transit 14+ days and label purchases that need checking in
   // Shippo. Nothing is sent on days with nothing to report.
   const dailyOrderDigest = onSchedule(
-    { schedule: "every day 08:00", name: "dailyOrderDigest", timeZone: "America/Toronto", secrets: withPlatformKey([RESEND_API_KEY]) },
+    { schedule: "every day 08:00", name: "dailyOrderDigest", timeZone: SHOP_ZONE, secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
       // Settings › Notifications › Shop alerts › Daily "orders needing you" email, and Running low (plan 24.3).
       const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
@@ -98,7 +99,7 @@ function scheduledJobs({
   // The Monday summary email: last week's sales and visits against the week before (functions/weeklySummary.js).
   // Reads every paid order once a week (only the fields it needs) so "new customers" means first-ever orders.
   const weeklySummary = onSchedule(
-    { schedule: "every monday 08:00", name: "weeklySummary", timeZone: "America/Toronto", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+    { schedule: "every monday 08:00", name: "weeklySummary", timeZone: SHOP_ZONE, timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
       const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
       if (!weeklySummaryEnabled(notificationDoc?.data?.() || {})) return;
@@ -109,7 +110,7 @@ function scheduledJobs({
   // The fair day email: on an evening after the Fair till sold something, the day's takings (functions/fairDayEmail.js).
   // Silent on other days and in a shop without the stockroom.
   const fairDaySummary = onSchedule(
-    { schedule: "every day 21:00", name: "fairDaySummary", timeZone: "America/Toronto", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
+    { schedule: "every day 21:00", name: "fairDaySummary", timeZone: SHOP_ZONE, timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) },
     async () => {
       const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
       if (!fairDayEmailEnabled(notificationDoc?.data?.() || {})) return;

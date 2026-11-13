@@ -14,7 +14,7 @@ describe("the shop's time zone on the server", () => {
   });
   it("no server file fixes the shop's day to Toronto", () => {
     const fs = require("node:fs");
-    const allowed = { "scheduledJobs.js": 3, "index.js": 2, "clientErrors.js": 1 }; // job timetables and the platform's own error budget
+    const allowed = { "index.js": 2, "clientErrors.js": 1 }; // two housekeeping timetables and the platform's own error budget
     for (const name of fs.readdirSync(__dirname).filter((n) => n.endsWith(".js") && !n.includes(".test."))) {
       const count = (fs.readFileSync(`${__dirname}/${name}`, "utf8").match(/"America\/Toronto"/g) || []).length;
       expect([name, count]).toEqual([name, allowed[name] || 0]);

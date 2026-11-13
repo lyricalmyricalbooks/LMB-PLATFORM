@@ -140,3 +140,22 @@ describe("wiring", () => {
     expect(index).toMatch(/exports\.tick = onScheduleReal\(/);
   });
 });
+
+describe("a sweep on the shop's own clock", () => {
+  it("an 8am email waits for 8am where the shop is", async () => {
+    const { runTick, parseSchedule, SHOP_ZONE } = require("./tick");
+    const ran = [];
+    const jobs = [{ name: "digest", spec: parseSchedule("every day 08:00", SHOP_ZONE), secrets: [], handler: async () => { ran.push("digest"); } }];
+    let state = { jobs: { digest: { at: Date.parse("2026-11-12T20:00:00Z"), ok: true } } };
+    const ref = { set: async (data) => { state = { ...state, ...data, jobs: { ...state.jobs, ...data.jobs } }; } };
+    const db = { collection: () => ({ doc: () => ref }), runTransaction: async (fn) => fn({ get: async () => ({ exists: true, data: () => state }), set: (_r, data) => { state = { ...state, jobs: { ...state.jobs, ...data.jobs } }; } }) };
+    const eightInToronto = Date.parse("2026-11-13T13:05:00Z");
+    await runTick({ jobs, db, now: eightInToronto, zone: "America/Los_Angeles", log: console });
+    expect(ran).toEqual([]);
+    await runTick({ jobs, db, now: eightInToronto, zone: "America/Toronto", log: console });
+    expect(ran).toEqual(["digest"]);
+    state = { jobs: { digest: { at: Date.parse("2026-11-12T20:00:00Z"), ok: true } } };
+    await runTick({ jobs, db, now: Date.parse("2026-11-13T16:05:00Z"), zone: "America/Los_Angeles", log: console });
+    expect(ran).toEqual(["digest", "digest"]);
+  });
+});
