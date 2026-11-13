@@ -28,3 +28,11 @@ describe("pdpFreeShipping", () => {
     expect(pdpFreeShipping([...freeOver, { id: "q", freeShippingOver: 100, zones: [] }], printed, null, [])).toEqual({ kind: "over", threshold: 100 });
   });
 });
+
+describe("book page line with a no-code free-shipping offer", () => {
+  const book = { id: "b", format: "Paperback" };
+  it("uses the offer's lower minimum, and says free when every order ships free", () => {
+    expect(pdpFreeShipping([], book, null, [], [{ id: "o", type: "freeship", minOrderAmount: 40 }])).toEqual({ kind: "over", threshold: 40 });
+    expect(pdpFreeShipping([], book, null, [], [{ id: "o", type: "freeship" }])).toEqual({ kind: "free", threshold: 0 });
+  });
+});

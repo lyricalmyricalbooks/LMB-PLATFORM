@@ -24,7 +24,8 @@ import { cartDrawerCss, cartDrawerFontNames, cartDrawerWidth } from "../features
 import { googleFontHref } from "../features/site/fonts";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { catalogFulfillmentItems } from "../features/site/checkoutFulfillment";
-import { bagFreeShipThreshold, shippableBagTotal } from "../features/site/freeShipThreshold";
+import { bagFreeShipThreshold, bestFreeShipThreshold, offerFreeShipThreshold, shippableBagTotal } from "../features/site/freeShipThreshold";
+import { loadAutomaticOffers } from "../features/site/automaticOffersLoad";
 
 import { loadShippingProfiles } from "../features/site/shippingProfilesLoad";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
@@ -218,9 +219,19 @@ export function CartDrawer() {
     loadShippingProfiles().then((profiles) => { if (live) setShippingProfiles(profiles); });
     return () => { live = false; };
   }, [isCartOpen, shippingProfiles]);
+  // A no-code "free shipping over …" offer (Discounts › automatic) fills the bar too, when it would apply to anyone.
+  const [autoOffers, setAutoOffers] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (!isCartOpen || autoOffers || inEditorPreview()) return;
+    let live = true;
+    loadAutomaticOffers().then((offers) => { if (live) setAutoOffers(offers); });
+    return () => { live = false; };
+  }, [isCartOpen, autoOffers]);
   const fulfillmentItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
   const hasPhysicalItems = fulfillmentItems ? fulfillmentItems.some((item) => item.physical) : cart.length > 0;
-  const FREE_SHIP_THRESHOLD = bagFreeShipThreshold(shippingProfiles, hasPhysicalItems);
+  const FREE_SHIP_THRESHOLD = hasPhysicalItems
+    ? bestFreeShipThreshold(bagFreeShipThreshold(shippingProfiles, true), offerFreeShipThreshold(autoOffers))
+    : null;
   // Only printed books count: checkout charges shipping on physical lines, so e-books and gift cards can't fill the bar.
   const shippableTotal = shippableBagTotal(fulfillmentItems, cartTotal);
   const remaining = FREE_SHIP_THRESHOLD ? Math.max(0, FREE_SHIP_THRESHOLD - shippableTotal) : 0;

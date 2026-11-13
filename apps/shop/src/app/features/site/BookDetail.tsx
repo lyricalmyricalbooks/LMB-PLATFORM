@@ -37,6 +37,7 @@ import { findCountry } from "./shippingZones";
 import { parseWeightGrams, quoteShipping } from "./shippingEngine";
 import { catalogFulfillmentItems } from "./checkoutFulfillment";
 import { loadShippingProfiles } from "./shippingProfilesLoad";
+import { loadAutomaticOffers } from "./automaticOffersLoad";
 import { reviewsApi } from "../../lib/reviews";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
@@ -424,11 +425,18 @@ export default function BookDetail() {
     return shippingDetailsData(quote, shopCountry, undefined, getCopy(settings?.design, "seoHandlingDays"));
   }, [book, selectedVariant, shippingProfiles, settings, books, shopCountry]);
   // Free-shipping line (off by default): the bag's printed books count toward the shop-wide threshold.
+  const [autoOffers, setAutoOffers] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (!showPdpFreeShipping || inEditorPreview()) return;
+    let live = true;
+    loadAutomaticOffers().then((offers) => { if (live) setAutoOffers(offers); });
+    return () => { live = false; };
+  }, [showPdpFreeShipping]);
   const freeShipInfo = useMemo(() => {
     if (!showPdpFreeShipping || !book) return null;
     const bagItems = catalogFulfillmentItems(cart, new Map((books || []).map((b: any) => [b.id, b])));
-    return pdpFreeShipping(shippingProfiles, book, selectedVariant, bagItems);
-  }, [showPdpFreeShipping, book, selectedVariant, shippingProfiles, cart, books]);
+    return pdpFreeShipping(shippingProfiles, book, selectedVariant, bagItems, autoOffers);
+  }, [showPdpFreeShipping, book, selectedVariant, shippingProfiles, cart, books, autoOffers]);
   const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
 
   const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}${productSegment()}/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);

@@ -37,3 +37,29 @@ export function shippableBagTotal(items: Array<{ price: number; quantity: number
   const cents = items.filter((item) => item.physical).reduce((sum, item) => sum + Math.round(Number(item.price || 0) * 100) * (Number(item.quantity) || 0), 0);
   return cents / 100;
 }
+
+/**
+ * A no-code "free shipping" offer (Discounts › automatic, type freeship) that every shopper gets once the bag reaches
+ * its minimum. Checkout gives it only when no money-off automatic offer wins instead (pickAutomaticDiscount), so any
+ * other automatic offer means no promise. Offers limited to some products, a number of items, some customers or one
+ * use per customer are left out: the bag can't tell whether they'd apply. Returns the lowest minimum (0 = always free),
+ * or null when no offer counts.
+ */
+export function offerFreeShipThreshold(offers: any[] | null | undefined): number | null {
+  const list = (offers || []).filter(Boolean);
+  if (!list.length || list.some((o) => o.type !== "freeship")) return null;
+  const open = list.filter((o) =>
+    (o.appliesTo == null || o.appliesTo === "all" || o.appliesTo === "catalog")
+    && !(Number(o.minQuantity) > 0)
+    && !o.restricted && !o.onePerCustomer && !o.restrictedToCustomers
+    && !String(o.allowedCustomerEmails || "").trim() && !String(o.allowedEmailDomains || "").trim());
+  if (!open.length) return null;
+  return Math.min(...open.map((o) => (Number(o.minOrderAmount) > 0 ? Number(o.minOrderAmount) : 0)));
+}
+
+/** The lower of the shipping rule and the free-shipping offer: whichever the bag reaches first makes shipping free. */
+export function bestFreeShipThreshold(fromShipping: number | null, fromOffer: number | null): number | null {
+  if (fromShipping == null) return fromOffer;
+  if (fromOffer == null) return fromShipping;
+  return Math.min(fromShipping, fromOffer);
+}
