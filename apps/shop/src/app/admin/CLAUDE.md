@@ -697,6 +697,17 @@ Team role `bookkeeper` (Settings › Team, or the platform's account page): read
   admin shell, so none of the admin's reads run. `bookkeeping.ts` (pure) blanks shoppers' and gift card recipients'
   email addresses in its downloads. A first sign-in learns the role after `login()` refreshes the pass (`onLogin`).
 - **Stockroom:** the same role reads the tax centre's key-free copy (`apps/stockroom/src/lib/bookkeeper-copy.js`).
+- **Accountant seat (13 November 2026):** people see the role as **Accountant** (id stays `bookkeeper`; Team page shortcut
+  "Invite your accountant"; invite email `teamInvite.js` "Your access to <shop>'s books"). The desk has tabs Overview,
+  Sales and tax, Transactions, Expenses, Receipts, Artist payouts (book shops): the owner's `TaxCenterView` drawn with no
+  `onTaxCenter`/`onState` (so no write button shows) and `ReceiptsVaultCard` with no `onSaved`. Records come from
+  `stockroomApi.loadForBookkeeper` (catalog, each item's records, and the Tax centre rebuilt from its copy by
+  `taxCenterFromCopy`; never `taxCenter`, `invoiceSettings` or submissions). The stockroom rules let the role read
+  `books/{id}`, `data/{part}` and the `catalog` setting (and the old Realtime Database books), never write. The copy now
+  carries receipt links, `ref`, `voided` and the saved number-only rates; it refreshes when the owner next saves the
+  Tax centre. Fixture: `admin-fixture.html?accountant=1` (`bookkeeperLoad.test.ts`).
+  The desk's last tab, **Reports** (shops with a stockroom), reads `reportsForBookkeeper` (Bookkeeping › Reports'
+  figures-only copy, below) through `loadBookkeeperSetting` and draws `stockroom/BookkeeperReportsCard.tsx`.
 
 ## Download for another shop system (28 October 2026, code plan 7.18)
 
@@ -948,6 +959,19 @@ receipts). **Check and add** opens the Log expense page with `emailReceipt` (`Lo
 first, the expense is saved with it attached in one write, then the email is cleared; a failed file adds nothing. Not a
 port of the old Gmail receipt finder (Julian didn't like it): no Gmail sign-in, no scanning a mailbox. Fixture:
 `admin-fixture.html?page=stockroom/receipts` (`&receipts=off|soon|code`).
+
+**Bookkeeping › Reports (13 November 2026):** sixth pill `bkreports` (`stockroom/ReportsPage.tsx`, pure figures in
+`stockroom/moneyStatements.ts`): Cash today / You own / In 90 days tiles, a **balance sheet** for any day (cash = the
+ledger's money in less out to that day, less unpaid invoices, plus unfiled website sales tax held; owed = unpaid invoices;
+stock at cost; owes = unfiled sales tax by quarter (`unfiledSalesTax`, `filingsOf`) and artist shares; past days use
+today's stock and shares, said in a note), spreadsheet and Print or save PDF (`documentKit`), the **90-day cash forecast**
+(`cashForecast`: invoices on their due day or today when late, recurring costs via `chargesBetween`, expected costs,
+sales tax on its due day, and the last 90 days' usual weekly sales; 13 weeks drawn by `ForecastChart`) and the header's
+**Download tax pack** (`taxPackFiles` + `packReceipts`: numbered CSVs, every cloud receipt fetched into `receipts/`,
+misses listed). Supplier bills aren't in it (built elsewhere). Opening the page saves `bookkeeperReports.ts`'s copy as
+the setting `reportsForBookkeeper` (no customer names, no receipt links; `day` keeps it to one write a day unless a figure
+changes); the stockroom rules open that one setting to the bookkeeper (firestore.rules, database.rules.json, the emulator
+script's two-shop checks). Fixture: `admin-fixture.html?page=stockroom/bkreports`.
 
 **Quotes, repeating invoices and bills to pay (13 November 2026):** Invoices has three tabs (`invoices`, `quotes`,
 `recurring`, one "Invoices" title in `combined.ts`, menu names in `riso/nav.ts`); Bookkeeping gains `bills` (Bills to pay).

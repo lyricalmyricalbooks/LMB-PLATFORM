@@ -114,8 +114,8 @@ export const STOCKROOM_SIDE: Menu = [
   // Tax centre + Bookkeeping mockup (12 November 2026): the Tax centre is one page; Bookkeeping is five tabs under one
   // title. Payments and Insights left the menu (not in the mockup); their pages still open from links.
   { label: "Tax centre", icon: Calculator, pages: [S("taxcenter")] },
-  { label: "Bookkeeping", icon: PiggyBank, pages: [S("books"), S("reconcile"), S("expenses"), S("bills"), S("receipts"), S("artists")],
-    labels: { [S("books")]: "Overview", [S("reconcile")]: "Transactions", [S("expenses")]: "Expenses", [S("bills")]: "Bills to pay", [S("receipts")]: "Receipts", [S("artists")]: "Artist payouts" } },
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("books"), S("reconcile"), S("expenses"), S("bills"), S("receipts"), S("artists"), S("bkreports")],
+    labels: { [S("books")]: "Overview", [S("reconcile")]: "Transactions", [S("expenses")]: "Expenses", [S("bills")]: "Bills to pay", [S("receipts")]: "Receipts", [S("artists")]: "Artist payouts", [S("bkreports")]: "Reports" } },
   // v4: Backups is one page (the Google Sheet moved to Settings).
   { label: "Backups", icon: SlidersHorizontal, pages: [S("backups")] },
 ];

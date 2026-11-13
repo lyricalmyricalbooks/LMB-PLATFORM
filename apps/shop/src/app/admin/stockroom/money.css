@@ -128,3 +128,9 @@
 .rp-er-more summary { cursor: pointer; font-weight: 600; }
 .rp-er-more ol { margin: var(--rp-space-2) 0 0; padding-left: 1.3em; list-style: decimal; display: grid; gap: 6px; color: var(--rp-text-muted); }
 @media (max-width: 560px) { .rp-er { padding: var(--rp-space-4); } .rp-er-list { grid-template-columns: 1fr; } .rp-er-checked { display: none; } }
+
+/* Bookkeeping › Expenses › Drives: the rates dialog (MileageCard.tsx). */
+.rp-mileage-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp-mileage-rate { display: grid; gap: 12px; margin: 0; padding: 16px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius-lg); }
+.rp-mileage-rate legend { padding: 0 6px; font-weight: 600; }
+.rp-mileage-rate > button { justify-self: start; }

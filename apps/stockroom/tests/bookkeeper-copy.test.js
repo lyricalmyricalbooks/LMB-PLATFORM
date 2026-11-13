@@ -5,7 +5,7 @@ import { baseAmountOf, bookkeeperCopyKey, bookkeeperTaxCopy, copyYears, isBookke
 import { bookkeeperViewHtml } from '../src/features/bookkeeper-view.js';
 
 const TAX_CENTER = {
-  settings: { baseCurrency: 'CAD', geminiKey: 'secret-gemini', claudeKey: 'secret-claude', rates: { USD: 1.37 } },
+  settings: { baseCurrency: 'CAD', geminiKey: 'secret-gemini', claudeKey: 'secret-claude', rates: { USD_CAD: 1.37, EUR_CAD: 'odd' } },
   recurring: [{ id: 'r1', desc: 'Web host', amount: 12 }],
   businessExpenses: [
     { id: 1, date: '2026-02-03', desc: 'Paper', vendor: 'Mill', cat: 'Printing', currency: 'CAD', amount: 120, baseAmount: 120, receipt: 'receipts/x.pdf', sourceSnippet: 'Dear publisher…', emailMsgId: 'm1' },
@@ -19,10 +19,11 @@ const TAX_CENTER = {
 describe("the bookkeeper's copy", () => {
   const copy = bookkeeperTaxCopy(TAX_CENTER, '2026-05-02T00:00:00.000Z');
 
-  it('carries no key, receipt, email or recurring setup: only the expense fields', () => {
+  it('carries no key, email or recurring setup: the expense fields with their receipt links, and the saved rates', () => {
     const text = JSON.stringify(copy);
-    for (const secret of ['secret-gemini', 'secret-claude', 'receipts/x.pdf', 'Dear publisher', 'm1', 'Web host', 'rates']) expect(text).not.toContain(secret);
-    expect(copy.businessExpenses[0]).toEqual({ id: 1, date: '2026-02-03', desc: 'Paper', vendor: 'Mill', cat: 'Printing', currency: 'CAD', amount: 120, baseAmount: 120 });
+    for (const secret of ['secret-gemini', 'secret-claude', 'Dear publisher', 'm1', 'Web host', 'odd']) expect(text).not.toContain(secret);
+    expect(copy.businessExpenses[0]).toEqual({ id: 1, date: '2026-02-03', desc: 'Paper', vendor: 'Mill', cat: 'Printing', currency: 'CAD', amount: 120, baseAmount: 120, receipt: 'receipts/x.pdf' });
+    expect(copy.rates).toEqual({ USD_CAD: 1.37 });
     expect(copy.baseCurrency).toBe('CAD');
   });
 

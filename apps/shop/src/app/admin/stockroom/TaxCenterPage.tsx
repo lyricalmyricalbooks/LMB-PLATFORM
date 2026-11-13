@@ -35,6 +35,9 @@ import { ReceiptsVaultCard } from "./ReceiptsVault";
 import { TaxSeasonCard } from "./TaxSeasonCard";
 import { StockValueCard } from "./StockValueCard";
 import { TripsCard, type TripRow } from "./TripsCard";
+import { MileageCard } from "./MileageCard";
+import { drivesCsv, mileageYear } from "./mileage";
+import { buildStockists } from "./stockists";
 import { isEditableLine } from "./taxLedger";
 import type { SaveNote } from "./saveTaxCenter";
 import { GapsCard } from "./GapsCard";
@@ -134,6 +137,9 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
   const model = useMemo(() => taxCenterModel(sources, year, now), [sources, year, now]);
   const cur = model.baseCurrency;
   const money = (n: number) => fmt(n, cur);
+  const stockistNames = useMemo(() => { try { return buildStockists(records).stockists.map((k) => k.name).filter(Boolean); } catch { return []; } }, [records]);
+  const tcRec = records.taxCenter as Record<string, any> | null;
+  const drivesYear = useMemo(() => mileageYear(tcRec, year, cur), [tcRec, year, cur]);
   const shown = useMemo(() => filterLedger(model.rows, filter), [model.rows, filter]);
   const totals = ledgerTotals(shown);
   const pageCount = Math.max(1, Math.ceil(shown.length / LEDGER_PAGE_SIZE));
@@ -196,7 +202,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
         <PageActions>
           {switcher}
           {onTaxCenter && <SecondaryButton onClick={() => setAdding(true)}>Log expense</SecondaryButton>}
-          <PrimaryButton onClick={exportAll} disabled={!model.rows.length}>Export for accountant</PrimaryButton>
+          <PrimaryButton onClick={exportAll} disabled={!model.rows.length}>{onTaxCenter ? "Export for accountant" : "Download the ledger"}</PrimaryButton>
         </PageActions>
         {part === "overview" && <>
           {rateNote}
@@ -221,6 +227,8 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
                 <SecondaryButton size="sm" onClick={exportAll} disabled={!model.rows.length}>Spreadsheet</SecondaryButton></li>
               <li><strong>Expense by category</strong><span>Spent and deductible, by category.</span>
                 <SecondaryButton size="sm" disabled={!model.categories.list.length} onClick={() => downloadCsv(categoriesCsv(model.categories.list), `Expenses_by_category_${year}.csv`)}>Spreadsheet</SecondaryButton></li>
+              <li><strong>Drive log</strong><span>Every business drive in {year}, with the mileage deduction ({money(drivesYear.deduction)}).</span>
+                <SecondaryButton size="sm" disabled={!drivesYear.drives.length} onClick={() => { const f = drivesCsv(drivesYear.drives, year, cur); downloadCsv(f.text, f.name); }}>Spreadsheet</SecondaryButton></li>
             </ul>
           </SectionCard>
           <StockValueCard books={records.books as Record<string, any>[]} states={records.states as Record<string, Record<string, any>>} taxCenter={records.taxCenter as Record<string, any> | null}
@@ -241,6 +249,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
           {onTaxCenter && <RecurringSubscriptionsCard taxCenter={records.taxCenter} onSaved={onTaxCenter} now={now} />}
           {onTaxCenter && <SortingRulesCard taxCenter={records.taxCenter} onSaved={onTaxCenter} />}
           <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
+          <MileageCard taxCenter={tcRec} year={year} money={money} baseCurrency={cur} stockists={stockistNames} onSaved={onTaxCenter} />
         </>}
         {part === "receipts" && <EmailReceipts baseCurrency={cur} onReview={onTaxCenter ? (r) => { setEmailReceipt(r); setAdding(true); } : undefined} />}
         {part === "receipts" && <ReceiptsGrid records={records} year={year} onSaved={onTaxCenter}
@@ -320,6 +329,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
 
       {on("costs") && <>
       <TripsCard trips={model.trips as TripRow[]} taxCenter={records.taxCenter as Record<string, any> | null} money={money} baseCurrency={cur} onSaved={onTaxCenter} />
+      <MileageCard taxCenter={tcRec} year={year} money={money} baseCurrency={cur} stockists={stockistNames} onSaved={onTaxCenter} />
 
       {!onTaxCenter && (
       <SectionCard title="Standing costs" description={model.recurring.length ? `About ${money(model.recurringSummary.monthlyBase)} a month, ${money(model.recurringSummary.annualBase)} a year.` : undefined} flush>

@@ -51,6 +51,8 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(ctx.firestore(), "shops/s1/settings/taxCentreForBookkeeper"), { data: "{}", ts: 1 });
   await setDoc(doc(ctx.firestore(), "shops/s1/settings/modeFlags"), { data: "{}", ts: 1 });
   await set(ref(ctx.database(), "shops/s1/lyrical/settings/taxCentreForBookkeeper"), { data: "{}", ts: 1 });
+  await setDoc(doc(ctx.firestore(), "shops/s1/settings/reportsForBookkeeper"), { data: "{}", ts: 1 });
+  await set(ref(ctx.database(), "shops/s1/lyrical/settings/reportsForBookkeeper"), { data: "{}", ts: 1 });
   await set(ref(ctx.database(), "shops/s1/lyrical/books/b1"), { data: "{}", ts: 1 });
   await set(ref(ctx.database(), "shops/s1/lyrical/books/b2"), { data: "{}", ts: 1 });
   await uploadString(fileRef(ctx.storage(), "shops/s1/receipts/b2/r.pdf"), "x", "raw", { contentType: "application/pdf" });
@@ -67,7 +69,6 @@ const shutOut = {
   "owner role, unverified": signedIn("u-second-unv", { email: "second@example.com", email_verified: false, role: "owner" }),
   "staff role": signedIn("u-staff", { email: "staff@example.com", email_verified: true, role: "staff" }),
   "made-up role": signedIn("u-odd", { email: "odd@example.com", email_verified: true, role: "publisher" }),
-  "bookkeeper role": signedIn("u-books", { email: "books@example.com", email_verified: true, role: "bookkeeper" }),
   "author of b1": signedIn("u-author", { email: AUTHOR, email_verified: true }),
   "author of b1 with the author role": signedIn("u-author-role", { email: AUTHOR, email_verified: true, role: "author" }),
   "author role, no book": signedIn("u-role-only", { email: "newauthor@example.com", email_verified: true, role: "author" }),
@@ -142,14 +143,29 @@ await check("unverified author role reads no catalog setting (Firestore)", asser
 await check("unverified author role reads no catalog setting (Database)", assertFails(get(ref(roleUnverified.database(), "shops/s1/lyrical/settings/catalog"))));
 // The bookkeeper role from the shop's Team list (plan 7.17): reads the Tax Centre's bookkeeper copy (no keys) and the
 // mode flags, in either database. Never the real Tax Centre (it is in shutOut above), a book, a receipt or any write.
-const bookkeeper = shutOut["bookkeeper role"];
+// It reads every item's records for the books ("Accountant" on the Team page), so it sits outside the shut-out list.
+const bookkeeper = signedIn("u-books", { email: "books@example.com", email_verified: true, role: "bookkeeper" });
+await check("bookkeeper isn't the publisher", assertFails(getDoc(doc(bookkeeper.firestore(), "shops/s1/publisherCheck/me"))));
+await check("bookkeeper writes no settings (Firestore)", assertFails(setDoc(doc(bookkeeper.firestore(), "shops/s1/settings/modeFlags"), { x: 1 })));
+await check("bookkeeper reads no secret setting (Database)", assertFails(get(ref(bookkeeper.database(), "shops/s1/lyrical/settings/taxCenter"))));
+await check("bookkeeper reads no receipt file directly (Storage)", assertFails(getBytes(fileRef(bookkeeper.storage(), "shops/s1/receipts/b2/r.pdf"))));
 await check("bookkeeper reads the tax centre copy (Firestore)", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "shops/s1/settings/taxCentreForBookkeeper"))));
 await check("bookkeeper reads the mode flags (Firestore)", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "shops/s1/settings/modeFlags"))));
 await check("bookkeeper reads the tax centre copy (Database)", assertSucceeds(get(ref(bookkeeper.database(), "shops/s1/lyrical/settings/taxCentreForBookkeeper"))));
 await check("bookkeeper can't change the copy (Firestore)", assertFails(setDoc(doc(bookkeeper.firestore(), "shops/s1/settings/taxCentreForBookkeeper"), { data: "{}", ts: 2 })));
 await check("bookkeeper can't change the copy (Database)", assertFails(set(ref(bookkeeper.database(), "shops/s1/lyrical/settings/taxCentreForBookkeeper"), { data: "{}", ts: 2 })));
-await check("bookkeeper reads no catalog (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "shops/s1/settings/catalog"))));
-await check("bookkeeper reads no book (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "shops/s1/books/b1/data/ledger"))));
+// Bookkeeping › Reports' copy (13 November 2026): read, never written, by the bookkeeper.
+await check("bookkeeper reads the reports copy (Firestore)", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "shops/s1/settings/reportsForBookkeeper"))));
+await check("bookkeeper reads the reports copy (Database)", assertSucceeds(get(ref(bookkeeper.database(), "shops/s1/lyrical/settings/reportsForBookkeeper"))));
+await check("bookkeeper can't change the reports copy (Firestore)", assertFails(setDoc(doc(bookkeeper.firestore(), "shops/s1/settings/reportsForBookkeeper"), { data: "{}", ts: 2 })));
+await check("bookkeeper can't change the reports copy (Database)", assertFails(set(ref(bookkeeper.database(), "shops/s1/lyrical/settings/reportsForBookkeeper"), { data: "{}", ts: 2 })));
+await check("bookkeeper reads the catalog (Firestore)", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "shops/s1/settings/catalog"))));
+await check("bookkeeper reads a book's records (Firestore)", assertSucceeds(getDoc(doc(bookkeeper.firestore(), "shops/s1/books/b1/data/ledger"))));
+await check("bookkeeper reads a book's records (Database)", assertSucceeds(get(ref(bookkeeper.database(), "shops/s1/lyrical/books/b1"))));
+await check("bookkeeper can't change a book (Firestore)", assertFails(setDoc(doc(bookkeeper.firestore(), "shops/s1/books/b1/data/ledger"), { data: "{}", ts: 2 })));
+await check("bookkeeper can't change a book (Database)", assertFails(set(ref(bookkeeper.database(), "shops/s1/lyrical/books/b1"), { data: "{}", ts: 2 })));
+await check("bookkeeper reads no tax centre (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "shops/s1/settings/taxCenter"))));
+await check("bookkeeper reads no mailing list (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "shops/s1/settings/mailingList"))));
 await check("bookkeeper reads no backups (Firestore)", assertFails(getDoc(doc(bookkeeper.firestore(), "shops/s1/backups/x"))));
 const unverifiedBookkeeper = signedIn("u-books-unv", { email: "books@example.com", email_verified: false, role: "bookkeeper" });
 await check("unverified bookkeeper reads no copy (Firestore)", assertFails(getDoc(doc(unverifiedBookkeeper.firestore(), "shops/s1/settings/taxCentreForBookkeeper"))));
@@ -231,7 +247,7 @@ await check("publisher marks a sale brought in", assertSucceeds(updateDoc(doc(pu
 await check("publisher can't rewrite a helper's sale", assertFails(updateDoc(doc(publisher, "shops/s1/fairSales/sale-0000001"), { lines: [] })));
 await check("helper can't undo a sale once it is in the books", assertFails(setDoc(doc(helper, "shops/s1/fairSales/sale-0000001"), { cancelled: true }, { merge: true })));
 await check("publisher can't delete a helper's sale", assertFails(deleteDoc(doc(publisher, "shops/s1/fairSales/sale-0000001"))));
-await check("no one else reads the inbox", assertFails(getDocs(collection(shutOut["bookkeeper role"].firestore(), "shops/s1/fairSales"))));
+await check("no one else reads the inbox", assertFails(getDocs(collection(bookkeeper.firestore(), "shops/s1/fairSales"))));
 await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestore(), "shops/s1/platform/plan"), { access: "paused" }); });
 await check("a paused shop takes no helper sale", assertFails(setDoc(doc(helper, "shops/s1/fairSales/sale-0000010"), sale())));
 await env.withSecurityRulesDisabled(async ctx => { await deleteDoc(doc(ctx.firestore(), "shops/s1/platform/plan")); });
@@ -243,6 +259,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(ctx.firestore(), "shops/s2/books/b1/data/ledger"), { rows: [] });
   await set(ref(ctx.database(), "shops/s2/lyrical/books/b1"), { data: "{}", ts: 1 });
   await set(ref(ctx.database(), "shops/s2/lyrical/settings/catalog"), { data: "{}", ts: 1 });
+  await setDoc(doc(ctx.firestore(), "shops/s2/settings/reportsForBookkeeper"), { data: "{}", ts: 1 });
   await uploadString(fileRef(ctx.storage(), "shops/s2/receipts/b1/r.pdf"), "x", "raw", { contentType: "application/pdf" });
 });
 {
@@ -251,7 +268,14 @@ await env.withSecurityRulesDisabled(async ctx => {
   const ownerAddressThere = signedIn("w-owner3", { email: OWNER, email_verified: true }, { tenant: "tenant-s2" });
   const ownerRoleThere = signedIn("w-role", { email: "x@example.com", email_verified: true, role: "owner" }, { tenant: "tenant-s2" });
   const authorThere = signedIn("w-author", { email: AUTHOR, email_verified: true, role: "author" }, { tenant: "tenant-s2" });
+  const bookkeeperThere = signedIn("w-books", { email: "books@example.com", email_verified: true, role: "bookkeeper" }, { tenant: "tenant-s2" });
   const noList = signedIn("w-none", { email: OWNER, email_verified: true }, { tenant: "" });
+  // A bookkeeper from s1's list never reads s2's reports, and one from s2's list never reads s1's.
+  const booksHere = signedIn("w-books", { email: "books@example.com", email_verified: true, role: "bookkeeper" });
+  const booksThere = signedIn("w-books2", { email: "books@example.com", email_verified: true, role: "bookkeeper" }, { tenant: "tenant-s2" });
+  await check("s1's bookkeeper can't read s2's reports copy", assertFails(getDoc(doc(booksHere.firestore(), "shops/s2/settings/reportsForBookkeeper"))));
+  await check("s2's bookkeeper can't read s1's reports copy", assertFails(getDoc(doc(booksThere.firestore(), "shops/s1/settings/reportsForBookkeeper"))));
+  await check("s2's bookkeeper reads s2's reports copy", assertSucceeds(getDoc(doc(booksThere.firestore(), "shops/s2/settings/reportsForBookkeeper"))));
   await check("the owner here reads their own stockroom", assertSucceeds(getDoc(doc(ownerHere.firestore(), "shops/s1/settings/catalog"))));
   await check("the owner of s2 reads s2's", assertSucceeds(getDoc(doc(ownerThere.firestore(), "shops/s2/settings/catalog"))));
   for (const [who, ctx] of Object.entries({ "s1's owner": ownerHere })) {
@@ -263,7 +287,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   }
   for (const [who, ctx] of Object.entries({
     "s2's owner": ownerThere, "s1's owner address from s2's list": ownerAddressThere, "an owner role from s2's list": ownerRoleThere,
-    "an author from s2's list": authorThere, "s1's owner address with no list": noList,
+    "an author from s2's list": authorThere, "a bookkeeper from s2's list": bookkeeperThere, "s1's owner address with no list": noList,
   })) {
     await check(`${who} isn't the publisher here`, assertFails(getDoc(doc(ctx.firestore(), "shops/s1/publisherCheck/me"))));
     await check(`${who} can't read s1's catalogue`, assertFails(getDoc(doc(ctx.firestore(), "shops/s1/settings/catalog"))));

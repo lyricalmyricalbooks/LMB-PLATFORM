@@ -9,6 +9,8 @@ type Row = Record<string, any>;
 export type TripReportInput = {
   name: string; items: Row[]; total: number; deductible?: number; categories: Record<string, number>;
   record?: Row | null; budget?: number; baseCurrency: string; pressName: string; printedOn: string;
+  /** The trip's drives (mileage.ts tripDrives), each with its deduction; they add to the deductible total. */
+  drives?: Array<{ date: string; from?: string; to: string; purpose?: string; total: number; unit: string; deduction: number; roundTrip?: boolean }>;
 };
 
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -36,7 +38,10 @@ export function tripReceipts(items: Row[]) {
 
 export function tripReportHtml(t: TripReportInput): string {
   const cur = t.baseCurrency;
-  const deductible = t.deductible ?? t.total;
+  const drives = [...(t.drives || [])].sort((a, b) => a.date.localeCompare(b.date));
+  const mileage = Math.round(drives.reduce((n, d) => n + (Number(d.deduction) || 0), 0) * 100) / 100;
+  const spendDeductible = t.deductible ?? t.total;
+  const deductible = spendDeductible + mileage;
   const rec = t.record || {};
   const items = [...t.items].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
   const meta = [
@@ -44,6 +49,7 @@ export function tripReportHtml(t: TripReportInput): string {
     rec.startDate || rec.endDate ? ["Dates", [rec.startDate, rec.endDate].filter(Boolean).join(" – ")] : null,
     rec.purpose ? ["Business purpose", rec.purpose] : null,
     ["Expenses", `${items.length} item${items.length === 1 ? "" : "s"}`],
+    drives.length ? ["Drives", `${drives.length} drive${drives.length === 1 ? "" : "s"}`] : null,
     ["Reporting currency", cur],
   ].filter(Boolean).map((r) => `<tr><th>${esc(r![0])}</th><td>${esc(r![1])}</td></tr>`).join("");
   const budget = Number(t.budget) || 0;
@@ -56,6 +62,11 @@ export function tripReportHtml(t: TripReportInput): string {
   const rows = items.map((i) => `<tr><td>${esc(i.date || "—")}</td><td>${esc(i.desc)}</td><td>${esc(i.cat)}</td>
     <td class="r">${esc(money(Number(i.origAmount || 0), i.origCurrency || cur))}</td><td class="r">${esc(money(Number(i.baseAmount || 0), cur))}</td></tr>`).join("")
     || `<tr><td colspan="5" class="empty">No expenses assigned to this trip yet.</td></tr>`;
+  const dist = (n: number, unit: string) => `${(Math.round(n * 10) / 10).toLocaleString("en-CA")} ${unit}`;
+  const drivePart = drives.length ? `<h2>Drives</h2><table><thead><tr><th>Date</th><th>Route</th><th>Why</th><th class="r">Distance</th><th class="r">Deduction</th></tr></thead>
+<tbody>${drives.map((d) => `<tr><td>${esc(d.date)}</td><td>${esc(d.from ? `${d.from} to ${d.to}` : d.to)}${d.roundTrip ? " and back" : ""}</td><td>${esc(d.purpose || "")}</td>
+<td class="r">${esc(dist(d.total, d.unit))}</td><td class="r">${esc(money(d.deduction, cur))}</td></tr>`).join("")}</tbody>
+<tfoot><tr><td colspan="4">Mileage deduction</td><td class="r">${esc(money(mileage, cur))}</td></tr></tfoot></table>` : "";
   const receipts = tripReceipts(items);
   const pictures = receipts.filter((r) => r.picture).map((r) => `<figure><img src="${esc(r.url)}" alt="${esc(r.desc || r.name)}"><figcaption>${esc([r.date, r.desc].filter(Boolean).join(" · "))}</figcaption></figure>`).join("");
   const named = receipts.filter((r) => !r.picture);
@@ -73,11 +84,11 @@ th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd;vertical-alig
 img{width:100%;border:1px solid #ddd}figcaption{font-size:8pt}.foot{margin-top:26px;padding-top:10px;border-top:1px solid #ddd;font-size:8.5pt}tr{break-inside:avoid}
 </style></head><body>
 <div class="head"><div class="eyebrow">Business trip report</div><h1>${esc(t.name)}</h1><div class="sub">${esc(t.pressName)} · prepared ${esc(t.printedOn)}</div></div>
-<div class="total">${esc(money(deductible, cur))}</div><div class="sub">Total deductible spend${deductible !== t.total ? ` (of ${esc(money(t.total, cur))} spent)` : ""}</div>${budgetLine}
+<div class="total">${esc(money(deductible, cur))}</div><div class="sub">Total deductible spend${spendDeductible !== t.total ? ` (of ${esc(money(t.total, cur))} spent)` : ""}${mileage ? `, including ${esc(money(mileage, cur))} for drives` : ""}</div>${budgetLine}
 <h2>Trip details</h2><table class="meta"><tbody>${meta}</tbody></table>${rec.notes ? `<div class="notes">${esc(rec.notes)}</div>` : ""}
 <h2>Spend by tax category</h2><table><thead><tr><th>Tax category</th><th class="r">Share</th><th class="r">Spent (${esc(cur)})</th><th class="r">Deductible</th></tr></thead>
-<tbody>${cats}</tbody><tfoot><tr><td>Total</td><td></td><td class="r">${esc(money(t.total, cur))}</td><td class="r">${esc(money(deductible, cur))}</td></tr></tfoot></table>
+<tbody>${cats}</tbody><tfoot><tr><td>Total</td><td></td><td class="r">${esc(money(t.total, cur))}</td><td class="r">${esc(money(spendDeductible, cur))}</td></tr></tfoot></table>
 <h2>Expenses</h2><table><thead><tr><th>Date</th><th>Description</th><th>Tax category</th><th class="r">Original</th><th class="r">${esc(cur)}</th></tr></thead>
 <tbody>${rows}</tbody><tfoot><tr><td colspan="4">Total</td><td class="r">${esc(money(t.total, cur))}</td></tr></tfoot></table>
-${receiptPart}<div class="foot">Amounts converted to ${esc(cur)} at the rate stored with each expense.</div></body></html>`;
+${drivePart}${receiptPart}<div class="foot">Amounts converted to ${esc(cur)} at the rate stored with each expense.</div></body></html>`;
 }
