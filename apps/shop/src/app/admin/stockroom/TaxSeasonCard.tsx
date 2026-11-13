@@ -1,6 +1,7 @@
 // Tax centre › Tax-season export: the old stockroom's file for the bookkeeper (taxSeason.ts), with its one setting,
 // "Tax on in-person sales" (a rate, its name in the books and whether prices include it), saved in the Tax centre's
 // settings (`settings.inPersonTax`) the way the old app saved it.
+import { US_SHOP } from "../moneySign";
 import { useState } from "react";
 import { downloadCsv } from "@stockroom/download.js";
 import { inPersonTaxOf, suggestedTaxBookName, TAX_BOOK_NAMES } from "@stockroom/bookkeeping-days.js";
@@ -62,7 +63,7 @@ export function TaxSeasonCard({ input, year, onSaved }: { input: TaxSeasonInput;
           <>
             <div className="rp-money-form-row">
               <TextField label="Tax on in-person sales (%)" inputMode="decimal" placeholder="e.g. 13" value={form.rate} error={bad ? "Enter a number from 0 to 100." : undefined} onChange={(e) => set({ rate: e.target.value })} />
-              <TextField label="Its name in your accounts" list="rp-money-tax-names" placeholder={form.rate.trim() === "" ? "GST, HST ON, PST BC…" : suggestedTaxBookName({ country: "Canada", rate: form.rate })} value={form.bookName} onChange={(e) => set({ bookName: e.target.value })} />
+              <TextField label="Its name in your accounts" list="rp-money-tax-names" placeholder={form.rate.trim() === "" ? (US_SHOP ? "Sales tax NY, Sales tax CA…" : "GST, HST ON, PST BC…") : suggestedTaxBookName({ country: "Canada", rate: form.rate })} value={form.bookName} onChange={(e) => set({ bookName: e.target.value })} />
               <datalist id="rp-money-tax-names">{TAX_BOOK_NAMES.map((n) => <option key={n} value={n} />)}</datalist>
             </div>
             <Checkbox label="My prices already include it" checked={form.included} onChange={(e) => set({ included: e.target.checked })} />
