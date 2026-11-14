@@ -594,6 +594,9 @@ describe("the waiting list", () => {
     const only = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "10:00"), ...CUSTOMER });
     expect((await t.pub({ action: "bookingWait", serviceId: "visit", day: "2026-11-17", ...person(1) })).body).toEqual({ ok: true });
     expect((await t.pub({ action: "bookingWait", serviceId: "visit", day: "2020-01-01", ...person(1) })).statusCode).toBe(400);
+    // A closed day (Sunday) is never offered and can't be waited for; the booked-up day is offered.
+    expect((await t.pub({ action: "bookingWait", serviceId: "visit", day: "2026-11-22", ...person(1) })).statusCode).toBe(400);
+    expect((await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-17", days: 7 })).body.fullDays).toEqual(["2026-11-17"]);
     t.emails.length = 0;
     await t.pub({ action: "bookingCancel", id: only.body.id, key: only.body.key });
     expect(waitingEmails(t).map((m) => m.to)).toEqual(["p1@example.com"]);

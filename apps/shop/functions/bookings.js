@@ -433,7 +433,9 @@ function bookingActions({
           const list = fullClassTimes(service, settings, busy, day, nowMs);
           if (list.length) full[day] = list.map((ms) => new Date(ms).toISOString());
         }
-        return res.status(200).json({ on: true, days: out, ...(isClass(service) ? { places: service.places, left, full } : {}) });
+        // Days with nothing left only because they are booked up (not closed): the page offers the waiting list there.
+        const fullDays = days.filter((day) => !out[day].length && !full[day] && freeTimes({ service, settings, busy: [], day, zone: zone(), nowMs }).length > 0);
+        return res.status(200).json({ on: true, days: out, fullDays, ...(isClass(service) ? { places: service.places, left, full } : {}) });
       }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
@@ -512,6 +514,8 @@ function bookingActions({
         const times = freeTimes({ service, settings, busy, day, zone: zone(), nowMs });
         if (start !== null ? times.includes(start) : times.length > 0) return fail(res, 409, "There is room now. You can book it straight away.", "open");
         if (start !== null && !fullClassTimes(service, settings, busy, day, nowMs).includes(start)) return fail(res, 400, "That time isn't one you can wait for.");
+        // A day the shop is closed never opens up, so there is nothing to wait for.
+        if (start === null && !freeTimes({ service, settings, busy: [], day, zone: zone(), nowMs }).length) return fail(res, 400, "That day isn't one you can wait for.");
         const startIso = start !== null ? new Date(start).toISOString() : null;
         const wid = hash(`${service.id}|${startIso || day}|${customer.email}`).slice(0, 32);
         const waiting = await waitlist().where("day", "==", day).limit(MAX_WAITING * 4).get();

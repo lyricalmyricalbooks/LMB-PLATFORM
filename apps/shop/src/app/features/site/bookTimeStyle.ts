@@ -4,6 +4,7 @@
 //   fm-book-service           a service card (button)          fm-book-price   mono price tag
 //   fm-book-days / -day       the week of day pills (aria-pressed, data-empty)
 //   fm-book-times / -time     a day's time chips (aria-pressed)  fm-book-group   Morning / Afternoon / Evening
+//   fm-book-time[data-full]   a full class time (opens the waiting list form, fm-book-wait)
 //   fm-book-summary           the chosen service + time slip      fm-book-actions  a row of buttons
 const S = ".fm-track";
 
@@ -39,6 +40,13 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-time small{display:block;margin-top:2px;font-size:11px;font-weight:400;letter-spacing:.04em;opacity:.72;}`,
   `${S} .fm-book-time small[data-last]{font-weight:700;opacity:1;}`,
   `${S} .fm-book-time:has(small){min-height:58px;padding:6px 4px;}`,
+  `${S} .fm-book-time[data-full]{border-style:dashed;}`,
+  `${S} .fm-book-time[data-full] > span{opacity:.55;text-decoration:line-through;text-decoration-thickness:1px;}`,
+  `${S} .fm-book-wait{display:grid;gap:16px;margin:4px 0 26px;padding:22px;border:var(--t-edge-w) dashed var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
+  `${S} .fm-book-wait h2{margin:0;font-family:var(--heading-font, inherit);font-size:22px;line-height:1.15;}`,
+  `${S} .fm-book-wait > p{margin:0;font-size:15px;line-height:1.55;}`,
+  `${S} .fm-book-wait-fields{display:grid;gap:16px;}`,
+  `@media (min-width:641px){${S} .fm-book-wait-fields{grid-template-columns:1fr 1fr;}}`,
   `${S} .fm-book-time:hover{background:rgba(var(--fg-rgb),0.06);}`,
   `${S} .fm-book-time[aria-pressed="true"]{background:rgb(var(--fg-rgb));color:var(--bg-color, var(--surface, transparent));}`,
   `${S} .fm-book-day:focus-visible,${S} .fm-book-time:focus-visible,${S} .fm-book-service:focus-visible,${S} .fm-book-arrow:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:3px;}`,

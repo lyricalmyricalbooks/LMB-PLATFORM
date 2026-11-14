@@ -1081,3 +1081,6 @@ in the control room's shop record › Bookings (beta). Fixture: `admin-fixture.h
 **Group classes:** the service dialog's *Who can book a time* (One customer / A group class: places and weekly class
 times). In the week, everyone at one start of a class shares a card (`daySlots`, `classCount` in `bookingsView.ts`); a
 name opens that person's booking.
+**Waiting list:** the week reads op `waitlist` for its seven days (again whenever the bookings change) and shows a
+dashed "N waiting" pill under a day's cards (`waitingByDay`, `waitingText`); it opens `WaitingDialog` (name, email,
+what they wait for, Remove = op `removeWaiting`). The server emails them; the owner never has to.

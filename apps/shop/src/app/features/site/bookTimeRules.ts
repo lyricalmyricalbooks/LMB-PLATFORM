@@ -109,3 +109,11 @@ export function manageFromSearch(search: string): { id: string; key: string } | 
   const key = q.get("key") || "";
   return /^[A-Za-z0-9_-]{6,40}$/.test(id) && /^[a-f0-9]{48}$/.test(key) ? { id, key } : null;
 }
+
+/** The service and day a waiting-list email links to (`/book?service=…&day=…`), each empty when missing or misshapen. */
+export function wantedFromSearch(search: string): { service: string; day: string } {
+  const q = new URLSearchParams(search);
+  const service = q.get("service") || "";
+  const day = q.get("day") || "";
+  return { service: /^[A-Za-z0-9_-]{1,60}$/.test(service) ? service : "", day: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "" };
+}

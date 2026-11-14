@@ -1,7 +1,7 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
 import { addDays, dayOf, weekdayOf } from "../../shared/bookingTimes";
-import type { Booking } from "./bookingsApi";
+import type { Booking, Waiting } from "./bookingsApi";
 
 /** One card in a day's column: a single booking, or a group class with everyone booked into it. */
 export type DaySlot = { kind: "one"; booking: Booking } | { kind: "class"; key: string; start: string; serviceName: string; places: number; people: Booking[] };
@@ -27,6 +27,16 @@ export function daySlots(list: readonly Booking[], placesOf: (serviceId: string)
 
 /** "5 of 8 booked", or "Full" when every place is taken. */
 export const classCount = (people: number, places: number): string => (people >= places ? `Full · ${people} booked` : `${people} of ${places} booked`);
+
+/** The waiting list by day, each day's people in the order they asked. */
+export function waitingByDay(list: readonly Waiting[]): Map<string, Waiting[]> {
+  const out = new Map<string, Waiting[]>();
+  for (const w of [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) out.set(w.day, [...(out.get(w.day) || []), w]);
+  return out;
+}
+
+/** "1 waiting", "3 waiting". */
+export const waitingText = (count: number): string => `${count} waiting`;
 
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 

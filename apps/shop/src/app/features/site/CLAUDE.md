@@ -801,3 +801,7 @@ one) between phone and note; a must-answer one left empty shows `bookTimeNeedAns
 `bookTimeOptional` (both in Text & labels). Answers reset when the service changes; the server checks them again.
 **Group classes:** a service with `places` above 1 shows `bookTimeClassSize` on its card and, on each time chip, how many
 places are left (`bookTimePlacesLeft`, `bookTimeLastPlace`; from the server's `left`). The Studio preview has a sample class.
+**Waiting list:** in the new-booking flow only (`TimePicker`'s `waitlist`), a class's full times show as dashed chips
+(`bookTimeFull`) and a booked-up day offers `bookTimeWaitDay`; either opens `WaitForm` (name and email, words
+`bookTimeWait*`, styles `fm-book-wait` in `bookTimeStyle.ts`). A 409 `open` reloads the times. The email's link
+(`/book?service=&day=`, `wantedFromSearch`) opens that service on that day. The preview's sample class has one full time a day.

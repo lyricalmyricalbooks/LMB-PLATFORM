@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byDay, classCount, daySlots, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import type { Booking } from "./bookingsApi";
 
 const ZONE = "America/Toronto";
@@ -58,5 +58,15 @@ describe("a group class in the week", () => {
   it("says how full it is", () => {
     expect(classCount(5, 8)).toBe("5 of 8 booked");
     expect(classCount(8, 8)).toBe("Full · 8 booked");
+  });
+});
+
+describe("the waiting list", () => {
+  const w = (id: string, day: string, createdAt: string) => ({ id, serviceId: "s", serviceName: "Workshop", day, start: null, name: id, email: `${id}@example.com`, createdAt });
+  it("groups people by day in the order they asked", () => {
+    const days = waitingByDay([w("late", "2026-11-21", "2026-11-18T10:00:00Z"), w("other", "2026-11-22", "2026-11-17T10:00:00Z"), w("early", "2026-11-21", "2026-11-17T09:00:00Z")]);
+    expect(days.get("2026-11-21")!.map((x) => x.id)).toEqual(["early", "late"]);
+    expect(days.get("2026-11-22")).toHaveLength(1);
+    expect(waitingText(3)).toBe("3 waiting");
   });
 });

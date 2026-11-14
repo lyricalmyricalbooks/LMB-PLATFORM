@@ -20,8 +20,8 @@ const SERVICES: BookingServiceView[] = [
   { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "full", location: "The studio", places: 8 },
   { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "" },
 ];
-/** Places left at the sample class's times, so "3 left" and "Last place" are on show. */
-const CLASS_LEFT = [8, 3, 5, 1, 6];
+/** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */
+const CLASS_LEFT = [8, 3, 0, 1, 6];
 const TIMES = ["10:00", "11:00", "13:30", "15:00", "18:00"];
 
 /** The sample booking as last changed in this preview (Change time and Cancel work on it). */
@@ -53,11 +53,17 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
       // Sundays are closed and today is past, so the empty-day look is on show too.
       days[day] = weekdayOf(day) === 0 || day <= today ? [] : TIMES.map((t) => new Date(zonedTime(day, t, zone)).toISOString());
     }
-    if (body.serviceId !== "sample-class") return { on: true, days };
+    if (body.serviceId !== "sample-class") return { on: true, days, fullDays: [] };
     const left: Record<string, number> = {};
-    for (const list of Object.values(days)) list.forEach((iso, i) => { left[iso] = CLASS_LEFT[i % CLASS_LEFT.length]; });
-    return { on: true, days, places: 8, left };
+    const full: Record<string, string[]> = {};
+    for (const [day, list] of Object.entries(days)) {
+      list.forEach((iso, i) => { left[iso] = CLASS_LEFT[i % CLASS_LEFT.length]; });
+      const gone = list.filter((iso) => left[iso] === 0);
+      if (gone.length) { full[day] = gone; days[day] = list.filter((iso) => left[iso] > 0); }
+    }
+    return { on: true, days, fullDays: [], places: 8, left, full };
   }
+  if (action === "bookingWait") return { ok: true };
   if (action === "bookingStart") {
     sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start);
     return { id: SAMPLE_BOOKING_ID, key: SAMPLE_BOOKING_KEY };

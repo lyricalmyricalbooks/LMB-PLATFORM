@@ -3,14 +3,14 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, MapPin, Plus, Trash2, Users } from "lucide-react";
+import { BellRing, CalendarPlus, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, MapPin, Plus, Trash2, Users, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { bookingsAdmin, followBookings, readBookingSetup, type Booking } from "./bookingsApi";
-import { byDay, classCount, daySlots, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { bookingsAdmin, followBookings, readBookingSetup, type Booking, type Waiting } from "./bookingsApi";
+import { byDay, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -159,6 +159,17 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
   const now = today();
   const [phoneDay, setPhoneDay] = useState(() => (days.includes(now) ? now : monday));
   useEffect(() => { setPhoneDay(days.includes(now) ? now : monday); }, [monday]);
+  // The waiting list for the week on show. Read again whenever the bookings change, because a freed place empties it.
+  const [waiting, setWaiting] = useState<Waiting[]>([]);
+  const [waitingDay, setWaitingDay] = useState("");
+  useEffect(() => {
+    let stale = false;
+    bookingsAdmin<{ waiting?: Waiting[] }>("waitlist", { from: monday, to: addDays(monday, 6) })
+      .then((answer) => { if (!stale) setWaiting(answer.waiting || []); })
+      .catch(() => { if (!stale) setWaiting([]); });
+    return () => { stale = true; };
+  }, [monday, rows]);
+  const waitingDays = useMemo(() => waitingByDay(waiting), [waiting]);
   return (
     <div className="bkg-week">
       <div className="bkg-week-head">
@@ -217,11 +228,50 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                   {slot.booking.noShow && <span className="bkg-slot-tag">No-show</span>}
                 </button>
               ))}
+              {(waitingDays.get(d)?.length || 0) > 0 && (
+                <button type="button" className="bkg-waiting" onClick={() => setWaitingDay(d)}>
+                  <BellRing size={13} aria-hidden /> {waitingText(waitingDays.get(d)!.length)}
+                </button>
+              )}
             </section>
           );
         })}
       </div>
+      {waitingDay && (
+        <WaitingDialog day={waitingDay} list={waitingDays.get(waitingDay) || []} onClose={() => setWaitingDay("")}
+          onRemoved={(id) => setWaiting((all) => all.filter((w) => w.id !== id))} />
+      )}
     </div>
+  );
+}
+
+/** Who asked to hear when a day or a full class has room again. They are emailed by the shop itself, once. */
+function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: Waiting[]; onClose: () => void; onRemoved: (id: string) => void }) {
+  const [removing, setRemoving] = useState("");
+  const remove = async (w: Waiting) => {
+    setRemoving(w.id);
+    try { await bookingsAdmin("removeWaiting", { id: w.id }); onRemoved(w.id); toast.success(`${w.name} is off the waiting list`); }
+    catch (e: any) { toast.error(e?.message || "That didn't save. Please try again."); }
+    finally { setRemoving(""); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="Each person gets one email the moment a place opens. Nothing is held: the first to book gets it."
+      footer={<SecondaryButton onClick={onClose}>Done</SecondaryButton>}>
+      {list.length === 0 ? <p className="bkg-day-empty">Nobody is waiting now.</p> : (
+        <ul className="bkg-waitlist">
+          {list.map((w) => (
+            <li key={w.id}>
+              <div>
+                <strong>{w.name}</strong>
+                <a href={`mailto:${w.email}`}>{w.email}</a>
+                <span>{w.serviceName} · {w.start ? timeText(w.start, ZONE) : "any time"}</span>
+              </div>
+              <IconButton label={`Remove ${w.name}`} disabled={removing === w.id} onClick={() => void remove(w)}><X size={16} aria-hidden /></IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Dialog>
   );
 }
 

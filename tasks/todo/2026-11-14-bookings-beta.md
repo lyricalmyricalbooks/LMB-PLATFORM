@@ -64,3 +64,15 @@ old booking says. Not yet tried on a live test shop.
 
 Review: one booking is one place (no "book for three" yet). Bookings made before this carry no service on their day
 record, so they count as another booking, which is the safe side. Not yet tried on a live test shop.
+
+## Waiting list for full times (14 November 2026, Julian 18:08Z "do all 5 next moves")
+
+- [x] Customers can ask to hear when a full class time or a booked-up day has room again (name and email).
+- [x] Everyone waiting gets one email the moment a place opens (cancel, owner cancel or move, an unpaid hold running
+      out), with a link that opens that service and day. Nothing is held.
+- [x] Kept on the server only (no new rule): the owner sees counts per day and a list with Remove.
+- [x] Proof: server tests (join, refuse when open or closed, cap, told once, sweep, owner ops), preview, view and link
+      tests, typecheck, lint, screenshots (form, problems, done, admin week and list; desktop and phone).
+
+Review: a closed day can't be waited for. People are told together and the first to book wins; no automatic booking.
+Not yet tried on a live test shop.

@@ -21,7 +21,7 @@ import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
-  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, timeText, whenText,
+  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, timeText, whenText,
   type BookingInfo, type BookingServiceView, type BookingView,
 } from "./bookTimeRules";
 
@@ -82,6 +82,9 @@ type Step = "service" | "time" | "details";
 
 function NewBooking({ c }: { c: Copy }) {
   const navigate = useNavigate();
+  // The waiting list's email links here with the service and day already chosen.
+  const { search } = useLocation();
+  const wanted = useMemo(() => wantedFromSearch(search), [search]);
   const [info, setInfo] = useState<BookingInfo | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [service, setService] = useState<BookingServiceView | null>(null);
@@ -101,7 +104,9 @@ function NewBooking({ c }: { c: Copy }) {
       const next = answer as BookingInfo;
       setInfo(next);
       // One service: straight to its times.
-      if (next.on && next.services?.length === 1) { setService(next.services[0]); setStep("time"); }
+      const asked = next.on ? next.services?.find((sv) => sv.id === wanted.service) : undefined;
+      if (asked) { setService(asked); setStep("time"); }
+      else if (next.on && next.services?.length === 1) { setService(next.services[0]); setStep("time"); }
     }).catch(() => setLoadFailed(true));
   };
   useEffect(load, []);
@@ -199,7 +204,8 @@ function NewBooking({ c }: { c: Copy }) {
 
       {step === "time" && service && (
         <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
-          <TimePicker serviceId={service.id} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c} />
+          <TimePicker serviceId={service.id} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
+            waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />
           <div className="fm-book-actions mt-2">
             <button type="button" className="fm-track-btn" disabled={!start} onClick={() => { setError(""); setStep("details"); }}>
               {start ? `${c("bookTimeContinue")} · ${timeText(start, zone)}` : c("bookTimeContinue")}
@@ -317,15 +323,22 @@ function Row({ label, value }: { label: string; value: string }) {
 
 // ── The day and time picker (new bookings and Change time) ─────────────────────────────────────────────────────────
 
-function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
+function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "" }: {
   serviceId: string; zone: string; today: string; lastDay: string; picked: string; onPick: (iso: string) => void; c: Copy;
+  /** New bookings only: full class times and booked-up days offer the waiting list. */
+  waitlist?: boolean; startDay?: string;
 }) {
-  const [from, setFrom] = useState(today);
+  const [from, setFrom] = useState(startDay || today);
+  // The waiting list: a class's full times by day, the booked-up days, and what the form on screen is for.
+  const [full, setFull] = useState<Record<string, string[]>>({});
+  const [fullDays, setFullDays] = useState<string[]>([]);
+  const [waitFor, setWaitFor] = useState<{ day: string; start?: string } | null>(null);
+  const [waitNote, setWaitNote] = useState("");
   const [times, setTimes] = useState<Record<string, string[]> | null>(null);
   // A group class: how many places each time still has.
   const [left, setLeft] = useState<Record<string, number>>({});
   const [failed, setFailed] = useState(false);
-  const [day, setDay] = useState("");
+  const [day, setDay] = useState(startDay);
   const [attempt, setAttempt] = useState(0);
   const days = pageDays(from, lastDay);
 
@@ -338,7 +351,11 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
       const got = (answer.days || {}) as Record<string, string[]>;
       setTimes(got);
       setLeft((answer.left || {}) as Record<string, number>);
-      setDay((current) => (current && days.includes(current) && (got[current] || []).length ? current : firstOpenDay(days, got)));
+      const gone = (waitlist ? answer.full || {} : {}) as Record<string, string[]>;
+      const booked = (waitlist ? answer.fullDays || [] : []) as string[];
+      setFull(gone);
+      setFullDays(booked);
+      setDay((current) => (current && days.includes(current) && ((got[current] || []).length || (gone[current] || []).length || booked.includes(current)) ? current : firstOpenDay(days, got)));
     }).catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
   }, [serviceId, from, attempt]);
@@ -346,7 +363,13 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
   const back = pageStep(from, today, lastDay, -1);
   const next = pageStep(from, today, lastDay, 1);
   const dayTimes = times?.[day] || [];
-  const pageEmpty = !!times && days.every((d) => !(times[d] || []).length);
+  const dayFull = full[day] || [];
+  const shown = dayFull.length ? [...dayTimes, ...dayFull].sort() : dayTimes;
+  const pageEmpty = !!times && days.every((d) => !(times[d] || []).length && !(full[d] || []).length && !fullDays.includes(d));
+  const waitForm = waitFor && (
+    <WaitForm key={waitFor.start || waitFor.day} serviceId={serviceId} wait={waitFor} zone={zone} c={c} onClose={() => setWaitFor(null)}
+      onOpen={() => { setWaitFor(null); setWaitNote(c("bookTimeWaitOpen")); setAttempt((n) => n + 1); }} />
+  );
 
   return (
     <div>
@@ -358,10 +381,10 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
       <div className="fm-book-days" role="group" aria-label={c("bookTimeStepTime")}>
         {days.map((d) => {
           const parts = dayParts(d);
-          const empty = !!times && !(times[d] || []).length;
+          const empty = !!times && !(times[d] || []).length && !(full[d] || []).length && !fullDays.includes(d);
           return (
             <button key={d} type="button" className="fm-book-day" aria-pressed={d === day} data-empty={empty || undefined}
-              aria-label={`${parts.weekday} ${parts.date} ${parts.month}`} onClick={() => setDay(d)}>
+              aria-label={`${parts.weekday} ${parts.date} ${parts.month}`} onClick={() => { setDay(d); setWaitFor(null); setWaitNote(""); }}>
               <span aria-hidden="true">{parts.weekday}</span><strong aria-hidden="true">{parts.date}</strong><span aria-hidden="true">{parts.month}</span>
             </button>
           );
@@ -377,12 +400,25 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
           <p className="mb-4">{c("bookTimeNoTimesPage")}</p>
           {next && <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setFrom(next)}>{c("bookTimeShowLater")}</button>}
         </div>
-      ) : !dayTimes.length ? <p className="fm-book-empty fm-muted">{c("bookTimeNoTimesDay")}</p> : (
-        groupTimes(dayTimes, zone).map((g) => (
+      ) : !shown.length && fullDays.includes(day) ? (
+        waitForm || (
+          <div className="fm-book-empty">
+            <p className="mb-4">{c("bookTimeDayFull")}</p>
+            <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setWaitFor({ day })}>{c("bookTimeWaitDay")}</button>
+          </div>
+        )
+      ) : !shown.length ? <p className="fm-book-empty fm-muted">{c("bookTimeNoTimesDay")}</p> : (
+        groupTimes(shown, zone).map((g) => (
           <div key={g.group}>
             <p className="fm-track-mono fm-book-group">{c(g.group === "morning" ? "bookTimeMorning" : g.group === "afternoon" ? "bookTimeAfternoon" : "bookTimeEvening")}</p>
             <div className="fm-book-times">
-              {g.times.map((t) => (
+              {g.times.map((t) => dayFull.includes(t) ? (
+                <button key={t} type="button" className="fm-book-time" data-full aria-pressed={waitFor?.start === t}
+                  aria-label={`${timeText(t, zone)}, ${c("bookTimeFull")}. ${c("bookTimeWaitTitle")}`} onClick={() => { setWaitNote(""); setWaitFor({ day, start: t }); }}>
+                  <span translate="no">{timeText(t, zone)}</span>
+                  <small>{c("bookTimeFull")}</small>
+                </button>
+              ) : (
                 <button key={t} type="button" className="fm-book-time" aria-pressed={t === picked} onClick={() => onPick(t)}>
                   <span translate="no">{timeText(t, zone)}</span>
                   {left[t] > 0 && <small data-last={left[t] === 1 || undefined}>{left[t] === 1 ? c("bookTimeLastPlace") : c("bookTimePlacesLeft", { count: left[t] })}</small>}
@@ -392,8 +428,66 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
           </div>
         ))
       )}
+      {shown.length > 0 && waitForm}
+      {waitNote && <div className="fm-track-notice mb-6" role="status"><p>{waitNote}</p></div>}
       <p className="fm-track-mono mb-6">{c("bookTimeZone", { zone: zoneName(zone) })}</p>
     </div>
+  );
+}
+
+/** The waiting list form: a name and an email, for one full class time or one booked-up day. Nothing is held. */
+function WaitForm({ serviceId, wait, zone, c, onClose, onOpen }: {
+  serviceId: string; wait: { day: string; start?: string }; zone: string; c: Copy; onClose: () => void; onOpen: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [problems, setProblems] = useState<{ name?: string; email?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  const longDay = new Date(`${wait.day}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+  const when = wait.start ? `${longDay}, ${timeText(wait.start, zone)}` : longDay;
+
+  if (done) return <div className="fm-track-notice mb-6" role="status"><p>{c("bookTimeWaitDone")}</p></div>;
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    const found = { ...(name.trim() ? {} : { name: c("bookTimeNeedName") }), ...(EMAIL.test(email.trim()) ? {} : { email: c("bookTimeWaitNeedEmail") }) };
+    setProblems(found);
+    if (found.name || found.email) { document.getElementById(found.name ? "bt-wait-name" : "bt-wait-email")?.focus(); return; }
+    setBusy(true);
+    setError("");
+    try {
+      await ask("bookingWait", { serviceId, name, email, ...(wait.start ? { start: wait.start } : { day: wait.day }) });
+      setDone(true);
+    } catch (err: any) {
+      setBusy(false);
+      if (err?.code === "open") { onOpen(); return; }
+      setError(c(err?.code === "wait_full" ? "bookTimeWaitFull" : "bookTimeWaitError"));
+    }
+  };
+
+  return (
+    <form className="fm-book-wait" onSubmit={submit} noValidate aria-labelledby="bt-wait-title">
+      <h2 id="bt-wait-title">{c("bookTimeWaitTitle")}</h2>
+      <p className="fm-muted">{c("bookTimeWaitNote", { when })}</p>
+      <div className="fm-book-wait-fields">
+        <Field id="bt-wait-name" label={c("bookTimeName")} problem={problems.name}>
+          <input id="bt-wait-name" className="fm-track-input" autoComplete="name" value={name} maxLength={100}
+            aria-invalid={!!problems.name} aria-describedby={problems.name ? "bt-wait-name-err" : undefined} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field id="bt-wait-email" label={c("bookTimeEmail")} problem={problems.email}>
+          <input id="bt-wait-email" type="email" className="fm-track-input" autoComplete="email" value={email} maxLength={320}
+            aria-invalid={!!problems.email} aria-describedby={problems.email ? "bt-wait-email-err" : undefined} onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+      </div>
+      {error && <p className="fm-book-error" role="alert">{error}</p>}
+      <div className="fm-book-actions">
+        <button type="submit" className="fm-track-btn" disabled={busy}>{c("bookTimeWaitSend")}</button>
+        <button type="button" className="fm-track-link" onClick={onClose}>{c("bookTimeWaitCancel")}</button>
+      </div>
+    </form>
   );
 }
 
