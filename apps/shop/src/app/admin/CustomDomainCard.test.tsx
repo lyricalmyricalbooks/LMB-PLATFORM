@@ -202,7 +202,7 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
     expect(button(card, "Change name")).toBeUndefined();
     expect(button(el.querySelector('[data-domain="moth-books.shops.example"]')!, "Change name")).toBeTruthy();
     // Free addresses never use up one of the three of the press's own.
-    expect(el.textContent).toContain("Connect an address you own");
+    expect(el.textContent).toContain("Use a domain you own");
   });
 
   it("any other seller gets the guide: plain steps, a Copy button on every line, and a mail for the web person", async () => {
@@ -218,8 +218,8 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
     expect(lines[0].textContent).toContain("199.36.158.100");
     expect(lines[1].textContent).toContain("Take out, if it's there");
     for (const line of lines) {
-      expect(button(line, "Copy name")).toBeTruthy();
-      expect(button(line, "Copy value")).toBeTruthy();
+      expect(line.querySelector("button[aria-label=\"Copy name\"]")).toBeTruthy();
+      expect(line.querySelector("button[aria-label=\"Copy value\"]")).toBeTruthy();
     }
     const mail = [...card.querySelectorAll("a")].find((a) => a.textContent === "Send these to my web person") as HTMLAnchorElement;
     expect(mail.getAttribute("href")).toContain("mailto:?subject=Please%20connect%20shop.mothpress.example");
@@ -244,7 +244,7 @@ describe("Your web address: a domain brought over", () => {
       const el = await mount();
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       const card = el.querySelector('[data-domain="mothpress.example"]')!;
-      expect([...card.querySelectorAll("[data-guide-line] strong")].map((n) => n.textContent)).toEqual(["Take out, if it's there", "Add"]);
+      expect([...card.querySelectorAll("[data-guide-line] .rp-badge")].map((n) => n.textContent)).toEqual(["Take out, if it's there", "Add"]);
       expect(card.querySelector('[data-domain-stages] [aria-current="step"]')!.textContent).toContain("Connect");
       now = "live";
       await act(async () => { await vi.advanceTimersByTimeAsync(31_000); });

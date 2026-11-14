@@ -145,7 +145,7 @@ test("a domain bought at GoDaddy: its own parked line comes out first, and the s
   const guide = guideFor({ seller: sellerName("GoDaddy.com, LLC"), zone: "mothpress.example", domain: "mothpress.example", records });
   assert.deepEqual(guide.lines.map((l) => [l.action, l.pick, l.name]), [["remove", "A", "@"], ["remove", "CNAME", "www"], ["add", "A", "@"], ["add", "TXT", "@"], ["add", "A", "www"]]);
   const steps = guide.steps.join(" ");
-  assert.match(steps, /Domain Portfolio/);
+  assert.match(steps, /Open GoDaddy/);
   assert.equal(guide.openUrl, "https://dcc.godaddy.com/manage/dns");
   assert.equal(guideFor({ seller: null, zone: "mothpress.example", domain: "mothpress.example", records }).openUrl, undefined);
   assert.match(steps, /Parked/);
