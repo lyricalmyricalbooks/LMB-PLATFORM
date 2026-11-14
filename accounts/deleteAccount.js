@@ -10,8 +10,10 @@
 // person's name and address.
 //
 // A shop always needs an owner: the person is refused, by press name, while they are the only owner of a shop that
-// isn't closed. They hand it to someone or close it first. The request must come from a sign-in made in the last 15
-// minutes, with the person's own address typed again, so an open laptop or a stolen session can't erase an account.
+// isn't closed. They hand it to someone or close it first. The request needs the caller's own verified sign-in (checked
+// on the server) and their address typed again, so a slip of the mouse can't erase an account. There is no "signed in
+// in the last few minutes" rule (Julian, 14 November 2026: "just let them delete, none of this sign in or sign out"):
+// the deletion runs here with the platform's own access, so the person is never sent to sign out and back in.
 //
 // Clients passed in:
 //   accounts     get(accountId) -> row | null; remove(accountId)
@@ -26,7 +28,6 @@
 import { createHash } from "node:crypto";
 import { personOf, SignupError } from "../signup/signup.js";
 
-export const RECENT_SIGN_IN_MINUTES = 15;
 const CLOSED = new Set(["closed", "deleted", "deleting"]);
 const normal = (email) => String(email ?? "").trim().toLowerCase();
 
@@ -87,10 +88,6 @@ export function createAccountDeletion({ accounts, memberships, registry, shopDat
 
   async function deleteMe(claims, { confirmEmail } = {}) {
     const person = personOf(claims);
-    const signedInAt = Number(claims.auth_time) * 1000;
-    if (!Number.isFinite(signedInAt) || now().getTime() - signedInAt > RECENT_SIGN_IN_MINUTES * 60_000) {
-      throw new SignupError(401, `For your safety, sign out and sign in again, then delete your account within ${RECENT_SIGN_IN_MINUTES} minutes.`);
-    }
     if (normal(confirmEmail) !== person.email) throw new SignupError(400, "Type your email address exactly as it shows to confirm.");
     const { blockers } = await preview(claims);
     const making = blockers.filter((b) => b.making);
