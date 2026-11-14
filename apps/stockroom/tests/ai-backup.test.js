@@ -110,20 +110,6 @@ describe('receipt fallback', () => {
     expect(primary).not.toHaveBeenCalled();
   });
 });
-import { extractFoundReceipts } from '../src/lib/receipt-finder-client.js';
-
-describe('Gmail Finder shared AI', () => {
-  it('uses app AI without requiring a separate deployment', async () => {
-    const readAi = vi.fn(async () => ({ text: '{"receipts":[{"vendor":"Shop","amount":12}]}' }));
-    const out = await extractFoundReceipts({ email: { body: 'Invoice', fileParts: [] }, readAi });
-    expect(out.receipts[0].vendor).toBe('Shop');
-    expect(readAi.mock.calls[0][0][0].text).toContain('paymentStatus');
-  });
-  it('rejects a truncated extraction before importing any draft', async () => {
-    await expect(extractFoundReceipts({ email: { body: 'Invoice', fileParts: [] }, readAi: async () => ({ text: '{"receipts":[]}', truncated: true }) })).rejects.toThrow(/finish/);
-  });
-});
-
 describe('provider boundary integration', () => {
   it('sends exhausted Gemini receipt requests to OpenRouter with only the backup credential', async () => {
     const requests = [];

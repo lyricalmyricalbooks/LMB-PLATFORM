@@ -13,7 +13,7 @@
  *
  * Every method resolves and never rejects: a storage problem must not stop the
  * upload being attempted. `indexedDB` is passed in so this can be tested
- * without a browser (same pattern as receipt-finder-store.js).
+ * without a browser.
  */
 
 const STORE = 'queues';

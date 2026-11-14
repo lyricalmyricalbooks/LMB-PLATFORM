@@ -24,7 +24,8 @@ describe('Email Receipt Import — inline Tax Centre sub-page', () => {
     // The header reuses the same badge/title/subtitle chrome as the
     // Integrations page, so the two sub-pages read as one design language.
     expect(html).toContain('tc-integrations-icon-badge');
-    expect(html).toContain('id="email-account-pill"');
+    // The Gmail connection pill went with the retired Gmail finder.
+    expect(html).not.toContain('id="email-account-pill"');
   });
 
   it('stays put instead of hiding when the owner navigates away', () => {
@@ -39,15 +40,15 @@ describe('Email Receipt Import — inline Tax Centre sub-page', () => {
 
   it('provides Apple/Linear style segmented control tabs', () => {
     expect(html).toContain('modal-tabs segmented-control');
-    expect(html).toContain('id="email-tab-gmail"');
+    expect(html).toContain('id="email-tab-review"');
+    expect(html).not.toContain('id="email-tab-gmail"');
+    expect(html).not.toContain('id="email-tab-direct"');
     expect(html).toContain('id="email-tab-manual"');
     expect(css).toContain('.modal-tabs.segmented-control');
     expect(css).toContain('.segmented-control .modal-tab-btn.active');
   });
 
   it('says what each way in does, and lets pasted files be added and removed one by one', () => {
-    // The Gmail Finder panel is drawn by src/features/receipt-finder.js; the
-    // static copy of an older finder that used to sit here was never shown.
     expect(html).not.toContain('id="email-gmail-search-query"');
     expect(html).toContain('class="email-tab-sub"');
     expect(html).toContain('id="email-receipt-files-list" class="email-file-chips"');
@@ -55,14 +56,6 @@ describe('Email Receipt Import — inline Tax Centre sub-page', () => {
     expect(receiptsJs).toContain('data-remove-file');
     expect(receiptsJs).toContain('sourceInput.onpaste');
     expect(css).toContain('.email-dropzone.is-dragover');
-  });
-
-  it('includes micro-icons for all Gmail search preset chips', () => {
-    expect(receiptsJs).toContain("icon: '🕒'");
-    expect(receiptsJs).toContain("icon: '📅'");
-    expect(receiptsJs).toContain("icon: '📎'");
-    expect(receiptsJs).toContain("icon: '🧾'");
-    expect(receiptsJs).toContain("icon: '📦'");
   });
 
   it('implements progressive disclosure for bulk category strip', () => {
@@ -74,10 +67,5 @@ describe('Email Receipt Import — inline Tax Centre sub-page', () => {
 
   it('enforces tabular figures and monospace numbers in draft review rows', () => {
     expect(receiptsJs).toContain("font-family:var(--font-mono);font-feature-settings:'tnum' 1;");
-  });
-
-  it('still aborts an in-flight extraction when the owner navigates to another sub-tab', () => {
-    expect(receiptsJs).toContain('function closeEmailReceiptImportModal()');
-    expect(receiptsJs).toContain('if (_emailExtractAbort) _emailExtractAbort.abort();');
   });
 });

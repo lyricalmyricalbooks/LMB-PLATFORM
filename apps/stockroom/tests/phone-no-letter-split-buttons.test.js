@@ -15,7 +15,6 @@ const read = (p) => readFileSync(path.join(__dirname, '..', p), 'utf8');
 const sheets = {
   'src/style.css': read('src/style.css'),
   'src/styles/phone.css': read('src/styles/phone.css'),
-  'src/styles/receipt-finder.css': read('src/styles/receipt-finder.css'),
 };
 
 test('page content and buttons never let a word split between letters', () => {
@@ -38,7 +37,6 @@ test('wrapping button rows start from the label width, not zero', () => {
     ['src/style.css', '.postage-match-actions .btn'],
     ['src/style.css', '.bc-gap-actions .btn'],
     ['src/styles/phone.css', '#tab-website .order-actions > .btn'],
-    ['src/styles/receipt-finder.css', '.finder-actionbar .btn'],
   ];
   for (const [file, sel] of rows) {
     const esc = sel.replace(/[.*+?^${}()|[\]\\>#]/g, '\\$&');

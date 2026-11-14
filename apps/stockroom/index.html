@@ -3265,28 +3265,19 @@
           <div class="tc-integrations-title"><span>Email Receipt Import</span></div>
           <div class="tc-integrations-sub">Find the proof, check the details, file it once.</div>
         </div>
-        <span class="pill green email-connected-pill" id="email-account-pill">● Gmail Connected</span>
       </div>
 
       <!-- Sub-Tabs: Apple/Linear-style Segmented Control. Each tab says in a
-           few words what it does, so choosing between three ways of getting a
+           few words what it does, so choosing between two ways of getting a
            receipt in does not need a guess. -->
       <div class="modal-tabs segmented-control email-import-tabs" role="tablist" aria-label="How to bring receipts in">
         <button type="button" class="modal-tab-btn" id="email-tab-review" onclick="switchEmailImportTab('review')" role="tab" aria-selected="false" aria-controls="email-panel-review">
           <span class="email-tab-head"><span class="tab-icon" aria-hidden="true">🧾</span> Review</span>
           <span class="email-tab-sub">Check before filing</span>
         </button>
-        <button type="button" class="modal-tab-btn active" id="email-tab-gmail" onclick="switchEmailImportTab('gmail')" role="tab" aria-selected="true" aria-controls="email-panel-gmail">
-          <span class="email-tab-head"><span class="tab-icon" aria-hidden="true">📬</span> Gmail Finder</span>
-          <span class="email-tab-sub">AI finds and reads receipts</span>
-        </button>
-        <button type="button" class="modal-tab-btn" id="email-tab-manual" onclick="switchEmailImportTab('manual')" role="tab" aria-selected="false" aria-controls="email-panel-manual">
+        <button type="button" class="modal-tab-btn active" id="email-tab-manual" onclick="switchEmailImportTab('manual')" role="tab" aria-selected="true" aria-controls="email-panel-manual">
           <span class="email-tab-head"><span class="tab-icon" aria-hidden="true">📂</span> Paste &amp; Upload</span>
           <span class="email-tab-sub">A PDF, photo or email text</span>
-        </button>
-        <button type="button" class="modal-tab-btn" id="email-tab-direct" onclick="switchEmailImportTab('direct')" role="tab" aria-selected="false" aria-controls="email-panel-direct">
-          <span class="email-tab-head"><span class="tab-icon" aria-hidden="true">✉️</span> Gmail Import <span class="email-no-ai-tag">No AI</span></span>
-          <span class="email-tab-sub">Keep the original email as is</span>
         </button>
       </div>
 
@@ -3294,19 +3285,9 @@
         <p class="email-panel-intro">Review each found receipt and its source before filing. Discard receipts that do not belong in your records.</p>
       </div>
 
-      <!-- Gmail Finder panel. src/features/receipt-finder.js renders the whole
-           finder into this element when the tab opens; this is only what shows
-           for the moment before it does. -->
-      <div id="email-panel-gmail" role="tabpanel" aria-labelledby="email-tab-gmail">
-        <div class="email-zero-state">
-          <div class="spinner" aria-hidden="true"></div>
-          <div class="email-zero-state-sub">Opening your receipt finder…</div>
-        </div>
-      </div>
-
       <!-- Paste & Upload panel -->
-      <div id="email-panel-manual" role="tabpanel" aria-labelledby="email-tab-manual" style="display:none;">
-        <p class="email-panel-intro">Got a receipt that never came by Gmail? Paste its text, or add the PDF or a photo. The AI reads it and lays out the details for you to check before anything is filed.</p>
+      <div id="email-panel-manual" role="tabpanel" aria-labelledby="email-tab-manual">
+        <p class="email-panel-intro">Paste a receipt’s text, or add the PDF or a photo. The AI reads it and lays out the details for you to check before anything is filed.</p>
 
         <div class="email-manual-grid">
           <div class="email-manual-col email-manual-card">
@@ -3328,31 +3309,6 @@
               <div class="email-dropzone-sub" id="email-receipt-dropzone-sub">PDF invoices, receipt photos, or saved emails — up to 25 MB each</div>
             </div>
             <ul id="email-receipt-files-list" class="email-file-chips" aria-label="Files ready to read"></ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Direct Gmail import: archives the original messages without AI extraction. -->
-      <div id="email-panel-direct" role="tabpanel" aria-labelledby="email-tab-direct" style="display:none;">
-        <div class="email-ai-assistant-card email-direct-import-card">
-          <div class="email-ai-spark" aria-hidden="true">✉️</div>
-          <div class="email-ai-copy">
-            <strong>Keep receipts exactly as they were sent.</strong> No AI reads this mail. Each email and its attachments are saved to your receipts, and you add the amount later — handy for anything you just need on file.
-          </div>
-        </div>
-        <div class="email-search-row">
-          <div class="email-search-input-wrap">
-            <span class="email-search-icon" aria-hidden="true">🔍</span>
-            <input type="search" id="email-direct-search-query" class="email-search-input" placeholder="Shop, supplier or keyword — or pick a period below" aria-label="Search Gmail to import without AI" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();searchDirectGmailEmails();}">
-          </div>
-          <button type="button" class="btn gold email-search-action-btn" id="email-direct-search-btn" onclick="searchDirectGmailEmails()">Search Gmail</button>
-        </div>
-        <div class="email-chips-container" id="email-direct-chips" role="group" aria-label="Quick Gmail search presets"></div>
-        <div id="email-direct-list-wrap" class="email-results-viewport" tabindex="0" role="region" aria-label="Gmail emails to archive without AI">
-          <div class="email-zero-state">
-            <div class="email-zero-state-icon" aria-hidden="true">🗂️</div>
-            <div class="email-zero-state-title">Pick the emails to keep</div>
-            <div class="email-zero-state-sub">Choose a period above or type a shop's name. Tick the emails you want, then save them with their attachments.</div>
           </div>
         </div>
       </div>
