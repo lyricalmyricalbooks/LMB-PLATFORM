@@ -1,29 +1,35 @@
 /* The admin's Help page (HelpPage.tsx): ask, get one answer, see a few more. Tokens only. */
-.rp .rp-help-page { display: grid; gap: 16px; max-width: 760px; }
+.rp .rp-help-page { display: grid; gap: 16px; max-width: 760px; min-width: 0; }
+.rp .rp-help-page > * { min-width: 0; box-sizing: border-box; }
 .rp .rp-help-ask { display: grid; gap: 16px; padding: 32px; border-radius: 22px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
-.rp .rp-help-page .rp-help-ask-title { margin: 0; font-family: var(--rp-font-body); text-transform: none; color: inherit; font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; }
+.rp .rp-help-page .rp-help-ask-title { margin: 0; font-family: var(--rp-font-body); text-transform: none; color: inherit; font-size: 30px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; }
 .rp .rp-help-box { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 20px; border-radius: 999px; background: var(--rp-surface); color: var(--rp-text-muted); }
 .rp .rp-help-box:focus-within { box-shadow: var(--rp-focus-ring); }
 .rp .rp-help-box input, .rp .rp-help-box input:focus { appearance: none; box-shadow: none; padding: 0; height: auto; min-height: 0; border-radius: 0; }
-.rp .rp-help-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--rp-text); font: inherit; font-size: 17px; }
-.rp .rp-help-answer { display: grid; gap: 10px; padding: 24px 28px; border-radius: 22px; background: var(--rp-surface); color: var(--rp-text); font-size: 16px; line-height: 1.55; }
+.rp .rp-help-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--rp-text); font: inherit; font-size: 17px; line-height: 1.4; }
+.rp .rp-help-box input::placeholder { color: var(--rp-text-muted); opacity: 1; }
+.rp .rp-help-answer { display: grid; gap: 10px; padding: 24px 28px; border-radius: 22px; background: var(--rp-surface); color: var(--rp-text); font-size: 16px; line-height: 1.6; }
+.rp .rp-help-answer p, .rp .rp-help-answer ol { max-width: 62ch; color: var(--rp-text-muted); }
 .rp .rp-help-page .rp-help-answer h3, .rp .rp-help-page .rp-help-more h3 { margin: 0; font-family: var(--rp-font-body); text-transform: none; letter-spacing: -0.01em; color: inherit; }
-.rp .rp-help-page .rp-help-answer h3 { font-size: 20px; font-weight: 600; margin-bottom: 2px; }
+.rp .rp-help-page .rp-help-answer h3 { font-size: 22px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
 .rp .rp-help-answer p { margin: 0; }
 .rp .rp-help-answer ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; list-style: decimal; }
 .rp .rp-help-answer > div { margin-top: 6px; }
 .rp .rp-help-more { padding: 20px 28px 8px; border-radius: 22px; background: var(--rp-surface); }
-.rp .rp-help-page .rp-help-more h3 { font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; font-weight: 400; color: var(--rp-text-muted); }
+.rp .rp-help-page .rp-help-more h3 { font-size: 13px; line-height: 1.4; font-weight: 600; letter-spacing: 0; color: var(--rp-text-muted); }
 .rp .rp-help-more ul { list-style: none; margin: 6px 0 0; padding: 0; }
 .rp .rp-help-more li + li { border-top: 1px solid var(--rp-divider); }
 .rp .rp-help-more button {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 52px; padding: 0;
-  border: 0; background: none; color: var(--rp-text); font: inherit; font-size: 16px; font-weight: 500; text-align: left; cursor: pointer; border-radius: 8px;
+  border: 0; background: none; color: var(--rp-text); font: inherit; font-size: 16px; line-height: 1.4; font-weight: 500; letter-spacing: -0.005em; text-align: left; cursor: pointer; border-radius: 8px;
 }
 .rp .rp-help-more button svg { flex: none; color: var(--rp-text-muted); }
 .rp .rp-help-more button:hover span { text-decoration: underline; text-underline-offset: 3px; }
 .rp .rp-help-more button:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
 .rp .rp-help-foot { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp .rp-help-foot .rp-btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: var(--rp-surface); color: var(--rp-text); font: 600 15px/1 var(--rp-font-body); text-decoration: none; }
+.rp .rp-help-foot .rp-btn:hover { background: var(--rp-tab-hover); }
+.rp .rp-help-foot .rp-btn:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
 @media (max-width: 767px) {
   .rp .rp-help-ask { padding: 20px; }
   .rp .rp-help-page .rp-help-ask-title { font-size: 22px; }

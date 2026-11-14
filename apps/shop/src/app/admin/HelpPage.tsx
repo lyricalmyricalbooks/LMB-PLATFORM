@@ -5,7 +5,7 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, Search } from "lucide-react";
 import { articlesFor } from "@help/articles.js";
-import { PrimaryButton, SecondaryButton } from "./riso/components";
+import { PrimaryButton } from "./riso/components";
 import { helpList, wherePage, type HelpEntry } from "./helpAnswers";
 import "./help.css";
 
@@ -65,7 +65,7 @@ export function HelpPage({ combined, sells, askUrl, onTour, onOpen }: {
       )}
 
       <div className="rp-help-foot">
-        <SecondaryButton onClick={() => onTour(0)}>Take the tour</SecondaryButton>
+        <a className="rp-btn" href="#help" onClick={(e) => { e.preventDefault(); onTour(0); }}>Take the tour</a>
         {askUrl && <a className="rp-btn" href={askUrl}>Ask a person</a>}
       </div>
     </div>
