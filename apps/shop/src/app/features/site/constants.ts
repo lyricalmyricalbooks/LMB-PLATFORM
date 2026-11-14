@@ -6,7 +6,10 @@ export const DEFAULT_IMAGE =
   "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg";
 
 // Social links used until the owner saves their own (Studio › Style › Footer › Social links).
-export const DEFAULT_SOCIAL = { instagram: "https://www.instagram.com/yourpress" };
+/** No social account is invented for a shop: the link appears once the owner adds theirs (Studio › Style › Footer & social links). */
+export const DEFAULT_SOCIAL = { instagram: "" };
+/** The made-up account the starting design used to carry; a shop still showing it is read as having none. */
+export const PLACEHOLDER_INSTAGRAM = "https://www.instagram.com/yourpress";
 
 export const CATEGORIES = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"] as const;
 

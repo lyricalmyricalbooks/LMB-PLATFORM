@@ -11,7 +11,7 @@
 
 import type { ProductKind } from "../../shared/productOptions";
 import { DEFAULT_COPY } from "../features/site/storeCopy";
-import { CATEGORIES } from "../features/site/constants";
+import { CATEGORIES, PLACEHOLDER_INSTAGRAM } from "../features/site/constants";
 import { DEFAULT_SHOP_NAME, shopName } from "../../shared/shopIdentity";
 import { DEFAULT_ANNOUNCEMENT, DEFAULT_HERO_SUBTITLE, DEFAULT_SHOP_DESCRIPTION, LEGACY_ANNOUNCEMENT, LEGACY_HERO_SUBTITLE, LEGACY_SHOP_DESCRIPTION } from "./defaultSettings";
 import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
@@ -207,6 +207,8 @@ export function withShopStartFor<T extends Record<string, any>>(settings: T, sig
       out.info = { ...out.info, description: WRITTEN.siteDefaultDescription.replace("{name}", shopName(design)) };
     }
   }
+  // The made-up Instagram account the starting design used to carry: read as none, so shoppers aren't sent to a stranger's page.
+  if (design.social?.instagram === PLACEHOLDER_INSTAGRAM) design = { ...design, social: { ...design.social, instagram: "" } };
   if (design !== baseDesign) out.design = design;
   return out as T;
 }

@@ -138,6 +138,14 @@ describe("withShopStartFor", () => {
     expect(withShopStartFor({ ...old, sells: "other" }).design.announcementText).toBe(GOODS_ANNOUNCEMENT);
   });
 
+  it("never sends shoppers to a made-up Instagram account, but keeps the owner's own", () => {
+    expect(fresh().design.social.instagram).toBe("");
+    const old = { ...fresh(), design: { ...fresh().design, social: { instagram: "https://www.instagram.com/yourpress" } } };
+    expect(withShopStartFor(old).design.social.instagram).toBe("");
+    const own = { ...fresh(), design: { ...fresh().design, social: { instagram: "https://www.instagram.com/mothpress" } } };
+    expect(withShopStartFor(own).design.social.instagram).toBe("https://www.instagram.com/mothpress");
+  });
+
   it("keeps the owner's own names: Studio's site name first, then Settings' store name", () => {
     const base = fresh({ shopName: "Sign-up Name" });
     const studio = withShopStartFor({ ...base, design: { ...base.design, copy: { siteName: "Studio Name" } } });

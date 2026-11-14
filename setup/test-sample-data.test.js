@@ -133,6 +133,9 @@ test("the test shop's public details: a made-up contact address and policies, no
   assert.equal(testShopDetails({ info: { name: "Salt Hymns" }, design: { copy: { siteName: "Salt Hymns" } }, policies: testShopDetails({}, "x").policies, }, "Test Press")?.info?.name ?? "Salt Hymns", "Salt Hymns", "a name the owner typed stays");
   for (const key of ["returns", "privacy", "terms"]) assert.ok(filled.policies[key].length > 40, `${key} has words`);
   assert.equal(testShopDetails(filled, "Test Press"), null, "a second run changes nothing");
+  const legacy = testShopDetails({ ...filled, info: { ...filled.info, description: "An independent publishing house of photography and art books, photobooks and artists' books." } }, "Test Press");
+  assert.equal(legacy.info.description, "An independent press publishing well-made books.", "the old one-publisher description is replaced");
+  assert.equal(testShopDetails({ ...filled, info: { ...filled.info, description: "Poems, since 1999." } }, "Test Press"), null, "a description the owner wrote stays");
   assert.equal(testShopDetails({}, "Test Goods").info.email, "hello@test-goods.example");
   assert.notEqual(testShopDetails(filled, "Test Press", { replace: true }).policies.shipping, "My own shipping words", "the reset writes the sample words again");
 });

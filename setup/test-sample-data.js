@@ -106,6 +106,9 @@ export function testSampleDocs(kind = "books", now = new Date()) {
 
 const PLACEHOLDER_NAME = "Your Press";
 const PLACEHOLDER_INSTAGRAM = "https://www.instagram.com/yourpress";
+// The one-publisher description the starting settings carried before 14 November 2026 (apps/shop defaultSettings LEGACY_SHOP_DESCRIPTION).
+const LEGACY_DESCRIPTION = "An independent publishing house of photography and art books, photobooks and artists' books.";
+const NEUTRAL_DESCRIPTION = "An independent press publishing well-made books.";
 const placeholderEmail = (email) => !email || /^owner@example\.com$/i.test(String(email));
 
 /** The store policies a test shop gets, in plain made-up words (every shop's policy pages need text to show). */
@@ -135,6 +138,7 @@ export function testShopDetails(current, pressName, { replace = false } = {}) {
   if (replace || unnamed(settings.design?.copy?.siteName)) { settings.design = { ...(settings.design ?? {}), copy: { ...(settings.design?.copy ?? {}), siteName: pressName } }; changed = true; }
   const social = settings.design?.social;
   if (replace ? social?.instagram : social?.instagram === PLACEHOLDER_INSTAGRAM) { settings.design = { ...(settings.design ?? {}), social: { ...social, instagram: "" } }; changed = true; }
+  if (settings.info?.description === LEGACY_DESCRIPTION) { settings.info = { ...settings.info, description: NEUTRAL_DESCRIPTION }; changed = true; }
   const policies = testPolicies(pressName);
   for (const [key, text] of Object.entries(policies)) {
     if (replace || !String(settings.policies?.[key] ?? "").trim()) { settings.policies = { ...(settings.policies ?? {}), [key]: text }; changed = true; }
