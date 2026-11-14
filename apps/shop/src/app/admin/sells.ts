@@ -13,7 +13,7 @@ import type { ProductKind } from "../../shared/productOptions";
 import { DEFAULT_COPY } from "../features/site/storeCopy";
 import { CATEGORIES } from "../features/site/constants";
 import { DEFAULT_SHOP_NAME, shopName } from "../../shared/shopIdentity";
-import { DEFAULT_ANNOUNCEMENT, DEFAULT_SHOP_DESCRIPTION } from "./defaultSettings";
+import { DEFAULT_ANNOUNCEMENT, DEFAULT_HERO_SUBTITLE, DEFAULT_SHOP_DESCRIPTION, LEGACY_ANNOUNCEMENT, LEGACY_HERO_SUBTITLE, LEGACY_SHOP_DESCRIPTION } from "./defaultSettings";
 import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
 
 // The answers and the books-shop rule live in src/shared/shopSells.ts, which the server's emails use too.
@@ -156,7 +156,9 @@ export function withShopWordsFor<T extends Record<string, any> | null | undefine
 /** The banner a shop that doesn't sell books starts with, until its owner writes one (Studio › Style › Announcement bar). */
 export const GOODS_ANNOUNCEMENT = "AN INDEPENDENT SHOP OF CAREFULLY MADE THINGS";
 
-const BOOK_HERO_SUBTITLE = "PHOTOGRAPHY & ART BOOKS";
+const isBookHeroSubtitle = (text: unknown) => text === DEFAULT_HERO_SUBTITLE || text === LEGACY_HERO_SUBTITLE;
+const isBookAnnouncement = (text: unknown) => text === DEFAULT_ANNOUNCEMENT || text === LEGACY_ANNOUNCEMENT;
+const isBookDescription = (text: unknown) => text === DEFAULT_SHOP_DESCRIPTION || text === LEGACY_SHOP_DESCRIPTION;
 
 const typedName = (value: unknown): string => {
   const name = typeof value === "string" ? value.trim() : "";
@@ -182,22 +184,26 @@ export function withShopStartFor<T extends Record<string, any>>(settings: T, sig
   // The starting hero slide is titled with the placeholder name: it follows the shop's name until the owner retitles it.
   const goods = Boolean(sells) && !sellsBooks(sells);
   const slides = design.hero?.slides;
-  if (Array.isArray(slides) && slides.some((s: any) => s?.title === DEFAULT_SHOP_NAME || (goods && s?.subtitle === BOOK_HERO_SUBTITLE))) {
+  if (Array.isArray(slides) && slides.some((s: any) => s?.title === DEFAULT_SHOP_NAME || s?.subtitle === LEGACY_HERO_SUBTITLE || (goods && isBookHeroSubtitle(s?.subtitle)))) {
     design = { ...design, hero: { ...design.hero, slides: slides.map((s: any) => ({
       ...s,
       ...(s?.title === DEFAULT_SHOP_NAME ? { title: shopName(design) } : {}),
-      ...(goods && s?.subtitle === BOOK_HERO_SUBTITLE ? { subtitle: "NEW ARRIVALS" } : {}),
+      ...(s?.subtitle === LEGACY_HERO_SUBTITLE ? { subtitle: DEFAULT_HERO_SUBTITLE } : {}),
+      ...(goods && isBookHeroSubtitle(s?.subtitle) ? { subtitle: "NEW ARRIVALS" } : {}),
     })) } };
   }
   const out: Record<string, any> = { ...settings };
   if (settings.info && !typedName(settings.info.name)) out.info = { ...settings.info, name: shopName(design) };
+  // The banner and description: the starting words for any shop, with the old one-publisher wording read as the new words.
+  const bannerNow = goods ? GOODS_ANNOUNCEMENT : DEFAULT_ANNOUNCEMENT;
+  if (isBookAnnouncement(design.announcementText) && design.announcementText !== bannerNow) design = { ...design, announcementText: bannerNow };
+  if (Array.isArray(settings.announcements) && isBookAnnouncement(settings.announcements[0]?.message) && settings.announcements[0].message !== bannerNow) {
+    out.announcements = [{ ...settings.announcements[0], message: bannerNow }, ...settings.announcements.slice(1)];
+  }
+  if (out.info?.description === LEGACY_SHOP_DESCRIPTION) out.info = { ...out.info, description: DEFAULT_SHOP_DESCRIPTION };
   if (goods) {
-    if (design.announcementText === DEFAULT_ANNOUNCEMENT) design = { ...design, announcementText: GOODS_ANNOUNCEMENT };
     if (sameList(design.categories, CATEGORIES)) design = { ...design, categories: [] };
-    if (Array.isArray(settings.announcements) && settings.announcements[0]?.message === DEFAULT_ANNOUNCEMENT) {
-      out.announcements = [{ ...settings.announcements[0], message: GOODS_ANNOUNCEMENT }, ...settings.announcements.slice(1)];
-    }
-    if (out.info?.description === DEFAULT_SHOP_DESCRIPTION) {
+    if (isBookDescription(out.info?.description)) {
       out.info = { ...out.info, description: WRITTEN.siteDefaultDescription.replace("{name}", shopName(design)) };
     }
   }

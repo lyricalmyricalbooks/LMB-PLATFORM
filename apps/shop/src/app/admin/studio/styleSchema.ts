@@ -341,7 +341,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "hideHeaderAccount", label: "Hide account icon", kind: "toggle" },
       { key: "hideCurrencySelector", label: "Hide currency selector", kind: "toggle" },
       { key: "hideThemeToggle", label: "Hide light/dark toggle", kind: "toggle" },
-      { key: "hideAdminLink", label: "Hide “Admin” link", kind: "toggle" },
+      { key: "hideAdminLink", label: "Hide “Admin” link", kind: "toggle", defaultValue: true },
       { key: "hideCartButton", label: "Hide cart button", kind: "toggle" },
     ],
   },

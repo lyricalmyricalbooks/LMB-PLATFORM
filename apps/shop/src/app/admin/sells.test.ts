@@ -108,7 +108,7 @@ describe("What a shop sells (plan 10.1)", () => {
 
 // Starting words before the owner changes anything (12 November 2026).
 import { withShopStartFor, GOODS_ANNOUNCEMENT } from "./sells";
-import { defaultSettings, DEFAULT_ANNOUNCEMENT } from "./defaultSettings";
+import { defaultSettings, DEFAULT_ANNOUNCEMENT, DEFAULT_SHOP_DESCRIPTION, LEGACY_ANNOUNCEMENT, LEGACY_HERO_SUBTITLE, LEGACY_SHOP_DESCRIPTION } from "./defaultSettings";
 import { getCopy as copyOf } from "../features/site/storeCopy";
 
 describe("withShopStartFor", () => {
@@ -120,6 +120,22 @@ describe("withShopStartFor", () => {
     expect(books.info.name).toBe("Moth Press");
     expect(books.design.announcementText).toBe(DEFAULT_ANNOUNCEMENT);
     expect(copyOf(withShopStartFor(fresh(), "Profile Name").design, "siteName")).toBe("Profile Name");
+  });
+
+  it("starts every press with words that fit any press, and reads the old one-publisher wording the same way", () => {
+    const fresh0 = fresh({ shopName: "Moth Press" });
+    const start = withShopStartFor(fresh0);
+    expect(/photograph|ephemera/i.test([start.design.announcementText, start.announcements[0].message, start.info.description, start.design.hero.slides[0].subtitle].join(" "))).toBe(false);
+    const old = { ...fresh0, info: { ...fresh0.info, description: LEGACY_SHOP_DESCRIPTION }, announcements: [{ message: LEGACY_ANNOUNCEMENT }],
+      design: { ...fresh0.design, announcementText: LEGACY_ANNOUNCEMENT, hero: { slides: [{ title: "Moth Press", subtitle: LEGACY_HERO_SUBTITLE }] } } };
+    const read = withShopStartFor(old);
+    expect(read.design.announcementText).toBe(DEFAULT_ANNOUNCEMENT);
+    expect(read.announcements[0].message).toBe(DEFAULT_ANNOUNCEMENT);
+    expect(read.info.description).toBe(DEFAULT_SHOP_DESCRIPTION);
+    expect(read.design.hero.slides[0].subtitle).toBe("NEW BOOKS");
+    const typed = withShopStartFor({ ...old, design: { ...old.design, announcementText: "POETRY, SINCE 1999" } });
+    expect(typed.design.announcementText).toBe("POETRY, SINCE 1999");
+    expect(withShopStartFor({ ...old, sells: "other" }).design.announcementText).toBe(GOODS_ANNOUNCEMENT);
   });
 
   it("keeps the owner's own names: Studio's site name first, then Settings' store name", () => {

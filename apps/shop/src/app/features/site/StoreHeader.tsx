@@ -419,7 +419,8 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   const headerColor = scheme ? "var(--text-color)" : storefront.headerColor || storefront.textColor || "var(--text)";
   const headerBg = scheme ? "var(--bg-color)" : storefront.headerBg || storefront.backgroundColor || "var(--background)";
   const maxWidth = contentMaxWidth(storefront);
-  const showAdmin = !storefront.hideAdminLink && (storefront.headerLinks?.showSys ?? true);
+  // The "Admin" link is off until the owner turns it on (Studio › Style › Header icons & buttons): shoppers shouldn't see it.
+  const showAdmin = storefront.hideAdminLink === false && (storefront.headerLinks?.showSys ?? true);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -546,7 +547,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const isHeaderTransparent = sf?.transparentHeader && !scrolled;
   const headerLinks = (showCatalog ? sf?.headerLinks : shop.hero?.headerLinks) || {};
   const showBag = !design?.hideCartButton && (headerLinks.showBag ?? true);
-  const showSys = !design?.hideAdminLink && (headerLinks.showSys ?? true);
+  const showSys = design?.hideAdminLink === false && (headerLinks.showSys ?? true);
   const storefrontBg = sf?.backgroundColor || "#000000";
   const storefrontText = sf?.textColor || "#ffffff";
   const storefrontAccent = sf?.primaryColor || "#e8402a";

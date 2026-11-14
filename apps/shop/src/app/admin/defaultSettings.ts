@@ -3,9 +3,17 @@ import { US_SHOP } from "./moneySign";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../features/site/risoNoir";
 import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 
-/** The banner and description a new shop starts with (admin/sells.ts swaps them for a shop that doesn't sell books). */
-export const DEFAULT_ANNOUNCEMENT = "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA";
-export const DEFAULT_SHOP_DESCRIPTION = "An independent publishing house of photography and art books, photobooks and artists' books.";
+/**
+ * The banner and description a new shop starts with, in words that fit any press (admin/sells.ts swaps them for a shop that
+ * doesn't sell books). Before 14 November 2026 they described one photography publisher; shops that still carry those
+ * words (the LEGACY_ ones) are read with the new words, and anything the owner typed is kept.
+ */
+export const DEFAULT_ANNOUNCEMENT = "AN INDEPENDENT PRESS FOR NEW WRITING AND WELL-MADE BOOKS";
+export const DEFAULT_SHOP_DESCRIPTION = "An independent press publishing well-made books.";
+export const DEFAULT_HERO_SUBTITLE = "NEW BOOKS";
+export const LEGACY_ANNOUNCEMENT = "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA";
+export const LEGACY_SHOP_DESCRIPTION = "An independent publishing house of photography and art books, photobooks and artists' books.";
+export const LEGACY_HERO_SUBTITLE = "PHOTOGRAPHY & ART BOOKS";
 
 /** The shop's settings before the owner has changed anything (merged under `settings/website`). */
 export const defaultSettings = (): any => ({
@@ -176,7 +184,7 @@ export const defaultSettings = (): any => ({
           id: "default-slide-1",
           imageUrl: "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=1600&h=900&fit=crop",
           title: DEFAULT_SHOP_NAME,
-          subtitle: "PHOTOGRAPHY & ART BOOKS",
+          subtitle: DEFAULT_HERO_SUBTITLE,
           ctaText: "ENTER SHOP",
           ctaLink: "/shop"
         }
