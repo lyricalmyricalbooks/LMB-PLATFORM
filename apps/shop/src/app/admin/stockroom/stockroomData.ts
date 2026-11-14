@@ -12,7 +12,7 @@ import { assembleParts, stitchState } from "@stockroom/merge-state.js";
 import { app } from "../../../lib/firebase";
 import { SHOP_FOLDER } from "../../../lib/shopFolder";
 import { shopProfile } from "../../../lib/shopProfile";
-import { SHOP_CURRENCY } from "../moneySign";
+import { homeCurrency } from "../moneySign";
 
 export type StockBook = { id: string; title: string; isTest?: boolean; [key: string]: unknown };
 export type StockroomRecords = {
@@ -169,7 +169,7 @@ export function taxCenterFromCopy(copy: unknown): Record<string, unknown> | null
   const c = copy as Record<string, unknown>;
   const rates = c.rates && typeof c.rates === "object" ? c.rates : {};
   return {
-    settings: { baseCurrency: typeof c.baseCurrency === "string" ? c.baseCurrency : SHOP_CURRENCY, rates },
+    settings: { baseCurrency: homeCurrency(c.baseCurrency), rates },
     businessExpenses: Array.isArray(c.businessExpenses) ? c.businessExpenses : [],
   };
 }

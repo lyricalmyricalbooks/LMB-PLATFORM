@@ -330,7 +330,7 @@ export function BillingPage({ plan }: Hub) {
   if (!answer && error) return <ErrorState title="Billing not loaded" description={error} onRetry={() => void reload()} />;
   if (!answer) return <LoadingState label="Reading your billing…" />;
   const billing = answer.billing;
-  if (!billing) return <SectionCard title="Billing"><EmptyState inline title="No bills yet" description="Your bills and cards show here once your plan has started." /></SectionCard>;
+  if (!billing) return <SectionCard title="Billing"><EmptyState inline title="No bills yet" description="Your running costs, bills and cards show here once your plan has started." /></SectionCard>;
   const problem = billing.paymentProblem;
 
   const addCard = () => change.run("card", async () => {

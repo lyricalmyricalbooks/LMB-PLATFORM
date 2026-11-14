@@ -80,7 +80,7 @@ export function BillingSettings({ focusClose }: { focusClose?: boolean } = {}) {
       {!plan
         ? (
           <SectionCard title="Billing">
-            <EmptyState inline title="No bills yet" description="Your bills and cards show here once your plan has started." />
+            <EmptyState inline title="No bills yet" description="Your running costs, bills and cards show here once your plan has started." />
           </SectionCard>
         )
         : hubReady(plan) ? <BillingPage plan={plan} /> : <HubNotReady plan={plan} />}

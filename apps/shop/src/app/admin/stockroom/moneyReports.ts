@@ -18,7 +18,7 @@ import {
 import { shopProfile } from "../../../lib/shopProfile";
 import { keptRates, type RateCache } from "./datedRates";
 import type { StockroomRecords } from "./stockroomData";
-import { SHOP_CURRENCY } from "../moneySign";
+import { SHOP_CURRENCY, homeCurrency } from "../moneySign";
 
 type Row = Record<string, any>;
 
@@ -36,7 +36,7 @@ export function sourcesOf(records: StockroomRecords, dated: RateCache = keptRate
   };
 }
 
-const baseCurrencyOf = (sources: TaxSources) => (sources.taxCenter?.settings?.baseCurrency as string) || SHOP_CURRENCY;
+const baseCurrencyOf = (sources: TaxSources) => homeCurrency(sources.taxCenter?.settings?.baseCurrency);
 
 // ── Tax centre ──────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -133,7 +133,7 @@ export function expensesModel(records: StockroomRecords) {
     });
   }
   const tc = (records.taxCenter || {}) as Row;
-  const baseCur = (tc.settings?.baseCurrency as string) || SHOP_CURRENCY;
+  const baseCur = homeCurrency(tc.settings?.baseCurrency);
   (Array.isArray(tc.businessExpenses) ? tc.businessExpenses : []).forEach((e: Row, i: number) => {
     if (!e || typeof e !== "object" || e.voided) return;
     all.push(e);

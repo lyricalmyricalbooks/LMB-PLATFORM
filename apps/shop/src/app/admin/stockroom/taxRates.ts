@@ -15,7 +15,7 @@ import { datesNeedingRates, fillDatedRates } from "@stockroom/sale-fx.js";
 import { expenseRate, keep, keptRates, rateSeries, type RateCache } from "./datedRates";
 import type { StockroomRecords } from "./stockroomData";
 import { stockroomWriteApi } from "./stockroomWrite";
-import { SHOP_CURRENCY } from "../moneySign";
+import { SHOP_CURRENCY, homeCurrency } from "../moneySign";
 
 type Row = Record<string, any>;
 type Fetch = (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
@@ -169,7 +169,7 @@ export async function healExpenseRates(records: StockroomRecords, deps: RateDeps
  * resolveExpenseRate): `CUR@YYYY-MM-DD` → rate, 0 when none could be found.
  */
 export async function expenseRatesFor(items: Array<{ currency: string; date: string }>, taxCenter: Row | null, deps: RateDeps = {}): Promise<RateCache> {
-  const base = code((taxCenter?.settings?.baseCurrency as string) || SHOP_CURRENCY);
+  const base = code(homeCurrency(taxCenter?.settings?.baseCurrency));
   const saved = (taxCenter?.settings?.rates as RateCache) || null;
   const out: RateCache = {};
   for (const { currency, date } of items) {

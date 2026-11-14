@@ -2,7 +2,7 @@
 // (apps/stockroom/src/lib): what the admin's Stock, Stockists, Invoices and author pages would show.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SAMPLE_CODE, SAMPLE_STOCKIST, stockroomParts, testSampleDocs, testSampleStockroom, writeTestSamples } from "./test-sample-data.js";
+import { SAMPLE_CODE, SAMPLE_STOCKIST, stockroomParts, testShopDetails, testSampleDocs, testSampleStockroom, writeTestSamples } from "./test-sample-data.js";
 import { stockedIds, testStockroomBooks } from "./test-catalogue.js";
 import { assembleParts, stitchState } from "../apps/stockroom/src/lib/merge-state.js";
 import { reconcileConsignmentChannel, reconcileConsignmentMirrors, reconcileStores } from "../apps/stockroom/src/lib/consignment.js";
@@ -115,5 +115,18 @@ test("writing: only what is missing, unless asked to replace; without a stockroo
 
   const alone = store();
   const written = await writeTestSamples({ shop: alone, stockroom: null }, "test-goods", "general", { now: NOW });
-  assert.equal(written.length, 11);
+  assert.equal(written.length, 12);
+  assert.ok(written.includes("settings/website"), "the shop's contact address and policies are filled in");
+});
+
+test("the test shop's public details: a made-up contact address and policies, no placeholder Instagram, and the owner's own words stay", async () => {
+  const seed = { design: { social: { instagram: "https://www.instagram.com/yourpress", facebook: "" } }, info: { email: "owner@example.com" }, policies: { shipping: "My own shipping words" } };
+  const filled = testShopDetails(seed, "Test Press");
+  assert.equal(filled.info.email, "hello@test-press.example");
+  assert.equal(filled.design.social.instagram, "");
+  assert.equal(filled.policies.shipping, "My own shipping words");
+  for (const key of ["returns", "privacy", "terms"]) assert.ok(filled.policies[key].length > 40, `${key} has words`);
+  assert.equal(testShopDetails(filled, "Test Press"), null, "a second run changes nothing");
+  assert.equal(testShopDetails({}, "Test Goods").info.email, "hello@test-goods.example");
+  assert.notEqual(testShopDetails(filled, "Test Press", { replace: true }).policies.shipping, "My own shipping words", "the reset writes the sample words again");
 });
