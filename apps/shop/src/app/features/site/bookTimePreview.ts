@@ -14,7 +14,7 @@ export const isBookingPreview = () => typeof window !== "undefined"
   && new URLSearchParams(window.location.search).get("preview") === "true" && Boolean((window as any).__studioPreviewState);
 
 const SERVICES: BookingServiceView[] = [
-  { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Orders › Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio" },
+  { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio" },
   { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio",
     questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
   { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "full", location: "The studio", places: 8 },

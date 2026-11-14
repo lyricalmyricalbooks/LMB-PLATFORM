@@ -76,3 +76,12 @@ record, so they count as another booking, which is the safe side. Not yet tried 
 
 Review: a closed day can't be waited for. People are told together and the first to book wins; no automatic booking.
 Not yet tried on a live test shop.
+
+## A "Book a time" section for any page (14 November 2026)
+
+- [x] Studio › Add section › Book a time: services as cards with price, length, place and class size, a button each.
+- [x] Each button opens the booking page on that service; "See everything" appears when there are more services.
+- [x] Hidden while the shop isn't taking bookings; the designer shows sample services.
+- [x] Proof: rule test, registry/renderer parity, fallback words editable, a Studio browser check, screenshot.
+
+Review: one request per visit, shared with nothing else on the page. No per-section pick of which services yet.

@@ -6,7 +6,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Users } from "lucide-react";
-import { functionFetch } from "../../lib/functionsBase";
 import { useSEO } from "../../lib/seo";
 import { StoreChrome } from "./StoreChrome";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
@@ -14,9 +13,8 @@ import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
 import { TRACKING_CSS } from "./trackingStyle";
 import { regionProps } from "./storefrontRegions";
-import { isBookingPreview, previewAnswer } from "./bookTimePreview";
+import { askBooking } from "./bookTimeAsk";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
-import { shopCurrency } from "../../../lib/shopProfile";
 import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
@@ -26,20 +24,7 @@ import {
 } from "./bookTimeRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
-type Answer = Record<string, any> & { error?: string; code?: string };
-
-async function ask(action: string, body: Record<string, unknown> = {}): Promise<Answer> {
-  // Studio's preview shows sample services and times, and never books anything (bookTimePreview.ts).
-  if (isBookingPreview()) return previewAnswer(action, body, shopCurrency());
-  const response = await functionFetch("validateDiscountCode", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...body }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(String(data.error || response.status)), { code: data.code, status: response.status });
-  return data;
-}
+const ask = askBooking;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
