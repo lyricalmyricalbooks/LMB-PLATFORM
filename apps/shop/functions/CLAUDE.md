@@ -1189,4 +1189,4 @@ through `validateDiscountCode`, rate limited): `bookingInfo`, `bookingTimes`, `b
 `bookingCancel`, `bookingMove`; the customer's link carries a key whose hash is kept (`manageKeyHash`). Owner actions go
 through `createStripeCheckoutSession` `action: "bookingsAdmin"`. A card booking holds its time for `HOLD_MINUTES` on the
 shop's own standalone pay page (no shop order, the webhook ignores it); `bookingSweep` (every 5 min) confirms a paid hold
-or frees the time. Cancelling a paid booking refunds it. A new action needs a rate limit and the switch check.
+or frees the time. Cancelling a paid booking refunds it. A new action needs a rate limit and the switch check. **Reminders:** the same sweep emails each confirmed customer once about a day ahead (`sweepReminders`, `reminderSentAt`, cleared by a move; skipped for bookings made under 6 hours before). **Slower ways to pay:** a hold whose page is finished but still clearing (`status: "complete"`, `payment_status: "unpaid"`) keeps its time until the booking starts; a card-only page (`payment_method_types`) made every start fail on 14 November, cause unread, so don't add it back without the Stripe log.
