@@ -14,6 +14,8 @@
 //                                  and the prorated amount (preview: true, nothing changes), or the change itself, with
 //                                  the optional answer to "why are you dropping it?" (closedApps.js DROP_REASONS)
 //   POST /api/billing/cost-alert  { shopId, cents } -> { costAlert }: email me when a month's bill may pass this amount
+//   POST /api/billing/costs       { shopId } -> { costs }: the running-cost tracker (services/billing/costTracker.js):
+//                                  this month so far in plain groups, the month-end estimate, past months, the alert
 //   POST /api/billing/email-language  { shopId, language: "fr" | "en" | "auto" } -> { changed, emailLanguage }: the
 //                                  language of the platform's emails, for every shop the account pays for
 //   POST /api/billing/invoices     { shopId, after? } -> { invoices, more, after }: newest first, each with Stripe's PDF link
@@ -53,7 +55,7 @@ export const billingPage = (settings, shopId) => `${settings.platformUrl}/accoun
  * Every billing call, by name, for both doors: { run(shopId, body, { returnUrl }), secondStep }. `secondStep` (true, or
  * a test of the body) marks the changes a paid plan's owner needs two-step sign-in for (plan 14.1); looking is free.
  */
-export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null }) {
+export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null, meters = null }) {
   // The card and the billing details are the paying account's (one Stripe customer for every shop it pays for), so only
   // that person changes them: a co-owner's card would otherwise pay the account holder's other shops too.
   const payerOnly = (run) => async (shopId, body, context) => {
@@ -74,6 +76,8 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
     "email-language": { run: async (shopId, { language }) => billing.setEmailLanguage({ shopId, language }) },
     // Pay what you use: the amount a month's bill may pass before the press is emailed (0 turns the email off).
     "cost-alert": { run: async (shopId, { cents }) => billing.setCostAlert({ shopId, cents }) },
+    // The running-cost tracker: this month so far, where it is heading and the months before (looking only).
+    costs: { run: async (shopId) => ({ costs: await billing.costTracker({ shopId, meters }) }) },
     card: { run: payerOnly(async (shopId, _body, { returnUrl }) => billing.cardLink({ shopId, returnUrl })), secondStep: true },
     cancel: {
       run: async (shopId, { reason, words }) => ({ cancelAtPeriodEnd: planEnding(await billing.cancel({ shopId, reason, words })).cancelling }),
@@ -161,7 +165,7 @@ export function billingCallLog({ registry, auditLog, now, source = "billing-door
   };
 }
 
-export function billingRoutes({ billing, paymentWay = null, bankFeed = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
+export function billingRoutes({ billing, paymentWay = null, bankFeed = null, meters = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   const log = billingCallLog({ registry, auditLog, now });
 
@@ -193,7 +197,7 @@ export function billingRoutes({ billing, paymentWay = null, bankFeed = null, acc
     };
   }
 
-  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings, bankFeed })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
+  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings, bankFeed, meters })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
 }
 
 /**

@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null } }));
-const { BillingCallError, alertCents, billCoversWords, billState, billingCall, callAddress, previewWords, priceWords, statusBadge } = await import("./platformBilling");
+const { BillingCallError, alertCents, alertWords, billCoversWords, billEstimate, billState, billingCall, callAddress, moneyLike, previewWords, priceWords, statusBadge, trendWords } = await import("./platformBilling");
 
 const PLAN = { hub: "https://platform.example/api/shop-billing/", shopId: "moth-press" };
 const answer = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body }) as Response;
@@ -79,5 +79,50 @@ describe("pay what you use", () => {
     expect(priceWords({ price: "$5.00", plusTax: true, usage })).toBe("$5.00 a month + running cost plus tax");
     expect(priceWords({ price: "$39.00", plusTax: true, usage: undefined })).toBe("$39.00 a month plus tax");
     expect(priceWords({ price: "$5.00", plusTax: false, usage }, "$3.75")).toBe("$3.75 a month + running cost");
+  });
+});
+
+describe("the running-cost tracker's words", () => {
+  const $ = (cents: number, sign = "$") => ({ cents, text: `${sign}${(cents / 100).toFixed(2)}` });
+  const costs = (over: Record<string, unknown> = {}) => ({
+    plusTax: true, monthEnd: $(321),
+    estimate: { fee: $(500), discount: null, percentOff: null, running: $(321), beforeTax: $(821), freeTrial: false }, ...over,
+  }) as any;
+
+  it("taxes the estimate at the next bill's own rate, and says so when there is no bill to go by", () => {
+    expect(billEstimate(costs(), { beforeTax: 768, tax: 100 })).toEqual({ total: "$9.28", parts: ["$5.00 fee", "$3.21 running cost", "$1.07 tax"], taxLater: false, free: false });
+    expect(billEstimate(costs(), null)).toEqual({ total: "$8.21", parts: ["$5.00 fee", "$3.21 running cost"], taxLater: true, free: false });
+    // No tax on the next bill (nowhere it must be collected): none on the estimate, and no "plus tax".
+    expect(billEstimate(costs(), { beforeTax: 768, tax: 0 })).toMatchObject({ total: "$8.21", taxLater: false });
+    expect(billEstimate(costs({ plusTax: false }), { beforeTax: 768, tax: 100 })).toMatchObject({ total: "$8.21", taxLater: false });
+  });
+
+  it("the founding discount comes off the fee only, US dollars stay US dollars, a trial month is free", () => {
+    const founding = costs({ estimate: { fee: $(500), discount: $(125), percentOff: 25, running: $(321), beforeTax: $(696), freeTrial: false } });
+    expect(billEstimate(founding, null)!.parts).toEqual(["$5.00 fee", "−$1.25 founding discount", "$3.21 running cost"]);
+    const us = costs({ monthEnd: $(321, "US$"), estimate: { fee: $(500, "US$"), discount: null, percentOff: null, running: $(321, "US$"), beforeTax: $(821, "US$"), freeTrial: false } });
+    expect(billEstimate(us, { beforeTax: 500, tax: 0 })!.total).toBe("US$8.21");
+    const trial = costs({ estimate: { fee: $(500), discount: null, percentOff: null, running: $(0), beforeTax: $(500), freeTrial: true } });
+    expect(billEstimate(trial, null)).toMatchObject({ free: true, total: "$8.21" });
+    expect(billEstimate(costs({ estimate: { fee: $(500), discount: null, percentOff: null, running: null, beforeTax: null, freeTrial: false } }), null)).toBeNull();
+    expect(moneyLike("CA$5.00", 123456)).toBe("CA$1,234.56");
+  });
+
+  it("compares with last month in plain words", () => {
+    const last = { month: "2026-10", monthWords: "October 2026", cents: 268, text: "$2.68" };
+    expect(trendWords({ change: 20, lastMonth: last })).toBe("20% more than October");
+    expect(trendWords({ change: -31, lastMonth: last })).toBe("31% less than October");
+    expect(trendWords({ change: 3, lastMonth: last })).toBe("About the same as October");
+    expect(trendWords({ change: 189, lastMonth: last })).toBe("About 3 times October");
+    expect(trendWords({ change: null, lastMonth: last })).toBe("");
+  });
+
+  it("says where the month stands against the owner's amount", () => {
+    const alert = { cents: 2500, text: "$25.00", on: true, watched: $(821), passing: false, used: 0.33, sent: false };
+    expect(alertWords(alert)).toEqual({ tone: "ok", words: "On track: about $8.21 before tax, under your $25.00." });
+    expect(alertWords({ ...alert, watched: $(3100), passing: true }).words).toBe("Heading for about $31.00 before tax, past your $25.00.");
+    expect(alertWords({ ...alert, watched: $(3100), passing: true, sent: true })).toEqual({ tone: "warn", words: "Heading for about $31.00 before tax. We emailed you." });
+    expect(alertWords({ ...alert, watched: null }).words).toBe("We'll email you if a month looks set to pass $25.00.");
+    expect(alertWords({ ...alert, on: false, cents: 0 }).tone).toBe("off");
   });
 });

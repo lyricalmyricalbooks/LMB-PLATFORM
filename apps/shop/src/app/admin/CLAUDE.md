@@ -1052,3 +1052,14 @@ again from Help or the avatar menu. Each stop points at the rail item `[data-nav
 button. A new menu page that matters gets a stop. Help is the `#help` page (ask box on a mint tile; search in helpAnswers.ts: stems, stop words, same-meaning groups, one-letter typos, ALSO_ASKED owner words per answer, checked by helpQuestions.test.ts — add a question there when an owner reports a miss; the best answer in full, other matches as links, Take the tour · Ask a person; Julian 14 Nov: keep it simple, and help is admin-only: the public site has no Help link) (`HelpPage.tsx`, pure `helpAnswers.ts`), reading the
 platform's `help/articles.js` through the `@help` alias. Fixture: `admin-fixture.html?tour=1`.
 Help best practices (14 Nov): answers for the page Help was opened from come first (`answersForPage`, Dashboard's `helpFrom`), each answer asks "Did this answer your question?", Ask a person carries the question as `?subject=` (`askWith`; accounts/app.js fills the form), Related = same topic (`relatedTo`), See all answers by topic, "/" focuses the box, Escape/Clear empties it. A missed question with no answer at all needs a new article in help/articles.js (update help.test.js's count).
+
+## Running costs tracker (14 November 2026)
+Settings › Billing › **Running costs** (`RunningCosts.tsx`, `runningCosts.css`; words in `platformBilling.ts`:
+`billEstimate`, `trendWords`, `alertWords`, `moneyLike`). It asks the platform's billing door for `costs`
+(`services/billing/costTracker.js` + `billing.costTracker`, the same meters and straight-line estimate as the heads-up
+email) and only lays the answer out: So far (mint), By month end (apricot), the month's bill (fee, founding discount on
+the fee only, running cost, tax at the rate of the next bill's `cents`), Where it goes (five plain groups that add up to
+the total), Month by month (billed months, this month dashed as the estimate) and the email-me amount with an on-track
+line. Nothing measured yet, or a failed read, falls back to the three plain facts. No Home tile: the v4 Home has no
+slot for one. Fixture: `admin-fixture.html?plan=open&page=settings/billing` (`&costs=over|new|trial`, `&cur=usd`,
+`&founding=1`). Control room: Costs › Each shop's use › "Owner sees so far".

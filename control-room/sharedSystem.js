@@ -12,6 +12,7 @@
 //   meters    optional: get(shopId, month) (firestoreUsageMeters); null while the shared system isn't switched on
 import { ControlError, adminOf } from "./controlRoom.js";
 import { monthOf } from "../services/costs/costs.js";
+import { meterCost, projectedCents } from "../services/billing/runningCost.js";
 
 /** The release kinds a shared run records. */
 export const SHARED_RELEASE_KINDS = Object.freeze(["shared-release", "shared-first-release"]);
@@ -39,10 +40,18 @@ export function sharedRun(run) {
   };
 }
 
-/** One shop's month of use; null numbers mean nothing was measured yet. */
-export function usageRow(row, record) {
+/**
+ * One shop's month of use; null numbers mean nothing was measured yet. `soFarCents` and `monthEndCents` are what the
+ * owner's own tracker shows them (Settings › Billing › Running costs, services/billing/costTracker.js), in the
+ * platform's home currency: the month so far at the list prices, and where it is heading (given `now` in that month).
+ */
+export function usageRow(row, record, { month = null, now = null } = {}) {
   const n = (key) => (record && Number.isFinite(Number(record[key])) ? Number(record[key]) : null);
+  const soFarCents = record ? meterCost(record).cents : null;
+  const running = soFarCents !== null && month && Number.isFinite(now) && monthOf(now) === month;
   return {
+    soFarCents,
+    monthEndCents: running ? projectedCents({ soFarCents, now, month }) : null,
     shopId: row.shopId,
     pressName: row.pressName ?? row.shopId,
     measured: Boolean(record),
@@ -78,13 +87,13 @@ export function createSharedSystemDesk({ admins, registry, meters = null, now = 
       if (!meters?.get) return { month: wanted, connected: false, shops: [] };
       const rows = (await registry.listShops()).filter((row) => row.shared === true && row.status !== "abandoned");
       const shops = [];
-      for (const row of rows) shops.push(usageRow(row, await meters.get(row.shopId, wanted)));
+      for (const row of rows) shops.push(usageRow(row, await meters.get(row.shopId, wanted), { month: wanted, now: now().getTime() }));
       shops.sort((a, b) => (b.computeGbSeconds ?? -1) - (a.computeGbSeconds ?? -1) || a.shopId.localeCompare(b.shopId));
       const sum = (key) => shops.reduce((total, s) => total + (s[key] ?? 0), 0);
       return {
         month: wanted, connected: true, shops,
         reconciled: shops.length > 0 && shops.every((s) => s.reconciled),
-        totals: { invocations: sum("invocations"), computeGbSeconds: sum("computeGbSeconds"), egressGb: sum("egressGb"), storageGb: sum("storageGb"), emails: sum("emails"), costCents: sum("costCents") },
+        totals: { invocations: sum("invocations"), computeGbSeconds: sum("computeGbSeconds"), egressGb: sum("egressGb"), storageGb: sum("storageGb"), emails: sum("emails"), costCents: sum("costCents"), soFarCents: sum("soFarCents"), monthEndCents: sum("monthEndCents") },
       };
     },
   };

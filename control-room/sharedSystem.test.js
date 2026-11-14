@@ -73,11 +73,16 @@ test("each shared shop's month of use, busiest first, and its share once the bil
   assert.deepEqual(now.shops.map((s) => [s.shopId, s.measured]), [["moth", true], ["wasp", false]], "the abandoned old test shop and the shop on its own project aren't listed");
   assert.equal(now.shops[0].costCents, null, "not split until the bill is in");
   assert.equal(now.reconciled, false);
+  // What the owner's own tracker shows them: the month so far, and where it is heading.
+  assert.ok(now.shops[0].soFarCents >= 0 && now.shops[0].monthEndCents >= now.shops[0].soFarCents);
+  assert.deepEqual([now.shops[1].soFarCents, now.shops[1].monthEndCents], [null, null], "nothing measured, nothing estimated");
+  assert.equal(now.totals.soFarCents, now.shops[0].soFarCents);
   const last = await w.desk.usage(ADMIN, { month: "2026-10" });
   assert.deepEqual(last.shops.map((s) => s.shopId), ["wasp", "moth"]);
   assert.equal(last.reconciled, true);
   assert.equal(last.totals.costCents, 360);
   assert.equal(last.totals.invocations, 900);
+  assert.equal(last.shops[0].monthEndCents, null, "a finished month has no estimate");
 });
 
 test("before the shared system is on, the use says so", async () => {

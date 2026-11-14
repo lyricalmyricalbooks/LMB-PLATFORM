@@ -227,6 +227,8 @@ export function createBillingHub({ call, rowFor, save, logChange, subscriptions,
         discount: discount ? money(discount, currency) : "",
         tax: taxAmount ? money(taxAmount, currency) : "",
         total: money(preview.total ?? preview.amount_due ?? 0, currency),
+        // The same bill in cents, so the running-cost tracker can tax its estimate at this bill's rate (costTracker.js taxOn).
+        cents: { beforeTax: (preview.total ?? preview.amount_due ?? 0) - taxAmount, tax: taxAmount },
       };
     },
 

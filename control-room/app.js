@@ -3422,7 +3422,7 @@ async function loadUsage(month) {
     const num = (n, words) => el("span", { className: "rp-mono", textContent: n == null ? "" : words ? words(n) : String(n) });
     target.replaceChildren(
       el("div", { className: "cr-head" }, el("h2", { textContent: "Each shop's use" }), el("div", { className: "rp-field" }, picker)),
-      el("p", { className: "rp-hint", textContent: report.reconciled ? `${report.month}'s bill is split: ${money(report.totals.costCents, "CAD")} across ${plural(report.shops.length, "shop")}.` : `${report.month} so far. Each shop's share of the bill is worked out once Google's bill for the month is in (from the 3rd of the next month).` }),
+      el("p", { className: "rp-hint", textContent: report.reconciled ? `${report.month}'s bill is split: ${money(report.totals.costCents, "CAD")} across ${plural(report.shops.length, "shop")}.` : `${report.month} so far: owners' trackers add up to ${money(report.totals.soFarCents, "CAD")}${report.totals.monthEndCents ? `, heading for about ${money(report.totals.monthEndCents, "CAD")}` : ""}. Each shop's share of the bill is worked out once Google's bill for the month is in (from the 3rd of the next month).` }),
       report.shops.length ? table({
         caption: `Each shop's use, ${report.month}`,
         rows: report.shops,
@@ -3433,6 +3433,8 @@ async function loadUsage(month) {
           { header: "Pages served", end: true, render: (row) => num(row.egressGb, gbWords) },
           { header: "Files kept", end: true, render: (row) => num(row.storageGb, gbWords) },
           { header: "Emails", end: true, render: (row) => num(row.emails) },
+          // What the owner's own tracker shows them (Settings › Billing › Running costs), in CAD.
+          { header: "Owner sees so far", end: true, render: (row) => el("div", {}, num(row.soFarCents, (n) => money(n, "CAD")), meta(row.monthEndCents == null ? null : `about ${money(row.monthEndCents, "CAD")} by month end`)) },
           { header: "Share of the bill", end: true, render: (row) => (row.costCents == null ? el("span", { className: "rp-hint", textContent: "not split yet" }) : num(row.costCents, (n) => money(n, "CAD"))) },
         ],
       }) : emptyState("No shops in the shared system yet."));

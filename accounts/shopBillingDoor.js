@@ -59,8 +59,8 @@ class DoorError extends Error {
  * `verifierFor(projectId)` -> async verify(token) -> claims (server/verifyIdToken.js createIdTokenVerifier, one per
  * shop project). `limits` is the platform door's fair-use limits (optional).
  */
-export function createShopBillingDoor({ billing, paymentWay = null, exports = null, bankFeed = null, accounts, registry, auditLog, settings, verifierFor, limits = null, now = () => new Date(), log = console.error }) {
-  const calls = billingCalls({ billing, paymentWay, settings, exports, bankFeed });
+export function createShopBillingDoor({ billing, paymentWay = null, exports = null, bankFeed = null, meters = null, accounts, registry, auditLog, settings, verifierFor, limits = null, now = () => new Date(), log = console.error }) {
+  const calls = billingCalls({ billing, paymentWay, settings, exports, bankFeed, meters });
   const record = billingCallLog({ registry, auditLog, now, source: "shop-billing-door" });
 
   async function signedIn(request, row) {
