@@ -125,7 +125,7 @@ describe("customers book", () => {
     const { body } = await t.pub({ action: "bookingInfo" });
     expect(body.on).toBe(true);
     expect(body.services.map((s) => s.id).sort()).toEqual(["review", "visit"]);
-    expect(Object.keys(body.services[0]).sort()).toEqual(["description", "id", "location", "minutes", "name", "payment", "priceMinor"]);
+    expect(Object.keys(body.services[0]).sort()).toEqual(["description", "id", "location", "minutes", "name", "payment", "priceMinor", "questions"]);
   });
 
   test("a free booking is confirmed at once, emailed, and its time is gone for the next customer", async () => {
@@ -282,6 +282,25 @@ describe("the owner", () => {
     const h = await t.adm({ op: "saveSettings", settings: { live: true, step: 15, cancelHours: 48 } });
     expect(h.body.settings).toMatchObject({ step: 15, cancelHours: 48 });
     expect((await t.adm({ op: "saveSettings", settings: {} })).statusCode).toBe(200);
+  });
+
+  test("a service's own questions: a required one must be answered, and the answers reach the booking and the owner", async () => {
+    const t = setup();
+    await t.seed();
+    const saved = await t.adm({ op: "saveService", service: { name: "Studio talk", minutes: 30, questions: [
+      { id: "work", label: "What would you like to work on?", long: true, required: true }, { label: "  " }, { id: "heard", label: "How did you hear about us?" },
+    ] } });
+    expect(saved.body.service.questions).toEqual([
+      { id: "work", label: "What would you like to work on?", long: true, required: true }, { id: "heard", label: "How did you hear about us?", long: false, required: false },
+    ]);
+    expect((await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === saved.body.service.id).questions).toHaveLength(2);
+    const missing = await t.pub({ action: "bookingStart", serviceId: saved.body.service.id, start: at("2026-11-17", "10:00"), ...CUSTOMER, answers: { heard: "A friend" } });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.body).toMatchObject({ code: "answers", error: "Please answer: What would you like to work on?" });
+    const ok = await t.pub({ action: "bookingStart", serviceId: saved.body.service.id, start: at("2026-11-17", "10:00"), ...CUSTOMER, answers: { work: "  A zine cover  ", made: "up" } });
+    expect(ok.statusCode).toBe(200);
+    const b = (await t.db.collection("bookings").doc(ok.body.id).get()).data();
+    expect(b.answers).toEqual([{ label: "What would you like to work on?", answer: "A zine cover" }]);
   });
 
   test("the owner's on/off switch keeps the hours and tells the website to show or hide its Book a time links", async () => {

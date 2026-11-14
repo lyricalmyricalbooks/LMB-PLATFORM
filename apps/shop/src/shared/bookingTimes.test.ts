@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
-  freeTimes, googleCalendarLink, isFreeTime, zonedTime,
+  cleanAnswers, cleanQuestions, freeTimes, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -95,5 +95,32 @@ describe("calendars", () => {
     const link = new URL(googleCalendarLink({ title: "Visit", start: Date.parse("2026-11-16T15:00:00Z"), end: Date.parse("2026-11-16T16:00:00Z") }));
     expect(link.hostname).toBe("calendar.google.com");
     expect(link.searchParams.get("dates")).toBe("20261116T150000Z/20261116T160000Z");
+  });
+});
+
+describe("questions on the booking form", () => {
+  it("keeps at most five questions, drops empty ones and gives each its own id", () => {
+    const raw = [
+      { id: "size", label: " What size? ", required: true },
+      { label: "" },
+      { id: "size", label: "Anything else?", long: true },
+      ...Array.from({ length: 6 }, (_, i) => ({ label: `Extra ${i}` })),
+    ];
+    const clean = cleanQuestions(raw);
+    expect(clean).toHaveLength(MAX_QUESTIONS);
+    expect(clean[0]).toEqual({ id: "size", label: "What size?", long: false, required: true });
+    expect(clean[1]).toMatchObject({ id: "sizex", long: true, required: false });
+    expect(new Set(clean.map((q) => q.id)).size).toBe(MAX_QUESTIONS);
+    expect(cleanQuestions("nope")).toEqual([]);
+  });
+
+  it("refuses a missing must-answer question, unless the owner is booking", () => {
+    const questions = cleanQuestions([{ id: "a", label: "Paper size", required: true }, { id: "b", label: "Notes", long: true }]);
+    expect(cleanAnswers(questions, { b: "hello" })).toEqual({ problem: "Please answer: Paper size", questionId: "a" });
+    expect(cleanAnswers(questions, { a: "   " })).toMatchObject({ questionId: "a" });
+    expect(cleanAnswers(questions, {}, false)).toEqual({ answers: [] });
+    expect(cleanAnswers(questions, { a: " A3 ", b: "x".repeat(2000), c: "ignored" })).toEqual({
+      answers: [{ label: "Paper size", answer: "A3" }, { label: "Notes", answer: "x".repeat(1000) }],
+    });
   });
 });

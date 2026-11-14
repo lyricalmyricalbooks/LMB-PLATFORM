@@ -7,7 +7,7 @@
 //   bookingServices/{id}   a service (src/shared/bookingTimes.ts BookingService)
 //   bookingSettings/main   opening hours and rules (BookingSettings)
 //   bookings/{id}          { serviceId, serviceName, minutes, gapAfter, location, start, end, customer: { name, email, phone },
-//                            note, status: "held" | "confirmed" | "cancelled", payment: "free" | "card" | "atShop", priceMinor,
+//                            note, answers: [{ label, answer }] (the service's own questions), status: "held" | "confirmed" | "cancelled", payment: "free" | "card" | "atShop", priceMinor,
 //                            currency, paid, sessions, paidSession?, paymentIntent?, refund?, holdUntil?, manageKeyHash,
 //                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt }
 //   bookingDays/{day}      { items: { [bookingId]: { start, end, held } } }: what is taken on one shop day, read and
@@ -21,7 +21,7 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, freeTimes, isFreeTime, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES,
 } = require("./shared/bookingTimes");
 
@@ -168,6 +168,7 @@ function bookingActions({
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
             ${kind === "notCleared" ? `<p style="margin:12px 0 0;">Their bank payment was still clearing when the booking was due, so the time was released and nothing was taken. You may want to get in touch with them.</p>` : ""}
             ${b.note ? `<p style="margin:12px 0 0;">“${escapeHtml(b.note)}”</p>` : ""}
+            ${(b.answers || []).map((a) => `<p style="margin:12px 0 0;"><strong>${escapeHtml(a.label)}</strong><br>${escapeHtml(a.answer)}</p>`).join("")}
             ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}`, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
         });
       }
@@ -324,7 +325,7 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active);
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, location }) => ({ id, name, description, minutes, priceMinor, payment, location })),
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, location, questions }) => ({ id, name, description, minutes, priceMinor, payment, location, questions })),
         });
       }
       if (action === "bookingTimes") {
@@ -348,6 +349,9 @@ function bookingActions({
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
         const customer = cleanCustomer(req.body);
         if (customer.problem) return fail(res, 400, customer.problem);
+        // The service's own questions: a required one left empty stops the booking, with the question named.
+        const answered = cleanAnswers(service.questions, req.body?.answers);
+        if (answered.problem) return fail(res, 400, answered.problem, "answers");
         const paid = service.payment === "full" && service.priceMinor > 0;
         let checkout = null;
         if (paid) {
@@ -359,7 +363,7 @@ function bookingActions({
         const at = new Date(nowMs).toISOString();
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
-          customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note,
+          customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : "confirmed", payment: paid ? "card" : "free", priceMinor: paid ? service.priceMinor : 0, currency: currency(),
           paid: false, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
@@ -517,7 +521,8 @@ function bookingActions({
         const at = now().toISOString();
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
-          customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note,
+          // The owner booking someone in may fill in the service's questions or leave them.
+          customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
           status: "confirmed", payment: service.payment === "full" ? "atShop" : "free", priceMinor: service.priceMinor, currency: currency(),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
           history: [{ at, what: "booked", by }], createdAt: at, updatedAt: at,
@@ -660,7 +665,7 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "",
       title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.status === "held" ? " (not paid yet)" : ""}`,
-      details: [b.customer?.email, b.customer?.phone, b.note ? `“${b.note}”` : ""].filter(Boolean).join("\n"),
+      details: [b.customer?.email, b.customer?.phone, b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
     }));
   return bookingsFeedIcs(shopName ? `${shopName} bookings` : "Bookings", events, nowMs);
 }

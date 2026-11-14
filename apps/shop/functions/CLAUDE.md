@@ -1196,3 +1196,7 @@ page's top tile; Hours & rules no longer holds it and saves the hours with the c
 exists, so the storefront's header, phone menu and footer links follow the switch with no extra request; the admin's
 `updateSettings` never writes that key back. It is a hint for links only: every public action still reads the real
 switch. Off stops `bookingInfo` / `bookingTimes` / `bookingStart`; customers still open, move and cancel bookings made.
+**Questions on the form (14 November 2026):** a service holds `questions` (up to `MAX_QUESTIONS`, each `{ id, label, long,
+required }`, cleaned by `cleanQuestions` in the shared rules). `bookingInfo` sends them; `bookingStart` runs
+`cleanAnswers` and refuses a missing must-answer one (400, code `answers`); the owner's own `create` never enforces.
+A booking keeps `answers` as `{ label, answer }` pairs (the wording at the time), shown in the owner's email and feed.

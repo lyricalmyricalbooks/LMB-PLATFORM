@@ -88,7 +88,8 @@ function NewBooking({ c }: { c: Copy }) {
   const [step, setStep] = useState<Step>("service");
   const [start, setStart] = useState("");
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
-  const [problems, setProblems] = useState<{ name?: string; email?: string }>({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -126,20 +127,25 @@ function NewBooking({ c }: { c: Copy }) {
   const lastDay = addDays(today, Math.max(0, (info.maxDaysAhead || 60) - 1));
   const steps: Step[] = info.services.length > 1 ? ["service", "time", "details"] : ["time", "details"];
   const end = start && service ? new Date(Date.parse(start) + service.minutes * 60_000).toISOString() : "";
+  const questions = service?.questions || [];
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy || !service || !start) return;
+    // The shop's own questions for this service: a required one needs an answer.
+    const unanswered = Object.fromEntries(questions.filter((q) => q.required && !(answers[q.id] || "").trim()).map((q) => [q.id, c("bookTimeNeedAnswer")]));
     const found = {
       ...(form.name.trim() ? {} : { name: c("bookTimeNeedName") }),
       ...(EMAIL.test(form.email.trim()) ? {} : { email: c("bookTimeNeedEmail") }),
+      ...(Object.keys(unanswered).length ? { answers: unanswered } : {}),
     };
     setProblems(found);
-    if (found.name || found.email) { document.getElementById(found.name ? "bt-name" : "bt-email")?.focus(); return; }
+    const first = found.name ? "bt-name" : found.email ? "bt-email" : found.answers ? `bt-q-${Object.keys(unanswered)[0]}` : "";
+    if (first) { document.getElementById(first)?.focus(); return; }
     setBusy(true);
     setError("");
     try {
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -176,7 +182,7 @@ function NewBooking({ c }: { c: Copy }) {
       {step === "service" && (
         <div {...regionProps("bookingsServices")} className="fm-book-list">
           {info.services.map((s) => (
-            <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" onClick={() => { setService(s); setStart(""); setError(""); setStep("time"); }}>
+            <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" onClick={() => { setService(s); setStart(""); setAnswers({}); setProblems({}); setError(""); setStep("time"); }}>
               <h2>{s.name}</h2>
               <span className="fm-book-price" translate="no">{s.priceMinor > 0 ? moneyText(s.priceMinor, currency) : c("bookTimeFree")}</span>
               {s.description && <p>{s.description}</p>}
@@ -223,6 +229,21 @@ function NewBooking({ c }: { c: Copy }) {
               <input id="bt-phone" type="tel" className="fm-track-input" autoComplete="tel" value={form.phone} maxLength={40}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </Field>
+            {questions.map((q) => {
+              const id = `bt-q-${q.id}`;
+              const problem = problems.answers?.[q.id];
+              const props = {
+                id, className: "fm-track-input", value: answers[q.id] || "", "aria-invalid": !!problem, "aria-required": q.required,
+                "aria-describedby": problem ? `${id}-err` : undefined,
+              };
+              return (
+                <Field key={q.id} id={id} label={q.required ? q.label : `${q.label} ${c("bookTimeOptional")}`} problem={problem}>
+                  {q.long
+                    ? <textarea {...props} maxLength={1000} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
+                    : <input {...props} maxLength={200} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />}
+                </Field>
+              );
+            })}
             <Field id="bt-note" label={c("bookTimeNote")}>
               <textarea id="bt-note" className="fm-track-input" value={form.note} maxLength={1000}
                 onChange={(e) => setForm({ ...form, note: e.target.value })} />

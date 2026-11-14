@@ -41,3 +41,14 @@ deploy, then booking a free and a test-card time.
 
 Review: the platform's per-shop switch in the control room still decides which shops have Bookings at all; the owner's
 switch works inside that. Not yet done on a live test shop: flipping the switch after deploy and seeing the link appear.
+
+## Questions on the booking form (14 November 2026, Julian 17:51Z "continue adding more features")
+
+- [x] A service can ask up to five questions (short or long answer, must-answer or not), set in the service's dialog.
+- [x] The booking form shows them, checks the must-answer ones, and the server checks again before taking the time.
+- [x] Answers show on the booking in the admin, in the owner's new-booking email and in the calendar feed.
+- [x] Proof: shared and server tests, typecheck, lint, screenshots of the dialog, the form and the booking (desktop
+      and phone).
+
+Review: answers are kept with the question's wording at the time, so renaming a question later never changes what an
+old booking says. Not yet tried on a live test shop.

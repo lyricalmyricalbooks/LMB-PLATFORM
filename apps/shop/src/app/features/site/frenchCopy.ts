@@ -1014,6 +1014,8 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeNote: "Quelque chose à nous dire? (facultatif)",
   bookTimeNeedName: "Veuillez indiquer votre nom.",
   bookTimeNeedEmail: "Veuillez indiquer une adresse courriel où envoyer votre réservation.",
+  bookTimeNeedAnswer: "Veuillez répondre à cette question.",
+  bookTimeOptional: "(facultatif)",
   bookTimeBook: "Réserver",
   bookTimePay: "Payer {amount} et réserver",
   bookTimeBooking: "Réservation…",

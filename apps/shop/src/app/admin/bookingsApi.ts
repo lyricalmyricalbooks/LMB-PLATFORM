@@ -10,7 +10,7 @@ import { cleanBookingSettings, cleanService, type BookingService, type BookingSe
 export type BookingStatus = "held" | "confirmed" | "cancelled";
 export type Booking = {
   id: string; serviceId: string; serviceName: string; minutes: number; location?: string; start: string; end: string;
-  customer: { name: string; email: string; phone?: string }; note?: string; status: BookingStatus;
+  customer: { name: string; email: string; phone?: string }; note?: string; answers?: { label: string; answer: string }[]; status: BookingStatus;
   payment: "free" | "card" | "atShop"; priceMinor: number; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
