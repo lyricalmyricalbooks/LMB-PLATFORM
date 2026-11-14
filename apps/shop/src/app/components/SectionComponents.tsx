@@ -25,6 +25,7 @@ import { gridPhotoSizes, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from 
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { shopInstant } from "../features/site/shopTime";
+import { useShopSocial } from "../features/site/shopSocial";
 
 // ──────────────────────────────
 // Animation helper
@@ -608,6 +609,56 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
               </p>
             </div>
             <NewsletterForm settings={settings} type="NewsletterSection" source="website-section" />
+          </div>
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// FOLLOW US (the shop's social accounts, from Settings › General › Social media)
+// ──────────────────────────────
+
+export function FollowUsSection({ settings, enableAnimations }: any) {
+  const links = useShopSocial();
+  const preview = inStudioPreview();
+  if (!links.length && !preview) return null;
+  const textAlign = aClass(settings);
+  const size = Math.min(48, Math.max(16, Number(settings.iconSize) || 24));
+  const showNames = settings.showNames === true;
+  const justify = settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center";
+  return (
+    <section style={bgStyle(settings)}>
+      <div className="py-16 px-6 mx-auto" data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`${mw(settings, "max-w-3xl")} mx-auto space-y-6 ${textAlign}`}>
+            {(settings.title ?? fb("FollowUsSection.title")) && (
+              <h2 className="text-2xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
+                {settings.title ?? fb("FollowUsSection.title")}
+              </h2>
+            )}
+            {settings.description && (
+              <p className="text-sm text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="description">{settings.description}</p>
+            )}
+            {links.length ? (
+              <ul className={`fm-follow-us flex flex-wrap items-center gap-3 ${justify}`} role="list">
+                {links.map((l) => (
+                  <li key={l.key}>
+                    <a href={l.url} target="_blank" rel="noopener noreferrer me" data-social={l.key} title={l.name}
+                      aria-label={showNames ? undefined : l.name}
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 text-white/75 transition-colors hover:text-white"
+                      style={{ color: settings.iconColor || undefined }}>
+                      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d={l.path} /></svg>
+                      {showNames && <span className="text-sm font-semibold" style={bStyle(settings)}>{l.name}</span>}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              // Studio preview only (never shoppers): a note for the owner, so it isn't Text & labels wording.
+              <p className="text-xs text-white/50">Your social media icons show here. Add your accounts in Settings › General › Social media.</p>
+            )}
           </div>
         </AnimationContainer>
       </div>

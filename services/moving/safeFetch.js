@@ -147,3 +147,11 @@ export async function getPublicPage(url, options = {}) {
   if (res.status < 200 || res.status >= 300 || !/html/.test(res.type)) return null;
   return res.body.toString("utf8");
 }
+
+/**
+ * The final answer's status for a public page at `url` (the shop's social link check): the number the site gave after
+ * the checked moves. Throws like getPublicJson when the site can't be reached safely or in time.
+ */
+export async function getPublicStatus(url, options = {}) {
+  return (await getPublic(url, { accept: "text/html", ...options })).status;
+}

@@ -11,6 +11,7 @@ const { handleTrafficReset } = require("./trafficReset");
 const { handlePastOrdersImport, handlePastOrdersRemove, handlePastOrderRate } = require("./orderImport");
 const { handleExchangeRates, getBankJson } = require("./pastOrderRates");
 const { shopCurrency } = require("./shopMoney");
+const { handleSocialCheck } = require("./socialCheck");
 const { handleOldLinksRead, handleOldPagesRead, handleOldShopRead, readOldLinks, readOldPages, readOldShop, recordScan } = require("./oldShopRead");
 
 function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }) {
@@ -182,6 +183,19 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     }
   }
 
+  // Settings › General › Social media › Check my links: whether each saved account still has a page.
+  async function handleSocialCheckRequest(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    try {
+      const { status, body } = await handleSocialCheck(req.body || {}, { allow: () => hitLimit(db, "old-shop", req, LIMITS.oldShop) });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error("checkSocialLinks failed:", err?.message || err);
+      res.status(500).json({ error: "We couldn't check your links just now. Try again in a minute." });
+    }
+  }
+
   // Settings › General › URL redirects › Bring pages over (plan 23.6): the old shop's own pages, rebuilt safely.
   async function handleOldPagesRequest(req, res) {
     const adminUser = await requireAdmin(req, res);
@@ -255,6 +269,7 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
     readOldShop: handleOldShopRequest,
     readOldLinks: handleOldLinksRequest,
     readOldPages: handleOldPagesRequest,
+    checkSocialLinks: handleSocialCheckRequest,
     backups: handleBackups,
     aiWrite: handleAiWriteRequest,
     ga4Report: handleGa4ReportRequest,

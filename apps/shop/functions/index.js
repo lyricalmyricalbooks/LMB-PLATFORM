@@ -91,6 +91,7 @@ const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit"
 const { cleanReport, recordClientError } = require("./clientErrors");
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
 const { adminReportActions } = require("./adminReports");
+const { socialEmailSection } = require("./emailSocial");
 const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
 const { googleConnectActions } = require("./googleConnect");
@@ -3754,7 +3755,7 @@ async function handleOrderUpdated(event) {
       const sellerWebsite = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
       const sellerBlock = sellerSection(sellerWebsite, siteLink, shopConfig.senderName, say);
       const keysSection = licenceKeysEmailSection(order, { escapeHtml, say });
-      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, keysSection, digitalConsentSection(order, say), sellerBlock].filter(Boolean).join("\n");
+      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection, keysSection, digitalConsentSection(order, say), socialEmailSection(sellerWebsite, say), sellerBlock].filter(Boolean).join("\n");
 
       const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
@@ -3832,7 +3833,8 @@ async function handleOrderUpdated(event) {
         tracking_number: after.trackingNumber || "",
         button_url: trackingUrl,
         tracking_url: trackingUrl
-      }, "", { language: emailFrench.emailLanguage(after), transform: after.trackingNumber ? null : withoutTrackingLines });
+      }, socialEmailSection((await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {}, emailFrench.sayer(emailFrench.emailLanguage(after))),
+      { language: emailFrench.emailLanguage(after), transform: after.trackingNumber ? null : withoutTrackingLines });
 
       const shippedAdminHtml = `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">

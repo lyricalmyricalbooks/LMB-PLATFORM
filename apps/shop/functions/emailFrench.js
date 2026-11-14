@@ -185,6 +185,7 @@ const PHRASES_FR = Object.freeze({
   "Returns and cancellations": "Retours et annulations",
   "Terms of sale": "Conditions de vente",
   Privacy: "Confidentialité",
+  "Follow us": "Suivez-nous",
   Includes: "Comprend :",
   For: "Pour",
   "This is a partial refund. The rest of your order is unchanged.": "Il s'agit d'un remboursement partiel. Le reste de votre commande ne change pas.",
