@@ -1096,5 +1096,7 @@ look → Get paid → open: no products step, no shipping step (`startRun.ts`). 
 to sell (`launchReadiness` input `bookings`, read by `launchCheck.readBookingsFacts`; undefined for every other shop)
 swaps the books, shipping, catalogue and practice-order rows for `services`, `booking-hours` and `booking-page`, and asks
 for privacy and terms only. `servicesWords` keeps the verb "book" ("ready to book", "Book a time") in all three twins.
-Fixture: `?sells=hair&bookings=new` (nothing set up), `&start=1` (the services step). Home's To do tiles are still the
-product shop's.
+Fixture: `?sells=hair&bookings=new` (nothing set up), `&start=1` (the services step). **Home** (`overview/HomeServices.tsx`, rules in
+`overview/servicesHome.ts`; `HomePage` prop `services` from Dashboard's menu kind): To do is appointments to mark paid,
+messages, privacy requests and the Money side's payments; Today is the day's appointments, who is next, the next seven
+days as bars and Coming up, followed live from Bookings.

@@ -14,9 +14,10 @@ and on shipping.
 - [x] The verb "book" survives the services words in the shop, the platform and the help twins.
 - [x] Help answer "How do I take bookings?" for the new steps; trial tips for them.
 - [x] Tests (`servicesShop.test.ts`, platform `sells.test.js`), release note, admin guide note.
+- [x] Home for a services shop: today's appointments, who is next, the next seven days and Coming up; To do is
+      appointments to mark paid, messages, privacy requests and payments to chase (`overview/HomeServices.tsx`).
 - [x] Screens checked on desktop and phone in the admin fixture (`?sells=hair&bookings=new&start=1`, `?sells=hair`).
 
 ## Review
 - Shop tests, typecheck, lint and root `npm test` pass.
-- Not in this change: Home's To do tiles and today's figures are still the product shop's; a services Home with today's
-  appointments is next.
+- The menu and Home still show the product shop's for a moment while the shop's kind is read.

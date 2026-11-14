@@ -37,6 +37,9 @@
 .rp-home-name { min-width: 0; overflow-wrap: anywhere; }
 .rp-home-money { font-variant-numeric: tabular-nums; }
 .rp-home-best { grid-template-columns: 34px minmax(0, 1fr) auto; }
+/* A services shop's Home (HomeServices.tsx): an appointment that is over steps back; Coming up is a time and a name. */
+.rp-home-rows li[data-past] { color: var(--rp-text-muted); }
+.rp-home-next { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
 .rp-home-sold { color: var(--rp-text-muted); }
 .rp-home-initials { display: grid; place-items: center; width: 34px; height: 44px; border-radius: 6px; font-weight: 700; font-size: 12px; color: var(--rp-on-tile, var(--rp-text)); background: var(--rp-tile-mint, var(--rp-success-tint)); }
 .rp-home-initials[data-tone="1"] { background: var(--rp-tile-apricot, var(--rp-warning-tint)); }
