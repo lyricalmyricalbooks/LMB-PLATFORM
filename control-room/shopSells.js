@@ -4,7 +4,7 @@
 // here, so a shop whose answer now maps to another category is worth a look in Stripe. The registry keeps the category
 // Stripe gave the account (`payments.mcc`, from account creation and every account.updated). Read only.
 import { PUBLISHES } from "../signup/form.js";
-import { merchantProfile, sellsBooks } from "../shared/sells/sells.js";
+import { merchantProfile, sellsBooks, sellsServices } from "../shared/sells/sells.js";
 
 /** Stripe's merchant categories the platform files accounts under, in plain words. */
 const CATEGORY_WORDS = Object.freeze({
@@ -27,6 +27,7 @@ export function sellsFacts(answer, payments) {
     answer: answer ?? null,
     words: answer ? label(answer) : "Not answered (treated as books)",
     books: sellsBooks(answer),
+    services: sellsServices(answer),
     expected,
     stripe,
     mismatch: Boolean(stripe && stripe !== expected),

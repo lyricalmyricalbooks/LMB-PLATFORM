@@ -400,12 +400,13 @@ function readChitChats() {
   });
 }
 
-/** The Sells filter: books answers (or none), everything else, one answer, or a Stripe category that doesn't fit. */
+/** The Sells filter: books answers (or none), products, services (takes bookings), one answer, or a Stripe category that doesn't fit. */
 function sellsMatches(shop, wanted) {
   if (!wanted) return true;
   const sells = shop.sells ?? { books: true, answer: null, mismatch: false };
   if (wanted === "books") return sells.books;
-  if (wanted === "goods") return !sells.books;
+  if (wanted === "goods") return !sells.books && !sells.services;
+  if (wanted === "services") return sells.services === true;
   if (wanted === "mismatch") return sells.mismatch;
   return sells.answer === wanted;
 }

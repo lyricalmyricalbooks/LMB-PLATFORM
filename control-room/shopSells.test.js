@@ -36,3 +36,10 @@ test("every category the platform files under has words", () => {
     assert.doesNotMatch(categoryWords(expected), /^category /, answer);
   }
 });
+
+test("a services answer is told apart from books and products, for the Shops list's Sells filter", () => {
+  assert.deepEqual([sellsFacts("hair").services, sellsFacts("hair").books, sellsFacts("hair").words], [true, false, "Hair and beauty"]);
+  assert.equal(sellsFacts("clothing").services, false);
+  assert.equal(sellsFacts(null).services, false);
+  assert.equal(categoryWords(sellsFacts("hair").expected), "Hair and beauty");
+});

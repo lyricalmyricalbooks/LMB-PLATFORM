@@ -11,6 +11,8 @@ the services admin before any real studio signs up.
 - [x] It keeps the general starter products (out of its menu) so the release check buys from it like the others.
 - [x] Control room: "Services test shop", "takes bookings".
 - [x] Tests and docs (`docs/test-shop.md`).
+- [x] Control room Shops list: a "Services (takes bookings)" filter and one per services answer; "Products, not
+      books" no longer counts services shops. Sign-up's small words fit a services shop.
 - [ ] After merge: run "Make the test shop" on GitHub, then open the shop and its admin.
 
 ## Review
