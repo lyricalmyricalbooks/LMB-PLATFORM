@@ -53,8 +53,7 @@ import { createBreachRegister } from "../control-room/breaches.js";
 import { runBook } from "../control-room/runbook.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { createInvites } from "../waitlist/invites.js";
-import { readGoogleConfig } from "../google/config.js";
-import { googleReadiness } from "../google/readiness.js";
+import { googleReadinessFromEnv } from "../google/readiness.js";
 import { hostedGoogleLink } from "../google/hosted.js";
 import { accountingEnv, accountingStores, hostedAccounting } from "../services/accounting/hosted.js";
 import { readAccountingConfig } from "../services/accounting/config.js";
@@ -313,7 +312,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     // shop with a project of its own by deploying its pages again. The shop record shows the fee the payment service charges.
     publish: switchPublisher({ registry, recordsFor, fallback: profilePublisher({ deploy, registry }) }), writeZone: zoneWriter({ recordsFor }), feeDefaults: readFeeSettings(env), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,
-    googleReady: (at) => googleReadiness(readGoogleConfig(env), at),
+    googleReady: (at) => googleReadinessFromEnv(env, at),
     taxWatch: () => billing.taxWatch(),
     bills: (shopId, page) => billing.invoicePage(shopId, page),
     // Bounces and spam reports come from the newsletter guard's store (services/email/reputation.js), not hosted yet.

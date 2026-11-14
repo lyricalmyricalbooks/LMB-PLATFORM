@@ -21,8 +21,7 @@ import { createBreachRegister } from "../control-room/breaches.js";
 import { runBook } from "../control-room/runbook.js";
 import { controlRoomPeople } from "../control-room/people.js";
 import { createInvites } from "../waitlist/invites.js";
-import { readGoogleConfig } from "../google/config.js";
-import { googleReadiness } from "../google/readiness.js";
+import { googleReadinessFromEnv } from "../google/readiness.js";
 import { taxWatch as watchTaxLines } from "../services/billing/taxWatch.js";
 import { createSupportInbox } from "../services/support/inbox.js";
 import { supportRoutes } from "../services/support/routes.js";
@@ -234,7 +233,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     publish: profilePublisher({ deploy: services.deploy, registry }), settings: live, email, breaches: createBreachRegister({ store: fakeBreachStore(), registry, auditLog, now: clock.date }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now: clock.date, presses: frontDoorStores.presses,
     // Nothing of Google is set up in the practice world, so the control room shows every item still to do.
-    googleReady: (at) => googleReadiness(readGoogleConfig({}), at),
+    googleReady: (at) => googleReadinessFromEnv({}, at),
     taxWatch: async () => watchTaxLines({ invoices: [], now: clock.date().getTime() }),
     delivery: deliveryReader({ deliveryStats, now: clock.date }),
   });

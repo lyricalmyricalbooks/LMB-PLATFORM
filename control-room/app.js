@@ -10,7 +10,7 @@ import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE } from "../signup/config.js";
 import { deviceId } from "../signup/device.js";
 import { shopMatches } from "./shopSearch.js";
 import { findResults, GROUPS } from "./palette.js";
-import { launchSummary, readTicks, saveTicks, walkSteps } from "./launch.js";
+import { googleSteps, launchSteps, launchSummary, readTicks, saveTicks, walkSteps } from "./launch.js";
 import * as BRAND_LOGOS from "./look/brand-logos.js";
 
 const { initializeApp } = await import(`${FIREBASE_SDK}/firebase-app.js`);
@@ -100,13 +100,15 @@ function costCell(cost) {
 }
 
 const LEVEL = { problem: "Problem", watch: "Look", ok: "OK" };
+// Each shop switch in plain words: a name and one line on what it does (the five are one brand's old features, plan 1.17).
 const SWITCH_WORDS = {
-  legacyStockroomSignIn: "Old stockroom sign-in",
-  githubPagesForwarding: "Forward the old GitHub Pages address",
-  gmailReceiptFinder: "Find receipts in Gmail",
-  gmailOrderScan: "Scan Gmail for order receipts",
-  oldShopSync: "Old shop system tab and missing-orders check",
+  legacyStockroomSignIn: { title: "Old stockroom sign-in", line: "The admin also signs in to a separate, older stockroom." },
+  githubPagesForwarding: { title: "Forward an old web address", line: "Sends visitors from the shop's old GitHub Pages address to its shop." },
+  gmailReceiptFinder: { title: "Find receipts in Gmail", line: "Adds a Gmail search to the stockroom's receipt import." },
+  gmailOrderScan: { title: "Read orders from Gmail", line: "Fills in orders from order emails in the owner's Gmail." },
+  oldShopSync: { title: "Orders from an old shop system", line: "Shows a tab for orders from a brand's previous shop, and checks for missing ones." },
 };
+const switchTitle = (name) => SWITCH_WORDS[name]?.title ?? name;
 
 // ── The admin's pieces, in plain JavaScript (same markup as admin/riso/components.tsx). ──
 // Status never relies on colour alone: every pill carries a glyph and a word.
@@ -224,7 +226,6 @@ async function load() {
     await loadBreaches();
     await loadWaitlist();
     await loadEverySwitch();
-    await loadGoogleReady();
     await loadSettings();
     await loadActivity();
     await loadBusiness();
@@ -800,7 +801,6 @@ async function updatesRow(lastUpdate = null) {
 }
 
 // ── Launch: the keys and switches presses need, then the whole sign-up tried as a press. ──
-const DEPLOY_WORKFLOW = "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions/workflows/deploy.yml";
 const outLink = (href, words, variant = "secondary") => el("a", { href, target: "_blank", rel: "noopener", className: `rp-btn rp-btn-${variant} rp-btn-sm`, textContent: words });
 
 /**
@@ -836,85 +836,140 @@ async function loadLaunch() {
   const checks = $("#launch-checks");
   let launch;
   let testShops = [];
+  let google = null;
   try {
     launch = await api("GET", "/control/launch");
     testShops = (await api("GET", "/control/test-shop").catch(() => ({ testShops: [] }))).testShops ?? [];
+    google = await api("GET", "/control/google-ready").catch(() => null);
   } catch (failure) {
     checks.replaceChildren(emptyState("The launch list didn't load", failure.message));
     return;
   }
   const { ready, total, missing } = launchSummary(launch, testShops);
   setBadge("launch", missing);
-  fill($("#launch-summary"), pill(missing ? "warning" : "success", missing ? `${ready} of ${total} ready` : "Ready to open"));
-  toolChip("launch", missing ? `${ready} of ${total} ready` : "Ready to open", missing ? "apricot" : "mint");
+  fill($("#launch-summary"), pill(missing ? "warning" : "success", missing ? `${ready} of ${total} done` : "Ready to open"));
+  toolChip("launch", missing ? `${ready} of ${total} done` : "Ready to open", missing ? "apricot" : "mint");
 
-  const secrets = launch.project ? `https://console.cloud.google.com/security/secret-manager?project=${encodeURIComponent(launch.project)}` : null;
-  const keySheets = launch.keys.map((key) => {
-    const copy = key.events ? button("Copy the address", "ghost") : null;
-    copy?.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(key.events);
-        status.textContent = "Copied. Paste it as the endpoint in Stripe's Webhooks page, then copy its signing secret.";
-      } catch {
-        status.textContent = key.events;
-      }
-    });
-    return sheet({
-      title: key.label, tone: key.ready ? "success" : key.optional ? "neutral" : "warning", pillWords: key.ready ? "In place" : key.optional ? "Optional" : "Not added",
-      metaParts: [key.secret ? `secret: ${key.secret}` : `setting: ${key.setting}`],
-      body: [el("p", { className: "rp-hint", textContent: key.gives }), key.events ? meta(`events address: ${key.events}`) : null],
-      actions: key.ready ? null : el("div", { className: "cr-actions" },
-        key.getIt ? outLink(key.getIt, key.optional ? "Open Google Workspace" : "Get the key", key.optional ? "ghost" : "primary") : null,
-        key.events ? outLink("https://dashboard.stripe.com/test/webhooks", "Open Stripe webhooks", "primary") : null,
-        copy, secrets ? outLink(secrets, "Add it in Google") : null),
-    });
-  });
+  const { required, extras, next } = launchSteps(launch, testShops);
+  const number = new Map(required.map((step, i) => [step.id, i + 1]));
+  const todo = required.filter((step) => !step.done && step !== next);
+  const done = required.filter((step) => step.done);
+  fill(checks,
+    el("div", { className: "cr-progress", role: "progressbar", ariaValueMin: "0", ariaValueMax: String(total), ariaValueNow: String(ready), ariaLabel: `${ready} of ${total} steps done` },
+      el("span", { style: `width: ${Math.round((ready / total) * 100)}%` })),
+    next ? nextStepTile(next, number.get(next.id), total, launch) : el("div", { className: "cr-next", dataset: { done: "" } },
+      el("p", { className: "cr-cap", textContent: "All done" }), el("h2", { className: "cr-next-title", textContent: "The platform is ready for brands" }),
+      el("p", { className: "cr-next-why", textContent: "Try the sign-up as a brand below before you tell anyone." })),
+    todo.length ? el("div", { className: "cr-todo-group" }, el("p", { className: "cr-cap", textContent: "After that" }),
+      ...todo.map((step) => stepRow(step, number.get(step.id), launch))) : null,
+    done.length ? el("details", { className: "cr-todo-done" },
+      el("summary", {}, el("span", { textContent: `Done` }), el("span", { className: "cr-cap", textContent: String(done.length) })),
+      ...done.map((step) => stepRow(step, number.get(step.id), launch))) : null);
 
-  const switchButton = button(launch.signupOpen ? "Back to invites only" : "Open sign-up to anyone", launch.signupOpen ? "ghost" : "primary");
-  switchButton.addEventListener("click", async () => {
-    if (!(await askYes(launch.signupOpen ? "Go back to invites only? New presses will need an invite from the waitlist." : "Open sign-up to anyone? Anyone with the address can start a shop.", { yes: launch.signupOpen ? "Invites only" : "Open sign-up" }))) return;
-    switchButton.disabled = true;
-    try {
-      await api("POST", "/control/settings", { values: { signupOpen: !launch.signupOpen } });
-      status.textContent = launch.signupOpen ? "Sign-up is back to invites only." : "Sign-up is open to anyone.";
-      await loadSettings();
-      await loadActivity();
-      await loadLaunch();
-    } catch (failure) {
-      status.textContent = failure.message;
-      switchButton.disabled = false;
-    }
-  });
-  const signupSheet = sheet({
-    title: "Who can sign up", tone: launch.signupOpen ? "success" : "info", pillWords: launch.signupOpen ? "Anyone" : "Invites only",
-    body: [el("p", { className: "rp-hint", textContent: launch.signupOpen ? "Anyone with the address can start a shop." : "Only addresses you invite from the waitlist can start a shop." })],
-    actions: el("div", { className: "cr-actions" }, switchButton, launch.invites ? el("a", { href: "#signups", className: "rp-btn rp-btn-secondary rp-btn-sm", textContent: "Invite someone" }) : null),
-  });
-
-  // One sheet per test shop: try a book shop and a general shop before a press sees a change.
-  const testSheets = testShops.length ? testShops.map((shop) => {
+  // Test shops: open each one; not a to-do once they're made.
+  fill($("#launch-tests"), ...(testShops.length ? testShops.map((shop) => {
     const live = shop.status === "live";
     return sheet({
       title: shop.kindWords, tone: live ? "success" : "warning", pillWords: live ? "Live" : "Not live yet",
-      metaParts: [shop.pressName, shop.kind === "books" ? "sells books" : "sells other things"],
-      body: [el("p", { className: "rp-hint", textContent: shop.kind === "books" ? "Try changes here as a press that sells books." : "Try changes here as a shop that sells no books." })],
-      actions: el("div", { className: "cr-actions" },
-        shop.storefrontUrl ? outLink(shop.storefrontUrl, "Open shop", "primary") : null,
-        testShopAdminButton(shop)),
+      body: [el("p", { className: "rp-hint", textContent: `${shop.pressName}, ${shop.kind === "books" ? "a shop that sells books" : "a shop that sells other things"}.` })],
+      actions: el("div", { className: "cr-actions" }, shop.storefrontUrl ? outLink(shop.storefrontUrl, "Open shop", "primary") : null, testShopAdminButton(shop)),
     });
-  }) : [sheet({ title: "Your test shops", tone: "warning", pillWords: "Not made yet", body: [el("p", { className: "rp-hint", textContent: "They show here once they're made." })] })];
+  }) : [emptyState("No test shops yet", "They show here once they're made.")]));
 
-  const deploySheet = launch.keys.every((key) => key.ready || key.optional) ? null : sheet({
-    title: "After adding a key", tone: "neutral",
-    body: [el("p", { className: "rp-hint", textContent: "Run Deploy the platform once, so the server picks the new key up." })],
-    actions: el("div", { className: "cr-actions" }, outLink(DEPLOY_WORKFLOW, "Open Deploy the platform")),
-  });
-  const makingSheet = launch.shopMaking ? null : sheet({
-    title: "Making a press's store", tone: "warning", pillWords: "Not switched on",
-    body: [el("p", { className: "rp-hint", textContent: "A new press's store waits on Setting up until the platform's Google access is connected." })],
-  });
-  fill(checks, ...keySheets, deploySheet, signupSheet, ...testSheets, makingSheet);
+  // Extras never hold the launch back: optional add-ons, then Connect Google.
+  const googleList = googleSteps(google);
+  const googleDone = googleList.filter((step) => step.done).length;
+  fill($("#launch-extras"),
+    ...extras.map((step) => stepRow(step, null, launch)),
+    googleList.length ? el("details", { className: "cr-step", dataset: { done: String(googleDone === googleList.length) } },
+      stepSummary({ title: "Get Connect Google ready", done: googleDone === googleList.length }, null, `${googleDone} of ${googleList.length}`),
+      el("div", { className: "cr-step-body" },
+        el("p", { className: "cr-step-why", textContent: "One Google sign-in gives each brand Analytics, Shopping and email. These come first." }),
+        el("div", { className: "cr-todo" }, ...googleList.map((step) => stepRow(step, null, launch))))) : google === null
+      ? el("p", { className: "rp-hint", textContent: "Connect Google's list didn't load. Press Refresh to try again." }) : null);
   showWalk(launch);
+}
+
+/** The one step to do now: big, with its how-to open and one main button. */
+function nextStepTile(step, n, total, launch) {
+  return el("section", { className: "cr-next", ariaLabel: "Your next step" },
+    el("p", { className: "cr-cap", textContent: `Your next step · ${n} of ${total}` }),
+    el("h2", { className: "cr-next-title", id: "launch-next-title", textContent: step.title }),
+    el("p", { className: "cr-next-why", textContent: step.why }),
+    stepBody(step, launch, true));
+}
+
+/** The summary line of a folded step: a number or tick, the title, and a small state on the right. */
+function stepSummary(step, n, state = null) {
+  return el("summary", {},
+    el("span", { className: "cr-step-n", ariaHidden: "true", textContent: step.done ? "✓" : n ?? "+" }),
+    el("span", { className: "cr-step-title", textContent: step.title }),
+    state ? el("span", { className: "cr-cap", textContent: state }) : step.optional && !step.done ? el("span", { className: "cr-cap", textContent: "Optional" }) : null,
+    el("span", { className: "cr-step-sr rp-sr-only", textContent: step.done ? "Done" : "To do" }));
+}
+
+/** A step folded into one line; opening it shows the same how-to as the next step. */
+function stepRow(step, n, launch) {
+  return el("details", { className: "cr-step", dataset: { done: String(step.done) } },
+    stepSummary(step, n),
+    el("div", { className: "cr-step-body" }, el("p", { className: "cr-step-why", textContent: step.why }), stepBody(step, launch, false)));
+}
+
+/** The numbered how-to, the main button, and the technical names folded away. */
+function stepBody(step, launch, main) {
+  if (step.signup) return signupChoice(launch);
+  const copyButton = (words) => {
+    const b = button("Copy", "ghost", { ariaLabel: `Copy ${words}` });
+    b.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(words);
+        b.textContent = "Copied";
+        setTimeout(() => { b.textContent = "Copy"; }, 1600);
+      } catch {
+        status.textContent = words;
+      }
+    });
+    return b;
+  };
+  const how = step.done || !step.how.length ? null : el("ol", { className: "cr-how" }, ...step.how.map((line) => el("li", {},
+    el("span", { textContent: line.text }),
+    line.copy ? el("span", { className: "cr-copy" }, el("code", { textContent: line.copy }), copyButton(line.copy)) : null,
+    line.list ? el("span", { className: "cr-chips-list" }, ...line.list.map((name) => el("code", { textContent: name }))) : null,
+    line.href ? el("a", { href: line.href, target: "_blank", rel: "noopener", className: "cr-how-link", textContent: `${line.linkWords} ↗` }) : null)));
+  const action = step.done || !step.action?.href ? null : el("div", { className: "cr-actions" }, outLink(step.action.href, `${step.action.words} ↗`, main ? "primary" : "secondary"));
+  const details = step.details?.length ? el("details", { className: "cr-tech" }, el("summary", { textContent: "Technical details" }),
+    ...step.details.map((line) => el("p", { className: "cr-mono", textContent: line }))) : null;
+  return el("div", { className: "cr-step-inner" }, action, how, details);
+}
+
+/** Who can sign up: two choices, the one in use marked; changing it asks once. */
+function signupChoice(launch) {
+  const choice = (open, words, hint) => {
+    const on = launch.signupOpen === open;
+    const b = el("button", { type: "button", className: "cr-choice", ariaPressed: String(on), disabled: !open && !launch.invites },
+      el("span", { className: "cr-choice-words", textContent: words }), el("span", { className: "rp-hint", textContent: hint }));
+    b.addEventListener("click", async () => {
+      if (on) return;
+      if (!(await askYes(open ? "Open sign-up to anyone? Anyone with the address can start a shop." : "Go back to invites only? New brands will need an invite from the waitlist.", { yes: open ? "Open sign-up" : "Invites only" }))) return;
+      b.disabled = true;
+      try {
+        await api("POST", "/control/settings", { values: { signupOpen: open } });
+        status.textContent = open ? "Sign-up is open to anyone." : "Sign-up is back to invites only.";
+        await loadSettings();
+        await loadActivity();
+        await loadLaunch();
+      } catch (failure) {
+        status.textContent = failure.message;
+        b.disabled = false;
+      }
+    });
+    return b;
+  };
+  return el("div", { className: "cr-step-inner" },
+    el("div", { className: "cr-choices", role: "group", ariaLabel: "Who can sign up" },
+      choice(false, "Invites only", "You invite people from the waitlist."),
+      choice(true, "Anyone", "Anyone with the address can start a shop.")),
+    launch.invites ? el("a", { href: "#signups", className: "cr-how-link", textContent: "Invite someone" }) : null);
 }
 
 // Reading localStorage itself throws when the browser blocks it: the ticks then last only until the page closes.
@@ -937,7 +992,7 @@ function showWalk(launch) {
       el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: step.title }),
         step.needs.length ? pill("warning", "Waiting") : null),
       el("p", { className: "rp-hint", textContent: step.try }),
-      step.needs.length ? meta(`Needs ${step.needs.join(", ")}`) : null,
+      step.needs.length ? meta(`First: ${step.needs.join(" · ")}`) : null,
       el("div", { className: "cr-actions" },
         step.href ? el("a", { href: step.href, ...(external ? { target: "_blank", rel: "noopener" } : {}), className: "rp-btn rp-btn-secondary rp-btn-sm", textContent: external ? "Open" : "Go there" }) : null,
         el("label", { className: "rp-check" }, box, "Done"))));
@@ -1401,14 +1456,14 @@ function card(shop) {
         box.disabled = true;
         try {
           await api("POST", "/control/switch", { shopId: shop.shopId, name, on: box.checked });
-          status.textContent = `${SWITCH_WORDS[name] ?? name} is ${box.checked ? "on" : "off"} for ${shop.pressName}.`;
+          status.textContent = `${switchTitle(name)} is ${box.checked ? "on" : "off"} for ${shop.pressName}.`;
         } catch (failure) {
           box.checked = !box.checked;
           status.textContent = failure.message;
         }
         box.disabled = false;
       });
-      return el("label", { className: "rp-check" }, box, SWITCH_WORDS[name] ?? name);
+      return el("label", { className: "rp-check" }, box, switchTitle(name));
     }))
     : null;
 
@@ -2651,62 +2706,74 @@ onAuthStateChanged(auth, (user) => {
   else showOnly("#view-signin");
 });
 
-// ── Is Google ready? (plan 15.4): what is still to do before Connect Google can be switched on. ──
-async function loadGoogleReady() {
-  const target = $("#google-ready");
-  try {
-    const { items } = await api("GET", "/control/google-ready");
-    target.replaceChildren(...items.map((i) => sheet({ title: i.title, tone: i.done ? "success" : "warning", pillWords: i.done ? "Done" : "To do", body: [el("p", { className: "rp-hint", textContent: i.words })] })));
-  } catch (failure) {
-    target.replaceChildren(emptyState(failure.message));
-  }
-}
-
 // ── Switches for every shop (plan 9.7): one switch for every live shop at once, and what new shops start with. ──
 async function loadEverySwitch() {
+  const board = $("#every-switch");
+  let answer;
   try {
-    const { switches } = await api("GET", "/control/new-shop-switches");
-    const entries = Object.entries(switches);
-    $("#every-switch").replaceChildren(...(entries.length ? entries.map(([name, startsOn]) => {
-      const words = SWITCH_WORDS[name] ?? name;
-      const forAll = (on) => {
-        const b = button(on ? "On for every shop" : "Off for every shop", on ? "secondary" : "ghost");
-        b.addEventListener("click", async () => {
-          if (!(await askYes(`Turn "${words}" ${on ? "on" : "off"} for every live shop? Each shop's pages are deployed again.`, { yes: on ? "Turn on for every shop" : "Turn off for every shop" }))) return;
-          b.disabled = true;
-          try {
-            const { shops } = await api("POST", "/control/switch-all", { name, on });
-            const failed = shops.filter((s) => s.error);
-            await load();
-            status.textContent = `${words}: ${shops.length - failed.length} shop${shops.length - failed.length === 1 ? "" : "s"} done.${failed.length ? ` Not done: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
-          } catch (failure) {
-            status.textContent = failure.message;
-          }
-          b.disabled = false;
-        });
-        return b;
-      };
-      const box = el("input", { type: "checkbox", checked: startsOn });
-      box.addEventListener("change", async () => {
-        try {
-          await api("POST", "/control/new-shop-switches", { name, on: box.checked });
-          status.textContent = `New shops start with ${words} ${box.checked ? "on" : "off"}.`;
-        } catch (failure) {
-          status.textContent = failure.message;
-          box.checked = !box.checked;
-        }
-      });
-      return sheet({
-        title: words,
-        tone: startsOn ? "success" : "neutral",
-        pillWords: startsOn ? "New shops: on" : "New shops: off",
-        body: [el("label", { className: "rp-check" }, box, "New shops start with it on"), el("p", { className: "rp-hint", textContent: "This changes new shops only. Use the buttons below for the shops you already have." })],
-        actions: el("div", { className: "cr-actions", style: "margin-top: 8px" }, forAll(true), forAll(false)),
-      });
-    }) : [emptyState("No switches yet.")]));
+    answer = await api("GET", "/control/new-shop-switches");
   } catch (failure) {
-    status.textContent = failure.message;
+    board.replaceChildren(emptyState("The switches didn't load", failure.message));
+    return;
   }
+  const { switches, live = {} } = answer;
+  const names = Object.keys(switches);
+  const onSomewhere = names.filter((name) => switches[name] || live[name]?.on).length;
+  toolChip("switches", onSomewhere ? `${onSomewhere} on` : "All off", onSomewhere ? "apricot" : "mint");
+  if (!names.length) {
+    board.replaceChildren(emptyState("No switches yet."));
+    return;
+  }
+  board.replaceChildren(
+    el("div", { className: "cr-switch-head", ariaHidden: "true" }, el("span", { textContent: "Feature" }), el("span", { textContent: "Live shops" }), el("span", { textContent: "New shops" })),
+    ...names.map((name) => switchRow(name, switches[name], live[name] ?? null)));
+}
+
+/** One feature: what it is, where it stands in the live shops with one button, and a switch for new shops. */
+function switchRow(name, startsOn, live) {
+  const words = SWITCH_WORDS[name] ?? { title: name, line: "" };
+  const shops = live?.of ?? 0;
+  const onIn = live?.on ?? 0;
+  const liveWords = !shops ? "No live shops yet" : onIn === 0 ? `Off in all ${shops}` : onIn === shops ? `On in all ${shops}` : `On in ${onIn} of ${shops}`;
+    const all = shops ? button(onIn === 0 ? "Turn on for all" : "Turn off for all", "secondary") : null;
+  all?.addEventListener("click", async () => {
+    const on = onIn === 0;
+    if (!(await askYes(`${on ? "Turn on" : "Turn off"} "${words.title}" in every live shop? Each shop updates in about a minute.`, { yes: on ? "Turn on for all" : "Turn off for all" }))) return;
+    all.disabled = true;
+    try {
+      const { shops: done } = await api("POST", "/control/switch-all", { name, on });
+      const failed = done.filter((s) => s.error);
+      status.textContent = `${words.title}: ${on ? "on" : "off"} in ${done.length - failed.length} shop${done.length - failed.length === 1 ? "" : "s"}.${failed.length ? ` Not done: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
+      await loadEverySwitch();
+    } catch (failure) {
+      status.textContent = failure.message;
+      all.disabled = false;
+    }
+  });
+  const toggleId = `new-${name}`;
+  const toggle = el("button", { type: "button", id: toggleId, className: "rp-toggle-track", role: "switch", ariaChecked: String(startsOn), ariaLabel: `New shops start with ${words.title}` });
+  const toggleWords = el("span", { className: "cr-switch-state", textContent: startsOn ? "On" : "Off" });
+  toggle.addEventListener("click", async () => {
+    const on = toggle.getAttribute("aria-checked") !== "true";
+    toggle.setAttribute("aria-checked", String(on));
+    toggleWords.textContent = on ? "On" : "Off";
+    toggle.disabled = true;
+    try {
+      await api("POST", "/control/new-shop-switches", { name, on });
+      status.textContent = `New shops start with ${words.title} ${on ? "on" : "off"}.`;
+    } catch (failure) {
+      toggle.setAttribute("aria-checked", String(!on));
+      toggleWords.textContent = on ? "Off" : "On";
+      status.textContent = failure.message;
+    }
+    toggle.disabled = false;
+  });
+  return el("div", { className: "cr-switch-row", dataset: { on: String(startsOn || onIn > 0) } },
+    el("div", { className: "cr-switch-what" }, el("h3", { className: "cr-title", textContent: words.title }), words.line ? el("p", { className: "rp-hint", textContent: words.line }) : null),
+    el("div", { className: "cr-switch-cell" }, el("span", { className: "cr-switch-label", textContent: "Live shops" }),
+      el("span", { className: "cr-switch-state", textContent: liveWords }), all),
+    el("div", { className: "cr-switch-cell" }, el("span", { className: "cr-switch-label", textContent: "New shops" }),
+      el("label", { className: "rp-toggle", htmlFor: toggleId }, toggle, toggleWords)));
 }
 
 // ── Support asks before making changes (plan 19.6): "Ask the press", their answer, then "Open their admin" once. ──

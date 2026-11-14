@@ -464,3 +464,83 @@
 .rp.cl .cr-ask { width: min(100%, 440px); }
 .rp.cl .cr-ask-words { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
 .rp.cl .cr-ask .rp-field { margin-top: 14px; }
+
+/*
+ * ── Launch as a to-do list, Switches as one board (14 November 2026) ──────────────────────────────────────────────
+ * Launch: a progress bar, the next step as a big mint tile with its how-to open, the rest as folded rows, done ones
+ * folded together. Switches: one tile, a row per feature with where it stands in live shops and a switch for new shops.
+ */
+.rp.cl .cr-todo { display: grid; gap: 8px; }
+.rp.cl .cr-todo-group { display: grid; gap: 8px; margin-top: 20px; }
+.rp.cl .cr-todo-group > .cr-cap, .rp.cl .cr-todo-done > summary .cr-cap { margin: 0 4px; }
+.rp.cl .cr-progress { height: 8px; margin: 0 0 16px; overflow: hidden; border-radius: 999px; background: var(--rp-surface); }
+.rp.cl .cr-progress > span { display: block; height: 100%; border-radius: 999px; background: var(--cl-dot-good); }
+.rp.cl .cr-next { padding: 28px; border-radius: var(--cl-radius-tile); background: var(--cl-mint); color: var(--cl-on-tile); }
+.rp.cl .cr-next .cr-cap { color: var(--cl-on-tile); opacity: .75; }
+.rp.cl .cr-next-title { margin: 8px 0 0; font: 600 28px/1.1 var(--rp-font-display); letter-spacing: -0.02em; }
+.rp.cl .cr-next-why { margin: 8px 0 0; font-size: 15px; line-height: 1.45; max-width: 60ch; }
+.rp.cl .cr-next .cr-step-inner { margin-top: 18px; padding: 20px; border-radius: 18px; background: var(--rp-surface); color: var(--rp-text); }
+.rp.cl .cr-step-inner { display: grid; gap: 14px; }
+.rp.cl .cr-step-inner > .cr-actions { order: -1; margin: 0; }
+.rp.cl .cr-step-inner > .cr-tech { order: 3; }
+.rp.cl .cr-how { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: how; }
+.rp.cl .cr-how > li { display: grid; gap: 6px; padding-left: 34px; position: relative; counter-increment: how; font-size: 14px; line-height: 1.45; }
+.rp.cl .cr-how > li::before { content: counter(how); position: absolute; left: 0; top: -1px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--rp-surface-2); font: 500 12px/1 var(--rp-font-mono); }
+.rp.cl .cr-copy { display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 4px 4px 12px; border-radius: 12px; background: var(--rp-surface-2); }
+.rp.cl .cr-copy code { flex: 1; min-width: 0; overflow-wrap: anywhere; font: 400 12.5px/1.4 var(--rp-font-mono); }
+.rp.cl .cr-copy .rp-btn { flex: none; }
+.rp.cl .cr-chips-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp.cl .cr-chips-list code { padding: 4px 8px; border-radius: 8px; background: var(--rp-surface-2); font: 400 12px/1.3 var(--rp-font-mono); }
+.rp.cl .cr-how-link { justify-self: start; color: var(--rp-info); font-size: 14px; font-weight: 600; text-underline-offset: 3px; }
+.rp.cl .cr-tech > summary { width: fit-content; min-height: 32px; color: var(--rp-text-muted); font-size: 13px; cursor: pointer; }
+.rp.cl .cr-tech .cr-mono { margin: 6px 0 0; overflow-wrap: anywhere; color: var(--rp-text-muted); }
+.rp.cl .cr-step { border-radius: 18px; background: var(--rp-surface); }
+.rp.cl .cr-step > summary { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 20px; cursor: pointer; list-style: none; }
+.rp.cl .cr-step > summary::-webkit-details-marker, .rp.cl .cr-todo-done > summary::-webkit-details-marker { display: none; }
+.rp.cl .cr-step > summary::after, .rp.cl .cr-todo-done > summary::after { content: "▾"; margin-left: 4px; color: var(--rp-text-subtle); }
+.rp.cl .cr-step[open] > summary::after, .rp.cl .cr-todo-done[open] > summary::after { content: "▴"; }
+.rp.cl .cr-step-n { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--rp-surface-2); font: 500 13px/1 var(--rp-font-mono); }
+.rp.cl .cr-step[data-done="true"] .cr-step-n { background: var(--cl-mint); color: var(--cl-on-tile); }
+.rp.cl .cr-step-title { flex: 1; font: 600 15px/1.3 var(--rp-font-body); }
+.rp.cl .cr-step[data-done="true"] .cr-step-title { color: var(--rp-text-muted); }
+.rp.cl .cr-step-body { display: grid; gap: 14px; padding: 0 20px 20px 64px; }
+.rp.cl .cr-step-why { margin: 0; color: var(--rp-text-muted); font-size: 14px; line-height: 1.45; }
+.rp.cl .cr-step-body .cr-todo .cr-step { background: var(--rp-surface-2); }
+.rp.cl .cr-step-body .cr-todo .cr-step-n { background: var(--rp-surface); }
+.rp.cl .cr-todo-done { display: grid; gap: 8px; margin-top: 20px; }
+.rp.cl .cr-todo-done > summary { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; font: 600 15px/1 var(--rp-font-body); cursor: pointer; list-style: none; }
+.rp.cl .cr-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 8px; }
+.rp.cl .cr-choice { display: grid; gap: 4px; min-height: 64px; padding: 12px 16px; border: 0; border-radius: 14px; background: var(--rp-surface-2); color: var(--rp-text); text-align: left; cursor: pointer; font: inherit; }
+.rp.cl .cr-choice[aria-pressed="true"] { background: var(--cl-mint); color: var(--cl-on-tile); box-shadow: inset 0 0 0 2px var(--rp-text); cursor: default; }
+.rp.cl .cr-choice[aria-pressed="true"] .rp-hint { color: var(--cl-on-tile); }
+.rp.cl .cr-choice:disabled:not([aria-pressed="true"]) { opacity: .5; cursor: not-allowed; }
+.rp.cl .cr-choice-words { font-weight: 600; font-size: 15px; }
+.rp.cl .cr-choice:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+
+.rp.cl .cr-switch-board { display: grid; padding: 8px 24px; border-radius: var(--cl-radius-tile); background: var(--rp-surface); }
+.rp.cl .cr-switch-head, .rp.cl .cr-switch-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 0.7fr); gap: 20px; align-items: center; }
+.rp.cl .cr-switch-head { padding: 10px 0; border-bottom: 1px solid var(--rp-divider); font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp.cl .cr-switch-row { padding: 18px 0; border-bottom: 1px solid var(--rp-divider); }
+.rp.cl .cr-switch-row:last-child { border-bottom: 0; }
+.rp.cl .cr-switch-what .cr-title { margin: 0; }
+.rp.cl .cr-switch-what .rp-hint { margin: 4px 0 0; }
+.rp.cl .cr-switch-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.rp.cl .cr-switch-label { display: none; }
+.rp.cl .cr-switch-state { font-size: 14px; color: var(--rp-text-muted); }
+.rp.cl .cr-switch-row[data-on="true"] .cr-switch-what .cr-title::after { content: "On"; margin-left: 8px; padding: 3px 8px; border-radius: 999px; background: var(--cl-apricot); color: var(--cl-on-tile); font: 600 11px/1 var(--rp-font-body); vertical-align: 2px; }
+.rp.cl .cr-switch-foot { margin: 12px 4px 0; }
+@media (max-width: 767px) {
+  .rp.cl .cr-next { padding: 22px 18px; }
+  .rp.cl .cr-next-title { font-size: 24px; }
+  .rp.cl .cr-next .cr-step-inner { padding: 16px; }
+  .rp.cl .cr-step > summary { padding: 10px 16px; }
+  .rp.cl .cr-step-body { padding: 0 16px 18px; }
+  .rp.cl .cr-step-inner > .cr-actions .rp-btn { flex: 1 1 auto; min-height: 44px; }
+  .rp.cl .cr-switch-board { padding: 4px 18px; }
+  .rp.cl .cr-switch-head { display: none; }
+  .rp.cl .cr-switch-row { grid-template-columns: 1fr; gap: 10px; }
+  .rp.cl .cr-switch-cell { justify-content: space-between; min-height: 44px; }
+  .rp.cl .cr-switch-label { display: block; flex: 1 1 100%; font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+  .rp.cl .cr-switch-cell:last-child .cr-switch-label { flex: 1; }
+}
+.rp.cl .cr-switch-cell .rp-toggle-track, .rp.cl .cr-switch-cell .rp-toggle-track::after { border-radius: 999px; }

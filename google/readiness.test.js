@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readGoogleConfig } from "./config.js";
-import { googleReadiness, VERSION_CHECK_DAYS } from "./readiness.js";
+import { googleReadiness, googleReadinessFromEnv, VERSION_CHECK_DAYS } from "./readiness.js";
 import { VERSION_CHECKS } from "./endpoints.js";
 import { fakeGoogle } from "./fakes.js";
 
@@ -34,7 +34,7 @@ test("the version check goes stale after 90 days", () => {
 
 test("switching on is refused with the list until everything is done; off and practice runs are not blocked", () => {
   const on = { ...BASE, GOOGLE_CONNECT_ENABLED: "true" };
-  assert.throws(() => readGoogleConfig(on, { now: checked }), /can't be switched on yet[\s\S]*sign-in screen[\s\S]*Google Shopping[\s\S]*test project/);
+  assert.throws(() => readGoogleConfig(on, { now: checked }), /can't be switched on yet[\s\S]*sign-in screen[\s\S]*Google Shopping[\s\S]*project for tests/);
   assert.equal(readGoogleConfig({ ...on, ...DONE }, { now: checked }).enabled, true);
   assert.equal(readGoogleConfig({ ...on, GOOGLE_READY_CHECKS: "off" }, { now: checked }).enabled, true);
   assert.equal(readGoogleConfig({ ...BASE }, { now: checked }).enabled, false);
@@ -48,4 +48,22 @@ test("the one-time Merchant developer registration sends the account and email, 
   await assert.rejects(fake.registerMerchantDeveloper(token, { account: "nope", developerEmail: "dev@example.com" }), /needs the account/);
   const done = await fake.registerMerchantDeveloper(token, { account: "accounts/7001", developerEmail: "dev@example.com" });
   assert.match(done.name, /developerRegistration/);
+});
+
+test("the control room's list reads the settings even when the Google link itself would refuse to start", () => {
+  // The live server has the Google keys but no GOOGLE_REDIRECT_URL (the link fills it in from PLATFORM_URL), so reading
+  // the full config threw and the control room said "Something went wrong on our side".
+  const half = { GOOGLE_CLIENT_ID: "id.example", GOOGLE_CLIENT_SECRET: "secret-not-real" };
+  assert.throws(() => readGoogleConfig(half));
+  const list = googleReadinessFromEnv(half, checked);
+  assert.equal(list.ready, false);
+  assert.deepEqual(list.items.filter((i) => !i.done).map((i) => i.id), ["signInApproved", "merchantRegistered", "testProject"]);
+  // Switched on before it's ready: the link refuses, the list still shows what is left.
+  assert.equal(googleReadinessFromEnv({ ...half, GOOGLE_CONNECT_ENABLED: "true" }, checked).ready, false);
+  assert.equal(googleReadinessFromEnv({ ...DONE }, checked).ready, true);
+  // Every item still to do says where to do it or what to add, without code words in the line itself.
+  for (const item of googleReadinessFromEnv({}, checked).items.filter((i) => !i.done)) {
+    assert.ok(item.setting && item.href, item.id);
+    assert.doesNotMatch(item.words, /GOOGLE_|_ID\b/);
+  }
 });
