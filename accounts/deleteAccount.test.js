@@ -1,8 +1,9 @@
 // Delete my account (plan 24.2): a person removes their own sign-in and what the platform keeps about them; a shop is
 // never left without an owner; a stale session or a slip of the mouse can't do it; every step is safe to repeat.
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { createAccountDeletion, RECENT_SIGN_IN_MINUTES } from "./deleteAccount.js";
+import { createAccountDeletion } from "./deleteAccount.js";
 import { deletionRoutes } from "./routes.js";
 import { fakeAccountStores, fakeAuthUsers, fakeDeviceStore, fakeShopData } from "./fakes.js";
 import { createApi } from "../signup/api.js";
@@ -107,15 +108,27 @@ test("a shop still being made (its trial started, no shop yet) stops the deletio
   assert.deepEqual((await w.deletion.preview(signedIn(ADA))).blockers, []);
 });
 
-test("a stale sign-in or a wrong confirmation is refused before anything changes", async () => {
+test("a wrong confirmation is refused before anything changes", async () => {
   const w = world();
   w.registry.shops.get("ada-books").ownerEmail = BEA.email;
-  await assert.rejects(w.deletion.deleteMe(signedIn(ADA, RECENT_SIGN_IN_MINUTES + 1), { confirmEmail: ADA.email }), (e) => e.status === 401 && /sign in again/.test(e.message));
-  await assert.rejects(w.deletion.deleteMe({ ...signedIn(ADA), auth_time: undefined }, { confirmEmail: ADA.email }), (e) => e.status === 401);
   await assert.rejects(w.deletion.deleteMe(signedIn(ADA), { confirmEmail: "someone@else.example" }), (e) => e.status === 400);
   await assert.rejects(w.deletion.deleteMe(signedIn(ADA), {}), (e) => e.status === 400);
   assert.ok(w.authUsers.live.has(ADA.uid));
   assert.ok(w.stores.memberships.rows.has(`moth-press ${ADA.email}`));
+});
+
+test("no sign out and sign in again: a sign-in from days ago deletes in one step", async () => {
+  // Julian, 14 November 2026: typing the address and pressing the red button is enough.
+  for (const claims of [signedIn(ADA, 3 * 24 * 60), { ...signedIn(ADA), auth_time: undefined }]) {
+    const w = world();
+    w.registry.shops.get("ada-books").ownerEmail = BEA.email;
+    const answer = await w.deletion.deleteMe(claims, { confirmEmail: ADA.email });
+    assert.equal(answer.deleted, true);
+    assert.ok(!w.authUsers.live.has(ADA.uid));
+    assert.ok(!w.stores.memberships.rows.has(`moth-press ${ADA.email}`));
+  }
+  const page = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /15 minutes|sign in again/i);
 });
 
 test("the web door: signed in only, and the routes answer in the person's own terms", async () => {
