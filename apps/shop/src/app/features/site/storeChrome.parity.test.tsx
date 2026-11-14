@@ -50,6 +50,7 @@ const DESIGNS: Record<string, any> = {
   modernPageOverrides: { ...base, catalogLayoutStyle: "modern", headerBg: "#112233", headerColor: "#eeeeee", storefront: { headerStyle: "full", showAnnouncement: true, announcementBg: "#ff0000", cartLabel: "Cart" }, customerAccounts: false, secondaryNavKeys: [], navOrder: ["page:about", "cat:p", "cat:b"] },
   footerColumns: { ...base, footerNavigationLayout: "columns", footerBadges: ["visa", "paypal"], social: { instagram: "" } },
   footer4: { ...base, footerNavigationLayout: "columns", footerLayout: "4col", footerColumns: false, showPaymentBadges: false, footerBg: "#000011", showPoweredBy: true },
+  footerAdminLinkOn: { ...base, showFooterAdminLink: true },
   footerGroupedOff: { ...base, showFooterExplore: false, showFooterLocation: false, showFooterLegalHeading: false, menus: { footer: [{ id: "f", label: "Journal", type: "page", value: "journal", footerGroup: "connect" }] }, wordmarkStyle: "two-part" },
 };
 const policies = { shipping: "Ships", returns: "Returns" };
