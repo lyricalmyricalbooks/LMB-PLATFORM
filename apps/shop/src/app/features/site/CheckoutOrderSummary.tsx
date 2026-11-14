@@ -29,7 +29,7 @@ export function CheckoutOrderSummary({ c, checkoutDesign, cart, booksMap, summar
       <button type="button" onClick={() => setSummaryOpen(o => !o)} aria-expanded={summaryOpen} aria-controls="fm-co-slip"
         data-studio-target="style:checkout|copy:Checkout" data-studio-label="Phone order summary bar" className="fm-co-slipbar">
         <span className="fm-co-covers" aria-hidden="true">
-          {cart.slice(0, 3).map(item => <img key={item.lineKey || `${item.id}-${item.variantId || "default"}`} src={item.photoUrl} alt="" loading="lazy" decoding="async" />)}
+          {cart.slice(0, 3).map(item => { const key = item.lineKey || `${item.id}-${item.variantId || "default"}`; return item.photoUrl ? <img key={key} src={item.photoUrl} alt="" loading="lazy" decoding="async" /> : <span key={key} />; })}
         </span>
         <span className="fm-co-slipbar-text">
           <span className="fm-co-slipbar-title">{c("coSummary")}</span>
@@ -50,7 +50,7 @@ export function CheckoutOrderSummary({ c, checkoutDesign, cart, booksMap, summar
           {cart.map((item, index) => (
             <div key={item.lineKey || `${item.id}-${item.variantId || "default"}`} className="fm-co-line">
               {slipNumbers && <span className="fm-co-line-num fm-co-mono" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>}
-              <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="fm-co-thumb" />
+              {item.photoUrl ? <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="fm-co-thumb" /> : <span className="fm-co-thumb" aria-hidden="true" />}
               <div className="min-w-0">
                 <p className="fm-co-line-title">{item.title}</p>
                 {item.variantName && <p className="fm-co-line-meta">{item.variantName}</p>}

@@ -132,16 +132,16 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
           onOpen={() => go("orders")} openLabel="Ship orders" />
         <RunRow kind="Reviews" label="reviews to moderate" one="review to moderate" count={counts ? counts.pendingReviews ?? null : null} loading={!counts}
           detail="Readers are waiting to see these" detailOne="A reader is waiting to see it" onOpen={() => go("reviews")} openLabel="Moderate" />
-        <RunRow kind="Stock" label="titles to reprint soon" one="title to reprint soon" count={todo ? todo.reprint : null} loading={ordersLoading || stockLoading}
+        <RunRow kind="Stock" label={w("book") === "book" ? "titles to reprint soon" : "products to restock soon"} one={w("book") === "book" ? "title to reprint soon" : "product to restock soon"} count={todo ? todo.reprint : null} loading={ordersLoading || stockLoading}
           detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => go("inventory")} openLabel="Open inventory" />
-        <RunRow kind="Stock" label="print books or editions sold out" one="print book or edition sold out" count={todo ? todo.soldOut : null} loading={ordersLoading || stockLoading}
+        <RunRow kind="Stock" label={w("book") === "book" ? "print books or editions sold out" : "products sold out"} one={w("book") === "book" ? "print book or edition sold out" : "product sold out"} count={todo ? todo.soldOut : null} loading={ordersLoading || stockLoading}
           detail="Customers can't buy these right now" detailOne="Customers can't buy it right now" onOpen={() => go("inventory")} openLabel="Open inventory" />
         <RunRow kind="Orders" label="cancel or return requests" one="cancel or return request" count={todo ? todo.requests : null} loading={ordersLoading}
           detail="Customers asked from their order page" onOpen={() => go("orders")} openLabel="Answer requests" />
         <RunRow kind="Gift cards" label="gift cards not issued" one="gift card not issued" count={todo ? todo.giftCardsMissing : null} loading={ordersLoading}
           detail="Paid, but the buyer has no code yet" onOpen={() => go("giftCards")} openLabel="Open gift cards" />
         <RunRow kind="Pre-orders" label="pre-orders awaiting release" one="pre-order awaiting release" count={todo ? todo.awaitingRelease : null} loading={ordersLoading}
-          detail="Press Ready to ship now on each order when the books arrive" onOpen={() => go("orders")} openLabel="Open pre-orders" />
+          detail={`Press Ready to ship now on each order when the ${w("books")} arrive`} onOpen={() => go("orders")} openLabel="Open pre-orders" />
         <RunRow kind="Messages" label="unread messages" one="unread message" count={counts ? counts.unreadMessages : null} loading={!counts}
           detail="From the contact form on your website" onOpen={() => go("messages")} openLabel="Read messages" />
         <RunRow kind="Privacy" label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}

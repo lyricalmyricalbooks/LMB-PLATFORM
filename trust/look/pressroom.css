@@ -468,7 +468,7 @@ div.rp-listcard-main { cursor: default; }
 
 /* ── Dialog / drawer ───────────────────────────────────────────────────── */
 .rp-dialog-root { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 16px; }
-.rp-dialog-root[data-variant="drawer"] { place-items: stretch end; padding: 0; }
+.rp-dialog-root[data-variant="drawer"] { place-items: stretch end; padding: 0; grid-template-rows: minmax(0, 1fr); }
 .rp-dialog-scrim { position: absolute; inset: 0; background: var(--rp-overlay); }
 .rp-dialog {
   position: relative; width: min(100%, 560px); max-height: min(88vh, 880px); display: flex; flex-direction: column;
