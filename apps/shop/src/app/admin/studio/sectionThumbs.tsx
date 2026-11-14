@@ -12,7 +12,7 @@ const KIND: Record<string, string> = {
   FAQSection: "list", CollapsibleSection: "list", StaffNotesTableSection: "list",
   MarqueeSection: "strip", PromoStripSection: "strip", CountdownSection: "countdown", EphemeraRowSection: "strip",
   GallerySection: "gallery", ImageCollageSection: "collage",
-  VideoSection: "video", MapSection: "map",
+  VideoSection: "video", MapSection: "map", BookTimeSection: "columns",
   StickyAddToBagSection: "bar",
   CompositionSection: "layout", RowSection: "layout",
 };

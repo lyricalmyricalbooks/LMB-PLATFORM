@@ -2110,6 +2110,20 @@ await check("the Book a time page opens in the designer with sample services, cl
   await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().waitFor({ timeout: 10000 });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 
+await check("a Book a time section added to the home page shows sample services that link to the booking page", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Book a time/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  const frame = page.frameLocator("iframe").first();
+  const cards = frame.locator(".fm-booktime-grid > li");
+  await cards.first().waitFor({ timeout: 15000 });
+  if (await cards.count() !== 3) throw new Error(`expected 3 sample services, saw ${await cards.count()}`);
+  const href = await cards.first().locator("a").getAttribute("href");
+  if (!/\/book\?service=sample-visit/.test(href || "")) throw new Error(`the Book button points at ${href}`);
+  if (process.env.STUDIO_SHOTS) await frame.locator(".fm-booktime-grid").locator("xpath=ancestor::section[1]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booktime-section.png` });
+});
+
 await browser.close();
 await server?.close();
 for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name} (${Math.round(r.ms / 1000)}s)${r.ok ? "" : ` — ${r.error}`}`);

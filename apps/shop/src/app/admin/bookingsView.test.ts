@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byDay, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import type { Booking } from "./bookingsApi";
 
 const ZONE = "America/Toronto";
@@ -44,5 +44,57 @@ describe("the list", () => {
   });
   it("adds up the week", () => {
     expect(weekFigures([b({}), b({ minutes: 30, payment: "card", paid: true, priceMinor: 4000 }), b({ status: "cancelled" })])).toEqual({ count: 2, hours: 1.5, takenMinor: 4000 });
+  });
+});
+
+describe("a group class in the week", () => {
+  it("puts everyone at one start of a class on one card, and leaves other bookings alone", () => {
+    const list = [b({ id: "1" }), b({ id: "2", serviceId: "ws", serviceName: "Workshop" }), b({ id: "3", serviceId: "ws", serviceName: "Workshop" }),
+      b({ id: "4", serviceId: "ws", serviceName: "Workshop", start: "2026-11-17T19:00:00.000Z" })];
+    const slots = daySlots(list, (id) => (id === "ws" ? 8 : 1));
+    expect(slots.map((s) => (s.kind === "class" ? s.people.map((p) => p.id) : s.booking.id))).toEqual(["1", ["2", "3"], ["4"]]);
+    expect(slots[1]).toMatchObject({ kind: "class", places: 8, serviceName: "Workshop" });
+  });
+  it("says how full it is", () => {
+    expect(classCount(5, 8)).toBe("5 of 8 booked");
+    expect(classCount(8, 8)).toBe("Full · 8 booked");
+  });
+});
+
+describe("the waiting list", () => {
+  const w = (id: string, day: string, createdAt: string) => ({ id, serviceId: "s", serviceName: "Workshop", day, start: null, name: id, email: `${id}@example.com`, createdAt });
+  it("groups people by day in the order they asked", () => {
+    const days = waitingByDay([w("late", "2026-11-21", "2026-11-18T10:00:00Z"), w("other", "2026-11-22", "2026-11-17T10:00:00Z"), w("early", "2026-11-21", "2026-11-17T09:00:00Z")]);
+    expect(days.get("2026-11-21")!.map((x) => x.id)).toEqual(["early", "late"]);
+    expect(days.get("2026-11-22")).toHaveLength(1);
+    expect(waitingText(3)).toBe("3 waiting");
+  });
+});
+
+describe("the figures", () => {
+  it("lists the last months oldest first, across a new year", () => {
+    expect(lastMonths("2027-02-03", 4)).toEqual(["2026-11", "2026-12", "2027-01", "2027-02"]);
+    expect(monthText("2026-11")).toMatch(/Nov/);
+    expect(moneyShort(28049, "CAD")).toMatch(/280$/);
+  });
+  it("counts bookings, kept money, no-shows and cancellations by month, weekday and service", () => {
+    const card = { payment: "card" as const, paid: true, priceMinor: 4000 };
+    const f = bookingFigures([
+      b({ id: "1", ...card }),                                                               // Tue 17 Nov, 40.00
+      b({ id: "2", start: "2026-11-21T19:00:00.000Z", serviceName: "Workshop", noShow: true }), // Sat 21 Nov, no-show
+      b({ id: "3", ...card, status: "cancelled", refund: { amountMinor: 3000, at: "" } }),     // cancelled, 10.00 kept
+      b({ id: "4", ...card, status: "held", paid: false }),                                     // still paying: ignored
+      b({ id: "5", start: "2026-10-06T15:00:00.000Z", payment: "atShop", paid: true, priceMinor: 2500 }), // Tue 6 Oct
+      b({ id: "6", start: "2026-12-01T15:00:00.000Z" }),                                      // next month: not in view
+      b({ id: "7", start: "2026-11-01T03:30:00.000Z" }),                                      // 31 Oct in Toronto
+    ], ZONE, ["2026-10", "2026-11"], Date.parse("2026-11-20T12:00:00Z"));
+    expect(f.months).toEqual([
+      { month: "2026-10", count: 2, takenMinor: 2500, noShows: 0, cancelled: 0 },
+      { month: "2026-11", count: 2, takenMinor: 5000, noShows: 1, cancelled: 1 },
+    ]);
+    expect(f).toMatchObject({ count: 4, takenMinor: 7500, noShows: 1, cancelled: 1, noShowPercent: 33 });
+    expect(f.weekdays.map((w) => [w.day, w.count])).toEqual([["Monday", 0], ["Tuesday", 2], ["Wednesday", 0], ["Thursday", 0], ["Friday", 0], ["Saturday", 2], ["Sunday", 0]]);
+    expect(f.services).toEqual([{ name: "Visit", count: 3 }, { name: "Workshop", count: 1 }]);
+    expect(bookingFigures([], ZONE, ["2026-11"], 0).noShowPercent).toBeNull();
   });
 });

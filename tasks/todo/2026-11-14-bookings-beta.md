@@ -52,3 +52,46 @@ switch works inside that. Not yet done on a live test shop: flipping the switch 
 
 Review: answers are kept with the question's wording at the time, so renaming a question later never changes what an
 old booking says. Not yet tried on a live test shop.
+
+## Group classes with places (14 November 2026, Julian 18:08Z "do all 5 next moves")
+
+- [x] A service can be a group class: places at each time, and the weekly times it runs.
+- [x] Customers see how many places are left; the class closes by itself when full, also when two people ask at once.
+- [x] A class and any other booking still never overlap; cancelling gives the place back.
+- [x] In the admin week a class is one card with a count, a bar and everyone booked into it.
+- [x] Proof: shared, server and view tests, typecheck, lint, screenshots (week, service dialog, time picker; desktop
+      and phone).
+
+Review: one booking is one place (no "book for three" yet). Bookings made before this carry no service on their day
+record, so they count as another booking, which is the safe side. Not yet tried on a live test shop.
+
+## Waiting list for full times (14 November 2026, Julian 18:08Z "do all 5 next moves")
+
+- [x] Customers can ask to hear when a full class time or a booked-up day has room again (name and email).
+- [x] Everyone waiting gets one email the moment a place opens (cancel, owner cancel or move, an unpaid hold running
+      out), with a link that opens that service and day. Nothing is held.
+- [x] Kept on the server only (no new rule): the owner sees counts per day and a list with Remove.
+- [x] Proof: server tests (join, refuse when open or closed, cap, told once, sweep, owner ops), preview, view and link
+      tests, typecheck, lint, screenshots (form, problems, done, admin week and list; desktop and phone).
+
+Review: a closed day can't be waited for. People are told together and the first to book wins; no automatic booking.
+Not yet tried on a live test shop.
+
+## A "Book a time" section for any page (14 November 2026)
+
+- [x] Studio › Add section › Book a time: services as cards with price, length, place and class size, a button each.
+- [x] Each button opens the booking page on that service; "See everything" appears when there are more services.
+- [x] Hidden while the shop isn't taking bookings; the designer shows sample services.
+- [x] Proof: rule test, registry/renderer parity, fallback words editable, a Studio browser check, screenshot.
+
+Review: one request per visit, shared with nothing else on the page. No per-section pick of which services yet.
+
+## Booking figures (14 November 2026)
+
+- [x] Bookings › Figures: six months of bookings and money by month, no-shows (with the share of past bookings),
+      cancellations, busiest weekdays, most booked services.
+- [x] Proof: rule tests (months across a new year, zone edge, refunds, held ignored), typecheck, lint, screenshots
+      desktop and phone.
+
+Review: reads up to 5,000 bookings once when the tab opens; fine for a small shop, worth a monthly summary record if a
+shop ever gets near that. Not yet tried on a live test shop.

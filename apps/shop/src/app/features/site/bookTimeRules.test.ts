@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstOpenDay, groupTimes, lengthText, manageFromSearch, monthLabel, pageDays, pageStep, paysUpFront } from "./bookTimeRules";
+import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront } from "./bookTimeRules";
 
 const ZONE = "America/Toronto";
 
@@ -40,5 +40,19 @@ describe("Book a time page rules", () => {
     expect(manageFromSearch(`?booking=abc12345&key=${key}`)).toEqual({ id: "abc12345", key });
     expect(manageFromSearch(`?booking=abc12345&key=short`)).toBeNull();
     expect(manageFromSearch("")).toBeNull();
+  });
+  it("reads the service and day a waiting-list email links to, and drops anything misshapen", () => {
+    expect(wantedFromSearch("?service=svc_1&day=2026-11-21")).toEqual({ service: "svc_1", day: "2026-11-21" });
+    expect(wantedFromSearch("?service=a/b&day=tomorrow")).toEqual({ service: "", day: "" });
+    expect(wantedFromSearch("")).toEqual({ service: "", day: "" });
+  });
+  it("gives a Book a time section the first few services, and none while bookings are off", () => {
+    const service = (id: string) => ({ id, name: id, description: "", minutes: 30, priceMinor: 0, payment: "free" as const, location: "" });
+    const info = { on: true, services: ["a", "b", "c", "d"].map(service) } as any;
+    expect(sectionServices(info, 2).map((s) => s.id)).toEqual(["a", "b"]);
+    expect(sectionServices(info, "nonsense")).toHaveLength(3);
+    expect(sectionServices(info, 99)).toHaveLength(4);
+    expect(sectionServices({ on: false } as any, 3)).toEqual([]);
+    expect(sectionServices(null, 3)).toEqual([]);
   });
 });

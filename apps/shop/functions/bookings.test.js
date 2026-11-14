@@ -23,10 +23,10 @@ function fakeDb() {
   });
   const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`)).map((k) => snapOf(c, k.slice(c.length + 1)));
   const query = (c, filters = [], n = 1000) => ({
-    where: (f, _op, v) => query(c, [...filters, [f, v]], n),
+    where: (f, op, v) => query(c, [...filters, [f, v, op]], n),
     limit: (m) => query(c, filters, m),
     async get() {
-      const docs = list(c).filter((d) => filters.every(([f, v]) => d.data()[f] === v)).slice(0, n);
+      const docs = list(c).filter((d) => filters.every(([f, v, op]) => { const x = d.data()[f]; return op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; })).slice(0, n);
       return { docs, empty: docs.length === 0 };
     },
   });
@@ -125,7 +125,7 @@ describe("customers book", () => {
     const { body } = await t.pub({ action: "bookingInfo" });
     expect(body.on).toBe(true);
     expect(body.services.map((s) => s.id).sort()).toEqual(["review", "visit"]);
-    expect(Object.keys(body.services[0]).sort()).toEqual(["description", "id", "location", "minutes", "name", "payment", "priceMinor", "questions"]);
+    expect(Object.keys(body.services[0]).sort()).toEqual(["description", "id", "location", "minutes", "name", "payment", "places", "priceMinor", "questions"]);
   });
 
   test("a free booking is confirmed at once, emailed, and its time is gone for the next customer", async () => {
@@ -451,5 +451,168 @@ describe("a bank payment that never clears", () => {
     const sent = t.emails.slice(before).map((m) => m.subject);
     expect(sent.some((s) => s.startsWith("Not booked:"))).toBe(true);
     expect(sent.some((s) => s.startsWith("[BOOKING] Payment didn't clear"))).toBe(true);
+  });
+});
+
+describe("group classes", () => {
+  const person = (n) => ({ name: `Person ${n}`, email: `p${n}@example.com` });
+  async function withClass(extra = {}) {
+    const t = setup();
+    await t.seed();
+    // Saturday 21 November 2026 at 14:00: outside the weekday hours, so the class's own times are what open it.
+    const saved = await t.adm({ op: "saveService", service: { name: "Riso workshop", minutes: 120, gapAfter: 0, places: 3, classTimes: [{ weekday: 6, time: "14:00" }, { weekday: 6, time: "14:00" }, { weekday: 9, time: "10:00" }], ...extra } });
+    return { t, id: saved.body.service.id, service: saved.body.service };
+  }
+
+  test("a class runs only at its own weekly times and says how many places are left", async () => {
+    const { t, id, service } = await withClass();
+    expect(service).toMatchObject({ places: 3, classTimes: [{ weekday: 6, time: "14:00" }] });
+    expect((await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === id).places).toBe(3);
+    const times = (await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-17", days: 7 })).body;
+    expect(Object.values(times.days).flat()).toEqual([at("2026-11-21", "14:00")]);
+    expect(times).toMatchObject({ places: 3, left: { [at("2026-11-21", "14:00")]: 3 } });
+    // An ordinary service's answer carries no places.
+    expect((await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-17", days: 1 })).body.left).toBeUndefined();
+  });
+
+  test("people share one start up to the places, then the class is full", async () => {
+    const { t, id } = await withClass();
+    const start = at("2026-11-21", "14:00");
+    for (const n of [1, 2]) expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(n) })).statusCode).toBe(200);
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body.left[start]).toBe(1);
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(3) })).statusCode).toBe(200);
+    const full = await t.pub({ action: "bookingStart", serviceId: id, start, ...person(4) });
+    expect(full.statusCode).toBe(409);
+    expect(full.body).toMatchObject({ code: "taken", error: expect.stringContaining("filled up") });
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body.days["2026-11-21"]).toEqual([]);
+  });
+
+  test("the last place goes to one of two people asking at once", async () => {
+    const { t, id } = await withClass({ places: 2 });
+    const start = at("2026-11-21", "14:00");
+    await t.pub({ action: "bookingStart", serviceId: id, start, ...person(1) });
+    const both = await Promise.all([2, 3].map((n) => t.pub({ action: "bookingStart", serviceId: id, start, ...person(n) })));
+    expect(both.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+  });
+
+  test("a class still blocks other services at its time, and another booking blocks the class", async () => {
+    const { t, id } = await withClass({ classTimes: [{ weekday: 2, time: "10:00" }] });
+    const start = at("2026-11-17", "10:00");
+    await t.pub({ action: "bookingStart", serviceId: id, start, ...person(1) });
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "11:00"), ...CUSTOMER })).statusCode).toBe(409);
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-24", "10:30"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start: at("2026-11-24", "10:00"), ...person(2) })).statusCode).toBe(409);
+  });
+
+  test("cancelling gives the place back, and the owner can book and move people within the places", async () => {
+    const { t, id } = await withClass({ places: 2 });
+    const start = at("2026-11-21", "14:00");
+    const first = await t.pub({ action: "bookingStart", serviceId: id, start, ...person(1) });
+    await t.pub({ action: "bookingStart", serviceId: id, start, ...person(2) });
+    expect((await t.adm({ op: "create", serviceId: id, start, ...person(3) })).statusCode).toBe(409);
+    await t.adm({ op: "cancel", id: first.body.id });
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body.left[start]).toBe(1);
+    expect((await t.adm({ op: "create", serviceId: id, start, ...person(3) })).statusCode).toBe(200);
+    // A fourth person booked for the next week can't be moved into the full class, and can once someone leaves.
+    const next = await t.adm({ op: "create", serviceId: id, start: at("2026-11-28", "14:00"), ...person(4) });
+    expect((await t.adm({ op: "move", id: next.body.id, start })).statusCode).toBe(409);
+    const leaving = [...t.db.store.entries()].find(([k, v]) => k.startsWith("bookings/") && v.customer?.email === "p2@example.com")[0].split("/")[1];
+    await t.adm({ op: "cancel", id: leaving });
+    expect((await t.adm({ op: "move", id: next.body.id, start })).statusCode).toBe(200);
+  });
+});
+
+describe("the waiting list", () => {
+  const person = (n) => ({ name: `Person ${n}`, email: `p${n}@example.com` });
+  const start = at("2026-11-21", "14:00");
+  async function fullClass() {
+    const t = setup();
+    await t.seed();
+    const saved = await t.adm({ op: "saveService", service: { name: "Riso workshop", minutes: 120, gapAfter: 0, places: 2, classTimes: [{ weekday: 6, time: "14:00" }] } });
+    const id = saved.body.service.id;
+    const booked = [];
+    for (const n of [1, 2]) booked.push((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(n) })).body);
+    t.emails.length = 0;
+    return { t, id, booked };
+  }
+  const waitingEmails = (t) => t.emails.filter((m) => /A place has opened/.test(m.subject));
+
+  test("a full class time is listed as full, and only a full time can be waited for", async () => {
+    const { t, id } = await fullClass();
+    const times = (await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 8 })).body;
+    expect(times.full).toEqual({ "2026-11-21": [start] });
+    expect((await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) })).body).toEqual({ ok: true });
+    // The next week's class has room: book it instead.
+    const open = await t.pub({ action: "bookingWait", serviceId: id, start: at("2026-11-28", "14:00"), ...person(3) });
+    expect(open.statusCode).toBe(409);
+    expect(open.body.code).toBe("open");
+    // A time the class never runs at, a missing email and an unknown service are refused.
+    expect((await t.pub({ action: "bookingWait", serviceId: id, start: at("2026-11-21", "09:00"), ...person(3) })).statusCode).toBe(400);
+    expect((await t.pub({ action: "bookingWait", serviceId: id, start, name: "No Email" })).statusCode).toBe(400);
+    expect((await t.pub({ action: "bookingWait", serviceId: "nope", start, ...person(3) })).statusCode).toBe(404);
+  });
+
+  test("asking twice keeps one entry, and the list stops at its cap", async () => {
+    const { t, id } = await fullClass();
+    for (let i = 0; i < 2; i += 1) await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    expect((await t.adm({ op: "waitlist", from: "2026-11-16", to: "2026-11-22" })).body.waiting).toHaveLength(1);
+    for (let n = 4; n < 33; n += 1) expect((await t.pub({ action: "bookingWait", serviceId: id, start, ...person(n) })).statusCode).toBe(200);
+    const over = await t.pub({ action: "bookingWait", serviceId: id, start, ...person(40) });
+    expect(over.statusCode).toBe(409);
+    expect(over.body.code).toBe("wait_full");
+    // Someone already on the list can ask again at the cap.
+    expect((await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) })).statusCode).toBe(200);
+  });
+
+  test("everyone waiting is told once when a customer cancels, with a link to book", async () => {
+    const { t, id, booked } = await fullClass();
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(4) });
+    expect((await t.pub({ action: "bookingCancel", id: booked[0].id, key: booked[0].key })).statusCode).toBe(200);
+    const told = waitingEmails(t);
+    expect(told.map((m) => m.to).sort()).toEqual(["p3@example.com", "p4@example.com"]);
+    expect(told[0].html).toContain(`https://press.example/book?service=${id}&#38;day=2026-11-21`);
+    expect((await t.adm({ op: "waitlist", from: "2026-11-21", to: "2026-11-21" })).body.waiting).toEqual([]);
+    // A second place opening tells nobody: their entries are gone.
+    await t.adm({ op: "cancel", id: booked[1].id });
+    expect(waitingEmails(t)).toHaveLength(2);
+  });
+
+  test("the owner cancelling or moving someone out also tells the list", async () => {
+    const { t, id, booked } = await fullClass();
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    expect((await t.adm({ op: "move", id: booked[0].id, start: at("2026-11-28", "14:00") })).statusCode).toBe(200);
+    expect(waitingEmails(t).map((m) => m.to)).toEqual(["p3@example.com"]);
+  });
+
+  test("a full day of an ordinary service can be waited for, and opens when a time frees", async () => {
+    const t = setup();
+    await t.seed();
+    await t.adm({ op: "saveSettings", settings: { ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, hours: DEFAULT_BOOKING_SETTINGS.hours.map((w, i) => (i === 2 ? [{ start: "10:00", end: "11:00" }] : w)) } });
+    const open = await t.pub({ action: "bookingWait", serviceId: "visit", day: "2026-11-17", ...person(1) });
+    expect(open.body.code).toBe("open");
+    const only = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "10:00"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingWait", serviceId: "visit", day: "2026-11-17", ...person(1) })).body).toEqual({ ok: true });
+    expect((await t.pub({ action: "bookingWait", serviceId: "visit", day: "2020-01-01", ...person(1) })).statusCode).toBe(400);
+    // A closed day (Sunday) is never offered and can't be waited for; the booked-up day is offered.
+    expect((await t.pub({ action: "bookingWait", serviceId: "visit", day: "2026-11-22", ...person(1) })).statusCode).toBe(400);
+    expect((await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-17", days: 7 })).body.fullDays).toEqual(["2026-11-17"]);
+    t.emails.length = 0;
+    await t.pub({ action: "bookingCancel", id: only.body.id, key: only.body.key });
+    expect(waitingEmails(t).map((m) => m.to)).toEqual(["p1@example.com"]);
+  });
+
+  test("the owner sees who is waiting and can remove one; past days are forgotten", async () => {
+    const { t, id } = await fullClass();
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    const list = (await t.adm({ op: "waitlist", from: "2026-11-16", to: "2026-11-22" })).body.waiting;
+    expect(list).toMatchObject([{ serviceId: id, serviceName: "Riso workshop", day: "2026-11-21", start, name: "Person 3", email: "p3@example.com" }]);
+    expect((await t.adm({ op: "removeWaiting", id: "not-an-id" })).statusCode).toBe(400);
+    await t.adm({ op: "removeWaiting", id: list[0].id });
+    expect((await t.adm({ op: "waitlist", from: "2026-11-16", to: "2026-11-22" })).body.waiting).toEqual([]);
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(4) });
+    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 0 });
+    t.clock.now = new Date("2026-11-22T13:00:00Z");
+    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 1 });
   });
 });

@@ -6,10 +6,12 @@
 // A service is one thing a customer books (a studio visit, a printing class for one, a portfolio review): how long it
 // lasts, the rest the owner wants after it, and its price. The opening hours say when the shop takes bookings, week by
 // week, with days off. A time is free when it fits inside the day's hours, is far enough ahead, isn't past the last day
-// customers may book, and overlaps no other booking (with its rest after it). One customer at a time in phase 1.
+// customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
+// (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.REMINDER_HOURS = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = void 0;
+exports.isDay = exports.weekdayOf = exports.REMINDER_HOURS = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.cleanService = cleanService;
+exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
@@ -17,6 +19,7 @@ exports.zonedTime = zonedTime;
 exports.dayOf = dayOf;
 exports.addDays = addDays;
 exports.daysTouched = daysTouched;
+exports.placesLeft = placesLeft;
 exports.clashes = clashes;
 exports.bookingWindow = bookingWindow;
 exports.freeTimes = freeTimes;
@@ -25,6 +28,11 @@ exports.customerCanChange = customerCanChange;
 exports.bookingIcs = bookingIcs;
 exports.bookingsFeedIcs = bookingsFeedIcs;
 exports.googleCalendarLink = googleCalendarLink;
+exports.MAX_PLACES = 100;
+exports.MAX_CLASS_TIMES = 21;
+/** A service that takes more than one person at a time. */
+const isClass = (s) => Number(s?.places) > 1;
+exports.isClass = isClass;
 exports.MAX_QUESTIONS = 5;
 exports.BOOKING_STEPS = [15, 30, 60];
 exports.MAX_SERVICES = 30;
@@ -77,7 +85,26 @@ function cleanService(raw, id = "") {
         active: s.active !== false,
         order: whole(s.order, 0, 999, 0),
         questions: cleanQuestions(s.questions),
+        places: whole(s.places, 1, exports.MAX_PLACES, 1),
+        classTimes: cleanClassTimes(s.classTimes),
     };
+}
+/** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
+function cleanClassTimes(raw) {
+    const seen = new Set();
+    const out = [];
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const t = item && typeof item === "object" ? item : {};
+        const weekday = Number(t.weekday);
+        if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6 || typeof t.time !== "string" || !TIME.test(t.time))
+            continue;
+        const key = `${weekday}-${t.time}`;
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        out.push({ weekday, time: t.time });
+    }
+    return out.sort((a, b) => a.weekday - b.weekday || a.time.localeCompare(b.time)).slice(0, exports.MAX_CLASS_TIMES);
 }
 /** The owner's questions, cleaned: empty ones dropped, at most MAX_QUESTIONS, each with its own id. */
 function cleanQuestions(raw) {
@@ -190,10 +217,27 @@ function daysTouched(start, end, zone) {
     return out;
 }
 // ── Free times ──────────────────────────────────────────────────────────────────────────────────────────────────────
-/** Whether a booking of `service` starting at `start` would overlap anything already busy (its rest included). */
-function clashes(start, service, busy) {
+/**
+ * How many more people can book `service` at `start`: 0 when anything else overlaps it (its rest included). A group
+ * class shares its time only with bookings of the same class at the very same start, up to its places.
+ */
+function placesLeft(start, service, busy) {
     const end = start + (service.minutes + service.gapAfter) * MINUTE;
-    return busy.some((b) => start < b.end && end > b.start);
+    const places = (0, exports.isClass)(service) && service.id ? Math.round(Number(service.places)) : 1;
+    let taken = 0;
+    for (const b of busy) {
+        if (!(start < b.end && end > b.start))
+            continue;
+        if (places > 1 && b.serviceId === service.id && b.start === start)
+            taken += 1;
+        else
+            return 0;
+    }
+    return Math.max(0, places - taken);
+}
+/** Whether a booking of `service` starting at `start` can't be taken: something overlaps it, or the class is full. */
+function clashes(start, service, busy) {
+    return placesLeft(start, service, busy) === 0;
 }
 /** The last day customers may book, and the earliest moment, as of `nowMs`. */
 function bookingWindow(settings, zone, nowMs) {
@@ -210,6 +254,17 @@ function freeTimes({ service, settings, busy, day, zone, nowMs }) {
     if (day > lastDay || day < dayOf(nowMs, zone))
         return [];
     const out = [];
+    // A class with its own weekly times runs at those, whatever the opening hours say.
+    if ((0, exports.isClass)(service) && service.classTimes?.length) {
+        for (const t of service.classTimes) {
+            if (t.weekday !== (0, exports.weekdayOf)(day))
+                continue;
+            const start = zonedTime(day, t.time, zone);
+            if (start >= earliest && !clashes(start, service, busy) && !out.includes(start))
+                out.push(start);
+        }
+        return out.sort((a, b) => a - b);
+    }
     for (const w of settings.hours[(0, exports.weekdayOf)(day)] || []) {
         const close = minutesOf(w.end);
         for (let m = minutesOf(w.start); m + service.minutes <= close; m += settings.step) {

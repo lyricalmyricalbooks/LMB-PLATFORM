@@ -82,12 +82,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
 {
   const mode = new URLSearchParams(window.location.search).get("bookings") || "on";
   const service = (id: string, name: string, minutes: number, priceMinor: number, order: number, extra: Partial<BookingService> = {}): BookingService => ({
-    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", location: "456 Example Ave", active: true, order, questions: [], ...extra,
+    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], ...extra,
   });
   let services: BookingService[] = mode === "new" ? [] : [
     service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes." }),
     service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
-    service("binding", "Bookbinding class", 90, 3000, 2, { active: false }),
+    service("binding", "Bookbinding class", 90, 3000, 2, { active: false, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
   ];
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new" };
   const at = (days: number, hour: number, minute = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, minute, 0, 0); return d.toISOString(); };
@@ -103,9 +103,28 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin" }),
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
+    booking("bk-8", services[2], at(1, 13), "Hal Example"),
+    booking("bk-9", services[2], at(1, 13), "Ivy Example", { status: "held", paid: false }),
+    booking("bk-10", services[2], at(1, 13), "Jo Example"),
     booking("bk-6", services[0], at(-1, 16), "Fay Example", { noShow: true }),
     booking("bk-7", services[1], at(1, 15), "Gus Example", { status: "held", paid: false, clearing: true }),
   ] : [];
+  // Three people waiting for tomorrow's full class and one for a booked-up day.
+  const dayAhead = (days: number) => { const d = new Date(); d.setDate(d.getDate() + days); return d.toLocaleDateString("en-CA"); };
+  let waiting = mode === "on" ? [
+    { id: "a".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Kit Example", email: "kit@example.com", createdAt: at(-1, 9) },
+    { id: "b".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Lou Example", email: "lou@example.com", createdAt: at(-1, 12) },
+    { id: "c".repeat(32), serviceId: "review", serviceName: "Portfolio review", day: dayAhead(1), start: null, name: "Max Example-Longername", email: "max.longername@example.com", createdAt: at(0, 8) },
+  ] : [];
+  // Six months of older bookings for the Figures tab: busier each month, Saturdays busiest, a few no-shows and one kept deposit.
+  const history: Booking[] = mode === "on" ? Array.from({ length: 64 }, (_, i) => {
+    const s = services[i % 3];
+    const days = -(8 + Math.round((63 - i) * 2.6) + (i % 5 === 0 ? 0 : (6 - new Date(Date.now() - (8 + Math.round((63 - i) * 2.6)) * 86_400_000).getDay()) % 3));
+    return booking(`old-${i}`, s, at(days, 10 + (i % 6)), `Guest ${i + 1}`, {
+      ...(i % 11 === 0 ? { noShow: true } : {}),
+      ...(i % 13 === 5 ? { status: "cancelled" as const, refund: s.priceMinor ? { amountMinor: s.priceMinor - 1000, at: at(days - 1, 9) } : null } : {}),
+    });
+  }) : [];
   const watchers = new Set<() => void>();
   const changed = () => watchers.forEach((w) => w());
   bookingsData.watchOn = (onChange) => { onChange(mode !== "off"); return () => {}; };
@@ -115,6 +134,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     watchers.add(send); send();
     return () => void watchers.delete(send);
   };
+  bookingsData.range = async (from, to) => [...rows, ...history].filter((b) => b.start >= from && b.start < to);
   bookingsData.admin = async (op, body) => {
     const id = String(body.id ?? "");
     if (op === "saveService") { const s = body.service as BookingService; services = [...services.filter((x) => x.id !== s.id), { ...s, id: s.id || `svc-${services.length + 1}` }]; }
@@ -122,6 +142,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "saveSettings") settings = { ...settings, ...(body.settings as object) };
     if (op === "setLive") settings = { ...settings, live: body.live === true };
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b));
+    if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
+    if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
     if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));
     if (op === "paidAtShop") rows = rows.map((b) => (b.id === id ? { ...b, paid: true } : b));

@@ -1206,3 +1206,17 @@ switch. Off stops `bookingInfo` / `bookingTimes` / `bookingStart`; customers sti
 required }`, cleaned by `cleanQuestions` in the shared rules). `bookingInfo` sends them; `bookingStart` runs
 `cleanAnswers` and refuses a missing must-answer one (400, code `answers`); the owner's own `create` never enforces.
 A booking keeps `answers` as `{ label, answer }` pairs (the wording at the time), shown in the owner's email and feed.
+**Group classes (14 November 2026):** a service with `places` above 1 is a class (`isClass`), with optional weekly
+`classTimes` (`{ weekday, time }`; set, the class runs only then, outside the opening hours too, days off still closed).
+Each day item carries its service (`s`), so `busyFrom` gives `serviceId` and the shared `placesLeft` lets a class share a
+time only with its own bookings at the very same start, up to its places; anything else overlapping is a clash, both
+ways. One booking is one place. `bookingTimes` adds `places` and `left` (per time) for a class. The owner's `create`
+ignores `classTimes` but never the places; the owner's `move` looks the service up so a person can join another start.
+**Waiting list (14 November 2026):** `bookingWaitlist/{id}` (`{ serviceId, serviceName, day, start | null, name, email,
+createdAt }`; id = hash of service, time-or-day and email, so asking twice is one entry) is server-only: no rule, no
+browser read. Public `bookingWait` takes a class's full start (in `bookingTimes`' `full`) or a booked-up day (in
+`fullDays`: free with nothing booked, none now); it answers 409 `open` when there is room and `wait_full` at 30 a day
+per service. `tellWaitlist(days)` runs after every freed time (`freeTime`, and `moveTime` for the days left): each
+waiting person whose time or day has room gets one email (the `bookingEmail` budget) linking `/book?service=&day=`,
+and the entry is deleted. Nothing is held. `bookingSweep` forgets past days (`sweepWaitlist`). Admin ops: `waitlist`
+(`{ from, to }`) and `removeWaiting`.
