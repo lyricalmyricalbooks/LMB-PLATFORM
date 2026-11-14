@@ -355,7 +355,7 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
           </div>
         ))
       )}
-      <p className="fm-track-mono mb-6">{c("bookTimeZone", { zone: zone.replace(/_/g, " ") })}</p>
+      <p className="fm-track-mono mb-6">{c("bookTimeZone", { zone: zoneName(zone) })}</p>
     </div>
   );
 }
@@ -520,4 +520,14 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       <Link to="/book" className="fm-track-link fm-track-mono"><CalendarPlus size={14} aria-hidden="true" /> {c("bookTimeAnother")}</Link>
     </div>
   );
+}
+
+/** "America/Toronto" → "Eastern Time" in the shopper's language; the place name if the browser can't name it. */
+function zoneName(zone: string): string {
+  try {
+    const name = new Intl.DateTimeFormat(undefined, { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName")?.value;
+    if (name && !/^GMT/.test(name)) return name;
+  } catch { /* fall through */ }
+  return zone.split("/").pop()!.replace(/_/g, " ");
 }

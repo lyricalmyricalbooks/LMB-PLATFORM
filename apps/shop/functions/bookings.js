@@ -347,6 +347,8 @@ function bookingActions({
           const metadata = { booking: id };
           const session = await checkout.open({
             mode: "payment",
+            // Cards only: slower ways to pay (bank transfers, pay later) can outlast the 10-minute hold on the time.
+            payment_method_types: ["card"],
             line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: service.priceMinor, product_data: { name: description } } }],
             customer_email: customer.email,
             metadata,
@@ -360,6 +362,10 @@ function bookingActions({
         } catch (err) {
           await freeTime(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() }, { status: "cancelled", holdUntil: null, updatedAt: now().toISOString() });
           if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+          if (["test_only", "not_connected", "not_available"].includes(err?.code)) {
+            console.error(`Booking ${id} card payment refused:`, err.code, err?.message || err);
+            return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
+          }
           throw err;
         }
       }
