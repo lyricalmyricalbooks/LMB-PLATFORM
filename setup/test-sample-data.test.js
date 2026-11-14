@@ -109,7 +109,10 @@ test("writing: only what is missing, unless asked to replace; without a stockroo
   assert.equal(stockroom.docs.get("books/test-book-one/data/hist"), undefined);
   assert.deepEqual(await writeTestSamples({ shop: shopDb, stockroom }, "test-press", "books", { now: NOW }), [], "a second run adds nothing");
 
+  shopDb.docs.set("settings/website", { info: { name: "My own name", email: "me@example.net" }, design: { copy: { siteName: "My own name" } }, policies: { shipping: "Mine", returns: "Mine", privacy: "Mine", terms: "Mine", accessibility: "Mine" } });
   const again = await writeTestSamples({ shop: shopDb, stockroom }, "test-press", "books", { now: NOW, replace: true });
+  assert.equal(shopDb.docs.get("settings/website").info.name, "My own name", "a reset leaves the shop's own settings alone");
+  assert.ok(!again.includes("settings/website"));
   assert.equal(shopDb.docs.get("orders/PAST-test-01").source, "import");
   assert.ok(again.includes("books/test-book-two/data/hist"));
 

@@ -218,7 +218,8 @@ export async function writeTestSamples({ shop, stockroom = null }, shopId, kind,
   const written = [];
   // The public details (contact address, policies) are laid over the website settings, never replacing the design.
   const settings = await shop.get(shopId, "settings/website");
-  const filled = testShopDetails(settings, pressName ?? (kind === "books" ? "Test Press" : "Test Goods"), { replace });
+  // Fill-only even on a reset: the control room promises a reset leaves the shop's settings as they are.
+  const filled = testShopDetails(settings, pressName ?? (kind === "books" ? "Test Press" : "Test Goods"));
   if (filled) {
     await shop.set(shopId, "settings/website", filled);
     written.push("settings/website");
