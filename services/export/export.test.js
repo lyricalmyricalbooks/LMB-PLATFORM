@@ -120,7 +120,6 @@ test("a shop-only plan exports the shop, a stockroom-only plan the stockroom", a
 test("the control room's export: admins only, with a reason, logged in the registry, the shop's log and the activity log, and emailed", async () => {
   const w = await world();
   assert.equal((await w.ask({ ...OWNER, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(START / 1000) }, "/api/control/export", { shopId: "moth-press", reason: "the press asked by phone" })).status, 403);
-  assert.equal((await w.ask(w.admin(), "/api/control/export", { shopId: "moth-press", reason: "short" })).status, 400);
   assert.equal((await w.ask(w.admin(), "/api/control/export", { shopId: "nobody-press", reason: "the press asked by phone" })).status, 404);
   assert.equal(w.storage.files.size, 0);
 

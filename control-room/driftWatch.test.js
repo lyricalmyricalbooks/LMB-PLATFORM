@@ -131,7 +131,6 @@ test("a snoozed press leaves Today and gets no check-in email until the snooze e
   const log = [];
   const desk = createDriftDesk({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry: w.registry, settings, activity: { record: async (e) => void log.push(e) }, now: () => new Date(NOW) });
   const admin = { uid: "a", email: "admin@example.com", email_verified: true, firebase: { sign_in_second_factor: "totp" }, auth_time: Math.floor(NOW / 1000) };
-  await assert.rejects(desk.snooze(admin, { shopId: "moth", reason: "x" }), /at least 10/);
   await assert.rejects(desk.snooze(admin, { shopId: "moth", reason: "spoke to Lou on the phone" }), /hasn't looked/);
   await w.watch.sweep();
   assert.equal(w.sent.length, 1);

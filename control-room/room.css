@@ -459,3 +459,8 @@
   .rp.cl .cr-test-shops > .rp-card-body + .rp-card-body { border-left: 0; border-top: 1px solid var(--rp-divider); }
   .rp.cl .cr-test-shops .cr-actions .rp-btn { min-height: 44px; }
 }
+
+/* The room's own yes/no and one-line questions (askBox in app.js): never a browser prompt, never a reason. */
+.rp.cl .cr-ask { width: min(100%, 440px); }
+.rp.cl .cr-ask-words { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.rp.cl .cr-ask .rp-field { margin-top: 14px; }

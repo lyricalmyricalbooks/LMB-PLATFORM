@@ -1,7 +1,7 @@
 // The control room page (control-room/index.html): every shop with its plan, version, health and switches, an
 // "Act as this shop" button, a switch for each feature, and the support requests to answer. Plain browser JavaScript with no framework, like the
-// sign-up page. The server (control-room/routes.js) checks that the person is a platform admin, and asks for a reason
-// that goes in the shop's log.
+// sign-up page. The server (control-room/routes.js) checks that the person is a platform admin and logs who did what and
+// when. Nothing asks for a reason (Julian, 14 November 2026); the few careful actions ask a plain yes or no (askYes).
 //
 // It wears the website admin's look (Pressroom, control-room/look/): the ink side menu, one page at a time (`#today`,
 // `#shops`…, any element id opens the page it is on), ledger figures, sheets, tables and pills, drawn with the same
@@ -41,7 +41,57 @@ async function api(method, path, body) {
   return answer;
 }
 
-const askWhy = (what) => (window.prompt(`${what}\n\nWhy? This goes in the shop's log (at least 10 characters).`) ?? "").trim();
+/**
+ * A question in the room's own look, never a browser prompt (Julian, 14 November 2026: and never a reason for the log).
+ * With `field` it asks for one line of text (an email address, words for an app's maker) and resolves to it, or null;
+ * without, it resolves "" on yes. Cancel, Escape or a click outside resolve null.
+ */
+function askBox(words, { yes = "Yes, go on", danger = false, field = null, type = "text" } = {}) {
+  return new Promise((resolve) => {
+    const opener = document.activeElement;
+    const cancel = button("Cancel", "ghost");
+    const ok = button(yes, danger ? "danger" : "primary");
+    const text = el("p", { id: "ask-box-words", className: "cr-ask-words", textContent: words });
+    const input = field ? el("input", { className: "rp-input", type, maxLength: 500, autocomplete: "off" }) : null;
+    const panel = el("div", { className: "rp-dialog cr-ask", role: "alertdialog", ariaModal: "true", tabIndex: -1 },
+      el("div", { className: "rp-dialog-body" }, text,
+        input ? el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: field }), input) : null),
+      el("div", { className: "rp-dialog-foot" }, cancel, ok));
+    panel.setAttribute("aria-describedby", text.id);
+    const scrim = el("div", { className: "rp-dialog-scrim", ariaHidden: "true" });
+    const root = el("div", { className: "rp-dialog-root" }, scrim, panel);
+    const stops = [input, cancel, ok].filter(Boolean);
+    const done = (answer) => {
+      root.remove();
+      opener?.focus?.();
+      resolve(answer);
+    };
+    const accept = () => {
+      const typed = input ? input.value.trim() : "";
+      if (input && !typed) return input.focus();
+      done(typed);
+    };
+    cancel.addEventListener("click", () => done(null));
+    ok.addEventListener("click", accept);
+    scrim.addEventListener("click", () => done(null));
+    input?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); accept(); } });
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        done(null);
+      } else if (event.key === "Tab") {
+        // The keyboard stays on the question while it is open.
+        event.preventDefault();
+        const at = stops.indexOf(document.activeElement);
+        stops[(at + (event.shiftKey ? stops.length - 1 : 1)) % stops.length].focus();
+      }
+    });
+    ($("#room") ?? document.body).append(root);
+    (input ?? (danger ? cancel : ok)).focus();
+  });
+}
+/** A plain yes or no for the few careful actions: true on yes. */
+const askYes = async (words, options) => (await askBox(words, options)) !== null;
 /** "$1.20 of $10" from a shop's budget notices (plan 15.17), or a dash before the first one. */
 function costCell(cost) {
   if (!cost) return el("span", { className: "rp-hint", textContent: "—" });
@@ -455,7 +505,6 @@ function feeForm(record) {
     el("p", { className: "rp-hint", textContent: `Fee on each order now: ${percent(record.fee.basisPoints)}, ${record.fee.refunded ? "given back with a refund" : "kept on a refund"}. The platform's normal fee: ${percent(record.fee.defaults.basisPoints)}.${record.fee.next ? ` Changing to ${percent(record.fee.next.basisPoints)} on ${dateOnly(record.fee.next.from)} (the press was emailed).` : ""}` }),
     el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "New fee on each order (%)" }), el("input", { className: "rp-input", type: "number", name: "percent", min: "0", max: "100", step: "0.01", required: true, value: String((record.fee.next ?? record.fee).basisPoints / 100), inputMode: "decimal" })),
     el("label", { className: "rp-check" }, el("input", { type: "checkbox", name: "refunded", checked: (record.fee.next ?? record.fee).refunded }), "Give the fee back when an order is refunded"),
-    el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Why? (goes in the shop's log)" }), el("input", { className: "rp-input", name: "reason", required: true, minLength: 10, maxLength: 500 })),
     el("p", { className: "rp-hint", textContent: "The press is emailed now and the new fee starts in 30 days. Setting today's fee again cancels a change that hasn't started." }),
     el("div", {}, el("button", { type: "submit", className: "rp-btn rp-btn-secondary", textContent: "Change the fee" })));
   form.addEventListener("submit", async (event) => {
@@ -463,7 +512,7 @@ function feeForm(record) {
     const submit = form.querySelector("button");
     submit.disabled = true;
     try {
-      const done = await api("POST", "/control/fee", { shopId: record.shopId, basisPoints: Math.round(Number(form.percent.value) * 100), refunded: form.refunded.checked, reason: form.reason.value });
+      const done = await api("POST", "/control/fee", { shopId: record.shopId, basisPoints: Math.round(Number(form.percent.value) * 100), refunded: form.refunded.checked });
       status.textContent = !done.changed ? "That's already the fee, so nothing changed."
         : done.cancelled ? `${record.pressName}: the waiting fee change is cancelled.`
           : `${record.pressName}: emailed. The new fee starts on ${dateOnly(done.next.from)}.`;
@@ -489,7 +538,6 @@ function timeZoneForm(record) {
   const form = el("form", { className: "cr-form" },
     el("p", { className: "rp-hint", textContent: `The shop's clock now: ${record.timeZone.replace(/_/g, " ")}. Its day, its sale and release dates, the last day of its codes and its morning emails follow it.` }),
     el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Time zone" }), zone),
-    el("label", { className: "rp-field" }, el("span", { className: "rp-label", textContent: "Why? (goes in the shop's log)" }), el("input", { className: "rp-input", name: "reason", required: true, minLength: 10, maxLength: 500 })),
     el("p", { className: "rp-hint", textContent: "Pages already open pick it up when the press next opens them." }),
     el("div", {}, el("button", { type: "submit", className: "rp-btn rp-btn-secondary", textContent: "Change the time zone" })));
   form.addEventListener("submit", async (event) => {
@@ -497,7 +545,7 @@ function timeZoneForm(record) {
     const submit = form.querySelector("button");
     submit.disabled = true;
     try {
-      const done = await api("POST", "/control/time-zone", { shopId: record.shopId, timeZone: form.timeZone.value, reason: form.reason.value });
+      const done = await api("POST", "/control/time-zone", { shopId: record.shopId, timeZone: form.timeZone.value });
       status.textContent = done.changed ? `${record.pressName} now runs on ${done.to.replace(/_/g, " ")} time.` : "That's already the shop's time zone, so nothing changed.";
       form.replaceWith(timeZoneForm(await api("POST", "/control/shop", { shopId: record.shopId })));
     } catch (failure) {
@@ -698,7 +746,7 @@ function testShopTile(shop) {
   const reset = button("Reset sample data", "ghost", { disabled: shop.status !== "live" });
   reset.setAttribute("aria-label", `Reset sample data: ${shop.pressName}`);
   reset.addEventListener("click", async () => {
-    if (!window.confirm(`Put ${shop.pressName}'s sample products back as they started? Its orders and settings stay as they are.`)) return;
+    if (!(await askYes(`Put ${shop.pressName}'s sample products back as they started? Its orders and settings stay as they are.`, { yes: "Reset sample data" }))) return;
     reset.disabled = true;
     try {
       await api("POST", "/control/test-shop/reset", { shopId: shop.shopId });
@@ -733,11 +781,10 @@ async function updatesRow(lastUpdate = null) {
     : "";
   const flip = button(paused ? "Resume updates" : "Pause updates", paused ? "primary" : "danger");
   flip.addEventListener("click", async () => {
-    const why = (window.prompt(`${paused ? "Let updates go out to shops again." : "Stop every update to shops; one already running stops before its next step."}\n\nWhy? (at least 10 characters)`) ?? "").trim();
-    if (!why) return;
+    if (!paused && !(await askYes("Stop every update to shops? One already running stops before its next step.", { yes: "Pause updates", danger: true }))) return;
     flip.disabled = true;
     try {
-      await api("POST", paused ? "/control/emergency/resume-releases" : "/control/emergency/pause-releases", { reason: why });
+      await api("POST", paused ? "/control/emergency/resume-releases" : "/control/emergency/pause-releases", {});
       status.textContent = paused ? "Updates can go out again." : "Updates are paused.";
       await loadTestShop();
     } catch (failure) {
@@ -747,7 +794,7 @@ async function updatesRow(lastUpdate = null) {
   });
   return el("div", { className: "rp-card-body", style: "border-top: 1px solid var(--rp-divider); padding-top: 16px" },
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: "Updates to shops" }), paused ? pill("warning", "Paused") : pill("success", "Running")),
-    el("p", { className: "rp-hint", textContent: paused ? `Paused by ${paused.by}: ${paused.reason}` : "Every merge reaches both test shops by itself. Real shops get it when you send it, once both pass." }),
+    el("p", { className: "rp-hint", textContent: paused ? `Paused by ${paused.by}${paused.reason ? `: ${paused.reason}` : "."}` : "Every merge reaches both test shops by itself. Real shops get it when you send it, once both pass." }),
     failed ? el("div", { className: "cr-row" }, pill("danger", "Last update failed"), el("p", { className: "rp-hint cr-grow", textContent: failedWords })) : null,
     el("div", { className: "cr-actions" }, paused ? null : outLink(SEND_TO_SHOPS, "Send the update to shops", "secondary"), failed ? outLink(UPDATE_RUNS, "See what happened", "ghost") : null, flip));
 }
@@ -825,11 +872,10 @@ async function loadLaunch() {
 
   const switchButton = button(launch.signupOpen ? "Back to invites only" : "Open sign-up to anyone", launch.signupOpen ? "ghost" : "primary");
   switchButton.addEventListener("click", async () => {
-    const reason = askWhy(launch.signupOpen ? "New presses will need an invite from the waitlist." : "Anyone with the address can start a shop.");
-    if (!reason) return;
+    if (!(await askYes(launch.signupOpen ? "Go back to invites only? New presses will need an invite from the waitlist." : "Open sign-up to anyone? Anyone with the address can start a shop.", { yes: launch.signupOpen ? "Invites only" : "Open sign-up" }))) return;
     switchButton.disabled = true;
     try {
-      await api("POST", "/control/settings", { values: { signupOpen: !launch.signupOpen }, reason });
+      await api("POST", "/control/settings", { values: { signupOpen: !launch.signupOpen } });
       status.textContent = launch.signupOpen ? "Sign-up is back to invites only." : "Sign-up is open to anyone.";
       await loadSettings();
       await loadActivity();
@@ -1272,12 +1318,10 @@ function card(shop) {
     const what = mode === "edit"
       ? `Open ${shop.pressName}'s admin for 30 minutes WITH the power to change their shop.`
       : `Open ${shop.pressName}'s admin for 30 minutes, looking only.`;
-    const reason = askWhy(what);
-    if (!reason) return;
-    if (mode === "edit" && !window.confirm(`Anything you change is changed in ${shop.pressName}'s real shop, and the press sees it in their log. Go on?`)) return;
+    if (mode === "edit" && !(await askYes(`${what} Anything you change is changed in ${shop.pressName}'s real shop, and the press sees it in their log.`, { yes: "Open with changes", danger: true }))) return;
     clicked.disabled = true;
     try {
-      const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason, mode });
+      const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, mode });
       window.open(url, "_blank", "noopener");
       status.textContent = `Logged. ${shop.pressName}'s admin opened in a new tab${mode === "edit" ? ", able to make changes" : ", looking only"}.`;
     } catch (failure) {
@@ -1315,14 +1359,12 @@ function card(shop) {
   // Lost phone AND lost backup codes (plan 22.11): two-step sign-in off for one person, only once you've checked it's them.
   const twoStep = button("Turn off two-step for someone", "secondary", { disabled: shop.status !== "live" });
   twoStep.addEventListener("click", async () => {
-    const email = (window.prompt(`Turn off two-step sign-in for one person on ${shop.pressName}.\n\nThe email address they sign in with:`) ?? "").trim();
+    const email = await askBox(`Turn off two-step sign-in for one person on ${shop.pressName}.`, { field: "The email address they sign in with", type: "email", yes: "Next" });
     if (!email) return;
-    const reason = askWhy(`Turn off two-step sign-in for ${email}. Say how you checked it's really them (for example, a reply from the owner's email address on file).`);
-    if (!reason) return;
-    if (!window.confirm(`After this, Google alone lets ${email} into ${shop.pressName}'s admin until they set up two-step again. Go on?`)) return;
+    if (!(await askYes(`Turn off two-step sign-in for ${email}? After this, Google alone lets them into ${shop.pressName}'s admin until they set up two-step again.`, { yes: "Turn it off", danger: true }))) return;
     twoStep.disabled = true;
     try {
-      const { removed } = await api("POST", "/control/two-step-reset", { shopId: shop.shopId, email, reason });
+      const { removed } = await api("POST", "/control/two-step-reset", { shopId: shop.shopId, email });
       status.textContent = removed
         ? `Two-step sign-in is off for ${email}. Ask them to set it up again under Settings, Security. It's in the shop's log.`
         : `${email} didn't have two-step sign-in on, so nothing changed. It's in the shop's log.`;
@@ -1335,13 +1377,14 @@ function card(shop) {
   // Close for abuse (plan 8.4): checkout and pages close; the shop's pause page shows instead. Reversible.
   const closing = button(shop.closed ? "Open this shop again" : "Close this shop", shop.closed ? "secondary" : "danger");
   closing.addEventListener("click", async () => {
-    const reason = askWhy(shop.closed
-      ? `Open ${shop.pressName}'s checkout and pages again.`
-      : `Close ${shop.pressName}'s checkout and pages for abuse. Shoppers see the shop's pause page until you open it again.`);
-    if (!reason) return;
+    const sure = await askYes(shop.closed
+      ? `Open ${shop.pressName}'s checkout and pages again?`
+      : `Close ${shop.pressName}'s checkout and pages? Shoppers see the shop's pause page until you open it again.`,
+    { yes: shop.closed ? "Open the shop" : "Close the shop", danger: !shop.closed });
+    if (!sure) return;
     closing.disabled = true;
     try {
-      await api("POST", shop.closed ? "/control/reopen" : "/control/close", { shopId: shop.shopId, reason });
+      await api("POST", shop.closed ? "/control/reopen" : "/control/close", { shopId: shop.shopId });
       closeDrawer();
       await load();
       status.textContent = `${shop.pressName} is ${shop.closed ? "open again" : "closed"}. It's in the shop's log.`;
@@ -1355,11 +1398,9 @@ function card(shop) {
     ? el("div", { className: "cr-switches" }, ...Object.entries(shop.switches).map(([name, on]) => {
       const box = el("input", { type: "checkbox", checked: on });
       box.addEventListener("change", async () => {
-        const reason = askWhy(`Turn "${SWITCH_WORDS[name] ?? name}" ${box.checked ? "on" : "off"} for ${shop.pressName}. Its pages are deployed again.`);
-        if (!reason) { box.checked = !box.checked; return; }
         box.disabled = true;
         try {
-          await api("POST", "/control/switch", { shopId: shop.shopId, name, on: box.checked, reason });
+          await api("POST", "/control/switch", { shopId: shop.shopId, name, on: box.checked });
           status.textContent = `${SWITCH_WORDS[name] ?? name} is ${box.checked ? "on" : "off"} for ${shop.pressName}.`;
         } catch (failure) {
           box.checked = !box.checked;
@@ -1428,7 +1469,7 @@ function card(shop) {
     ...privateSections(shop),
     el("h3", { className: "cr-section cr-careful-head", textContent: "Careful actions" }),
     el("div", { className: "cr-actions cr-careful" }, twoStep, closing),
-    el("p", { className: "rp-hint", textContent: "Each asks you to confirm and gives a reason for the log." }),
+    el("p", { className: "rp-hint", textContent: "Each asks you to confirm first." }),
   ].filter(Boolean);
 }
 
@@ -1471,16 +1512,16 @@ function paymentsMenu(current, target, name) {
   const move = button("Move card payments", "secondary");
   move.addEventListener("click", async () => {
     const to = choice.value;
-    const reason = askWhy(`Move card payments for ${name} to ${PAYMENT_WORDS[to]}. The press is emailed at once, and the shop's server and pages are deployed again.`);
-    if (!reason) return;
-    // Every shop at once is the riskiest switch in the room: it needs the words typed, not just a click.
-    if (target.all && (window.prompt(`This moves card payments for EVERY live shop and emails every brand.\n\nType MOVE ALL to go on.`) ?? "").trim().toUpperCase() !== "MOVE ALL") {
+    const words = target.all
+      ? `Move card payments for EVERY live shop to ${PAYMENT_WORDS[to]}? Every press is emailed at once, and every shop's server and pages are deployed again.`
+      : `Move card payments for ${name} to ${PAYMENT_WORDS[to]}? The press is emailed at once, and the shop's server and pages are deployed again.`;
+    if (!(await askYes(words, { yes: target.all ? "Move every shop" : "Move payments", danger: true }))) {
       status.textContent = "Nothing moved.";
       return;
     }
     move.disabled = true;
     try {
-      const { shops } = await api("POST", "/control/payments", { ...target, to, reason });
+      const { shops } = await api("POST", "/control/payments", { ...target, to });
       closeDrawer();
       await load();
       const failed = shops.filter((s) => s.error);
@@ -1537,11 +1578,9 @@ async function loadRepairs() {
 function repairCard(item) {
   const done = button("Mark fixed", "primary", { hidden: item.status !== "open" });
   done.addEventListener("click", async () => {
-    const note = (window.prompt("What did you do? It goes in the shop's log.") ?? "").trim();
-    if (!note) return;
     done.disabled = true;
     try {
-      await api("POST", "/control/repairs/fixed", { id: item.id, note });
+      await api("POST", "/control/repairs/fixed", { id: item.id });
       await load();
       status.textContent = "Marked fixed.";
     } catch (failure) {
@@ -1552,12 +1591,10 @@ function repairCard(item) {
   // A newsletter that paused itself (services/email/reputation.js): turn it back on once the press has cleaned its list.
   const resume = button("Turn the newsletter back on", "secondary", { hidden: item.status !== "open" || item.check !== "newsletter-reputation" });
   resume.addEventListener("click", async () => {
-    const reason = askWhy(`Turn ${item.shopId}'s newsletter back on?`);
-    if (!reason) return;
     resume.disabled = true;
     try {
-      await api("POST", "/control/newsletter/resume", { shopId: item.shopId, reason });
-      await api("POST", "/control/repairs/fixed", { id: item.id, note: `Newsletter back on: ${reason}` });
+      await api("POST", "/control/newsletter/resume", { shopId: item.shopId });
+      await api("POST", "/control/repairs/fixed", { id: item.id, note: "Newsletter back on." });
       await load();
       status.textContent = "The newsletter is back on.";
     } catch (failure) {
@@ -1789,7 +1826,7 @@ function appCard(app) {
   const run = (label, tone, path, ask) => {
     const b = button(label, tone);
     b.addEventListener("click", async () => {
-      const reason = ask ? (window.prompt(`${ask}\n\nWhy? The maker reads this (at least 10 characters).`) ?? "").trim() : null;
+      const reason = ask ? await askBox(ask, { field: "What the maker reads (a sentence)", yes: label }) : null;
       if (ask && !reason) return;
       b.disabled = true;
       try {
@@ -2114,7 +2151,7 @@ async function loadEmergency() {
   const run = (label, path, body, done, variant = "secondary") => {
     const runButton = button(label, variant);
     runButton.addEventListener("click", async () => {
-      const extra = body();
+      const extra = await body();
       if (!extra) return;
       runButton.disabled = true;
       try {
@@ -2128,25 +2165,22 @@ async function loadEmergency() {
     });
     return runButton;
   };
-  const reason = (what) => {
-    const why = (window.prompt(`${what}\n\nWhy? The platform owner is told (at least 10 characters).`) ?? "").trim();
-    return why ? { reason: why } : null;
-  };
+  const sure = async (what, yes, danger = false) => ((await askYes(what, { yes, danger })) ? {} : null);
   const sealed = state.role === "backup" && !state.seal;
   const part = (title, ...body) => el("article", { className: "rp-card" }, el("div", { className: "rp-card-body", style: "padding-top: 16px" }, el("h3", { className: "cr-title", textContent: title }), ...body));
   const parts = [];
   if (state.role === "backup") {
     parts.push(part("Emergency access", el("p", { className: "rp-hint", textContent: state.seal ? `Open until ${new Date(state.seal.until).toLocaleString()}. Every use is emailed to the platform owner.` : "Shut. Open it only in an emergency." }),
-      sealed ? el("div", { className: "cr-actions" }, run("Open the emergency access", "/control/emergency/open", () => reason("Open the emergency access for 12 hours."), "Open. The platform owner has been emailed.", "primary")) : null));
+      sealed ? el("div", { className: "cr-actions" }, run("Open the emergency access", "/control/emergency/open", () => sure("Open the emergency access for 12 hours? The platform owner is emailed.", "Open it", true), "Open. The platform owner has been emailed.", "primary")) : null));
   }
   if (!sealed) {
     parts.push(part("Releases",
       el("div", { className: "cr-row", style: "margin-top: 8px" }, state.releasesPaused ? pill("warning", "Paused") : pill("success", "Running"),
-        el("span", { className: "rp-hint cr-grow", textContent: state.releasesPaused ? `Paused by ${state.releasesPaused.by}: ${state.releasesPaused.reason}` : "Releases go out to shops as normal." })),
+        el("span", { className: "rp-hint cr-grow", textContent: state.releasesPaused ? `Paused by ${state.releasesPaused.by}${state.releasesPaused.reason ? `: ${state.releasesPaused.reason}` : "."}` : "Releases go out to shops as normal." })),
       state.releaseWindow ? el("p", { className: "rp-hint", textContent: state.releaseWindow.closedNow ? `Closed now: ${state.releaseWindow.reason}. A security fix can still go out.${state.releaseWindow.next ? ` Opens ${new Date(state.releaseWindow.next).toLocaleString()}.` : ""}` : `Open. Next closes ${state.releaseWindow.next ? new Date(state.releaseWindow.next).toLocaleString() : "later"} (weekends and the two weeks before Christmas).` }) : null,
       el("div", { className: "cr-actions" }, state.releasesPaused
-        ? run("Resume releases", "/control/emergency/resume-releases", () => reason("Let releases go out again."), "Releases can go out again.", "primary")
-        : run("Pause releases", "/control/emergency/pause-releases", () => reason("Stop every release; one already running stops before its next shop."), "Releases are paused.", "danger"))));
+        ? run("Resume releases", "/control/emergency/resume-releases", () => sure("Let releases go out again?", "Resume releases"), "Releases can go out again.", "primary")
+        : run("Pause releases", "/control/emergency/pause-releases", () => sure("Stop every release? One already running stops before its next shop.", "Pause releases", true), "Releases are paused.", "danger"))));
     const shopId = el("input", { className: "rp-input", placeholder: "shop id" });
     shopId.setAttribute("aria-label", "Shop to roll back");
     const version = el("input", { className: "rp-input", placeholder: "release, like 1.4.0" });
@@ -2154,9 +2188,9 @@ async function loadEmergency() {
     parts.push(part("Roll one shop back",
       el("p", { className: "rp-hint", textContent: "Put one shop back on an earlier release. It's written in the shop's history." }),
       el("div", { className: "cr-toolbar", style: "margin: 12px 0 0" }, el("div", { className: "rp-field cr-grow" }, shopId), el("div", { className: "rp-field cr-grow" }, version),
-        run("Roll this shop back", "/control/emergency/roll-back", () => {
-          const why = reason(`Put ${shopId.value} back on release ${version.value}.`);
-          return why ? { ...why, shopId: shopId.value.trim(), version: version.value.trim() } : null;
+        run("Roll this shop back", "/control/emergency/roll-back", async () => {
+          const yes = await sure(`Put ${shopId.value} back on release ${version.value}?`, "Roll it back", true);
+          return yes ? { shopId: shopId.value.trim(), version: version.value.trim() } : null;
         }, "Rolled back. It's in the shop's history."))));
     const note = el("textarea", { className: "rp-textarea", maxLength: 500, value: state.statusNote?.text ?? "" });
     note.setAttribute("aria-label", "Note on the status page");
@@ -2195,11 +2229,9 @@ async function loadWaitlist() {
     $("#making").replaceChildren(...(inTheMaking.length ? inTheMaking.map((shop) => {
       const retry = button("Try again", "primary", { hidden: ["queued", "making"].includes(shop.status) });
       retry.addEventListener("click", async () => {
-        const reason = askWhy(`Try making ${shop.pressName} again.`);
-        if (!reason) return;
         retry.disabled = true;
         try {
-          await api("POST", "/control/retry", { shopId: shop.shopId, reason });
+          await api("POST", "/control/retry", { shopId: shop.shopId });
           status.textContent = `${shop.pressName}: trying again.`;
           await loadWaitlist();
         } catch (failure) {
@@ -2283,8 +2315,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
   const save = form.querySelector("button[type=submit]");
   save.disabled = true;
   try {
-    const { changed } = await api("POST", "/control/settings", { values, reason: form.reason.value });
-    form.reason.value = "";
+    const { changed } = await api("POST", "/control/settings", { values });
     await loadSettings();
     await loadActivity();
     status.textContent = changed.length ? `Saved: ${changed.map((c) => settingsFields.find((f) => f.path === c.path)?.label ?? c.path).join("; ")}.` : "Nothing had changed, so nothing was saved.";
@@ -2641,11 +2672,10 @@ async function loadEverySwitch() {
       const forAll = (on) => {
         const b = button(on ? "On for every shop" : "Off for every shop", on ? "secondary" : "ghost");
         b.addEventListener("click", async () => {
-          const reason = askWhy(`Turn "${words}" ${on ? "on" : "off"} for every live shop. Each shop's pages are deployed again.`);
-          if (!reason) return;
+          if (!(await askYes(`Turn "${words}" ${on ? "on" : "off"} for every live shop? Each shop's pages are deployed again.`, { yes: on ? "Turn on for every shop" : "Turn off for every shop" }))) return;
           b.disabled = true;
           try {
-            const { shops } = await api("POST", "/control/switch-all", { name, on, reason });
+            const { shops } = await api("POST", "/control/switch-all", { name, on });
             const failed = shops.filter((s) => s.error);
             await load();
             status.textContent = `${words}: ${shops.length - failed.length} shop${shops.length - failed.length === 1 ? "" : "s"} done.${failed.length ? ` Not done: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
@@ -2658,13 +2688,8 @@ async function loadEverySwitch() {
       };
       const box = el("input", { type: "checkbox", checked: startsOn });
       box.addEventListener("change", async () => {
-        const reason = askWhy(`New shops start with "${words}" ${box.checked ? "on" : "off"}.`);
-        if (!reason) {
-          box.checked = !box.checked;
-          return;
-        }
         try {
-          await api("POST", "/control/new-shop-switches", { name, on: box.checked, reason });
+          await api("POST", "/control/new-shop-switches", { name, on: box.checked });
           status.textContent = `New shops start with ${words} ${box.checked ? "on" : "off"}.`;
         } catch (failure) {
           status.textContent = failure.message;
@@ -2701,7 +2726,7 @@ async function showAccess(shop, slot) {
     const [tone, words] = ACCESS_STATE[latest.status] ?? ["neutral", latest.status];
     const open = latest.status === "approved" ? button("Open their admin", "primary") : null;
     open?.addEventListener("click", async () => {
-      if (!window.confirm(`Anything you change is changed in ${shop.pressName}'s real shop, and the press sees it in their log. Go on?`)) return;
+      if (!(await askYes(`Anything you change is changed in ${shop.pressName}'s real shop, and the press sees it in their log.`, { yes: "Open their admin", danger: true }))) return;
       open.disabled = true;
       try {
         const { url } = await api("POST", "/control/act-as", { shopId: shop.shopId, mode: "edit", requestId: latest.id });
@@ -2714,7 +2739,7 @@ async function showAccess(shop, slot) {
     });
     slot.replaceChildren(el("div", { style: "margin-top: 12px" },
       el("div", { className: "cr-row" }, pill(tone, words)),
-      meta(`asked by ${latest.by} on ${when(latest.askedAt)}`, `why: ${latest.reason}`, latest.status === "waiting" || latest.status === "approved" ? `until ${when(latest.expiresAt)}` : null),
+      meta(`asked by ${latest.by} on ${when(latest.askedAt)}`, latest.reason ? `why: ${latest.reason}` : null, latest.status === "waiting" || latest.status === "approved" ? `until ${when(latest.expiresAt)}` : null),
       open ? el("div", { className: "cr-actions", style: "margin-top: 8px" }, open) : null));
   } catch (failure) {
     slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message }));
@@ -2722,11 +2747,10 @@ async function showAccess(shop, slot) {
 }
 
 async function askThePress(shop, clicked, slot) {
-  const reason = askWhy(`Ask ${shop.pressName} to let you make changes in their admin for 30 minutes. They get an email and answer on their account page.`);
-  if (!reason) return;
+  if (!(await askYes(`Ask ${shop.pressName} to let you make changes in their admin for 30 minutes? They get an email and answer on their account page.`, { yes: "Email the press" }))) return;
   clicked.disabled = true;
   try {
-    const { emailed } = await api("POST", "/control/act-as", { shopId: shop.shopId, reason, mode: "edit" });
+    const { emailed } = await api("POST", "/control/act-as", { shopId: shop.shopId, mode: "edit" });
     status.textContent = emailed
       ? `Asked. ${shop.pressName}'s owner has an email; "Open their admin" shows here once they say yes.`
       : `Asked, but the email to ${shop.pressName}'s owner didn't go. They can still answer on their account page.`;
@@ -2866,11 +2890,9 @@ function driftSection(shop) {
 function snoozeButton(shopId, name, days) {
   const snooze = button(days ? `Snooze ${days} days` : "End snooze", "secondary");
   snooze.addEventListener("click", async () => {
-    const reason = (window.prompt(`${days ? `Leave ${name} off Today for ${days} days (no check-in email either).` : `Put ${name} back on Today.`}\n\nWhy? This goes in the activity log (at least 10 characters).`) ?? "").trim();
-    if (!reason) return;
     snooze.disabled = true;
     try {
-      await api("POST", "/control/drift-snooze", { shopId, days, reason });
+      await api("POST", "/control/drift-snooze", { shopId, days });
       snooze.textContent = days ? `Snoozed for ${days} days` : "Snooze ended";
       await Promise.all([loadToday(), loadAtRisk(), loadShops()]);
     } catch (failure) {
@@ -3094,11 +3116,10 @@ function notesSection(shop) {
       ? el("ul", { className: "cr-steps" }, ...found.notes.map((note) => {
         const remove = button("Delete", "ghost");
         remove.addEventListener("click", async () => {
-          const reason = askWhy(`Delete this note on ${shop.pressName}.`);
-          if (!reason) return;
+          if (!(await askYes(`Delete this note on ${shop.pressName}?`, { yes: "Delete", danger: true }))) return;
           remove.disabled = true;
           try {
-            await api("POST", "/control/notes/delete", { shopId: shop.shopId, id: note.id, reason });
+            await api("POST", "/control/notes/delete", { shopId: shop.shopId, id: note.id });
             status.textContent = "Note deleted. It's in the activity log.";
             await draw();
           } catch (failure) {
@@ -3127,11 +3148,9 @@ function notesSection(shop) {
     const saveTags = button("Save tags", "secondary");
     saveTags.addEventListener("click", async () => {
       const tags = tagsField.value.split(",").map((t) => t.trim()).filter(Boolean);
-      const reason = askWhy(`Set ${shop.pressName}'s tags to: ${tags.join(", ") || "none"}.`);
-      if (!reason) return;
       saveTags.disabled = true;
       try {
-        const done = await api("POST", "/control/tags", { shopId: shop.shopId, tags, reason });
+        const done = await api("POST", "/control/tags", { shopId: shop.shopId, tags });
         shopTags[shop.shopId] = done.tags;
         showShops();
         status.textContent = done.changed ? "Tags saved." : "Those are already the tags.";
@@ -3231,11 +3250,10 @@ async function loadJobs() {
         { header: "", end: true, render: (job) => {
           const run = button("Run now", "secondary", { disabled: !job.canRun, title: job.canRun ? "" : "This job can only run on the server." });
           run.addEventListener("click", async () => {
-            const reason = askWhy(`Run "${job.words}" now.`);
-            if (!reason) return;
+            if (!(await askYes(`Run "${job.words}" now?`, { yes: "Run now" }))) return;
             run.disabled = true;
             try {
-              const done = await api("POST", "/control/jobs/run", { name: job.name, reason });
+              const done = await api("POST", "/control/jobs/run", { name: job.name });
               status.textContent = done.run.ok ? `${job.words}: done${done.run.summary ? ` (${done.run.summary})` : ""}.` : `${job.words} failed: ${done.run.error}`;
               await loadJobs();
             } catch (failure) {
@@ -3301,7 +3319,7 @@ async function loadMessages() {
       caption: "Messages to presses",
       rows: messages,
       columns: [
-        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, `why: ${m.reason}`, m.notice ? `promised notice: ${NOTICE_WORDS[m.notice.kind] ?? m.notice.kind}, takes effect ${when(m.notice.takesEffect)}` : null, m.endedAt ? `ended by ${m.endedBy}: ${m.endReason}` : null)) },
+        { header: "Message", lead: true, render: (m) => el("div", {}, el("p", { className: "cr-title", textContent: m.words }), meta(`by ${m.by}`, m.reason ? `why: ${m.reason}` : null, m.notice ? `promised notice: ${NOTICE_WORDS[m.notice.kind] ?? m.notice.kind}, takes effect ${when(m.notice.takesEffect)}` : null, m.endedAt ? `ended by ${m.endedBy}${m.endReason ? `: ${m.endReason}` : ""}` : null)) },
         { header: "Who", render: (m) => el("span", { textContent: `${audienceWords(m.audience)} (${m.reaches} shop${m.reaches === 1 ? "" : "s"})` }) },
         { header: "When", render: (m) => el("span", { className: "rp-mono", textContent: `${when(m.startsAt)} to ${when(m.endedAt ?? m.endsAt)}` }) },
         { header: "State", render: (m) => el("div", { className: "cr-row" }, m.level === "important" ? pill("warning", "Important") : null, pill(...MESSAGE_STATE[m.state])) },
@@ -3309,11 +3327,10 @@ async function loadMessages() {
           if (m.state === "ended") return el("span");
           const end = button("End now", "ghost");
           end.addEventListener("click", async () => {
-            const reason = askWhy("End this message now. It leaves every shop's admin.");
-            if (!reason) return;
+            if (!(await askYes("End this message now? It leaves every shop's admin.", { yes: "End it", danger: true }))) return;
             end.disabled = true;
             try {
-              await api("POST", "/control/messages/end", { id: m.id, reason });
+              await api("POST", "/control/messages/end", { id: m.id });
               status.textContent = "The message has ended.";
               await loadMessages();
             } catch (failure) {
@@ -3362,12 +3379,12 @@ $("#message-form").addEventListener("submit", async (event) => {
   const pick = form.audience.value;
   const audience = pick === "all" ? { all: true } : pick === "shop" ? { shopId: form.shopId.value.trim() } : { plan: pick.slice(5) };
   const important = form.level.value === "important" || form.notice.value !== "";
-  if (important && !window.confirm(`Also email this once to the owner of each shop on ${audienceWords(audience)}?`)) return;
+  if (important && !(await askYes(`Also email this once to the owner of each shop on ${audienceWords(audience)}?`, { yes: "Send and email" }))) return;
   const submit = form.querySelector("button[type=submit]");
   submit.disabled = true;
   try {
     const { shops, emailed, failed = [] } = await api("POST", "/control/messages/add", {
-      words: form.words.value, level: form.level.value, audience, reason: form.reason.value,
+      words: form.words.value, level: form.level.value, audience,
       startsAt: form.startsAt.value ? new Date(form.startsAt.value).toISOString() : undefined,
       endsAt: form.endsAt.value ? new Date(form.endsAt.value).toISOString() : undefined,
       ...(form.notice.value ? { notice: form.notice.value, takesEffect: new Date(`${form.takesEffect.value}T12:00:00`).toISOString() } : {}),
@@ -3461,11 +3478,10 @@ async function loadUsage(month) {
 function exportButton(shop) {
   const b = button("Email the press its data", "secondary");
   b.addEventListener("click", async () => {
-    const reason = askWhy(`Make a copy of everything in ${shop.pressName}'s shop and stockroom, and email the owner a link that works 7 days.`);
-    if (!reason) return;
+    if (!(await askYes(`Make a copy of everything in ${shop.pressName}'s shop and stockroom, and email the owner a link that works 7 days?`, { yes: "Email the data" }))) return;
     b.disabled = true;
     try {
-      const { emailedTo } = await api("POST", "/control/export", { shopId: shop.shopId, reason });
+      const { emailedTo } = await api("POST", "/control/export", { shopId: shop.shopId });
       status.textContent = `Logged. The link to ${shop.pressName}'s data is emailed to ${emailedTo}.`;
     } catch (failure) {
       status.textContent = failure.message;

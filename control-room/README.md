@@ -163,7 +163,7 @@ Status: `waiting`, `approved`, `declined`, `expired` (a waiting or approved requ
 passed to `createControlRoom`, "edit" is refused (503) rather than opened without a yes.
 
 **Emergencies don't wait for a yes.** Closing a shop for abuse (`closeShop`) and moving its card payments
-(`movePayments`) still act at once, with a reason and a log entry, as before.
+(`movePayments`) still act at once, with a log entry, as before.
 
 ## Support requests
 
@@ -264,7 +264,7 @@ to this page and see only the run book:
 - **roll back a shop** to an earlier release (`services/release-runner` `rollBackShop`, refused while a release runs);
 - **post a note** on the public status page, or take it down.
 
-The access is sealed: it opens for 12 hours only with a reason, and only after the email to Julian's address
+The access is sealed: it opens for 12 hours only after the email to Julian's address
 (`PLATFORM_ADMIN_EMAIL`) has gone; with no address set it stays shut. Every use is written to `emergencyLog/<id>` and
 emailed (`backup-access-used`). Platform admins see the same run book under their list and use it without a seal
 (logged, not emailed). Routes: `GET /api/control/emergency`, `POST /api/control/emergency/open`, `/pause-releases`,
@@ -493,3 +493,14 @@ off and backup codes left (only the count of hashes in `twoStepBackup/<uid>` is 
 adds up the shop's own audit-log lines from its import steps (past orders, customers, gift cards, old shop links) with
 one range query on `message`, and shows the photo copy's progress from `systemStatus/photoImport`. Photos still on
 the old shop are flagged, because they are lost if the press closes the old shop before the hourly copy finishes.
+
+## No reasons asked (14 November 2026)
+
+Julian asked for the "Why? This goes in the shop's log (at least 10 characters)" prompts to go. Nothing in the control
+room asks for a reason any more and no endpoint requires one: `noteOf` in `controlRoom.js` keeps a note if one is sent
+and accepts none. Every log entry still records who did what and when. Switches flip at once; careful actions (close a
+shop, move card payments, a switch for every shop, pause updates, delete a note, end a message, email a press its data)
+ask a styled yes or no (`askBox`/`askYes` in `app.js`), never a browser prompt. The two places that send words to a
+person keep a text box: sending an app back to (or off the store for) its maker, and the account-move card (how the
+person was checked, and the reason a move is denied), which guards against someone taking over a shop.
+`noReasonPrompts.test.js` fails the build if a browser prompt, a "Why?" field or a minimum length comes back.

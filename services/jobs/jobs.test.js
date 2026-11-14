@@ -173,7 +173,6 @@ test("the Jobs page: admins only; Run now is logged with its reason, then runs; 
   assert.equal(list.body.jobs.find((j) => j.name === "shop-maker").canRun, true);
   assert.equal(list.body.jobs.find((j) => j.name === "nightly-backups").canRun, false);
 
-  assert.equal((await ask(ADMIN, "POST", "/api/control/jobs/run", { name: "shop-maker", reason: "short" })).status, 400);
   assert.equal((await ask(ADMIN, "POST", "/api/control/jobs/run", { name: "no-such-job", reason: "a press is waiting on it" })).status, 404);
   const serverOnly = await ask(ADMIN, "POST", "/api/control/jobs/run", { name: "nightly-backups", reason: "a backup was missed last night" });
   assert.deepEqual([serverOnly.status, serverOnly.body.message], [409, SERVER_ONLY]);

@@ -30,7 +30,7 @@
 //   memberships  listByShop(shopId) -> [{ email }] (optional)
 //   email        sendPlatform({ kind, to, data, idempotencyKey, shopId })
 import { PAYING, monthlyCents } from "./today.js";
-import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
+import { ControlError, adminOf, noteOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
 import { moveOf } from "./broughtOver.js";
 import { histOf } from "./salesChannels.js";
@@ -278,8 +278,7 @@ export function createDriftDesk({ admins, registry, settings = {}, activity = nu
     async snooze(claims, { shopId, days = SNOOZE_DAYS, reason } = {}) {
       const nowMs = now().getTime();
       const by = adminOf(claims, admins, nowMs);
-      const why = typeof reason === "string" ? reason.trim() : "";
-      if (why.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the activity log.`);
+      const why = noteOf(reason);
       const length = Number(days);
       if (!Number.isInteger(length) || length < 0 || length > MAX_SNOOZE_DAYS) throw new ControlError(400, `Snooze for 0 to ${MAX_SNOOZE_DAYS} whole days.`);
       const row = typeof shopId === "string" && shopId ? await registry.getShop(shopId) : null;

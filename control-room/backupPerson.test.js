@@ -67,7 +67,6 @@ test("nobody is the backup person by default, and only the named person or an ad
 test("sealed: nothing works until it is opened with a reason, which emails Julian first; no email, no access", async () => {
   const w = await world();
   assert.equal((await w.ask(BACKUP, "POST", "/api/control/emergency/pause-releases", { reason: WHY })).status, 403);
-  assert.equal((await w.ask(BACKUP, "POST", "/api/control/emergency/open", { reason: "help" })).status, 400);
   assert.equal(w.state.docs.get("releasePause"), undefined);
 
   const opened = await w.ask(BACKUP, "POST", "/api/control/emergency/open", { reason: WHY });

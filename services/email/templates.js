@@ -823,7 +823,7 @@ export const TEMPLATES = {
     greeting: "Hello,",
     paragraphs: [
       `${by} from ${settings.platformName} support would like to open ${pressName}'s admin for 30 minutes, able to make changes.`,
-      `Why: ${reason}`,
+      ...(reason ? [`Why: ${reason}`] : []),
       `Nothing changes unless you say yes. Approve or decline on your account page${until ? ` by ${until}` : ""}; after that the request runs out. Every visit is written in your shop's log.`,
     ],
     buttons: [["Approve or decline", safeLink(link)]],

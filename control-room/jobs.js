@@ -6,7 +6,7 @@
 //   jobs      optional: { <job name>: () => result }, the jobs this server can run itself. A job not in it runs only on
 //             the server that hosts its schedule, and "Run now" says so.
 //   activity  the activity log (activity.js): every "Run now" is logged there, with its reason, before it runs
-import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
+import { ControlError, adminOf, noteOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
 import { jobNamed } from "../services/jobs/index.js";
 
@@ -26,8 +26,7 @@ export function createJobsPage({ admins, runner, jobs = {}, activity, now = () =
     /** Run now: logged with the reason, then run and recorded like a scheduled run. */
     async runNow(claims, { name, reason } = {}) {
       const by = adminOf(claims, admins, now().getTime());
-      const why = typeof reason === "string" ? reason.trim() : "";
-      if (why.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the activity log.`);
+      const why = noteOf(reason);
       if (typeof name !== "string" || !jobNamed(name)) throw new ControlError(404, "There's no job with that name.");
       if (!runner || typeof jobs[name] !== "function") throw new ControlError(409, SERVER_ONLY);
       if (activity) await activity.record(activityEntry({ at: now().toISOString(), by, what: "job-run", detail: { job: name, reason: why.slice(0, 500) } }));

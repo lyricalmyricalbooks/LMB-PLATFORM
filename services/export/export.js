@@ -25,7 +25,7 @@
 //   roleIn         (person, shopId) -> role | null (accounts.js roleIn): the owner check for the press's own button
 import { createHash } from "node:crypto";
 import { toCsv, withoutPrivate, zipFiles } from "./files.js";
-import { ControlError, MIN_REASON, adminOf, eachInTurn } from "../../control-room/controlRoom.js";
+import { ControlError, adminOf, noteOf, eachInTurn } from "../../control-room/controlRoom.js";
 import { activityEntry } from "../../control-room/activity.js";
 import { PLANS } from "../../setup/steps.js";
 import { dateText } from "../billing/billing.js";
@@ -206,8 +206,7 @@ export function createDataExports({ shopData, stockroomData, storage, store, reg
     /** The control room's button: any shop, with a reason; logged everywhere before it is built. */
     async forPlatform(claims, { shopId, reason } = {}) {
       const by = adminOf(claims, admins, now().getTime());
-      const why = typeof reason === "string" ? reason.trim() : "";
-      if (why.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the shop's log.`);
+      const why = noteOf(reason);
       const row = typeof shopId === "string" ? await registry.getShop(shopId) : null;
       if (!row) throw new ControlError(404, "There's no shop with that id.");
       await log(shopId, "data-export", { by, reason: why.slice(0, 500), asked: "platform" }, { toActivity: true });

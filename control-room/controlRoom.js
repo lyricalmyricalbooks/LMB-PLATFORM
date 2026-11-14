@@ -86,7 +86,11 @@ export function emailSample(row, settings, today) {
 export const FEE_NOTICE_DAYS = 30;
 /** Where the switch defaults for new shops are kept (`platformState`), read by the shop maker's setup step 6. */
 export const NEW_SHOP_SWITCHES = "newShopSwitches";
-export const MIN_REASON = 10;
+/**
+ * A note for the log, if the person gave one. Never asked for and never required (Julian, 14 November 2026): the log
+ * already says who did what and when, so an empty note is fine.
+ */
+export const noteOf = (reason) => (typeof reason === "string" ? reason.trim().slice(0, 500) : "");
 
 export class ControlError extends Error {
   constructor(status, message) {
@@ -177,7 +181,7 @@ export function shopHealth({ row, profile, checks = [], repairs = [], delivery =
   const waiting = switchWaiting(row);
   if (waiting) watch.push(`switching card payments to ${waiting.to === "square" ? "Square" : "Stripe"} since ${String(waiting.since).slice(0, 10)}${waiting.problem ? `: ${waiting.problem.message}` : ""}`);
   if (row.paymentsEmergency) watch.push(`card payments moved to ${row.paymentsEmergency.to === "own" ? "the press's own Stripe keys" : "Square"} by the emergency switch`);
-  if (row.closure) watch.push(`closed by the platform on ${String(row.closure.at).slice(0, 10)}: ${row.closure.reason}`);
+  if (row.closure) watch.push(`closed by the platform on ${String(row.closure.at).slice(0, 10)}${row.closure.reason ? `: ${row.closure.reason}` : ""}`);
   // Spending limits (services/health/spending.js): past its budget, a shop's costly jobs slow down or wait.
   if (row.spending?.level === "slow") watch.push("past its budget: photo copies, AI writing and imports run slowly");
   if (row.spending?.level === "held") watch.push("twice its budget: photo copies, AI writing and imports wait until next month");
@@ -297,11 +301,7 @@ export function createControlRoom({
     ? providerSwitch({ registry, envFiles, profileFiles, deploy, build, publish, log, email, now, publishableKeys: stripePublishableKeys })
     : null;
 
-  const reasonOf = (reason) => {
-    const text = typeof reason === "string" ? reason.trim() : "";
-    if (text.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the shop's log.`);
-    return text.slice(0, 500);
-  };
+  const reasonOf = noteOf;
 
   /**
    * Each shop's profile, release checks and open repairs, for the shop list and Today. A few shops at a time with the

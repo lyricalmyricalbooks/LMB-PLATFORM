@@ -801,7 +801,7 @@ export const PRESS_TEMPLATES_FR = {
     greeting: "Bonjour,",
     paragraphs: [
       `${by}, du soutien de ${settings.platformName}, aimerait ouvrir l'administration de ${pressName} pendant 30 minutes, avec la possibilité d'y faire des changements.`,
-      `Pourquoi : ${reason}`,
+      ...(reason ? [`Pourquoi : ${reason}`] : []),
       `Rien ne change sans votre accord. Approuvez ou refusez sur la page de votre compte${until ? ` d'ici le ${frenchDay(until)}` : ""}; après, la demande expire. Chaque visite est inscrite dans le journal de votre boutique.`,
     ],
     buttons: [["Approuver ou refuser", safeLink(link)]],
