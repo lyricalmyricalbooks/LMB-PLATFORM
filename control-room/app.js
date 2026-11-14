@@ -2751,8 +2751,10 @@ function switchRow(name, startsOn, live) {
     }
   });
   const toggleId = `new-${name}`;
-  const toggle = el("button", { type: "button", id: toggleId, className: "rp-toggle-track", role: "switch", ariaChecked: String(startsOn), ariaLabel: `New shops start with ${words.title}` });
   const toggleWords = el("span", { className: "cr-switch-state", textContent: startsOn ? "On" : "Off" });
+  // The whole switch and its word are one button, so it is easy to press on a phone.
+  const toggle = el("button", { type: "button", id: toggleId, className: "cr-toggle", role: "switch", ariaChecked: String(startsOn), ariaLabel: `New shops start with ${words.title}` },
+    el("span", { className: "rp-toggle-track", ariaHidden: "true" }), toggleWords);
   toggle.addEventListener("click", async () => {
     const on = toggle.getAttribute("aria-checked") !== "true";
     toggle.setAttribute("aria-checked", String(on));
@@ -2773,7 +2775,7 @@ function switchRow(name, startsOn, live) {
     el("div", { className: "cr-switch-cell" }, el("span", { className: "cr-switch-label", textContent: "Live shops" }),
       el("span", { className: "cr-switch-state", textContent: liveWords }), all),
     el("div", { className: "cr-switch-cell" }, el("span", { className: "cr-switch-label", textContent: "New shops" }),
-      el("label", { className: "rp-toggle", htmlFor: toggleId }, toggle, toggleWords)));
+      toggle));
 }
 
 // ── Support asks before making changes (plan 19.6): "Ask the press", their answer, then "Open their admin" once. ──

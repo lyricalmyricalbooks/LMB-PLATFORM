@@ -544,3 +544,11 @@
   .rp.cl .cr-switch-cell:last-child .cr-switch-label { flex: 1; }
 }
 .rp.cl .cr-switch-cell .rp-toggle-track, .rp.cl .cr-switch-cell .rp-toggle-track::after { border-radius: 999px; }
+/* The new-shops switch: the track and its word in one button at least 44px tall; links and folds on Launch the same. */
+.rp.cl .cr-toggle { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.rp.cl .cr-toggle:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; border-radius: 12px; }
+.rp.cl .cr-toggle[aria-checked="true"] .rp-toggle-track { background: var(--rp-primary); }
+.rp.cl .cr-toggle[aria-checked="true"] .rp-toggle-track::after { transform: translateX(18px); }
+.rp.cl .cr-toggle .rp-toggle-track, .rp.cl .cr-toggle .rp-toggle-track::after { border-radius: 999px; }
+.rp.cl .cr-how-link { display: inline-flex; align-items: center; min-height: 44px; }
+.rp.cl .cr-tech > summary { display: flex; align-items: center; min-height: 44px; }
