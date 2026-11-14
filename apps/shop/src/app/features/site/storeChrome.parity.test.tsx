@@ -51,6 +51,7 @@ const DESIGNS: Record<string, any> = {
   footerColumns: { ...base, footerNavigationLayout: "columns", footerBadges: ["visa", "paypal"], social: { instagram: "" } },
   footer4: { ...base, footerNavigationLayout: "columns", footerLayout: "4col", footerColumns: false, showPaymentBadges: false, footerBg: "#000011", showPoweredBy: true },
   footerAdminLinkOn: { ...base, showFooterAdminLink: true },
+  headerAdminLinkOn: { ...base, hideAdminLink: false },
   footerGroupedOff: { ...base, showFooterExplore: false, showFooterLocation: false, showFooterLegalHeading: false, menus: { footer: [{ id: "f", label: "Journal", type: "page", value: "journal", footerGroup: "connect" }] }, wordmarkStyle: "two-part" },
 };
 const policies = { shipping: "Ships", returns: "Returns" };
