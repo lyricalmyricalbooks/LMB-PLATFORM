@@ -104,7 +104,8 @@ export function footerStyleCss(d: any = {}): string {
   }
   if (d.footerSocialBoxes !== false) {
     const hoverBox = colour(d.footerSocialHoverColor) || accent;
-    css += `${s} .fm-footer-icon-box{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${rule};transition:border-color .15s,color .15s;}`
+    const box = Math.max(32, Math.min(28, Math.max(12, Number(d.footerSocialIconSize) || 14)) + 18);
+    css += `${s} .fm-footer-icon-box{width:${box}px;height:${box}px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${rule};transition:border-color .15s,color .15s;}`
       + `${s} .fm-footer-icon-box:hover,${s} .fm-footer-icon-box:focus-visible{border-color:${hoverBox} !important;color:${hoverBox} !important;}`;
   }
   return css;

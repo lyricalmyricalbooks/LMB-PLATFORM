@@ -7,12 +7,27 @@
 // nothing changes for it.
 
 /** The sign-up answers, in the form's order. */
-export const SELLS = Object.freeze(["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"]);
+export const SELLS = Object.freeze(["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other", "hair", "wellness", "lessons", "fitness", "studio", "services"]);
 const BOOK_ANSWERS = new Set(["books", "zines", "comics", "mix"]);
 
 /** True for a shop that sells books: a book answer, a skipped answer or one this version doesn't know. */
 export function sellsBooks(answer) {
   return !answer || BOOK_ANSWERS.has(answer) || !SELLS.includes(answer);
+}
+
+// Service businesses (14 November 2026, Julian): a salon, a studio, a tutor or a therapist sells time, not things. Its
+// answer is one of these (signup/form.js SERVICE_SELLS); the shop gives it Bookings, clients and payments for
+// appointments in place of products, stock and shipping.
+const SERVICE_ANSWERS = new Set(["hair", "wellness", "lessons", "fitness", "studio", "services"]);
+
+/** True for a shop that sells services (appointments, classes, sessions) rather than products. */
+export function sellsServices(answer) {
+  return typeof answer === "string" && SERVICE_ANSWERS.has(answer);
+}
+
+/** The three kinds of shop: "books", "products" or "services". A skipped or unknown answer is a books shop. */
+export function shopKind(answer) {
+  return sellsBooks(answer) ? "books" : sellsServices(answer) ? "services" : "products";
 }
 
 /** The shop's current answer from whatever record is at hand: Settings first, then the sign-up answer. */
@@ -45,11 +60,25 @@ export function goodsWords(text) {
   return SWAPS.reduce((out, [from, to]) => out.replace(from, to), String(text));
 }
 
+// A services shop's words, laid over the general ones: it has services and clients, not products and shoppers.
+const SERVICE_SWAPS = [
+  [/\bproducts\b/g, "services"], [/\bProducts\b/g, "Services"], [/\bPRODUCTS\b/g, "SERVICES"],
+  [/\ba product\b/g, "a service"], [/\bA product\b/g, "A service"],
+  [/\bproduct\b/g, "service"], [/\bProduct\b/g, "Service"], [/\bPRODUCT\b/g, "SERVICE"],
+  [/\bshoppers\b/g, "clients"], [/\bShoppers\b/g, "Clients"], [/\bshopper\b/g, "client"], [/\bShopper\b/g, "Client"],
+  [/\bcustomers\b/g, "clients"], [/\bCustomers\b/g, "Clients"], [/\bcustomer\b/g, "client"], [/\bCustomer\b/g, "Client"],
+];
+
+/** Words for a shop that sells services: the general words, then product → service and customer → client. */
+export function servicesWords(text) {
+  return SERVICE_SWAPS.reduce((out, [from, to]) => out.replace(from, to), goodsWords(text));
+}
+
 const same = (text) => text;
 
 /** The word function for an answer: unchanged for a books shop. */
 export function wordsFor(answer) {
-  return sellsBooks(answer) ? same : goodsWords;
+  return sellsBooks(answer) ? same : sellsServices(answer) ? servicesWords : goodsWords;
 }
 
 /**
@@ -66,6 +95,12 @@ const MERCHANT = {
   jewelry: { mcc: "5944", description: "Jewellery" },
   music: { mcc: "5735", description: "Music and records" },
   other: { mcc: "5999", description: "Handmade and specialty goods" },
+  hair: { mcc: "7230", description: "Hair and beauty services" },
+  wellness: { mcc: "8099", description: "Health and wellness services" },
+  lessons: { mcc: "8299", description: "Lessons and tutoring" },
+  fitness: { mcc: "7997", description: "Fitness classes and training" },
+  studio: { mcc: "7299", description: "Studio and creative services" },
+  services: { mcc: "7299", description: "Personal services by appointment" },
 };
 
 /** The merchant category and description for an answer; every books answer is a book shop. */

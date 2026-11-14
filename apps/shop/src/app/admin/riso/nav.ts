@@ -156,6 +156,48 @@ export function settingsSections(pages: { id: string; label: string; badge?: num
 /** Both sides as one list: what search, routes and "which item holds this page" read. */
 export const COMBINED_MENU: Menu = [...WEBSITE_SIDE, ...STOCKROOM_SIDE];
 
+// A services shop (a salon, a studio, a tutor; Julian, 14 November 2026) sells time, not things, so its menu is built
+// around the calendar and its clients. Products, stock, shipping, stockists and the fair till are left out; the pages
+// themselves stay in the admin, and Settings › What you sell › "Sell products too" brings the full menu back.
+// Calendar is Bookings (its Services and Hours tabs are inside); Clients is Customers; Sales lists what was paid for
+// on the website (gift cards, and products where the shop sells them).
+const SERVICES_SETTINGS = SETTINGS_PAGES.filter((id) => id !== SETTINGS_ITEM_PREFIX + "shipping");
+export const SERVICES_WEBSITE_SIDE: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
+  { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
+  { label: "Clients", icon: Users, pages: ["customers"] },
+  { label: "Messages", icon: Inbox, pages: ["messages"] },
+  { label: "Sales", icon: Receipt, pages: ["orders", SALES_TAB], labels: { orders: "Website sales" } },
+  { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts"] },
+  { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
+  { label: "Online store", icon: Palette, pages: ["design"] },
+  { label: "Settings", icon: Settings, pages: [...SERVICES_SETTINGS, S("sheets")], labels: { [S("sheets")]: "Sales spreadsheet" } },
+];
+/** A services shop's second side is its money: invoices, tax and bookkeeping (the stockroom's money pages). */
+export const SERVICES_MONEY_SIDE: Menu = [
+  { label: "Invoices", icon: FileText, pages: [S("invoices"), S("quotes"), S("recurring")],
+    labels: { [S("invoices")]: "Invoices", [S("quotes")]: "Quotes", [S("recurring")]: "Repeating" } },
+  { label: "Tax centre", icon: Calculator, pages: [S("taxcenter")] },
+  { label: "Bookkeeping", icon: PiggyBank, pages: [S("books"), S("reconcile"), S("expenses"), S("bills"), S("receipts"), S("bkreports")],
+    labels: { [S("books")]: "Overview", [S("reconcile")]: "Transactions", [S("expenses")]: "Expenses", [S("bills")]: "Bills to pay", [S("receipts")]: "Receipts", [S("bkreports")]: "Reports" } },
+  { label: "Backups", icon: SlidersHorizontal, pages: [S("backups")] },
+];
+/** The shop-only admin (no stockroom) for a services shop: the same idea in five items. */
+export const SERVICES_MENU: Menu = [
+  { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
+  { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
+  { label: "Clients", icon: Users, pages: ["customers", "messages"] },
+  { label: "Sales", icon: Receipt, pages: ["orders", "discounts", "giftCards", "socialPosts"], labels: { orders: "Website sales" } },
+  { label: "Design", icon: Palette, pages: ["design"] },
+  { label: "Settings", icon: Settings, pages: SERVICES_SETTINGS },
+];
+/** Which menu a shop gets: "services" for a services shop that doesn't also sell products, "shop" for every other. */
+export type MenuKind = "shop" | "services";
+export const SERVICES_COMBINED_MENU: Menu = [...SERVICES_WEBSITE_SIDE, ...SERVICES_MONEY_SIDE];
+/** The whole menu for a kind: both sides in the combined admin, the five items otherwise. */
+export const adminMenu = (combined: boolean, kind: MenuKind = "shop"): Menu =>
+  kind === "services" ? (combined ? SERVICES_COMBINED_MENU : SERVICES_MENU) : combined ? COMBINED_MENU : MENU;
+
 /** The side a page belongs to. */
 export function sideOf(page: string): AdminSide {
   // A stockroom page off the menu (To-do) still opens on the Stockroom side.
@@ -163,7 +205,8 @@ export function sideOf(page: string): AdminSide {
   if (WEBSITE_SIDE.some((g) => g.pages.includes(page))) return "website";
   return page.startsWith(STOCKROOM_ITEM_PREFIX) || STOCKROOM_SIDE.some((g) => g.pages.includes(page)) ? "stockroom" : "website";
 }
-export const sideMenu = (side: AdminSide): Menu => (side === "stockroom" ? STOCKROOM_SIDE : WEBSITE_SIDE);
+export const sideMenu = (side: AdminSide, kind: MenuKind = "shop"): Menu =>
+  kind === "services" ? (side === "stockroom" ? SERVICES_MONEY_SIDE : SERVICES_WEBSITE_SIDE) : side === "stockroom" ? STOCKROOM_SIDE : WEBSITE_SIDE;
 
 /** Every page with its menu id and label, in NAV order. */
 export function navPages(nav: NavEntry[]): { id: string; label: string }[] {

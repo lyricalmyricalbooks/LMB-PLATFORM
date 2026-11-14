@@ -24,6 +24,13 @@ const SUGGESTED: Record<Publishes | "general", string[]> = {
   jewelry: ["press-kiln", "press-arch", "press-lantern"],
   music: ["press-console", "press-lantern", "press-marquee"],
   other: ["press-kiln", "press-atlas", "press-shelf"],
+  // Service businesses: calm looks with room for a price list and a Book button, until their own starter sites exist.
+  hair: ["press-arch", "press-kiln", "press-lantern"],
+  wellness: ["press-kiln", "press-arch", "press-folio"],
+  lessons: ["press-folio", "press-atlas", "press-rows"],
+  fitness: ["press-marquee", "press-atlas", "press-console"],
+  studio: ["press-mosaic", "press-lantern", "press-arch"],
+  services: ["press-atlas", "press-kiln", "press-folio"],
   general: ["press-folio", "press-atlas", "press-shelf"],
 };
 

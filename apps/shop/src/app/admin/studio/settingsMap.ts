@@ -168,10 +168,10 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Footer layout", keys: ["footerNavigationLayout", "footerLinksAlign", "footerBrandAlign", "footerBrandVAlign", "footerBrandCenterMobile", "showFooterBrandDivider", "footerColumns", "footerLayout", "footerBg"] },
     { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerBarPaddingY", "footerColumnGap", "footerLinkGap"] },
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
-    { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent", "footerSocialBoxes", "footerSocialHoverColor"] },
+    { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent"] },
     { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
-    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "footerPaymentIconOpacity", "footerPaymentIconHoverOpacity", "footerPaymentIconColor", "paymentIconsFullColour", "showPoweredBy", "showFooterAdminLink"] },
-    { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
+    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showPaymentBadges", "footerPaymentIconOpacity", "footerPaymentIconHoverOpacity", "footerPaymentIconColor", "paymentIconsFullColour", "showPoweredBy", "showFooterAdminLink"] },
+    { title: "Social media icons", keys: ["showSocialInFooter", "footerSocialPlace", "footerSocialIconSize", "footerSocialBoxes", "footerSocialHoverColor"] },
   ],
   products: [
     { title: "Grid & columns", keys: ["productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect", "showCardHoverPhoto", "showCardCreator", "showCardRating", "showCardFormats"] },

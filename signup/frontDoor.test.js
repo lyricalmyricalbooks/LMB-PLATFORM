@@ -776,3 +776,19 @@ test("the sign-up pages show the free trial days the control room set", async ()
   // The settings can't be read: the environment's length stands.
   assert.equal((await plans(() => { throw new Error("no answer"); })).trialDays, SETTINGS.trialDays);
 });
+
+test("a services shop can be picked only while the control room has Services shops on", async () => {
+  const w = world();
+  const pressId = await pressFor(w);
+  const base = { ...w.stores, stagedFiles: w.files, email: { sendPlatform: async () => {} }, auth: fakeAuth(), settings: SETTINGS };
+  const refuses = (e) => e.status === 400 && /Services shops aren't open yet/.test(e.message);
+  await assert.rejects(() => createFrontDoor(base).saveSetup(ADA, { pressId, sells: "hair" }), refuses);
+  await assert.rejects(() => createFrontDoor({ ...base, live: async () => ({ servicesShops: false }) }).saveSetup(ADA, { pressId, sells: "hair" }), refuses);
+  await assert.rejects(() => createFrontDoor({ ...base, live: async () => { throw new Error("down"); } }).saveSetup(ADA, { pressId, sells: "hair" }), refuses);
+  await createFrontDoor(base).saveSetup(ADA, { pressId, sells: "clothing" });
+  await createFrontDoor({ ...base, live: async () => ({ servicesShops: true }) }).saveSetup(ADA, { pressId, sells: "hair" });
+  assert.equal((await w.stores.presses.get(pressId)).sells, "hair");
+  // A press that already holds the answer keeps it after the switch goes off.
+  await createFrontDoor(base).saveSetup(ADA, { pressId, sells: "hair", pressName: "Moth Hair" });
+  assert.equal((await w.stores.presses.get(pressId)).sells, "hair");
+});

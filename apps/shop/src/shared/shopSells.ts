@@ -7,7 +7,7 @@
 // stays editable there.
 
 /** The sign-up answers (signup/form.js PUBLISHES.options), in the form's order. */
-export const SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"] as const;
+export const SELLS = ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other", "hair", "wellness", "lessons", "fitness", "studio", "services"] as const;
 export type Sells = (typeof SELLS)[number];
 
 /** The answers that keep a books shop exactly as it is. */
@@ -16,6 +16,22 @@ const BOOK_ANSWERS = new Set<string>(["books", "zines", "comics", "mix"]);
 /** True for a shop that sells books: a book answer, a skipped answer or one this version doesn't know. */
 export function sellsBooks(answer?: string | null): boolean {
   return !answer || BOOK_ANSWERS.has(answer) || !(SELLS as readonly string[]).includes(answer);
+}
+
+// Service businesses (14 November 2026, Julian): a salon, a studio, a tutor or a therapist sells time, not things. Its
+// answer is one of these (signup/form.js SERVICE_SELLS). The admin gives it the calendar, clients and payments for
+// appointments in place of products, stock and shipping (riso/nav.ts SERVICES_WEBSITE_SIDE).
+const SERVICE_ANSWERS = new Set<string>(["hair", "wellness", "lessons", "fitness", "studio", "services"]);
+
+/** True for a shop that sells services (appointments, classes, sessions) rather than products. */
+export function sellsServices(answer?: string | null): boolean {
+  return typeof answer === "string" && SERVICE_ANSWERS.has(answer);
+}
+
+/** The three kinds of shop: a skipped or unknown answer is a books shop. */
+export type ShopKind = "books" | "products" | "services";
+export function shopKind(answer?: string | null): ShopKind {
+  return sellsBooks(answer) ? "books" : sellsServices(answer) ? "services" : "products";
 }
 
 // Words (plan 10.23): the shop is written for books. For a shop that sells something else, the words people see pass
@@ -42,11 +58,24 @@ export function goodsWords(text: string): string {
   return GOODS_SWAPS.reduce((out, [from, to]) => out.replace(from, to), text);
 }
 
+// A services shop has clients, not customers or shoppers. "Product" stays: a services shop that also sells a few
+// products (Settings › What you sell) still has a Products page, and its services are named by Bookings itself.
+const CLIENT_SWAPS: [RegExp, string][] = [
+  [/\bshoppers\b/g, "clients"], [/\bShoppers\b/g, "Clients"], [/\bshopper\b/g, "client"], [/\bShopper\b/g, "Client"],
+  [/\bcustomers\b/g, "clients"], [/\bCustomers\b/g, "Clients"], [/\bCUSTOMERS\b/g, "CLIENTS"],
+  [/\bcustomer's\b/g, "client's"], [/\bcustomer\b/g, "client"], [/\bCustomer\b/g, "Client"],
+];
+
+/** Words for a services shop: the general words, then customer → client. */
+export function servicesWords(text: string): string {
+  return CLIENT_SWAPS.reduce((out, [from, to]) => out.replace(from, to), goodsWords(text));
+}
+
 const same = (text: string) => text;
 
 /** The word function for a sign-up answer: unchanged for a books shop. */
 export function wordsFor(answer?: string | null): (text: string) => string {
-  return sellsBooks(answer) ? same : goodsWords;
+  return sellsBooks(answer) ? same : sellsServices(answer) ? servicesWords : goodsWords;
 }
 
 type EmailWords = { subject?: string; body?: string; buttonText?: string; signoff?: string };

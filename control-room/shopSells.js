@@ -9,6 +9,7 @@ import { merchantProfile, sellsBooks } from "../shared/sells/sells.js";
 /** Stripe's merchant categories the platform files accounts under, in plain words. */
 const CATEGORY_WORDS = Object.freeze({
   5942: "Book stores", 5971: "Art dealers and galleries", 5651: "Clothing", 5661: "Shoes", 5944: "Jewellery", 5735: "Record stores", 5999: "Specialty retail",
+  7230: "Hair and beauty", 8099: "Health and wellness", 8299: "Lessons and classes", 7997: "Fitness and clubs", 7299: "Personal services",
 });
 
 const label = (answer) => PUBLISHES.options.find((option) => option.id === answer)?.label ?? answer;

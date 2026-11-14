@@ -20,10 +20,11 @@ function safeStorage(): Storage | null {
  * that side's items. Both are the same admin, sign-in and address. `stockroomCount`: the stockroom's to-dos, shown on
  * the Stockroom side while you are on the website's.
  */
-export function SideSwitch({ side, onPick, stockroomCount = 0 }: { side: AdminSide; onPick: (side: AdminSide) => void; stockroomCount?: number }) {
+export function SideSwitch({ side, onPick, stockroomCount = 0, stockroomLabel }: { side: AdminSide; onPick: (side: AdminSide) => void; stockroomCount?: number; /** A services shop has no stock: its second side is "Money". */ stockroomLabel?: string }) {
   return (
     <div className="rp-app-switch rp-side-switch" role="group" aria-label="Admin side">
-      {SIDES.map((s) => {
+      {SIDES.map((base) => {
+        const s = base.id === "stockroom" && stockroomLabel ? { ...base, label: stockroomLabel } : base;
         const count = s.id === "stockroom" && side !== "stockroom" ? stockroomCount : 0;
         return (
           <button key={s.id} type="button" className="rp-app-switch-seg" aria-pressed={side === s.id}

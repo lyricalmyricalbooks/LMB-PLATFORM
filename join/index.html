@@ -40,6 +40,10 @@
   .cp :is(.fd-chips, .fd-today) label.choice strong { font-size: 14px; font-weight: 600; }
   /* Bookshop or general shop: two option cards, a name and one line each. */
   .fd-types { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Three kinds (bookshop, product shop, services) sit in one row; the tools line under each says what it gets. */
+  .fd-types[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cp .fd-types label.choice .fd-tools { display: block; margin-top: 8px; font: 500 10.5px/1.5 var(--rp-font-mono, ui-monospace, monospace); letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.6; }
+  @media (max-width: 760px) { .fd-types[data-count="3"] { grid-template-columns: minmax(0, 1fr); } .cp .fd-types[data-count="3"] label.choice { min-height: 0; } }
   .cp .fd-types label.choice { min-height: 88px; padding: 16px 18px; border-radius: 16px; align-content: start; }
   .cp .fd-types label.choice strong { font-size: 16px; }
   @media (max-width: 480px) { .fd-types { grid-template-columns: minmax(0, 1fr); } .cp .fd-types label.choice { min-height: 0; } }
@@ -134,8 +138,8 @@
     <div class="fd-pick" id="pick-list"></div>
   </section>
 
-  <!-- 3. About your brand (design "Colophon platform", sign-up): name, bookshop or general shop (and, for a general
-       shop, what it sells), country, and an optional last one, then the store is
+  <!-- 3. About your brand (design "Colophon platform", sign-up): name, the kind of shop (bookshop, product shop or services; a product shop
+       says what it sells, a services shop what it does), country, and an optional last one, then the store is
        made at once with a free trial of everything. The plan is picked later, in the store's Billing. -->
   <section id="view-start" class="stack" hidden aria-labelledby="start-title">
     <h2 id="start-title" tabindex="-1" class="rp-sr-only">About your brand</h2>
@@ -148,6 +152,9 @@
       <div role="radiogroup" aria-labelledby="sells-label" class="stack" style="gap:8px" id="sells-group" hidden><p class="fd-sub" id="sells-label">What do you sell?</p>
         <div class="fd-chips" id="sells-choices"></div></div>
       <p class="error" id="sells-error" role="alert" hidden></p>
+      <div role="radiogroup" aria-labelledby="does-label" class="stack" style="gap:8px" id="does-group" hidden><p class="fd-sub" id="does-label">What do you do?</p>
+        <div class="fd-chips" id="does-choices"></div></div>
+      <p class="error" id="does-error" role="alert" hidden></p>
       <label>Where is your brand based?<select name="country" id="country"></select></label>
       <p class="hint" id="country-note">Sets your shop's currency and taxes.</p>
       <p class="error" id="country-error" role="alert" hidden></p>

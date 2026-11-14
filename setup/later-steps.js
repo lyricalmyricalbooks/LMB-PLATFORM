@@ -48,6 +48,7 @@ import { twoStepSignInStep } from "./twoStep.js";
 import { botCheckStep } from "./botCheck.js";
 import { handoverStep } from "./handover.js";
 import { domainOrigins, siteUrlOf } from "../services/domains/names.js";
+import { sellsServices } from "../shared/sells/sells.js";
 
 export const OWNER_WELCOME = "owner-welcome";
 // Step 14 after a plan change adds an app: the link to the new app.
@@ -60,6 +61,9 @@ export function appsOf(shop) {
 
 /** The sign-up answer for the first-week list (signup/form.js QUESTION ids), or null when skipped or unknown. */
 export const sellingToday = (shop) => (typeof shop.sellingToday === "string" && /^[a-z]{2,20}$/.test(shop.sellingToday) ? shop.sellingToday : null);
+
+/** Where a shop's feature switches live in its own folder (control-room/bookingsBeta.js FEATURES_DOC). */
+const FEATURES_PATH = "platform/features";
 
 /** "What do you sell?" (signup/form.js, plans 6.2 and 10.1), for the theme suggestions (6.3) and the kind of new products, or null when skipped. */
 export const publishes = (shop) => (typeof shop.publishes === "string" && /^[a-z]{2,20}$/.test(shop.publishes) ? shop.publishes : null);
@@ -198,6 +202,9 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     ...(appsOf(shop).includes("shop")
       ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan } }]
       : []),
+    // A services shop (a salon, a studio, a tutor) is built around Bookings, so it starts with Bookings on
+    // (control-room/bookingsBeta.js FEATURES_DOC). Written once: turning it off in the control room later stays off.
+    ...(appsOf(shop).includes("shop") && sellsServices(publishes(shop)) ? [{ path: FEATURES_PATH, data: { bookings: true, bookingsChangedBy: "setup" } }] : []),
     ...privateStart(shop, release.starterContent(shop)),
     ...(needsTestCatalogue(shop) ? testCatalogue(shop).shopDocs : []),
   ];
@@ -301,6 +308,8 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
             created.push(path);
           }
         }
+        // The registry says which shops have Bookings, so lists needn't read every shop.
+        if (created.includes(FEATURES_PATH)) await registry.updateShop(shop.shopId, { bookingsBeta: true });
         if (!needsTestCatalogue(shop)) return { detail: { created } };
 
         const { stockroomBooks, links } = testCatalogue(shop);
