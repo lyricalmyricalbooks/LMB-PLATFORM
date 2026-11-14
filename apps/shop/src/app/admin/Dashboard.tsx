@@ -52,9 +52,9 @@ import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation"
 import { useAdminAppManifest } from "./adminApp";
 import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdentity";
 import { adminWordsFor, currentSells } from "./sells";
-import { SELLS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
-import { hasPublisherTools } from "../../shared/shopSells";
-import { COMBINED_MENU, FAIR_MENU, MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, itemSections, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages } from "./riso/nav";
+import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
+import { hasPublisherTools, sellsServices } from "../../shared/shopSells";
+import { FAIR_MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, adminMenu, itemSections, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages, type MenuKind } from "./riso/nav";
 import { FairCard, SideSwitch, rememberFair, rememberSide, rememberedFair, rememberedSide } from "./SideSwitch";
 import { PhoneNav } from "./PhoneNav";
 import { useStockroomTodos } from "./overview/StockroomTodos";
@@ -123,7 +123,6 @@ function readBootRoute() {
 
 // One admin for a press with both apps (combined.ts): one menu, the stockroom's pages inside, no app switcher.
 const COMBINED = combinedAdmin();
-const ADMIN_MENU = COMBINED ? COMBINED_MENU : MENU;
 // Whether the admin was opened with no page in its address (read once, before the admin writes one).
 const OPENED_WITHOUT_PAGE = typeof window !== "undefined" && !window.location.hash.replace(/^#/, "");
 
@@ -295,18 +294,27 @@ export function Dashboard() {
   const [sellsAnswer, setSellsAnswer] = useState<string | null>(null);
   useEffect(() => {
     if (!user) return;
-    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => setSellsAnswer(currentSells(doc))).catch(() => {});
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => { setSellsAnswer(currentSells(doc)); setSellsProducts(doc?.sellsProducts === true); }).catch(() => {});
   }, [user]);
+  // A services shop that also sells a few products (Settings › What you sell) keeps the full menu.
+  const [sellsProducts, setSellsProducts] = useState(false);
   useEffect(() => {
     const on = (e: Event) => setSellsAnswer(String((e as CustomEvent).detail || "") || null);
+    const onProducts = (e: Event) => setSellsProducts((e as CustomEvent).detail === true);
     window.addEventListener(SELLS_CHANGED_EVENT, on);
-    return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
+    window.addEventListener(SELLS_PRODUCTS_CHANGED_EVENT, onProducts);
+    return () => { window.removeEventListener(SELLS_CHANGED_EVENT, on); window.removeEventListener(SELLS_PRODUCTS_CHANGED_EVENT, onProducts); };
   }, []);
+  // A services shop (a salon, a studio, a tutor) gets the calendar-and-clients menu (riso/nav.ts SERVICES_WEBSITE_SIDE).
+  const menuKind: MenuKind = sellsServices(sellsAnswer) && !sellsProducts ? "services" : "shop";
+  const ADMIN_MENU = adminMenu(COMBINED, menuKind);
   // Bookings (beta): shown only once the platform's control room turned it on for this shop (platform/features).
   const bookingsOn = useBookingsOn(!!user);
   // Bookkeeping › Artist payouts is a book shop's (or a mixed one's); other shops never see the tab.
   const hiddenPages = new Set([...(bookingsOn ? [] : ["bookings"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
-    ...(hasPublisherTools(sellsAnswer) ? [] : [STOCKROOM_ITEM_PREFIX + "artists"])]);
+    ...(hasPublisherTools(sellsAnswer) ? [] : [STOCKROOM_ITEM_PREFIX + "artists"]),
+    // A services shop ships nothing, so Settings has no Shipping page until it sells products too.
+    ...(menuKind === "services" ? [SETTINGS_ITEM_PREFIX + "shipping"] : [])]);
   // Product addresses follow the same answer: /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
   setProductSells(sellsAnswer);
   const w = adminWordsFor(sellsAnswer);
@@ -725,7 +733,7 @@ export function Dashboard() {
   openStockroomRef.current = (page, bookId) => { void openStockroomPage(page, bookId); };
   // The tour's stops open menu pages; a stop in fair mode's absence: fair mode ends first, so the rail shows both sides.
   // The walkthrough's stops: one per menu item this admin shows on either side (walkthrough/tourSteps.ts).
-  const tourMenuItems = new Set((COMBINED ? [...sideMenu("website"), ...sideMenu("stockroom")] : ADMIN_MENU)
+  const tourMenuItems = new Set((COMBINED ? [...sideMenu("website", menuKind), ...sideMenu("stockroom", menuKind)] : ADMIN_MENU)
     .map((g) => g.pages.find((p) => !hiddenPages.has(p))).filter((p): p is string => !!p));
   const tourSteps = tourFor({ combined: COMBINED, books: hasPublisherTools(sellsAnswer), menuItems: tourMenuItems });
   const startTour = (start: number | null) => {
@@ -892,9 +900,9 @@ export function Dashboard() {
   // The rail's items (top level only) and the pills for the pages of the item you are on (redesign, 11 Nov 2026).
   const setFair = (on: boolean) => {
     rememberFair(on); setFairMode(on);
-    void openMenuPage(on ? FAIR_MENU[0].pages[0] : sideMenu("stockroom")[0].pages[0]);
+    void openMenuPage(on ? FAIR_MENU[0].pages[0] : sideMenu("stockroom", menuKind)[0].pages[0]);
   };
-  const railMenu = COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide)) : ADMIN_MENU;
+  const railMenu = COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide, menuKind)) : ADMIN_MENU;
   const railItems = withoutPages(sidebarItems(nav, railMenu), hiddenPages).map((n) => {
     // Orders counts open cancel/return requests too (they sit in Needs attention).
     // Privacy requests are handled in Settings › General.
@@ -937,7 +945,7 @@ export function Dashboard() {
             activeChildId={activePageId}
             onSelect={openMenuPage}
             onSelectChild={(_item, page) => openMenuPage(page)}
-            top={COMBINED && fairMode ? <FairCard /> : COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side)[0].pages[0]); }} />
+            top={COMBINED && fairMode ? <FairCard /> : COMBINED ? <SideSwitch side={currentSide} stockroomCount={stockroomTodos.items?.length || 0} stockroomLabel={menuKind === "services" ? "Money" : undefined} onPick={(side) => { setSidebarOpen(false); void openMenuPage(sideMenu(side, menuKind)[0].pages[0]); }} />
               : hasStockroom() ? <AppSwitcher onSwitch={() => setSidebarOpen(false)} /> : undefined}
             brand={storesPage(platformPlan) ? (
               <StoreSwitcher name={shopNameFromSettings(settings)} tag={platformPlan?.state === "trial" ? "Free trial" : null}
@@ -955,7 +963,7 @@ export function Dashboard() {
             )}
             footer={
               <>
-              {COMBINED && (
+              {COMBINED && menuKind !== "services" && (
                 <button type="button" className="rp-fair-toggle" aria-pressed={fairMode} onClick={() => { setSidebarOpen(false); setFair(!fairMode); }}>
                   {fairMode ? "End fair mode" : "Start fair mode"}
                 </button>

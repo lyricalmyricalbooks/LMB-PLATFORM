@@ -688,3 +688,18 @@ test("Choose your look suggests themes for every publishing answer", () => {
   const keys = [...block.matchAll(/^\s+([a-z]+):/gm)].map((m) => m[1]).filter((k) => k !== "general");
   assert.deepEqual(keys, PUBLISHES.options.map((option) => option.id));
 });
+
+test("a services shop starts with Bookings on, once, and other shops get no feature switches", async () => {
+  const salon = setup({ shop: { ...TEST_SHOP, publishes: "hair" } });
+  assert.equal((await salon.run()).ok, true);
+  const made = salon.services.world.docs.get(`${ID} platform/features`);
+  assert.deepEqual({ bookings: made.bookings, by: made.bookingsChangedBy }, { bookings: true, by: "setup" });
+  assert.equal((await salon.registry.getShop(ID)).bookingsBeta, true, "the registry lists it among the shops with Bookings");
+  // Turned off in the control room later, a re-run leaves it off.
+  salon.services.world.docs.set(`${ID} platform/features`, { bookings: false, bookingsChangedBy: "control-room" });
+  assert.equal((await salon.run()).ok, true);
+  assert.equal(salon.services.world.docs.get(`${ID} platform/features`).bookings, false);
+  const tees = setup({ shop: { ...TEST_SHOP, publishes: "clothing" } });
+  assert.equal((await tees.run()).ok, true);
+  assert.equal(tees.services.world.docs.has(`${ID} platform/features`), false);
+});

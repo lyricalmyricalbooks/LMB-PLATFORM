@@ -17,6 +17,7 @@ test("defaults: Colophon, a $5 CAD platform fee a month on every plan, 14-day tr
     taxCode: "txcd_10103001",
     trialDays: 14,
     platformUrl: "https://platform.example",
+    servicesShops: false,
     shopAddressDomain: "",
     signupOpen: false,
     startNudges: "hold",

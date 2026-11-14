@@ -1078,3 +1078,13 @@ Orders › **Bookings** (`Bookings.tsx`, `bookings.css`, pure `bookingsView.ts`,
 `platform/features`, nobody write it). Tabs: Calendar (a week, new / move / cancel / no-show / paid at the shop),
 Services, Hours & rules. Every write goes to the server (`bookingsAdmin`), never straight to Firestore. Turned on per shop
 in the control room's shop record › Bookings (beta). Fixture: `admin-fixture.html?page=bookings`.
+
+## Services shops (14 November 2026, phase 1)
+A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,
+studio, services) gets `MenuKind` "services" (`riso/nav.ts` `adminMenu` / `sideMenu`: Calendar, Clients, Messages, Sales,
+Marketing, Analytics, Online store, Settings; second side "Money" = invoices, tax, bookkeeping), client words
+(`servicesWords`), no Shipping settings and no fair mode. `firstWeek/start.sellsProducts` (Settings › General › What you
+do › **Sell products too**, event `SELLS_PRODUCTS_CHANGED_EVENT`) gives it the normal shop menu back. Setup turns Bookings
+on for it. The rules let only a shop that is already a services one save a service answer; the kind is picked at sign-up
+while the control room's "Services shops can sign up" is on. Fixture: `admin-fixture.html?sells=hair` (`&products=1`).
+Home and the setup guide are not services-flavoured yet. Tests: `servicesShop.test.ts`.

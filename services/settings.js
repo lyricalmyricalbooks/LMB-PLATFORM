@@ -31,6 +31,8 @@
 //   SHOP_ADDRESS_DOMAIN        the domain shops' free addresses go under (moth-press.<it>), a domain of its own, never
 //                              the platform's (services/domains/freeAddress.js)    default none: web.app addresses
 //   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
+//   SERVICES_SHOPS             "true": sign-up offers the Services kind of shop (salons, studios, lessons) beside
+//                              Bookshop and Product shop; otherwise it is hidden and refused   default false
 //   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA,US (15.23: tax
 //                              presets, addresses and shipping are Canadian; other countries join a "later" list)
 //   SIGNUP_DAILY_CAP           new shops made a day; an invite skips it (6.13)       default 10
@@ -57,6 +59,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   trialDays: 14,
   platformUrl: "https://platform.example",
   signupOpen: false,
+  servicesShops: false,
   startNudges: "hold",
   signupDailyCap: 10,
   openCountries: Object.freeze(["CA", "US"]),
@@ -169,6 +172,7 @@ export function platformSettings(env = process.env) {
     platformUrl,
     shopAddressDomain,
     signupOpen: yesNo("SIGNUP_OPEN", DEFAULT_SETTINGS.signupOpen),
+    servicesShops: yesNo("SERVICES_SHOPS", DEFAULT_SETTINGS.servicesShops),
     startNudges: choice("START_NUDGES", DEFAULT_SETTINGS.startNudges, START_NUDGE_MODES),
     openCountries,
     signupDailyCap: whole("SIGNUP_DAILY_CAP", DEFAULT_SETTINGS.signupDailyCap, LIMITS.signupDailyCap),
@@ -197,6 +201,8 @@ export function priceText(cents, currency = DEFAULT_SETTINGS.currency) {
 const FEE_REACH = "Changes plans started from now on. A shop already on a plan keeps the fee it started with.";
 export const EDITABLE = Object.freeze({
   signupOpen: { kind: "yesNo", label: "Anyone can sign up (off: waitlist invites only)" },
+  // Services shops (14 November 2026): the third kind at sign-up. Off until the Services tools are ready for owners.
+  servicesShops: { kind: "yesNo", label: "Services shops can sign up (salons, studios, lessons; off: the Services card is hidden)", reach: "Changes sign-ups from now on. A services shop already made stays as it is." },
   signupDailyCap: { kind: "whole", ...LIMITS.signupDailyCap, label: "New shops a day (an invite skips the line)" },
   // One plan for every shop since 10 November 2026: "prices.both" is the only fee the page shows. The older plans'
   // fees stay accepted (hidden) so a value saved before still loads, for shops waiting to move overnight.

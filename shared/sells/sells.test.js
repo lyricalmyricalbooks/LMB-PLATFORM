@@ -49,9 +49,23 @@ test("every answer files the payment account under a real merchant category", ()
 });
 
 test("the front door's Bookshop / General shop choice files every answer the way the shop reads it", async () => {
-  const { BOOK_SELLS, GENERAL_SELLS, PUBLISHES, SHOP_TYPES, shopTypeOf } = await import("../../signup/form.js");
-  assert.deepEqual(SHOP_TYPES.map((t) => t.id), ["books", "general"]);
-  for (const { id } of PUBLISHES.options) assert.equal(shopTypeOf(id) === "books", sellsBooks(id), `${id} is filed under the right shop type`);
+  const { BOOK_SELLS, GENERAL_SELLS, SERVICE_SELLS, PUBLISHES, SHOP_TYPES, shopTypeOf, isServiceSells } = await import("../../signup/form.js");
+  const { sellsServices, shopKind, wordsFor } = await import("./sells.js");
+  assert.deepEqual(SHOP_TYPES.map((t) => t.id), ["books", "general", "services"]);
+  for (const { id } of PUBLISHES.options) {
+    assert.equal(shopTypeOf(id) === "books", sellsBooks(id), `${id} is filed under the right shop type`);
+    assert.equal(shopTypeOf(id) === "services", sellsServices(id), `${id} is a services answer on both sides`);
+    assert.equal(shopKind(id), shopTypeOf(id) === "general" ? "products" : shopTypeOf(id));
+  }
+  assert.ok(SERVICE_SELLS.length >= 5);
+  for (const { id } of SERVICE_SELLS) {
+    assert.ok(PUBLISHES.options.some((o) => o.id === id), `${id} is a sign-up answer the server accepts`);
+    assert.ok(isServiceSells(id) && sellsServices(id) && !sellsBooks(id));
+    assert.match(merchantProfile(id).mcc, /^\d{4}$/);
+  }
+  assert.equal(sellsServices("clothing"), false);
+  assert.equal(sellsServices(""), false);
+  assert.equal(wordsFor("hair")("Your shoppers and customers"), "Your clients and clients");
   assert.ok(BOOK_SELLS.every((id) => sellsBooks(id)));
   for (const { id } of GENERAL_SELLS) {
     assert.ok(PUBLISHES.options.some((o) => o.id === id), `${id} is a sign-up answer the server accepts`);

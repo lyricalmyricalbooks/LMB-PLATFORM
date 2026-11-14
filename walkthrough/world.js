@@ -141,7 +141,7 @@ export function fakeClock(start = "2026-10-28T12:00:00Z") {
  */
 export function platformWorld({ start, clock = fakeClock(start), env = {}, invited = [], waitlisted = [], google = fakeGoogle(), suffix = null } = {}) {
   // Shops' free addresses go under a made-up shop domain, so setup shows the address a shop will get.
-  const settingsEnv = { SIGNUP_OPEN: "true", SHOP_ADDRESS_DOMAIN: "shops.example", ...env };
+  const settingsEnv = { SIGNUP_OPEN: "true", SERVICES_SHOPS: "true", SHOP_ADDRESS_DOMAIN: "shops.example", ...env };
   const settings = platformSettings(settingsEnv);
   // As on the hosted server (server/world.js): the environment with the control room's saved changes on top, so a
   // setting changed in the control room reaches sign-up, billing and the invite email here too.
@@ -199,7 +199,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     "mothpress.example": { registrar: { name: "GoDaddy.com, LLC" }, domainConnect: fakeDomainConnectSeller() },
     "inkpress.example": { registrar: { name: "Hover" } },
   });
-  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, making: (shopId) => shopMaker.progress(shopId), now: clock.date, domainLookup, freeNameTaken: freeAddressTaken(registry), ...(suffix ? { suffix } : {}) });
+  const frontDoor = createFrontDoor({ ...frontDoorStores, email, auth: fakeAuth(), settings, stagedFiles, signup, making: (shopId) => shopMaker.progress(shopId), now: clock.date, domainLookup, freeNameTaken: freeAddressTaken(registry), live, ...(suffix ? { suffix } : {}) });
   const repairStore = fakeRepairStore();
   const repairs = createRepairQueue({ store: repairStore, registry, auditLog, now: clock.date });
   const steps = () => shopSteps({ ...services, google, registry, profileFiles, presses: frontDoorStores.presses, stagedFiles, config: TEST_CONFIG });

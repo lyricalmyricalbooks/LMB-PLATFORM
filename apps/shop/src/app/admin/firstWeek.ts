@@ -40,6 +40,8 @@ export interface FirstWeekDoc {
   publishes?: string | null;
   /** What the shop sells now, chosen in Settings; reads before `publishes` (sells.ts `currentSells`). */
   sells?: string | null;
+  /** A services shop that also sells a few products (Settings › What you sell): it keeps the Products and stock pages. */
+  sellsProducts?: boolean;
   /** The country the press signed up from (two letters), for the shipping starter. */
   country?: string | null;
   plan?: string;

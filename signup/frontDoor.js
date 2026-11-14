@@ -35,7 +35,7 @@ import { SignupError, randomSuffix } from "./signup.js";
 import { createSignInCode } from "./signInCode.js";
 import { createAccountStart } from "./accountStart.js";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, SETUP_FIELDS, advanceStatus, importPathFor, setupChange } from "./pressRecord.js";
-import { COUNTRIES, PUBLISHES, SQUARE_COUNTRIES, isEmail, squareWords } from "./form.js";
+import { COUNTRIES, PUBLISHES, SQUARE_COUNTRIES, isEmail, isServiceSells, squareWords } from "./form.js";
 import { readOldShop as readPublicShop } from "../services/moving/oldShop.js";
 import { domainProblem, normalDomain } from "../services/domains/names.js";
 import { sellerName } from "../services/domains/sellers.js";
@@ -103,7 +103,7 @@ const UPLOAD_MINUTES = 15;
  * canRetry, openUrl } | null. Listing the presses (setup mode follows it while the shop is made) adds it to each opening press,
  * and moves the record to `open` the first time it reads `ready` (18.9), keeping the way into the admin.
  */
-export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null }) {
+export function createFrontDoor({ presses, codes, email, auth, settings, stagedFiles, signup = null, making = null, now = () => new Date(), suffix = randomSuffix, random = null, readOldShop = readPublicShop, domainLookup = null, freeNameTaken = null, live = null }) {
   const shown = (record) => shownRecord(record, settings?.shopAddressDomain ?? "");
   // A name for the free address held by another press still setting up (or opening), or a shop that has it already.
   /** Endings tried, in order, to suggest a free name close to a taken one. */
@@ -205,6 +205,12 @@ export function createFrontDoor({ presses, codes, email, auth, settings, stagedF
       // The choices on the page are the only answers taken; an empty answer is a skipped question.
       if (typeof change.sells === "string" && change.sells && !PUBLISHES.options.some((o) => o.id === change.sells)) {
         throw new SignupError(400, "Pick one of the choices.", { sells: "Pick one of the choices." });
+      }
+      // A services shop (a salon, a studio) can only be picked while the control room has "Services shops can sign
+      // up" on; a press that already holds a services answer keeps it. Settings that can't be read count as off.
+      if (isServiceSells(change.sells) && change.sells !== record.sells) {
+        const open = live ? (await Promise.resolve().then(live).catch(() => null))?.servicesShops === true : false;
+        if (!open) throw new SignupError(400, "Services shops aren't open yet. Pick a bookshop or a product shop.", { sells: "Services shops aren't open yet. Pick a bookshop or a product shop." });
       }
       if (typeof change.country === "string" && change.country && !(change.country in COUNTRIES)) {
         throw new SignupError(400, "Pick your country from the list.", { country: "Pick your country from the list." });

@@ -934,6 +934,18 @@ if (new URLSearchParams(location.search).get("variants")) {
 // ── end Reorder list sample
 
 // Design (redesign): a live look, a draft with two changes waiting, and two pages (`?page=design`).
+// ── A services shop (`?sells=hair|wellness|lessons|fitness|studio|services`): the calendar-first menu and "clients".
+// `&products=1` is the same shop with "Sell products too" on. In memory. ──
+{
+  const sells = new URLSearchParams(location.search).get("sells");
+  if (sells) {
+    const week: any = { publishes: sells, welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso" }, sellsProducts: new URLSearchParams(location.search).get("products") === "1" };
+    const api = adminApi as any;
+    api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+    api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };
+  }
+}
+
 if (new URLSearchParams(location.search).get("page") === "design") {
   const live = { themeBase: { id: "atlas", name: "Atlas" }, primaryColor: "#1f1e1b" };
   const api = adminApi as any;

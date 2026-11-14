@@ -50,6 +50,13 @@ export const PUBLISHES = Object.freeze({
     Object.freeze({ id: "jewelry", label: "Jewelry" }),
     Object.freeze({ id: "music", label: "Music" }),
     Object.freeze({ id: "other", label: "Something else" }),
+    // A services shop's answers (SERVICE_SELLS below): what the business does.
+    Object.freeze({ id: "hair", label: "Hair and beauty" }),
+    Object.freeze({ id: "wellness", label: "Health and wellness" }),
+    Object.freeze({ id: "lessons", label: "Lessons and tutoring" }),
+    Object.freeze({ id: "fitness", label: "Fitness and classes" }),
+    Object.freeze({ id: "studio", label: "Studio and creative" }),
+    Object.freeze({ id: "services", label: "Other services" }),
   ]),
 });
 
@@ -57,18 +64,24 @@ export const PUBLISHES = Object.freeze({
 export const ADDRESS_SUFFIX = ".web.app";
 
 /**
- * The front door's first shop question (14 November 2026, Julian): a bookshop or a general shop. A bookshop gets the
- * book features (authors, ISBNs, royalties, artist payouts) and book words; a general shop gets product words and
- * none of the book-only pages. The answer is still saved as one of PUBLISHES' ids, so everything that reads a shop's
- * `publishes`/`sells` (shared/sells/sells.js sellsBooks, the shop's shopSells.ts) keeps working: a bookshop is "books",
- * a general shop one of GENERAL_SELLS. BOOK_SELLS must match sellsBooks' book answers (sells.test.js checks).
+ * The front door's first shop question (14 November 2026, Julian): what kind of shop. A bookshop gets the book
+ * features (authors, ISBNs, royalties, artist payouts) and book words; a product shop (called "General shop" at
+ * first) gets product words and none of the book-only pages; a services shop (a salon, a studio, a tutor) gets
+ * Bookings, clients and payments for appointments in place of products, stock and shipping. The answer is still saved
+ * as one of PUBLISHES' ids, so everything that reads a shop's `publishes`/`sells` (shared/sells/sells.js, the shop's
+ * shopSells.ts) keeps working: a bookshop is "books", a product shop one of GENERAL_SELLS, a services shop one of
+ * SERVICE_SELLS. BOOK_SELLS and SERVICE_SELLS must match sells.js (sells.test.js checks).
+ *
+ * The Services card shows only while the control room's "Services shops can sign up" is on (settings.servicesShops,
+ * sent to the page as `servicesOpen`); the server refuses a services answer while it is off (frontDoor.js).
  */
 export const BOOK_SELLS = Object.freeze(["books", "zines", "comics", "mix"]);
 export const SHOP_TYPES = Object.freeze([
-  Object.freeze({ id: "books", label: "Bookshop", line: "Books, zines, comics. Authors, ISBNs and royalties built in." }),
-  Object.freeze({ id: "general", label: "General shop", line: "Clothing, art, home goods or anything else." }),
+  Object.freeze({ id: "books", label: "Bookshop", line: "Books, zines, comics. Authors, ISBNs and royalties built in.", tools: "Books · stock · shipping" }),
+  Object.freeze({ id: "general", label: "Product shop", line: "T-shirts, prints, jewellery, records or anything you make and ship.", tools: "Products · stock · shipping" }),
+  Object.freeze({ id: "services", label: "Services", line: "Salons, studios, lessons, therapy. Bookings and payments built in.", tools: "Calendar · clients · deposits" }),
 ]);
-/** A general shop's "What do you sell?" choices, each a PUBLISHES id (it picks the suggested look and the tax kind). */
+/** A product shop's "What do you sell?" choices, each a PUBLISHES id (it picks the suggested look and the tax kind). */
 export const GENERAL_SELLS = Object.freeze([
   Object.freeze({ id: "clothing", label: "Clothing & accessories" }),
   Object.freeze({ id: "prints", label: "Art & prints" }),
@@ -77,8 +90,20 @@ export const GENERAL_SELLS = Object.freeze([
   Object.freeze({ id: "music", label: "Music & records" }),
   Object.freeze({ id: "other", label: "Something else" }),
 ]);
-/** "books" or "general" for a saved answer; "" when there is none yet. */
-export const shopTypeOf = (sells) => (!sells ? "" : BOOK_SELLS.includes(sells) ? "books" : "general");
+/** A services shop's "What do you do?" choices, each a PUBLISHES id (it picks the sample services and starter site). */
+export const SERVICE_SELLS = Object.freeze([
+  Object.freeze({ id: "hair", label: "Hair & beauty" }),
+  Object.freeze({ id: "wellness", label: "Health & wellness" }),
+  Object.freeze({ id: "lessons", label: "Lessons & tutoring" }),
+  Object.freeze({ id: "fitness", label: "Fitness & classes" }),
+  Object.freeze({ id: "studio", label: "Studio & creative" }),
+  Object.freeze({ id: "services", label: "Something else" }),
+]);
+const SERVICE_IDS = SERVICE_SELLS.map((o) => o.id);
+/** True for a services shop's answer. */
+export const isServiceSells = (sells) => SERVICE_IDS.includes(sells);
+/** "books", "general" or "services" for a saved answer; "" when there is none yet. */
+export const shopTypeOf = (sells) => (!sells ? "" : BOOK_SELLS.includes(sells) ? "books" : isServiceSells(sells) ? "services" : "general");
 
 // The web address is the shop id, so it follows the shop id's rules (setup/steps.js shopProblems): 6 to 30 lowercase
 // letters, digits and hyphens, starting with a letter and not ending with a hyphen. Google refuses ids holding the first

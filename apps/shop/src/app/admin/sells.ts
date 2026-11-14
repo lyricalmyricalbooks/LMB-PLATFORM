@@ -14,7 +14,7 @@ import { DEFAULT_COPY } from "../features/site/storeCopy";
 import { CATEGORIES, LEGACY_CATEGORIES, PLACEHOLDER_INSTAGRAM } from "../features/site/constants";
 import { DEFAULT_SHOP_NAME, shopName } from "../../shared/shopIdentity";
 import { DEFAULT_ANNOUNCEMENT, DEFAULT_HERO_SUBTITLE, DEFAULT_SHOP_DESCRIPTION, LEGACY_ANNOUNCEMENT, LEGACY_HERO_SUBTITLE, LEGACY_SHOP_DESCRIPTION } from "./defaultSettings";
-import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
+import { sellsBooks, sellsServices, wordsFor, type Sells } from "../../shared/shopSells";
 
 // The answers and the books-shop rule live in src/shared/shopSells.ts, which the server's emails use too.
 export { SELLS, sellsBooks } from "../../shared/shopSells";
@@ -31,7 +31,9 @@ export function startingKind(answer?: string | null): ProductKind {
   if (answer === "prints") return "art";
   // A shop of books and other things starts a new product as a book; the owner picks another kind per product.
   if (answer === "mixed") return "book";
-  return answer as Exclude<Sells, "books" | "zines" | "comics" | "mix" | "mixed" | "prints">;
+  // A services shop that also sells a few products (aftercare, merch) starts them as "something else".
+  if (sellsServices(answer)) return "other";
+  return answer as Exclude<Sells, "books" | "zines" | "comics" | "mix" | "mixed" | "prints" | "hair" | "wellness" | "lessons" | "fitness" | "studio" | "services">;
 }
 
 /** Text & labels keys that only show for books (book details, e-books, formats), so they keep their book words. */
