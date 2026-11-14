@@ -1063,3 +1063,11 @@ the total), Month by month (billed months, this month dashed as the estimate) an
 line. Nothing measured yet, or a failed read, falls back to the three plain facts. No Home tile: the v4 Home has no
 slot for one. Fixture: `admin-fixture.html?plan=open&page=settings/billing` (`&costs=over|new|trial`, `&cur=usd`,
 `&founding=1`). Control room: Costs › Each shop's use › "Owner sees so far".
+**Records by the day + heads-up alert (14 November 2026):** Shop records is the shop's share of the shared database
+(`services/usage` `databaseUsage` reads Firestore's own figures, `shareDatabase` splits them by each shop's other use, the
+same split reconciliation gives), so it is no longer $0 until the month closes. So far / month end come from `monthPace`
+(`services/billing/runningCost.js`: sizes kept are a whole month's price, never multiplied by the straight line), shared by
+the tracker, the control room and the heads-up email. When the email goes, billing stores `costAlert.headsUp`, which
+`shopPlan.js` copies to `platform/plan` as `headsUp`; `billHeadsUpAlert` (adminAlerts.ts) turns it into an Alerts tile
+(action `billing`) for the rest of that month; raising the amount past the month end takes it off. No extra reads: the
+admin already watches `platform/plan`. Fixture: `admin-fixture.html?plan=open&costs=over&page=alerts`.

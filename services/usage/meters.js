@@ -14,8 +14,11 @@
 //   egressGb                       the front door's usage lines (pages and files it served), metric shop_page_bytes
 //   storageGb                      the shop's files in the shared buckets (shops/<id>/…), measured on the day
 //   emails                         the emails sent for the shop (the platform's sent log)
-// The database's reads, writes and size aren't counted shop by shop yet (reads made from shoppers' browsers never
-// reach the server): they stay 0, and their cost is shared by the measured use when the month is reconciled.
+//   reads, writes, deletes,        the shared database's month (Cloud Monitoring's Firestore figures, every database in
+//   firestoreGb                    the project) shared out by each shop's other measured use (shareDatabase). Google
+//                                  counts the database as a whole (reads from shoppers' browsers never reach the
+//                                  server), so this is the shop's share, the same split the month's bill gets when it is
+//                                  reconciled; the owner's tracker shows it day by day instead of $0 until then.
 //
 // `runUsageMeters` is the daily job: this month so far, and last month again until it is reconciled. A reconciled
 // record is never written again. Safe to run any number of times.
@@ -64,6 +67,27 @@ export function metersFrom({ work = null, bytes = 0, storageBytes = null, emails
 }
 const round = (n) => Math.round(n * 1e6) / 1e6;
 
+/** The meters that are the shared database's, shared out by shareDatabase rather than measured per shop. */
+export const DATABASE_KEYS = Object.freeze(["reads", "writes", "deletes", "firestoreGb"]);
+
+/**
+ * Each shop's share of the shared database: `measured` { [shopId]: meters } with the database's month `totals`
+ * { reads, writes, deletes, gb } handed out by each shop's other use priced at list prices (so a shop that shows more
+ * pages and runs more orders carries more of it), evenly when nothing else was measured. Returns new records; a shop's
+ * own database numbers are replaced, never added to. With no totals, the records are returned as they were.
+ */
+export function shareDatabase(measured, totals) {
+  const ids = Object.keys(measured ?? {}).sort();
+  if (!totals || !ids.length) return measured;
+  const weights = ids.map((id) => Math.max(0, weightOf(measured[id], DATABASE_KEYS)));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const amount = (key) => Math.max(0, Number(totals[key]) || 0);
+  return Object.fromEntries(ids.map((id, i) => {
+    const share = sum > 0 ? weights[i] / sum : 1 / ids.length;
+    return [id, { ...measured[id], reads: round(amount("reads") * share), writes: round(amount("writes") * share), deletes: round(amount("deletes") * share), firestoreGb: round(amount("gb") * share) }];
+  }));
+}
+
 /**
  * The month's bill split by use: { [shopId]: cents }, adding up to `invoiceCents` exactly. Each shop's weight is its
  * meters priced at Google's list prices, unrounded (so a quiet shop still counts); the cents are handed
@@ -83,8 +107,9 @@ export function reconcile({ meters, invoiceCents }) {
   return out;
 }
 // The meters' list-price cost in millionths of a dollar, unrounded (meterCost rounds to cents, too coarse for a quiet shop).
-function weightOf(record) {
+function weightOf(record, leaveOut = []) {
   return METER_KEYS.reduce((sum, kind) => {
+    if (leaveOut.includes(kind)) return sum;
     const amount = Number(record?.[kind]);
     return sum + (Number.isFinite(amount) && amount > 0 ? amount * UNIT_PRICES[kind].micros : 0);
   }, 0);

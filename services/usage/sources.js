@@ -4,9 +4,11 @@
 //   monitoringUsage   Cloud Monitoring's sums of the two log-based metrics (server/setup-usage-metrics.js) for a month, by
 //                     the `shop` label: { [shopId]: { count, sum } }
 //   storageUsage      the bytes under shops/<id>/ in each shared bucket
-//   usageSources      the three together, plus the emails count: what runUsageMeters reads
+//   databaseUsage     the shared database's month: reads, writes and deletes, and its average size (every database in
+//                     the project; Google doesn't count them shop by shop)
+//   usageSources      the four together, plus the emails count: what runUsageMeters reads
 import { googleHttp } from "../../clients/http.js";
-import { metersFrom, monthBounds } from "./meters.js";
+import { metersFrom, monthBounds, shareDatabase } from "./meters.js";
 
 /** The two log-based metrics the meters read (made by server/setup-usage-metrics.js). */
 export const USAGE_METRICS = Object.freeze({ work: "shop_work_ms", pages: "shop_page_bytes" });
@@ -53,6 +55,57 @@ export function monitoringUsage({ fetch, token, projectId }) {
   };
 }
 
+/** Firestore's own figures in Cloud Monitoring (resource firestore.googleapis.com/Database), as GA metric types. */
+export const DATABASE_METRICS = Object.freeze({
+  reads: "firestore.googleapis.com/document/read_ops_count",
+  writes: "firestore.googleapis.com/document/write_ops_count",
+  deletes: "firestore.googleapis.com/document/delete_ops_count",
+  bytes: "firestore.googleapis.com/storage/data_and_index_storage_bytes",
+});
+
+/**
+ * The shared database's month so far: { reads, writes, deletes, gb }, every database in the project added together.
+ * Counts are each day's totals summed; the size (a gauge) is the average of each day's average, in GB, which is what a
+ * GB-month price is charged on.
+ */
+export function databaseUsage({ fetch, token, projectId }) {
+  const call = googleHttp({ fetch, token });
+  const daily = async (metric, aligner, month) => {
+    const { start, end } = monthBounds(month);
+    const values = [];
+    let pageToken = "";
+    do {
+      const query = {
+        filter: `metric.type="${metric}" AND resource.type="firestore.googleapis.com/Database"`,
+        "interval.startTime": start,
+        "interval.endTime": end,
+        "aggregation.alignmentPeriod": "86400s",
+        "aggregation.perSeriesAligner": aligner,
+        "aggregation.crossSeriesReducer": "REDUCE_SUM",
+        ...(pageToken ? { pageToken } : {}),
+      };
+      const answer = await call("GET", `${MONITORING}/projects/${projectId}/timeSeries`, { query });
+      for (const series of answer.timeSeries ?? []) {
+        for (const point of series.points ?? []) values.push(Number(point.value?.int64Value ?? point.value?.doubleValue) || 0);
+      }
+      pageToken = answer.nextPageToken ?? "";
+    } while (pageToken);
+    return values;
+  };
+  const sum = (values) => values.reduce((a, b) => a + b, 0);
+  return {
+    async totals(month) {
+      const [reads, writes, deletes, bytes] = await Promise.all([
+        daily(DATABASE_METRICS.reads, "ALIGN_DELTA", month),
+        daily(DATABASE_METRICS.writes, "ALIGN_DELTA", month),
+        daily(DATABASE_METRICS.deletes, "ALIGN_DELTA", month),
+        daily(DATABASE_METRICS.bytes, "ALIGN_MEAN", month),
+      ]);
+      return { reads: sum(reads), writes: sum(writes), deletes: sum(deletes), gb: bytes.length ? sum(bytes) / bytes.length / 1e9 : 0 };
+    },
+  };
+}
+
 /** The bytes a shop keeps in the shared buckets: everything under shops/<id>/ in each. */
 export function storageUsage({ fetch, token, buckets }) {
   const call = googleHttp({ fetch, token });
@@ -76,9 +129,9 @@ export function storageUsage({ fetch, token, buckets }) {
 
 /**
  * What runUsageMeters reads: `read(month, shopIds, { measureStorage })` -> { [shopId]: meters }. `sentLog` is the
- * platform's sent-email log (clients/stores.js firestoreSentLog, `countInMonth`).
+ * platform's sent-email log (clients/stores.js firestoreSentLog, `countInMonth`); `database` is databaseUsage.
  */
-export function usageSources({ monitoring, storage, sentLog }) {
+export function usageSources({ monitoring, storage, sentLog, database = null }) {
   return {
     async read(month, shopIds, { measureStorage = true } = {}) {
       const work = await monitoring.sums(USAGE_METRICS.work, month);
@@ -92,7 +145,10 @@ export function usageSources({ monitoring, storage, sentLog }) {
           emails: sentLog ? await sentLog.countInMonth(shopId, month) : 0,
         });
       }
-      return out;
+      // The database's month, shared by use. A failed read leaves the records as measured (0 for the database, as
+      // before), so the rest of the day's meters are still written.
+      const totals = database ? await database.totals(month).catch(() => null) : null;
+      return shareDatabase(out, totals);
     },
   };
 }

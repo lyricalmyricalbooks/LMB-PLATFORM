@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeRegistry } from "../../setup/fakes.js";
-import { MEMORY_GB, metersFrom, monthBounds, reconcile, runUsageMeters } from "./meters.js";
-import { USAGE_METRICS, monitoringUsage, storageUsage, usageSources } from "./sources.js";
+import { MEMORY_GB, metersFrom, monthBounds, reconcile, runUsageMeters, shareDatabase } from "./meters.js";
+import { DATABASE_METRICS, USAGE_METRICS, databaseUsage, monitoringUsage, storageUsage, usageSources } from "./sources.js";
 
 const SHARED = "lmb-test-shop";
 const shared = (shopId, extra = {}) => ({ shopId, projectId: SHARED, shared: true, status: "live", ...extra });
@@ -129,4 +129,48 @@ test("the sources together give each shop its meters", async () => {
   assert.deepEqual(out["press-a"], { invocations: 2, computeGbSeconds: 4 * MEMORY_GB, egressGb: 1, storageGb: 2, emails: 5, reads: 0, writes: 0, deletes: 0, firestoreGb: 0 });
   assert.equal(out["press-b"].invocations, 0);
   assert.equal("storageGb" in (await usageSources({ monitoring, storage, sentLog }).read("2026-11", ["press-a"], { measureStorage: false }))["press-a"], false);
+});
+
+test("the shared database is shared out by each shop's other use, evenly when nothing else was measured", () => {
+  const totals = { reads: 1_000_000, writes: 40_000, deletes: 400, gb: 2 };
+  const shared = shareDatabase({ a: metersFrom({ work: { count: 300, ms: 0 } }), b: metersFrom({ work: { count: 100, ms: 0 } }) }, totals);
+  assert.deepEqual([shared.a.reads, shared.a.writes, shared.a.deletes, shared.a.firestoreGb], [750_000, 30_000, 300, 1.5]);
+  assert.deepEqual([shared.b.reads, shared.b.firestoreGb], [250_000, 0.5]);
+  assert.equal(shared.a.invocations, 300, "the shop's own numbers are kept");
+  // Each shop's share replaces what was there; a re-run gives the same answer, never twice as much.
+  assert.deepEqual(shareDatabase(shared, totals), shared);
+  assert.deepEqual(shareDatabase({ a: metersFrom({}), b: metersFrom({}) }, totals).a.reads, 500_000);
+  const before = { a: metersFrom({}) };
+  assert.equal(shareDatabase(before, null), before, "no totals: nothing changed");
+  // The split of the month's bill doesn't move: every shop's weight grows in the same proportion.
+  assert.deepEqual(reconcile({ meters: shared, invoiceCents: 1000 }), reconcile({ meters: { a: { invocations: 300 }, b: { invocations: 100 } }, invoiceCents: 1000 }));
+});
+
+test("the database's month comes from Firestore's own figures in Cloud Monitoring, every database added up", async () => {
+  const asked = [];
+  const answers = {
+    [DATABASE_METRICS.reads]: [{ points: [{ value: { int64Value: "600" } }, { value: { int64Value: "400" } }] }, { points: [{ value: { int64Value: "50" } }] }],
+    [DATABASE_METRICS.writes]: [{ points: [{ value: { int64Value: "30" } }] }],
+    [DATABASE_METRICS.deletes]: [],
+    [DATABASE_METRICS.bytes]: [{ points: [{ value: { doubleValue: 1e9 } }, { value: { doubleValue: 3e9 } }] }],
+  };
+  const fetch = async (url) => {
+    const u = new URL(url);
+    asked.push(Object.fromEntries(u.searchParams));
+    const metric = /metric\.type="([^"]+)"/.exec(u.searchParams.get("filter"))[1];
+    return new Response(JSON.stringify({ timeSeries: answers[metric] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const totals = await databaseUsage({ fetch, token: async () => "t", projectId: SHARED }).totals("2026-11");
+  assert.deepEqual(totals, { reads: 1050, writes: 30, deletes: 0, gb: 2 });
+  assert.equal(asked.length, 4);
+  assert.ok(asked.every((q) => q.filter.endsWith('resource.type="firestore.googleapis.com/Database"') && q["aggregation.crossSeriesReducer"] === "REDUCE_SUM" && q["interval.startTime"] === "2026-11-01T00:00:00.000Z"));
+  assert.deepEqual(asked.map((q) => q["aggregation.perSeriesAligner"]), ["ALIGN_DELTA", "ALIGN_DELTA", "ALIGN_DELTA", "ALIGN_MEAN"]);
+
+  // Read with the rest of the day's meters; a failed read leaves the database at 0 and the rest written.
+  const monitoring = { sums: async () => ({ a: { count: 10, sum: 0 } }) };
+  const storage = { bytes: async () => 0 };
+  const read = await usageSources({ monitoring, storage, database: { totals: async () => totals } }).read("2026-11", ["a"]);
+  assert.equal(read.a.reads, 1050);
+  const failed = await usageSources({ monitoring, storage, database: { totals: async () => { throw new Error("down"); } } }).read("2026-11", ["a"]);
+  assert.deepEqual([failed.a.reads, failed.a.invocations], [0, 10]);
 });

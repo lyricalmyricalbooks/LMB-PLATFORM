@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createBilling } from "./billing.js";
 import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "./fakes.js";
 import { fakeStockroomData } from "./closingFakes.js";
-import { PLAN_DOC, STATUS_DOC, planDocument, shopPlanCopies } from "./shopPlan.js";
+import { PLAN_DOC, STATUS_DOC, headsUpOf, planDocument, shopPlanCopies } from "./shopPlan.js";
 import { createStripeApi } from "../payments/stripeApi.js";
 import { signatureHeader } from "../payments/stripeSignature.js";
 import { platformSettings } from "../settings.js";
@@ -49,7 +49,7 @@ test("every billing change writes the shop's plan document: trial, card, cancel,
   const row = await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "shop" });
   assert.deepEqual(t.plan(), {
     plan: "shop", state: "trial", access: "open", trialEnd: new Date(NOW + 14 * DAY).toISOString(), nextPaymentAt: null,
-    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, hub: "https://platform.example/api/shop-billing/", shopId: "moth-press", founding: false, closing: null, changing: null,
+    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, hub: "https://platform.example/api/shop-billing/", shopId: "moth-press", founding: false, closing: null, headsUp: null, changing: null,
     updatedAt: new Date(NOW).toISOString(),
   });
   assert.deepEqual(t.status(), { access: "open", updatedAt: new Date(NOW).toISOString() });
@@ -200,4 +200,13 @@ test("the admins hear about an app being added until it is built, and about an a
   const closesAt = new Date(NOW + 20 * DAY).toISOString();
   await copies.write("moth-press", { plan: "shop", status: "active", appsClosing: { apps: ["stockroom"], at: closesAt } }, { link: LINK, at });
   assert.deepEqual((await stockroomData.get("moth-press", PLAN_DOC)).changing, { adding: [], closing: { apps: ["stockroom"], at: closesAt } });
+});
+
+test("the bill heads-up reaches the shop's plan document in words and cents, and nothing malformed does", () => {
+  const headsUp = { month: "2026-11", projectedCents: 3100, limitCents: 2500, projected: "$31.00", limit: "$25.00" };
+  assert.deepEqual(headsUpOf({ costAlert: { cents: 2500, headsUp } }), headsUp);
+  assert.equal(headsUpOf({ costAlert: { cents: 2500 } }), null);
+  assert.equal(headsUpOf({ costAlert: { headsUp: { ...headsUp, month: "Nov" } } }), null);
+  assert.equal(headsUpOf({ costAlert: { headsUp: { ...headsUp, projectedCents: "3100" } } }), null);
+  assert.deepEqual(planDocument({ shopId: "moth-press", status: "active", access: "open", costAlert: { headsUp } }, { link: "https://platform.example/x", at: "2026-11-14T00:00:00Z" }).headsUp, headsUp);
 });

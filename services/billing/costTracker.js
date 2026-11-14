@@ -9,7 +9,7 @@
 //
 // Estimates only: the bill itself is made from the month's final numbers (meters.js reconciles them with Google's own
 // bill), and Stripe works out the tax. Nothing here changes what anyone pays.
-import { DEFAULT_ALERT_CENTS, UNIT_PRICES, meterCost, monthBounds, monthWords, paidShare, projectedCents } from "./runningCost.js";
+import { DEFAULT_ALERT_CENTS, SIZE_KEYS, UNIT_PRICES, monthBounds, monthGone, monthPace, monthWords, paidShare } from "./runningCost.js";
 
 const DAY = 86_400_000;
 const amountOf = (value) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0);
@@ -22,7 +22,8 @@ export const COST_GROUPS = Object.freeze([
   Object.freeze({ id: "visitors", words: "Visitors", kinds: ["egressGb"], used: (m) => (amountOf(m.egressGb) ? `${sized(m.egressGb)} of pages and photos shown` : "") }),
   Object.freeze({ id: "storage", words: "Photos and files", kinds: ["storageGb"], used: (m) => (amountOf(m.storageGb) ? `${sized(m.storageGb)} kept` : "") }),
   Object.freeze({ id: "work", words: "Orders and upkeep", kinds: ["invocations", "computeGbSeconds"], used: (m) => (amountOf(m.invocations) ? count(m.invocations, "task run", "tasks run") : "") }),
-  Object.freeze({ id: "records", words: "Shop records", kinds: ["reads", "writes", "deletes", "firestoreGb"], used: (m) => (amountOf(m.reads) + amountOf(m.writes) ? `${whole(amountOf(m.reads) + amountOf(m.writes))} looks and saves` : "") }),
+  // The shop's share of the shared database (services/usage/meters.js shareDatabase), so the words say "about".
+  Object.freeze({ id: "records", words: "Shop records", kinds: ["reads", "writes", "deletes", "firestoreGb"], used: (m) => (amountOf(m.reads) + amountOf(m.writes) ? `About ${whole(amountOf(m.reads) + amountOf(m.writes))} looks and saves` : "") }),
   Object.freeze({ id: "emails", words: "Emails", kinds: ["emails"], used: (m) => (amountOf(m.emails) ? count(m.emails, "email sent", "emails sent") : "") }),
 ]);
 
@@ -30,10 +31,11 @@ export const COST_GROUPS = Object.freeze([
  * A month of use as the five groups: [{ id, words, used, cents }], biggest first (ties keep the order above). `rate`
  * turns the platform's home currency into the press's (1 for a Canadian press). The groups' cents add up to `total`
  * exactly when it is given (the month's cost as billed), so the list never disagrees with the figure above it.
+ * `sizeShare` is the part of the month a size (photos and records kept) is priced for: the month gone so far, or 1.
  */
-export function costGroups(meters = {}, rate = 1, total = null) {
+export function costGroups(meters = {}, rate = 1, total = null, sizeShare = 1) {
   const groups = COST_GROUPS.map((group) => {
-    const micros = group.kinds.reduce((sum, kind) => sum + amountOf(meters?.[kind]) * (UNIT_PRICES[kind]?.micros ?? 0), 0);
+    const micros = group.kinds.reduce((sum, kind) => sum + amountOf(meters?.[kind]) * (UNIT_PRICES[kind]?.micros ?? 0) * (SIZE_KEYS.includes(kind) ? sizeShare : 1), 0);
     return { id: group.id, words: group.words, used: group.used(meters ?? {}), cents: Math.round((micros / 10_000) * rate) };
   });
   if (Number.isInteger(total)) {
@@ -73,11 +75,12 @@ export function trackerFigures({ month, now, record = null, history = {}, feeCen
   const days = Math.round((end - start) / DAY);
   const day = Math.min(days, Math.max(1, Math.ceil((now - start) / DAY)));
   const measured = Boolean(record) && Number.isFinite(rate) && rate > 0;
-  const soFarHome = measured ? meterCost(record).cents : 0;
-  const soFar = measured ? Math.round(soFarHome * rate) : null;
-  const groups = measured ? costGroups(record, rate, soFar) : [];
-  // The same straight line the heads-up email uses, so the page and the email never disagree.
-  const monthEnd = measured ? Math.round(projectedCents({ soFarCents: soFarHome, now, month }) * rate) : null;
+  // The same pace the heads-up email uses (counts at their pace so far, sizes for the whole month), so the page and
+  // the email never disagree.
+  const pace = measured ? monthPace({ meters: record, now, month }) : null;
+  const soFar = measured ? Math.round(pace.soFarCents * rate) : null;
+  const groups = measured ? costGroups(record, rate, soFar, monthGone({ now, month })) : [];
+  const monthEnd = measured ? Math.round(pace.monthEndCents * rate) : null;
   const share = paidShare({ month, paidFrom });
   const running = monthEnd === null ? null : Math.round(monthEnd * share);
   const discount = Math.max(0, feeCents - feeAfterCents);

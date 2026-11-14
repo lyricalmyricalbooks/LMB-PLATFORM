@@ -129,11 +129,25 @@ test("the heads-up email goes once a month when the bill looks set to pass the p
   assert.match(words.subject, /^Moth Press's bill for December 2026 may pass \$25\.00$/);
   assert.match(TEMPLATES_FR["bill-heads-up"](mail.data, { settings: platformSettings({}), pressName: "Moth Press" }).text, /décembre 2026.*25,00 \$/s);
 
+  // The heads-up is kept for the shop's Alerts page; a lower amount keeps it, one above where the month was heading drops it.
+  const headsUp = (await w.stores.subscriptions.get("moth-press")).costAlert.headsUp;
+  assert.deepEqual([headsUp.month, headsUp.limit, headsUp.limitCents > 0, headsUp.projectedCents > headsUp.limitCents], ["2026-12", "$25.00", true, true]);
+  assert.equal(headsUp.projected, words.subject && mail.data.projected);
+  await w.billing.setCostAlert({ shopId: "moth-press", cents: 2000 });
+  assert.deepEqual([(await w.stores.subscriptions.get("moth-press")).costAlert.headsUp.limit], ["$20.00"]);
+  await w.billing.setCostAlert({ shopId: "moth-press", cents: headsUp.projectedCents + 100 });
+  assert.equal((await w.stores.subscriptions.get("moth-press")).costAlert.headsUp, null);
+
   await w.billing.setCostAlert({ shopId: "moth-press", cents: 0 });
   assert.deepEqual(await w.billing.runningCostAlerts({ month: "2027-01", soFar: { "moth-press": 5000 } }), []);
   await w.billing.setCostAlert({ shopId: "moth-press", cents: 10_000 });
   assert.deepEqual(await w.billing.runningCostAlerts({ month: "2027-01", soFar: { "moth-press": 300 } }), [], "under their own amount");
   await assert.rejects(w.billing.setCostAlert({ shopId: "moth-press", cents: -1 }), /\$0 to \$10,000/);
+  // A month end already paced from the meters is used as it is, not projected again.
+  await w.billing.setCostAlert({ shopId: "moth-press", cents: 2500 });
+  assert.deepEqual(await w.billing.runningCostAlerts({ month: "2027-02", soFar: { "moth-press": 100 }, monthEnd: { "moth-press": 1900 } }), [], "$19 + $5 stays under $25");
+  assert.deepEqual(await w.billing.runningCostAlerts({ month: "2027-02", monthEnd: { "moth-press": 2100 } }), ["moth-press"]);
+  assert.equal((await w.stores.subscriptions.get("moth-press")).costAlert.headsUp.projectedCents, 2600);
 });
 
 test("the bank feed add-on goes on the next bill once per month a bank was connected, in the shop's currency, never in the trial", async () => {

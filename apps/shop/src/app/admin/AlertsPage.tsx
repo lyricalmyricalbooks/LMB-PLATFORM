@@ -12,7 +12,7 @@ const TONE: Record<string, string> = { danger: "alert", warning: "apricot" };
 
 const ACTION_LABEL: Record<string, string> = {
   retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", backups: "Open Backups", notifications: "Open email deliveries",
-  payments: "Open Payments", invoices: "Open invoices", bills: "Open bills to pay", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", inventoryApp: "Open the inventory app",
+  payments: "Open Payments", invoices: "Open invoices", bills: "Open bills to pay", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", inventoryApp: "Open the inventory app", billing: "See running costs",
 };
 
 export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInventory, onOpenInvoices, onOpenBills, onOpenRoute, onRetry }: {

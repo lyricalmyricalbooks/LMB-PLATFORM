@@ -12,7 +12,7 @@ import { ordersNeedingWork, refreshOrdersCache } from "./ordersStore";
 import { AlertsPill, useAlertDismissals, visibleAlerts } from "./AdminAlerts.tsx";
 import { AdminPageBoundary } from "./AdminPageBoundary";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
-import { backupAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
+import { backupAlert, billHeadsUpAlert, buildAdminAlerts, cardAccountAlert, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import type { PlatformPaymentsAnswer } from "./platformPayments";
 import { hasStockroom, platformCardsProvider, runsOnColophon } from "../../lib/shopProfile";
 import { googleConnectApi } from "./googleConnect";
@@ -688,7 +688,8 @@ export function Dashboard() {
   };
   /** Resolves true when the page changed, false when the owner chose to stay on unsaved settings. */
   // Every alert, and the ones not hidden in this browser: the top bar's pill counts these and #alerts lists them.
-  const allAlerts = [...settingsAlerts(originalSettings), ...alerts, ...Object.values(reminderAlerts)];
+  const headsUp = billHeadsUpAlert(platformPlan);
+  const allAlerts = [...settingsAlerts(originalSettings), ...alerts, ...(headsUp ? [headsUp] : []), ...Object.values(reminderAlerts)];
   const shownAlerts = visibleAlerts(allAlerts, alertHides.dismissed);
   const goTo = async (id: string): Promise<boolean> => {
     // Nothing unsaved: switch at once (callers such as What's new set a Settings tab right after).

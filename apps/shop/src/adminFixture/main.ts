@@ -931,8 +931,13 @@ let helperShown = false;
     const { platformPlanSource } = await import("../app/admin/platformPlanApi");
     const HUB = "https://platform.example/api/shop-billing/";
     (globalThis as any).__fixtureIdToken = "fixture-token";
+    // `&costs=over`: the platform's daily check has sent this month's heads-up, so the Alerts page shows it too. Read
+    // now: the admin tidies the address once it opens.
+    const asked = new URLSearchParams(location.search);
+    const sign = asked.get("cur") === "usd" ? "US$" : "$";
+    const headsUp = asked.get("costs") === "over" ? { month: new Date().toISOString().slice(0, 7), projected: `${sign}13.19`, limit: `${sign}10.00` } : null;
     platformPlanSource.watch = (next) => {
-      next({ state: "active", access: "open", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", cancelAtPeriodEnd: sample === "cancelled", endsAt: sample === "cancelled" ? "2026-12-12T12:00:00Z" : null });
+      next({ state: "active", access: "open", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", cancelAtPeriodEnd: sample === "cancelled", endsAt: sample === "cancelled" ? "2026-12-12T12:00:00Z" : null, headsUp });
       return () => {};
     };
     let billing: any = { plan: "both", planName: "Colophon", price: "$5.00", plusTax: true, plans: [{ plan: "both", name: "Colophon", price: "$5.00", apps: ["shop", "stockroom"] }], status: "active", access: "open", cancelAtPeriodEnd: sample === "cancelled",
@@ -954,8 +959,8 @@ let helperShown = false;
     const costsAnswer = () => {
       const over = costsKind === "over", measured = costsKind !== "new", trial = costsKind === "trial";
       const groups = (over
-        ? [["visitors", "Visitors", "14.2 GB of pages and photos shown", 294], ["work", "Orders and upkeep", "212,400 tasks run", 31], ["emails", "Emails", "410 emails sent", 25], ["storage", "Photos and files", "3.1 GB kept", 11], ["records", "Shop records", "", 0]]
-        : [["visitors", "Visitors", "5.6 GB of pages and photos shown", 116], ["emails", "Emails", "236 emails sent", 14], ["work", "Orders and upkeep", "38,200 tasks run", 12], ["storage", "Photos and files", "2.3 GB kept", 8], ["records", "Shop records", "", 0]]
+        ? [["visitors", "Visitors", "14.2 GB of pages and photos shown", 294], ["work", "Orders and upkeep", "212,400 tasks run", 31], ["emails", "Emails", "410 emails sent", 25], ["storage", "Photos and files", "3.1 GB kept", 11], ["records", "Shop records", "About 486,000 looks and saves", 21]]
+        : [["visitors", "Visitors", "5.6 GB of pages and photos shown", 116], ["emails", "Emails", "236 emails sent", 14], ["work", "Orders and upkeep", "38,200 tasks run", 12], ["records", "Shop records", "About 142,000 looks and saves", 9], ["storage", "Photos and files", "2.3 GB kept", 8]]
       ).map(([id, words, used, cents]) => ({ id, words, used, ...$(cents as number) }));
       const soFar = groups.reduce((sum, g) => sum + g.cents, 0), monthEnd = Math.round((soFar * 30) / 14);
       const fee = 500, after = founding ? 375 : 500, running = trial ? 0 : monthEnd;

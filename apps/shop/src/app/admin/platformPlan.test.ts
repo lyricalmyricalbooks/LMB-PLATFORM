@@ -97,6 +97,16 @@ describe("reading the plan document", () => {
   });
 });
 
+describe("the bill heads-up on the plan document", () => {
+  it("is read only as a month and two amounts in words", () => {
+    expect(plan({ headsUp: { month: "2026-11", projected: "$31.00", limit: "$25.00", projectedCents: 3100 } }).headsUp).toEqual({ month: "2026-11", projected: "$31.00", limit: "$25.00" });
+    expect(plan({ headsUp: { month: "2026-11", projected: "US$1,031.00", limit: "US$25.00" } }).headsUp?.projected).toBe("US$1,031.00");
+    expect(plan({ headsUp: { month: "2026-11", projected: "<b>lots</b>", limit: "$25.00" } }).headsUp).toBeNull();
+    expect(plan({ headsUp: { month: "November", projected: "$31.00", limit: "$25.00" } }).headsUp).toBeNull();
+    expect(plan().headsUp).toBeNull();
+  });
+});
+
 describe("storesPage", () => {
   it("is the platform's account page, on the plan link's address", () => {
     expect(storesPage(parsePlatformPlan({ state: "trial", link: "https://colophon.example/account/billing.html?press=p1" }))).toBe("https://colophon.example/account/");
