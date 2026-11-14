@@ -9,15 +9,15 @@ import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { bookingsAdmin, followBookings, readBookingSetup, type Booking, type Waiting } from "./bookingsApi";
-import { byDay, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
+import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { copyText } from "./clipboard";
 import "./bookings.css";
 
-type Tab = "calendar" | "services" | "hours";
+type Tab = "calendar" | "services" | "hours" | "figures";
 const ZONE = shopTimeZone();
 const today = () => dayOf(Date.now(), ZONE);
 const bookPageUrl = () => new URL(`${(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/")}book`, window.location.origin).toString();
@@ -125,7 +125,7 @@ export function Bookings() {
       </section>
 
       <Tabs<Tab> label="Bookings" variant="page" value={tab} onChange={setTab}
-        tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length }, { id: "hours", label: "Hours & rules" }]} />
+        tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length }, { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" }]} />
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
@@ -137,6 +137,9 @@ export function Bookings() {
       </TabPanel>
       <TabPanel tabId="services" active={tab === "services"}>
         <ServicesPanel services={setup.services} onChanged={reloadSetup} startAdding={adding} onStarted={() => setAdding(false)} />
+      </TabPanel>
+      <TabPanel tabId="figures" active={tab === "figures"}>
+        {tab === "figures" && <FiguresPanel />}
       </TabPanel>
       <TabPanel tabId="hours" active={tab === "hours"}>
         <HoursPanel settings={setup.settings} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
@@ -272,6 +275,103 @@ function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: W
         </ul>
       )}
     </Dialog>
+  );
+}
+
+// ── Figures ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+const FIGURE_MONTHS = 6;
+
+/** The last six months at a glance: bookings and money month by month, the busiest days, the most booked services. */
+function FiguresPanel() {
+  const [figures, setFigures] = useState<BookingFigures | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let stale = false;
+    setFigures(null); setError("");
+    const months = lastMonths(today(), FIGURE_MONTHS);
+    // A day's slack either side covers every time zone; each booking is then placed by its own day in the shop's zone.
+    const from = new Date(Date.parse(`${months[0]}-01T00:00:00Z`) - 86_400_000).toISOString();
+    const to = new Date(Date.parse(`${addDays(`${months[months.length - 1]}-28`, 4).slice(0, 7)}-01T00:00:00Z`) + 86_400_000).toISOString();
+    readBookingsBetween(from, to)
+      .then((rows) => { if (!stale) setFigures(bookingFigures(rows, ZONE, months, Date.now())); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load your figures."); });
+    return () => { stale = true; };
+  }, [attempt]);
+
+  if (error) return <ErrorState title="Figures couldn't be loaded" description={error} onRetry={() => setAttempt((n) => n + 1)} />;
+  if (!figures) return <LoadingState label="Adding up your bookings…" />;
+  if (!figures.count && !figures.cancelled) return <EmptyState title="No figures yet" description="Once customers book, the last six months show here: bookings and money by month, your busiest days and what gets booked most." />;
+
+  const topMonth = Math.max(1, ...figures.months.map((m) => m.count));
+  const topDay = Math.max(1, ...figures.weekdays.map((w) => w.count));
+  const topService = Math.max(1, ...figures.services.map((s) => s.count));
+  const busiest = figures.weekdays.reduce((best, w) => (w.count > best.count ? w : best), figures.weekdays[0]);
+  return (
+    <div className="bkg-figs">
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">Bookings</p>
+        <p className="bkg-big">{figures.count}</p>
+        <p className="bkg-sub">last {FIGURE_MONTHS} months</p>
+      </div>
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">Money taken</p>
+        <p className="bkg-big bkg-big-money">{moneyText(figures.takenMinor, SHOP_CURRENCY)}</p>
+        <p className="bkg-sub">after refunds</p>
+      </div>
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">No-shows</p>
+        <p className="bkg-big">{figures.noShows}</p>
+        <p className="bkg-sub">{figures.noShowPercent === null ? "none marked yet" : `${figures.noShowPercent}% of past bookings`}</p>
+      </div>
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">Cancelled</p>
+        <p className="bkg-big">{figures.cancelled}</p>
+        <p className="bkg-sub">by you or the customer</p>
+      </div>
+
+      <section className="bkg-tile bkg-figs-months" aria-labelledby="bkg-figs-months">
+        <h2 id="bkg-figs-months" className="bkg-figs-title">Month by month</h2>
+        <ol className="bkg-months">
+          {figures.months.map((m) => (
+            <li key={m.month} aria-label={`${monthText(m.month, "long")}: ${m.count} ${m.count === 1 ? "booking" : "bookings"}, ${moneyText(m.takenMinor, SHOP_CURRENCY)}`}>
+              <strong aria-hidden>{m.count}</strong>
+              <span className="bkg-months-bar" aria-hidden><i style={{ height: `${Math.round((m.count / topMonth) * 100)}%` }} /></span>
+              <span className="bkg-months-name" aria-hidden>{monthText(m.month)}</span>
+              <span className="bkg-months-money" aria-hidden>{moneyShort(m.takenMinor, SHOP_CURRENCY)}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="bkg-tile bkg-tile-mint bkg-figs-days" aria-labelledby="bkg-figs-days">
+        <h2 id="bkg-figs-days" className="bkg-figs-title">Busiest days</h2>
+        <p className="bkg-figs-lead">{busiest.count ? `${busiest.day}s are your busiest.` : "No bookings yet."}</p>
+        <ul className="bkg-bars">
+          {figures.weekdays.map((w) => (
+            <li key={w.day}>
+              <span>{w.day.slice(0, 3)}</span>
+              <span className="bkg-bars-track" aria-hidden><i style={{ width: `${Math.round((w.count / topDay) * 100)}%` }} /></span>
+              <strong>{w.count}</strong>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="bkg-tile bkg-figs-services" aria-labelledby="bkg-figs-services">
+        <h2 id="bkg-figs-services" className="bkg-figs-title">Most booked</h2>
+        <ul className="bkg-bars bkg-bars-wide">
+          {figures.services.map((s) => (
+            <li key={s.name}>
+              <span>{s.name}</span>
+              <span className="bkg-bars-track" aria-hidden><i style={{ width: `${Math.round((s.count / topService) * 100)}%` }} /></span>
+              <strong>{s.count}</strong>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }
 

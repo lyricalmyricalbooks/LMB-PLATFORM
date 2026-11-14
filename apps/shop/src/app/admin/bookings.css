@@ -212,3 +212,34 @@
 .rp .bkg-waitlist a { color: var(--rp-text-muted); font-size: 14px; overflow-wrap: anywhere; }
 .rp .bkg-waitlist span { font: 500 12px/1.4 var(--rp-font-mono); color: var(--rp-text-faint); }
 @media (pointer: coarse) { .rp .bkg-waiting { min-height: var(--rp-touch); } }
+
+/* Figures: four number tiles, the months as columns, weekdays and services as bars */
+.rp .bkg-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.rp .bkg-figs-months { grid-column: span 4; }
+.rp .bkg-figs-days, .rp .bkg-figs-services { grid-column: span 2; }
+.rp .bkg-figs-title { margin: 0 0 4px; font: 600 18px/1.25 var(--rp-font-body); letter-spacing: -0.01em; }
+.rp .bkg-figs-lead { margin: 0 0 14px; font-size: 14px; }
+.rp .bkg-months { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.rp .bkg-months li { display: grid; gap: 6px; justify-items: center; min-width: 0; text-align: center; }
+.rp .bkg-months strong { font: 600 16px/1 var(--rp-font-body); font-variant-numeric: tabular-nums; }
+.rp .bkg-months-bar { display: flex; align-items: flex-end; width: 100%; max-width: 56px; height: 132px; border-radius: 12px; background: var(--rp-surface-sunken, var(--rp-bg)); overflow: hidden; }
+.rp .bkg-months-bar i { display: block; width: 100%; min-height: 3px; border-radius: 12px 12px 0 0; background: var(--rp-inverse); }
+.rp .bkg-months-name { font: 500 12px/1.3 var(--rp-font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .bkg-months-money { font: 500 12px/1.3 var(--rp-font-mono); color: var(--rp-text-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp .bkg-bars { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.rp .bkg-bars li { display: grid; grid-template-columns: 40px minmax(0, 1fr) 28px; gap: 10px; align-items: center; font-size: 13px; }
+.rp .bkg-bars-wide li { grid-template-columns: minmax(0, 11em) minmax(0, 1fr) 28px; }
+.rp .bkg-bars li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp .bkg-bars strong { text-align: right; font: 600 13px/1 var(--rp-font-body); font-variant-numeric: tabular-nums; }
+.rp .bkg-bars-track { display: block; height: 10px; border-radius: 999px; background: var(--rp-surface-sunken, var(--rp-bg)); overflow: hidden; }
+.rp .bkg-tile-mint .bkg-bars-track { background: var(--rp-surface); }
+.rp .bkg-bars-track i { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: var(--rp-inverse); }
+@media (max-width: 900px) {
+  .rp .bkg-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp .bkg-figs-months, .rp .bkg-figs-days, .rp .bkg-figs-services { grid-column: span 2; }
+  .rp .bkg-months { gap: 6px; }
+  .rp .bkg-months-bar { height: 96px; }
+  .rp .bkg-months-money { font-size: 10px; }
+  .rp .bkg-figs .bkg-big.bkg-big-money { font-size: clamp(17px, 5.6vw, 28px); }
+}
+.rp .bkg-tile-mint .bkg-bars-track i { background: currentColor; }

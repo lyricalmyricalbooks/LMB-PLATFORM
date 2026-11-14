@@ -116,6 +116,15 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     { id: "b".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Lou Example", email: "lou@example.com", createdAt: at(-1, 12) },
     { id: "c".repeat(32), serviceId: "review", serviceName: "Portfolio review", day: dayAhead(1), start: null, name: "Max Example-Longername", email: "max.longername@example.com", createdAt: at(0, 8) },
   ] : [];
+  // Six months of older bookings for the Figures tab: busier each month, Saturdays busiest, a few no-shows and one kept deposit.
+  const history: Booking[] = mode === "on" ? Array.from({ length: 64 }, (_, i) => {
+    const s = services[i % 3];
+    const days = -(8 + Math.round((63 - i) * 2.6) + (i % 5 === 0 ? 0 : (6 - new Date(Date.now() - (8 + Math.round((63 - i) * 2.6)) * 86_400_000).getDay()) % 3));
+    return booking(`old-${i}`, s, at(days, 10 + (i % 6)), `Guest ${i + 1}`, {
+      ...(i % 11 === 0 ? { noShow: true } : {}),
+      ...(i % 13 === 5 ? { status: "cancelled" as const, refund: s.priceMinor ? { amountMinor: s.priceMinor - 1000, at: at(days - 1, 9) } : null } : {}),
+    });
+  }) : [];
   const watchers = new Set<() => void>();
   const changed = () => watchers.forEach((w) => w());
   bookingsData.watchOn = (onChange) => { onChange(mode !== "off"); return () => {}; };
@@ -125,6 +134,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     watchers.add(send); send();
     return () => void watchers.delete(send);
   };
+  bookingsData.range = async (from, to) => [...rows, ...history].filter((b) => b.start >= from && b.start < to);
   bookingsData.admin = async (op, body) => {
     const id = String(body.id ?? "");
     if (op === "saveService") { const s = body.service as BookingService; services = [...services.filter((x) => x.id !== s.id), { ...s, id: s.id || `svc-${services.length + 1}` }]; }

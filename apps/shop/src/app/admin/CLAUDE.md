@@ -1084,6 +1084,10 @@ name opens that person's booking.
 **Waiting list:** the week reads op `waitlist` for its seven days (again whenever the bookings change) and shows a
 dashed "N waiting" pill under a day's cards (`waitingByDay`, `waitingText`); it opens `WaitingDialog` (name, email,
 what they wait for, Remove = op `removeWaiting`). The server emails them; the owner never has to.
+**Figures tab:** the last six months (`FiguresPanel`): one read of the bookings (`readBookingsBetween`, admin read of
+the shop's own folder, no server call) into `bookingFigures` (`bookingsView.ts`): a confirmed booking counts (no-shows
+too), a held one doesn't, money is what was paid less refunds (a kept deposit counts), each booking sits on its own
+day in the shop's zone. Bars are plain CSS with the numbers beside them. Fixture: 64 older sample bookings.
 
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,

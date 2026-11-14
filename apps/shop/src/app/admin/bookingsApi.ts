@@ -27,6 +27,7 @@ export const bookingsData = {
   },
   readSetup: readSetupFromShop,
   follow: followFromShop,
+  range: rangeFromShop,
   admin: adminFromServer as (op: AdminOp, body: Record<string, unknown>) => Promise<unknown>,
 };
 
@@ -61,6 +62,13 @@ function followFromShop(fromIso: string, toIso: string, onRows: (rows: Booking[]
   const q = query(collection(db, "bookings"), where("start", ">=", fromIso), where("start", "<", toIso), orderBy("start"), limit(500));
   return onSnapshot(q, (snap) => onRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }))), onError);
 }
+
+/** Every booking starting from `fromIso` up to `toIso`, read once (the Figures tab). */
+async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]> {
+  const snap = await getDocs(query(collection(db, "bookings"), where("start", ">=", fromIso), where("start", "<", toIso), orderBy("start"), limit(5000)));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }));
+}
+export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
 export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "calendarFeed" | "waitlist" | "removeWaiting";
 

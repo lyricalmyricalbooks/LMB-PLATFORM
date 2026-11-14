@@ -85,3 +85,13 @@ Not yet tried on a live test shop.
 - [x] Proof: rule test, registry/renderer parity, fallback words editable, a Studio browser check, screenshot.
 
 Review: one request per visit, shared with nothing else on the page. No per-section pick of which services yet.
+
+## Booking figures (14 November 2026)
+
+- [x] Bookings › Figures: six months of bookings and money by month, no-shows (with the share of past bookings),
+      cancellations, busiest weekdays, most booked services.
+- [x] Proof: rule tests (months across a new year, zone edge, refunds, held ignored), typecheck, lint, screenshots
+      desktop and phone.
+
+Review: reads up to 5,000 bookings once when the tab opens; fine for a small shop, worth a monthly summary record if a
+shop ever gets near that. Not yet tried on a live test shop.
