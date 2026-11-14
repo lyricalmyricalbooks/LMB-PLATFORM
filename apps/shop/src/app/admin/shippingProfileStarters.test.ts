@@ -38,7 +38,7 @@ describe("new shipping profile starters", () => {
     expect(newProfileProblems({ name: "general", starter: "blank" }, ["General"])[0]).toMatch(/already have/);
     expect(newProfileProblems({ name: "X", starter: "copy" })).toEqual(["Choose the profile to copy."]);
     const bad = starterPrices("canada").map((p) => ({ ...p, first: "", extra: "abc" }));
-    expect(newProfileProblems({ name: "X", starter: "canada", prices: bad })).toHaveLength(2);
+    expect(newProfileProblems({ name: "X", starter: "canada", prices: bad })).toHaveLength(4);
     expect(newProfileProblems({ name: "X", starter: "canada", prices: starterPrices("canada"), freeShippingOver: "lots" })).toHaveLength(1);
     expect(newProfileProblems({ name: "X", starter: "canada", prices: starterPrices("canada") })).toEqual([]);
   });
@@ -75,7 +75,7 @@ describe("copying a profile", () => {
 describe("profile summary line", () => {
   it("says where it ships and the cheapest price", () => {
     const profile = buildNewProfile({ name: "W", starter: "world", prices: starterPrices("world") }, ids());
-    expect(profileSummary(profile)).toBe("Canada · United States · everywhere else · from $8.00");
+    expect(profileSummary(profile)).toBe("Canada · The territories · United States · everywhere else · from $8.00");
     expect(profileSummary({ zones: [] })).toBe("Ships nowhere yet");
     expect(profileSummary({ zones: [{ name: "CA", rates: [] }] })).toBe("CA · no prices yet");
   });

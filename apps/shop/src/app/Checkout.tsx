@@ -695,7 +695,7 @@ export function Checkout() {
       const gap = freeShippingGap(cartTotal, t);
       if (!gap) continue;
       const probe = [...base, { price: gap, quantity: 1, shippingProfileId: cart[0]?.shippingProfileId || null, weightGrams: 0 }];
-      const quotes = quoteShipping(probe, { country }, shippingProfiles);
+      const quotes = quoteShipping(probe, { country, state: customer.address.state, zip: customer.address.zip }, shippingProfiles);
       const same = quotes.find(q => q.name === selected.name);
       if ((same ? same.price : quotes[0]?.price) === 0) return { gap, threshold: t };
     }
@@ -716,7 +716,7 @@ export function Checkout() {
     const shippableItems = items.filter((item, index) => physicalIds.has(`${cart[index].id}:${cart[index].variantId || ""}`));
     // A physical free gift travels in the parcel too (the server weighs it the same way).
     if (freeGiftRef.current) shippableItems.push(freeGiftRef.current);
-    const quotes = quoteShipping(shippableItems, { country: customer.address.country || homeCountryName() }, shippingProfiles).filter(q => q.type !== "pickup");
+    const quotes = quoteShipping(shippableItems, { country: customer.address.country || homeCountryName(), state: customer.address.state, zip: customer.address.zip }, shippingProfiles).filter(q => q.type !== "pickup");
     setAvailableRates(quotes.map((q) => ({ id: q.id, name: q.name, price: q.price, deliveryDays: q.deliveryDays })));
   };
 

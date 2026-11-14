@@ -42,7 +42,7 @@ describe("Get started: shipping (plan 17.11)", () => {
     await flush();
     expect(api.createShippingProfile).toHaveBeenCalledTimes(1);
     expect(api.createShippingProfile.mock.calls[0][0]).toMatchObject({ name: "Standard shipping" });
-    expect(api.createShippingProfile.mock.calls[0][0].zones).toHaveLength(3);
+    expect(api.createShippingProfile.mock.calls[0][0].zones).toHaveLength(4);
     expect(onDone).toHaveBeenCalledWith({ at: expect.any(String), starter: "world" });
   });
 

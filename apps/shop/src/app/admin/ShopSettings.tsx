@@ -10,7 +10,9 @@ import { ActionMenu, Checkbox, PageHead, ConfirmDialog, LoadingState, MetricCard
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
-import { COUNTRIES, CONTINENTS } from "../features/site/shippingZones";
+import { COUNTRIES, CONTINENTS, findCountry, regionList } from "../features/site/shippingZones";
+import ZoneRegionPicker from "./shipping/ZoneRegionPicker";
+import { cleanRegions, regionsSummary } from "./shipping/zoneRegions";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
 import { ReturnSettings } from "./ReturnSettings";
@@ -400,7 +402,9 @@ function MaybeCard({ bare, children }: { bare?: boolean; children: ReactNode }) 
 
 function RateTester({ profile, bare }: { profile: any; bare?: boolean }) {
   const w = useShopWords();
-  const [country, setCountry] = useState("Canada");
+  const [country, setCountry] = useState(homeCountryName());
+  const [region, setRegion] = useState("");
+  const regionChoices = regionList(country);
   const [total, setTotal] = useState("40");
   const [count, setCount] = useState("2");
   const [grams, setGrams] = useState("");
@@ -408,13 +412,19 @@ function RateTester({ profile, bare }: { profile: any; bare?: boolean }) {
   const each = (Number(total) || 0) / qty;
   const quotes = useMemo(() => quoteShipping(
     [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
-    { country }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, each, qty, grams]);
+    { country, state: region }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, region, each, qty, grams]);
   return (
     <MaybeCard bare={bare}>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
-        <SelectField label="Destination" value={country} onChange={(e) => setCountry(e.target.value)}>
+        <SelectField label="Destination" value={country} onChange={(e) => { setCountry(e.target.value); setRegion(""); }}>
           {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
         </SelectField>
+        {regionChoices.length > 0 && (
+          <SelectField label={findCountry(country)?.code === "CA" ? "Province" : "State"} value={region} onChange={(e) => setRegion(e.target.value)}>
+            <option value="">Any</option>
+            {regionChoices.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+          </SelectField>
+        )}
         <TextField label="Order total ($)" type="number" min={0} value={total} onChange={(e) => setTotal(e.target.value)} />
         <TextField label={w("Books in cart")} type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} />
         <TextField label="Total weight (g)" type="number" min={0} placeholder="auto" value={grams} onChange={(e) => setGrams(e.target.value)} />
@@ -719,12 +729,14 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     if (zone) {
       const copy = JSON.parse(JSON.stringify(zone));
       copy.countries = (copy.countries || []).map(countryName);
+      copy.regions = cleanRegions(copy.regions);
       setActiveZone(copy);
     } else {
       setActiveZone({
         id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
         name: "",
         countries: [],
+        regions: [],
         rates: []
       });
     }
@@ -734,9 +746,9 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
 
   const handleSaveZone = () => {
     // Older zones may be defined only by their region text (e.g. "Canada") — still valid.
-    const hasGeography = activeZone.restOfWorld === true || activeZone.countries.length > 0 || (activeZone.continents || []).length > 0 || !!String(activeZone.region || "").trim();
+    const hasGeography = activeZone.restOfWorld === true || activeZone.countries.length > 0 || (activeZone.regions || []).length > 0 || (activeZone.continents || []).length > 0 || !!String(activeZone.region || "").trim();
     if (!activeZone.name.trim() || !hasGeography) {
-      toast.error("Please enter a zone name and select at least one country (or make it the rest-of-world zone).");
+      toast.error("Please enter a zone name and pick at least one country, state or province (or make it the rest-of-world zone).");
       return;
     }
     // Checkout matches zones by ISO code: store codes, never display names.
@@ -744,6 +756,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
       ...activeZone,
       countries: activeZone.restOfWorld ? [] : toCountryCodes(activeZone.countries),
       continents: activeZone.restOfWorld ? [] : (activeZone.continents || []),
+      regions: activeZone.restOfWorld ? [] : cleanRegions(activeZone.regions),
     };
 
     setEditingProfile((prev: any) => {
@@ -839,7 +852,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     setEditingProfile((prev: any) => ({
       ...prev,
       zones: [...(prev.zones || []), {
-        ...JSON.parse(JSON.stringify(zone)), id: newId(), name: `${zone.name} (copy)`, countries: [], continents: [], restOfWorld: false,
+        ...JSON.parse(JSON.stringify(zone)), id: newId(), name: `${zone.name} (copy)`, countries: [], continents: [], regions: [], restOfWorld: false,
         rates: (zone.rates || []).map((r: any) => ({ ...JSON.parse(JSON.stringify(r)), id: newId() })),
       }],
     }));
@@ -936,7 +949,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
             <TextField label="Zone name" value={activeZone.name} placeholder="e.g. North America, Europe, Domestic…" data-autofocus
               onChange={(e) => setActiveZone({ ...activeZone, name: e.target.value })} />
             <Toggle label="Rest of world — everywhere not covered by another zone" checked={activeZone.restOfWorld === true}
-              onChange={(on) => setActiveZone((prev: any) => ({ ...prev, restOfWorld: on, ...(on ? { countries: [], continents: [] } : {}) }))} />
+              onChange={(on) => setActiveZone((prev: any) => ({ ...prev, restOfWorld: on, ...(on ? { countries: [], continents: [], regions: [] } : {}) }))} />
             {!activeZone.restOfWorld && (<>
             <div>
               <div className="rp-sect">Regional presets</div>
@@ -985,6 +998,10 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                 </section>
               ))}
             </div>
+            <ZoneRegionPicker regions={activeZone.regions || []}
+              onChange={(regions) => setActiveZone((prev: any) => ({ ...prev, regions }))}
+              otherZones={(editingProfile?.zones || []).filter((z: any) => z.id !== activeZone.id)}
+              homeCountry={findCountry(homeCountryName())?.code} />
             </>)}
           </div>
         )}
@@ -1275,7 +1292,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                     <span style={{ minWidth: 0 }}>
                       <button type="button" className="rp-fk-zone-name" onClick={() => openZoneModal(z)} aria-label={`Edit zone ${z.name}`}>{z.name}</button>
                       <span className="rp-fk-hint" style={{ display: "block", overflowWrap: "anywhere" }}>
-                        {z.restOfWorld ? "Everywhere else" : (z.countries || []).map((c: string) => countryName(c)).join(", ")}
+                        {z.restOfWorld ? "Everywhere else" : [(z.countries || []).map((c: string) => countryName(c)).join(", "), regionsSummary(z.regions)].filter(Boolean).join(" · ")}
                       </span>
                     </span>
                     <ActionMenu label={`More for zone ${z.name}`} actions={[

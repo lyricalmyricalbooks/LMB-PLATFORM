@@ -2818,7 +2818,7 @@ exports.cartShippingPreview = onBrowserRequest({}, async (req, res) => {
     const physical = lines.filter(item => !item.digital);
     // No invented fallback rate when shipping has not been configured.
     const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const quotes = profiles.length ? quoteShipping(physical, { country }, profiles).filter(quote => quote.type !== "pickup") : [];
+    const quotes = profiles.length ? quoteShipping(physical, { country, postalCode }, profiles).filter(quote => quote.type !== "pickup") : [];
     res.status(200).json({ quotes, digitalOnly: physical.length === 0, preliminary: true });
   } catch (error) { res.status(error.message === "invalid_cart" ? 409 : 500).json({ error: error.message === "invalid_cart" ? "invalid_cart" : "unavailable" }); }
 });

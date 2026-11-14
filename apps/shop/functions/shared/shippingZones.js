@@ -1,11 +1,22 @@
 // GENERATED from src/shared/shippingZones.ts by scripts/build-shared.mjs. Do not edit: change the .ts and run the script.
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.REGION_COUNTRIES = exports.isCatchAll = exports.resolveCountry = exports.COUNTRIES = exports.CONTINENTS = void 0;
+exports.findCountry = findCountry;
+exports.isCatchAllZone = isCatchAllZone;
+exports.describeZoneGeography = describeZoneGeography;
+exports.regionList = regionList;
+exports.regionCode = regionCode;
+exports.regionName = regionName;
+exports.matchShippingZone = matchShippingZone;
+exports.computeShippingCost = computeShippingCost;
 // ─────────────────────────────────────────────────────────────────────────────
 // Shipping zones — shared geography model used by the admin zone editor, the
 // storefront checkout and the Functions (one copy: src/shared/CLAUDE.md).
 //
-// A zone targets geography three ways (any combination):
-//   • countries:   explicit ISO country codes (most specific — always wins)
+// A zone targets geography four ways (any combination):
+//   • regions:     US states / Canadian provinces as ISO 3166-2 codes ("US-AK", "CA-ON") — most specific, always wins
+//   • countries:   explicit ISO country codes
 //   • continents:  whole continents
 //   • restOfWorld: catch-all for anywhere not covered by another zone
 //
@@ -13,13 +24,7 @@
 // ("Europe", "Canada"…) — matching falls back to comparing that text against
 // the customer's country and continent so old data keeps working.
 // ─────────────────────────────────────────────────────────────────────────────
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.isCatchAll = exports.resolveCountry = exports.COUNTRIES = exports.CONTINENTS = void 0;
-exports.findCountry = findCountry;
-exports.isCatchAllZone = isCatchAllZone;
-exports.describeZoneGeography = describeZoneGeography;
-exports.matchShippingZone = matchShippingZone;
-exports.computeShippingCost = computeShippingCost;
+const postalRegion_1 = require("./postalRegion");
 exports.CONTINENTS = [
     "Africa",
     "Antarctica",
@@ -178,6 +183,11 @@ function describeZoneGeography(zone) {
     const parts = [];
     if (zone.continents?.length)
         parts.push(zone.continents.join(", "));
+    if (zone.regions?.length) {
+        const names = zone.regions.map(regionName).slice(0, 4);
+        const extra = zone.regions.length - names.length;
+        parts.push(names.join(", ") + (extra > 0 ? ` +${extra} more` : ""));
+    }
     if (zone.countries?.length) {
         const names = zone.countries
             .map((code) => exports.COUNTRIES.find((c) => c.code === code)?.name || code)
@@ -189,15 +199,51 @@ function describeZoneGeography(zone) {
         return zone.region || "No geography set";
     return parts.join(" · ");
 }
+/** The countries whose zones can name a state or province. */
+exports.REGION_COUNTRIES = ["US", "CA"];
+/** [code, name] states/provinces for a country that has a fixed list (US, CA), else []. */
+function regionList(countryNameOrCode) {
+    const country = findCountry(countryNameOrCode);
+    return (country && (0, postalRegion_1.regionsFor)(country.code)) || [];
+}
 /**
- * Pick the zone that applies to a customer's country.
- * Specificity: explicit country > continent > legacy region text > rest of world.
+ * "ON" / "Ontario" / "CA-ON" (+ country) -> "CA-ON", or "" when it can't tell.
+ * A postal code fills in a missing region (ZIP / postal-code prefixes), so a quote never depends on a picked drop-down.
  */
-function matchShippingZone(countryNameOrCode, zones) {
+function regionCode(countryNameOrCode, region, postalCode) {
+    const country = findCountry(countryNameOrCode);
+    if (!country)
+        return "";
+    const list = (0, postalRegion_1.regionsFor)(country.code);
+    if (!list)
+        return "";
+    let q = String(region ?? "").trim().toLowerCase();
+    if (q.startsWith(country.code.toLowerCase() + "-"))
+        q = q.slice(3);
+    const hit = q ? list.find(([code, name]) => code.toLowerCase() === q || name.toLowerCase() === q) : undefined;
+    const code = hit ? hit[0] : (0, postalRegion_1.provinceFromPostal)(country.code, String(postalCode ?? ""));
+    return code ? `${country.code}-${code}` : "";
+}
+/** "US-AK" -> "Alaska" (unknown codes come back as given). */
+function regionName(code) {
+    const [cc, rc] = String(code || "").split("-");
+    return regionList(cc).find(([c]) => c === rc)?.[1] || code;
+}
+/**
+ * Pick the zone that applies to a customer's country (and state / province when known).
+ * Specificity: state/province > explicit country > continent > legacy region text > rest of world.
+ */
+function matchShippingZone(countryNameOrCode, zones, region, postalCode) {
     if (!zones || zones.length === 0)
         return null;
     const country = findCountry(countryNameOrCode);
     if (country) {
+        const sub = regionCode(country.code, region, postalCode);
+        if (sub) {
+            const byRegion = zones.find((z) => (z.regions || []).some((entry) => regionCode(country.code, entry) === sub));
+            if (byRegion)
+                return byRegion;
+        }
         // Zone lists hold ISO codes (current editor) or names (older saves): compare resolved codes.
         const byCountry = zones.find((z) => (z.countries || []).some((entry) => findCountry(entry)?.code === country.code));
         if (byCountry)

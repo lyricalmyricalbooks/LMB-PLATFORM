@@ -72,9 +72,9 @@ function groupCharge(rate, group, cart, leader) {
     const additional = num(rate.additional);
     return { fixed: base, variable: additional * (leader ? Math.max(0, group.qty - 1) : group.qty) };
 }
-function zoneFor(profile, country) {
+function zoneFor(profile, country, region, postal) {
     const zones = profile && Array.isArray(profile.zones) ? profile.zones : [];
-    return zones.length ? (0, shippingZones_1.matchShippingZone)(country, zones) || null : null;
+    return zones.length ? (0, shippingZones_1.matchShippingZone)(country, zones, region, postal) || null : null;
 }
 /**
  * items: [{ price, quantity, shippingProfileId, weightGrams? }]
@@ -82,6 +82,8 @@ function zoneFor(profile, country) {
  */
 function quoteShipping(items, address, profiles, opts = {}) {
     const country = (address && address.country) || "Canada";
+    const region = String((address && (address.state || address.province || address.region)) || "");
+    const postal = String((address && (address.zip || address.postalCode)) || "");
     const list = Array.isArray(profiles) ? profiles : [];
     const byId = new Map(list.map((p) => [p.id, p]));
     const general = byId.get("general-profile") || list[0] || null;
@@ -110,7 +112,7 @@ function quoteShipping(items, address, profiles, opts = {}) {
     const anyZones = list.some((p) => Array.isArray(p && p.zones) && p.zones.length > 0);
     const perGroup = [];
     for (const g of groups.values()) {
-        const zone = zoneFor(g.profile, country);
+        const zone = zoneFor(g.profile, country, region, postal);
         if (!zone) {
             // Legacy flat profile (no zones): a single synthetic rate.
             const p = g.profile || {};

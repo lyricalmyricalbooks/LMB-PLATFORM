@@ -10,11 +10,11 @@ describe("shipping starters by what the shop sells", () => {
       expect(kindStarterPrices(a)).toEqual({ ca: [8, 3], us: [12, 4], world: [20, 6] });
       expect(kindStarterParcels(a)).toEqual([]);
     }
-    expect(starterPrices("world").map((p) => [p.first, p.extra])).toEqual([["8.00", "3.00"], ["12.00", "4.00"], ["20.00", "6.00"]]);
+    expect(starterPrices("world").map((p) => [p.first, p.extra])).toEqual([["8.00", "3.00"], ["14.00", "5.00"], ["12.00", "4.00"], ["20.00", "6.00"]]);
   });
   it("starts a clothing shop with its own prices and box sizes", () => {
     expect(starterPrices("canada", "clothing")[0].first).toBe("9.00");
-    expect(starterPrices("north-america", "shoes").map((p) => p.first)).toEqual(["14.00", "20.00"]);
+    expect(starterPrices("north-america", "shoes").map((p) => p.first)).toEqual(["14.00", "25.00", "20.00"]);
     const boxes = kindStarterParcels("jewelry");
     expect(boxes.length).toBeGreaterThan(0);
     for (const b of boxes) expect(Number(b.parcel.length)).toBeGreaterThan(0);

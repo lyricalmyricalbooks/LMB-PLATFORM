@@ -32,6 +32,8 @@ export type QuickZonePrice = {
   extra: string;
   /** Optional carrier-backed transit days; blank rather than a guess. */
   days: string;
+  /** States or provinces ("US-AK"): this zone wins over its country's zone at checkout. */
+  regions?: string[];
 };
 
 const row = (key: string, zone: string, countries: string[], rateName: string, first: number, extra: number, restOfWorld = false): QuickZonePrice =>
@@ -46,10 +48,16 @@ export function starterPrices(starter: ProfileStarterId, sells?: string | null, 
   const canada = row("ca", "Canada", ["CA"], "Standard shipping", (home === "US" ? neighbour : own)[0], (home === "US" ? neighbour : own)[1]);
   const us = row("us", "United States", ["US"], "Standard shipping", (home === "US" ? own : neighbour)[0], (home === "US" ? own : neighbour)[1]);
   const world = row("world", "Rest of world", [], "International shipping", p.world[0], p.world[1], true);
+  // Parcels to the far-off parts of the home country cost carriers much more: they get their own, higher price.
+  const farFirst = Math.round(Number(home === "US" ? us.first : canada.first) * 1.75);
+  const farExtra = Math.ceil(Number(home === "US" ? us.extra : canada.extra) * 1.5);
+  const far = home === "US"
+    ? { ...row("far", "Alaska, Hawaii & Puerto Rico", [], "Standard shipping", farFirst, farExtra), regions: ["US-AK", "US-HI", "US-PR"] }
+    : { ...row("far", "The territories", [], "Standard shipping", farFirst, farExtra), regions: ["CA-NT", "CA-NU", "CA-YT"] };
   const [first, second] = home === "US" ? [us, canada] : [canada, us];
-  if (starter === "world") return [first, second, world];
-  if (starter === "north-america") return [first, second];
-  if (starter === "canada") return [first];
+  if (starter === "world") return [first, far, second, world];
+  if (starter === "north-america") return [first, far, second];
+  if (starter === "canada") return [first, far];
   return [];
 }
 
@@ -117,6 +125,7 @@ export function buildNewProfile(input: NewProfileInput, newId: () => string) {
     name: p.zone,
     countries: p.restOfWorld ? [] : [...p.countries],
     continents: [],
+    ...(p.regions?.length && !p.restOfWorld ? { regions: [...p.regions] } : {}),
     restOfWorld: p.restOfWorld,
     rates: [{
       id: newId(), name: p.rateName, type: "flat", enabled: true,

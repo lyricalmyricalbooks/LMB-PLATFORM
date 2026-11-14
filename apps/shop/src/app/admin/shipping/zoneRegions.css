@@ -1,0 +1,23 @@
+/* States and provinces block in the shipping zone editor. Tokens only (adminThemes.test.ts). */
+.zr { display: grid; gap: 12px; padding: 16px; border-radius: var(--rp-radius-lg); background: var(--rp-surface-2); }
+.zr-head { display: grid; gap: 2px; }
+.zr-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--rp-text); }
+.zr-hint { margin: 0; font-size: 13px; line-height: 1.45; color: var(--rp-text-muted); }
+.zr-groups { display: flex; flex-wrap: wrap; gap: 8px; }
+.zr-chip {
+  min-height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--rp-border);
+  background: var(--rp-surface); color: var(--rp-text); font: inherit; font-size: 13px; cursor: pointer;
+}
+.zr-chip:hover { border-color: var(--rp-border-strong); }
+.zr-chip:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.zr-chip[data-state="some"] { border-color: var(--rp-text); }
+.zr-chip[data-state="all"] { background: var(--rp-inverse); border-color: var(--rp-inverse); color: var(--rp-on-inverse); }
+.zr-grid {
+  display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  max-height: 300px; overflow-y: auto; padding: 2px;
+}
+.zr-cell { padding: 2px 10px; border-radius: var(--rp-radius); background: var(--rp-surface); border: 1px solid transparent; }
+.zr-cell[data-on] { background: var(--rp-tile-mint); border-color: var(--rp-border-strong); color: var(--rp-on-tile); }
+.zr-cell[data-taken] { opacity: 0.7; }
+.zr-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+@media (pointer: coarse) { .zr-chip { min-height: 44px; } }
