@@ -2,7 +2,7 @@
 // export, else nothing yet), test shops left out, last month billed only from the 3rd, heads-ups every day.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BILL_FROM_DAY, costsFor, runRunningCosts } from "./runningCostJob.js";
+import { BILL_FROM_DAY, costsFor, monthEndsFor, runRunningCosts } from "./runningCostJob.js";
 
 const rows = [{ shopId: "moth-press", projectId: "demo-moth" }, { shopId: "late-press", projectId: "demo-late" }, { shopId: "new-press", projectId: "demo-new" }];
 const meters = { get: async (shopId, month) => (shopId === "moth-press" && month === "2026-11" ? { egressGb: 10 } : null) };
@@ -45,4 +45,18 @@ test("a bill waits for the shared system's reconciled total; heads-ups use the m
   const m = { get: async (shopId) => records[shopId] ?? null };
   assert.deepEqual(await costsFor({ rows, month: "2026-11", meters: m, final: true }), { "late-press": 250 });
   assert.deepEqual(await costsFor({ rows, month: "2026-11", meters: m }), { "moth-press": 207, "late-press": 207 });
+});
+
+test("heads-ups get each metered shop's month end at the tracker's pace", async () => {
+  const records = { "moth-press": { emails: 100, storageGb: 10 } };
+  const m = { get: async (shopId) => records[shopId] ?? null };
+  const now = Date.UTC(2026, 10, 16);
+  // 100 emails so far doubled by month end, the 10 GB of photos priced once.
+  const ends = await monthEndsFor({ rows, month: "2026-11", meters: m, now });
+  assert.deepEqual(Object.keys(ends), ["moth-press"]);
+  assert.ok(ends["moth-press"] < 2 * (await costsFor({ rows, month: "2026-11", meters: m }))["moth-press"], "storage isn't doubled");
+  assert.deepEqual(await monthEndsFor({ rows, month: "2026-11", now }), {});
+  const billing = fakeBilling();
+  await runRunningCosts({ billing, registry: { listShops: async () => rows }, meters: m, now: () => new Date(now) });
+  assert.deepEqual(billing.calls.at(-1)[1].monthEnd, ends);
 });

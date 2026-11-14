@@ -12,7 +12,8 @@
 // - paidShare(...): the part of a month the plan was paid for. A month the press spent in its free trial costs nothing.
 // - EXAMPLE_SHOPS / examples(settings): a quiet, a typical and a busy shop, priced the same way, for the pricing page.
 //   The page's numbers come from here, so they move with the prices.
-// - projectedCents(...): where a month is heading from its use so far, for the "your bill may pass" email.
+// - projectedCents(...): where a month is heading from its cost so far (a straight line), when only cents are known.
+// - monthPace(...): so far and month end from a meter record, sizes kept apart from counts: the tracker and the email.
 //
 // Prices are in millionths of a dollar in the plan currency (CAD) per unit: Google's list prices for the region the
 // shops run in (US dollars at 1.38), and a per-email share of the Google Workspace mailbox that sends
@@ -95,6 +96,32 @@ export function projectedCents({ soFarCents, now, month }) {
   const { start, end } = monthBounds(month);
   const gone = Math.min(Math.max(now - start, DAY), end - start);
   return Math.round((Math.max(0, soFarCents) * (end - start)) / gone);
+}
+
+/** The meters that are sizes kept all month (priced per GB-month), not counts that pile up day by day. */
+export const SIZE_KEYS = Object.freeze(["firestoreGb", "storageGb"]);
+
+/** How much of `month` has gone at `now`, from one day's worth to all of it (the straight line's divisor). */
+export function monthGone({ now, month }) {
+  const { start, end } = monthBounds(month);
+  return Math.min(Math.max(now - start, DAY), end - start) / (end - start);
+}
+
+/**
+ * A month in progress from its meter record: { soFarCents, monthEndCents }. Counts (reads, emails, pages shown…) go on
+ * at the pace they came so far; sizes (photos and records kept) are already a whole month's average, so so far is the
+ * part of the month gone and the month's end is their whole price. projectedCents' straight line would count a
+ * month's storage once a day.
+ */
+export function monthPace({ meters, now, month }) {
+  const gone = monthGone({ now, month });
+  let counts = 0;
+  let sizes = 0;
+  for (const kind of METER_KEYS) {
+    const micros = amountOf(meters?.[kind]) * UNIT_PRICES[kind].micros;
+    if (SIZE_KEYS.includes(kind)) sizes += micros; else counts += micros;
+  }
+  return { soFarCents: Math.round((counts + sizes * gone) / 10_000), monthEndCents: Math.round((counts / gone + sizes) / 10_000) };
 }
 
 /** Three shops priced the same way, for the pricing page and help: what a month of each costs to run. */

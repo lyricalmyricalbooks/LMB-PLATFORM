@@ -12,7 +12,7 @@
 //   meters    optional: get(shopId, month) (firestoreUsageMeters); null while the shared system isn't switched on
 import { ControlError, adminOf } from "./controlRoom.js";
 import { monthOf } from "../services/costs/costs.js";
-import { meterCost, projectedCents } from "../services/billing/runningCost.js";
+import { meterCost, monthPace } from "../services/billing/runningCost.js";
 
 /** The release kinds a shared run records. */
 export const SHARED_RELEASE_KINDS = Object.freeze(["shared-release", "shared-first-release"]);
@@ -47,11 +47,11 @@ export function sharedRun(run) {
  */
 export function usageRow(row, record, { month = null, now = null } = {}) {
   const n = (key) => (record && Number.isFinite(Number(record[key])) ? Number(record[key]) : null);
-  const soFarCents = record ? meterCost(record).cents : null;
-  const running = soFarCents !== null && month && Number.isFinite(now) && monthOf(now) === month;
+  const running = Boolean(record) && month && Number.isFinite(now) && monthOf(now) === month;
+  const pace = running ? monthPace({ meters: record, now, month }) : null;
   return {
-    soFarCents,
-    monthEndCents: running ? projectedCents({ soFarCents, now, month }) : null,
+    soFarCents: pace ? pace.soFarCents : record ? meterCost(record).cents : null,
+    monthEndCents: pace ? pace.monthEndCents : null,
     shopId: row.shopId,
     pressName: row.pressName ?? row.shopId,
     measured: Boolean(record),

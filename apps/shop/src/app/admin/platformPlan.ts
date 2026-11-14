@@ -29,6 +29,8 @@ export type PlatformPlan = {
   closing: { stage: string; closedAt: string | null; downloadUntil: string | null; deleteAfter: string | null } | null;
   // A plan change in progress: an app being set up, or one that closes at the end of the month already paid for.
   changing: { adding: PlanApp[]; closing: { apps: PlanApp[]; at: string | null } | null } | null;
+  /** This month's "your bill may pass" heads-up, sent by the platform's daily check (also emailed). */
+  headsUp: { month: string; projected: string; limit: string } | null;
 };
 
 export type PlanApp = "shop" | "stockroom";
@@ -66,7 +68,15 @@ export function parsePlatformPlan(raw: any): PlatformPlan | null {
     founding: raw.founding === true,
     closing,
     changing: parseChanging(raw.changing),
+    headsUp: parseHeadsUp(raw.headsUp),
   };
+}
+
+const MONEY_WORDS = /^[A-Z]{0,3}\$[\d,]+\.\d\d$/;
+function parseHeadsUp(raw: any): PlatformPlan["headsUp"] {
+  if (!raw || typeof raw !== "object" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month ?? "")) return null;
+  if (!MONEY_WORDS.test(raw.projected ?? "") || !MONEY_WORDS.test(raw.limit ?? "")) return null;
+  return { month: raw.month, projected: raw.projected, limit: raw.limit };
 }
 
 /** Can the admin's own Plan and Billing pages reach the platform? Older plan documents have no hub yet. */

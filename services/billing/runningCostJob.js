@@ -7,7 +7,7 @@
 // in the platform project), else its own project's net cost in Google's billing export (services/costs `costPerShop`
 // over `reader.read(month)`). A shop with neither is left for a later day, never billed nothing by mistake.
 import { costPerShop, monthOf } from "../costs/costs.js";
-import { previousMonth, runningCostCents } from "./runningCost.js";
+import { monthPace, previousMonth, runningCostCents } from "./runningCost.js";
 
 /** The day of the month from which last month is billed (the export settles by then). */
 export const BILL_FROM_DAY = 3;
@@ -34,6 +34,20 @@ export async function costsFor({ rows, month, meters = null, reader = null, fina
   return costs;
 }
 
+/**
+ * Where each metered shop's month is heading, { [shopId]: cents }, from its meter record (runningCost.js monthPace, the
+ * same figure the owner's tracker shows). Shops with no record are left out; the heads-up projects their cost so far.
+ */
+export async function monthEndsFor({ rows, month, meters = null, now }) {
+  const out = {};
+  if (!meters) return out;
+  for (const row of rows) {
+    const record = await meters.get(row.shopId, month);
+    if (record) out[row.shopId] = monthPace({ meters: record, now, month }).monthEndCents;
+  }
+  return out;
+}
+
 /** One run: bill last month (from the 3rd) and send this month's heads-ups. Safe to run any number of times a day. */
 export async function runRunningCosts({ billing, registry, meters = null, reader = null, now = () => new Date() }) {
   const today = now();
@@ -44,7 +58,7 @@ export async function runRunningCosts({ billing, registry, meters = null, reader
     billed = await billing.billRunningCosts({ month, costs: await costsFor({ rows, month, meters, reader, final: true }) });
   }
   const thisMonth = monthOf(today);
-  const told = await billing.runningCostAlerts({ month: thisMonth, soFar: await costsFor({ rows, month: thisMonth, meters, reader }) });
+  const told = await billing.runningCostAlerts({ month: thisMonth, soFar: await costsFor({ rows, month: thisMonth, meters, reader }), monthEnd: await monthEndsFor({ rows, month: thisMonth, meters, now: today.getTime() }) });
   return {
     summary: `${billed ? `${billed.month}: billed ${billed.billed.length}, waiting for costs ${billed.missing.length}${billed.waiting?.length ? `, waiting for the exchange rate ${billed.waiting.length}` : ""}` : `bills from day ${BILL_FROM_DAY}`}; heads-ups sent ${told.length}`,
     billed, told,

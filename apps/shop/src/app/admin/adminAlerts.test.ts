@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAdminAlerts, alertSignature, settingsAlerts, inventoryLinkAlerts, backupAlert, alertRoute } from "./adminAlerts";
+import { buildAdminAlerts, alertSignature, settingsAlerts, inventoryLinkAlerts, backupAlert, alertRoute, billHeadsUpAlert } from "./adminAlerts";
 import { hashForRoute } from "./adminRoute";
 
 const now = Date.parse("2026-10-06T21:00:00Z");
@@ -196,5 +196,22 @@ describe("held stock alert", () => {
     expect(alertSignature(inventoryLinkAlerts(state([hold]))[0])).toBe(alertSignature(a));
     expect(alertSignature(inventoryLinkAlerts(state([{ ...hold, to: 41 }]))[0])).not.toBe(alertSignature(a));
     expect(alertSignature(inventoryLinkAlerts(state([hold, { ...hold, bookId: "b2", title: "Salt" }]))[0])).not.toBe(alertSignature(a));
+  });
+});
+
+describe("the bill heads-up", () => {
+  const NOV = Date.parse("2026-11-20T12:00:00Z");
+  const headsUp = { month: "2026-11", projected: "$31.00", limit: "$25.00" };
+  it("says this month's bill may pass the owner's amount and opens Billing", () => {
+    const a = billHeadsUpAlert({ headsUp }, NOV)!;
+    expect([a.tone, a.title, a.action, a.key]).toEqual(["warning", "This month's bill may pass $25.00", "billing", "2026-11|$25.00"]);
+    expect(a.detail).toContain("about $31.00 before tax");
+    expect(alertRoute(a)).toEqual({ tab: "settings", settingsTab: "billing" });
+    expect(hashForRoute(alertRoute(a)!)).toBe("#settings/billing");
+  });
+  it("is gone once the month is over, or with no heads-up", () => {
+    expect(billHeadsUpAlert({ headsUp }, Date.parse("2026-12-01T00:00:00Z"))).toBeNull();
+    expect(billHeadsUpAlert({ headsUp: null }, NOV)).toBeNull();
+    expect(billHeadsUpAlert(null, NOV)).toBeNull();
   });
 });

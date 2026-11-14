@@ -59,7 +59,7 @@ function Groups({ costs }: { costs: CostTracker }) {
       <ul className="rp-rc-groups">
         {costs.groups.map((g) => (
           <li key={g.id} className="rp-rc-group">
-            <span className="rp-rc-name">{g.words}<span className="rp-hint rp-rc-used">{g.used || (g.id === "records" ? "Counted when the month closes" : "Nothing yet")}</span></span>
+            <span className="rp-rc-name">{g.words}<span className="rp-hint rp-rc-used">{g.used || "Nothing yet"}</span></span>
             <span className="rp-rc-amount">{g.text}</span>
             <span className="rp-rc-bar" aria-hidden="true">{g.cents > 0 && <span style={{ width: `${Math.round((g.cents / most) * 100)}%` }} />}</span>
           </li>

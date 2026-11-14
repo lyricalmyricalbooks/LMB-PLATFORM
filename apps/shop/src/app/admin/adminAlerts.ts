@@ -8,6 +8,7 @@ import { appOnlyBooks, detailDiffs, openMatches } from "./inventoryLink";
 import { CONTINUE_WITH_STRIPE, needsLine, type PlatformPaymentsAnswer } from "./platformPayments";
 import { providerName } from "./providerWords";
 import { US_SHOP } from "./moneySign";
+import type { PlatformPlan } from "./platformPlan";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -20,7 +21,7 @@ export type AdminAlert = {
   orderIds: string[];
   /** What the alert is about when no order is (held books…): a change brings a hidden alert back. */
   key?: string;
-  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount" | "backups" | "invoices" | "bills";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount" | "backups" | "invoices" | "bills" | "billing";
   /** action "inventoryApp": where in the inventory app the button opens (a `#…` the app handles). */
   appHash?: string;
 };
@@ -35,6 +36,7 @@ const ALERT_ROUTES: Partial<Record<AdminAlert["action"], AlertRoute>> = {
   general: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // Backups & export
   backups: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // the combined admin opens Stockroom › Backups instead
   cardAccount: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },            // Card payments: Continue with Stripe
+  billing: { tab: "settings", settingsTab: "billing" },                                         // Running costs: where it goes, the email-me amount
 };
 /** The page (and sub tab) an alert's button opens; null for order, orders and retry, which aren't settings pages. */
 export function alertRoute(a: Pick<AdminAlert, "action">): AlertRoute | null {
@@ -211,6 +213,25 @@ export function cardAccountAlert(answer: PlatformPaymentsAnswer | null | undefin
     orderIds: [],
     key: late.join("|") || "past-due",
     action: "cardAccount",
+  };
+}
+
+/**
+ * This month's Colophon bill looks set to pass the owner's amount (the platform's daily check, which emails them too):
+ * an alert until the month ends, or until they raise the amount past where the month is heading (the platform then
+ * takes the heads-up off the plan document). Hiding it lasts the month. `now` picks the month (UTC, as billing counts).
+ */
+export function billHeadsUpAlert(plan: Pick<PlatformPlan, "headsUp"> | null | undefined, now = Date.now()): AdminAlert | null {
+  const h = plan?.headsUp;
+  if (!h || h.month !== new Date(now).toISOString().slice(0, 7)) return null;
+  return {
+    id: "bill-heads-up",
+    tone: "warning",
+    title: `This month's bill may pass ${h.limit}`,
+    detail: `It's heading for about ${h.projected} before tax. See where the cost goes, or change the amount, in Billing.`,
+    orderIds: [],
+    key: `${h.month}|${h.limit}`,
+    action: "billing",
   };
 }
 

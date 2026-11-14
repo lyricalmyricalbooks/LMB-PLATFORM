@@ -239,7 +239,7 @@ describe("Settings › Billing", () => {
     world.costs = {
       month: "2026-11", monthWords: "November 2026", monthName: "November", day: 14, days: 30, measured: true, currency: "CAD", plusTax: true, updatedAt: "2026-11-14T06:00:00Z",
       soFar: $(150), monthEnd: $(321),
-      groups: [{ id: "visitors", words: "Visitors", used: "5.6 GB of pages and photos shown", ...$(116) }, { id: "emails", words: "Emails", used: "236 emails sent", ...$(34) }, { id: "records", words: "Shop records", used: "", ...$(0) }],
+      groups: [{ id: "visitors", words: "Visitors", used: "5.6 GB of pages and photos shown", ...$(116) }, { id: "emails", words: "Emails", used: "236 emails sent", ...$(34) }, { id: "records", words: "Shop records", used: "About 142,000 looks and saves", ...$(9) }, { id: "storage", words: "Photos and files", used: "", ...$(0) }],
       estimate: { fee: $(500), discount: $(125), percentOff: 25, running: $(321), beforeTax: $(696), freeTrial: false },
       trend: [{ month: "2026-09", words: "Sep", now: false, cents: null, text: "" }, { month: "2026-10", words: "Oct", now: false, ...$(268) }, { month: "2026-11", words: "Nov", now: true, ...$(321) }],
       lastMonth: { month: "2026-10", monthWords: "October 2026", ...$(268) }, average: $(268), change: 20,
@@ -255,7 +255,7 @@ describe("Settings › Billing", () => {
     // This test's next bill carries no cents, so the estimate is before tax and says tax comes on top.
     expect(card.querySelector('[data-rc="estimate"]')!.textContent).toContain("$6.96");
     expect(card.querySelector('[data-rc="estimate"]')!.textContent).toContain("$5.00 fee · −$1.25 founding discount · $3.21 running cost · plus tax");
-    expect([...card.querySelectorAll(".rp-rc-group")].map((li) => li.textContent)).toEqual(["Visitors5.6 GB of pages and photos shown$1.16", "Emails236 emails sent$0.34", "Shop recordsCounted when the month closes$0.00"]);
+    expect([...card.querySelectorAll(".rp-rc-group")].map((li) => li.textContent)).toEqual(["Visitors5.6 GB of pages and photos shown$1.16", "Emails236 emails sent$0.34", "Shop recordsAbout 142,000 looks and saves$0.09", "Photos and filesNothing yet$0.00"]);
     // A month before the first bill isn't drawn; this month is marked as the estimate.
     expect([...card.querySelectorAll(".rp-rc-month")].map((li) => li.textContent)).toEqual(["$2.68Oct", "$3.21Nov (estimate)"]);
     expect(card.textContent).toContain("On track: about $6.96 before tax, under your $25.00.");

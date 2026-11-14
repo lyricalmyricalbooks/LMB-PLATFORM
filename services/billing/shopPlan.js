@@ -1,8 +1,8 @@
 // The shop's own copy of its plan (code plan 6.6, 6.7). On every billing change billing.js hands the saved row to
 // `shopPlanCopies(...).write`, which writes two documents into the shop's database:
 //
-//   platform/plan     admin-only: state, trial end, next payment, has card, payment way, the closing dates, and the
-//                     link to the platform's Plan & billing page. The shop admin reads it for the trial banner, the
+//   platform/plan     admin-only: state, trial end, next payment, has card, payment way, the closing dates, this
+//                     month's bill heads-up, and the link to the platform's Plan & billing page. The shop admin reads it for the trial banner, the
 //                     payment-problem banner and Settings › Plan (apps/shop/src/app/admin/platformPlan.ts).
 //   platform/status   public: only `access` ("open", "paused" or "closed"). The storefront reads it to show the fixed
 //                     "taking a short break" page and the shop's server (priceOrder, which every checkout goes through)
@@ -77,10 +77,19 @@ export function planDocument(row, { link, hub = null, at, closing = null, changi
     closing: closing && (closing.stage === "closed" || closing.stage === "deleted")
       ? { stage: closing.stage, closedAt: closing.closedAt ?? null, downloadUntil: closing.downloadUntil ?? null, deleteAfter: closing.deleteAfter ?? null }
       : null,
+    // This month's "your bill may pass" heads-up (billing.runningCostAlerts), for the admin's Alerts page.
+    headsUp: headsUpOf(row),
     // An app being added (being built) or one a plan change will close, for the admins' notices.
     changing: changing && (changing.adding.length || changing.closing) ? changing : null,
     updatedAt: at,
   };
+}
+
+/** The heads-up as the admin shows it: the month, and the two amounts already in words and cents; null without one. */
+export function headsUpOf(row) {
+  const h = row?.costAlert?.headsUp;
+  if (!h || !/^\d{4}-(0[1-9]|1[0-2])$/.test(h.month ?? "") || !Number.isInteger(h.projectedCents) || !Number.isInteger(h.limitCents)) return null;
+  return { month: h.month, projectedCents: h.projectedCents, limitCents: h.limitCents, projected: String(h.projected ?? ""), limit: String(h.limit ?? "") };
 }
 
 /** The public document: whether the shop is open, and nothing else. */

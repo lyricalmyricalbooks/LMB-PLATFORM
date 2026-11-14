@@ -1272,7 +1272,7 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
      * to pass the amount the press chose (DEFAULT_ALERT_CENTS unless they set one), they're emailed once that month.
      * `soFar` is { [shopId]: cents } for the month so far.
      */
-    async runningCostAlerts({ month, soFar = {} }) {
+    async runningCostAlerts({ month, soFar = {}, monthEnd = {} }) {
       await freshFees();
       const sent = [];
       const home = homeCurrency(settings);
@@ -1280,7 +1280,8 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const rates = new Map();
       for (const row of await subscriptions.list()) {
         if (!row.subscriptionId || ENDED.has(row.status) || row.status === "trialing" || row.costAlert?.sentFor === month) continue;
-        if (!Number.isInteger(soFar[row.shopId])) continue;
+        const paced = Number.isInteger(monthEnd[row.shopId]) ? monthEnd[row.shopId] : null;
+        if (paced === null && !Number.isInteger(soFar[row.shopId])) continue;
         const limit = Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS;
         if (limit <= 0) continue;
         const fee = row.plan ? feeAfterOffer(row) : 0;
@@ -1288,10 +1289,15 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         if (currency !== home && !rates.has(currency)) rates.set(currency, exchange ? await exchange.rate({ from: home, to: currency, month }).catch(() => null) : null);
         const rate = currency === home ? 1 : rates.get(currency);
         if (!(Number.isFinite(rate) && rate > 0)) continue;
-        const projected = fee + Math.round(projectedCents({ soFarCents: soFar[row.shopId], now: now(), month }) * rate);
+        // A metered shop's month end comes paced from its meters (runningCostJob.js monthEndsFor, as the tracker shows
+        // it); a shop known only by its cost so far gets the straight line.
+        const running = paced ?? projectedCents({ soFarCents: soFar[row.shopId], now: now(), month });
+        const projected = fee + Math.round(running * rate);
         if (projected <= limit) continue;
-        await notify(row.shopId, "bill-heads-up", { month: monthWords(month), projected: moneyText(projected, cur(row)), limit: moneyText(limit, cur(row)) }, `${row.shopId}/bill-heads-up/${month}`);
-        await save(row.shopId, { costAlert: { ...(row.costAlert ?? {}), sentFor: month } }, "bill-heads-up-sent");
+        const words = { projected: moneyText(projected, cur(row)), limit: moneyText(limit, cur(row)) };
+        await notify(row.shopId, "bill-heads-up", { month: monthWords(month), ...words }, `${row.shopId}/bill-heads-up/${month}`);
+        // `headsUp` goes on the shop's own plan document too (shopPlan.js), so its admin shows it on the Alerts page.
+        await save(row.shopId, { costAlert: { ...(row.costAlert ?? {}), sentFor: month, headsUp: { month, projectedCents: projected, limitCents: limit, ...words } } }, "bill-heads-up-sent");
         sent.push(row.shopId);
       }
       return sent;
@@ -1301,7 +1307,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     async setCostAlert({ shopId, cents }) {
       if (!Number.isInteger(cents) || cents < 0 || cents > 1_000_000) throw new BillingError(400, "Choose an amount from $0 to $10,000. $0 turns the email off.");
       const row = await rowFor(shopId);
-      await save(shopId, { costAlert: { ...(row.costAlert ?? {}), cents } }, "cost-alert-changed");
+      // The Alerts page's heads-up stays only while the new amount is still under where the month was heading.
+      const before = row.costAlert?.headsUp;
+      const headsUp = before && cents > 0 && cents < before.projectedCents ? { ...before, limitCents: cents, limit: moneyText(cents, cur(row)) } : null;
+      await save(shopId, { costAlert: { ...(row.costAlert ?? {}), cents, headsUp } }, "cost-alert-changed");
       return { costAlert: { cents, text: moneyText(cents, cur(row)) } };
     },
 

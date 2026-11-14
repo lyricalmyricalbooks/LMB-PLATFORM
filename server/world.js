@@ -84,7 +84,7 @@ import { createTermsNotice } from "../terms/notice.js";
 import { SHARED_STEP_PLAN, sharedShopRun } from "../setup/real.js";
 import { sharedBuckets, shopStores } from "../clients/shared.js";
 import { firestoreUsageMeters, runUsageMeters } from "../services/usage/meters.js";
-import { monitoringUsage, storageUsage, usageSources } from "../services/usage/sources.js";
+import { databaseUsage, monitoringUsage, storageUsage, usageSources } from "../services/usage/sources.js";
 import { createSignup } from "../signup/signup.js";
 import { createBillingFromEnv, readBillingConfig } from "../services/billing/index.js";
 import { createPaymentWay } from "../services/billing/paymentWay.js";
@@ -427,7 +427,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const usage = sharedRun ? {
     run: () => runUsageMeters({
       registry, meters: usageMeters, costs: costReader, sharedProject, now,
-      sources: usageSources({ monitoring: monitoringUsage({ fetch, token, projectId: sharedProject }), storage: storageUsage({ fetch, token, buckets: sharedBuckets(env) }), sentLog }),
+      sources: usageSources({ monitoring: monitoringUsage({ fetch, token, projectId: sharedProject }), storage: storageUsage({ fetch, token, buckets: sharedBuckets(env) }), sentLog, database: databaseUsage({ fetch, token, projectId: sharedProject }) }),
     }),
   } : null;
   const dataExports = createDataExports({
