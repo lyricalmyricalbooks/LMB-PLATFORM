@@ -1,7 +1,42 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
 import { addDays, dayOf, weekdayOf } from "../../shared/bookingTimes";
-import type { Booking } from "./bookingsApi";
+import type { Booking, Waiting } from "./bookingsApi";
+
+/** One card in a day's column: a single booking, or a group class with everyone booked into it. */
+export type DaySlot = { kind: "one"; booking: Booking } | { kind: "class"; key: string; start: string; serviceName: string; places: number; people: Booking[] };
+
+/** A day's bookings as cards: the people in one start of a group class share a card, everything else has its own. */
+export function daySlots(list: readonly Booking[], placesOf: (serviceId: string) => number): DaySlot[] {
+  const out: DaySlot[] = [];
+  const classes = new Map<string, Extract<DaySlot, { kind: "class" }>>();
+  for (const b of list) {
+    const places = placesOf(b.serviceId);
+    if (places <= 1) { out.push({ kind: "one", booking: b }); continue; }
+    const key = `${b.serviceId}|${b.start}`;
+    let slot = classes.get(key);
+    if (!slot) {
+      slot = { kind: "class", key, start: b.start, serviceName: b.serviceName, places, people: [] };
+      classes.set(key, slot);
+      out.push(slot);
+    }
+    slot.people.push(b);
+  }
+  return out;
+}
+
+/** "5 of 8 booked", or "Full" when every place is taken. */
+export const classCount = (people: number, places: number): string => (people >= places ? `Full · ${people} booked` : `${people} of ${places} booked`);
+
+/** The waiting list by day, each day's people in the order they asked. */
+export function waitingByDay(list: readonly Waiting[]): Map<string, Waiting[]> {
+  const out = new Map<string, Waiting[]>();
+  for (const w of [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) out.set(w.day, [...(out.get(w.day) || []), w]);
+  return out;
+}
+
+/** "1 waiting", "3 waiting". */
+export const waitingText = (count: number): string => `${count} waiting`;
 
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 
@@ -97,3 +132,75 @@ export function weekFigures(rows: readonly Booking[]): { count: number; hours: n
 
 /** The opening hours one line per day ("Mon 10:00–17:00"). */
 export const hoursLine = (windows: { start: string; end: string }[]): string => (windows.length ? windows.map((w) => `${w.start}–${w.end}`).join(", ") : "Closed");
+
+// ── Figures (the Figures tab): the last few months, by each booking's own day in the shop's zone ──────────────────
+
+export type MonthFigures = { month: string; count: number; takenMinor: number; noShows: number; cancelled: number };
+export type BookingFigures = {
+  months: MonthFigures[]; count: number; takenMinor: number; noShows: number; cancelled: number;
+  /** No-shows out of the bookings whose time has passed, 0 to 100, or null before any has. */
+  noShowPercent: number | null;
+  /** Bookings by weekday, Monday first. */
+  weekdays: { day: string; count: number }[];
+  /** The most booked services, most first. */
+  services: { name: string; count: number }[];
+};
+
+/** The last `n` months up to the one `today` (YYYY-MM-DD) is in, oldest first, as YYYY-MM. */
+export function lastMonths(today: string, n: number): string[] {
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7)) - 1;
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(year, month - (n - 1 - i), 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  });
+}
+
+/** Money to the nearest whole unit ("CA$280"), for the small labels under a chart. */
+export function moneyShort(minor: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(minor / 100));
+  } catch {
+    return `${Math.round(minor / 100)} ${currency}`;
+  }
+}
+
+/** "Nov", or "Nov 2026" in the long style. */
+export function monthText(month: string, style: "short" | "long" = "short"): string {
+  const d = new Date(`${month}-15T12:00:00Z`);
+  return d.toLocaleDateString(undefined, { timeZone: "UTC", month: style === "long" ? "long" : "short", ...(style === "long" ? { year: "numeric" } : {}) });
+}
+
+/**
+ * What the months held. A booking counts once it is confirmed (a no-show still counts: the time was kept for them);
+ * one still being paid for doesn't. Money is what was paid, by card or at the shop, less anything refunded, so a
+ * cancelled booking's kept deposit is in. Cancelled bookings are only counted as cancelled.
+ */
+export function bookingFigures(rows: readonly Booking[], zone: string, months: readonly string[], nowMs: number): BookingFigures {
+  const byMonth = new Map<string, MonthFigures>(months.map((m) => [m, { month: m, count: 0, takenMinor: 0, noShows: 0, cancelled: 0 }]));
+  const weekdays = [0, 0, 0, 0, 0, 0, 0];
+  const services = new Map<string, number>();
+  let past = 0;
+  for (const b of rows) {
+    const startMs = Date.parse(b.start);
+    const day = dayOf(startMs, zone);
+    const m = byMonth.get(day.slice(0, 7));
+    if (!m || b.status === "held") continue;
+    if (b.paid) m.takenMinor += Math.max(0, b.priceMinor - (b.refund?.amountMinor || 0));
+    if (b.status === "cancelled") { m.cancelled += 1; continue; }
+    m.count += 1;
+    if (b.noShow) m.noShows += 1;
+    if (startMs < nowMs) past += 1;
+    weekdays[(weekdayOf(day) + 6) % 7] += 1;
+    services.set(b.serviceName, (services.get(b.serviceName) || 0) + 1);
+  }
+  const list = [...byMonth.values()];
+  const sum = (pick: (m: MonthFigures) => number) => list.reduce((n, m) => n + pick(m), 0);
+  const noShows = sum((m) => m.noShows);
+  return {
+    months: list, count: sum((m) => m.count), takenMinor: sum((m) => m.takenMinor), noShows, cancelled: sum((m) => m.cancelled),
+    noShowPercent: past ? Math.round((noShows / past) * 100) : null,
+    weekdays: weekdays.map((count, i) => ({ day: WEEKDAYS[(i + 1) % 7], count })),
+    services: [...services].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 5),
+  };
+}

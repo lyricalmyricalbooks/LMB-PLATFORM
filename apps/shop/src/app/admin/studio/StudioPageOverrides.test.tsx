@@ -33,7 +33,7 @@ it("shows nothing when the page follows all pages", () => {
 
 it("names controls by their Studio category", () => {
   expect(overrideLabel("catalogGridGap")).toMatch(/ › /);
-  expect(overrideLabel("social")).toMatch(/ › social$/);
+  expect(overrideLabel("social")).toBe("social");
 });
 
 it("finds one field's page value, nested keys included", async () => {

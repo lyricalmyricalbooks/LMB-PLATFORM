@@ -3,7 +3,7 @@ import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
-import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
+import { Send, ChevronLeft, ChevronRight, MapPin, Clock, Users } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { resolveStaffNoteRows } from "../features/site/staffNotes";
@@ -11,6 +11,10 @@ import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFil
 import { resolveSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { fb } from "./sectionFallbacks";
+import { bookingInfoOnce } from "../features/site/bookTimeAsk";
+import { isBookingPreview } from "../features/site/bookTimePreview";
+import { useBookingsLive } from "../features/site/bookingsLive";
+import { lengthText, moneyText as bookingMoney, sectionServices, type BookingInfo } from "../features/site/bookTimeRules";
 import { faqAnchors, faqJsonLd, filterFaq, groupFaq, safeJson, type FaqItem } from "../features/site/faqHelp";
 import { submitContactMessage } from "../features/site/contactMessages";
 import { useSectionCopy, useSectionDesign, useSectionPage, useShopName } from "./sectionCopy";
@@ -25,6 +29,7 @@ import { gridPhotoSizes, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from 
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { shopInstant } from "../features/site/shopTime";
+import { useShopSocial } from "../features/site/shopSocial";
 
 // ──────────────────────────────
 // Animation helper
@@ -608,6 +613,56 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
               </p>
             </div>
             <NewsletterForm settings={settings} type="NewsletterSection" source="website-section" />
+          </div>
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// FOLLOW US (the shop's social accounts, from Settings › General › Social media)
+// ──────────────────────────────
+
+export function FollowUsSection({ settings, enableAnimations }: any) {
+  const links = useShopSocial();
+  const preview = inStudioPreview();
+  if (!links.length && !preview) return null;
+  const textAlign = aClass(settings);
+  const size = Math.min(48, Math.max(16, Number(settings.iconSize) || 24));
+  const showNames = settings.showNames === true;
+  const justify = settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center";
+  return (
+    <section style={bgStyle(settings)}>
+      <div className="py-16 px-6 mx-auto" data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`${mw(settings, "max-w-3xl")} mx-auto space-y-6 ${textAlign}`}>
+            {(settings.title ?? fb("FollowUsSection.title")) && (
+              <h2 className="text-2xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
+                {settings.title ?? fb("FollowUsSection.title")}
+              </h2>
+            )}
+            {settings.description && (
+              <p className="text-sm text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="description">{settings.description}</p>
+            )}
+            {links.length ? (
+              <ul className={`fm-follow-us flex flex-wrap items-center gap-3 ${justify}`} role="list">
+                {links.map((l) => (
+                  <li key={l.key}>
+                    <a href={l.url} target="_blank" rel="noopener noreferrer me" data-social={l.key} title={l.name}
+                      aria-label={showNames ? undefined : l.name}
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 text-white/75 transition-colors hover:text-white"
+                      style={{ color: settings.iconColor || undefined }}>
+                      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d={l.path} /></svg>
+                      {showNames && <span className="text-sm font-semibold" style={bStyle(settings)}>{l.name}</span>}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              // Studio preview only (never shoppers): a note for the owner, so it isn't Text & labels wording.
+              <p className="text-xs text-white/50">Your social media icons show here. Add your accounts in Settings › General › Social media.</p>
+            )}
           </div>
         </AnimationContainer>
       </div>
@@ -2103,6 +2158,76 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 // MAP
 // ──────────────────────────────
+
+/**
+ * "Book a time" anywhere: the shop's bookable services, each with a button that opens the Book a time page on that
+ * service. Shows nothing while the shop isn't taking bookings (Studio's preview shows sample services instead).
+ */
+export function BookTimeSection({ settings, enableAnimations }: any) {
+  const live = useBookingsLive();
+  const c = useSectionCopy();
+  const [info, setInfo] = useState<BookingInfo | null>(null);
+  const wanted = live || isBookingPreview();
+  useEffect(() => {
+    if (!wanted) { setInfo(null); return; }
+    let stale = false;
+    bookingInfoOnce().then((next) => { if (!stale) setInfo(next); }).catch(() => {});
+    return () => { stale = true; };
+  }, [wanted]);
+  const services = sectionServices(wanted ? info : null, settings.maxServices);
+  if (!services.length) return null;
+
+  const currency = info?.currency || "CAD";
+  const textAlign = aClass(settings);
+  const cols = Math.min(3, services.length);
+  const more = (info?.services?.length || 0) > services.length;
+  return (
+    <section style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`mb-10 ${textAlign}`}>
+            {settings.eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>}
+            <h2 className="text-3xl md:text-4xl font-bold uppercase text-white" style={hStyle(settings)} data-theme-field="title">{settings.title ?? fb("BookTimeSection.title")}</h2>
+            {settings.subtitle && <p className="mt-3 text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>}
+          </div>
+        </AnimationContainer>
+        <style>{`.fm-booktime-grid{display:grid;gap:20px;grid-template-columns:1fr;}@media ${UP_TO.mobile}{.fm-booktime-grid{grid-template-columns:1fr !important;}}`}</style>
+        <ul className="fm-booktime-grid list-none m-0 p-0" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {services.map((s) => (
+            <li key={s.id} className="flex flex-col gap-3 p-6 border border-white/15 bg-white/[0.03] text-left" style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
+              <div className="flex items-start justify-between gap-4">
+                <h3 className="text-xl font-bold text-white leading-tight" style={hStyle(settings)}>{s.name}</h3>
+                {settings.showPrice !== false && (
+                  <span className="shrink-0 text-xs font-bold tracking-[0.08em] text-white whitespace-nowrap" translate="no" style={bStyle(settings)}>
+                    {s.priceMinor > 0 ? bookingMoney(s.priceMinor, currency) : c("bookTimeFree")}
+                  </span>
+                )}
+              </div>
+              {settings.showDescription !== false && s.description && <p className="text-sm text-white/60 leading-relaxed" style={bStyle(settings)}>{s.description}</p>}
+              {settings.showLength !== false && (
+                <p className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] tracking-[0.12em] uppercase text-white/60" style={bStyle(settings)}>
+                  <span className="inline-flex items-center gap-1.5"><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
+                  {s.location && <span className="inline-flex items-center gap-1.5"><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
+                  {(s.places || 1) > 1 && <span className="inline-flex items-center gap-1.5"><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
+                </p>
+              )}
+              <a href={siteHref(`/book?service=${encodeURIComponent(s.id)}`)} aria-label={`${settings.buttonLabel ?? fb("BookTimeSection.buttonLabel")}: ${s.name}`}
+                className="mt-auto self-start inline-flex min-h-11 items-center px-6 py-3 text-[10px] tracking-[0.3em] font-bold uppercase"
+                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, var(--accent))", color: "var(--btn-text, var(--on-accent))", borderRadius: "var(--btn-radius, 0px)", ...btnS(settings) }}>
+                {settings.buttonLabel ?? fb("BookTimeSection.buttonLabel")}
+              </a>
+            </li>
+          ))}
+        </ul>
+        {more && settings.showAll !== false && (
+          <p className={`mt-8 ${textAlign}`}>
+            <a href={siteHref("/book")} className="underline underline-offset-4 text-white/80 text-sm" style={bStyle(settings)} data-theme-field="allLabel">{settings.allLabel ?? fb("BookTimeSection.allLabel")}</a>
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
 
 export function MapSection({ settings, enableAnimations }: any) {
   const query = settings.address ?? fb("MapSection.address");

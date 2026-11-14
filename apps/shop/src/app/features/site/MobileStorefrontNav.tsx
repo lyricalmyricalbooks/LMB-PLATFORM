@@ -10,11 +10,14 @@ import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
 import { ThemeToggle } from "../../components/theme/ThemeToggle";
+import { useShopSocial } from "./shopSocial";
+import type { SocialLink } from "./socialAccounts";
 
 export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle = false, everywhere = false }: { design: any; pages: any[]; onSearch: () => void; showThemeToggle?: boolean; everywhere?: boolean }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const { pathname } = useLocation();
   const bookings = useBookingsLive();
+  const social = useShopSocial();
   // A tap or click outside the open menu closes it (like the category drop-downs).
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -34,7 +37,8 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   const here = (to: string) => pathname.endsWith(to) ? { "aria-current": "page" as const, style: { color: navActiveColor(d) } } : {};
   // Style › Header layout › "Phone navigation style": tabs across the top (default) or the drop-down menu.
   // Header layout › Minimal: the Menu button holds every link on every screen size.
-  if (!everywhere && mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} bookings={bookings} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} />;
+  const menuSocial = d.showSocialInMobileMenu !== false ? social : [];
+  if (!everywhere && mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} bookings={bookings} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} social={menuSocial} />;
   return <details ref={ref} className={everywhere ? "relative shrink-0" : "md:hidden"} data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
     <summary className={everywhere ? "flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] [&::-webkit-details-marker]:hidden" : "min-h-11 cursor-pointer px-6 py-3 font-semibold"}>
@@ -55,14 +59,30 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
       {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
       {!d.hideCurrencySelector && <div className="px-6 py-3 [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
       {showThemeToggle && <div className="px-6 py-3"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
+      {menuSocial.length > 0 && <MenuSocial design={design} links={menuSocial} />}
     </nav>
   </details>;
+}
+
+/** Style › Header layout › "Social media icons in the phone menu": the shop's accounts as a row at the menu's foot. */
+function MenuSocial({ design, links }: { design: any; links: SocialLink[] }) {
+  return <SocialIconRow design={design} links={links} className="fm-menu-social mt-2 flex flex-wrap items-center gap-1 border-t border-current/20 px-4 pt-3" />;
+}
+
+function SocialIconRow({ design, links, className }: { design: any; links: SocialLink[]; className: string }) {
+  const label = (name: string) => String(getCopy(design, "footerSocialAria") ?? "").replace("{network}", name) || name;
+  return <div className={className} data-studio-target="style:header" data-studio-label="Phone menu social icons">
+    {links.map((l) => <a key={l.key} href={l.url} target="_blank" rel="noopener noreferrer me" aria-label={label(l.name)} title={l.name} data-social={l.key}
+      className="inline-flex h-11 w-11 items-center justify-center opacity-75 transition-opacity hover:opacity-100">
+      <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d={l.path} /></svg>
+    </a>)}
+  </div>;
 }
 
 /** "tabs" (a sideways-scrolling row of links) unless Studio picked the drop-down "menu". */
 export const mobileNavStyle = (d: any): "tabs" | "menu" => (d?.mobileNavStyle === "menu" ? "menu" : "tabs");
 
-function MobileNavTabs({ design, d, groups, bookings, showThemeToggle, pathname, slug }: { design: any; d: any; groups: ReturnType<typeof splitNavigation>; bookings: boolean; showThemeToggle: boolean; pathname: string; slug: (s: string) => string }) {
+function MobileNavTabs({ design, d, groups, bookings, showThemeToggle, pathname, slug, social }: { design: any; d: any; groups: ReturnType<typeof splitNavigation>; bookings: boolean; showThemeToggle: boolean; pathname: string; slug: (s: string) => string; social: SocialLink[] }) {
   const rowRef = useRef<HTMLDivElement>(null);
   // A category with sub-categories opens a drop-down (All + each sub-category), like the desktop header.
   const tabs: { key: string; to: string; label: string; children?: { key: string; to: string; label: string }[] }[] = [];
@@ -107,6 +127,7 @@ function MobileNavTabs({ design, d, groups, bookings, showThemeToggle, pathname,
       {/* The currency box is a ~19px line: its select gets a 43px tap area (padding cancelled by margin, so nothing moves). */}
       {!d.hideCurrencySelector && <div className="flex shrink-0 items-center [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
       {showThemeToggle && <div className="flex shrink-0 items-center"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
+      {social.length > 0 && <SocialIconRow design={design} links={social} className="fm-menu-social flex shrink-0 items-center" />}
     </div>
   </nav>;
 }

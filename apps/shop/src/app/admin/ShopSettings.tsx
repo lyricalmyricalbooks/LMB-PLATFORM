@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
 import { useShopSells } from "./shopWords";
+import { sellsBooks } from "./sells";
 import { AmountField } from "./AmountField";
 import { ActionMenu, Checkbox, PageHead, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
@@ -22,7 +23,7 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PlatformPaymentsCard } from "./PlatformPaymentsCard";
 import { CustomDomainCard } from "./CustomDomainCard";
-import { FormField, FormPage, FormReadOnly, FormRow, FormSection, StatusBar, formStatus } from "./riso/FormKit";
+import { FormField, FormPage, FormReadOnly, FormRow, FormSection, FormToggle, StatusBar, formStatus } from "./riso/FormKit";
 import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile, homeCountryName } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
@@ -38,6 +39,7 @@ import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
+import { SocialAccountsFields } from "./SocialAccountsFields";
 import { NewShippingProfileDialog } from "./NewShippingProfileDialog";
 import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 
@@ -168,7 +170,7 @@ export function ShopSettings({
 }
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
-  const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "policies"] as const;
+  const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "social", "socialOrder", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
   const sellsAnswer = useShopSells();
@@ -182,7 +184,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   };
   const discard = () => {
     const next = { ...settings };
-    dirty.forEach((k) => { next[k] = JSON.parse(JSON.stringify(originalSettings?.[k] ?? {})); });
+    dirty.forEach((k) => { next[k] = originalSettings?.[k] === undefined ? undefined : JSON.parse(JSON.stringify(originalSettings[k])); });
     setSettings(next);
   };
 
@@ -194,7 +196,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   // Your press first, as in the redesign's General page (11 November 2026).
   const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
-    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "social", "socialOrder", "policies", "domain"].some((k) => hasChanges(k)) },
     { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") || hasChanges("digitalDownloads") },
     { id: "gs-visitors", title: "Visitors & Google" },
     { id: "gs-tools", title: "Tools & records" },
@@ -223,6 +225,11 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
               <FormField label="About your shop" hint={`For search and social previews · ${desc.length} / 150`}>
                 {(a) => <textarea {...a} rows={3} value={desc} maxLength={150} onChange={(e) => set("info", { description: e.target.value })} />}
               </FormField>
+            </FormSection>
+          </SettingsAnchor>
+          <SettingsAnchor id="gs-social">
+            <FormSection title="Social media" description="Shown as small icons on your website.">
+              <SocialAccountsFields settings={settings} books={sellsBooks(sellsAnswer)} onChange={(social) => setSettings((prev: any) => ({ ...prev, social }))} onOrder={(socialOrder) => setSettings((prev: any) => ({ ...prev, socialOrder }))} />
             </FormSection>
           </SettingsAnchor>
           <SettingsAnchor id="gs-location">
@@ -1007,54 +1014,6 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
         )}
       </Dialog>
 
-      <Dialog open={isRateModalOpen && !!activeRate} onClose={() => setIsRateModalOpen(false)} title="Shipping rate"
-        description="What customers pay for this delivery option."
-        footer={<>
-          <SecondaryButton onClick={() => setIsRateModalOpen(false)}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleSaveRate}>Save rate</PrimaryButton>
-        </>}>
-        {activeRate && (() => {
-          const t = activeRate.type || "flat";
-          const set = (k: string, v: any) => setActiveRate({ ...activeRate, [k]: v });
-          const grid = { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" } as const;
-          const priced = t !== "free" && t !== "pickup";
-          return (
-          <div className="rp-stack" style={{ gap: 16 }}>
-            <TextField label="Rate / service name" value={activeRate.name} placeholder="e.g. Standard shipping, Express delivery" data-autofocus
-              onChange={(e) => set("name", e.target.value)} />
-            <SelectField label="How is this rate priced?" value={t} onChange={(e) => set("type", e.target.value)}
-              hint={w(RATE_TYPES.find((x) => x.id === t)?.help ?? "")}>
-              {RATE_TYPES.map((x) => <option key={x.id} value={x.id}>{w(x.label)}</option>)}
-            </SelectField>
-            {priced && (
-              <div style={grid}>
-                <TextField label="Base rate ($)" type="number" min={0} step="0.01" value={activeRate.base} placeholder="15.00" onChange={(e) => set("base", e.target.value)} />
-                {t === "flat" && <TextField label="Each additional item ($)" type="number" min={0} step="0.01" value={activeRate.additional} placeholder="5.00" onChange={(e) => set("additional", e.target.value)} />}
-                {t === "weight" && <TextField label="Per kg ($)" type="number" min={0} step="0.01" value={activeRate.perKg ?? ""} placeholder="8.00" onChange={(e) => set("perKg", e.target.value)} />}
-                {t === "percent" && <TextField label={w("% of book subtotal")} type="number" min={0} step="0.1" value={activeRate.percent ?? ""} placeholder="10" onChange={(e) => set("percent", e.target.value)} />}
-                <TextField label="Handling fee ($)" type="number" min={0} step="0.01" value={activeRate.handlingFee ?? ""} placeholder="0.00" hint="Added once per order." onChange={(e) => set("handlingFee", e.target.value)} />
-              </div>
-            )}
-            <div style={grid}>
-              <TextField label={t === "pickup" ? "Ready in (days)" : "Carrier transit after dispatch (days)"} value={activeRate.deliveryDays || ""} placeholder="Only enter a carrier-backed estimate" onChange={(e) => set("deliveryDays", e.target.value)} />
-              {priced && <TextField label="Free when order reaches ($)" type="number" min={0} step="0.01" value={activeRate.freeOver ?? ""} placeholder="e.g. 75.00" hint="This rate becomes free at or above this total." onChange={(e) => set("freeOver", e.target.value)} />}
-            </div>
-            <fieldset style={{ border: "var(--rp-hair) solid var(--rp-divider)", padding: 12, margin: 0 }}>
-              <legend className="rp-label" style={{ padding: "0 6px" }}>Only offer this rate when… (leave blank for always)</legend>
-              <div style={grid}>
-                <TextField label="Order total at least ($)" type="number" min={0} value={activeRate.minPrice ?? ""} onChange={(e) => set("minPrice", e.target.value)} />
-                <TextField label="Order total at most ($)" type="number" min={0} value={activeRate.maxPrice ?? ""} onChange={(e) => set("maxPrice", e.target.value)} />
-                <TextField label="Cart weight at least (g)" type="number" min={0} value={activeRate.minWeight ?? ""} onChange={(e) => set("minWeight", e.target.value)} />
-                <TextField label="Cart weight at most (g)" type="number" min={0} value={activeRate.maxWeight ?? ""} onChange={(e) => set("maxWeight", e.target.value)} />
-                <TextField label="Items in cart at least" type="number" min={0} value={activeRate.minItems ?? ""} onChange={(e) => set("minItems", e.target.value)} />
-                <TextField label="Items in cart at most" type="number" min={0} value={activeRate.maxItems ?? ""} onChange={(e) => set("maxItems", e.target.value)} />
-              </div>
-            </fieldset>
-            <Toggle label="Rate is active (customers can choose it)" checked={activeRate.enabled !== false} onChange={(v: boolean) => set("enabled", v)} />
-          </div>
-          );
-        })()}
-      </Dialog>
     </>
   ) : null;
 
@@ -1259,6 +1218,63 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     if (dirty && !(await askConfirm({ title: "Leave without saving?", message: "Your zone and rate changes to this profile haven't been saved.", confirmLabel: "Discard changes" }))) return;
     setSelectedProfileId(null); setEditingProfile(null);
   };
+
+  // A shipping rate is its own form page (v4 form kit), opened from a zone; Save rate returns to the profile.
+  if (isRateModalOpen && activeRate) {
+    const t = activeRate.type || "flat";
+    const set = (k: string, v: any) => setActiveRate({ ...activeRate, [k]: v });
+    const priced = t !== "free" && t !== "pickup";
+    const zoneName = zones.find((z: any) => z.id === parentZoneIdForRate)?.name;
+    const rateNameMissing = !String(activeRate.name || "").trim();
+    const num = (k: string, label: string, opts: { prefix?: string; suffix?: string; hint?: string; placeholder?: string; step?: string } = {}) => (
+      <FormField label={label} prefix={opts.prefix} suffix={opts.suffix} hint={opts.hint}>
+        {(a) => <input {...a} type="number" min={0} step={opts.step ?? "0.01"} placeholder={opts.placeholder} value={activeRate[k] ?? ""} onChange={(e) => set(k, e.target.value)} />}
+      </FormField>
+    );
+    return (
+      <div className="rp-stack">
+        <PageHead title={activeRate.name?.trim() || "New rate"} description={zoneName ? `Shipping rate · ${zoneName}` : "Shipping rate"}
+          back={{ label: editingProfile.name || "Profile", onClick: () => setIsRateModalOpen(false) }} />
+        <FormPage>
+          <FormSection title="The rate" description="What shoppers see and pay.">
+            <FormField label="Name" required empty={rateNameMissing} hint="Shown at checkout.">
+              {(a) => <input {...a} autoFocus value={activeRate.name} placeholder="Standard shipping" onChange={(e) => set("name", e.target.value)} />}
+            </FormField>
+            <FormField label="How it's priced" hint={w(RATE_TYPES.find((x) => x.id === t)?.help ?? "")}>
+              {(a) => <select {...a} value={t} onChange={(e) => set("type", e.target.value)}>{RATE_TYPES.map((x) => <option key={x.id} value={x.id}>{w(x.label)}</option>)}</select>}
+            </FormField>
+            {priced && (
+              <FormRow>
+                {num("base", "Base rate", { prefix: "$", placeholder: "15.00" })}
+                {t === "flat" && num("additional", "Each extra item", { prefix: "$", placeholder: "5.00" })}
+                {t === "weight" && num("perKg", "Per kg", { prefix: "$", placeholder: "8.00" })}
+                {t === "percent" && num("percent", "Share of subtotal", { suffix: "%", placeholder: "10", step: "0.1" })}
+                {num("handlingFee", "Handling fee", { prefix: "$", placeholder: "0.00", hint: "Once per order." })}
+              </FormRow>
+            )}
+            <FormRow>
+              <FormField label={t === "pickup" ? "Ready in" : "Days in transit"} suffix="days" hint={t === "pickup" ? undefined : "Only a carrier's own estimate."}>
+                {(a) => <input {...a} value={activeRate.deliveryDays || ""} placeholder="e.g. 2-5" onChange={(e) => set("deliveryDays", e.target.value)} />}
+              </FormField>
+              {priced && num("freeOver", "Free over", { prefix: "$", placeholder: "None" })}
+            </FormRow>
+          </FormSection>
+          <FormSection title="When to offer it" description="Leave empty to always offer it.">
+            <FormRow>{num("minPrice", "Order total at least", { prefix: "$" })}{num("maxPrice", "Order total at most", { prefix: "$" })}</FormRow>
+            <FormRow>{num("minWeight", "Weight at least", { suffix: "g", step: "1" })}{num("maxWeight", "Weight at most", { suffix: "g", step: "1" })}</FormRow>
+            <FormRow>{num("minItems", "Items at least", { step: "1" })}{num("maxItems", "Items at most", { step: "1" })}</FormRow>
+          </FormSection>
+          <FormSection title="Status">
+            <FormToggle label="Offer this rate" hint="Off hides it at checkout." checked={activeRate.enabled !== false} onChange={(v) => set("enabled", v)} />
+          </FormSection>
+        </FormPage>
+        <StatusBar status={formStatus({ missing: rateNameMissing ? 1 : 0, dirty: true })} primaryLabel="Save rate"
+          blocked={rateNameMissing} onBlocked={() => toast.error("Give the rate a name first.")}
+          onPrimary={handleSaveRate} onCancel={() => setIsRateModalOpen(false)} />
+        {confirmNode}
+      </div>
+    );
+  }
 
   return (
     <div className="rp-stack">
@@ -1687,7 +1703,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                 <>
                   {secretStored && (
                     <div style={{ padding: 16, background: "var(--rp-warning-tint)" }}>
-                      <strong>🔒 Secret key stored privately.</strong>{" "}
+                      <strong>Secret key stored privately.</strong>{" "}
                       Secret keys are kept in an admin-only store the storefront cannot read.
                       {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe." /* Stripe shops only */}
                     </div>

@@ -49,6 +49,7 @@ import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./featur
 import { liveRatesAddressReady, shouldRefetchRates } from "./features/site/liveRateRequest";
 import { holdLimitsFrom, holdWarnings } from "./features/site/holdLimits";
 import { freeShippingGap } from "./features/site/checkoutNudges";
+import { shippableBagTotal } from "./features/site/freeShipThreshold";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
 import { activeTaxRates, matchTaxRate } from "./features/site/taxRate";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
@@ -690,18 +691,23 @@ export function Checkout() {
       (p.zones || []).forEach((z: any) => (z.rates || []).forEach((r: any) => { if (Number(r.freeOver) > 0) candidates.add(Number(r.freeOver)); }));
     });
     const country = customer.address.country || homeCountryName();
-    const base = shippingItemsForCart();
-    for (const t of [...candidates].filter(t => t > cartTotal).sort((a, b) => a - b).slice(0, 6)) {
-      const gap = freeShippingGap(cartTotal, t);
+    // Shipping is quoted on physical lines only (as on the server): e-books, downloads and gift cards
+    // in the bag must not count toward free shipping, or the hint promises what checkout won't give.
+    const all = shippingItemsForCart();
+    const base = catalogItems ? all.filter((_, i) => catalogItems[i]?.physical) : all;
+    if (!base.length) return null;
+    const shippable = shippableBagTotal(catalogItems, cartTotal);
+    for (const t of [...candidates].filter(t => t > shippable).sort((a, b) => a - b).slice(0, 6)) {
+      const gap = freeShippingGap(shippable, t);
       if (!gap) continue;
-      const probe = [...base, { price: gap, quantity: 1, shippingProfileId: cart[0]?.shippingProfileId || null, weightGrams: 0 }];
+      const probe = [...base, { price: gap, quantity: 1, shippingProfileId: base[0]?.shippingProfileId || null, weightGrams: 0 }];
       const quotes = quoteShipping(probe, { country, state: customer.address.state, zip: customer.address.zip }, shippingProfiles);
       const same = quotes.find(q => q.name === selected.name);
       if ((same ? same.price : quotes[0]?.price) === 0) return { gap, threshold: t };
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, cartTotal, shippingProfiles, availableRates, fulfillmentSelection, customer.address.country, checkoutDesign.hideCheckoutFreeShipNudge]);
+  }, [cart, cartTotal, catalogItems, shippingProfiles, availableRates, fulfillmentSelection, customer.address.country, customer.address.state, customer.address.zip, checkoutDesign.hideCheckoutFreeShipNudge]);
 
   const calculateStaticProfileRates = () => {
     if (cart.length === 0 || shippingProfiles.length === 0) {

@@ -3,7 +3,7 @@
 import { addDays } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
-export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full"; location: string; questions?: BookingQuestion[] };
+export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full"; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[] };
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; start: string; end: string;
@@ -108,4 +108,19 @@ export function manageFromSearch(search: string): { id: string; key: string } | 
   const id = q.get("booking") || "";
   const key = q.get("key") || "";
   return /^[A-Za-z0-9_-]{6,40}$/.test(id) && /^[a-f0-9]{48}$/.test(key) ? { id, key } : null;
+}
+
+/** The service and day a waiting-list email links to (`/book?service=…&day=…`), each empty when missing or misshapen. */
+export function wantedFromSearch(search: string): { service: string; day: string } {
+  const q = new URLSearchParams(search);
+  const service = q.get("service") || "";
+  const day = q.get("day") || "";
+  return { service: /^[A-Za-z0-9_-]{1,60}$/.test(service) ? service : "", day: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "" };
+}
+
+/** The services a "Book a time" section shows: none while bookings are off, else the first few in the shop's order. */
+export function sectionServices(info: BookingInfo | null, max: unknown): BookingServiceView[] {
+  if (!info?.on || !info.services?.length) return [];
+  const n = Math.round(Number(max));
+  return info.services.slice(0, Number.isFinite(n) ? Math.min(6, Math.max(1, n)) : 3);
 }

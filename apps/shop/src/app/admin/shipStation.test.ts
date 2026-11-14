@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { badgeText, gridCounts, gridOrders, gridTabOf, itemCount, listFulfilment, packableOf, listOrders, listPayment, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep } from "./shipStation";
+import { badgeText, gridCounts, gridOrders, gridTabOf, itemCount, listFulfilment, packableOf, batchOf, printableOf, listOrders, listPayment, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep } from "./shipStation";
 import { packingKey } from "./fulfillment";
 
 const address = { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "Canada" };
@@ -107,5 +107,29 @@ describe("bulk Mark packed on the order list", () => {
     expect(pack.map((o) => o.id)).toEqual(["FRESH"]);
     expect(skipped).toBe(2);
     expect(packableOf([fresh], new Set()).pack).toEqual([]);
+  });
+});
+
+describe("bulk Mark shipped, Mark delivered and printing on the order list", () => {
+  const labelled = (o: any) => ({ ...o, labelUrl: "https://label.example/1.pdf", trackingNumber: "123", trackingCarrier: "Canada Post" });
+  it("ships only packed orders with a bought label", () => {
+    const ready = labelled(packed(paid("READY", "2026-10-06T10:00:00Z")));
+    const noLabel = packed(paid("NOLABEL", "2026-10-06T10:00:00Z"));
+    const notPacked = labelled(paid("FRESH", "2026-10-06T10:00:00Z"));
+    const test = { ...ready, id: "TEST", isTest: true };
+    const { act, skipped } = batchOf([ready, noLabel, notPacked, test], new Set(["READY", "NOLABEL", "FRESH", "TEST"]), "ship");
+    expect(act.map((o) => o.id)).toEqual(["READY"]);
+    expect(skipped).toBe(3);
+  });
+  it("marks delivered only parcels already on their way", () => {
+    const sent = { ...packed(paid("SENT", "2026-10-06T10:00:00Z")), fulfillmentStatus: "shipped" };
+    const home = packed(paid("HOME", "2026-10-06T10:00:00Z"));
+    expect(batchOf([sent, home], new Set(["SENT", "HOME"]), "deliver").act.map((o) => o.id)).toEqual(["SENT"]);
+  });
+  it("prints slips for real paid orders only", () => {
+    const a = paid("A", "2026-10-06T10:00:00Z");
+    const unpaid = { ...paid("U", "2026-10-06T10:00:00Z"), paymentStatus: "unpaid" };
+    const test = { ...a, id: "T", isTest: true };
+    expect(printableOf([a, unpaid, test], new Set(["A", "U", "T"])).map((o) => o.id)).toEqual(["A"]);
   });
 });

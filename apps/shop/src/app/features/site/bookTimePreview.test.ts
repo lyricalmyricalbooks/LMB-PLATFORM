@@ -23,6 +23,14 @@ describe("the Book a time page in Studio's preview", () => {
     expect(days["2026-11-17"][0]).toBe("2026-11-17T15:00:00.000Z"); // 10:00 in Toronto
   });
 
+  it("shows the sample class with one full time a day, and joining its waiting list answers at once", () => {
+    const times = ask("bookingTimes", { serviceId: "sample-class", from: "2026-11-17", days: 1 });
+    expect(times.full["2026-11-17"]).toHaveLength(1);
+    expect(times.days["2026-11-17"]).not.toContain(times.full["2026-11-17"][0]);
+    expect(Object.values(times.left).every((n) => (n as number) >= 0)).toBe(true);
+    expect(ask("bookingWait", { serviceId: "sample-class", start: times.full["2026-11-17"][0] })).toEqual({ ok: true });
+  });
+
   it("books, moves and cancels one sample booking without a server", () => {
     const started = ask("bookingStart", { serviceId: "sample-session", start: "2026-11-18T16:00:00.000Z" });
     expect(started).toEqual({ id: SAMPLE_BOOKING_ID, key: SAMPLE_BOOKING_KEY });

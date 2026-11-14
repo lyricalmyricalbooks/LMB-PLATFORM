@@ -3,21 +3,21 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, MapPin, Plus, Trash2 } from "lucide-react";
+import { BellRing, CalendarPlus, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, MapPin, Plus, Trash2, Users, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { bookingsAdmin, followBookings, readBookingSetup, type Booking } from "./bookingsApi";
-import { byDay, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
+import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { copyText } from "./clipboard";
 import "./bookings.css";
 
-type Tab = "calendar" | "services" | "hours";
+type Tab = "calendar" | "services" | "hours" | "figures";
 const ZONE = shopTimeZone();
 const today = () => dayOf(Date.now(), ZONE);
 const bookPageUrl = () => new URL(`${(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/")}book`, window.location.origin).toString();
@@ -125,18 +125,21 @@ export function Bookings() {
       </section>
 
       <Tabs<Tab> label="Bookings" variant="page" value={tab} onChange={setTab}
-        tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length }, { id: "hours", label: "Hours & rules" }]} />
+        tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length }, { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" }]} />
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
           <EmptyState title="Add what customers can book" description="A studio visit, a class for one, a portfolio review: give it a length and a price, then turn on your bookings page."
             action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setAdding(true); setTab("services"); }}>Add a service</PrimaryButton>} />
         ) : (
-          <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} />
+          <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} />
         )}
       </TabPanel>
       <TabPanel tabId="services" active={tab === "services"}>
         <ServicesPanel services={setup.services} onChanged={reloadSetup} startAdding={adding} onStarted={() => setAdding(false)} />
+      </TabPanel>
+      <TabPanel tabId="figures" active={tab === "figures"}>
+        {tab === "figures" && <FiguresPanel />}
       </TabPanel>
       <TabPanel tabId="hours" active={tab === "hours"}>
         <HoursPanel settings={setup.settings} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
@@ -150,14 +153,26 @@ export function Bookings() {
 
 // ── Calendar ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function WeekView({ monday, setMonday, rows, error, settings, onOpen }: {
-  monday: string; setMonday: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; onOpen: (b: Booking) => void;
+function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }: {
+  monday: string; setMonday: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; services: BookingService[]; onOpen: (b: Booking) => void;
 }) {
+  const placesOf = (serviceId: string) => services.find((s) => s.id === serviceId)?.places || 1;
   const days = weekDays(monday);
   const groups = useMemo(() => byDay(rows || [], ZONE), [rows]);
   const now = today();
   const [phoneDay, setPhoneDay] = useState(() => (days.includes(now) ? now : monday));
   useEffect(() => { setPhoneDay(days.includes(now) ? now : monday); }, [monday]);
+  // The waiting list for the week on show. Read again whenever the bookings change, because a freed place empties it.
+  const [waiting, setWaiting] = useState<Waiting[]>([]);
+  const [waitingDay, setWaitingDay] = useState("");
+  useEffect(() => {
+    let stale = false;
+    bookingsAdmin<{ waiting?: Waiting[] }>("waitlist", { from: monday, to: addDays(monday, 6) })
+      .then((answer) => { if (!stale) setWaiting(answer.waiting || []); })
+      .catch(() => { if (!stale) setWaiting([]); });
+    return () => { stale = true; };
+  }, [monday, rows]);
+  const waitingDays = useMemo(() => waitingByDay(waiting), [waiting]);
   return (
     <div className="bkg-week">
       <div className="bkg-week-head">
@@ -191,19 +206,171 @@ function WeekView({ monday, setMonday, rows, error, settings, onOpen }: {
               </header>
               {rows === null ? <div className="bkg-skeleton" aria-hidden /> : list.length === 0 ? (
                 <p className="bkg-day-empty">{closed ? "Closed" : "Nothing booked"}</p>
-              ) : list.map((b) => (
-                <button key={b.id} type="button" className="bkg-slot" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
-                  <span className="bkg-slot-time">{timeText(b.start, ZONE)}</span>
-                  <span className="bkg-slot-who">{b.customer.name}</span>
-                  <span className="bkg-slot-what">{b.serviceName}</span>
-                  {b.status === "held" && <span className="bkg-slot-tag">{b.clearing ? "Payment clearing" : "Paying now"}</span>}
-                  {b.noShow && <span className="bkg-slot-tag">No-show</span>}
+              ) : daySlots(list, placesOf).map((slot) => slot.kind === "class" ? (
+                <div key={slot.key} className="bkg-class" data-full={slot.people.length >= slot.places || undefined}>
+                  <span className="bkg-slot-time">{timeText(slot.start, ZONE)}</span>
+                  <span className="bkg-slot-who">{slot.serviceName}</span>
+                  <span className="bkg-class-count"><Users size={13} aria-hidden /> {classCount(slot.people.length, slot.places)}</span>
+                  <span className="bkg-class-bar" aria-hidden><i style={{ width: `${Math.min(100, Math.round((slot.people.length / slot.places) * 100))}%` }} /></span>
+                  <ul className="bkg-class-people">
+                    {slot.people.map((b) => (
+                      <li key={b.id}>
+                        <button type="button" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
+                          {b.customer.name}{b.status === "held" ? <em>{b.clearing ? "clearing" : "paying"}</em> : b.noShow ? <em>no-show</em> : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <button key={slot.booking.id} type="button" className="bkg-slot" data-status={slot.booking.status} data-noshow={slot.booking.noShow || undefined} onClick={() => onOpen(slot.booking)}>
+                  <span className="bkg-slot-time">{timeText(slot.booking.start, ZONE)}</span>
+                  <span className="bkg-slot-who">{slot.booking.customer.name}</span>
+                  <span className="bkg-slot-what">{slot.booking.serviceName}</span>
+                  {slot.booking.status === "held" && <span className="bkg-slot-tag">{slot.booking.clearing ? "Payment clearing" : "Paying now"}</span>}
+                  {slot.booking.noShow && <span className="bkg-slot-tag">No-show</span>}
                 </button>
               ))}
+              {(waitingDays.get(d)?.length || 0) > 0 && (
+                <button type="button" className="bkg-waiting" onClick={() => setWaitingDay(d)}>
+                  <BellRing size={13} aria-hidden /> {waitingText(waitingDays.get(d)!.length)}
+                </button>
+              )}
             </section>
           );
         })}
       </div>
+      {waitingDay && (
+        <WaitingDialog day={waitingDay} list={waitingDays.get(waitingDay) || []} onClose={() => setWaitingDay("")}
+          onRemoved={(id) => setWaiting((all) => all.filter((w) => w.id !== id))} />
+      )}
+    </div>
+  );
+}
+
+/** Who asked to hear when a day or a full class has room again. They are emailed by the shop itself, once. */
+function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: Waiting[]; onClose: () => void; onRemoved: (id: string) => void }) {
+  const [removing, setRemoving] = useState("");
+  const remove = async (w: Waiting) => {
+    setRemoving(w.id);
+    try { await bookingsAdmin("removeWaiting", { id: w.id }); onRemoved(w.id); toast.success(`${w.name} is off the waiting list`); }
+    catch (e: any) { toast.error(e?.message || "That didn't save. Please try again."); }
+    finally { setRemoving(""); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="Each person gets one email the moment a place opens. Nothing is held: the first to book gets it."
+      footer={<SecondaryButton onClick={onClose}>Done</SecondaryButton>}>
+      {list.length === 0 ? <p className="bkg-day-empty">Nobody is waiting now.</p> : (
+        <ul className="bkg-waitlist">
+          {list.map((w) => (
+            <li key={w.id}>
+              <div>
+                <strong>{w.name}</strong>
+                <a href={`mailto:${w.email}`}>{w.email}</a>
+                <span>{w.serviceName} · {w.start ? timeText(w.start, ZONE) : "any time"}</span>
+              </div>
+              <IconButton label={`Remove ${w.name}`} disabled={removing === w.id} onClick={() => void remove(w)}><X size={16} aria-hidden /></IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Dialog>
+  );
+}
+
+// ── Figures ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+const FIGURE_MONTHS = 6;
+
+/** The last six months at a glance: bookings and money month by month, the busiest days, the most booked services. */
+function FiguresPanel() {
+  const [figures, setFigures] = useState<BookingFigures | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let stale = false;
+    setFigures(null); setError("");
+    const months = lastMonths(today(), FIGURE_MONTHS);
+    // A day's slack either side covers every time zone; each booking is then placed by its own day in the shop's zone.
+    const from = new Date(Date.parse(`${months[0]}-01T00:00:00Z`) - 86_400_000).toISOString();
+    const to = new Date(Date.parse(`${addDays(`${months[months.length - 1]}-28`, 4).slice(0, 7)}-01T00:00:00Z`) + 86_400_000).toISOString();
+    readBookingsBetween(from, to)
+      .then((rows) => { if (!stale) setFigures(bookingFigures(rows, ZONE, months, Date.now())); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load your figures."); });
+    return () => { stale = true; };
+  }, [attempt]);
+
+  if (error) return <ErrorState title="Figures couldn't be loaded" description={error} onRetry={() => setAttempt((n) => n + 1)} />;
+  if (!figures) return <LoadingState label="Adding up your bookings…" />;
+  if (!figures.count && !figures.cancelled) return <EmptyState title="No figures yet" description="Once customers book, the last six months show here: bookings and money by month, your busiest days and what gets booked most." />;
+
+  const topMonth = Math.max(1, ...figures.months.map((m) => m.count));
+  const topDay = Math.max(1, ...figures.weekdays.map((w) => w.count));
+  const topService = Math.max(1, ...figures.services.map((s) => s.count));
+  const busiest = figures.weekdays.reduce((best, w) => (w.count > best.count ? w : best), figures.weekdays[0]);
+  return (
+    <div className="bkg-figs">
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">Bookings</p>
+        <p className="bkg-big">{figures.count}</p>
+        <p className="bkg-sub">last {FIGURE_MONTHS} months</p>
+      </div>
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">Money taken</p>
+        <p className="bkg-big bkg-big-money">{moneyText(figures.takenMinor, SHOP_CURRENCY)}</p>
+        <p className="bkg-sub">after refunds</p>
+      </div>
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">No-shows</p>
+        <p className="bkg-big">{figures.noShows}</p>
+        <p className="bkg-sub">{figures.noShowPercent === null ? "none marked yet" : `${figures.noShowPercent}% of past bookings`}</p>
+      </div>
+      <div className="bkg-tile bkg-figure">
+        <p className="bkg-kicker">Cancelled</p>
+        <p className="bkg-big">{figures.cancelled}</p>
+        <p className="bkg-sub">by you or the customer</p>
+      </div>
+
+      <section className="bkg-tile bkg-figs-months" aria-labelledby="bkg-figs-months">
+        <h2 id="bkg-figs-months" className="bkg-figs-title">Month by month</h2>
+        <ol className="bkg-months">
+          {figures.months.map((m) => (
+            <li key={m.month} aria-label={`${monthText(m.month, "long")}: ${m.count} ${m.count === 1 ? "booking" : "bookings"}, ${moneyText(m.takenMinor, SHOP_CURRENCY)}`}>
+              <strong aria-hidden>{m.count}</strong>
+              <span className="bkg-months-bar" aria-hidden><i style={{ height: `${Math.round((m.count / topMonth) * 100)}%` }} /></span>
+              <span className="bkg-months-name" aria-hidden>{monthText(m.month)}</span>
+              <span className="bkg-months-money" aria-hidden>{moneyShort(m.takenMinor, SHOP_CURRENCY)}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="bkg-tile bkg-tile-mint bkg-figs-days" aria-labelledby="bkg-figs-days">
+        <h2 id="bkg-figs-days" className="bkg-figs-title">Busiest days</h2>
+        <p className="bkg-figs-lead">{busiest.count ? `${busiest.day}s are your busiest.` : "No bookings yet."}</p>
+        <ul className="bkg-bars">
+          {figures.weekdays.map((w) => (
+            <li key={w.day}>
+              <span>{w.day.slice(0, 3)}</span>
+              <span className="bkg-bars-track" aria-hidden><i style={{ width: `${Math.round((w.count / topDay) * 100)}%` }} /></span>
+              <strong>{w.count}</strong>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="bkg-tile bkg-figs-services" aria-labelledby="bkg-figs-services">
+        <h2 id="bkg-figs-services" className="bkg-figs-title">Most booked</h2>
+        <ul className="bkg-bars bkg-bars-wide">
+          {figures.services.map((s) => (
+            <li key={s.name}>
+              <span>{s.name}</span>
+              <span className="bkg-bars-track" aria-hidden><i style={{ width: `${Math.round((s.count / topService) * 100)}%` }} /></span>
+              <strong>{s.count}</strong>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
@@ -454,7 +621,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0, questions: [] };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0, questions: [], places: 1, classTimes: [] };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -473,7 +640,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
               <h3>{s.name}</h3>
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
-            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}</p>
+            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}</p>
             <p className="bkg-service-price">{s.payment === "full" ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
@@ -499,6 +666,9 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const questions = form.questions || [];
+  const classTimes = form.classTimes || [];
+  const group = form.places > 1;
+  const setClassTime = (i: number, change: Partial<(typeof classTimes)[number]>) => set("classTimes", classTimes.map((t, j) => (j === i ? { ...t, ...change } : t)));
   const setQuestion = (i: number, change: Partial<(typeof questions)[number]>) => set("questions", questions.map((q, j) => (j === i ? { ...q, ...change } : q)));
   const save = async () => {
     setSaving(true); setProblem("");
@@ -525,6 +695,32 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
         </div>
         <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free. Paid bookings are paid by card when booked." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
+        <fieldset className="bkg-questions">
+          <legend>Who can book a time</legend>
+          <div className="bkg-seg" role="radiogroup" aria-label="Who can book a time">
+            <button type="button" role="radio" aria-checked={!group} onClick={() => set("places", 1)}>One customer</button>
+            <button type="button" role="radio" aria-checked={group} onClick={() => { if (!group) set("places", 8); }}>A group class</button>
+          </div>
+          {group && (
+            <>
+              <TextField label="Places at each time" inputMode="numeric" value={String(form.places)} hint="Each booking takes one place."
+                onChange={(e) => set("places", Math.min(MAX_PLACES, Math.max(2, Number(e.target.value.replace(/\D/g, "")) || 2)))} />
+              <p className="bkg-questions-hint">{classTimes.length ? "The class runs at these times each week." : "Add the times the class runs each week, or leave this empty to offer every free time in your hours."}</p>
+              {classTimes.map((t, i) => (
+                <div key={i} className="bkg-classtime">
+                  <SelectField label="Day" value={String(t.weekday)} onChange={(e) => setClassTime(i, { weekday: Number(e.target.value) })}>
+                    {ORDERED_DAYS.map((d) => <option key={d} value={d}>{WEEKDAYS[d]}</option>)}
+                  </SelectField>
+                  <TextField label="Starts" type="time" value={t.time} onChange={(e) => setClassTime(i, { time: e.target.value })} />
+                  <button type="button" className="bkg-question-remove" aria-label={`Remove ${WEEKDAYS[t.weekday]} ${t.time}`} onClick={() => set("classTimes", classTimes.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
+                </div>
+              ))}
+              {classTimes.length < MAX_CLASS_TIMES && (
+                <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("classTimes", [...classTimes, { weekday: classTimes[classTimes.length - 1]?.weekday ?? 6, time: classTimes[classTimes.length - 1]?.time ?? "14:00" }])}>Add a class time</SecondaryButton>
+              )}
+            </>
+          )}
+        </fieldset>
         <TextArea label="About it (optional)" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
         <fieldset className="bkg-questions">
           <legend>Questions to ask</legend>

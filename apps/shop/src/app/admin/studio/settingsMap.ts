@@ -153,7 +153,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Text wordmark", keys: ["logoText", "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "wordmarkSize", "wordmarkWeight"] },
   ],
   header: [
-    { title: "Header layout", keys: ["headerLayout", "headerStyle", "logoPosition", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
+    { title: "Header layout", keys: ["headerLayout", "headerStyle", "logoPosition", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSocialInMobileMenu", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
     { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds", "announcementCountdown", "announcementCountdownWithin", "announcementDismissible"] },
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderBookings", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
@@ -168,10 +168,10 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Footer layout", keys: ["footerNavigationLayout", "footerLinksAlign", "footerBrandAlign", "footerBrandVAlign", "footerBrandCenterMobile", "showFooterBrandDivider", "footerColumns", "footerLayout", "footerBg"] },
     { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerBarPaddingY", "footerColumnGap", "footerLinkGap"] },
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
-    { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent", "footerSocialBoxes", "footerSocialHoverColor"] },
+    { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent"] },
     { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
-    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "footerPaymentIconOpacity", "footerPaymentIconHoverOpacity", "footerPaymentIconColor", "paymentIconsFullColour", "showPoweredBy", "showFooterAdminLink"] },
-    { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
+    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showPaymentBadges", "footerPaymentIconOpacity", "footerPaymentIconHoverOpacity", "footerPaymentIconColor", "paymentIconsFullColour", "showPoweredBy", "showFooterAdminLink"] },
+    { title: "Social media icons", keys: ["showSocialInFooter", "footerSocialPlace", "footerSocialIconSize", "footerSocialBoxes", "footerSocialHoverColor"] },
   ],
   products: [
     { title: "Grid & columns", keys: ["productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect", "showCardHoverPhoto", "showCardCreator", "showCardRating", "showCardFormats"] },
@@ -352,6 +352,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
   ],
   "Bookings page": [
     { title: "Choosing a service and time", match: /^bookTime(Eyebrow|Title|Subtitle|Closed|Loading|LoadError|Retry|Step|Free|PayAtShop|Select|Change|Earlier|Later|NoTimes|ShowLater|Morning|Afternoon|Evening|Zone|Continue|Back)/ },
+    { title: "Classes & waiting list", match: /^bookTime(ClassSize|PlacesLeft|LastPlace|Full|DayFull|Wait)/ },
     { title: "Your details & booking", match: /^bookTime(Name|Email|Phone|Note|Need|Book$|Pay$|Booking|PayNote|CancelRule|Taken|Error)/ },
     { title: "Your booking link", match: /^bookTime(Confirmed|Held|CheckAgain|Cancelled|Refunded|Missing|What|When|Where|Paid|AddCalendar|Google|Move|Keep|Cancel|TooLate|Another)/ },
   ],
