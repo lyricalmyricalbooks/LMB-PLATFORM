@@ -819,8 +819,9 @@ export const adminApi = {
     // `analytics` (the Google Analytics measurement ID and the Microsoft Clarity project ID) is written only by
     // Settings › General › Google Analytics / Microsoft Clarity (googleAnalyticsApi.save, clarityApi.save); a settings
     // form holding an older copy must never put either back. `returns` is written only by Settings › Shipping › Returns
-    // (updateReturnSettings), for the same reason.
-    const { analytics: _ownedByGaCard, returns: _ownedByReturnsTab, ...ownedHere } = publicSettings as Record<string, any>;
+    // (updateReturnSettings), for the same reason. `bookingsLive` is written only by the server when the owner flips
+    // the Bookings switch (functions/bookings.js tellWebsite).
+    const { analytics: _ownedByGaCard, returns: _ownedByReturnsTab, bookingsLive: _ownedByBookingsSwitch, ...ownedHere } = publicSettings as Record<string, any>;
     const { payload, options: writeOptions } = themeWrite(ownedHere, options.publish);
     await setDoc(docRef, payload, writeOptions);
     // The primary write already succeeded. An audit failure must not report a

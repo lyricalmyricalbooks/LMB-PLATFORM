@@ -93,6 +93,19 @@ function bookingActions({
     const snap = await settingsRef().get();
     return cleanBookingSettings(snap.exists ? snap.data() : null);
   }
+  // The shop's pages show "Book a time" in the header, phone menu and footer while bookings are on. They learn it from
+  // the public website settings they already read (`bookingsLive`), so no page asks this server on every visit. Only a
+  // hint for showing a link: every booking action above still checks the real switch. A shop with no website settings
+  // yet is left alone (a record holding only this would stand in for the starting design).
+  async function tellWebsite(live) {
+    try {
+      const ref = db.collection("settings").doc("website");
+      const snap = await ref.get();
+      if (snap.exists && (snap.data()?.bookingsLive === true) !== (live === true)) await ref.set({ bookingsLive: live === true }, { merge: true });
+    } catch (err) {
+      console.warn("bookings: the website link wasn't updated:", err?.message || err);
+    }
+  }
   async function readServices() {
     const snap = await services().limit(MAX_SERVICES).get();
     return snap.docs.map((d) => cleanService(d.data(), d.id)).filter((s) => !s.problem).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
@@ -470,6 +483,15 @@ function bookingActions({
       if (op === "saveSettings") {
         const next = cleanBookingSettings(req.body?.settings);
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
+        await tellWebsite(next.live);
+        return res.status(200).json({ ok: true, settings: next });
+      }
+      if (op === "setLive") {
+        // The owner's on/off switch (Orders › Bookings): one tap, nothing else about the hours changes. Off hides the
+        // page and its links and stops new bookings; bookings already made stay, and customers can still open theirs.
+        const next = { ...settings, live: req.body?.live === true };
+        await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
+        await tellWebsite(next.live);
         return res.status(200).json({ ok: true, settings: next });
       }
       if (op === "times") {

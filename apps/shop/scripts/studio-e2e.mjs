@@ -2095,6 +2095,21 @@ await check("a books shop still reads book words in Theme settings", desktop, as
   await expectText(page, "Book cards in the shop grid");
 }, "#designer?tab=style");
 
+await check("the Book a time page opens in the designer with sample services, click-to-edit parts and its header link", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  // Sample services stand in for the shop's own, so every step can be designed before a booking exists.
+  await frame.locator("[data-store-region=bookingsService]").first().waitFor({ timeout: 15000 });
+  await frame.locator("header[data-section=navigation] [data-header-bookings]").first().waitFor({ state: "attached", timeout: 5000 });
+  await frame.locator("footer a[href$='/book'], footer a[href*='/book?']").first().waitFor({ state: "attached", timeout: 5000 });
+  // Clicking a part opens its settings; in Browse mode, choosing a service shows its sample times. Nothing reaches a server.
+  await frame.locator("[data-store-region=bookingsService]").nth(1).click();
+  await expectText(page, "Service card");
+  await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
+  await frame.locator("[data-store-region=bookingsService]").nth(1).click();
+  await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().waitFor({ timeout: 10000 });
+}, "?bookings=1#designer?t=bookingsPage&tab=sections");
+
 await browser.close();
 await server?.close();
 for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name} (${Math.round(r.ms / 1000)}s)${r.ok ? "" : ` — ${r.error}`}`);

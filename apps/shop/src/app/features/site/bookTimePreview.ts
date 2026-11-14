@@ -1,0 +1,62 @@
+// The Book a time page inside Studio's preview: sample services, times and one sample booking, so an owner can
+// design every step (and the "You're booked" page) before taking a single booking, and whether or not bookings are
+// switched on. Only a real Studio preview gets these (the address says preview=true AND Studio's snapshot is on the
+// window, like draft books in useSiteData); a shopper who types ?preview=true still talks to the server. Nothing is
+// saved and no email is sent.
+import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
+import { shopTimeZone } from "../../../shared/shopTimeZone";
+import type { BookingInfo, BookingServiceView, BookingView } from "./bookTimeRules";
+
+export const SAMPLE_BOOKING_ID = "sample-booking";
+export const SAMPLE_BOOKING_KEY = "0".repeat(48);
+
+export const isBookingPreview = () => typeof window !== "undefined"
+  && new URLSearchParams(window.location.search).get("preview") === "true" && Boolean((window as any).__studioPreviewState);
+
+const SERVICES: BookingServiceView[] = [
+  { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Orders › Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio" },
+  { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio" },
+  { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "" },
+];
+const TIMES = ["10:00", "11:00", "13:30", "15:00", "18:00"];
+
+/** The sample booking as last changed in this preview (Change time and Cancel work on it). */
+let sample: BookingView | null = null;
+
+function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?: string, start?: string): BookingView {
+  const service = SERVICES.find((s) => s.id === serviceId) || SERVICES[1];
+  const startMs = start ? Date.parse(start) : zonedTime(addDays(dayOf(nowMs, zone), 3), "11:00", zone);
+  return {
+    id: SAMPLE_BOOKING_ID, serviceId: service.id, serviceName: service.name, minutes: service.minutes, location: service.location,
+    start: new Date(startMs).toISOString(), end: new Date(startMs + service.minutes * 60_000).toISOString(),
+    status: "confirmed", payment: service.priceMinor > 0 ? "card" : "free", paid: service.priceMinor > 0, priceMinor: service.priceMinor, currency,
+    name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24,
+  };
+}
+
+/** What the server would answer, from sample data. */
+export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
+  const today = dayOf(nowMs, zone);
+  if (action === "bookingInfo") {
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES } satisfies BookingInfo;
+  }
+  if (action === "bookingTimes") {
+    const from = typeof body.from === "string" ? body.from : today;
+    const count = Math.min(14, Math.max(1, Number(body.days) || 7));
+    const days: Record<string, string[]> = {};
+    for (let i = 0; i < count; i++) {
+      const day = addDays(from, i);
+      // Sundays are closed and today is past, so the empty-day look is on show too.
+      days[day] = weekdayOf(day) === 0 || day <= today ? [] : TIMES.map((t) => new Date(zonedTime(day, t, zone)).toISOString());
+    }
+    return { on: true, days };
+  }
+  if (action === "bookingStart") {
+    sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start);
+    return { id: SAMPLE_BOOKING_ID, key: SAMPLE_BOOKING_KEY };
+  }
+  sample ||= sampleBooking(zone, currency, nowMs);
+  if (action === "bookingMove" && typeof body.start === "string") sample = sampleBooking(zone, currency, nowMs, sample.serviceId, body.start);
+  if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid };
+  return { booking: sample };
+}

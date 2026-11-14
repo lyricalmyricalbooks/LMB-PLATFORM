@@ -2293,7 +2293,8 @@ export type PreviewModeId =
   | "cart"
   | "wishlist"
   | "account"
-  | "tracking";
+  | "tracking"
+  | "bookings";
 
 export type PageTemplateMeta = {
   id: string;
@@ -2315,6 +2316,7 @@ export const PAGE_TEMPLATES: PageTemplateMeta[] = [
   { id: "wishlistPage", label: "Wishlist", description: "Saved books and wishlist sections.", previewMode: "wishlist" },
   { id: "accountPage", label: "Customer account", description: "Sign-in, profile and order-history sections.", previewMode: "account" },
   { id: "trackingPage", label: "Order tracking", description: "Order lookup and tracking sections.", previewMode: "tracking" },
+  { id: "bookingsPage", label: "Book a time", description: "The page where customers book a time with you.", previewMode: "bookings" },
 ];
 
 /**
