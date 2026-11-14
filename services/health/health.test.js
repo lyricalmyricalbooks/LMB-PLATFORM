@@ -88,6 +88,9 @@ test("Google's own error text never reaches the control room: a check that can't
   }
   assert.match(plainCheckProblem(new Error(google[0])), /couldn't be reached/);
   assert.match(plainCheckProblem(new Error(google[1])), /isn't allowed/);
+  // Firestore's refusal names neither 403 nor PERMISSION_DENIED in its words; its status rides beside them.
+  assert.match(plainCheckProblem(new Error("Missing or insufficient permissions.")), /isn't allowed/);
+  assert.match(plainCheckProblem(Object.assign(new Error("The caller does not have permission"), { status: 403, code: "PERMISSION_DENIED" })), /isn't allowed/);
 });
 
 test("alert rules: pages and checkout need two failed runs; reminders every few hours; recovery once", () => {
