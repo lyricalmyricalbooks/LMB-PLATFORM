@@ -136,7 +136,7 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
     // Orders a run brought over before keep that run's rate (plan 23.18) unless the owner asks for the new one (23.22).
     const newRates = [...new Set(earlier.map((o) => `${o.paidIn!.currency} at ${o.paidIn!.rate}`))].join(", ");
     return (
-      <Dialog open onClose={onClose} title="Past orders brought over" badge="🧾" footer={<>
+      <Dialog open onClose={onClose} title="Past orders brought over" footer={<>
         <SecondaryButton icon={<Upload size={16} aria-hidden />} disabled={undo === "busy" || rerate === "busy"} onClick={nextFile}>Bring another file</SecondaryButton>
         <PrimaryButton onClick={onClose}>Done</PrimaryButton>
       </>}>
@@ -179,7 +179,7 @@ export function PastOrdersDialog({ onClose, onDone }: { onClose: () => void; onD
   }
 
   return (
-    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring past orders over" badge="🧾" size="lg"
+    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring past orders over" size="lg"
       description="Choose the order file from your old shop. Each order comes over as history: it counts in your sales reports and in the customer's history, but changes no stock, sends no email and takes no payment."
       footer={<>
         <SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton>

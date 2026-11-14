@@ -675,7 +675,6 @@ div.rp-listcard-main { cursor: default; }
 
 /* Modal */
 .rp-dialog { border-radius: var(--rp-radius-lg); }
-.rp-dialog-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-right: 10px; background: var(--rp-primary-tint); border: var(--rp-hair) solid var(--rp-primary); font-size: 15px; vertical-align: middle; }
 .rp-dialog-head .rp-icon-btn { border-radius: var(--rp-radius-pill); }
 .rp-dialog-foot .rp-foot-start { margin-right: auto; }
 
@@ -1951,7 +1950,13 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-btn[data-variant="secondary"] { border: 1px solid var(--rp-text); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar { border-bottom: 0; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-tabs[data-variant="page"] { border-bottom: 0; gap: 6px; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-metric-label, .rp-ov-figure-label, .rp-label) { font-family: var(--rp-font-mono); }
+/* DM Mono is for short kind labels, ids and counts only (v4 handoff "Type"). Field labels are Archivo 13px/600 (v4
+   "Field"), sentences such as toasts and section notes are Archivo too, and DM Mono is never faked bold: only its
+   400/500 load, so a heavier weight used to come out as a smeared typewriter face (Julian, 14 November 2026). */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-metric-label, .rp-ov-figure-label) { font-family: var(--rp-font-mono); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-label { font: 600 13px/1.3 var(--rp-font-body); letter-spacing: 0; text-transform: none; color: var(--rp-text); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-toast, .rp-sec-note) { font-family: var(--rp-font-body); }
+:root[data-admin-look="colophon"] .rp { font-synthesis-weight: none; }
 /* Phone (design handoff "Colophon platform", phone view): admin page titles 28px, tiles 20px in, figures in two columns. */
 @media (max-width: 767px) {
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-page-title, .rp-wb-h1) { font-size: 28px; }
