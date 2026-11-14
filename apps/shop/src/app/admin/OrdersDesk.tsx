@@ -308,7 +308,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     const tickedHere = page.filter((o) => picked.has(o.id)).length;
     const allTicked = page.length > 0 && tickedHere === page.length;
     const tick = (id: string, on: boolean) => setPicked((p) => { const next = new Set(p); if (on) next.add(id); else next.delete(id); return next; });
-    // Bulk steps from the Lyricalmyrical shop's Orders table: pack, ship (orders with a bought label) and delivered.
+    // Bulk steps on the Orders table: pack, ship (orders with a bought label) and delivered.
     // Each order goes through the same server action as its own page, one by one; failures stay ticked.
     const runBatch = async (kind: BatchKind) => {
       const { act, skipped } = batchOf(orders || [], picked, kind);

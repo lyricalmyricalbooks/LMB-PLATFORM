@@ -162,7 +162,7 @@ export function packableOf(orders: any[], picked: ReadonlySet<string>): { pack: 
   return { pack: act, skipped };
 }
 
-/** The list's three bulk steps, as in the Lyricalmyrical shop's Orders table. */
+/** The list's three bulk steps: pack, ship and deliver. */
 export type BatchKind = "pack" | "ship" | "deliver";
 const BATCH_QUEUE: Record<BatchKind, string> = { pack: "Ready to pack", ship: "Ready to ship", deliver: "In transit" };
 
