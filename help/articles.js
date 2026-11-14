@@ -395,6 +395,18 @@ export const ARTICLES = Object.freeze([
     plans: ["shop"],
   },
   {
+    id: "refund-order",
+    topic: "Orders",
+    question: "How do I refund or cancel an order?",
+    answer: [
+      "Open the order in Orders and choose More order actions, then Refund. Pick the whole order or just some items, give a reason, and say whether the copies go back into stock.",
+      "You see the amount before anything is sent. The money goes back to the customer's card, and they get an email. It can take a few days to show on their statement.",
+    ],
+    steps: ["Open the order in Orders", "Press More order actions, then Refund", "Choose the items and the reason", "Check the amount and confirm"],
+    where: ["Orders"],
+    plans: ["shop"],
+  },
+  {
     id: "open-shop",
     topic: "Getting started",
     question: "How do I open my shop to shoppers?",

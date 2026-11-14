@@ -307,6 +307,21 @@ export function Dashboard() {
   setProductSells(sellsAnswer);
   const w = adminWordsFor(sellsAnswer);
   const nav = useMemo(() => NAV.map((n) => ({ ...n, label: w(n.label) })), [w]);
+  // The page the owner was on before opening Help, so Help can show answers about it first.
+  const helpFrom = useRef<{ page: string; label: string } | null>(null);
+  useEffect(() => {
+    if (activeTab === "help") return;
+    if (activeTab === "settings") {
+      const child = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsTab);
+      helpFrom.current = { page: SETTINGS_ITEM_PREFIX + settingsTab, label: w(child?.label || "Settings") };
+    } else if (activeTab === STOCKROOM_TAB) {
+      const sp = stockroomPage(subTab);
+      helpFrom.current = sp ? { page: STOCKROOM_ITEM_PREFIX + sp.id, label: w(sp.label) } : null;
+    } else {
+      const item = NAV.find((n) => n.id === activeTab);
+      helpFrom.current = item ? { page: activeTab, label: w(item.label) } : null;
+    }
+  }, [activeTab, settingsTab, subTab]);
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
@@ -794,6 +809,7 @@ export function Dashboard() {
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
       case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} askUrl={askPersonPage(platformPlan)}
+        fromPage={helpFrom.current?.page} fromLabel={helpFrom.current?.label}
         onTour={(start) => startTour(start)} onOpen={(page) => openMenuPage(page)} />;
       case "alerts": return <AlertsPage alerts={shownAlerts} hiddenCount={allAlerts.length - shownAlerts.length}
         onDismiss={alertHides.dismiss} onShowHidden={alertHides.showAll}

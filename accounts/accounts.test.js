@@ -260,6 +260,8 @@ test("the page: one sign-in, every shop, owners manage the team; built without m
   assert.doesNotMatch(app, /node:/, "the page loads nothing made for Node");
   // The help, status and billing pages link to /account/#get-help: the page opens the help form for it after sign-in.
   assert.match(app, /location\.hash !== "#get-help"/);
+  // The shop admin's Help sends the owner's question as ?subject=, which fills the form's subject line.
+  assert.match(app, /params\.get\("subject"\)/);
   assert.match(app, /await openShops\(\);\s*openHelpFromLink\(\);/);
   assert.match(app, /addEventListener\("hashchange", openHelpFromLink\)/);
   const words = (page + app).toLowerCase();
