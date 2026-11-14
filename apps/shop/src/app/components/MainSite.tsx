@@ -5,7 +5,8 @@ import { queryFromSearch } from "../features/site/searchResultsLink";
 import { catalogStateInUrlOn, catalogUrlSearch, readCatalogUrl } from "../features/site/catalogUrlState";
 import { inEditorPreview } from "../lib/trackingGuard";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
-import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
+import { CATEGORIES, placeholderImage } from "../features/site/constants";
+import { shopSocialLinks } from "../features/site/socialAccounts";
 import { subscribePreview } from "../features/site/previewTab";
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { getFilteredItems, getPublishedBooks, resolveLogoDesign, resolveLogoPosition } from "../features/site/selectors";
@@ -633,7 +634,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
         url: siteBase,
         description: settings?.info?.description || getCopy(settings?.design, "siteDefaultDescription"),
         logo: storefrontLogoDesign?.logoUrl || settings?.design?.shareImageUrl,
-        sameAs: [...Object.values(settings?.design?.social ?? DEFAULT_SOCIAL), ...profileLinks(getCopy(settings?.design, "seoProfiles"))],
+        sameAs: [...shopSocialLinks(settings).map((l) => l.url), ...profileLinks(getCopy(settings?.design, "seoProfiles"))],
         topics: seoTopicList(getCopy(settings?.design, "seoTopics")),
         email: settings?.info?.email,
         area: { city: settings?.location?.city, region: settings?.location?.state, country: settings?.location?.country },

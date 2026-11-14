@@ -106,10 +106,11 @@ describe("changed from default", () => {
   });
 
   it("reads nested keys and counts per category", () => {
-    const g = STYLE_GROUPS.find((x) => x.id === "footer")!;
+    const footer = STYLE_GROUPS.find((x) => x.id === "footer")!;
+    const g = { ...footer, fields: [...footer.fields, { key: "social.instagram", label: "Instagram", kind: "text" as const }] };
     const design = { social: { instagram: "https://instagram.com/x" }, footerBg: "#123456" };
     expect(changedFields(g, design, {}).map((f) => f.key).sort()).toEqual(["footerBg", "social.instagram"]);
-    const counts = changedCounts(STYLE_GROUPS, design, {});
+    const counts = changedCounts([g, ...STYLE_GROUPS.filter((x) => x.id !== "footer")], design, {});
     expect(counts.byGroup.footer).toBe(2);
     expect(counts.total).toBe(2);
   });

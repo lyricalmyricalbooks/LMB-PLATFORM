@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { STARTER_POLICY_NOTE, starterFacts, withStarter } from "./starterPolicies";
 import { useShopSells } from "./shopWords";
+import { sellsBooks } from "./sells";
 import { AmountField } from "./AmountField";
 import { ActionMenu, Checkbox, PageHead, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
@@ -36,6 +37,7 @@ import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
+import { SocialAccountsFields } from "./SocialAccountsFields";
 import { NewShippingProfileDialog } from "./NewShippingProfileDialog";
 import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 
@@ -166,7 +168,7 @@ export function ShopSettings({
 }
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
-  const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "policies"] as const;
+  const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "social", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
   const sellsAnswer = useShopSells();
@@ -192,7 +194,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   // Your press first, as in the redesign's General page (11 November 2026).
   const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
-    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "social", "policies", "domain"].some((k) => hasChanges(k)) },
     { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") || hasChanges("digitalDownloads") },
     { id: "gs-visitors", title: "Visitors & Google" },
     { id: "gs-tools", title: "Tools & records" },
@@ -221,6 +223,11 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
               <FormField label="About your shop" hint={`For search and social previews · ${desc.length} / 150`}>
                 {(a) => <textarea {...a} rows={3} value={desc} maxLength={150} onChange={(e) => set("info", { description: e.target.value })} />}
               </FormField>
+            </FormSection>
+          </SettingsAnchor>
+          <SettingsAnchor id="gs-social">
+            <FormSection title="Social media" description="Shown as small icons on your website.">
+              <SocialAccountsFields settings={settings} books={sellsBooks(sellsAnswer)} onChange={(social) => setSettings((prev: any) => ({ ...prev, social }))} />
             </FormSection>
           </SettingsAnchor>
           <SettingsAnchor id="gs-location">

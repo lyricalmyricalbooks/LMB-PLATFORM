@@ -219,7 +219,7 @@ npm run logs
   `m.*` from `motion/react` under App's `LazyMotion`: one `motion.*` anywhere puts motion's layout/drag engine into the
   shop's first load. TypeScript 7 is the native compiler with no JS API: scripts/tests that parse code import
   `@typescript/typescript6`. react-resizable-panels 4 reads bare-number sizes as pixels (use `"24%"`). lucide-react 1
-  has no brand icons (footer ones are in `features/site/socialIcons.ts`). Vitest 5 benchmarks use the test context's
+  has no brand icons (the social icons are simple-icons paths in `features/site/socialIconPaths.ts`). Vitest 5 benchmarks use the test context's
   `bench`. React 19's `renderToStaticMarkup` adds `<link rel="preload">` before images (tests that scan markup strip it).
 - `figma:asset/...` imports resolve to `src/assets/` via a custom Vite plugin.
 - The site lives at the root of its Firebase Hosting address, but builds can still use a sub-path (`SITE_BASE`) — be

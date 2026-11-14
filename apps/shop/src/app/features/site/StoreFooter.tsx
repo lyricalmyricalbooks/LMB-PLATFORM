@@ -1,9 +1,9 @@
 import { Link } from "react-router";
-import { Mail, Music2 } from "lucide-react";
-import { Facebook, Instagram, Twitter } from "./socialIcons";
+import { Mail } from "lucide-react";
+import { shopSocialLinks } from "./socialAccounts";
+import { SocialIcon } from "./SocialIcons";
 import { POLICY_KEYS, policySlug, policyTitle } from "./policyPages";
 import { openCookieSettings } from "../../lib/consent";
-import { DEFAULT_SOCIAL } from "./constants";
 import { contentMaxWidth } from "./headerNav";
 import { getCopy, shopCopyFallback } from "./storeCopy";
 import { shopName, wordmarkWords } from "./shopIdentity";
@@ -26,16 +26,12 @@ import { FooterCurrency, footerCurrencyOn } from "./extras/footer-currency/Foote
 export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }) {
   const navPages = (pages || []).filter(pageInFooter);
   const rawDesign = settings?.design || {};
-  // Never configured → the house default; cleared on purpose in Studio → hidden.
-  const social = settings?.design?.social ?? DEFAULT_SOCIAL;
-  const instagramUrl: string = social.instagram || "";
-  // Theme settings › Footer & social links › Facebook / X / TikTok: shown beside Instagram once filled in.
-  const otherSocial = ([
-    ["facebook", Facebook, "footerLinkFacebook", "footerFacebookAria"],
-    ["twitter", Twitter, "footerLinkTwitter", "footerTwitterAria"],
-    ["tiktok", Music2, "footerLinkTiktok", "footerTiktokAria"],
-  ] as const).map(([key, Icon, linkKey, ariaKey]) => ({ key, Icon, linkKey, ariaKey, url: String(social?.[key] || "").trim() }))
-    .filter((s) => /^https?:\/\//i.test(s.url));
+  // Settings › General › Social media: one icon per account that's filled in (Studio decides where and how big).
+  const socialLinks = rawDesign.showSocialInFooter !== false ? shopSocialLinks(settings) : [];
+  const socialSize = Math.min(28, Math.max(12, Number(rawDesign.footerSocialIconSize) || 14));
+  const socialInBrand = rawDesign.footerSocialPlace === "brand";
+  const socialLabel = (name: string) => String(getCopy(rawDesign, "footerSocialAria") ?? "").replace("{network}", name) || name;
+  const socialIcons = socialLinks.map((l) => <SocialIcon key={l.key} link={l} size={socialSize} label={socialLabel(l.name)} />);
   const d = rawDesign;
   // Unset wordmark words follow Text & labels › Site & sharing › Site name, like the header's (LogoMark).
   const nameWords = wordmarkWords(shopName(d));
@@ -95,6 +91,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
             <span data-studio-copy="footerAbout">{footerAbout}</span>
           </p>
           {grouped && d.showFooterLocation !== false && <p data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location" data-empty={footerLocation.trim() ? undefined : ""}><span data-studio-copy="footerLocation">{footerLocation}</span></p>}
+          {socialInBrand && socialIcons.length > 0 && <div className="fm-footer-social flex flex-wrap items-center gap-2.5" data-studio-target="style:footer" data-studio-label="Social media icons">{socialIcons}</div>}
         </div>
 
         {grouped ? <div {...regionProps("footerLinks")} data-studio-target="menus:footer|copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer link groups"
@@ -119,8 +116,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
                   {page.title}
                 </Link>
               ))}
-              {d?.showSocialInFooter !== false && instagramUrl && <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkInstagram">{getCopy(settings?.design, "footerLinkInstagram")}</span></a>}
-              {d?.showSocialInFooter !== false && otherSocial.map((s) => <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors"><span data-studio-copy={s.linkKey}>{getCopy(settings?.design, s.linkKey)}</span></a>)}
+              {socialLinks.map((s) => <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer me" className="block hover:text-white transition-colors">{s.name}</a>)}
               <a
                 href={`mailto:${settings?.info?.email || "owner@example.com"}`}
                 className="block hover:text-white transition-colors"
@@ -191,23 +187,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           )}
 
           <div className="flex items-center gap-2.5">
-            {d.showSocialInFooter !== false && instagramUrl && (
-            <a
-              href={instagramUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={getCopy(d, "footerInstagramAria")}
-              className="fm-footer-icon fm-footer-icon-box text-white/55 hover:text-white transition-colors"
-            >
-              <Instagram size={14} aria-hidden="true" />
-            </a>
-            )}
-            {d.showSocialInFooter !== false && otherSocial.map(({ key, Icon, ariaKey, url }) => (
-              <a key={key} href={url} target="_blank" rel="noopener noreferrer" aria-label={getCopy(d, ariaKey)}
-                className="fm-footer-icon fm-footer-icon-box text-white/55 hover:text-white transition-colors">
-                <Icon size={14} aria-hidden="true" />
-              </a>
-            ))}
+            {!socialInBrand && socialIcons}
             <a
               href={`mailto:${email}`}
               aria-label={getCopy(d, "footerEmailAria")}

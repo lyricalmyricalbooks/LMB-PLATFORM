@@ -1,0 +1,16 @@
+/* Settings › General › Social media (SocialAccountsFields.tsx). Tokens only. */
+.rp .rp-social { display: flex; flex-direction: column; gap: 16px; }
+.rp .rp-social-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.rp .rp-social-glyph { width: 16px; height: 16px; display: block; }
+.rp .rp-social-affix { display: inline-flex; align-items: center; color: var(--rp-text-subtle); }
+.rp .rp-social-field[data-filled] .rp-social-affix { color: var(--rp-text); }
+.rp .rp-social-check { color: var(--rp-text-subtle); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp .rp-social-check:hover, .rp .rp-social-check:focus-visible { color: var(--rp-text); text-decoration: underline; }
+.rp .rp-social-more { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp .rp-social-add { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 14px; border: 1px dashed var(--rp-border-strong); border-radius: 999px; background: transparent; color: var(--rp-text); font: 600 13px/1 var(--rp-font-body); cursor: pointer; }
+.rp .rp-social-add::before { content: "+"; font-weight: 400; color: var(--rp-text-subtle); }
+.rp .rp-social-add:hover { background: var(--rp-surface-2); border-style: solid; }
+.rp .rp-social-add:focus-visible, .rp .rp-social-check:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp .rp-social-foot { margin: 0; }
+.rp .rp-social-foot a { color: var(--rp-text); }
+@media (pointer: coarse) { .rp .rp-social-add { min-height: 44px; } }

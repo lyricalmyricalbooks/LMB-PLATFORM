@@ -1,5 +1,5 @@
 import { getCopy } from "./storeCopy";
-import { DEFAULT_SOCIAL } from "./constants";
+import { shopSocialLinks } from "./socialAccounts";
 import { type MenuItem } from "./storeMenu";
 
 export type FooterGroup = "explore" | "connect";
@@ -20,7 +20,7 @@ export function automaticFooterItems(settings: any, pages: any[]): MenuItem[] {
     { id: "footer-track", label: getCopy(d, "footerLinkTrack"), type: "url", value: "/track", footerGroup: "connect" },
     ...visible.map(p => ({ id: `footer-page-${p.id}`, label: p.title, type: "page" as const, value: p.slug })),
   ];
-  const instagram = (d.social ?? DEFAULT_SOCIAL).instagram;
+  const instagram = shopSocialLinks(settings).find((l) => l.key === "instagram")?.url;
   if (d.showSocialInFooter !== false && instagram) items.push({ id: "footer-instagram", label: getCopy(d, "footerLinkInstagram"), type: "url", value: instagram, footerGroup: "connect" });
   // A contact page already supplies the contact destination; do not repeat it.
   if (!visible.some(p => /^(contact|contact-us)$/i.test(p.slug))) items.push({ id: "footer-contact", label: getCopy(d, "footerLinkContact"), type: "url", value: `mailto:${settings?.info?.email || "owner@example.com"}`, footerGroup: "connect" });

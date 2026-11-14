@@ -7,7 +7,6 @@ export const DEFAULT_IMAGE =
 
 // Social links used until the owner saves their own (Studio › Style › Footer › Social links).
 /** No social account is invented for a shop: the link appears once the owner adds theirs (Studio › Style › Footer & social links). */
-export const DEFAULT_SOCIAL = { instagram: "" };
 /** The made-up account the starting design used to carry; a shop still showing it is read as having none. */
 export const PLACEHOLDER_INSTAGRAM = "https://www.instagram.com/yourpress";
 
