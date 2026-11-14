@@ -206,7 +206,7 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   help: { title: "Help", description: "Ask a question, take the tour, or write to a person." },
   analytics: { title: "Analytics", description: "Who visits your shop, where they come from and what they look at." },
   orders: { title: "Orders", description: "Review payments, fulfillment, and shipping for every order." },
-  bookings: { title: "Bookings", description: "Times customers booked with you, what they can book, and when." },
+  bookings: { title: "Bookings", description: "Times customers reserved with you, the services on offer, and your hours." },
   customers: { title: "Customers", description: "Who buys from you: lifetime value, repeat buyers, and customers to win back." },
   inventory: { title: "Inventory", description: "Stock on hand, low-stock and reprint alerts, and quick count corrections." },
   catalog: { title: "Books", description: "Manage titles, pricing, formats, and inventory." },
