@@ -39,7 +39,7 @@ import { closingDay } from "./overview/ClosingTile";
 import { TwoStepReminder } from "./TwoStepReminder";
 import type { ReadinessItem } from "./launchReadiness";
 import { LaunchChecklist } from "./LaunchChecklist";
-import { addStorePage, askPersonPage, helpCentrePage, planLocked, storesPage, trialPill } from "./platformPlan";
+import { addStorePage, askPersonPage, planLocked, storesPage, trialPill } from "./platformPlan";
 import { usePlatformPlan } from "./platformPlanApi";
 import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import { LocalBackupAuto } from "./LocalBackupCard";
@@ -61,7 +61,7 @@ import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { keepAdminOffline } from "./adminOffline";
 import { AdminTour, type TourPhase } from "./walkthrough/AdminTour";
-import { chaptersOf, markTourSeen, tourFor, tourSeen } from "./walkthrough/tourSteps";
+import { markTourSeen, tourFor, tourSeen } from "./walkthrough/tourSteps";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./walkthrough/tourStore";
 import { stockroomBridge } from "./stockroomBridge";
 import { NATIVE_PAGES } from "./stockroom/nativePages";
@@ -793,8 +793,7 @@ export function Dashboard() {
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
-      case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} chapters={chaptersOf(tourSteps, COMBINED)}
-        askUrl={askPersonPage(platformPlan)} helpCentreUrl={helpCentrePage(platformPlan)}
+      case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} askUrl={askPersonPage(platformPlan)}
         onTour={(start) => startTour(start)} onOpen={(page) => openMenuPage(page)} />;
       case "alerts": return <AlertsPage alerts={shownAlerts} hiddenCount={allAlerts.length - shownAlerts.length}
         onDismiss={alertHides.dismiss} onShowHidden={alertHides.showAll}
