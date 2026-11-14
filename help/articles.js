@@ -54,6 +54,15 @@ export const ARTICLES = Object.freeze([
     where: ["Books › Add book"],
   },
   {
+    id: "take-bookings",
+    topic: "Getting started",
+    question: "How do I take bookings?",
+    answer: [
+      "Open your calendar and add what people can book under Services: a name, how long it takes and a price. Then set your opening hours under Hours and rules, so people are only offered times when you're open.",
+      "When you're ready, turn Bookings on with the switch at the top of the calendar. Your website then shows Book a time, and every booking lands in your calendar with an email to you and to the person who booked.",
+    ],
+  },
+  {
     id: "editions",
     topic: "Getting started",
     question: "How do I sell one book in more than one edition?",
@@ -546,6 +555,9 @@ export const CHECKLIST_ANSWERS = Object.freeze({
   google: "google-sign-in",
   channels: "sell-on-social",
   switch: "switch-day",
+  "add-services": "take-bookings",
+  hours: "take-bookings",
+  "booking-page": "take-bookings",
 });
 
 /**
@@ -555,6 +567,7 @@ export const CHECKLIST_ANSWERS = Object.freeze({
 export const RUN_ANSWERS = Object.freeze({
   details: "your-press",
   bring: "bring-books",
+  services: "take-bookings",
   look: "look",
   payments: "get-paid",
   shipping: "shipping",

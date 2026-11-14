@@ -16,7 +16,8 @@
 // The shapes follow the shop copy (apps/shop/src/app/features/site/types.ts `Book`, `shipping-profiles` read by
 // functions/orderMath.js) and the stockroom copy (apps/stockroom/src/main.js new-book form, settings/catalog). Names say
 // "Test" so nobody mistakes them for a real shop's products. Nothing here is a real book, product, person or price list.
-import { testShopKind } from "./testShopPlace.js";
+import { testShopKind, testShopServices } from "./testShopPlace.js";
+import { testStudioDocs } from "./test-studio-data.js";
 
 export const TEST_STOCK = 5;
 
@@ -252,8 +253,8 @@ export function testLinks(kind = "books") {
   return stockedOf(kind).map(({ id }) => ({ shopBookId: id, stockroomBookId: id }));
 }
 
-/** Everything step 12 adds for a test shop, by what it sells (setup/testShopPlace.js testShopKind). */
+/** Everything step 12 adds for a test shop, by what it sells (setup/testShopPlace.js); a services shop's bookings too. */
 export function testCatalogue(shop) {
   const kind = testShopKind(shop);
-  return { shopDocs: testShopDocs(kind), stockroomBooks: testStockroomBooks(shop), links: testLinks(kind) };
+  return { shopDocs: [...testShopDocs(kind), ...(testShopServices(shop) ? testStudioDocs() : [])], stockroomBooks: testStockroomBooks(shop), links: testLinks(kind) };
 }

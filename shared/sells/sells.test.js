@@ -74,3 +74,9 @@ test("the front door's Bookshop / General shop choice files every answer the way
   assert.equal(new Set(GENERAL_SELLS.map((o) => o.id)).size, GENERAL_SELLS.length, "one tile per answer, so a saved answer shows one tile");
   assert.equal(shopTypeOf(""), "");
 });
+
+test("a services shop's clients still book: the verb keeps its word", async () => {
+  const { servicesWords } = await import("./sells.js");
+  assert.equal(servicesWords("Clients choose from your services when they book."), "Clients choose from your services when they book.");
+  assert.equal(servicesWords("Your website shows Book a time. Add a book."), "Your website shows Book a time. Add a service.");
+});

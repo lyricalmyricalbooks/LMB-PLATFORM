@@ -66,9 +66,17 @@ const CLIENT_SWAPS: [RegExp, string][] = [
   [/\bcustomer's\b/g, "client's"], [/\bcustomer\b/g, "client"], [/\bCustomer\b/g, "Client"],
 ];
 
+// "Book" is also what a services shop's clients do ("ready to book", "Book a time"). That verb keeps its word: it is
+// marked before the swaps and unmarked after, so only the thing a shop sells is reworded.
+const BOOK_VERB = [
+  [/\b(to|can|can't|cannot|could|they|clients|people|you|who|may|will|must) (b)(ook)\b/gi, "$1 $2\u0000$3"],
+  [/\b(b)(ook) (a time|an appointment|online|again|in|themselves|now|ahead)\b/gi, "$1\u0000$2 $3"],
+] as [RegExp, string][];
+const keepBookVerb = (text: string) => BOOK_VERB.reduce((out, [from, to]) => out.replace(from, to), text);
+
 /** Words for a services shop: the general words, then customer → client. */
 export function servicesWords(text: string): string {
-  return CLIENT_SWAPS.reduce((out, [from, to]) => out.replace(from, to), goodsWords(text));
+  return CLIENT_SWAPS.reduce((out, [from, to]) => out.replace(from, to), goodsWords(keepBookVerb(text))).replaceAll("\u0000", "");
 }
 
 const same = (text: string) => text;

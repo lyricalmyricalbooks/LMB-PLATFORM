@@ -22,6 +22,8 @@ import { MoveProgressCard } from "./MoveProgressCard";
 import { chosenDesign, chosenLook, keptFile, type SetupHandover } from "../setupHandover";
 import { SignupDesignStage } from "./SignupDesignStage";
 import { KeptFileCard } from "./KeptFileCard";
+import { ServicesStage } from "./ServicesStage";
+import { servicesOnly, type BookingsFacts } from "../servicesSetup";
 
 // The welcome pulls in Studio's theme library and switcher, so it loads only for a shop that will show it.
 const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ default: m.ChooseLookWelcome })));
@@ -32,7 +34,9 @@ const ChooseLookWelcome = lazy(() => import("./ChooseLookWelcome").then(m => ({ 
  * Both read the admin-only `firstWeek/start` the platform's setup writes; a shop without it shows neither.
  * `settings` is settings/website as the Overview read it: undefined while loading, null when it couldn't be read.
  */
-export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWall, onRetrySettings }: {
+export function SetupStart({ books, orders, readiness, settings, bookings, onOpen, onSetWall, onRetrySettings }: {
+  /** A services shop's services and hours (undefined while loading and for every other shop; null when unreadable). */
+  bookings?: BookingsFacts | null;
   books: any[] | null;
   orders: any[] | null;
   readiness: ReadinessItem[] | null;
@@ -65,9 +69,9 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
 
   const platform = platformCardsProvider();
   const facts = useMemo(() => ({
-    books, orders, readiness, platform,
+    books, orders, readiness, platform, bookings,
     settings: opened && settings ? { ...settings, design: { ...settings.design, showUnderConstruction: false } } : settings,
-  }), [books, orders, readiness, settings, opened, platform]);
+  }), [books, orders, readiness, settings, opened, platform, bookings]);
 
   // A shop setup never wrote a document for (most shops made before the platform) sees nothing while it loads.
   if (state === "loading") return null;
@@ -108,6 +112,14 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
         setDoc({ ...doc, bring, ...(lateFile ? { done: { ...doc.done, setupFile: bring.at } } : {}) });
       };
       return <BringShopStage books={books} onDone={bringDone} kept={keptFile(handover)} />;
+    }
+    if (step === "services") {
+      // A services shop's step 2: what clients can book. Recorded where the products step is, so it never shows twice.
+      const servicesDone = async (bring: BringMarker) => {
+        await adminApi.updateFirstWeek({ bring });
+        setDoc({ ...doc, bring });
+      };
+      return <ServicesStage bookings={bookings} onDone={servicesDone} onOpen={onOpen} />;
     }
     if (step === "look") {
       const done = async (welcome: WelcomeDone) => {
@@ -175,7 +187,7 @@ export function SetupStart({ books, orders, readiness, settings, onOpen, onSetWa
   return (
     <>
       {showLateFile && <KeptFileCard books={books!} kept={lateFile!} onDone={lateFileDone} />}
-      {step && !(step === "final" && finalLater) && <RunProgress step={step} steps={runSteps(platform)} />}
+      {step && !(step === "final" && finalLater) && <RunProgress step={step} steps={runSteps(platform, servicesOnly(doc))} />}
       {stage()}
     </>
   );

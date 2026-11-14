@@ -29,6 +29,13 @@ that sells books and on one that doesn't before any press gets it:
   shop's, with the same numbers read as US dollars, and it still ships to Canada only, as the release check buys from a
   Canadian address.
 
+- **A fourth, a services shop (14 November 2026):** `test-studio` ("Test Studio", lmb-test-studio.web.app, a fourth
+  Hosting site) is a hair studio: sign-up's Services, "Hair & beauty". Its admin has the services menu (Calendar,
+  Clients, Money) and Bookings is on from the start, with three sample services and opening hours Tuesday to Saturday
+  (`setup/test-studio-data.js`), so its Book a time page answers. It has no sample appointments: book one on the shop
+  itself. It also holds the general shop's starter products, out of its menu, so the release check buys from it like
+  the others. "Make the test shop" makes it with the other three.
+
 ### Sample records
 
 Each test shop also gets sample records (`setup/test-sample-data.js`), so every admin page has something to show:

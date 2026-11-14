@@ -1097,4 +1097,16 @@ Marketing, Analytics, Online store, Settings; second side "Money" = invoices, ta
 do › **Sell products too**, event `SELLS_PRODUCTS_CHANGED_EVENT`) gives it the normal shop menu back. Setup turns Bookings
 on for it. The rules let only a shop that is already a services one save a service answer; the kind is picked at sign-up
 while the control room's "Services shops can sign up" is on. Fixture: `admin-fixture.html?sells=hair` (`&products=1`).
-Home and the setup guide are not services-flavoured yet. Tests: `servicesShop.test.ts`.
+Tests: `servicesShop.test.ts`.
+
+**Setting up (`servicesSetup.ts`, `servicesOnly(doc)` = services answer without Sell products too).** Get started walks
+details → **services** (`overview/ServicesStage.tsx`, recorded in `bring` as `skipped` so Your move so far stays away) →
+look → Get paid → open: no products step, no shipping step (`startRun.ts`). The setup guide uses `SERVICES_ORDER`
+(`firstWeek.ts`: add-services, hours, logo, look, taxes, payments, policies, booking-page, address, open, google). Ready
+to sell (`launchReadiness` input `bookings`, read by `launchCheck.readBookingsFacts`; undefined for every other shop)
+swaps the books, shipping, catalogue and practice-order rows for `services`, `booking-hours` and `booking-page`, and asks
+for privacy and terms only. `servicesWords` keeps the verb "book" ("ready to book", "Book a time") in all three twins.
+Fixture: `?sells=hair&bookings=new` (nothing set up), `&start=1` (the services step). **Home** (`overview/HomeServices.tsx`, rules in
+`overview/servicesHome.ts`; `HomePage` prop `services` from Dashboard's menu kind): To do is appointments to mark paid,
+messages, privacy requests and the Money side's payments; Today is the day's appointments, who is next, the next seven
+days as bars and Coming up, followed live from Bookings.

@@ -3,6 +3,8 @@
 //   Your shop        first book (or bring your shop, or import a spreadsheet), logo, look
 //   Ready to sell    shipping, taxes, get paid, store policies
 //   Launch           web address, a practice order, open your shop (and, for a press moving in, the move itself)
+// A services shop that sells no products (servicesSetup.ts) gets its own order: its first service, its opening hours and
+// its booking page instead of products, shipping and a practice order.
 // Every check that stops Open your shop (Ready to sell's blocks: books, shipping, payments, policies) is a step before
 // it, so the last step never surprises a press with work it wasn't shown. The sign-up answer ("How do you sell
 // today?", signup/form.js) picks which first-book step a press gets and the intro line; the order is the same for all.
@@ -18,6 +20,7 @@ import type { GoogleMarker } from "./googleStage";
 import type { PaymentsMarker } from "./paymentsStage";
 import { currentSells, firstProductWords } from "./sells";
 import { wordsFor } from "../../shared/shopSells";
+import { bookable, hasHours, servicesOnly, type BookingsFacts } from "./servicesSetup";
 
 /** The sign-up answers (signup/form.js QUESTION.options). Anything else, or none, gets the general order. */
 export type SellingToday = "starting" | "fairs" | "online" | "shops" | "spreadsheet";
@@ -77,7 +80,7 @@ export interface GuideProgress {
 
 export type StepId =
   | "logo" | "look" | "add-books" | "bring-books" | "import-spreadsheet" | "shipping" | "taxes" | "payments" | "policies"
-  | "address" | "practice" | "open" | "switch" | "google" | "channels";
+  | "address" | "practice" | "open" | "switch" | "google" | "channels" | "add-services" | "hours" | "booking-page";
 
 /** The guide's three parts, in order. */
 export type StepGroup = "shop" | "sell" | "launch" | "reach";
@@ -127,6 +130,9 @@ const WORDS: Record<StepId, StepWords> = {
   open: { title: "Open your shop", why: "Your shop is private until you open it. We check it's ready to sell first, then shoppers can buy.", action: "Open your shop" },
   google: { title: "Show up on Google", why: "One Google sign-in puts your books in Google search, Shopping and Maps, and counts your visits.", tab: "google", hash: "#settings/google", action: "Open Google" },
   channels: { title: "Sell on social media", why: "Connect Instagram, Facebook, Pinterest or TikTok, so people can buy from your posts.", tab: "channels", action: "Open Sales channels" },
+  "add-services": { title: "Add your first service", why: "A name, how long it takes and a price are enough. Clients choose from your services when they book.", tab: "bookings", action: "Open Calendar" },
+  hours: { title: "Set your opening hours", why: "Clients are only offered times inside your hours. Set them in Calendar, under Hours & rules.", tab: "bookings", action: "Open Calendar" },
+  "booking-page": { title: "Turn Bookings on", why: "The switch at the top of Calendar puts Book a time on your website, so clients can book themselves in.", tab: "bookings", action: "Open Calendar" },
   switch: { title: "Move over from your old shop", why: "On the day you move: take your last orders in your old shop, check your old links in General settings so none show page not found, point your web address here, then tell your mailing list where to find you. Tick this once you've moved.", tab: "general", action: "Check your old links" },
 };
 
@@ -142,6 +148,19 @@ const ORDER: ReadonlyArray<[StepId | "books", StepGroup]> = [
   ["address", "launch"], ["practice", "launch"], ["open", "launch"],
   ["google", "reach"], ["channels", "reach"],
 ];
+/** A services shop: something to book and hours to book it in come first; nothing ships and there is no bag to practise with. */
+const SERVICES_ORDER: ReadonlyArray<[StepId, StepGroup]> = [
+  ["add-services", "shop"], ["hours", "shop"], ["logo", "shop"], ["look", "shop"],
+  ["taxes", "sell"], ["payments", "sell"], ["policies", "sell"], ["booking-page", "sell"],
+  ["address", "launch"], ["open", "launch"],
+  ["google", "reach"],
+];
+/** The words a services shop reads where a product shop's would talk about shipping, buying or Shopping results. */
+const SERVICES_WHY: Partial<Record<StepId, string>> = {
+  policies: "Privacy and terms. Clients read them before they book, and the law asks for them. Each one starts from our wording.",
+  open: "Your website is private until you open it. We check it's ready first, then clients can book.",
+  google: "One Google sign-in puts your business in Google search and Maps, and counts your visits.",
+};
 /** A press moving from another online shop finishes with the switch itself (plan 23.8), after its new shop is open. */
 const MOVE: [StepId, StepGroup] = ["switch", "launch"];
 /** Where the move goes: straight after Open your shop, before the optional steps. */
@@ -164,6 +183,8 @@ export interface FirstWeekFacts {
   orders?: any[] | null;
   /** The card provider the platform takes cards through (lib/shopProfile platformCardsProvider), else null. */
   platform?: "stripe" | "square" | null;
+  /** A services shop's services and hours (servicesSetup.ts); null or left out while loading and for every other shop. */
+  bookings?: BookingsFacts | null;
 }
 
 /** A practice order (plan 7.6) or, on a shop with its own keys, a test-mode order that went through. */
@@ -174,7 +195,7 @@ export const shopIsOpen = (settings: any) =>
   !!settings && !settings.design?.showUnderConstruction && !settings.maintenance?.enabled && !settings.maintenanceMode;
 
 /** Whether a step is done from what the shop holds; null when the shop can't tell (the owner ticks it). */
-function autoDone(id: StepId, { books, readiness, settings, orders, platform }: FirstWeekFacts, doc?: FirstWeekDoc): boolean | null {
+function autoDone(id: StepId, { books, readiness, settings, orders, platform, bookings }: FirstWeekFacts, doc?: FirstWeekDoc): boolean | null {
   const list = books || [];
   const ok = (check: string) => readiness?.find(i => i.id === check)?.status === "ok";
   switch (id) {
@@ -182,6 +203,9 @@ function autoDone(id: StepId, { books, readiness, settings, orders, platform }: 
     // The look counts once shoppers can see it: the published design carries a ready-made look (Studio's themeBase).
     case "look": return !!settings?.design?.themeBase?.id;
     case "bring-books": case "import-spreadsheet": case "add-books": return list.length > 0;
+    case "add-services": return bookable(bookings).length > 0;
+    case "hours": return hasHours(bookings);
+    case "booking-page": return bookings?.settings?.live === true;
     case "shipping": return ok("shipping");
     // Rates set, or collection switched off (a press not registered yet): either is a choice made.
     case "taxes": return ok("tax") ? true : null;
@@ -210,10 +234,12 @@ export function shippingStarterWords(country?: string | null): string {
 
 export function firstWeekSteps(doc: FirstWeekDoc, facts: FirstWeekFacts): FirstWeekStep[] {
   const answer = answerOf(doc);
-  const order = answer === "online" ? withMove(ORDER) : ORDER;
+  const services = servicesOnly(doc);
+  const order = services ? SERVICES_ORDER : answer === "online" ? withMove(ORDER) : ORDER;
   return order.map(([entry, group]) => {
     const id: StepId = entry === "books" ? FIRST_BOOK[answer] : entry;
     const words = { ...WORDS[id] };
+    if (services && SERVICES_WHY[id]) words.why = SERVICES_WHY[id]!;
     if (id === "add-books") Object.assign(words, firstProductWords(currentSells(doc)));
     if (id === "shipping") words.why = `${words.why} ${shippingStarterWords(doc.country ?? facts.settings?.country)}`;
     if (id === "payments" && facts.platform === "square") words.why = "Connect your Square account, so card payments go straight to you. Square's own page asks for your details.";
@@ -285,6 +311,7 @@ export function firstWeekIntro(doc: FirstWeekDoc): string {
 }
 
 function introFor(doc: FirstWeekDoc): string {
+  if (servicesOnly(doc)) return "From your first service to your first booking. Your website stays private until the last step.";
   switch (doc.sellingToday) {
     case "online": return "You told us you sell through another online shop, so bringing it over comes first.";
     case "fairs": return "You told us you sell at fairs and markets, so your books come first.";

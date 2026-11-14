@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adminApi } from "../api";
 import { getOrdersCached, peekOrders } from "../ordersCache";
-import { readSignIn } from "../launchCheck";
+import { readBookingsFacts, readSignIn } from "../launchCheck";
 import { launchReadiness } from "../launchReadiness";
 import { platformCardsProvider } from "../../../lib/shopProfile";
 import { mergeNewestPage } from "../ordersDesk";
@@ -18,6 +18,9 @@ import { ConnectGoogleCard } from "../ConnectGoogleCard";
 import { SetupStart } from "./SetupStart";
 import { ClosingTile } from "./ClosingTile";
 import { HomeToday } from "./HomeToday";
+import { HomeServices, useHomeBookings } from "./HomeServices";
+import { servicesDay } from "./servicesHome";
+import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { RunRow, RunTiles } from "./OverviewParts";
 import { stockroomRunRows, useStockroomTodos } from "./StockroomTodos";
 import { moneyText } from "../stockroom/stockists";
@@ -46,7 +49,9 @@ export function homeTodoCounts(orders: any[] | null, books: any[] | null, now = 
   };
 }
 
-export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
+export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = false }: {
+  /** A services shop that sells no products (Dashboard's menu kind): Home is its appointments, not parcels and stock. */
+  services?: boolean;
   setActiveTab?: (tab: string) => void;
   onSetWall?: (on: boolean) => Promise<boolean>;
   /** The signed-in person's name, for the greeting. */
@@ -61,6 +66,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
   const [launch, setLaunch] = useState<{ parts: any | null; error: boolean }>({ parts: null, error: false });
   const stockroomTodos = useStockroomTodos(COMBINED);
   const fair = useFairToday(COMBINED);
+  const homeBookings = useHomeBookings(services);
   const seenShared = useRef<any[] | null>(null);
 
   useEffect(() => {
@@ -72,7 +78,9 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
       platformCardsProvider() ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(undefined),
       // Two-step sign-in and backup codes, recommended before going live (never fails the other checks).
       readSignIn(),
-    ]).then(([settings, shippingProfiles, emailLog, platformAccount, signIn]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount, signIn }, error: false }))
+      // A services shop's services and hours stand in for products and shipping (undefined for every other shop).
+      readBookingsFacts(),
+    ]).then(([settings, shippingProfiles, emailLog, platformAccount, signIn, bookings]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount, signIn, bookings }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { seenShared.current = o; setAllOrders({ orders: o, error: false }); })
       .catch(() => setAllOrders({ orders: null, error: true }));
@@ -152,6 +160,24 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
     </section>
   );
 
+  // A services shop's to-dos: appointments never marked paid, messages and privacy requests (and the Money side's own).
+  const unpaid = Array.isArray(homeBookings) ? servicesDay(homeBookings, Date.now(), shopTimeZone()).unpaid.length : null;
+  const servicesTodoRow = (
+    <section className="rp-todo-row" aria-label="To do">
+      <RunTiles>
+        <RunRow kind="Calendar" label="appointments to mark paid" one="appointment to mark paid" count={unpaid} loading={homeBookings === null}
+          detail="Finished, to be paid at your desk" onOpen={() => go("bookings")} openLabel="Open Calendar" />
+        <RunRow kind="Messages" label="unread messages" one="unread message" count={counts ? counts.unreadMessages : null} loading={!counts}
+          detail="From the contact form on your website" onOpen={() => go("messages")} openLabel="Read messages" />
+        <RunRow kind="Privacy" label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
+          detail="Clients asked for a copy or deletion of their data" onOpen={() => go("general")} openLabel="Open privacy requests" />
+        {/* The Money side's own to-dos: payments to chase. Its product, stock and parcel ones aren't a services shop's. */}
+        {stockroomRun?.rows.filter((row) => row.key === "stockroom-money")}
+      </RunTiles>
+      {homeBookings === "error" && <p className="rp-hint">Your calendar could not be loaded, so some counts are missing.</p>}
+    </section>
+  );
+
   // Shop + stockroom (v4 mockup): one figure from each side, each opening its page.
   const sr = stockroomTodos.glance;
   const srWait = stockroomTodos.loading ? "…" : "—";
@@ -171,13 +197,14 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
       {/* A cancelled plan: the day the shop closes, with the download and Keep my plan (ClosingTile.tsx). */}
       <ClosingTile />
       {/* Plans 6.3 and 6.9: only a shop whose setup wrote the sign-up answers shows Choose your look, then the guide. */}
-      <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness}
+      <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness} bookings={launch.parts?.bookings}
         settings={launch.parts ? launch.parts.settings : launch.error ? null : undefined}
         onOpen={go} onSetWall={onSetWall} onRetrySettings={refresh} />
       {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
       <ConnectGoogleCard variant="prompt" />
+      {services ? <HomeServices ownerName={ownerName} bookings={homeBookings} todo={servicesTodoRow} onOpen={go} /> :
       <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow} glance={glance}
-        onOpen={go} onOpenTill={() => stockroomBridge.openPage("pos")} onRetry={refresh} />
+        onOpen={go} onOpenTill={() => stockroomBridge.openPage("pos")} onRetry={refresh} />}
     </>
   );
 }

@@ -18,6 +18,7 @@ const STAGE_SCREENS: Record<string, string> = {
   bring: "overview/BringShopStage.tsx",
   look: "overview/ChooseLookWelcome.tsx",
   payments: "overview/PaymentsStage.tsx",
+  services: "overview/ServicesStage.tsx",
   shipping: "overview/ShippingStage.tsx",
   final: "overview/FinalCheckStage.tsx",
 };

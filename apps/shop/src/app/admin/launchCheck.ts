@@ -7,6 +7,8 @@ import { launchReadiness, type ReadinessItem } from "./launchReadiness";
 import { openBlockers } from "./firstWeek";
 import { platformCardsProvider } from "../../lib/shopProfile";
 import { auth } from "../../lib/firebase";
+import { readBookingSetup } from "./bookingsApi";
+import { servicesOnly, type BookingsFacts } from "./servicesSetup";
 import { appsSetUp, backupApiFor, firebaseTwoStep } from "./adminTwoStep";
 
 /**
@@ -22,9 +24,19 @@ export async function readSignIn(user = auth.currentUser): Promise<{ twoStep: bo
   } catch { return null; }
 }
 
+/**
+ * A services shop's services and hours for Ready to sell: undefined for every other shop (and when the shop's kind
+ * couldn't be read, so its checks stay as they were), null when Bookings couldn't be read.
+ */
+export async function readBookingsFacts(api: Pick<typeof adminApi, "getFirstWeek"> = adminApi, setup: () => Promise<BookingsFacts> = readBookingSetup): Promise<BookingsFacts | null | undefined> {
+  const doc = await Promise.resolve().then(() => api.getFirstWeek()).catch(() => null);
+  if (!servicesOnly(doc)) return undefined;
+  return setup().then(({ services, settings }) => ({ services, settings }), () => null);
+}
+
 /** Everything Ready to sell reads, read fresh, worked into its checks. Throws when any part can't be read. */
 export async function readLaunchReadiness(api: typeof adminApi = adminApi, orders: () => Promise<any[]> = () => getOrdersCached(), signInNow: () => Promise<{ twoStep: boolean; codesLeft: number | null } | null> = readSignIn): Promise<ReadinessItem[]> {
-  const [settings, shippingProfiles, emailLog, platformAccount, books, allOrders, signIn] = await Promise.all([
+  const [settings, shippingProfiles, emailLog, platformAccount, books, allOrders, signIn, bookings] = await Promise.all([
     api.getSettings(),
     api.getShippingProfiles(),
     api.getRecentEmailLog(5),
@@ -32,8 +44,9 @@ export async function readLaunchReadiness(api: typeof adminApi = adminApi, order
     api.getAllBooks(),
     orders(),
     signInNow(),
+    readBookingsFacts(api),
   ]);
-  return launchReadiness({ settings, shippingProfiles, emailLog, platformAccount, books, orders: allOrders, signIn });
+  return launchReadiness({ settings, shippingProfiles, emailLog, platformAccount, books, orders: allOrders, signIn, bookings });
 }
 
 /** What the press reads when something would stop a sale: the first few things, in plain words. */

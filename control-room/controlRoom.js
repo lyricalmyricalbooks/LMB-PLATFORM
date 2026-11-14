@@ -37,8 +37,9 @@ import { setupSummary } from "./setupPresses.js";
 import { sellsFacts, sellsLine } from "./shopSells.js";
 import { sellsOf } from "../shared/sells/sells.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
+import { testStudioDocs } from "../setup/test-studio-data.js";
 import { writeTestSamples } from "../setup/test-sample-data.js";
-import { testShopKind } from "../setup/testShopPlace.js";
+import { testShopKind, testShopServices, testShopWords } from "../setup/testShopPlace.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { PLANS } from "../setup/steps.js";
@@ -443,7 +444,8 @@ export function createControlRoom({
           shopId: row.shopId,
           pressName: row.pressName ?? row.shopId,
           kind,
-          kindWords: `${kind === "books" ? "Book test shop" : "General test shop"}${row.currency === "USD" ? ", US dollars" : ""}`,
+          services: testShopServices(row),
+          kindWords: `${testShopWords(row)}${row.currency === "USD" ? ", US dollars" : ""}`,
           status: row.status ?? null,
           version: row.release?.version ?? null,
           updatedAt: row.release?.at ?? null,
@@ -492,7 +494,7 @@ export function createControlRoom({
       if (row.status !== "live") throw new ControlError(409, "That test shop isn't live yet, so there are no sample products to reset.");
       if (!shopData) throw new ControlError(503, "The control room can't reach the test shop's products, so nothing was reset.");
       const kind = testShopKind(row);
-      const docs = testShopDocs(kind);
+      const docs = [...testShopDocs(kind), ...(testShopServices(row) ? testStudioDocs() : [])];
       await log(shopId, "test-shop-reset", { by, books: docs.map((d) => d.path) });
       for (const { path, data } of docs) await shopData.set(shopId, path, data);
       const stockroom = stockroomData && (await stockroomData.ready(shopId)) ? stockroomData : null;

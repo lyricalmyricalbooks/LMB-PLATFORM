@@ -248,7 +248,8 @@ const startedShop = async () => {
 
 const runStages = () => {
   const source = readFileSync("apps/shop/src/app/admin/startRun.ts", "utf8");
-  return [...source.match(/export type RunStep = ([^;]+);/)[1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
+  // "services" is a services shop's own second stage, in place of "bring"; this path walks a press.
+  return [...source.match(/export type RunStep = ([^;]+);/)[1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]).filter((stage) => stage !== "services");
 };
 
 test("the start, connected path: every stage of Get started is walked in order, from Your press to the shop open", async () => {

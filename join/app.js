@@ -260,6 +260,9 @@ const showKind = () => {
   const line = $("#new-line");
   line.textContent = type === "books" ? "With authors, ISBNs and royalties" : type === "general" ? "With products, sizes and colours" : type === "services" ? "With bookings, clients and payments" : "";
   line.hidden = !type;
+  // A services shop brings clients, not products, and its second side is its money.
+  $("#today-hint").textContent = type === "services" ? "We'll start you on bringing your clients over." : "We'll start you on bringing your products over.";
+  $("#new-includes").textContent = type === "services" ? "Bookings, website and bookkeeping" : "Shop and stockroom";
 };
 /** The note under the country, and the fee in the money that country's shops pay in. */
 function showCountry() {

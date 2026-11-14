@@ -814,7 +814,7 @@ export function Dashboard() {
   const content = (() => {
     switch (activeTab) {
       case "overview":
-        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
+        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} services={menuKind === "services"} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "analytics":
         return <AnalyticsPage subTab={subTab} onSubTabChange={openSubTab} setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
