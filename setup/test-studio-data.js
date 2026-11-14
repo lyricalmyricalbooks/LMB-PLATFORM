@@ -7,7 +7,7 @@ const HOURS = Object.freeze({ start: "10:00", end: "18:00" });
 
 const service = (id, order, name, minutes, priceMinor, extra = {}) => ({
   path: `bookingServices/${id}`,
-  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", location: "Test Studio, 1 Test Street", active: true, order, questions: [], ...extra },
+  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", location: "Test Studio, 1 Test Street", active: true, order, questions: [], places: 1, classTimes: [], ...extra },
 });
 
 /** The Test Studio's services and hours: [{ path, data }]. */
