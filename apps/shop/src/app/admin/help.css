@@ -1,0 +1,57 @@
+/* The admin's Help page (HelpPage.tsx), in the Colophon bento look. Tokens only. */
+.rp .rp-help-page { display: grid; gap: 20px; max-width: 980px; }
+.rp .rp-help-tiles { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+.rp .rp-help-tiles:has(> :only-child) { grid-template-columns: 1fr; }
+.rp .rp-help-tile { display: grid; align-content: start; gap: 10px; padding: 24px; border-radius: 22px; background: var(--rp-surface); color: var(--rp-text); }
+.rp .rp-help-tile[data-tone="mint"] { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .rp-help-kicker { font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: .02em; opacity: .8; }
+.rp .rp-help-tile-title { margin: 0; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; }
+.rp .rp-help-tile-text { margin: 0; font-size: 15px; line-height: 1.5; }
+.rp .rp-help-tile-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.rp .rp-help-tile-actions .rp-btn { display: inline-flex; align-items: center; gap: 6px; }
+.rp .rp-help-chapters, .rp .rp-help-topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp .rp-help-chapters { margin: 2px 0 6px; }
+.rp .rp-help-chip {
+  min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--rp-border-strong);
+  background: var(--rp-surface); color: var(--rp-text); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.rp .rp-help-tile[data-tone="mint"] .rp-help-chip { border-color: transparent; }
+.rp .rp-help-chip:hover { background: var(--rp-tab-hover); }
+.rp .rp-help-chip[aria-pressed="true"] { background: var(--rp-inverse); color: var(--rp-on-inverse); border-color: var(--rp-inverse); }
+.rp .rp-help-chip:focus-visible, .rp .rp-help-q:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+
+.rp .rp-help-answers { display: grid; gap: 12px; padding: 24px; border-radius: 22px; background: var(--rp-surface); }
+.rp .rp-help-page .rp-help-head, .rp .rp-help-page .rp-help-tile-title { margin: 0; font-family: var(--rp-font-body); text-transform: none; color: inherit; }
+.rp .rp-help-page .rp-help-head { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+.rp .rp-help-search .rp-input { min-height: 48px; font-size: 16px; border-radius: 999px; }
+.rp .rp-help-count { margin: 8px 0 0; font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; color: var(--rp-text-muted); }
+.rp .rp-help-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp .rp-help-item { border-top: 1px solid var(--rp-divider); }
+.rp .rp-help-q {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 52px; padding: 10px 4px;
+  border: 0; background: none; color: var(--rp-text); font: inherit; font-size: 16px; font-weight: 500; text-align: left; cursor: pointer; border-radius: 10px;
+}
+.rp .rp-help-q svg { flex: none; transition: transform .2s ease; color: var(--rp-text-muted); }
+.rp .rp-help-item[data-open] .rp-help-q svg { transform: rotate(180deg); }
+.rp .rp-help-a { display: grid; gap: 10px; padding: 0 4px 18px; font-size: 15px; line-height: 1.55; color: var(--rp-text-muted); max-width: 68ch; }
+.rp .rp-help-a p { margin: 0; }
+.rp .rp-help-a ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; list-style: decimal; }
+.rp .rp-help-go { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.rp .rp-help-none { display: grid; justify-items: start; gap: 10px; padding: 16px 4px; }
+.rp .rp-help-none p { margin: 0; }
+
+.rp .rp-help-keys-card { padding: 4px 24px; border-radius: 22px; background: var(--rp-surface); }
+.rp .rp-help-keys-card summary { display: flex; align-items: center; justify-content: space-between; min-height: 52px; font-weight: 600; cursor: pointer; list-style: none; }
+.rp .rp-help-keys-card summary::-webkit-details-marker { display: none; }
+.rp .rp-help-keys-card[open] summary svg { transform: rotate(180deg); }
+.rp .rp-help-keys { display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; margin: 0 0 20px; font-size: 14px; }
+.rp .rp-help-keys dd { margin: 0; color: var(--rp-text-muted); }
+.rp .rp-help-keys kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 6px; background: var(--rp-surface-2); font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; text-align: center; }
+
+@media (max-width: 767px) {
+  .rp .rp-help-tiles { grid-template-columns: 1fr; }
+  .rp .rp-help-tile, .rp .rp-help-answers { padding: 20px; }
+  /* Phones have no keyboard shortcuts. */
+  .rp .rp-help-keys-card { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .rp .rp-help-q svg { transition: none; } }

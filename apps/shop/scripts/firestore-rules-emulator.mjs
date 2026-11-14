@@ -259,8 +259,8 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("other admin prefs docs stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "[]", updatedAt: Date.now() })));
   await check("signed-in customer can't read the Overview notes", assertFails(getDoc(doc(user, "adminPrefs/overviewNotes"))));
   await check("anon can't write the Overview notes", assertFails(setDoc(doc(anon, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: 1 })));
-  // The combined admin's tour, seen on any device (admin/combinedTourStore.ts): admin-only, same shape.
-  await check("admin marks the tour seen", assertSucceeds(setDoc(doc(admin, "adminPrefs/combinedTour"), { data: "done", updatedAt: Date.now() })));
+  // The combined admin's tour, seen on any device (admin/walkthrough/tourStore.ts): admin-only, same shape.
+  await check("admin marks the tour seen", assertSucceeds(setDoc(doc(admin, "adminPrefs/combinedTour"), { data: "tour-2", updatedAt: Date.now() })));
   await check("signed-in customer can't read the tour mark", assertFails(getDoc(doc(user, "adminPrefs/combinedTour"))));
   await check("anon can't write the tour mark", assertFails(setDoc(doc(anon, "adminPrefs/combinedTour"), { data: "done", updatedAt: 1 })));
   // Stockroom › QR codes' own codes (admin/stockroom/qrCodesStore.ts): admin-only, same shape.

@@ -1040,3 +1040,10 @@ current UTC minute of `live/<UTC day>` (`m.<minute of the day>`) once a minute (
 and this one (`liveNow`). `firestore.rules` › `live`: a visitor raises one minute within two of the server clock by one,
 on the server's day, and can't rewrite or remove anything; only the admin reads it (emulator checks, two-shop check).
 One small doc per day; a browser whose clock is off by more than two minutes isn't counted.
+
+## Admin walkthrough and Help page (14 November 2026)
+`walkthrough/tourSteps.ts` (pure: stops, chapters, `tourFor`, card placement) and `walkthrough/AdminTour.tsx` (welcome, a
+spotlit stop per page, end card). Offered once per owner (`walkthrough/tourStore.ts`, value `tour-2`, device + `adminPrefs`);
+again from Help or the avatar menu. Each stop points at the rail item `[data-nav]`, or on phones the bottom pill / More / menu
+button. A new menu page that matters gets a stop. Help is the `#help` page (`HelpPage.tsx`, pure `helpAnswers.ts`), reading the
+platform's `help/articles.js` through the `@help` alias. Fixture: `admin-fixture.html?tour=1`.

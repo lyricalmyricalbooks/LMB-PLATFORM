@@ -55,7 +55,12 @@ export function AnalyticsPage({ setActiveTab, subTab, onSubTabChange }: { setAct
   const [clock, setClock] = useState(() => new Date());
   useEffect(() => { const t = window.setInterval(() => setClock(new Date()), 30_000); return () => window.clearInterval(t); }, []);
   const liveDay = liveSlot(clock).day;
-  useEffect(() => adminApi.watchLiveVisitors?.(liveDay, setLiveCounts), [liveDay]);
+  // Only a real unsubscribe is handed back: the admin fixture's stand-in answers with a promise, and React treats any
+  // other return as a broken clean-up and takes the whole admin down when the page is left.
+  useEffect(() => {
+    const stop: unknown = adminApi.watchLiveVisitors?.(liveDay, setLiveCounts);
+    return typeof stop === "function" ? (stop as () => void) : undefined;
+  }, [liveDay]);
   const ownLive = liveCounts ? liveNow(liveCounts, clock) : null;
 
   useEffect(() => { try { window.localStorage.setItem(PERIOD_KEY, preset); } catch { /* this browser only */ } }, [preset]);
