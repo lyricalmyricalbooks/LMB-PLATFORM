@@ -31,7 +31,6 @@
  "footer:empty": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -45,7 +44,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -69,14 +67,12 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:empty:false": [
   "aria-current=true ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -100,7 +96,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -152,14 +147,12 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:empty:true": [
   "aria-current=true ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -183,7 +176,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -235,13 +227,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:empty": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -265,7 +255,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -317,7 +306,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:reference": [
@@ -361,7 +349,6 @@
  "footer:reference": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -375,7 +362,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -399,13 +385,11 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:reference:false": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -430,7 +414,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -490,13 +473,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:reference:true": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -521,7 +502,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -581,13 +561,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:reference": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -615,7 +593,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -680,7 +657,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:referenceNavEnd": [
@@ -719,7 +695,6 @@
  "footer:referenceNavEnd": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -733,7 +708,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -757,13 +731,11 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:referenceNavEnd:false": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -788,7 +760,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -843,13 +814,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:referenceNavEnd:true": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -874,7 +843,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -929,13 +897,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:referenceNavEnd": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Open cart ×1",
   "aria-label=Participate &amp; connect ×1",
@@ -963,7 +929,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1023,7 +988,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:modern": [
@@ -1068,7 +1032,6 @@
  "footer:modern": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -1082,7 +1045,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1106,14 +1068,12 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modern:false": [
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -1147,7 +1107,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1215,7 +1174,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=https://x.test ×1",
   "href=mailto:shop@example.com ×2"
  ],
@@ -1223,7 +1181,6 @@
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -1257,7 +1214,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1325,7 +1281,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=https://x.test ×1",
   "href=mailto:shop@example.com ×2"
  ],
@@ -1333,7 +1288,6 @@
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -1370,7 +1324,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1443,7 +1396,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=https://x.test ×1",
   "href=mailto:shop@example.com ×2"
  ],
@@ -1488,7 +1440,6 @@
  "footer:modernCenter": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -1502,7 +1453,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1526,14 +1476,12 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernCenter:false": [
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -1567,7 +1515,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1635,14 +1582,12 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernCenter:true": [
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -1676,7 +1621,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1744,14 +1688,12 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernCenter": [
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -1788,7 +1730,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1861,7 +1802,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:modernRight": [
@@ -1887,7 +1827,6 @@
  "footer:modernRight": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -1901,7 +1840,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -1925,14 +1863,12 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernRight:false": [
   "aria-current=true ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
@@ -1962,7 +1898,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -2022,14 +1957,12 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernRight:true": [
   "aria-current=true ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
@@ -2059,7 +1992,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -2119,14 +2051,12 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernRight": [
   "aria-current=true ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
@@ -2159,7 +2089,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -2224,7 +2153,6 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:modernPageOverrides": [
@@ -2263,7 +2191,6 @@
  "footer:modernPageOverrides": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -2277,7 +2204,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -2301,13 +2227,11 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernPageOverrides:false": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
@@ -2340,7 +2264,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -2405,13 +2328,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:modernPageOverrides:true": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
@@ -2444,7 +2365,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -2509,13 +2429,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernPageOverrides": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Remove from wishlist ×1",
@@ -2551,7 +2469,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -2621,7 +2538,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×2",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:footerColumns": [
@@ -2968,7 +2884,6 @@
  ],
  "footer:footer4": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
   "data-store-region=footerPanel ×1",
@@ -2977,7 +2892,6 @@
   "data-studio-copy=footerCopyright ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3001,12 +2915,10 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "main:footer4:false": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Remove from wishlist ×1",
@@ -3025,7 +2937,6 @@
   "data-studio-copy=footerCopyright ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3083,12 +2994,10 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "main:footer4:true": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Remove from wishlist ×1",
@@ -3107,7 +3016,6 @@
   "data-studio-copy=footerCopyright ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3165,12 +3073,10 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "maincoll:footer4": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Publisher information ×2",
   "aria-label=Remove from wishlist ×1",
@@ -3192,7 +3098,6 @@
   "data-studio-copy=footerCopyright ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3255,7 +3160,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×3"
  ],
  "page:footerAdminLinkOn": [
@@ -3295,7 +3199,6 @@
  "footer:footerAdminLinkOn": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerAdmin ×1",
   "data-store-region=footerBottom ×1",
@@ -3311,7 +3214,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3337,13 +3239,11 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:footerAdminLinkOn:false": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -3369,7 +3269,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3427,13 +3326,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:footerAdminLinkOn:true": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -3459,7 +3356,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3517,13 +3413,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:footerAdminLinkOn": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -3552,7 +3446,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3615,7 +3508,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:headerAdminLinkOn": [
@@ -3657,7 +3549,6 @@
  "footer:headerAdminLinkOn": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -3671,7 +3562,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3695,13 +3585,11 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×1",
   "href=/track ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:headerAdminLinkOn:false": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -3725,7 +3613,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3783,13 +3670,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "main:headerAdminLinkOn:true": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -3813,7 +3698,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3871,13 +3755,11 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:headerAdminLinkOn": [
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -3904,7 +3786,6 @@
   "data-studio-copy=footerExploreHeading ×1",
   "data-studio-copy=footerLegalHeading ×1",
   "data-studio-copy=footerLinkContact ×1",
-  "data-studio-copy=footerLinkInstagram ×1",
   "data-studio-copy=footerLinkShop ×1",
   "data-studio-copy=footerLinkTrack ×1",
   "data-studio-copy=footerLocation ×1",
@@ -3967,7 +3848,6 @@
   "href=/page/submissions ×3",
   "href=/track ×1",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×2",
   "href=mailto:shop@example.com ×2"
  ],
  "page:footerGroupedOff": [
@@ -4007,7 +3887,6 @@
  ],
  "footer:footerGroupedOff": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Participate &amp; connect ×1",
   "data-store-region=footerBottom ×1",
   "data-store-region=footerBrand ×1",
@@ -4034,12 +3913,10 @@
   "href=/page/journal ×1",
   "href=/page/policy-returns ×1",
   "href=/page/policy-shipping ×1",
-  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ],
  "main:footerGroupedOff:false": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -4111,12 +3988,10 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×2",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ],
  "main:footerGroupedOff:true": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -4188,12 +4063,10 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×2",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ],
  "maincoll:footerGroupedOff": [
   "aria-label=Email us ×1",
-  "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Participate &amp; connect ×1",
   "aria-label=Publisher information ×2",
@@ -4273,7 +4146,6 @@
   "href=/page/policy-shipping ×1",
   "href=/page/submissions ×2",
   "href=/wishlist ×1",
-  "href=https://www.instagram.com/yourpress ×1",
   "href=mailto:shop@example.com ×1"
  ]
 }

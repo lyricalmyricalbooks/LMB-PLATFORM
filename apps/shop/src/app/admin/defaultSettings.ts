@@ -145,7 +145,7 @@ export const defaultSettings = (): any => ({
     announcementScrolling: false,
     // Social
     social: {
-      instagram: "https://www.instagram.com/yourpress",
+      instagram: "",
       twitter: "",
       facebook: "",
       tiktok: "",
