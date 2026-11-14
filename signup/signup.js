@@ -45,7 +45,7 @@ import { liveSettings } from "./live.js";
 
 /** The press's words while its shop waits for the day's room (plan 6.13). */
 /** A press outside the countries open now (settings.openCountries, plan 15.23): its place is kept, no shop is made. */
-export const LATER_WORDS = "Colophon starts in Canada. We've saved your place and we'll email you as soon as presses in your country can start.";
+export const LATER_WORDS = "Colophon isn't open in your country yet. We've saved your place and we'll email you as soon as shops there can start.";
 export const IN_LINE_WORDS = "We're making a few shops a day. You're next in line, and we'll email you when yours starts.";
 /** A new press while sign-up is closed and its email has no invite. */
 export const CLOSED_WORDS = "Sign-up isn't open yet. Join the waitlist and we'll email you an invite when there's room.";
@@ -77,7 +77,7 @@ export function personOf(claims) {
 
 export function createSignup({ accounts, signups, registry, billing, email, auth, throttle, settings, invites = null, admins = [], live = () => liveSettings(), now = () => new Date(), suffix = randomSuffix }) {
   const at = () => now().toISOString();
-  const isOpenCountry = (country) => (settings.openCountries ?? ["CA"]).includes(country);
+  const isOpenCountry = (country) => (settings.openCountries ?? ["CA", "US"]).includes(country);
 
   /** Is this address free for this account? Taken in the registry, or by another person's sign-up, means no. */
   async function isFree(address, accountId) {

@@ -245,8 +245,8 @@ async function follow() {
 const WORDS = {
   // The daily cap (plan 6.13): the same words as signup.js IN_LINE_WORDS.
   "in-line": "We're making a few shops a day. You're next in line, and we'll email you when yours starts.",
-  // Colophon starts in Canada (plan 15.23): the same words as signup.js LATER_WORDS.
-  later: "Colophon starts in Canada. We've saved your place and we'll email you as soon as presses in your country can start.",
+  // A country that isn't open yet (plan 15.23): the same words as signup.js LATER_WORDS.
+  later: "Colophon isn't open in your country yet. We've saved your place and we'll email you as soon as shops there can start.",
   queued: "In the queue. We'll email you when it's ready; meanwhile you can enter your store and set it up.",
   making: "Being made now. This takes a few minutes; you can close this page and we'll email you when it's ready.",
   ready: "Ready. We've emailed you the way in.",

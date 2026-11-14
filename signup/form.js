@@ -56,6 +56,30 @@ export const PUBLISHES = Object.freeze({
 /** Where a shop lives until the press connects its own domain: <web address>.web.app. */
 export const ADDRESS_SUFFIX = ".web.app";
 
+/**
+ * The front door's first shop question (14 November 2026, Julian): a bookshop or a general shop. A bookshop gets the
+ * book features (authors, ISBNs, royalties, artist payouts) and book words; a general shop gets product words and
+ * none of the book-only pages. The answer is still saved as one of PUBLISHES' ids, so everything that reads a shop's
+ * `publishes`/`sells` (shared/sells/sells.js sellsBooks, the shop's shopSells.ts) keeps working: a bookshop is "books",
+ * a general shop one of GENERAL_SELLS. BOOK_SELLS must match sellsBooks' book answers (sells.test.js checks).
+ */
+export const BOOK_SELLS = Object.freeze(["books", "zines", "comics", "mix"]);
+export const SHOP_TYPES = Object.freeze([
+  Object.freeze({ id: "books", label: "Bookshop", line: "Books, zines, comics. Authors, ISBNs and royalties built in." }),
+  Object.freeze({ id: "general", label: "General shop", line: "Clothing, art, home goods or anything else." }),
+]);
+/** A general shop's "What do you sell?" choices, each a PUBLISHES id (it picks the suggested look and the tax kind). */
+export const GENERAL_SELLS = Object.freeze([
+  Object.freeze({ id: "clothing", label: "Clothing & accessories" }),
+  Object.freeze({ id: "prints", label: "Art & prints" }),
+  Object.freeze({ id: "jewelry", label: "Jewellery" }),
+  Object.freeze({ id: "shoes", label: "Shoes" }),
+  Object.freeze({ id: "music", label: "Music & records" }),
+  Object.freeze({ id: "other", label: "Something else" }),
+]);
+/** "books" or "general" for a saved answer; "" when there is none yet. */
+export const shopTypeOf = (sells) => (!sells ? "" : BOOK_SELLS.includes(sells) ? "books" : "general");
+
 // The web address is the shop id, so it follows the shop id's rules (setup/steps.js shopProblems): 6 to 30 lowercase
 // letters, digits and hyphens, starting with a letter and not ending with a hyphen. Google refuses ids holding the first
 // words; the rest are the platform's own.

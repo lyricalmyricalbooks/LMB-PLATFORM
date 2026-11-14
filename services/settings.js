@@ -31,7 +31,7 @@
 //   SHOP_ADDRESS_DOMAIN        the domain shops' free addresses go under (moth-press.<it>), a domain of its own, never
 //                              the platform's (services/domains/freeAddress.js)    default none: web.app addresses
 //   SIGNUP_OPEN                "true": anyone may sign up; otherwise waitlist invites only (6.1, 6.13)   default false
-//   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA (15.23: tax
+//   SIGNUP_OPEN_COUNTRIES      countries whose presses may start a shop now, comma-separated codes   default CA,US (15.23: tax
 //                              presets, addresses and shipping are Canadian; other countries join a "later" list)
 //   SIGNUP_DAILY_CAP           new shops made a day; an invite skips it (6.13)       default 10
 //   FOUNDING_PERCENT_OFF       the founding offer's discount, for as long as they stay  default 25
@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   signupOpen: false,
   startNudges: "hold",
   signupDailyCap: 10,
-  openCountries: Object.freeze(["CA"]),
+  openCountries: Object.freeze(["CA", "US"]),
   foundingOffer: Object.freeze({ percentOff: 25, presses: 25, giveBackUnpaid: true }),
   payAsYouSell: Object.freeze({ basisPoints: 0 }),
 });

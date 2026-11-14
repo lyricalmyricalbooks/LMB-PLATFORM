@@ -4,7 +4,7 @@
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { COUNTRIES, PUBLISHES, countryFromTimeZone, isEmail } from "../signup/form.js";
+import { COUNTRIES, GENERAL_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
 import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
@@ -170,38 +170,40 @@ $("#code-again").addEventListener("click", () => busy(codeForm, $("#code-error")
 $("#code-other").addEventListener("click", () => show("email"));
 
 // ── 3. About your brand: three questions, an optional fourth, the terms, then the store is made ──
-function choice(name, value, title) {
+function choice(name, value, title, line = "") {
   const label = document.createElement("label");
   label.className = "choice";
   label.append(Object.assign(document.createElement("input"), { type: "radio", name, value }), Object.assign(document.createElement("strong"), { textContent: title }));
+  if (line) label.append(Object.assign(document.createElement("span"), { textContent: line }));
   return label;
 }
 
 // Every new store starts with the whole trial, shop and stockroom; the plan is picked later in the store's Billing.
 const TRIAL_PLAN = "both";
 let termsVersion = "";
-api("GET", "/plans").then((plans) => {
+// What /api/plans says: the fee in each billing currency, the founding offer and the countries open today. Until it
+// answers (or if it can't), the preview keeps its plain words and the country note says nothing about opening.
+let plans = null;
+api("GET", "/plans").then((answer) => {
+  plans = answer;
   termsVersion = plans?.termsVersion ?? "";
-  if (plans?.trialDays) {
+  if (Number.isInteger(plans?.trialDays)) {
     $("#new-days").textContent = `${plans.trialDays} days`;
-    $("#story-lede").textContent = `Three quick questions, then you're in your store. Everything is included for ${plans.trialDays} days. No card needed.`;
+    $("#story-lede").textContent = `A few quick questions, then you're in your store. Everything is included for ${plans.trialDays} days. No card needed.`;
   }
-  const amount = (text) => Number(String(text).replace(/[^0-9.]/g, "")) || 0;
-  const cheapest = (plans?.plans ?? []).map((p) => p.foundingPriceText || p.priceText).filter(Boolean).sort((a, b) => amount(a) - amount(b))[0];
-  if (cheapest) $("#new-after").textContent = `From ${cheapest} a month`;
+  // Countries Colophon isn't open in yet say so in the list.
+  if (Array.isArray(plans?.openCountries)) {
+    for (const option of $("#country").options) if (option.value && !plans.openCountries.includes(option.value)) option.textContent = `${COUNTRIES[option.value].name} (opening later)`;
+  }
+  showCountry();
 }, () => {});
 
-// The mockup's six answers, each saved as one of sign-up's ids (signup/form.js PUBLISHES); home and beauty count as
-// "other" until the shop knows them by name.
-const SIGNUP_SELLS = [
-  { id: "clothing", label: "Clothing & accessories" },
-  { id: "other", label: "Home & kitchen" },
-  { id: "prints", label: "Art & prints" },
-  { id: "books", label: "Books & media" },
-  { id: "other", label: "Beauty & care" },
-  { id: "other", label: "Something else" },
-].filter((o) => PUBLISHES.options.some((p) => p.id === o.id));
-$("#sells-choices").replaceChildren(...SIGNUP_SELLS.map((o) => choice("sells", o.id, o.label)));
+// Bookshop or general shop (14 November 2026, Julian): the first question, so it's clear which one gets the book
+// features. A general shop then says what it sells. Both are saved as one sign-up answer (signup/form.js SHOP_TYPES).
+$("#type-choices").replaceChildren(...SHOP_TYPES.map((t) => choice("shopType", t.id, t.label, t.line)));
+$("#sells-choices").replaceChildren(...GENERAL_SELLS.map((o) => choice("sells", o.id, o.label)));
+// A bookshop that signed up as zines or comics keeps that answer; a new bookshop is "books".
+let bookAnswer = "books";
 // "Selling somewhere already?", optional (ids from form.js QUESTION, which the server checks). It picks the setup
 // guide's first step: bring a shop over, import a spreadsheet, or add the first product.
 const SELLING_TODAY = [
@@ -223,12 +225,48 @@ const showName = () => {
   $("#new-name").textContent = name || "Your brand";
   $("#new-address").textContent = addressFor(name);
 };
+const pickedValue = (name) => startForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
+/** The preview's shop line, and the "What do you sell?" chips only for a general shop. */
 const showKind = () => {
-  const picked = startForm.querySelector("input[name=sells]:checked");
-  $("#new-kind").textContent = picked ? picked.parentElement.textContent : "Your store";
+  const type = pickedValue("shopType");
+  const sells = GENERAL_SELLS.find((o) => o.id === pickedValue("sells"));
+  $("#sells-group").hidden = type !== "general";
+  if (type !== "general") $("#sells-error").hidden = true;
+  $("#new-kind").textContent = type === "books" ? "Bookshop" : type === "general" ? (sells && sells.id !== "other" ? sells.label : "General shop") : "Your store";
+  const line = $("#new-line");
+  line.textContent = type === "books" ? "With authors, ISBNs and royalties" : type === "general" ? "With products, sizes and colours" : "";
+  line.hidden = !type;
 };
+/** The note under the country, and the fee in the money that country's shops pay in. */
+function showCountry() {
+  const code = startForm.country.value;
+  const country = COUNTRIES[code];
+  const open = plans?.openCountries;
+  const note = $("#country-note");
+  if (country && Array.isArray(open) && !open.includes(code)) {
+    const place = /^(United|Netherlands)/.test(country.name) ? `the ${country.name}` : country.name;
+    note.textContent = `Colophon isn't open in ${place} yet. We'll save your place and email you when it is.`;
+  } else {
+    note.textContent = country ? `Sets your shop to ${country.currency} and local taxes.` : "Sets your shop's currency and taxes.";
+  }
+  // The fee is billed in US dollars for a US shop and Canadian dollars otherwise (services/billing/currencies.js).
+  const fee = plans?.fees?.[code === "US" ? "USD" : "CAD"];
+  if (!fee?.feeText) return;
+  const tax = plans.plusTax ? " + tax" : "";
+  $("#new-after").textContent = `${fee.feeText} a month + running cost${tax}`;
+  const founding = fee.foundingFeeText && plans.foundingOffer;
+  $("#new-founding-row").hidden = !founding;
+  if (founding) {
+    const first = plans.foundingOffer.presses;
+    $("#new-founding-label").textContent = first ? `First ${first} shops` : "Founding shops";
+    $("#new-founding").textContent = `${fee.foundingFeeText} a month`;
+  }
+}
 startForm.pressName.addEventListener("input", showName);
-startForm.addEventListener("change", (event) => { if (event.target.name === "sells") showKind(); });
+startForm.addEventListener("change", (event) => {
+  if (event.target.name === "sells" || event.target.name === "shopType") showKind();
+  if (event.target.name === "country") showCountry();
+});
 // An answer given clears its own error line.
 startForm.addEventListener("change", (event) => {
   const field = event.target.name === "termsAccepted" ? "terms" : event.target.name;
@@ -238,14 +276,18 @@ startForm.addEventListener("change", (event) => {
 
 function fillAnswers() {
   startForm.pressName.value = press.pressName ?? "";
-  // One answer can sit behind several tiles ("other"): the last one, Something else, is shown picked.
-  const matches = [...startForm.querySelectorAll("input[name=sells]")].filter((input) => input.value === press.sells);
-  for (const input of startForm.querySelectorAll("input[name=sells]")) input.checked = input === matches.at(-1);
+  // A saved answer picks its shop type, and for a general shop its tile ("mixed", an older answer with no tile here,
+  // leaves the tiles for the person to pick again).
+  const type = shopTypeOf(press.sells);
+  if (type === "books") bookAnswer = press.sells;
+  for (const input of startForm.querySelectorAll("input[name=shopType]")) input.checked = input.value === type;
+  for (const input of startForm.querySelectorAll("input[name=sells]")) input.checked = type === "general" && input.value === press.sells;
   showKind();
   for (const input of startForm.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
   startForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   showName();
+  showCountry();
   // A press that set up before stores were made at sign-up can carry on in its setup guide instead.
   const keep = $("#keep-setup");
   keep.hidden = !(SETUP_ADMIN_URL && press.pressName);
@@ -265,7 +307,8 @@ const setupGuideUrl = () => `${SETUP_ADMIN_URL}?press=${encodeURIComponent(press
 function checkAnswers(answers, { terms = true } = {}) {
   const problems = {
     pressName: answers.pressName ? "" : "Enter your brand's name.",
-    sells: answers.sells ? "" : "Pick what you sell.",
+    shopType: answers.shopType ? "" : "Pick a bookshop or a general shop.",
+    sells: answers.shopType !== "general" || answers.sells ? "" : "Pick what you sell.",
     country: answers.country ? "" : "Choose where your brand is based.",
     terms: !terms || answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
   };
@@ -275,13 +318,15 @@ function checkAnswers(answers, { terms = true } = {}) {
     line.hidden = !words;
   }
   const first = Object.entries(problems).find(([, words]) => words)?.[0];
-  if (first) startForm.querySelector(first === "terms" ? "[name=termsAccepted]" : first === "sells" ? "input[name=sells]" : `[name=${first}]`)?.focus();
+  if (first) startForm.querySelector(first === "terms" ? "[name=termsAccepted]" : `[name=${first}]`)?.focus();
   return !first;
 }
 
+// `shopType` is the page's own; the server gets `sells`: the bookshop answer, or the general shop's tile.
 const readAnswers = () => {
-  const picked = (name) => startForm.querySelector(`input[name=${name}]:checked`)?.value ?? "";
-  return { pressName: startForm.pressName.value.trim(), sells: picked("sells"), country: startForm.country.value, sellingToday: picked("sellingToday"), termsAccepted: startForm.termsAccepted.checked };
+  const shopType = pickedValue("shopType");
+  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? pickedValue("sells") : "";
+  return { pressName: startForm.pressName.value.trim(), shopType, sells, country: startForm.country.value, sellingToday: pickedValue("sellingToday"), termsAccepted: startForm.termsAccepted.checked };
 };
 
 // Design my shop first: the answers are saved (no store is made, no terms needed yet), then the real designer opens
@@ -290,7 +335,7 @@ $("#design-first").addEventListener("click", () => {
   const answers = readAnswers();
   if (!checkAnswers(answers, { terms: false })) return;
   busy(startForm, $("#start-error"), async () => {
-    const { termsAccepted: _terms, ...change } = answers;
+    const { termsAccepted: _terms, shopType: _type, ...change } = answers;
     if (!change.sellingToday) delete change.sellingToday;
     press = (await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...change })).press;
     location.assign(designerUrl());
@@ -302,7 +347,7 @@ startForm.addEventListener("submit", (event) => {
   const answers = readAnswers();
   if (!checkAnswers(answers)) return;
   busy(startForm, $("#start-error"), async () => {
-    const { termsAccepted, ...change } = answers;
+    const { termsAccepted, shopType: _type, ...change } = answers;
     if (!change.sellingToday) delete change.sellingToday;
     const { press: saved } = await api("POST", "/press/setup", { pressId: press.pressId, plan: TRIAL_PLAN, ...change });
     press = saved;

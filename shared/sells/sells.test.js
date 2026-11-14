@@ -47,3 +47,16 @@ test("every answer files the payment account under a real merchant category", ()
   assert.equal(merchantProfile("mixed").mcc, "5942");
   assert.equal(merchantProfile("prints").mcc, "5971");
 });
+
+test("the front door's Bookshop / General shop choice files every answer the way the shop reads it", async () => {
+  const { BOOK_SELLS, GENERAL_SELLS, PUBLISHES, SHOP_TYPES, shopTypeOf } = await import("../../signup/form.js");
+  assert.deepEqual(SHOP_TYPES.map((t) => t.id), ["books", "general"]);
+  for (const { id } of PUBLISHES.options) assert.equal(shopTypeOf(id) === "books", sellsBooks(id), `${id} is filed under the right shop type`);
+  assert.ok(BOOK_SELLS.every((id) => sellsBooks(id)));
+  for (const { id } of GENERAL_SELLS) {
+    assert.ok(PUBLISHES.options.some((o) => o.id === id), `${id} is a sign-up answer the server accepts`);
+    assert.equal(sellsBooks(id), false, `${id} makes a general shop`);
+  }
+  assert.equal(new Set(GENERAL_SELLS.map((o) => o.id)).size, GENERAL_SELLS.length, "one tile per answer, so a saved answer shows one tile");
+  assert.equal(shopTypeOf(""), "");
+});

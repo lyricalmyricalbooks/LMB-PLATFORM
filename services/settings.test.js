@@ -21,7 +21,7 @@ test("defaults: Colophon, a $5 CAD platform fee a month on every plan, 14-day tr
     signupOpen: false,
     startNudges: "hold",
     signupDailyCap: 10,
-    openCountries: ["CA"],
+    openCountries: ["CA", "US"],
     foundingOffer: { percentOff: 25, presses: 25, giveBackUnpaid: true },
     payAsYouSell: { basisPoints: 0 },
   });
@@ -81,7 +81,7 @@ test("the mailing address is read, tidied onto one line, and refused when it is 
 });
 
 test("the countries open for sign-up default to Canada and are read as two-letter codes (15.23)", () => {
-  assert.deepEqual(platformSettings({}).openCountries, ["CA"]);
+  assert.deepEqual(platformSettings({}).openCountries, ["CA", "US"]);
   assert.deepEqual(platformSettings({ SIGNUP_OPEN_COUNTRIES: "ca, us" }).openCountries, ["CA", "US"]);
   assert.throws(() => platformSettings({ SIGNUP_OPEN_COUNTRIES: "Canada" }), /SIGNUP_OPEN_COUNTRIES/);
 });
