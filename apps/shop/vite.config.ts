@@ -117,6 +117,8 @@ export default defineConfig(({ command }) => ({
       '@': path.resolve(import.meta.dirname, './src'),
       // The stockroom's own pure rules (stock, money, to-dos), shared so the admin never works them out a second way.
       '@stockroom': path.resolve(import.meta.dirname, '../stockroom/src/lib'),
+      // The platform's help answers (help/articles.js, one copy): the admin's Help page shows them in place.
+      '@help': path.resolve(import.meta.dirname, '../../help'),
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],

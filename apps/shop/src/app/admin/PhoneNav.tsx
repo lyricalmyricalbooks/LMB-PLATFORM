@@ -44,7 +44,7 @@ export function PhoneNav({ items, activeId, onPick, fairMode, onFair, onHelp, ni
               </button></li>
             )}
             <li><button type="button" className="rp-more-card" onClick={() => { setMoreOpen(false); onHelp(); }}>
-              <span className="rp-more-label">Help</span><span className="rp-more-sub">Ask a person and shortcuts</span>
+              <span className="rp-more-label">Help</span><span className="rp-more-sub">Answers, a tour and a person to ask</span>
             </button></li>
             <li><button type="button" className="rp-more-card" aria-pressed={night} onClick={onNight}>
               <span className="rp-more-label">{night ? "Day look" : "Night look"}</span><span className="rp-more-sub">Change how the admin looks</span>
@@ -54,12 +54,12 @@ export function PhoneNav({ items, activeId, onPick, fairMode, onFair, onHelp, ni
       )}
       <nav className="rp-bottom-nav" aria-label="Main menu">
         {shown.map((n) => (
-          <button key={n.id} type="button" className="rp-bottom-pill" aria-current={!moreOpen && n.id === activeId ? "page" : undefined} onClick={() => pick(n.id)}>
+          <button key={n.id} type="button" className="rp-bottom-pill" data-nav={n.id} aria-current={!moreOpen && n.id === activeId ? "page" : undefined} onClick={() => pick(n.id)}>
             {n.label}{n.badge ? <span className="rp-bottom-badge" aria-label={`${n.badge} waiting`}>{n.badge}</span> : null}
           </button>
         ))}
         {more.length > 0 && (
-          <button type="button" className="rp-bottom-pill" aria-expanded={moreOpen} aria-current={moreOpen || moreActive ? "page" : undefined}
+          <button type="button" className="rp-bottom-pill" data-nav="more" aria-expanded={moreOpen} aria-current={moreOpen || moreActive ? "page" : undefined}
             onClick={() => setMoreOpen((v) => !v)}>More</button>
         )}
       </nav>

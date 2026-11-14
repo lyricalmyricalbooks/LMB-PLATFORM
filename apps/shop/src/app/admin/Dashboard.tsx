@@ -1,5 +1,4 @@
 import "../../styles/adminCompat.css";
-import { BANK_TRANSFER } from "./moneySign";
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
@@ -46,6 +45,7 @@ import { PlatformMessagesBar } from "./PlatformMessagesBar";
 import { LocalBackupAuto } from "./LocalBackupCard";
 // Automatic invoice reminders run in the owner's open combined admin (stockroom/autoRemind.ts); loaded only there.
 const AlertsPage = lazy(() => import("./AlertsPage").then(m => ({ default: m.AlertsPage })));
+const HelpPage = lazy(() => import("./HelpPage").then(m => ({ default: m.HelpPage })));
 const AutoReminders = lazy(() => import("./stockroom/AutoReminders").then((m) => ({ default: m.AutoReminders })));
 import type { SupportVisit } from "./supportSession";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
@@ -60,12 +60,12 @@ import { PhoneNav } from "./PhoneNav";
 import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { keepAdminOffline } from "./adminOffline";
-import { CombinedTour, CombinedTourInvite, markTourSeen, tourSeen, type TourStop } from "./CombinedTour";
-import { markTourSeenOnAccount, tourSeenOnAccount } from "./combinedTourStore";
+import { AdminTour, type TourPhase } from "./walkthrough/AdminTour";
+import { chaptersOf, markTourSeen, tourFor, tourSeen } from "./walkthrough/tourSteps";
+import { markTourSeenOnAccount, tourSeenOnAccount } from "./walkthrough/tourStore";
 import { stockroomBridge } from "./stockroomBridge";
 import { NATIVE_PAGES } from "./stockroom/nativePages";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
-import { providerName } from "./providerWords";
 import { setProductSells } from "../lib/productHref";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -395,18 +395,20 @@ export function Dashboard() {
   useEffect(() => {
     if (userMenuOpen) userMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [userMenuOpen]);
-  const [helpOpen, setHelpOpen] = useState(false);
   // The spot in the page header where a page's main buttons go (PageActions in riso/components.tsx).
   const [pageActionsEl, setPageActionsEl] = useState<HTMLDivElement | null>(null);
-  // The combined admin's first-time tour: invited once on Home, and from the account menu any time (CombinedTour.tsx).
-  const [tourOpen, setTourOpen] = useState(false);
-  const [tourInvite, setTourInvite] = useState(() => COMBINED && !tourSeen());
-  const dismissTour = () => { markTourSeen(); void markTourSeenOnAccount(); setTourInvite(false); };
-  // Seen on another device of this shop: no invitation here either (combinedTourStore.ts).
+  // The admin walkthrough (walkthrough/AdminTour.tsx): its welcome opens by itself the first time an owner opens the
+  // admin (not seen on this device or on the shop's account), and Help or the account menu bring it back any time.
+  const [tourPhase, setTourPhase] = useState<TourPhase | null>(null);
+  const endTour = () => { markTourSeen(); void markTourSeenOnAccount(); };
   useEffect(() => {
-    if (!user || !tourInvite) return;
+    if (!user || tourSeen()) return;
     let alive = true;
-    void tourSeenOnAccount().then((seen) => { if (alive && seen) { markTourSeen(); setTourInvite(false); } });
+    void tourSeenOnAccount().then((seen) => {
+      if (!alive) return;
+      if (seen) markTourSeen();
+      else setTourPhase((p) => p ?? { kind: "welcome" });
+    });
     return () => { alive = false; };
   }, [user]);
 
@@ -701,7 +703,15 @@ export function Dashboard() {
     setSidebarOpen(false);
   };
   openStockroomRef.current = (page, bookId) => { void openStockroomPage(page, bookId); };
-  const tourGo = (stop: TourStop) => { if ("stockroom" in stop) void openStockroomPage(stop.stockroom); else void goTo(stop.page); };
+  // The tour's stops open menu pages; a stop in fair mode's absence: fair mode ends first, so the rail shows both sides.
+  // The walkthrough's stops: one per menu item this admin shows on either side (walkthrough/tourSteps.ts).
+  const tourMenuItems = new Set((COMBINED ? [...sideMenu("website"), ...sideMenu("stockroom")] : ADMIN_MENU)
+    .map((g) => g.pages.find((p) => !hiddenPages.has(p))).filter((p): p is string => !!p));
+  const tourSteps = tourFor({ combined: COMBINED, books: hasPublisherTools(sellsAnswer), menuItems: tourMenuItems });
+  const startTour = (start: number | null) => {
+    if (fairMode) { rememberFair(false); setFairMode(false); }
+    setTourPhase(start === null ? { kind: "welcome" } : { kind: "step", index: start });
+  };
   const onStockroomPage = activeTab === STOCKROOM_TAB;
   const stockroomPageId = stockroomPage(onStockroomPage ? subTab : undefined)?.id ?? DEFAULT_STOCKROOM_PAGE;
   const NativeStockroomPage = onStockroomPage ? NATIVE_PAGES[stockroomPageId] : undefined;
@@ -748,8 +758,8 @@ export function Dashboard() {
     ...(storesPage(platformPlan) ? [{ key: "stores", label: "Switch store", icon: <Store size={16} aria-hidden />, run: () => { window.location.href = storesPage(platformPlan)!; } }] : []),
     { key: "logs", label: "Activity logs", icon: <History size={16} aria-hidden />, run: () => setShowLogs(true) },
     { key: "site", label: "View site", icon: <Globe size={16} aria-hidden />, run: openSite },
-    ...(COMBINED ? [{ key: "tour", label: "Take the tour", icon: <Compass size={16} aria-hidden />, run: () => setTourOpen(true) }] : []),
-    { key: "help", label: "Help & shortcuts", icon: <HelpCircle size={16} aria-hidden />, run: () => setHelpOpen(true) },
+    { key: "tour", label: "Take the tour", icon: <Compass size={16} aria-hidden />, run: () => startTour(0) },
+    { key: "help", label: "Help", icon: <HelpCircle size={16} aria-hidden />, run: () => { void goTo("help"); } },
     { key: "theme", label: adminTheme === "light" ? "Dark appearance" : "Light appearance", icon: adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />, run: toggleTheme },
     { key: "logout", label: loggingOut ? "Logging out…" : "Log out", icon: <LogOut size={16} aria-hidden />, run: handleLogout, tone: "danger" as const, busy: loggingOut },
   ];
@@ -772,7 +782,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -783,6 +793,9 @@ export function Dashboard() {
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
+      case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} chapters={chaptersOf(tourSteps, COMBINED)}
+        askUrl={askPersonPage(platformPlan)} helpCentreUrl={helpCentrePage(platformPlan)}
+        onTour={(start) => startTour(start)} onOpen={(page) => openMenuPage(page)} />;
       case "alerts": return <AlertsPage alerts={shownAlerts} hiddenCount={allAlerts.length - shownAlerts.length}
         onDismiss={alertHides.dismiss} onShowHidden={alertHides.showAll}
         onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
@@ -851,12 +864,7 @@ export function Dashboard() {
 
   // The Overview draws its own masthead and shows the alerts under it (PageAlertsSlot); every other page gets them under its PageHeader.
   const ownMasthead = activeTab === "overview" && !selectedOrder;
-  const pageAlerts = (
-    <>
-    {/* The combined admin's one-time tour invitation, on Home only (CombinedTour.tsx). */}
-    {COMBINED && ownMasthead && tourInvite && <CombinedTourInvite onStart={() => { setTourOpen(true); dismissTour(); }} onDismiss={dismissTour} />}
-    </>
-  );
+  const pageAlerts = null;
 
   // Which side of the combined admin the page is on (Website or Stockroom, Julian 10 Nov 2026); Home is the website's.
   const currentSide = sideOf(navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive);
@@ -932,6 +940,10 @@ export function Dashboard() {
                 </button>
               )}
               <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
+              <button type="button" className="rp-rail-help" data-tour="help" aria-current={activeTab === "help" ? "page" : undefined}
+                onClick={() => { setSidebarOpen(false); void goTo("help"); }}>
+                <HelpCircle size={14} aria-hidden /> Help
+              </button>
               <button type="button" className="rp-night-look" aria-pressed={adminTheme === "dark"} onClick={toggleTheme}>
                 {adminTheme === "dark" ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />} {adminTheme === "dark" ? "Day look" : "Night look"}
               </button>
@@ -1049,39 +1061,12 @@ export function Dashboard() {
           </div>
         </div>
         {!showEditor && <PhoneNav items={railItems} activeId={activeItemId} onPick={(id) => { const it = railItems.find((n) => n.id === id); void openMenuPage(it?.children?.[0]?.id ?? id); }}
-          fairMode={fairMode} onFair={COMBINED ? () => setFair(!fairMode) : undefined} onHelp={() => setHelpOpen(true)}
+          fairMode={fairMode} onFair={COMBINED ? () => setFair(!fairMode) : undefined} onHelp={() => { void goTo("help"); }}
           night={adminTheme === "dark"} onNight={toggleTheme} />}
       </AppShell>
 
-      {COMBINED && <CombinedTour open={tourOpen} onClose={() => setTourOpen(false)} onGo={tourGo} appearance={appearance} />}
-      <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Help & shortcuts" appearance={appearance}
-        footer={<PrimaryButton onClick={() => setHelpOpen(false)}>Got it</PrimaryButton>}>
-        <div className="rp-help">
-          {askPersonPage(platformPlan) && <>
-            <h3 className="rp-help-head">Ask a person</h3>
-            <p>A person answers in writing, by email. Most questions have a quick answer in the help centre.</p>
-            <div className="rp-card-actions">
-              <a className="rp-btn rp-btn-primary" href={askPersonPage(platformPlan)!}>Ask a person</a>
-              {helpCentrePage(platformPlan) && <a className="rp-btn" href={helpCentrePage(platformPlan)!} target="_blank" rel="noreferrer">Open the help centre</a>}
-            </div>
-          </>}
-          <h3 className="rp-help-head">Keyboard shortcuts</h3>
-          <dl className="rp-help-keys">
-            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>{w("Search: jump to any admin page, or open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.")}</dd>
-            <dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Orders: next / previous order.</dd>
-            <dt><kbd>/</kbd></dt><dd>Orders: jump to the search box (<kbd>Esc</kbd> clears it).</dd>
-            <dt><kbd>Esc</kbd></dt><dd>Close any dialog; you go back to where you were.</dd>
-            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>S</kbd></dt><dd>Design studio: save the draft (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd> opens Find anything there).</dd>
-          </dl>
-          <h3 className="rp-help-head">How things work</h3>
-          <ul className="rp-help-list">
-            <li><strong>Payments:</strong> card ({providerName()}) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and {BANK_TRANSFER} orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
-            <li><strong>Shop status</strong> (top bar): shows whether shoppers can buy. Open it to close the shop behind the “under construction” wall, or to open it again.</li>
-            <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready.</li>
-            <li><strong>Bookmarks:</strong> the address bar keeps your place, so pages can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>
-          </ul>
-        </div>
-      </Dialog>
+      <AdminTour phase={tourPhase} setPhase={setTourPhase} steps={tourSteps} combined={COMBINED} shopName={shopNameFromSettings(settings)}
+        appearance={appearance} onGo={(page) => openMenuPage(page)} onClose={endTour} onOpenHelp={() => { void goTo("help"); }} />
 
       {confirmNode}
       <LaunchChecklist appearance={appearance} open={launchOpen} blockers={openBlockersList || []} busy={ucSaving} onClose={() => setLaunchOpen(false)}

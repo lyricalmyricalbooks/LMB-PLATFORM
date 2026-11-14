@@ -985,6 +985,12 @@ if (new URLSearchParams(location.search).get("accountant") === "1") {
 
 if (!helperShown) {
   const page = new URLSearchParams(location.search).get("page") || "";
+  // The admin walkthrough's welcome opens by itself on a first visit; screens and scripts here skip it unless the
+  // address asks for it (`?tour=1`, walkthrough/AdminTour.tsx).
+  try {
+    if (new URLSearchParams(location.search).get("tour") === "1") localStorage.removeItem("lm:admin-tour");
+    else localStorage.setItem("lm:admin-tour", "tour-2");
+  } catch { /* storage blocked: the welcome may show */ }
   history.replaceState(null, "", `/admin?debug=true${page ? `#${page}` : ""}`);
   await import("../main");
 }
