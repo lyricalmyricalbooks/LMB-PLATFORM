@@ -70,6 +70,8 @@ jobs:
       # here: email goes through Google from the hosted server only.
       - name: The platform's test keys, when they are there
         run: |
+          # When each version of the key was put there (no value is shown): a changed key explains a lost test account.
+          gcloud secrets versions list stripe-platform-test-key --project=lmb-platform-prod --limit=3 --format="table(name,createTime,state)" || true
           for pair in STRIPE_PLATFORM_TEST_KEY:stripe-platform-test-key; do
             name="${pair%%:*}"
             secret="${pair#*:}"

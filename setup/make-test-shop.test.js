@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, paymentsOrWait, testShop, testShopSteps, provePlatformAccess } from "./make-test-shop.js";
+import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, paymentsOrWait, forgetTestAccount, testShop, testShopSteps, provePlatformAccess } from "./make-test-shop.js";
 import { fakeAuditLog, fakeGoogle, fakeRegistry, fakeServices, fakeShared, fakeTenants } from "./fakes.js";
 import { TEST_CONFIG } from "./test-shop.js";
 import { SHARED_RELEASE_LOCK } from "../services/release-runner/shared.js";
@@ -301,4 +301,42 @@ test("the test shop's card key comes from STRIPE_TEST_PUBLISHABLE_KEY, test mode
   assert.deepEqual(testPublishableKeys({}), { live: "", test: "" });
   assert.deepEqual(testPublishableKeys({ STRIPE_TEST_PUBLISHABLE_KEY: " pk_test_abcdefghijkl0123 " }), { live: "", test: "pk_test_abcdefghijkl0123" });
   assert.throws(() => testPublishableKeys({ STRIPE_TEST_PUBLISHABLE_KEY: "pk_live_abcdefghijkl0123" }), /test publishable key/);
+});
+
+test("a test shop whose Stripe test account is gone gets a new one; a press's shop, or a live account, still stops for a person", async () => {
+  const LOST = "the registry names Stripe account acct_old for test-press, but the payment service can't find it; a person checks before a new one is made";
+  const world = { payments: { provider: "stripe", accountId: "acct_old", mode: "test" } };
+  const step = {
+    number: 7, name: "Connect the press's payments",
+    check: async () => { if (world.payments?.accountId === "acct_old") throw new Error(LOST); return Boolean(world.payments); },
+    act: async () => { if (world.payments?.accountId === "acct_old") throw new Error(LOST); world.payments = { provider: "stripe", accountId: "acct_new", mode: "test" }; return { detail: {} }; },
+  };
+  const events = [];
+  const registry = {
+    getShop: async () => ({ shopId: "test-press", testShop: world.testShop ?? true, payments: world.payments }),
+    updateShop: async (id, fields) => { world.payments = fields.payments; },
+    recordEvent: async (id, entry) => { events.push(entry); },
+  };
+  const shop = { shopId: "test-press", testMode: true };
+  const lines = [];
+  const wrapped = paymentsOrWait(step, (l) => lines.push(l), { forget: (s) => forgetTestAccount({ registry, shop: s, print: (l) => lines.push(l), now: () => new Date("2026-11-14T04:00:00Z") }) });
+  assert.equal(await wrapped.check({ shop }), false);
+  await wrapped.act({ shop });
+  assert.equal(world.payments.accountId, "acct_new");
+  assert.deepEqual(events.map((e) => [e.kind, e.accountId]), [["payments.test-account-lost", "acct_old"]]);
+  assert.match(lines[0], /acct_old.*a new test account is made/);
+  assert.equal(await wrapped.check({ shop }), true);
+
+  // Never for a shop that isn't the platform's test shop, a live account, or a shop not in test mode.
+  world.payments = { provider: "stripe", accountId: "acct_old", mode: "test" };
+  world.testShop = false;
+  await assert.rejects(wrapped.act({ shop }), /a person checks/);
+  world.testShop = true;
+  world.payments = { provider: "stripe", accountId: "acct_old", mode: "live" };
+  await assert.rejects(wrapped.act({ shop }), /a person checks/);
+  world.payments = { provider: "stripe", accountId: "acct_old", mode: "test" };
+  await assert.rejects(wrapped.act({ shop: { ...shop, testMode: false } }), /a person checks/);
+  assert.equal(world.payments.accountId, "acct_old");
+  // Without `forget` (any other caller) nothing changes.
+  await assert.rejects(paymentsOrWait(step).check({ shop }), /a person checks/);
 });
