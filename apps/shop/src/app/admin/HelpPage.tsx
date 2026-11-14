@@ -1,10 +1,11 @@
-// The admin's Help page (`#help`). Julian, 14 November 2026: "still needlessly complicated". So: one search box, a short
-// list of the most useful answers that open in place (steps + a button to the page), and two plain lines at the foot:
-// take the tour, ask a person. Answers are the platform's own (help/articles.js, bundled), in the shop's own words.
-import { useId, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+// The admin's Help page (`#help`). Julian, 14 November 2026: the help was "needlessly complicated" and needs to be
+// "designed better and clearer". So it works like asking someone: one big box on a mint tile, the best answer shown in
+// full right under it (steps + a button to the page), a few other matches as one-line links, and two buttons at the
+// foot: take the tour, ask a person. Answers are the platform's own (help/articles.js, bundled), in the shop's words.
+import { useMemo, useState } from "react";
+import { ArrowRight, Search } from "lucide-react";
 import { articlesFor } from "@help/articles.js";
-import { SearchField, SecondaryButton } from "./riso/components";
+import { PrimaryButton, SecondaryButton } from "./riso/components";
 import { helpList, wherePage, type HelpEntry } from "./helpAnswers";
 import "./help.css";
 
@@ -15,43 +16,58 @@ export function HelpPage({ combined, sells, askUrl, onTour, onOpen }: {
 }) {
   const list = useMemo<HelpEntry[]>(() => articlesFor(combined ? "both" : "shop", sells), [combined, sells]);
   const [text, setText] = useState("");
-  const [open, setOpen] = useState("");
-  const base = useId();
-  const shown = helpList(list, { text, topic: "All" });
+  const [picked, setPicked] = useState("");
+  const typed = text.trim();
+  const found = helpList(list, { text, topic: "All" }).items;
+  const best = found.find((a) => a.id === picked) ?? (typed ? found[0] : undefined);
+  const others = (typed ? found : found.slice(0, 4)).filter((a) => a !== best).slice(0, typed ? 4 : 4);
+  const page = best && (best.where || []).map((p) => ({ path: p, page: wherePage(p, { combined }) })).find((p) => p.page);
 
   return (
     <div className="rp-help-page">
-      <SearchField label="Search help" className="rp-help-search" placeholder="Search help" value={text}
-        onChange={(e) => { setText(e.target.value); setOpen(""); }} />
-      {shown.items.length ? (
-        <ul className="rp-help-list" aria-live="polite">
-          {shown.items.map((a) => {
-            const isOpen = open === a.id;
-            const panel = `${base}-${a.id}`;
-            const page = (a.where || []).map((p) => ({ path: p, page: wherePage(p, { combined }) })).find((p) => p.page);
-            return (
-              <li key={a.id} className="rp-help-item" data-open={isOpen || undefined}>
-                <button type="button" className="rp-help-q" aria-expanded={isOpen} aria-controls={panel} onClick={() => setOpen(isOpen ? "" : a.id)}>
-                  <span>{a.question}</span><ChevronDown size={18} aria-hidden />
-                </button>
-                {isOpen && (
-                  <div id={panel} className="rp-help-a">
-                    {a.answer.map((line) => <p key={line}>{line}</p>)}
-                    {a.steps?.length ? <ol>{a.steps.map((s) => <li key={s}>{s}</li>)}</ol> : null}
-                    {page?.page && <div><SecondaryButton size="sm" onClick={() => onOpen(page.page!)}>Go to {page.path}</SecondaryButton></div>}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="rp-help-none">Nothing found for “{text.trim()}”. Try one word.</p>
+      <section className="rp-help-ask" aria-label="Ask a question">
+        <h2 className="rp-help-ask-title">What do you need help with?</h2>
+        <label className="rp-help-box">
+          <Search size={20} aria-hidden />
+          <span className="rp-sr-only">Your question</span>
+          <input type="text" value={text} placeholder="e.g. How do I set shipping prices?" autoFocus
+            onChange={(e) => { setText(e.target.value); setPicked(""); }} />
+        </label>
+      </section>
+
+      {best && (
+        <article className="rp-help-answer" aria-live="polite">
+          <h3>{best.question}</h3>
+          {best.answer.map((line) => <p key={line}>{line}</p>)}
+          {best.steps?.length ? <ol>{best.steps.map((s) => <li key={s}>{s}</li>)}</ol> : null}
+          {page?.page && <div><PrimaryButton size="sm" onClick={() => onOpen(page.page!)}>Go to {page.path}</PrimaryButton></div>}
+        </article>
       )}
-      <p className="rp-help-foot">
-        <button type="button" className="rp-help-link" onClick={() => onTour(0)}>Take the tour</button>
-        {askUrl && <> · <a className="rp-help-link" href={askUrl}>Ask a person</a></>}
-      </p>
+
+      {typed && !best && (
+        <article className="rp-help-answer rp-help-answer-none" aria-live="polite">
+          <h3>We don't have an answer for that yet.</h3>
+          <p>{askUrl ? "Ask a person and we'll write back by email." : "Try fewer words."}</p>
+        </article>
+      )}
+
+      {others.length > 0 && (
+        <nav className="rp-help-more" aria-label={typed ? "Other answers" : "Common questions"}>
+          <h3>{typed ? "Other answers" : "Common questions"}</h3>
+          <ul>
+            {others.map((a) => (
+              <li key={a.id}>
+                <button type="button" onClick={() => setPicked(a.id)}><span>{a.question}</span><ArrowRight size={16} aria-hidden /></button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
+      <div className="rp-help-foot">
+        <SecondaryButton onClick={() => onTour(0)}>Take the tour</SecondaryButton>
+        {askUrl && <a className="rp-btn" href={askUrl}>Ask a person</a>}
+      </div>
     </div>
   );
 }

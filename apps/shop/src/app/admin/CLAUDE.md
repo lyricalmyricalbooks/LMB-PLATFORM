@@ -1049,5 +1049,5 @@ One small doc per day; a browser whose clock is off by more than two minutes isn
 `walkthrough/tourSteps.ts` (pure: stops, chapters, `tourFor`, card placement) and `walkthrough/AdminTour.tsx` (welcome, a
 spotlit stop per page, end card). Offered once per owner (`walkthrough/tourStore.ts`, value `tour-2`, device + `adminPrefs`);
 again from Help or the avatar menu. Each stop points at the rail item `[data-nav]`, or on phones the bottom pill / More / menu
-button. A new menu page that matters gets a stop. Help is the `#help` page (one search box, a list, Take the tour · Ask a person; Julian 14 Nov: keep it simple, and help is admin-only: the public site has no Help link) (`HelpPage.tsx`, pure `helpAnswers.ts`), reading the
+button. A new menu page that matters gets a stop. Help is the `#help` page (ask box on a mint tile, the best answer in full, other matches as links, Take the tour · Ask a person; Julian 14 Nov: keep it simple, and help is admin-only: the public site has no Help link) (`HelpPage.tsx`, pure `helpAnswers.ts`), reading the
 platform's `help/articles.js` through the `@help` alias. Fixture: `admin-fixture.html?tour=1`.
