@@ -632,7 +632,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookTimeWhere", label: "Where label", default: "Where" },
       { key: "bookTimePaid", label: "Payment label", default: "Payment" },
       { key: "bookTimePaidAmount", label: "Paid amount", default: "Paid {amount}", hint: "Use {amount} for what was paid." },
-      { key: "bookTimeAddCalendar", label: "Add to calendar button", default: "Add to calendar" },
+      { key: "bookTimeAddCalendar", label: "Apple Calendar button", default: "Apple Calendar" },
       { key: "bookTimeGoogle", label: "Google Calendar link", default: "Google Calendar" },
       { key: "bookTimeMove", label: "Change time button", default: "Change time" },
       { key: "bookTimeMoveTitle", label: "Change time heading", default: "Pick a new time" },

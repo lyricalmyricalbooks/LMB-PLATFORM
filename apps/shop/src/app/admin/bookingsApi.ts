@@ -62,7 +62,7 @@ function followFromShop(fromIso: string, toIso: string, onRows: (rows: Booking[]
   return onSnapshot(q, (snap) => onRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }))), onError);
 }
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "calendarFeed";
 
 async function adminFromServer(op: AdminOp, body: Record<string, unknown> = {}): Promise<unknown> {
   const idToken = await auth.currentUser?.getIdToken();

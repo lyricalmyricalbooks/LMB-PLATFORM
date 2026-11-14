@@ -21,6 +21,7 @@ exports.freeTimes = freeTimes;
 exports.isFreeTime = isFreeTime;
 exports.customerCanChange = customerCanChange;
 exports.bookingIcs = bookingIcs;
+exports.bookingsFeedIcs = bookingsFeedIcs;
 exports.googleCalendarLink = googleCalendarLink;
 exports.BOOKING_STEPS = [15, 30, 60];
 exports.MAX_SERVICES = 30;
@@ -203,9 +204,27 @@ const icsText = (value) => value.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n")
 function bookingIcs({ id, title, start, end, location = "", details = "", nowMs = Date.now() }) {
     return [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Colophon//Bookings//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        ...icsEvent({ id, title, start, end, location, details }, nowMs),
+        "END:VCALENDAR", "",
+    ].join("\r\n");
+}
+function icsEvent({ id, title, start, end, location = "", details = "" }, nowMs) {
+    return [
         "BEGIN:VEVENT", `UID:${id}@bookings`, `DTSTAMP:${icsTime(nowMs)}`, `DTSTART:${icsTime(start)}`, `DTEND:${icsTime(end)}`,
         `SUMMARY:${icsText(title)}`, ...(location ? [`LOCATION:${icsText(location)}`] : []), ...(details ? [`DESCRIPTION:${icsText(details)}`] : []),
-        "END:VEVENT", "END:VCALENDAR", "",
+        "END:VEVENT",
+    ];
+}
+/**
+ * The owner's calendar feed: every booking as one calendar that Google or Apple Calendar subscribes to and refreshes
+ * by itself. `name` is what the calendar is called in their app.
+ */
+function bookingsFeedIcs(name, events, nowMs = Date.now()) {
+    return [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Colophon//Bookings//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        `X-WR-CALNAME:${icsText(name)}`, "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H",
+        ...events.flatMap((e) => icsEvent(e, nowMs)),
+        "END:VCALENDAR", "",
     ].join("\r\n");
 }
 /** A link that opens Google Calendar with the booking filled in. */

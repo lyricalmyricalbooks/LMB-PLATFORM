@@ -270,6 +270,53 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
   );
 }
 
+/** The owner's private calendar link: Google or Apple Calendar subscribes to it and shows every booking. */
+function CalendarTile() {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState("");
+  const [ask, confirmNode] = useConfirm();
+  const fetchLink = async (renew: boolean) => {
+    setBusy(renew ? "renew" : "get");
+    try {
+      const r = await bookingsAdmin<{ path: string }>("calendarFeed", { renew });
+      setUrl(new URL(r.path, window.location.origin).toString());
+      if (renew) toast.success("New link made. The old one has stopped working.");
+    } catch (e: any) {
+      toast.error(e?.message || "The calendar link couldn't be made. Please try again.");
+    } finally {
+      setBusy("");
+    }
+  };
+  const renew = async () => {
+    if (!(await ask({ title: "Make a new calendar link?", message: "The old link stops working, so any calendar using it stops getting bookings. Add the new link to your calendar afterwards.", confirmLabel: "Make new link" }))) return;
+    await fetchLink(true);
+  };
+  const webcal = url.replace(/^https?:/, "webcal:");
+  return (
+    <section className="bkg-tile">
+      <h2 className="bkg-tile-title">Your calendar</h2>
+      <p className="bkg-cal-text">See every booking in Google Calendar or Apple Calendar. New and changed bookings show up there by themselves.</p>
+      {!url ? (
+        <PrimaryButton onClick={() => void fetchLink(false)} busy={busy === "get"}><CalendarPlus size={16} aria-hidden /> Connect a calendar</PrimaryButton>
+      ) : (
+        <div className="bkg-cal">
+          <div className="bkg-cal-actions">
+            <a className="bkg-cal-btn" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`} target="_blank" rel="noopener noreferrer">Add to Google Calendar <ExternalLink size={14} aria-hidden /></a>
+            <a className="bkg-cal-btn" href={webcal}>Add to Apple Calendar</a>
+          </div>
+          <div className="bkg-link">
+            <code>{url}</code>
+            <IconButton label="Copy calendar link" onClick={() => void copyText(url, "Calendar link")}><Copy size={16} aria-hidden /></IconButton>
+          </div>
+          <p className="bkg-cal-note">Keep this link private: anyone with it can see your bookings. Google can take a few hours to show changes; Apple checks every hour.</p>
+          <GhostButton size="sm" onClick={() => void renew()} busy={busy === "renew"}>Make a new link</GhostButton>
+        </div>
+      )}
+      {confirmNode}
+    </section>
+  );
+}
+
 /** Cancels a booking paid by card, refunding all of it, part of it (a shop keeping a deposit) or none. */
 function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number) => Promise<void> }) {
   const [choice, setChoice] = useState<"all" | "part" | "none">("all");
@@ -550,6 +597,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             </ul>
           )}
         </section>
+        <CalendarTile />
       </div>
       {active && <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={() => setForm(saved ? settings : DEFAULT_BOOKING_SETTINGS)} message={saved ? undefined : "Save your hours to start taking bookings."} />}
     </div>

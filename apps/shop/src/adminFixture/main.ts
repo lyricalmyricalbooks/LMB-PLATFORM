@@ -121,6 +121,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "deleteService") services = services.filter((x) => x.id !== id);
     if (op === "saveSettings") settings = { ...settings, ...(body.settings as object) };
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b));
+    if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
     if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));
     if (op === "paidAtShop") rows = rows.map((b) => (b.id === id ? { ...b, paid: true } : b));
     if (op === "move") rows = rows.map((b) => (b.id === id ? { ...b, start: String(body.start), end: plus(String(body.start), b.minutes) } : b));

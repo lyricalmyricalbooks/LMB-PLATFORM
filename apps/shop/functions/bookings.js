@@ -22,7 +22,7 @@
 const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, freeTimes, isFreeTime, daysTouched, addDays, dayOf, isDay, customerCanChange,
-  googleCalendarLink, MAX_SERVICES,
+  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES,
 } = require("./shared/bookingTimes");
 
 const HOLD_MINUTES = 10;
@@ -132,7 +132,7 @@ function bookingActions({
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
       const ended = kind === "cancelled" || kind === "notCleared";
-      const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a></p>`;
+      const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = !ended && key ? risoButton(escapeHtml(manageUrl(id, key)), "See or change your booking", brand.accent, brand.theme) : "";
       const html = risoLayout(`
         <h4 style="margin:0 0 8px;">${escapeHtml({ notCleared: "Payment didn't clear", reminder: "See you soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
@@ -456,6 +456,17 @@ function bookingActions({
         await services().doc(id).delete();
         return res.status(200).json({ ok: true });
       }
+      if (op === "calendarFeed") {
+        // The owner's private calendar link (frontDoor.js answers it). Kept server-only; a new one stops the old.
+        const ref = db.collection("bookingFeed").doc("main");
+        const snap = await ref.get();
+        let token = snap.exists ? snap.data()?.token : "";
+        if (!KEY.test(String(token || "")) || req.body?.renew === true) {
+          token = randomKey();
+          await ref.set({ token, madeAt: now().toISOString(), madeBy: by });
+        }
+        return res.status(200).json({ path: `/calendar/${token}.ics` });
+      }
       if (op === "saveSettings") {
         const next = cleanBookingSettings(req.body?.settings);
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
@@ -611,10 +622,42 @@ function bookingActions({
   return { handlePublic, handleAdmin, sweepHolds, sweepReminders, featureOn };
 }
 
+/**
+ * The owner's calendar feed for frontDoor.js: every booking from a month back, as one calendar Google or Apple Calendar
+ * subscribes to. `db` is the database root; only shops/<shopId>/… is read. null when the link is wrong or Bookings is off.
+ */
+async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now() }) {
+  if (!KEY.test(String(token || ""))) return null;
+  const shop = db.collection("shops").doc(shopId);
+  const [features, feed] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookingFeed").doc("main").get()]);
+  if (features.data()?.bookings !== true || !sameHash(feed.data()?.token, token)) return null;
+  const snap = await shop.collection("bookings").where("status", "in", ["confirmed", "held"]).limit(2000).get();
+  const from = nowMs - 31 * 24 * HOUR;
+  const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .filter((b) => Date.parse(b.end || "") >= from)
+    .map((b) => ({
+      id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "",
+      title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.status === "held" ? " (not paid yet)" : ""}`,
+      details: [b.customer?.email, b.customer?.phone, b.note ? `“${b.note}”` : ""].filter(Boolean).join("\n"),
+    }));
+  return bookingsFeedIcs(shopName ? `${shopName} bookings` : "Bookings", events, nowMs);
+}
+
+/** One booking as a calendar file, for the customer's "Add to Apple Calendar" link. null for a wrong link or a cancelled booking. */
+async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = Date.now() }) {
+  if (!ID.test(String(id || "")) || !KEY.test(String(key || ""))) return null;
+  const shop = db.collection("shops").doc(shopId);
+  const [features, snap] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookings").doc(id).get()]);
+  const b = snap.exists ? snap.data() : null;
+  if (features.data()?.bookings !== true || !b || b.status !== "confirmed") return null;
+  if (!(sameHash(b.manageKeyHash, hash(key)) || (b.reminderKeyHash && sameHash(b.reminderKeyHash, hash(key))))) return null;
+  return bookingIcs({ id, title: shopName ? `${b.serviceName} · ${shopName}` : b.serviceName, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "", nowMs });
+}
+
 const HOUR = 60 * 60 * 1000;
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
 const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingStart", "bookingView", "bookingCancel", "bookingMove"]);
 
-module.exports = { bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
+module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

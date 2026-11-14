@@ -152,3 +152,14 @@
 .rp .bkg-refund-choice[aria-pressed="true"] span { color: inherit; opacity: 0.8; }
 .rp .bkg-refund-choice:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
 @media (max-width: 480px) { .rp .bkg-refund { grid-template-columns: 1fr; } .rp .bkg-refund-choice { min-height: 52px; } }
+
+/* Your calendar: the owner's private link for Google or Apple Calendar */
+.rp .bkg-cal-text { margin: -6px 0 16px; font: 400 14px/1.5 var(--rp-font-body); color: var(--rp-text-muted); }
+.rp .bkg-cal { display: grid; gap: 12px; justify-items: start; }
+.rp .bkg-cal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp .bkg-cal-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: 600 14px/1 var(--rp-font-body); text-decoration: none; }
+.rp .bkg-cal-btn:hover { opacity: 0.88; }
+.rp .bkg-cal-btn:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+.rp .bkg-link { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 6px 6px 6px 12px; border-radius: 12px; background: var(--rp-surface-sunken, var(--rp-bg)); }
+.rp .bkg-link code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12px/1.4 var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp .bkg-cal-note { margin: 0; font: 400 12px/1.5 var(--rp-font-body); color: var(--rp-text-muted); }
