@@ -11,7 +11,9 @@ export const DEFAULT_SOCIAL = { instagram: "" };
 /** The made-up account the starting design used to carry; a shop still showing it is read as having none. */
 export const PLACEHOLDER_INSTAGRAM = "https://www.instagram.com/yourpress";
 
-export const CATEGORIES = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"] as const;
+export const CATEGORIES = ["PUBLICATIONS", "ZINES", "IMPRINT", "OUT OF PRINT"] as const;
+/** The starting menu before 14 November 2026: still recognised as untouched (admin/sells.ts). */
+export const LEGACY_CATEGORIES = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"] as const;
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   // First paint (before Firestore answers) already wears the Riso Noir tokens.

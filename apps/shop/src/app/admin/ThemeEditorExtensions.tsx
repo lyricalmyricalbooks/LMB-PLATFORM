@@ -578,7 +578,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     category: "Commerce",
     defaults: {
       title: "{{shop.name}}",
-      tagline: "An independent publishing house specializing in contemporary photography and art books.",
+      tagline: "An independent press for new writing and well-made books.",
       titleItalic: true,
       productSource: "all",
       manualSlugs: "",

@@ -11,7 +11,7 @@
 
 import type { ProductKind } from "../../shared/productOptions";
 import { DEFAULT_COPY } from "../features/site/storeCopy";
-import { CATEGORIES, PLACEHOLDER_INSTAGRAM } from "../features/site/constants";
+import { CATEGORIES, LEGACY_CATEGORIES, PLACEHOLDER_INSTAGRAM } from "../features/site/constants";
 import { DEFAULT_SHOP_NAME, shopName } from "../../shared/shopIdentity";
 import { DEFAULT_ANNOUNCEMENT, DEFAULT_HERO_SUBTITLE, DEFAULT_SHOP_DESCRIPTION, LEGACY_ANNOUNCEMENT, LEGACY_HERO_SUBTITLE, LEGACY_SHOP_DESCRIPTION } from "./defaultSettings";
 import { sellsBooks, wordsFor, type Sells } from "../../shared/shopSells";
@@ -202,7 +202,7 @@ export function withShopStartFor<T extends Record<string, any>>(settings: T, sig
   }
   if (out.info?.description === LEGACY_SHOP_DESCRIPTION) out.info = { ...out.info, description: DEFAULT_SHOP_DESCRIPTION };
   if (goods) {
-    if (sameList(design.categories, CATEGORIES)) design = { ...design, categories: [] };
+    if (sameList(design.categories, CATEGORIES) || sameList(design.categories, LEGACY_CATEGORIES)) design = { ...design, categories: [] };
     if (isBookDescription(out.info?.description)) {
       out.info = { ...out.info, description: WRITTEN.siteDefaultDescription.replace("{name}", shopName(design)) };
     }
