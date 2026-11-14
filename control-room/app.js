@@ -711,7 +711,7 @@ function testShopTile(shop) {
   return el("div", { className: "rp-card-body", style: "padding-top: 16px", dataset: { testShop: shop.kind } },
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.kindWords }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
     meta(shop.pressName, shop.kind === "books" ? "sells books" : "sells other things", check, on),
-    el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open shop", "primary"), link(shop.adminUrl, "Open admin", "secondary"), reset));
+    el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open shop", "primary"), testShopAdminButton(shop), reset));
 }
 
 // Updates to shops (docs/updating.md), on Today: running or paused, the pause button, and the one button on GitHub that
@@ -755,6 +755,35 @@ async function updatesRow(lastUpdate = null) {
 // ── Launch: the keys and switches presses need, then the whole sign-up tried as a press. ──
 const DEPLOY_WORKFLOW = "https://github.com/lyricalmyricalbooks/LMB-PLATFORM/actions/workflows/deploy.yml";
 const outLink = (href, words, variant = "secondary") => el("a", { href, target: "_blank", rel: "noopener", className: `rp-btn rp-btn-${variant} rp-btn-sm`, textContent: words });
+
+/**
+ * "Open admin" on one of the platform's own test shops: the control room signs you in to it as its owner (POST
+ * /control/test-shop/open) and opens it in a new tab, so there is no Google sign-in on the shop. The tab opens at the
+ * click (pop-up blockers allow that) and is sent on once the sign-in is made; a refusal closes it and says why.
+ */
+function testShopAdminButton(shop, variant = "secondary") {
+  const open = button("Open admin", variant, { disabled: shop.status !== "live" });
+  open.setAttribute("aria-label", `Open admin, signed in: ${shop.pressName}`);
+  open.addEventListener("click", async () => {
+    open.disabled = true;
+    const tab = window.open("", "_blank");
+    try {
+      const { url } = await api("POST", "/control/test-shop/open", { shopId: shop.shopId });
+      if (tab && !tab.closed) {
+        tab.opener = null;
+        tab.location.replace(url);
+      } else {
+        window.open(url, "_blank", "noopener");
+      }
+      status.textContent = `${shop.pressName}'s admin opened in a new tab, signed in as its owner.`;
+    } catch (failure) {
+      tab?.close();
+      status.textContent = failure.message;
+    }
+    open.disabled = shop.status !== "live";
+  });
+  return open;
+}
 
 async function loadLaunch() {
   const checks = $("#launch-checks");
@@ -825,7 +854,7 @@ async function loadLaunch() {
       body: [el("p", { className: "rp-hint", textContent: shop.kind === "books" ? "Try changes here as a press that sells books." : "Try changes here as a shop that sells no books." })],
       actions: el("div", { className: "cr-actions" },
         shop.storefrontUrl ? outLink(shop.storefrontUrl, "Open shop", "primary") : null,
-        shop.adminUrl ? outLink(shop.adminUrl, "Open admin") : null),
+        testShopAdminButton(shop)),
     });
   }) : [sheet({ title: "Your test shops", tone: "warning", pillWords: "Not made yet", body: [el("p", { className: "rp-hint", textContent: "They show here once they're made." })] })];
 
@@ -1361,6 +1390,8 @@ function card(shop) {
       shop.paymentsMoved ? el("dt", { textContent: "Cards" }) : null, shop.paymentsMoved ? el("dd", { textContent: PAYMENT_WORDS[shop.paymentsMoved.to] }) : null),
     shopTodayNotes(shop),
     el("h3", { className: "cr-section", textContent: "Do for this shop" }),
+    // The platform's own test shops: straight in as their owner, and their storefront, before anything else.
+    shop.testShop ? el("div", { className: "cr-do" }, testShopAdminButton(shop, "primary"), shop.siteUrl ? outLink(shop.siteUrl, "Open shop") : null) : null,
     el("div", { className: "cr-do" }, act, change, check, exportButton(shop)),
     accessSlot,
     switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,

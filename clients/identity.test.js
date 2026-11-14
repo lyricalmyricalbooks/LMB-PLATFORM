@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CUSTOM_TOKEN_AUDIENCE, TOKEN_CREATOR, identityClient, projectSigner, testOwnerSession } from "./identity.js";
+import { AUTH_ADMIN, CUSTOM_TOKEN_AUDIENCE, TOKEN_CREATOR, identityClient, projectSigner, testOwnerSession } from "./identity.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
 const SA = "release-check@example.com";
@@ -148,5 +148,47 @@ test("a shared shop's test owner signs in on the shop's own list, named on its r
   const row = { ...shop, shopId: "test-press", shared: true, projectId: "lmb-test-shop", tenant: tenantId };
   const session = await testOwnerSession({ identity: identityClient({ fetch, token, now: () => NOW }), shop: row, profile, serviceAccount: SA, now: () => NOW });
   assert.equal(session.user.tenantId, tenantId);
+  fetch.done();
+});
+
+test("Open admin on a test shop: the owner's pass is made on the shop's own list and handed over in the admin's address", async () => {
+  const { testShopOwnerAccess } = await import("../control-room/supportAccess.js");
+  const tenantId = "test-goods-ibf000";
+  const signer = projectSigner("lmb-test-shop");
+  const fetch = scriptedFetch([
+    { method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts:lookup", body: { email: ["owner@example.com"], tenantId }, json: {} },
+    { method: "POST", url: "https://identitytoolkit.googleapis.com/v1/projects/lmb-test-shop/accounts", body: { email: "owner@example.com", emailVerified: true, tenantId }, json: { localId: "owner-uid" } },
+    {
+      method: "POST",
+      url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(signer)}:signJwt`,
+      body: { payload: JSON.stringify({ iss: signer, sub: signer, aud: CUSTOM_TOKEN_AUDIENCE, iat: IAT, exp: IAT + 3600, uid: "owner-uid", tenant_id: tenantId }) },
+      json: { keyId: "k", signedJwt: "owner.jwt" },
+    },
+  ]);
+  const rows = {
+    "test-goods": { shopId: "test-goods", ownerEmail: "owner@example.com", testShop: true, shared: true, tenant: tenantId },
+    "a-press": { shopId: "a-press", ownerEmail: "press@example.com", status: "live" },
+  };
+  const registry = {
+    getShop: async (id) => rows[id] ?? null,
+    getProfile: async (id) => ({ siteUrl: `https://${id}.example`, firebase: { apiKey: "AIzaFakeKey", projectId: "lmb-test-shop" } }),
+  };
+  const access = testShopOwnerAccess({ identity: identityClient({ fetch, token, now: () => NOW, signRetries: 0 }), registry });
+  assert.deepEqual(await access.testOwnerSignIn("test-goods"), { url: "https://test-goods.example/admin/#support=owner.jwt" });
+  await assert.rejects(access.testOwnerSignIn("a-press"), /not the platform's test shop/);
+  fetch.done();
+});
+
+test("a project role is added once: a second run changes nothing", async () => {
+  const member = "serviceAccount:platform-api@lmb-platform-prod.iam.gserviceaccount.com";
+  const url = "https://cloudresourcemanager.googleapis.com/v1/projects/lmb-test-shop";
+  const fetch = scriptedFetch([
+    { method: "POST", url: `${url}:getIamPolicy`, body: { options: { requestedPolicyVersion: 3 } }, json: { etag: "e1", bindings: [{ role: "roles/owner", members: ["user:owner@example.com"] }] } },
+    { method: "POST", url: `${url}:setIamPolicy`, body: { policy: { etag: "e1", bindings: [{ role: "roles/owner", members: ["user:owner@example.com"] }, { role: AUTH_ADMIN, members: [member] }], version: 3 } }, json: {} },
+    { method: "POST", url: `${url}:getIamPolicy`, body: { options: { requestedPolicyVersion: 3 } }, json: { etag: "e2", bindings: [{ role: AUTH_ADMIN, members: [member] }] } },
+  ]);
+  const identity = identityClient({ fetch, token });
+  assert.deepEqual(await identity.allowProjectRole("lmb-test-shop", AUTH_ADMIN, member), { changed: true });
+  assert.deepEqual(await identity.allowProjectRole("lmb-test-shop", AUTH_ADMIN, member), { changed: false });
   fetch.done();
 });

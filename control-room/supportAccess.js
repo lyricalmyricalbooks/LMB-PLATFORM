@@ -6,6 +6,8 @@
 //
 // The token is signed by the platform's service account through IAM (clients/identity.js); it works for one hour at
 // most and `until` is never later than that. It is made only after the control room has logged the visit.
+import { projectSigner, testOwnerToken } from "../clients/identity.js";
+
 export const SUPPORT_UID = "colophon-support";
 export const MAX_MINUTES = 60;
 
@@ -48,6 +50,28 @@ export function supportAccess({ identity, registry, serviceAccount, shopData = n
           codesLeft: backup ? (Array.isArray(backup.hashes) ? backup.hashes.length : 0) : person.found && shopData ? 0 : null, codesMadeAt: backup?.madeAt ?? null, lastSignInAt: person.lastSignInAt ?? null });
       }
       return out;
+    },
+  };
+}
+
+/**
+ * "Open admin" on the platform's own test shops (control room Today and Launch): the owner of a test shop is the
+ * platform's admin, so the control room signs them straight in as that owner, with no Google pop-up and no visit to
+ * approve. The token is made for the owner's own account on the shop's sign-in list (made, email verified, if it isn't
+ * there yet) and handed over as `#support=<token>`, which the shop's admin already signs in with (supportSession.ts); a
+ * token without a support visit in it is an ordinary owner sign-in. Never for a press's shop.
+ *
+ * The platform's server needs, on the test project, Service Account Token Creator on its Firebase admin account and
+ * Firebase Authentication Admin: "Make the test shop" gives both (setup/make-test-shop.js allowPlatformSignIn).
+ */
+export function testShopOwnerAccess({ identity, registry }) {
+  return {
+    async testOwnerSignIn(shopId) {
+      const shop = await registry.getShop(shopId);
+      const profile = await registry.getProfile(shopId);
+      if (!profile?.siteUrl || !profile.firebase?.projectId) throw new Error(`${shopId} has no shop admin to open`);
+      const { customToken } = await testOwnerToken({ identity, shop, profile, serviceAccount: projectSigner(profile.firebase.projectId) });
+      return { url: `${profile.siteUrl}/admin/#support=${customToken}` };
     },
   };
 }

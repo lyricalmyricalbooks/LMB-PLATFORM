@@ -39,7 +39,8 @@ import { firstSharedRelease, sharedProjectProfile } from "../services/release-ru
 import { commandTail } from "../services/release-runner/run.js";
 import { TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
 import { firestoreClient } from "../clients/firestore.js";
-import { identityClient, projectSigner } from "../clients/identity.js";
+import { AUTH_ADMIN, identityClient, projectSigner } from "../clients/identity.js";
+import { API_SERVICE } from "../server/schedules.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { firestoreAccounts, firestoreSentLog } from "../clients/stores.js";
 import { createEmailService, hasEmailSending } from "../services/email/index.js";
@@ -150,6 +151,9 @@ export async function retireOldTestShop({ registry, apply, print = () => {}, now
   return { changed: true };
 }
 
+/** The platform server's own account (the web door, server/deploy.js ACCOUNTS): the control room runs in it. */
+export const PLATFORM_SERVER_ACCOUNT = `${API_SERVICE}@${PLATFORM_PROJECT}.iam.gserviceaccount.com`;
+
 /**
  * The whole run, with its clients passed in (tests use fakes): `google`, `registry`, `auditLog`, `stepClients` (what
  * sharedShopSteps takes), `deploy` and `builder` (the first release), `makerConfig()` (sharedMakerConfig) and
@@ -158,7 +162,7 @@ export async function retireOldTestShop({ registry, apply, print = () => {}, now
  */
 export async function makeTestShopWith({
   apply, ownerEmail, version = FIRST_RELEASE, google, registry, auditLog, stepClients, deploy, builder, makerConfig, publishPages, copySite = null,
-  allowOwnerSigning = null, connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
+  allowOwnerSigning = null, allowPlatformSignIn = null, connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
 }) {
   testShop(ownerEmail); // the owner's address is checked before anything is touched
   print(`The shared test project ${TEST_PROJECT}:`);
@@ -186,6 +190,17 @@ export async function makeTestShopWith({
       print(changed ? "The deploy account may now sign the test owner's sign-in." : "The deploy account may sign the test owner's sign-in.");
     } catch (error) {
       return { ok: false, stage: "owner-signing", error: `the deploy account couldn't be let sign the test owner's sign-in (${message(error)}); give it Service Account Token Creator on ${projectSigner(TEST_PROJECT)}` };
+    }
+  }
+
+  // The control room's "Open admin" signs the platform's admin in to each test shop as its owner: the platform's server
+  // may sign that pass and add the owner to a test shop's sign-in list (control-room/supportAccess.js).
+  if (allowPlatformSignIn && apply) {
+    try {
+      const { changed } = await allowPlatformSignIn();
+      print(changed ? "The control room may now open the test shops' admins." : "The control room may open the test shops' admins.");
+    } catch (error) {
+      return { ok: false, stage: "platform-sign-in", error: `the platform's server couldn't be let open the test shops' admins (${message(error)}); give ${PLATFORM_SERVER_ACCOUNT} Service Account Token Creator on ${projectSigner(TEST_PROJECT)} and Firebase Authentication Admin on ${TEST_PROJECT}` };
     }
   }
 
@@ -327,6 +342,13 @@ export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = p
       if (!account) throw new Error("this run's own account isn't known (DEPLOY_ACCOUNT)");
       const member = `${account.endsWith(".gserviceaccount.com") ? "serviceAccount" : "user"}:${account}`;
       return identityClient({ fetch, token }).allowSigning(serviceAccount, member);
+    },
+    async allowPlatformSignIn() {
+      const identity = identityClient({ fetch, token });
+      const member = `serviceAccount:${PLATFORM_SERVER_ACCOUNT}`;
+      const signing = await identity.allowSigning(serviceAccount, member);
+      const auth = await identity.allowProjectRole(TEST_PROJECT, AUTH_ADMIN, member);
+      return { changed: signing.changed || auth.changed };
     },
     // Payments and email join when the workflow hands this script their keys (platformServices).
     connected: { 7: Boolean(clients.providers.stripe), 8: Boolean(clients.email) },
