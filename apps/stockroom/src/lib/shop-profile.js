@@ -28,20 +28,6 @@ export const DEFAULT_SHOP_PROFILE = Object.freeze({
   stockroom: Object.freeze({ firestoreDatabase: 'stockroom', storageBucket: 'lmb-test-stockroom-stockroom' }),
 });
 
-/**
- * Things one press needed once that a new shop doesn't (plan 1.17). Each is off unless the profile's `switches` turns it
- * on with `true`; the test shop's profile names none, so all are off. The shop reads the same list
- * (apps/shop/src/lib/shopProfile.ts SHOP_SWITCHES).
- *   gmailReceiptFinder      Tax Centre › Email Receipt Import's Gmail Finder and Gmail Import tabs (src/features/receipts.js)
- *   gmailOrderScan          Orders › Scan Gmail and Backfill shipping info: order receipts read from Gmail through Apps
- *                           Script (src/main.js fetchOrders, src/features/shipping.js backfillShipping)
- *   oldShopSync             the tab for the press's old shop system, its missing-orders check, the Orders strip and the
- *                           order watch (src/features/bigcartel.js applyOldShopSyncSwitch). Off, nothing names it.
- *   legacyStockroomSignIn   the shop's admin also signs into a separate stockroom project (read by the shop)
- *   githubPagesForwarding   an old GitHub Pages address forwards to the shop (read by the shop)
- */
-export const SHOP_SWITCHES = Object.freeze(['legacyStockroomSignIn', 'githubPagesForwarding', 'gmailReceiptFinder', 'gmailOrderScan', 'oldShopSync']);
-
 const FIREBASE_KEYS = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const text = (value) => typeof value === 'string' && value.trim() !== '';
 // The format's patterns for the stockroom's own named database and bucket (profile/shop-profile.schema.json).
@@ -83,9 +69,6 @@ export function parseShopProfile(value) {
   if (!apps || typeof apps.shop !== 'boolean' || typeof apps.stockroom !== 'boolean') return null;
   const place = stockroomPlace(value.stockroom);
   if (place === undefined) return null;
-  // Only the switches turned on are kept; an unknown name or a non-true value is simply off.
-  const switches = value.switches && typeof value.switches === 'object' ? value.switches : {};
-  const on = SHOP_SWITCHES.filter((name) => switches[name] === true);
   if (value.name !== undefined && (typeof value.name !== 'string' || !value.name.length || value.name.length > 80)) return null;
   // The shop's own sign-in list (the shared system), as profile/shop-profile.schema.json `tenant`.
   if (value.tenant !== undefined && !(typeof value.tenant === 'string' && TENANT.test(value.tenant))) return null;
@@ -105,7 +88,6 @@ export function parseShopProfile(value) {
     apps: { shop: apps.shop, stockroom: apps.stockroom },
     ...(place ? { stockroom: place } : {}),
     ...(paymentMode(value.payments) ? { payments: { mode: paymentMode(value.payments) } } : {}),
-    ...(on.length ? { switches: Object.fromEntries(on.map((name) => [name, true])) } : {}),
   };
 }
 
@@ -138,10 +120,6 @@ export function hasWebsite(profile = shopProfile) {
   return profile === DEFAULT_SHOP_PROFILE || profile?.apps?.shop === true;
 }
 
-/** Whether the profile turns this one-off on. Anything but `true` is off. */
-export function switchOn(name, profile = shopProfile) {
-  return profile?.switches?.[name] === true;
-}
 
 /** The profile the page opened with, or the test project when there is none. */
 export function readShopProfile(source = typeof window === 'undefined' ? undefined : window.__SHOP_PROFILE__) {

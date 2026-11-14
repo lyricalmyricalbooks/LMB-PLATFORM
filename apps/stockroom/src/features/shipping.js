@@ -244,7 +244,7 @@ import {
   postageTrackingIndex,
 } from '../lib/postage-intake.js';
 import { parseShippingEmail, shippingEmailQuery, trackingEmailQuery } from '../lib/shipping-email.js';
-import { fileStem, readShopProfile, switchOn } from '../lib/shop-profile.js';
+import { fileStem } from '../lib/shop-profile.js';
 import {
   assessLiveShippingReadiness,
   inspectZonosAccountKey,
@@ -341,8 +341,8 @@ function renderOrderShippingSummary(order) {
 }
 
 async function backfillShipping() {
-  // Reads the publisher's Gmail, so it follows the gmailOrderScan switch like Scan Gmail (plan 1.17).
-  if (!switchOn('gmailOrderScan', readShopProfile())) return;
+  // Read the publisher's Gmail, like Scan Gmail: retired on 14 November 2026 (main.js gmailOrderScanOn).
+  if (!window.gmailOrderScanOn?.()) return;
   const log = 'log-web';
   const btn = $('backfill-shipping-btn');
   if (!sheetsUrl) {
