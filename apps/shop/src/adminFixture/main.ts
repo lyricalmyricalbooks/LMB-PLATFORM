@@ -104,6 +104,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
     booking("bk-6", services[0], at(-1, 16), "Fay Example", { noShow: true }),
+    booking("bk-7", services[1], at(1, 15), "Gus Example", { status: "held", paid: false, clearing: true }),
   ] : [];
   const watchers = new Set<() => void>();
   const changed = () => watchers.forEach((w) => w());

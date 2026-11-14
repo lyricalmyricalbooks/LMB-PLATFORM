@@ -293,7 +293,7 @@ describe("the owner", () => {
     expect((await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-21", "09:30"), ...CUSTOMER })).statusCode).toBe(409);
     expect((await t.adm({ op: "noShow", id: c.body.id })).body.ok).toBe(true);
     expect(t.db.store.get(`bookings/${c.body.id}`).noShow).toBe(true);
-    expect((await t.adm({ op: "cancel", id: c.body.id, refund: true })).body).toEqual({ ok: true, refunded: false });
+    expect((await t.adm({ op: "cancel", id: c.body.id, refund: true })).body).toEqual({ ok: true, refunded: false, refundMinor: 0 });
     expect(t.db.store.get(`bookings/${c.body.id}`).status).toBe("cancelled");
   });
 
@@ -318,7 +318,7 @@ describe("the day-before reminder", () => {
     const t = setup();
     await t.seed();
     const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
-    const sent = () => t.emails.filter((m) => String(m.subject).startsWith("Tomorrow:")).length;
+    const sent = () => t.emails.filter((m) => String(m.subject).startsWith("Coming up:")).length;
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
     t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 1 });
@@ -346,5 +346,68 @@ describe("slower ways to pay", () => {
     expect(t.db.store.get("bookings/booking001").status).toBe("held");
     t.sessions.get("cs_test_00000000").payment_status = "paid";
     expect(await t.desk.sweepHolds()).toEqual({ confirmed: 1, freed: 0 });
+  });
+});
+
+describe("reminder choices and its own link", () => {
+  test("the reminder's link opens the booking, and the first link still works", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
+    await t.desk.sweepReminders();
+    const mail = t.emails.find((m) => String(m.subject).startsWith("Coming up:"));
+    const key = /key=([a-f0-9]+)/.exec(mail.html)[1];
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).statusCode).toBe(200);
+    // The test's keys repeat, so prove the reminder's own hash opens it with the first one gone.
+    t.db.store.get(`bookings/${r.body.id}`).manageKeyHash = "0".repeat(64);
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key })).statusCode).toBe(200);
+  });
+
+  test("an owner who turns reminders off sends none, and 48 hours sends earlier", async () => {
+    const t = setup();
+    await t.seed();
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "10:00"), ...CUSTOMER });
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "12:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+    await t.db.collection("bookingSettings").doc("main").set({ reminderHours: 48 }, { merge: true });
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 1 });
+    await t.db.collection("bookingSettings").doc("main").set({ reminderHours: 0 }, { merge: true });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "14:00"), name: "Bo", email: "bo@example.com" });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "20:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+  });
+});
+
+describe("the owner's partial refund", () => {
+  test("refunds only the part the owner chose, and never more than was paid", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_9" });
+    await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect((await t.adm({ op: "cancel", id: r.body.id, refundMinor: 5000 })).statusCode).toBe(400);
+    const c = await t.adm({ op: "cancel", id: r.body.id, refundMinor: 1500 });
+    expect(c.body).toEqual({ ok: true, refunded: true, refundMinor: 1500 });
+    expect(t.refunds).toEqual([expect.objectContaining({ amountMinor: 1500, idempotencyKey: "booking-refund-booking001-1500" })]);
+    expect(t.emails.at(-1).html).toMatch(/\$15\.00 of your payment is being refunded/);
+  });
+});
+
+describe("a bank payment that never clears", () => {
+  test("shows as clearing, then frees the time at the start and tells the customer and the owner", async () => {
+    const t = setup();
+    await t.seed();
+    await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-17", "13:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { status: "complete", payment_status: "unpaid" });
+    t.clock.now = new Date(Date.parse("2026-11-16T13:11:00Z"));
+    await t.desk.sweepHolds();
+    expect(t.db.store.get("bookings/booking001").clearing).toBe(true);
+    const before = t.emails.length;
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "13:01")));
+    expect(await t.desk.sweepHolds()).toEqual({ confirmed: 0, freed: 1 });
+    const sent = t.emails.slice(before).map((m) => m.subject);
+    expect(sent.some((s) => s.startsWith("Not booked:"))).toBe(true);
+    expect(sent.some((s) => s.startsWith("[BOOKING] Payment didn't clear"))).toBe(true);
   });
 });

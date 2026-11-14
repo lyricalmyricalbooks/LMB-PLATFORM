@@ -140,3 +140,15 @@
   .rp .bkg-two { grid-template-columns: minmax(0, 1fr); }
   .rp .bkg-facts > div { grid-template-columns: 90px 1fr; }
 }
+
+/* Cancel a paid booking: how much to refund */
+.rp .bkg-refund { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; background: none; }
+.rp .bkg-refund legend { padding: 0; margin-bottom: 8px; font: 600 13px/1.3 var(--rp-font-body); color: var(--rp-text); }
+.rp .bkg-refund-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 64px; padding: 12px 14px; border: 1px solid var(--rp-border); border-radius: 14px; background: var(--rp-surface); color: var(--rp-text); text-align: left; cursor: pointer; }
+.rp .bkg-refund-choice strong { font: 600 15px/1.2 var(--rp-font-body); }
+.rp .bkg-refund-choice span { font: 500 12px/1.3 var(--rp-font-mono); color: var(--rp-text-muted); font-variant-numeric: tabular-nums; }
+.rp .bkg-refund-choice:hover { border-color: var(--rp-text); }
+.rp .bkg-refund-choice[aria-pressed="true"] { background: var(--rp-inverse); border-color: var(--rp-inverse); color: var(--rp-on-inverse); }
+.rp .bkg-refund-choice[aria-pressed="true"] span { color: inherit; opacity: 0.8; }
+.rp .bkg-refund-choice:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+@media (max-width: 480px) { .rp .bkg-refund { grid-template-columns: 1fr; } .rp .bkg-refund-choice { min-height: 52px; } }

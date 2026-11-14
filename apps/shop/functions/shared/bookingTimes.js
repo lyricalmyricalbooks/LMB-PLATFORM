@@ -8,7 +8,7 @@
 // week, with days off. A time is free when it fits inside the day's hours, is far enough ahead, isn't past the last day
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time in phase 1.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = void 0;
+exports.isDay = exports.weekdayOf = exports.REMINDER_HOURS = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = void 0;
 exports.cleanService = cleanService;
 exports.cleanBookingSettings = cleanBookingSettings;
 exports.zonedTime = zonedTime;
@@ -36,7 +36,10 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     maxDaysAhead: 60,
     cancelHours: 24,
     step: 30,
+    reminderHours: 24,
 };
+/** The reminder choices the owner picks from: none, or this many hours before. */
+exports.REMINDER_HOURS = [0, 2, 12, 24, 48, 72];
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const whole = (value, min, max, fallback) => {
     const n = Math.round(Number(value));
@@ -99,6 +102,7 @@ function cleanBookingSettings(raw) {
         maxDaysAhead: whole(s.maxDaysAhead, 1, 365, exports.DEFAULT_BOOKING_SETTINGS.maxDaysAhead),
         cancelHours: whole(s.cancelHours, 0, 24 * 14, exports.DEFAULT_BOOKING_SETTINGS.cancelHours),
         step,
+        reminderHours: exports.REMINDER_HOURS.includes(Number(s.reminderHours)) ? Number(s.reminderHours) : exports.DEFAULT_BOOKING_SETTINGS.reminderHours,
     };
 }
 // ── The shop's clock ────────────────────────────────────────────────────────────────────────────────────────────────

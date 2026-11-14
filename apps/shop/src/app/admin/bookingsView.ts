@@ -77,8 +77,9 @@ export function whenFromNow(b: Booking, nowMs: number, zone: string): string {
 }
 
 /** How a booking is paid, in plain words. */
-export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "currency" | "refund" | "status">): string {
-  if (b.refund?.amountMinor) return `Refunded ${moneyText(b.refund.amountMinor, b.currency)}`;
+export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "currency" | "refund" | "status" | "clearing">): string {
+  if (b.refund?.amountMinor) return b.refund.amountMinor < b.priceMinor ? `Refunded ${moneyText(b.refund.amountMinor, b.currency)} of ${moneyText(b.priceMinor, b.currency)}` : `Refunded ${moneyText(b.refund.amountMinor, b.currency)}`;
+  if (b.payment === "card" && !b.paid && b.status === "held" && b.clearing) return "Bank payment clearing";
   if (b.payment === "free") return "Free";
   if (b.payment === "card") return b.paid ? `Paid ${moneyText(b.priceMinor, b.currency)} by card` : b.status === "held" ? "Paying now" : "Not paid";
   return b.paid ? `Paid ${moneyText(b.priceMinor, b.currency)} at the shop` : `${moneyText(b.priceMinor, b.currency)} to pay at the shop`;
