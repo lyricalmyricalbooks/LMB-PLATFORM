@@ -14,7 +14,7 @@ import { hostInZone, normalRecord, relativeHost } from "./domainConnect.js";
  * answer, read 14 November 2026): the card's "Open GoDaddy" button.
  */
 export const SELLERS = Object.freeze([
-  { id: "godaddy", name: "GoDaddy", match: /godaddy/i, open: "https://dcc.godaddy.com/manage/dns", steps: ["Sign in at GoDaddy and open your Domain Portfolio.", "Choose {zone}, then open the tab that lists its lines (it shows a list with Type, Name and Value).", "A new GoDaddy domain comes with lines of its own. Take out the ones marked Take out below first. GoDaddy may show the value of its own line as Parked: that is the one to take out. If GoDaddy won't save a new line, an old line with the same name is still there.", "For each line marked Add below, choose Add New Record, pick its type, copy across its name and value, and save."] },
+  { id: "godaddy", name: "GoDaddy", match: /godaddy/i, open: "https://dcc.godaddy.com/manage/dns", steps: ["Open GoDaddy and choose {zone}.", "Delete each line marked Take out. GoDaddy may show its value as Parked.", "For each line marked Add, press Add New Record, choose the type, then paste the name and value."] },
   { id: "namecheap", name: "Namecheap", match: /namecheap/i, steps: ["Sign in at Namecheap and open Domain List.", "Press Manage next to {zone}, then open the Advanced tab.", "For each line below, press Add New Record, then copy across its kind, name and value, and press the tick to save."] },
   { id: "cloudflare", name: "Cloudflare", match: /cloudflare/i, steps: ["Sign in at Cloudflare and choose {zone}.", "Open Records in the menu on the left.", "For each line below, press Add record, copy across its kind, name and value, and turn the orange cloud off so it shows grey. Then save."] },
   { id: "porkbun", name: "Porkbun", match: /porkbun/i, steps: ["Sign in at Porkbun and open Domain Management.", "Next to {zone}, open Details, then the edit button by the records list.", "For each line below, fill in its kind, name and value, and press Add."] },
@@ -51,7 +51,7 @@ const KINDS = { A: "Address", AAAA: "Address", TXT: "Text", MX: "Mail", CNAME: "
 export function guideFor({ seller = null, zone, domain, records = [] }) {
   const known = SELLERS.find((s) => s.name === seller);
   const steps = (known?.steps ?? GENERIC_STEPS).map((s) => s.replaceAll("{zone}", zone));
-  steps.push("If a name is @, some sellers want that box left empty. Changes can take a few hours to reach everyone; we check every few minutes.");
+  steps.push("If a name is @ and the box won't take it, leave it empty.");
   const lines = [];
   for (const raw of records) {
     const r = normalRecord(raw, domain);

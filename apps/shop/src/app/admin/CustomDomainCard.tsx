@@ -196,21 +196,12 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
             {main && (
               <div className="rp-stack" style={{ gap: 4 }} data-domain-main>
                 <p style={{ margin: 0 }}>Your main address: <strong style={{ overflowWrap: "anywhere" }}>{main}</strong></p>
-                <p className="rp-hint" style={{ margin: 0 }}>Emails, the links in them and Google use your main address.</p>
+                
                 {own && main !== own && (
                   <div className="rp-card-actions">
                     <SecondaryButton size="sm" disabled={!!busy} busy={busy === `main:${own}`} onClick={() => makeMain(own)}>Go back to {own}</SecondaryButton>
                   </div>
                 )}
-              </div>
-            )}
-            {domains.filter((d) => !d.free).length === 0 && (
-              <div className="rp-stack" style={{ gap: 8 }} data-no-domain>
-                <p className="rp-hint" style={{ margin: 0 }}>Already have a domain? Add it below: it stays with the company you bought it from, and you keep your email there.</p>
-                <p className="rp-hint" style={{ margin: 0 }}>No domain yet? Buy one, then come back and add it below.</p>
-                <div className="rp-card-actions">
-                  <a className="rp-btn rp-btn-secondary rp-btn-sm" href={BUY_DOMAIN_URL} target="_blank" rel="noopener noreferrer" data-buy-domain style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><BrandLogo id="godaddy" size="sm" />Find a domain at GoDaddy</a>
-                </div>
               </div>
             )}
             {domains.map((d) => {
@@ -238,7 +229,7 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                       ))}
                     </ol>
                   )}
-                  <p className="rp-hint" style={{ margin: "8px 0 0" }}>{info.text}</p>
+                  {!d.sendsTo && !(d.free && state === "live") && <p className="rp-hint" style={{ margin: "8px 0 0" }}>{info.text}</p>}
                   {state !== "live" && !d.free && found?.allowUrl && (
                     <div className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-allow>
                       <p style={{ margin: 0 }}>{found.seller ? `${found.seller} will ask you to sign in and say yes. That is all it takes.` : "Your domain seller will ask you to sign in and say yes. That is all it takes."}</p>
@@ -252,22 +243,25 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                       <summary style={{ cursor: "pointer", fontWeight: 600 }}>{d.sendsTo ? `Lines for ${d.name}, so it works too` : found?.allowUrl ? "Prefer to do it yourself?" : `Connect ${d.name} yourself`}</summary>
                       {/* The partner address is added in the same place as the one above: only its lines are new. */}
                       {!d.sendsTo && <>
-                        <p className="rp-hint" style={{ margin: "8px 0 0" }}>{moveWarning(d.name).message}</p>
+                        <p className="rp-hint" style={{ margin: "8px 0 0" }}>Your old site stops showing here once these are in. Your shop's own address keeps working.</p>
                         <ol style={{ margin: "8px 0", paddingLeft: 22, listStyle: "decimal" }}>
                           {guide.steps.map((step, i) => <li key={i} style={{ marginBottom: 4 }}>{step}</li>)}
                         </ol>
                       </>}
                       <div className="rp-stack" style={{ gap: 8, marginTop: 8 }}>
                         {guide.lines.map((line, i) => (
-                          <div key={i} className="rp-card" style={{ padding: 12, boxShadow: "none" }} data-guide-line>
-                            <strong>{guideLineTitle(line)}</strong>
-                            <span className="rp-hint"> · {guideLineKind(line)}</span>
-                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "8px 12px", alignItems: "center", marginTop: 8 }}>
-                              <span><span className="rp-hint" style={{ display: "block" }}>Name</span><span style={{ fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.name}</span></span>
-                              <SecondaryButton size="sm" onClick={() => copyText(line.name, "Name")}>Copy name</SecondaryButton>
-                              <span><span className="rp-hint" style={{ display: "block" }}>Value</span><span style={{ fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.value}</span></span>
-                              <SecondaryButton size="sm" onClick={() => copyText(line.value, "Value")}>Copy value</SecondaryButton>
+                          <div key={i} className="rp-card" style={{ padding: "10px 12px", boxShadow: "none", display: "grid", gap: 6 }} data-guide-line>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                              <StatusBadge glyph={false} tone={line.action === "add" ? "success" : "warning"}>{guideLineTitle(line)}</StatusBadge>
+                              <span className="rp-hint">{guideLineKind(line)}</span>
                             </div>
+                            {([["Name", line.name], ["Value", line.value]] as const).map(([label, value]) => (
+                              <div key={label} style={{ display: "grid", gridTemplateColumns: "56px minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
+                                <span className="rp-hint">{label}</span>
+                                <span style={{ fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{value}</span>
+                                <SecondaryButton size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => copyText(value, label)}>Copy</SecondaryButton>
+                              </div>
+                            ))}
                           </div>
                         ))}
                       </div>
@@ -279,7 +273,7 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                       </div>
                     </details>
                   )}
-                  {(found?.state ?? d.state) === "live" && (
+                  {(found?.state ?? d.state) === "live" && !d.free && !d.sendsTo && (
                     <p className="rp-hint" style={{ margin: "8px 0 0" }}>
                       {found?.paymentDomain === "failed" ? "Apple Pay and Google Pay will be turned on here at the next check." : "Apple Pay and Google Pay work on this address."}
                     </p>
@@ -318,11 +312,14 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
             })}
             {domains.filter((d) => !d.free).length < max && (
               <div className="rp-stack" style={{ gap: 8 }}>
-                <TextField label="Connect an address you own" placeholder="shop.yourpress.com" spellCheck={false} autoCapitalize="none" value={draft}
-                  hint="Your domain stays where you bought it. Type it, press Connect, and we'll take you through the rest."
+                <TextField label="Use a domain you own" placeholder="shop.yourpress.com" spellCheck={false} autoCapitalize="none" value={draft}
+                  hint="It stays where you bought it, and your email there keeps working."
                   onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-                <div className="rp-card-actions">
+                <div className="rp-card-actions" style={{ alignItems: "center" }}>
                   <PrimaryButton disabled={!draft.trim() || !!busy} onClick={add}>{busy === "add" ? "Connecting…" : "Connect"}</PrimaryButton>
+                  {domains.filter((d) => !d.free).length === 0 && (
+                    <a href={BUY_DOMAIN_URL} target="_blank" rel="noopener noreferrer" data-buy-domain style={{ display: "inline-flex", gap: 6, alignItems: "center", color: "var(--rp-text)", textDecoration: "underline" }}>No domain yet? Find one at GoDaddy</a>
+                  )}
                 </div>
               </div>
             )}

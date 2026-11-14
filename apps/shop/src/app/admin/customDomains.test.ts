@@ -4,7 +4,7 @@ import { allowLabel, BUY_DOMAIN_URL, guideLineKind, describeDomain, describeEntr
 describe("Your web address", () => {
   test("each state has a badge and a plain sentence", () => {
     expect(describeDomain("live")).toMatchObject({ tone: "success", label: "Live" });
-    expect(describeDomain("waiting_dns").text).toMatch(/Finish the steps below/);
+    expect(describeDomain("waiting_dns").text).toMatch(/Do the steps below/);
     expect(describeDomain("securing").tone).toBe("info");
     expect(describeDomain("conflict").tone).toBe("danger");
     expect(describeDomain(undefined).label).toBe("Connecting");

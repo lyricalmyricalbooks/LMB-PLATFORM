@@ -37,11 +37,11 @@ type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 /** A badge and one plain sentence for each state. */
 export function describeDomain(state: DomainState | undefined): { tone: Tone; label: string; text: string } {
   switch (state) {
-    case "live": return { tone: "success", label: "Live", text: "Your shop opens at this address, with a secure padlock." };
-    case "securing": return { tone: "info", label: "Securing", text: "The address points at your shop. Google is making its secure certificate, which can take up to a day." };
+    case "live": return { tone: "success", label: "Live", text: "Your shop opens here." };
+    case "securing": return { tone: "info", label: "Securing", text: "Connected. Making it secure, which can take up to a day." };
     case "conflict": return { tone: "danger", label: "In use elsewhere", text: "This address is still tied to another website. Disconnect it there, then press Check again." };
     case "missing": return { tone: "warning", label: "Setting up", text: "Still getting this address ready. Press Check again in a minute." };
-    case "waiting_dns": return { tone: "warning", label: "Waiting for you", text: "Finish the steps below. This page checks by itself, and we email you when the address opens your shop. It can take a few hours." };
+    case "waiting_dns": return { tone: "warning", label: "Waiting for you", text: "Do the steps below. We check by ourselves and email you when it works, usually within a few hours." };
     default: return { tone: "neutral", label: "Connecting", text: "Getting the address ready." };
   }
 }
