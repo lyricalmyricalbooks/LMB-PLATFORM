@@ -707,11 +707,19 @@ export function createControlRoom({
       return { switch: name, to: on, shops };
     },
 
-    /** The switch defaults new shops get (9.7): every switch, off unless saved on. */
+    /**
+     * The switch defaults new shops get (9.7): every switch, off unless saved on. `live` says, per switch, how many of
+     * the live shops have it on (`of` live shops), so the Switches page shows where each one stands today.
+     */
     async newShopSwitches(claims) {
       adminOf(claims, admins, now().getTime());
       const saved = platformState ? await platformState.get(NEW_SHOP_SWITCHES) : null;
-      return { switches: shopSwitches(saved?.values), updatedAt: saved?.updatedAt ?? null, updatedBy: saved?.updatedBy ?? null };
+      const liveRows = (await registry.listShops()).filter((row) => row.status === "live");
+      const profiles = await Promise.all(liveRows.map((row) => registry.getProfile(row.shopId).catch(() => null)));
+      const live = Object.fromEntries(SWITCHES.map((name) => [name, {
+        on: profiles.filter((profile) => shopSwitches(profile?.switches)[name]).length, of: liveRows.length,
+      }]));
+      return { switches: shopSwitches(saved?.values), live, updatedAt: saved?.updatedAt ?? null, updatedBy: saved?.updatedBy ?? null };
     },
 
     async setNewShopSwitch(claims, { name, on, reason } = {}) {

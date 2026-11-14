@@ -739,6 +739,10 @@ test("one switch for every live shop, and the switches new shops start with (pla
   const all = await w.room.switchAll(ADMIN, { name: "oldShopSync", on: true, reason: "turn the old tab on for everyone" });
   assert.deepEqual(all.shops, [{ shopId: ID, changed: true }]);
   assert.equal((await w.registry.getProfile(ID)).switches.oldShopSync, true);
+  // The Switches page sees where each switch stands across the live shops.
+  const { live } = await w.room.newShopSwitches(ADMIN);
+  assert.deepEqual(live.oldShopSync, { on: 1, of: 1 });
+  assert.deepEqual(live.gmailOrderScan, { on: 0, of: 1 });
   await assert.rejects(w.room.switchAll(ADMIN, { name: "nope", on: true, reason: "turn the old tab on" }), { status: 400 });
   await assert.rejects(w.room.switchAll(PRESS, { name: "oldShopSync", on: true, reason: "turn the old tab on" }), { status: 403 });
 

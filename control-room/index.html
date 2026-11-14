@@ -285,11 +285,14 @@
 
             <section data-page="launch" aria-labelledby="h-launch" hidden>
               <div class="rp-page-header">
-                <div><h1 class="rp-page-title" id="h-launch">Launch</h1><p class="rp-page-desc">What the platform needs before brands sign up, then the whole sign-up, tried as a brand.</p></div>
+                <div><h1 class="rp-page-title" id="h-launch">Launch</h1><p class="rp-page-desc">Your to-do list before brands sign up.</p></div>
                 <div class="rp-page-actions"><span id="launch-summary"></span></div>
               </div>
-              <div class="cr-head"><h2>Ready to open?</h2></div>
-              <div id="launch-checks" class="cr-grid"></div>
+              <div id="launch-checks" class="cr-todo"></div>
+              <div class="cr-head"><h2>Your test shops</h2></div>
+              <div id="launch-tests" class="cr-grid"></div>
+              <div class="cr-head"><h2>Extras, when you want them</h2></div>
+              <div id="launch-extras" class="cr-todo"></div>
               <div class="cr-head"><h2 id="launch-walk-title">Try it as a brand</h2><button type="button" id="launch-walk-reset" class="rp-btn rp-btn-ghost rp-btn-sm">Start over</button></div>
               <ol id="launch-walk" class="cr-walk" aria-labelledby="launch-walk-title"></ol>
             </section>
@@ -410,11 +413,10 @@
 
             <section data-page="switches" aria-labelledby="h-switches" hidden>
               <div class="rp-page-header">
-                <div><h1 class="rp-page-title" id="h-switches">Switches</h1><p class="rp-page-desc">Turn one feature on or off for every live shop at once, and choose what a new shop starts with. Each shop's own switches are in its record.</p></div>
+                <div><h1 class="rp-page-title" id="h-switches">Switches</h1><p class="rp-page-desc">Old features one brand needed when it moved here. Leave them off unless a brand asks.</p></div>
               </div>
-              <div id="every-switch" class="cr-grid"></div>
-              <h2 class="rp-page-title" style="font-size: 1.1rem; margin-top: 24px">Is Google ready?</h2>
-              <div id="google-ready" class="cr-grid"></div>
+              <div id="every-switch" class="cr-switch-board"></div>
+              <p class="rp-hint cr-switch-foot">To change one shop only, open it in Shops.</p>
             </section>
 
             <section data-page="settings" aria-labelledby="h-settings" hidden>
