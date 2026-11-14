@@ -390,3 +390,19 @@ test("photo access: the bucket answers browsers for reads only, and says whether
   assert.equal(await google.photoAccess.has(P), true);
   fetch.done();
 });
+
+test("backups: a project whose bucket Firebase doesn't list as the default is found by its name", async () => {
+  const probe = (name, answer) => ({ method: "GET", url: `https://storage.googleapis.com/storage/v1/b/${name}/o?maxResults=1&fields=kind`, ...answer });
+  const { fetch, google } = clients([
+    { method: "GET", url: defaultBucket.url, ...notFound },
+    probe(`${P}.firebasestorage.app`, { status: 403, json: { error: { code: 403, message: "no access" } } }),
+    probe(`${P}.appspot.com`, { json: { kind: "storage#objects" } }),
+    { method: "POST", url: `https://firestore.googleapis.com/v1/projects/${P}/databases/stockroom:exportDocuments`, body: { outputUriPrefix: `gs://${P}.appspot.com/backups/2026-10-28/stockroom-export`, collectionIds: [] }, json: { name: `projects/${P}/databases/stockroom/operations/ex3`, done: true, response: {} } },
+    { method: "GET", url: defaultBucket.url, ...notFound },
+    probe(`${P}.firebasestorage.app`, notFound),
+    probe(`${P}.appspot.com`, notFound),
+  ]);
+  assert.deepEqual(await google.backups.run(P, { database: "stockroom" }), { name: "backups/2026-10-28/" });
+  await assert.rejects(google.backups.run(P), /has no storage bucket yet/);
+  fetch.done();
+});
