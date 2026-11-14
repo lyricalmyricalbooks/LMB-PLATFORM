@@ -33,6 +33,7 @@ export function HelpPage({ combined, sells, askUrl, onTour, onOpen }: {
           <input type="text" value={text} placeholder="e.g. How do I set shipping prices?" autoFocus
             onChange={(e) => { setText(e.target.value); setPicked(""); }} />
         </label>
+        {askUrl && <p className="rp-help-ask-person">Rather talk to someone? <a href={askUrl}>Ask a person</a> and we'll write back by email.</p>}
       </section>
 
       {best && (

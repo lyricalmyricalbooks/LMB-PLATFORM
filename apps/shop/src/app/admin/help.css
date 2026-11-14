@@ -35,3 +35,5 @@
   .rp .rp-help-page .rp-help-ask-title { font-size: 22px; }
   .rp .rp-help-answer, .rp .rp-help-more { padding-left: 20px; padding-right: 20px; }
 }
+.rp .rp-help-ask-person { margin: 0; font-size: 15px; line-height: 1.5; }
+.rp .rp-help-ask-person a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
