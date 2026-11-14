@@ -34,6 +34,7 @@ export function Bookings() {
   const [rowsError, setRowsError] = useState("");
   const [open, setOpen] = useState<Booking | null>(null);
   const [creating, setCreating] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const reloadSetup = () => readBookingSetup().then((s) => { setSetup(s); setSetupError(""); }).catch((e) => setSetupError(e?.message || "Couldn't load your bookings."));
   useEffect(() => { void reloadSetup(); }, []);
@@ -58,6 +59,19 @@ export function Bookings() {
   const weekLabel = thisWeek ? "This week" : `Week of ${dayText(monday)}`;
   const next = nextUp(upcoming, Date.now());
   const noServices = setup.services.length === 0;
+  const live = setup.settings.live;
+  // The owner's on/off switch: one tap, saved at once, nothing else about the hours changes.
+  const setLive = async (next: boolean) => {
+    setSwitching(true);
+    setSetup({ ...setup, settings: { ...setup.settings, live: next } });
+    try {
+      await bookingsAdmin("setLive", { live: next });
+      toast.success(next ? "Bookings are on" : "Bookings are off");
+    } catch (e: any) {
+      setSetup({ ...setup, settings: { ...setup.settings, live: !next } });
+      toast.error(e?.message || "That didn't save. Please try again.");
+    } finally { setSwitching(false); }
+  };
 
   return (
     <div className="bkg-page">
@@ -82,7 +96,7 @@ export function Bookings() {
           ) : (
             <div className="bkg-next-body">
               <span className="bkg-next-who">Nothing booked yet</span>
-              <span className="bkg-next-what">{!setup.services.length ? "Add what customers can book under Services." : setup.settings.live ? "New bookings show here the moment they're made." : "Turn on your bookings page under Hours & rules to take bookings."}</span>
+              <span className="bkg-next-what">{!setup.services.length ? "Add what customers can book under Services." : setup.settings.live ? "New bookings show here the moment they're made." : "Turn Bookings on to start taking them."}</span>
             </div>
           )}
         </div>
@@ -96,9 +110,13 @@ export function Bookings() {
           <p className="bkg-big bkg-big-money">{moneyText(figures.takenMinor, SHOP_CURRENCY)}</p>
           <p className="bkg-sub">{thisWeek ? "this week" : weekLabel.toLowerCase()}</p>
         </div>
-        <div className="bkg-tile bkg-tile-ink bkg-pagecard">
-          <p className="bkg-kicker">Bookings page</p>
-          <p className="bkg-page-state">{setup.settings.live ? "Taking bookings" : "Hidden"}</p>
+        <div className="bkg-tile bkg-tile-ink bkg-pagecard" data-live={live || undefined}>
+          <div className="bkg-switch-row">
+            <p className="bkg-kicker">Bookings</p>
+            <Toggle label={live ? "On" : "Off"} checked={live} disabled={switching || (noServices && !live)} onChange={(v) => void setLive(v)} />
+          </div>
+          <p className="bkg-page-state">{live ? "Taking bookings" : "Not taking bookings"}</p>
+          <p className="bkg-page-note">{noServices && !live ? "Add a service to turn this on." : live ? "Your website shows Book a time." : "Hidden from your website. Bookings already made stay."}</p>
           <div className="bkg-pill-row">
             <button type="button" className="bkg-pill" onClick={() => void copyText(bookPageUrl(), "Link")}><Copy size={14} aria-hidden /> Copy link</button>
             <a className="bkg-pill" href={bookPageUrl()} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden /> View</a>
@@ -516,24 +534,18 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
   const [form, setForm] = useState<BookingSettings>(settings);
   const [saving, setSaving] = useState(false);
   const [newDayOff, setNewDayOff] = useState("");
-  useEffect(() => setForm(settings), [settings]);
-  const dirty = !saved || JSON.stringify(form) !== JSON.stringify(settings);
+  // The on/off switch lives at the top of the page and saves by itself, so flipping it never throws away hours being edited.
+  const hoursOf = JSON.stringify({ ...settings, live: false });
+  useEffect(() => setForm(settings), [hoursOf]);
+  const dirty = !saved || JSON.stringify({ ...form, live: false }) !== hoursOf;
   const setDay = (wd: number, windows: { start: string; end: string }[]) => setForm((f) => ({ ...f, hours: f.hours.map((h, i) => (i === wd ? windows : h)) }));
   const save = async () => {
     setSaving(true);
-    try { await bookingsAdmin("saveSettings", { settings: form }); toast.success(form.live && !settings.live ? "Your bookings page is live" : "Hours saved"); onSaved(); }
+    try { await bookingsAdmin("saveSettings", { settings: { ...form, live: settings.live } }); toast.success("Hours saved"); onSaved(); }
     catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   };
   return (
     <div className="bkg-hours">
-      <div className="bkg-tile bkg-tile-mint bkg-live">
-        <div>
-          <p className="bkg-kicker">Bookings page</p>
-          <p className="bkg-live-words">{form.live ? "Customers can book on your website." : "Hidden from customers."}</p>
-        </div>
-        <Toggle label="Show on my website" checked={form.live} onChange={(v) => setForm({ ...form, live: v })} />
-      </div>
-
       <section className="bkg-tile">
         <h2 className="bkg-tile-title">Opening hours</h2>
         <ul className="bkg-week-hours">

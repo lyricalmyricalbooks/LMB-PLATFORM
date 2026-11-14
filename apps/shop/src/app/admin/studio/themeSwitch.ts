@@ -49,7 +49,7 @@ function styleFields() {
 
 const PAGE_NAMES: Record<string, string> = {
   heroPage: "Home", storefront: "Shop", productPage: "Book page", collectionPage: "Collection page", cartPage: "Bag",
-  page: "Custom pages", page404: "Page not found", wishlistPage: "Wishlist", accountPage: "Account", trackingPage: "Order tracking",
+  page: "Custom pages", page404: "Page not found", wishlistPage: "Wishlist", accountPage: "Account", trackingPage: "Order tracking", bookingsPage: "Book a time",
 };
 const pageName = (surface: string) => PAGE_NAMES[surface] || (surface.startsWith("page:") ? `Page “${surface.slice(5)}”` : surface);
 

@@ -6,6 +6,7 @@ import { navActiveColor } from "./headerNav";
 import { NavDropdown } from "./NavDropdown";
 import { elementScheme } from "./colorSchemes";
 import { CurrencySelector } from "../../CurrencyContext";
+import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
 import { ThemeToggle } from "../../components/theme/ThemeToggle";
@@ -13,6 +14,7 @@ import { ThemeToggle } from "../../components/theme/ThemeToggle";
 export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle = false, everywhere = false }: { design: any; pages: any[]; onSearch: () => void; showThemeToggle?: boolean; everywhere?: boolean }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const { pathname } = useLocation();
+  const bookings = useBookingsLive();
   // A tap or click outside the open menu closes it (like the category drop-downs).
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -32,7 +34,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   const here = (to: string) => pathname.endsWith(to) ? { "aria-current": "page" as const, style: { color: navActiveColor(d) } } : {};
   // Style › Header layout › "Phone navigation style": tabs across the top (default) or the drop-down menu.
   // Header layout › Minimal: the Menu button holds every link on every screen size.
-  if (!everywhere && mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} />;
+  if (!everywhere && mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} bookings={bookings} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} />;
   return <details ref={ref} className={everywhere ? "relative shrink-0" : "md:hidden"} data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
     <summary className={everywhere ? "flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] [&::-webkit-details-marker]:hidden" : "min-h-11 cursor-pointer px-6 py-3 font-semibold"}>
@@ -48,6 +50,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
         {groups.secondary.map(item => item.kind === "page" && <Link key={item.key} className={linkClass} onClick={close} to={`/page/${item.page.slug}`} {...here(`/page/${item.page.slug}`)}>{item.label}</Link>)}
       </div>}
       {!d.hideHeaderSearch && <button className={linkClass} onClick={() => { close(); onSearch(); }}>{getCopy(design, "navSearch")}</button>}
+      {bookingsLinkShown(bookings, d) && <Link className={linkClass} onClick={close} to="/book" {...here("/book")}>{getCopy(design, "bookTimeNavLink")}</Link>}
       {!d.hideHeaderWishlist && <Link className={linkClass} onClick={close} to="/wishlist">{getCopy(design, "ariaWishlist")}</Link>}
       {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
       {!d.hideCurrencySelector && <div className="px-6 py-3 [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
@@ -59,7 +62,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
 /** "tabs" (a sideways-scrolling row of links) unless Studio picked the drop-down "menu". */
 export const mobileNavStyle = (d: any): "tabs" | "menu" => (d?.mobileNavStyle === "menu" ? "menu" : "tabs");
 
-function MobileNavTabs({ design, d, groups, showThemeToggle, pathname, slug }: { design: any; d: any; groups: ReturnType<typeof splitNavigation>; showThemeToggle: boolean; pathname: string; slug: (s: string) => string }) {
+function MobileNavTabs({ design, d, groups, bookings, showThemeToggle, pathname, slug }: { design: any; d: any; groups: ReturnType<typeof splitNavigation>; bookings: boolean; showThemeToggle: boolean; pathname: string; slug: (s: string) => string }) {
   const rowRef = useRef<HTMLDivElement>(null);
   // A category with sub-categories opens a drop-down (All + each sub-category), like the desktop header.
   const tabs: { key: string; to: string; label: string; children?: { key: string; to: string; label: string }[] }[] = [];
@@ -71,6 +74,7 @@ function MobileNavTabs({ design, d, groups, showThemeToggle, pathname, slug }: {
   const secondary: typeof tabs = [];
   if (d.showSecondaryNavigation !== false) for (const item of groups.secondary) if (item.kind === "page") secondary.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label });
   const extras: typeof tabs = [];
+  if (bookingsLinkShown(bookings, d)) extras.push({ key: "bookings", to: "/book", label: getCopy(design, "bookTimeNavLink") });
   if (!d.hideHeaderWishlist) extras.push({ key: "wishlist", to: "/wishlist", label: getCopy(design, "ariaWishlist") });
   if (!d.hideHeaderAccount && accountsEnabled(design)) extras.push({ key: "account", to: "/account", label: getCopy(design, "ariaAccount") });
   const activeKey = [...tabs.flatMap(t => [t, ...(t.children || [])]), ...secondary, ...extras].find(t => pathname.endsWith(t.to))?.key;

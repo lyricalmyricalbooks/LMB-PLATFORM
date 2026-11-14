@@ -24,6 +24,8 @@ const fixture = createStudioFixture({
   // `?media=denied` behaves as if the media library's Firestore rules weren't deployed yet.
   mediaDenied: new URLSearchParams(location.search).get("media") === "denied",
 });
+// `?bookings=1` shows Studio as a shop that takes bookings sees it (the Book a time links in the header and footer).
+if (new URLSearchParams(location.search).has("bookings")) fixture.settings.bookingsLive = true;
 // Version history starts with the published design kept once (Studio › Theme actions › Version history).
 fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 Oct 2026", createdAt: "2026-10-08T15:00:00.000Z", design: JSON.parse(JSON.stringify(fixture.settings.design)) }];
 installFakeStudioApi(adminApi as any, fixture);

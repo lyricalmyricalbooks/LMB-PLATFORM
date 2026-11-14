@@ -284,6 +284,29 @@ describe("the owner", () => {
     expect((await t.adm({ op: "saveSettings", settings: {} })).statusCode).toBe(200);
   });
 
+  test("the owner's on/off switch keeps the hours and tells the website to show or hide its Book a time links", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("settings").doc("website").set({ design: { accent: "#f00" } });
+    await t.adm({ op: "saveSettings", settings: { live: true, step: 15, cancelHours: 48 } });
+    expect((await t.db.collection("settings").doc("website").get()).data()).toEqual({ design: { accent: "#f00" }, bookingsLive: true });
+    const off = await t.adm({ op: "setLive", live: false });
+    expect(off.body.settings).toMatchObject({ live: false, step: 15, cancelHours: 48 });
+    expect((await t.db.collection("settings").doc("website").get()).data().bookingsLive).toBe(false);
+    expect((await t.pub({ action: "bookingInfo" })).body).toEqual({ on: false });
+    const on = await t.adm({ op: "setLive", live: true });
+    expect(on.body.settings).toMatchObject({ live: true, step: 15 });
+    expect((await t.db.collection("settings").doc("website").get()).data().bookingsLive).toBe(true);
+    expect((await t.pub({ action: "bookingInfo" })).body.on).toBe(true);
+  });
+
+  test("a shop with no website settings yet gets none made by the switch", async () => {
+    const t = setup();
+    await t.seed();
+    await t.adm({ op: "setLive", live: true });
+    expect((await t.db.collection("settings").doc("website").get()).exists).toBe(false);
+  });
+
   test("books a customer in outside the hours, cancels with a refund choice, and marks a no-show", async () => {
     const t = setup();
     await t.seed();

@@ -273,6 +273,7 @@ export function previewRoute(href: string, base: string, options: {
   if (path === "wishlist") return { templateId: "wishlistPage" };
   if (path === "account" || path.startsWith("account/")) return { templateId: "accountPage" };
   if (path === "track") return { templateId: "trackingPage" };
+  if (path === "book") return { templateId: "bookingsPage" };
   return { templateId: "page404" };
 }
 

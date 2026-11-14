@@ -6,7 +6,7 @@ export function GroupedFooterNavigation({ settings, pages }: { settings: any; pa
   const d = settings?.design || {};
   const custom = d.menus?.footer?.length > 0;
   const groups = groupedFooterItems(custom ? d.menus.footer : automaticFooterItems(settings, pages));
-  const copyKeys: Record<string, string> = custom ? {} : { "footer-shop": "footerLinkShop", "footer-track": "footerLinkTrack", "footer-instagram": "footerLinkInstagram", "footer-contact": "footerLinkContact" };
+  const copyKeys: Record<string, string> = custom ? {} : { "footer-shop": "footerLinkShop", "footer-track": "footerLinkTrack", "footer-book": "bookTimeFooterLink", "footer-instagram": "footerLinkInstagram", "footer-contact": "footerLinkContact" };
   return <>
     {(["explore", "connect"] as const).map(group => {
       const visible = group === "explore" ? d.showFooterExplore !== false : d.showFooterConnect !== false;

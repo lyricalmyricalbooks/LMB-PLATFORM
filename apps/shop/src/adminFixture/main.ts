@@ -120,6 +120,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "saveService") { const s = body.service as BookingService; services = [...services.filter((x) => x.id !== s.id), { ...s, id: s.id || `svc-${services.length + 1}` }]; }
     if (op === "deleteService") services = services.filter((x) => x.id !== id);
     if (op === "saveSettings") settings = { ...settings, ...(body.settings as object) };
+    if (op === "setLive") settings = { ...settings, live: body.live === true };
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b));
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
     if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));

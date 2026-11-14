@@ -30,6 +30,7 @@ export const PRESET_SECTION_TEMPLATES: Record<string, string> = {
   wishlistPage: "Wishlist",
   accountPage: "Customer account",
   trackingPage: "Order tracking",
+  bookingsPage: "Book a time",
 };
 
 type PresetLike = { homeLayoutTemplate?: string; content?: PresetContent };

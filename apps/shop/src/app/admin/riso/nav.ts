@@ -87,8 +87,9 @@ export type AdminSide = "website" | "stockroom";
 export const WEBSITE_SIDE: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
   // The v3 mockups (Julian, 11 November 2026): Messages is its own item; Customers and All sales sit under Orders.
-  // Bookings (beta) sits with the orders: a booking is a sale of time.
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "bookings", "customers"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers"] },
+  // Bookings (beta) is its own item (Julian, 14 November 2026); it shows only in a shop that has Bookings.
+  { label: "Bookings", icon: CalendarDays, pages: ["bookings"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
   // v4 (12 Nov 2026): Marketing sits above Analytics.
