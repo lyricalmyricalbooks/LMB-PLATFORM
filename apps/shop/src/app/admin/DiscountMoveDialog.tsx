@@ -67,7 +67,7 @@ export function DiscountMoveDialog({ existing, onClose, onDone }: { existing: st
 
   if (result) {
     return (
-      <Dialog open onClose={onClose} title="Discount codes brought over" badge="🏷️" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
+      <Dialog open onClose={onClose} title="Discount codes brought over" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
         <div className="rp-stack" style={{ gap: 12 }} role="status">
           <StatusBadge tone={result.added ? "success" : "neutral"}>{plural(result.added, "code")} added</StatusBadge>
           {result.added > 0 && <p className="rp-hint" style={{ margin: 0 }}>They work at checkout now, each with the uses it had left. They're marked “Brought over from your old shop” in the list, where you can pause or change any of them.</p>}
@@ -79,7 +79,7 @@ export function DiscountMoveDialog({ existing, onClose, onDone }: { existing: st
   }
 
   return (
-    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring discount codes over" badge="🏷️" size="lg"
+    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring discount codes over" size="lg"
       description="Choose the discount code file from your old shop, so codes your customers already have still work here. Nothing is sent to anyone."
       footer={<>
         <SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton>

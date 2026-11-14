@@ -902,7 +902,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   // Dialogs shared by the list and editor views
   const dialogs = editingProfile ? (
     <>
-      <Dialog open={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} size="lg" badge="📦" title="Assign products"
+      <Dialog open={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} size="lg" title="Assign products"
         description={`Books that use the “${editingProfile.name}” shipping rates.`}
         footer={<>
           <SecondaryButton onClick={() => setIsProductModalOpen(false)}>Cancel</SecondaryButton>
@@ -925,7 +925,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
         </ul>
       </Dialog>
 
-      <Dialog open={isZoneModalOpen && !!activeZone} onClose={() => setIsZoneModalOpen(false)} size="lg" badge="🌍" title="Shipping zone"
+      <Dialog open={isZoneModalOpen && !!activeZone} onClose={() => setIsZoneModalOpen(false)} size="lg" title="Shipping zone"
         description="Group countries and regions that share the same shipping rules."
         footer={<>
           <SecondaryButton onClick={() => setIsZoneModalOpen(false)}>Cancel</SecondaryButton>
@@ -990,7 +990,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
         )}
       </Dialog>
 
-      <Dialog open={isRateModalOpen && !!activeRate} onClose={() => setIsRateModalOpen(false)} badge="🚚" title="Shipping rate"
+      <Dialog open={isRateModalOpen && !!activeRate} onClose={() => setIsRateModalOpen(false)} title="Shipping rate"
         description="What customers pay for this delivery option."
         footer={<>
           <SecondaryButton onClick={() => setIsRateModalOpen(false)}>Cancel</SecondaryButton>
@@ -1006,8 +1006,8 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
             <TextField label="Rate / service name" value={activeRate.name} placeholder="e.g. Standard shipping, Express delivery" data-autofocus
               onChange={(e) => set("name", e.target.value)} />
             <SelectField label="How is this rate priced?" value={t} onChange={(e) => set("type", e.target.value)}
-              hint={RATE_TYPES.find((x) => x.id === t)?.help}>
-              {RATE_TYPES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+              hint={w(RATE_TYPES.find((x) => x.id === t)?.help ?? "")}>
+              {RATE_TYPES.map((x) => <option key={x.id} value={x.id}>{w(x.label)}</option>)}
             </SelectField>
             {priced && (
               <div style={grid}>
@@ -1842,7 +1842,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         onSave={async () => { if (await saveSection("payments", { payments: settings.payments })) { setSecretFieldsKey((k) => k + 1); toast.success("Payment settings saved"); } }}
         onDiscard={() => { setSettings({ ...settings, payments: JSON.parse(JSON.stringify(originalSettings?.payments ?? {})) }); setSecretFieldsKey((k) => k + 1); }} />
 
-      <Dialog open={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title={editingMethod ? "Edit payment method" : "Add payment method"} badge="💳"
+      <Dialog open={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title={editingMethod ? "Edit payment method" : "Add payment method"}
         footer={<>
           <SecondaryButton onClick={() => setIsManualModalOpen(false)}>Cancel</SecondaryButton>
           <PrimaryButton onClick={handleSaveMethod}>{editingMethod ? "Update method" : "Add method"}</PrimaryButton>
