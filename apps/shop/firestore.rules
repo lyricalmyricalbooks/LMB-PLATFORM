@@ -653,6 +653,24 @@ service cloud.firestore {
         allow read: if isAdminReader();
         allow write: if false;
       }
+      // Bookings (beta, functions/bookings.js): the team reads services, hours and bookings; only Functions write. The
+      // per-day records that stop two customers taking one time are the server's alone. Customers reach their own
+      // booking through the server with its private link, never from here.
+      match /bookings/{bookingId} {
+        allow read: if isAdminReader();
+        allow write: if false;
+      }
+      match /bookingServices/{serviceId} {
+        allow read: if isAdminReader();
+        allow write: if false;
+      }
+      match /bookingSettings/{docId} {
+        allow read: if isAdminReader();
+        allow write: if false;
+      }
+      match /bookingDays/{day} {
+        allow read, write: if false;
+      }
       match /discounts/{docId} {
         // Public code validation happens via the validateDiscountCode function.
         allow read: if isAdminReader();
