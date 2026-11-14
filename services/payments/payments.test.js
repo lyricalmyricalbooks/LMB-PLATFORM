@@ -49,8 +49,8 @@ function fakeEmail({ fail = false } = {}) {
   };
 }
 
-async function world({ env = {}, row = shopRow(), deliverStatus = 200, email = null } = {}) {
-  const stripe = fakeStripeFetch();
+async function world({ env = {}, row = shopRow(), deliverStatus = 200, email = null, answers = [] } = {}) {
+  const stripe = fakeStripeFetch(answers);
   const registry = fakeRegistry();
   if (row) await registry.createShop(row.shopId, row);
   const auditLog = fakeAuditLog();
@@ -281,6 +281,20 @@ test("lookups and stops reach only the shop's own account, with checked ids and 
   assert.equal((await call("disputes.list", { params: { payment_intent: intent.id, limit: 1 } })).status, 200);
   assert.equal((await call("refunds.list", { params: { payment_intent: intent.id, limit: 500 } })).status, 400);
   assert.equal((await call("customers.list", {})).status, 400);
+});
+
+test("a refund of a payment that carried no platform fee goes through without asking for the fee back", async () => {
+  const noFee = { status: 400, body: { error: { type: "invalid_request_error", message: "The record ch_1 has no application fee to refund. Remove `refund_application_fee` from the request." } } };
+  const w = await world({ answers: [noFee] });
+  const answer = await w.call("refunds.create", { params: { payment_intent: "pi_1", amount: 2500 }, idempotencyKey: "booking-refund-b1" });
+  assert.equal(answer.status, 200);
+  assert.equal(w.stripe.requests.length, 2);
+  assert.equal(w.stripe.requests[1].params.refund_application_fee, undefined);
+  assert.notEqual(w.stripe.requests[1].headers["Idempotency-Key"], w.stripe.requests[0].headers["Idempotency-Key"]);
+  // Any other refusal is not retried.
+  const other = await world({ answers: [{ status: 400, body: { error: { type: "invalid_request_error", message: "Charge already refunded." } } }] });
+  assert.equal((await other.call("refunds.create", { params: { payment_intent: "pi_1" }, idempotencyKey: "r9" })).status, 400);
+  assert.equal(other.stripe.requests.length, 1);
 });
 
 test("a refund gives back the platform's fee in proportion by default, and keeps it when the setting is off", async () => {

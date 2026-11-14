@@ -591,9 +591,21 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     } else if (op.create) params = createParams(op.create, args.params, fee);
     else if (op.refund) params = refundParams(args.params, terms ? { ...fee, refunded: true } : fee);
     else params = op.params(args.params);
-    const answer = await stripe.call(mode, op.method, path, { params, account: row.payments.accountId, idempotencyKey });
+    const answer = await callGivingBackFee(mode, op, path, params, row.payments.accountId, idempotencyKey);
     if (held?.ref && held.feeMinor > 0) await ledger.link(row.shopId, [answer?.id, answer?.payment_intent], held.ref);
     return answer;
+  }
+
+  // A refund asks for the platform's fee back, but some payments never carried one (a booking or pay link charged with
+  // no fee, or a fee of 0): Stripe refuses those, so the refund is made again without the fee, under its own key.
+  async function callGivingBackFee(mode, op, path, params, account, idempotencyKey) {
+    try {
+      return await stripe.call(mode, op.method, path, { params, account, idempotencyKey });
+    } catch (err) {
+      if (!op.refund || !params?.refund_application_fee || !/no application fee to refund/i.test(String(err?.message || ""))) throw err;
+      const { refund_application_fee: _fee, ...rest } = params;
+      return stripe.call(mode, op.method, path, { params: rest, account, idempotencyKey: `${idempotencyKey}/no-fee` });
+    }
   }
 
   // Pay as you sell: the parameters with the fee the ledger worked out (none when it is 0).
