@@ -14,7 +14,6 @@ vi.mock("../../lib/firebase", () => ({ appCheck: null, db: {}, auth: { currentUs
 vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
 vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
-vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 import { adminApi } from "./api";
 
 const respond = (status: number, body: unknown) =>

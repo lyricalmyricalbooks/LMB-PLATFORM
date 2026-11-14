@@ -54,7 +54,6 @@ vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {}, auth: { currentUse
 vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
 vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
-vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
 const themeStore = await import("./themeStore");
 const { adminApi } = await import("./api");

@@ -22,7 +22,6 @@ describe('one site address everywhere', () => {
     'scripts/prerender-storefront.mjs': 'await shopSiteUrl()',
     'scripts/check-published-change.mjs': 'await shopSiteUrl()',
     'scripts/carry-previous-assets.mjs': 'await shopSiteUrl()',
-    'scripts/build-pages-redirect.mjs': 'await shopSiteUrl()',
     'scripts/seo-url-check.mjs': 'await shopSiteUrl()',
     'vite.config.ts': 'shopSiteUrlSync()',
   };

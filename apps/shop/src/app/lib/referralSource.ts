@@ -1,6 +1,5 @@
 // Where a visit came from, as the short name stored in sessionStorage `referral_source` (App.tsx) and joined with
-// orders and traffic in Overview. Also used for visits forwarded from the old GitHub Pages address, which arrive
-// without a referrer of their own (features/site/movedState.ts).
+// orders and traffic in Overview.
 export const REFERRAL_KEY = "referral_source";
 
 export function referralSourceOf(referrer: string, currentHost: string): string | null {

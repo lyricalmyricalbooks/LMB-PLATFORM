@@ -66,7 +66,6 @@ import {
   signInWithPopup, 
   signOut, 
   onAuthStateChanged,
-  GoogleAuthProvider,
   signInWithCredential,
   type OAuthCredential,
 } from "firebase/auth";
@@ -78,7 +77,6 @@ import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, isFairHelperP
 import { startSupportVisit, supportOf } from "./supportSession";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
-import { signIntoLegacyStockroom } from "./legacySignIn";
 import { CATEGORIES } from "../features/site/constants";
 import { appendCategory, categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
 import { normalizeCategories } from "../features/site/navItems";
@@ -124,7 +122,7 @@ function assertDiscountShape(result: { ok: true } | { ok: false; error: { path: 
 const refreshMyRole = (token: string) => functionFetch("refreshMyRole", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
 
 /** After a sign-in (with or without its code): only the owner and the Team list may open the admin. */
-async function afterAdminSignIn(user: import("firebase/auth").User, googleCredential: import("firebase/auth").AuthCredential | null) {
+async function afterAdminSignIn(user: import("firebase/auth").User) {
   // Only the owner and the people on the owner's Team list (adminAccess.ts) may open the admin.
   const role = await refreshAdminRole(user, refreshMyRole);
   // A fair helper sells at the stockroom's till, which only a shop with both the shop and the stockroom has.
@@ -133,8 +131,6 @@ async function afterAdminSignIn(user: import("firebase/auth").User, googleCreden
     // The address they used goes with the refusal, so the sign-in page can say which account it saw (loginError.ts).
     throw Object.assign(new Error("Unauthorized: this account is not on the shop's Team list"), { signedInAs: user.email || "" });
   }
-  // Only for a shop whose profile turns it on: also sign into a separate stockroom project (legacySignIn.ts).
-  await signIntoLegacyStockroom(googleCredential);
   return { token: await user.getIdToken(), user };
 }
 
@@ -168,7 +164,7 @@ export const adminApi = {
     try {
       googleProvider.setCustomParameters({ prompt: "select_account", ...(hint ? { login_hint: hint } : {}) });
       const result = await signInWithPopup(auth, googleProvider);
-      return await afterAdminSignIn(result.user, GoogleAuthProvider.credentialFromResult(result));
+      return await afterAdminSignIn(result.user);
     } catch (err: any) {
       const pending = twoStepNeeded(firebaseTwoStep(auth), err);
       if (pending) throw pending;
@@ -180,7 +176,7 @@ export const adminApi = {
   /** The code from the authenticator app finishes a sign-in that asked for it. */
   finishTwoStepLogin: async (pending: TwoStepNeeded, code: string) => {
     const result = await finishTwoStep(firebaseTwoStep(auth), pending, code);
-    return afterAdminSignIn(result.user, pending.googleCredential);
+    return afterAdminSignIn(result.user);
   },
 
   /** A backup code in place of the app's code (plan 22.9): the server takes the authenticator app off this sign-in
@@ -190,7 +186,7 @@ export const adminApi = {
     if (!google?.idToken && !google?.accessToken) throw new BackupCodeError("Sign in with Google again, then type your backup code.", 401);
     const { left } = await backupCall<{ left: number }>({ action: "use", code: cleanBackupCode(code), idToken: google.idToken ?? "", accessToken: google.accessToken ?? "" });
     const result = await signInWithCredential(auth, google);
-    return { ...(await afterAdminSignIn(result.user, google)), left };
+    return { ...(await afterAdminSignIn(result.user)), left };
   },
 
   logout: () => signOut(auth),

@@ -35,12 +35,8 @@ originally generated from a Figma design ("Artsy Website for Publisher").
 - **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
   `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
   `lmb-test-shop`). The inventory app's project (`lmb-test-stockroom`) is reached only by
-  Cloud Functions for the inventory app link (see *Inventory app link* below); `src/lib/legacyFirebase.ts`
-  is a leftover admin sign-in to it, no longer used for stock, and runs only when the shop profile's
-  `switches.legacyStockroomSignIn` is `true` (`admin/legacySignIn.ts`). **Shop switches (plan 1.17):** one press's
-  one-offs are off unless the profile turns them on: `legacyStockroomSignIn`, `githubPagesForwarding` (the old-address
-  forwarding pages and `movedState.ts`) and `gmailReceiptFinder` (the stockroom). `switchOn()` in `src/lib/shopProfile.ts`;
-  the deploy reads them with `node scripts/shopProfile.mjs switch <name>` (`src/lib/shopSwitches.test.ts`).
+  Cloud Functions for the inventory app link (see *Inventory app link* below). The shop switches (plan 1.17: an old
+  stockroom sign-in, old-address forwarding and the stockroom's Gmail and old-shop tools) were retired on 14 November 2026.
 - **Stripe** for checkout, **Resend** for transactional email, **Shippo** for
   address verification / shipping labels — all wired through Cloud Functions.
 - **Vitest** for tests.
@@ -66,7 +62,7 @@ src/
                             Wishlist, Account, OrderTracking, Search, Reviews,
                             plus constants.ts / storeCopy.ts / types.ts
     lib/                    seo, wishlist, recentlyViewed, functionsBase helpers
-  lib/                      firebase.ts, legacyFirebase.ts
+  lib/                      firebase.ts, shopProfile.ts
   styles/                   Tailwind/global CSS, fonts
 functions/                  Firebase Cloud Functions (Node 22, separate package)
   index.js                  All functions (Stripe, webhook, emails, sweeps)

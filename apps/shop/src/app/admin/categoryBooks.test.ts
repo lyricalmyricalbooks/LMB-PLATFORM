@@ -26,7 +26,6 @@ vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {}, auth: mocks.auth, 
 vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
 vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
-vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 import { adminApi } from "./api";
 import { rememberShopOwner } from "../lib/ownerDevice";
 // The server named the shop's owner after sign-in (functions/index.js refreshMyRole).

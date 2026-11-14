@@ -41,7 +41,7 @@ export function firebaseTwoStep(auth: Auth): TwoStepAuth {
 export class TwoStepNeeded extends Error {
   readonly resolver: MultiFactorResolver;
   readonly hintUid: string;
-  /** The Google sign-in itself, for the shops that also sign in to an older stockroom (legacySignIn.ts). */
+  /** The Google sign-in itself, which a backup code finishes the sign-in with (api.ts signInWithBackupCode). */
   readonly googleCredential: AuthCredential | null;
   constructor(resolver: MultiFactorResolver, hintUid: string, googleCredential: AuthCredential | null) {
     super("Type the code from your authenticator app.");

@@ -11,7 +11,6 @@ vi.mock("../../../lib/firebase", () => ({ firestore: {}, db: {}, auth: { current
 vi.mock("../../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
 vi.mock("../../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
-vi.mock("../../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {},
