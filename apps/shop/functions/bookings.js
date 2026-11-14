@@ -347,8 +347,6 @@ function bookingActions({
           const metadata = { booking: id };
           const session = await checkout.open({
             mode: "payment",
-            // Cards only: slower ways to pay (bank transfers, pay later) can outlast the 10-minute hold on the time.
-            payment_method_types: ["card"],
             line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: service.priceMinor, product_data: { name: description } } }],
             customer_email: customer.email,
             metadata,
