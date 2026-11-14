@@ -10,6 +10,8 @@ export const useShopWords = () => useContext(ShopWordsContext);
 /** The sign-up answer itself ("clothing", "books"…, or null), for what more than words depends on (plan 10.6). */
 /** Fired by Settings › What you sell so the admin changes its words at once. */
 export const SELLS_CHANGED_EVENT = "lm-sells-changed";
+/** Fired by Settings › What you sell when a services shop turns "Sell products too" on or off (detail: boolean). */
+export const SELLS_PRODUCTS_CHANGED_EVENT = "lm-sells-products-changed";
 export const ShopSellsContext = createContext<string | null>(null);
 
 export const useShopSells = () => useContext(ShopSellsContext);

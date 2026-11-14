@@ -11,6 +11,7 @@ const ROOT = new URL("../", import.meta.url);
 const source = (file) => readFileSync(new URL(file, ROOT), "utf8");
 
 export const READERS = Object.freeze({
+  servicesShops: [["signup/api.js", /now\.servicesShops === true/], ["signup/frontDoor.js", /\.servicesShops === true/]],
   signupOpen: [["signup/signup.js", /const \{[^}]*\bsignupOpen\b[^}]*\} = await live\(\)/]],
   signupDailyCap: [["signup/signup.js", /const \{[^}]*\bsignupDailyCap\b[^}]*\} = await live\(\)/]],
   "prices.both": [["services/billing/billing.js", /now\.prices/], ["signup/api.js", /now\.prices/]],

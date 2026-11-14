@@ -383,12 +383,19 @@ service cloud.firestore {
         // (Settings › General › What you sell), which reads before `publishes`.
         allow read: if isAdminReader();
         allow create, update: if isAdmin()
-          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
           && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
             && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
             && request.resource.data.get("country", null) == resource.data.get("country", null)
             && request.resource.data.get("plan", null) == resource.data.get("plan", null)))
-          && (!("sells" in request.resource.data) || request.resource.data.sells in ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"])
+          // A services answer (a salon, a studio, a tutor) is kept or changed only in a shop that is already a
+          // services shop: sign-up makes one, and the platform decides when that kind is open. `sellsProducts` is such
+          // a shop also selling a few products.
+          && (!("sells" in request.resource.data) || request.resource.data.sells in ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"]
+            || (request.resource.data.sells in ["hair", "wellness", "lessons", "fitness", "studio", "services"] && resource != null
+              && (resource.data.get("publishes", "") in ["hair", "wellness", "lessons", "fitness", "studio", "services"]
+                || resource.data.get("sells", "") in ["hair", "wellness", "lessons", "fitness", "studio", "services"])))
+          && (!("sellsProducts" in request.resource.data) || request.resource.data.sellsProducts is bool)
           && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
           && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string)
           && (!("details" in request.resource.data) || (request.resource.data.details is map

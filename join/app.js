@@ -4,7 +4,7 @@
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { COUNTRIES, GENERAL_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
+import { COUNTRIES, GENERAL_SELLS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
 import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
@@ -186,6 +186,7 @@ let termsVersion = "";
 let plans = null;
 api("GET", "/plans").then((answer) => {
   plans = answer;
+  showTypes(answer?.servicesOpen === true || servicesShown);
   termsVersion = plans?.termsVersion ?? "";
   if (Number.isInteger(plans?.trialDays)) {
     $("#new-days").textContent = `${plans.trialDays} days`;
@@ -200,8 +201,25 @@ api("GET", "/plans").then((answer) => {
 
 // Bookshop or general shop (14 November 2026, Julian): the first question, so it's clear which one gets the book
 // features. A general shop then says what it sells. Both are saved as one sign-up answer (signup/form.js SHOP_TYPES).
-$("#type-choices").replaceChildren(...SHOP_TYPES.map((t) => choice("shopType", t.id, t.label, t.line)));
+// The Services kind (a salon, a studio, a tutor) shows only while the control room has it on (`plans.servicesOpen`),
+// or for a press that already picked it; it then asks what the business does.
+let servicesShown = false;
+function showTypes(withServices) {
+  if (withServices === servicesShown && $("#type-choices").childElementCount) return;
+  servicesShown = withServices;
+  const picked = startForm?.querySelector("input[name=shopType]:checked")?.value ?? "";
+  const types = SHOP_TYPES.filter((t) => t.id !== "services" || withServices);
+  const box = $("#type-choices");
+  box.dataset.count = String(types.length);
+  box.replaceChildren(...types.map((t) => {
+    const tile = choice("shopType", t.id, t.label, t.line);
+    if (withServices) tile.append(Object.assign(document.createElement("span"), { className: "fd-tools", textContent: t.tools }));
+    if (t.id === picked) tile.querySelector("input").checked = true;
+    return tile;
+  }));
+}
 $("#sells-choices").replaceChildren(...GENERAL_SELLS.map((o) => choice("sells", o.id, o.label)));
+$("#does-choices").replaceChildren(...SERVICE_SELLS.map((o) => choice("does", o.id, o.label)));
 // A bookshop that signed up as zines or comics keeps that answer; a new bookshop is "books".
 let bookAnswer = "books";
 // "Selling somewhere already?", optional (ids from form.js QUESTION, which the server checks). It picks the setup
@@ -218,6 +236,7 @@ $("#today-choices").replaceChildren(...SELLING_TODAY.map((o) => {
 $("#country").replaceChildren(new Option("Choose a country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
 const startForm = $("#start-form");
+showTypes(plans?.servicesOpen === true);
 /** The web address a brand name would get, as the preview shows it (the server picks the real one). */
 const addressFor = (name) => `${(name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "yourbrand")}.web.app`;
 const showName = () => {
@@ -230,11 +249,16 @@ const pickedValue = (name) => startForm.querySelector(`input[name=${name}]:check
 const showKind = () => {
   const type = pickedValue("shopType");
   const sells = GENERAL_SELLS.find((o) => o.id === pickedValue("sells"));
+  const does = SERVICE_SELLS.find((o) => o.id === pickedValue("does"));
   $("#sells-group").hidden = type !== "general";
   if (type !== "general") $("#sells-error").hidden = true;
-  $("#new-kind").textContent = type === "books" ? "Bookshop" : type === "general" ? (sells && sells.id !== "other" ? sells.label : "General shop") : "Your store";
+  $("#does-group").hidden = type !== "services";
+  if (type !== "services") $("#does-error").hidden = true;
+  $("#new-kind").textContent = type === "books" ? "Bookshop"
+    : type === "general" ? (sells && sells.id !== "other" ? sells.label : "Product shop")
+    : type === "services" ? (does && does.id !== "services" ? does.label : "Services") : "Your store";
   const line = $("#new-line");
-  line.textContent = type === "books" ? "With authors, ISBNs and royalties" : type === "general" ? "With products, sizes and colours" : "";
+  line.textContent = type === "books" ? "With authors, ISBNs and royalties" : type === "general" ? "With products, sizes and colours" : type === "services" ? "With bookings, clients and payments" : "";
   line.hidden = !type;
 };
 /** The note under the country, and the fee in the money that country's shops pay in. */
@@ -264,7 +288,7 @@ function showCountry() {
 }
 startForm.pressName.addEventListener("input", showName);
 startForm.addEventListener("change", (event) => {
-  if (event.target.name === "sells" || event.target.name === "shopType") showKind();
+  if (["sells", "does", "shopType"].includes(event.target.name)) showKind();
   if (event.target.name === "country") showCountry();
 });
 // An answer given clears its own error line.
@@ -279,9 +303,12 @@ function fillAnswers() {
   // A saved answer picks its shop type, and for a general shop its tile ("mixed", an older answer with no tile here,
   // leaves the tiles for the person to pick again).
   const type = shopTypeOf(press.sells);
+  // A press that already picked Services keeps its card, even when new sign-ups no longer see it.
+  showTypes(plans?.servicesOpen === true || type === "services");
   if (type === "books") bookAnswer = press.sells;
   for (const input of startForm.querySelectorAll("input[name=shopType]")) input.checked = input.value === type;
   for (const input of startForm.querySelectorAll("input[name=sells]")) input.checked = type === "general" && input.value === press.sells;
+  for (const input of startForm.querySelectorAll("input[name=does]")) input.checked = type === "services" && input.value === press.sells;
   showKind();
   for (const input of startForm.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
@@ -307,8 +334,9 @@ const setupGuideUrl = () => `${SETUP_ADMIN_URL}?press=${encodeURIComponent(press
 function checkAnswers(answers, { terms = true } = {}) {
   const problems = {
     pressName: answers.pressName ? "" : "Enter your brand's name.",
-    shopType: answers.shopType ? "" : "Pick a bookshop or a general shop.",
+    shopType: answers.shopType ? "" : "Pick the kind of shop.",
     sells: answers.shopType !== "general" || answers.sells ? "" : "Pick what you sell.",
+    does: answers.shopType !== "services" || answers.sells ? "" : "Pick what you do.",
     country: answers.country ? "" : "Choose where your brand is based.",
     terms: !terms || answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
   };
@@ -322,10 +350,10 @@ function checkAnswers(answers, { terms = true } = {}) {
   return !first;
 }
 
-// `shopType` is the page's own; the server gets `sells`: the bookshop answer, or the general shop's tile.
+// `shopType` is the page's own; the server gets `sells`: the bookshop answer, the product shop's tile or the services shop's.
 const readAnswers = () => {
   const shopType = pickedValue("shopType");
-  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? pickedValue("sells") : "";
+  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? pickedValue("sells") : shopType === "services" ? pickedValue("does") : "";
   return { pressName: startForm.pressName.value.trim(), shopType, sells, country: startForm.country.value, sellingToday: pickedValue("sellingToday"), termsAccepted: startForm.termsAccepted.checked };
 };
 
