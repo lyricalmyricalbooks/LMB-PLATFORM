@@ -81,6 +81,17 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "trackingRequests", label: "Cancel & return requests" }, { id: "trackingPrivacy", label: "Privacy request form (copy / delete my data)", required: true },
     { id: "trackingGlow", label: "Tracking background glow" },
   ] },
+  { id: "bookingsLayout", title: "Book a time · layout & elements", copy: "Bookings page", files: ["features/site/BookTime.tsx"], regions: [
+    { id: "bookingsHeader", label: "Booking page navigation" }, { id: "bookingsSteps", label: "Step markers (1, 2, 3)" },
+    { id: "bookingsIntro", label: "Booking heading & description" },
+    { id: "bookingsServices", label: "Service list", required: true }, { id: "bookingsService", label: "Service card", required: true },
+    { id: "bookingsTimes", label: "Day and time picker", required: true }, { id: "bookingsForm", label: "Your details form", required: true },
+    { id: "bookingsSummary", label: "Booking summary (when, where, price)" },
+    { id: "bookingsConfirmation", label: "Your booking: details", required: true },
+    { id: "bookingsActions", label: "Your booking: calendar, change and cancel", required: true },
+    { id: "bookingsNotice", label: "Bookings closed message", required: true },
+    { id: "bookingsGlow", label: "Booking page top strip" },
+  ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
     { id: "stripePaymentPanel", label: "Stripe payment panel", required: true },
     { id: "stripePaymentHeader", label: "Stripe payment method selector", required: true },

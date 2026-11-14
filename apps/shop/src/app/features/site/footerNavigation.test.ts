@@ -16,6 +16,12 @@ describe("grouped footer navigation", () => {
     expect(items.filter(i => /contact/i.test(i.label))).toHaveLength(1);
     expect(items.some(i => i.label === "Draft")).toBe(false);
   });
+  it("adds Book a time while the shop takes bookings, and only then", () => {
+    expect(automaticFooterItems({}, []).some(i => i.value === "/book")).toBe(false);
+    const items = automaticFooterItems({ bookingsLive: true }, []);
+    expect(items.find(i => i.value === "/book")).toMatchObject({ id: "footer-book", label: "Book a time" });
+    expect(groupedFooterItems(items).connect.map(i => i.id)).toContain("footer-book");
+  });
   it("honours explicit groups, visibility, children and custom destinations", () => {
     const groups = groupedFooterItems([
       { id: "1", label: "Contact", type: "page", value: "contact", footerGroup: "explore", children: [{ id: "child", label: "Press", type: "page", value: "press" }] },

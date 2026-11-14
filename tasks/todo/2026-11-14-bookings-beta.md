@@ -27,3 +27,28 @@ The switch is off for every shop, so merging changes nothing a press sees until 
 bookings reuse the stockroom's standalone pay page, so no shop order is made and the payment webhook is untouched.
 Not tried against a live shop: the first real run is turning it on for a test shop in the control room after the
 deploy, then booking a free and a test-card time.
+
+## Owner switch, own menu item and the designer (14 November 2026, Julian 17:44Z and 17:53Z)
+
+- [x] One switch at the top of the Bookings page turns bookings on or off at once (server op `setLive`).
+- [x] Bookings is its own item in the admin menu (website side), shown only in a shop that has Bookings.
+- [x] Book a time is its own page in Studio (`bookingsPage`), with click-to-edit parts (`bookingsLayout`), sections
+      under it, and sample services, times and a sample booking in the preview.
+- [x] While bookings are on, the website links to the page: header calendar icon (with a hide switch), phone menu,
+      footer. Menus' link picker offers Book a time.
+- [x] Proof: shop tests 7,167 pass, platform tests 2,055 pass, typecheck and lint clean, new Studio browser check
+      passes, screenshots of the designer (desktop and phone) and the admin switch (desktop and phone).
+
+Review: the platform's per-shop switch in the control room still decides which shops have Bookings at all; the owner's
+switch works inside that. Not yet done on a live test shop: flipping the switch after deploy and seeing the link appear.
+
+## Questions on the booking form (14 November 2026, Julian 17:51Z "continue adding more features")
+
+- [x] A service can ask up to five questions (short or long answer, must-answer or not), set in the service's dialog.
+- [x] The booking form shows them, checks the must-answer ones, and the server checks again before taking the time.
+- [x] Answers show on the booking in the admin, in the owner's new-booking email and in the calendar feed.
+- [x] Proof: shared and server tests, typecheck, lint, screenshots of the dialog, the form and the booking (desktop
+      and phone).
+
+Review: answers are kept with the question's wording at the time, so renaming a question later never changes what an
+old booking says. Not yet tried on a live test shop.

@@ -36,3 +36,34 @@ test("a drawer's long content scrolls inside it instead of stretching it past th
   // Without a fixed row, the grid grows to the content's height and the body never scrolls (the shop record was unreachable below "The record").
   assert.match(rule, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
 });
+
+// Julian, 14 November 2026: field labels and the "What happens next" list still showed a smeared typewriter face.
+// Field labels are Archivo (v4 handoff "Field"); DM Mono is never faked bold; dialogs carry no emoji badge.
+test("field labels are Archivo, never the mono face, and mono is never faked bold", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./pressroom.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = css.split("}").filter((rule) => /\.rp-label\b/.test(rule.split("{")[0]) && /\{/.test(rule));
+  for (const rule of rules) {
+    const [selector, body] = rule.split("{");
+    if (selector.includes("studio-editor)") && !selector.includes(":not(.studio-editor)")) continue;
+    assert.doesNotMatch(body, /--rp-font-mono/, `mono label rule: ${selector.trim()}`);
+  }
+  assert.match(css, /:root\[data-admin-look="colophon"\] \.rp \{ font-synthesis-weight: none; \}/);
+});
+
+test("no admin dialog wears an emoji badge", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = fileURLToPath(new URL("../../apps/shop/src/app/admin/", import.meta.url));
+  const hits = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else if (name.endsWith(".tsx") && /\sbadge="/.test(readFileSync(path, "utf8"))) hits.push(path);
+    }
+  };
+  walk(root);
+  assert.deepEqual(hits, []);
+});

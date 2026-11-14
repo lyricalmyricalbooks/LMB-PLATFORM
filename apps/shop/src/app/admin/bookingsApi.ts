@@ -10,7 +10,7 @@ import { cleanBookingSettings, cleanService, type BookingService, type BookingSe
 export type BookingStatus = "held" | "confirmed" | "cancelled";
 export type Booking = {
   id: string; serviceId: string; serviceName: string; minutes: number; location?: string; start: string; end: string;
-  customer: { name: string; email: string; phone?: string }; note?: string; status: BookingStatus;
+  customer: { name: string; email: string; phone?: string }; note?: string; answers?: { label: string; answer: string }[]; status: BookingStatus;
   payment: "free" | "card" | "atShop"; priceMinor: number; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
@@ -62,7 +62,7 @@ function followFromShop(fromIso: string, toIso: string, onRows: (rows: Booking[]
   return onSnapshot(q, (snap) => onRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }))), onError);
 }
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "calendarFeed";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "calendarFeed";
 
 async function adminFromServer(op: AdminOp, body: Record<string, unknown> = {}): Promise<unknown> {
   const idToken = await auth.currentUser?.getIdToken();

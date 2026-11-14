@@ -4,7 +4,7 @@ import { type MenuItem } from "./storeMenu";
 
 export type FooterGroup = "explore" | "connect";
 export function footerGroup(item: MenuItem): FooterGroup {
-  return item.footerGroup ?? (/submission|open[-\s]?call|contact|instagram|mailto:|\/track/i.test(`${item.value || ""} ${item.label}`) ? "connect" : "explore");
+  return item.footerGroup ?? (/submission|open[-\s]?call|contact|instagram|mailto:|\/track|\/book$/i.test(`${item.value || ""} ${item.label}`) ? "connect" : "explore");
 }
 
 /** A published page linked from the footer: every page in the header menu, plus "footer only" pages
@@ -18,6 +18,8 @@ export function automaticFooterItems(settings: any, pages: any[]): MenuItem[] {
   const items: MenuItem[] = [
     { id: "footer-shop", label: getCopy(d, "footerLinkShop"), type: "home", footerGroup: "explore" },
     { id: "footer-track", label: getCopy(d, "footerLinkTrack"), type: "url", value: "/track", footerGroup: "connect" },
+    // While the shop takes bookings (the server keeps `bookingsLive` in step with the owner's switch).
+    ...(settings?.bookingsLive === true ? [{ id: "footer-book", label: getCopy(d, "bookTimeFooterLink"), type: "url" as const, value: "/book", footerGroup: "connect" as const }] : []),
     ...visible.map(p => ({ id: `footer-page-${p.id}`, label: p.title, type: "page" as const, value: p.slug })),
   ];
   const instagram = shopSocialLinks(settings).find((l) => l.key === "instagram")?.url;

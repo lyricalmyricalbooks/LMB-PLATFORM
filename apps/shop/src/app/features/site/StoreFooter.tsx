@@ -107,6 +107,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
             <>
               <Link to="/" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkShop">{getCopy(settings?.design, "footerLinkShop")}</span></Link>
               <Link to="/track" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkTrack">{getCopy(settings?.design, "footerLinkTrack")}</span></Link>
+              {settings?.bookingsLive === true && <Link to="/book" className="block hover:text-white transition-colors"><span data-studio-copy="bookTimeFooterLink">{getCopy(settings?.design, "bookTimeFooterLink")}</span></Link>}
               {navPages.map(page => (
                 <Link
                   key={page.id}

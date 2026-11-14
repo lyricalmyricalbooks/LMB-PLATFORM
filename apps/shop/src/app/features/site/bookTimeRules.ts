@@ -2,7 +2,8 @@
 // time zone), so a shopper abroad sees the times the shop keeps, with the zone named under the picker.
 import { addDays } from "../../../shared/bookingTimes";
 
-export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full"; location: string };
+import type { BookingQuestion } from "../../../shared/bookingTimes";
+export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full"; location: string; questions?: BookingQuestion[] };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[] };
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; start: string; end: string;

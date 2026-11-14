@@ -13,6 +13,10 @@ import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
 import { TRACKING_CSS } from "./trackingStyle";
+import { regionProps } from "./storefrontRegions";
+import { isBookingPreview, previewAnswer } from "./bookTimePreview";
+import { GlobalSections, TemplateSections } from "../../components/sectionRender";
+import { shopCurrency } from "../../../lib/shopProfile";
 import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
@@ -25,6 +29,8 @@ type Copy = (key: string, vars?: Record<string, string | number>) => string;
 type Answer = Record<string, any> & { error?: string; code?: string };
 
 async function ask(action: string, body: Record<string, unknown> = {}): Promise<Answer> {
+  // Studio's preview shows sample services and times, and never books anything (bookTimePreview.ts).
+  if (isBookingPreview()) return previewAnswer(action, body, shopCurrency());
   const response = await functionFetch("validateDiscountCode", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,11 +44,11 @@ async function ask(action: string, body: Record<string, unknown> = {}): Promise<
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function BookTime() {
-  return <StoreChrome surface="trackingPage"><BookTimeContent /></StoreChrome>;
+  return <StoreChrome surface="bookingsPage"><BookTimeContent /></StoreChrome>;
 }
 
 function BookTimeContent() {
-  const { settings } = useSiteData();
+  const { settings, books } = useSiteData();
   const design = settings?.design;
   const c: Copy = (key, vars) => getCopy(design, key, vars);
   const location = useLocation();
@@ -50,12 +56,12 @@ function BookTimeContent() {
   useSEO({ title: c("bookTimeTitle"), description: c("bookTimeSubtitle"), noindex: !!manage });
 
   return (
-    <div data-fm-store data-studio-target="copy:Bookings page|style:colors" data-studio-label="Bookings page" className="fm-track min-h-screen fm-page text-white font-sans relative pb-24">
+    <div data-fm-store data-studio-target="copy:Bookings page|style:colors" data-studio-label="Book a time page" className="fm-track min-h-screen fm-page text-white font-sans relative pb-24">
       <StorefrontThemeStyle design={design} />
       <style>{TRACKING_CSS}</style>
       <style>{BOOK_TIME_CSS}</style>
-      <div aria-hidden="true" className="fm-track-strip" />
-      <nav className="relative z-10 border-b-2 fm-track-rule">
+      <div {...regionProps("bookingsGlow")} aria-hidden="true" className="fm-track-strip" />
+      <nav {...regionProps("bookingsHeader")} className="relative z-10 border-b-2 fm-track-rule">
         <div className="max-w-5xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between gap-4">
           <Link to="/" className="fm-track-link fm-track-mono"><ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeBack")}</Link>
           <span className="fm-track-mono">{c("bookTimeEyebrow")}</span>
@@ -64,6 +70,8 @@ function BookTimeContent() {
       <main className="max-w-3xl mx-auto px-5 sm:px-8 pt-12 sm:pt-16 relative z-10">
         {manage ? <ManageBooking id={manage.id} manageKey={manage.key} c={c} /> : <NewBooking c={c} />}
       </main>
+      <TemplateSections design={design} templateId="bookingsPage" books={books} />
+      <GlobalSections design={design} books={books} />
     </div>
   );
 }
@@ -80,7 +88,8 @@ function NewBooking({ c }: { c: Copy }) {
   const [step, setStep] = useState<Step>("service");
   const [start, setStart] = useState("");
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
-  const [problems, setProblems] = useState<{ name?: string; email?: string }>({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -110,7 +119,7 @@ function NewBooking({ c }: { c: Copy }) {
     );
   }
   if (!info) return <Intro c={c}><Loading c={c} /></Intro>;
-  if (!info.on || !info.services?.length) return <Intro c={c}><div className="fm-track-notice" role="status"><p>{c("bookTimeClosed")}</p></div></Intro>;
+  if (!info.on || !info.services?.length) return <Intro c={c}><div {...regionProps("bookingsNotice")} className="fm-track-notice" role="status"><p>{c("bookTimeClosed")}</p></div></Intro>;
 
   const zone = info.zone || shopTimeZone();
   const currency = info.currency || "CAD";
@@ -118,20 +127,25 @@ function NewBooking({ c }: { c: Copy }) {
   const lastDay = addDays(today, Math.max(0, (info.maxDaysAhead || 60) - 1));
   const steps: Step[] = info.services.length > 1 ? ["service", "time", "details"] : ["time", "details"];
   const end = start && service ? new Date(Date.parse(start) + service.minutes * 60_000).toISOString() : "";
+  const questions = service?.questions || [];
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy || !service || !start) return;
+    // The shop's own questions for this service: a required one needs an answer.
+    const unanswered = Object.fromEntries(questions.filter((q) => q.required && !(answers[q.id] || "").trim()).map((q) => [q.id, c("bookTimeNeedAnswer")]));
     const found = {
       ...(form.name.trim() ? {} : { name: c("bookTimeNeedName") }),
       ...(EMAIL.test(form.email.trim()) ? {} : { email: c("bookTimeNeedEmail") }),
+      ...(Object.keys(unanswered).length ? { answers: unanswered } : {}),
     };
     setProblems(found);
-    if (found.name || found.email) { document.getElementById(found.name ? "bt-name" : "bt-email")?.focus(); return; }
+    const first = found.name ? "bt-name" : found.email ? "bt-email" : found.answers ? `bt-q-${Object.keys(unanswered)[0]}` : "";
+    if (first) { document.getElementById(first)?.focus(); return; }
     setBusy(true);
     setError("");
     try {
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -143,7 +157,7 @@ function NewBooking({ c }: { c: Copy }) {
 
   return (
     <div>
-      <ol className="fm-book-steps" aria-label={c("bookTimeTitle")}>
+      <ol {...regionProps("bookingsSteps")} className="fm-book-steps" aria-label={c("bookTimeTitle")}>
         {steps.map((s, i) => {
           const at = steps.indexOf(step);
           const state = i < at ? "done" : i === at ? "current" : "next";
@@ -154,7 +168,7 @@ function NewBooking({ c }: { c: Copy }) {
           );
         })}
       </ol>
-      <div className="mb-8">
+      <div {...regionProps("bookingsIntro")} className="mb-8">
         <p className="fm-track-mono mb-3">{c("bookTimeEyebrow")}</p>
         <h1 ref={headingRef} tabIndex={-1} className="fm-track-display text-5xl sm:text-6xl outline-none">
           {step === "service" || !service ? c("bookTimeTitle") : service.name}
@@ -166,9 +180,9 @@ function NewBooking({ c }: { c: Copy }) {
       {error && <div className="fm-track-notice mb-6" data-tone="danger" role="alert"><p>{error}</p></div>}
 
       {step === "service" && (
-        <div className="fm-book-list">
+        <div {...regionProps("bookingsServices")} className="fm-book-list">
           {info.services.map((s) => (
-            <button key={s.id} type="button" className="fm-book-service" onClick={() => { setService(s); setStart(""); setError(""); setStep("time"); }}>
+            <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" onClick={() => { setService(s); setStart(""); setAnswers({}); setProblems({}); setError(""); setStep("time"); }}>
               <h2>{s.name}</h2>
               <span className="fm-book-price" translate="no">{s.priceMinor > 0 ? moneyText(s.priceMinor, currency) : c("bookTimeFree")}</span>
               {s.description && <p>{s.description}</p>}
@@ -183,7 +197,7 @@ function NewBooking({ c }: { c: Copy }) {
       )}
 
       {step === "time" && service && (
-        <div className="fm-track-card p-5 sm:p-8">
+        <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
           <TimePicker serviceId={service.id} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c} />
           <div className="fm-book-actions mt-2">
             <button type="button" className="fm-track-btn" disabled={!start} onClick={() => { setError(""); setStep("details"); }}>
@@ -200,7 +214,7 @@ function NewBooking({ c }: { c: Copy }) {
 
       {step === "details" && service && start && (
         <div className="grid gap-8 lg:grid-cols-[1fr_280px] items-start">
-          <form onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">
+          <form {...regionProps("bookingsForm")} onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">
             <Field id="bt-name" label={c("bookTimeName")} problem={problems.name}>
               <input id="bt-name" className="fm-track-input" autoComplete="name" value={form.name} maxLength={100}
                 aria-invalid={!!problems.name} aria-describedby={problems.name ? "bt-name-err" : undefined}
@@ -215,6 +229,21 @@ function NewBooking({ c }: { c: Copy }) {
               <input id="bt-phone" type="tel" className="fm-track-input" autoComplete="tel" value={form.phone} maxLength={40}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </Field>
+            {questions.map((q) => {
+              const id = `bt-q-${q.id}`;
+              const problem = problems.answers?.[q.id];
+              const props = {
+                id, className: "fm-track-input", value: answers[q.id] || "", "aria-invalid": !!problem, "aria-required": q.required,
+                "aria-describedby": problem ? `${id}-err` : undefined,
+              };
+              return (
+                <Field key={q.id} id={id} label={q.required ? q.label : `${q.label} ${c("bookTimeOptional")}`} problem={problem}>
+                  {q.long
+                    ? <textarea {...props} maxLength={1000} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
+                    : <input {...props} maxLength={200} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />}
+                </Field>
+              );
+            })}
             <Field id="bt-note" label={c("bookTimeNote")}>
               <textarea id="bt-note" className="fm-track-input" value={form.note} maxLength={1000}
                 onChange={(e) => setForm({ ...form, note: e.target.value })} />
@@ -225,7 +254,7 @@ function NewBooking({ c }: { c: Copy }) {
                 : paysUpFront(service) ? c("bookTimePay", { amount: moneyText(service.priceMinor, currency) }) : c("bookTimeBook")}
             </button>
           </form>
-          <aside className="fm-track-card p-6 fm-track-ledger">
+          <aside {...regionProps("bookingsSummary")} className="fm-track-card p-6 fm-track-ledger">
             <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
             <div className="fm-track-total">
@@ -246,7 +275,7 @@ function NewBooking({ c }: { c: Copy }) {
 function Intro({ c, children }: { c: Copy; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-8">
+      <div {...regionProps("bookingsIntro")} className="mb-8">
         <p className="fm-track-mono mb-3">{c("bookTimeEyebrow")}</p>
         <h1 className="fm-track-display text-5xl sm:text-6xl">{c("bookTimeTitle")}</h1>
         <p className="mt-4 text-base leading-7 fm-muted">{c("bookTimeSubtitle")}</p>
@@ -443,7 +472,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
 
   return (
     <div className="space-y-8">
-      <div>
+      <div {...regionProps("bookingsIntro")}>
         <p className="fm-track-mono mb-3">{c("bookTimeEyebrow")}</p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <h1 className="fm-track-display text-5xl sm:text-6xl">{title}</h1>
@@ -459,7 +488,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       {notice && <div className="fm-track-notice" role="status"><p>{notice}</p></div>}
       {error && <div className="fm-track-notice" data-tone="danger" role="alert"><p>{error}</p></div>}
 
-      <div className="fm-track-card p-6 sm:p-8 fm-track-ledger">
+      <div {...regionProps("bookingsConfirmation")} className="fm-track-card p-6 sm:p-8 fm-track-ledger">
         <Row label={c("bookTimeWhat")} value={`${booking.serviceName} · ${lengthText(booking.minutes)}`} />
         <Row label={c("bookTimeWhen")} value={whenText(booking.start, booking.end, zone)} />
         {booking.location && <Row label={c("bookTimeWhere")} value={booking.location} />}
@@ -474,7 +503,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       )}
 
       {booking.status === "confirmed" && mode === "view" && (
-        <div className="space-y-5">
+        <div {...regionProps("bookingsActions")} className="space-y-5">
           <div className="fm-book-actions">
             <button type="button" className="fm-track-btn" onClick={download}><CalendarPlus size={16} aria-hidden="true" /> {c("bookTimeAddCalendar")}</button>
             <a className="fm-track-btn fm-track-btn-ghost" href={googleCalendarLink({ title: booking.serviceName, start: startMs, end: endMs, location: booking.location })} target="_blank" rel="noopener noreferrer">{c("bookTimeGoogle")}</a>
@@ -490,7 +519,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       )}
 
       {booking.status === "confirmed" && mode === "move" && info?.today && (
-        <div className="fm-track-card p-5 sm:p-8">
+        <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
           <h2 className="fm-track-display text-3xl mb-6">{c("bookTimeMoveTitle")}</h2>
           <TimePicker serviceId={booking.serviceId} zone={zone} today={info.today} lastDay={lastDay} picked={newStart} onPick={setNewStart} c={c} />
           <div className="fm-book-actions">

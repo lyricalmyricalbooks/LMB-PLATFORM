@@ -8,7 +8,7 @@ import { DEFAULT_SHOP_NAME } from "../features/site/shopIdentity";
 export const SECTION_FALLBACKS: Record<string, string> = {
   "CompositionSection.block.text": "Button",
   "HeroSection.title": "{name}",
-  "HeroSection.subtitle": "Photography & Art Books",
+  "HeroSection.subtitle": "New Books",
   "HeroSection.ctaText": "Explore",
   "ImageBannerSection.title": "Stories worth keeping",
   "FeatureGridSection.title": "Highlights",

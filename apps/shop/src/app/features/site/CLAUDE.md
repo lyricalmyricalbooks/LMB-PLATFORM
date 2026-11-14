@@ -779,8 +779,23 @@ every further event. Configured from `useSiteData` like Google and Clarity.
 ## Book a time page (Bookings beta, 14 November 2026)
 
 `/book` (`BookTime.tsx`, pure `bookTimeRules.ts`, token-only `bookTimeStyle.ts`) sits in the order slip's look
-(`StoreChrome surface="trackingPage"`, `fm-track-*` plus `fm-book-*`), so it follows the Studio theme with no new surface.
+(`fm-track-*` plus `fm-book-*`) and is its own Studio page, **Book a time** (surface `bookingsPage`: Page to edit, its
+own colours, sections under it through `TemplateSections`, Check every page). Its parts are the `bookingsLayout` regions
+(`regionProps("bookings…")`: steps, heading, service list and card, time picker, details form, summary, the booking and
+its actions), so each has Words / Style / Layout per device. **Studio preview:** a real preview (`isBookingPreview`:
+`preview=true` and Studio's snapshot) answers from `bookTimePreview.ts` instead of the server: sample services, times and
+one sample booking that can be moved and cancelled, so every step can be designed with Bookings on or off; nothing is
+saved or emailed. **Links:** while the shop takes bookings (`settings/website.bookingsLive`, kept by the server's
+`tellWebsite`; `bookingsLive.ts` holds it for the header) the header shows a calendar icon (`data-header-bookings`, hide
+with Style › Header › Icons & buttons › `hideHeaderBookings`), the phone menu and tabs a link (word `bookTimeNavLink`,
+Text & labels › Header), and the automatic footer a link (`footer-book`, word `bookTimeFooterLink`). Menus' link picker
+offers Book a time (`FIXED_LINKS`). The two words start with `bookTime` so a non-book shop's word check lets the verb
+through. The Studio fixture takes `?bookings=1` to show the links.
 Steps: service (skipped with one service) → time (a week of days, times grouped Morning / Afternoon / Evening) → details;
 `?booking=<id>&key=<key>` shows the booking with Add to calendar, change time and cancel. Every word is Text & labels ›
 **Book a time page** (`bookTime*`, French in `frenchCopy.ts`); server errors map to those words by code (`taken`,
 `too_late`), never shown raw. The manage view is noindex. Closed shops (`on: false`) see `bookTimeClosed`.
+
+**Service questions:** the details form shows the chosen service's questions (fields `bt-q-<id>`, a box or a longer
+one) between phone and note; a must-answer one left empty shows `bookTimeNeedAnswer`, the others carry
+`bookTimeOptional` (both in Text & labels). Answers reset when the service changes; the server checks them again.

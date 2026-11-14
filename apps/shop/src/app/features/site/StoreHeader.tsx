@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, type RefObject, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Heart, Search, ShoppingCart, User as UserIcon, X } from "lucide-react";
+import { CalendarDays, Heart, Search, ShoppingCart, User as UserIcon, X } from "lucide-react";
 import { useCart } from "../../CartContext";
 import { CurrencySelector, useCurrency } from "../../CurrencyContext";
 import { LogoMark } from "../../components/LogoMark";
@@ -15,6 +15,7 @@ import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
 import { headerLayout } from "./headerLayout";
+import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { buildNavItems, childCategories, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
 // Search loads the first time it opens (button, Ctrl/⌘+K or Studio's Search pop-over), not with every page.
 const SearchOverlay = lazy(() => import("./SearchOverlay").then(m => ({ default: m.SearchOverlay })));
@@ -322,6 +323,7 @@ function HeaderActions({ flags, copyDesign, color, shop, onSearch, wishlistCount
   showAdmin: boolean;
   cartButton: ReactNode;
 }) {
+  const bookingsLive = useBookingsLive();
   const tint = shop ? { color } : undefined;
   const hoverBg = shop ? " hover:bg-white/5" : "";
   return (
@@ -330,6 +332,11 @@ function HeaderActions({ flags, copyDesign, color, shop, onSearch, wishlistCount
         <button onClick={onSearch} aria-label={getCopy(copyDesign, "ariaSearch")} style={tint} className={`flex min-h-11 min-w-11 items-center justify-center rounded-full opacity-80 transition-all hover:opacity-100${hoverBg}`}>
           <Search size={14} />
         </button>
+      )}
+      {bookingsLinkShown(bookingsLive, flags) && (
+        <Link to="/book" aria-label={getCopy(copyDesign, "bookTimeNavLink")} title={getCopy(copyDesign, "bookTimeNavLink")} data-header-bookings style={tint} className={`hidden h-9 w-9 items-center justify-center rounded-full opacity-50 transition-all hover:opacity-100 sm:flex${hoverBg}`}>
+          <CalendarDays size={14} aria-hidden="true" />
+        </Link>
       )}
       {!flags?.hideHeaderWishlist && (
         <Link to="/wishlist" aria-label={getCopy(copyDesign, "ariaWishlist")} style={tint} className={`${shop ? "relative " : ""}hidden h-9 w-9 items-center justify-center rounded-full opacity-50 transition-all hover:opacity-100 sm:flex${hoverBg}`}>

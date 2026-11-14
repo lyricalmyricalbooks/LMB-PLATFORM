@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, type Booking } from "./bookingsApi";
 import { byDay, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { copyText } from "./clipboard";
@@ -34,6 +34,7 @@ export function Bookings() {
   const [rowsError, setRowsError] = useState("");
   const [open, setOpen] = useState<Booking | null>(null);
   const [creating, setCreating] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const reloadSetup = () => readBookingSetup().then((s) => { setSetup(s); setSetupError(""); }).catch((e) => setSetupError(e?.message || "Couldn't load your bookings."));
   useEffect(() => { void reloadSetup(); }, []);
@@ -58,6 +59,19 @@ export function Bookings() {
   const weekLabel = thisWeek ? "This week" : `Week of ${dayText(monday)}`;
   const next = nextUp(upcoming, Date.now());
   const noServices = setup.services.length === 0;
+  const live = setup.settings.live;
+  // The owner's on/off switch: one tap, saved at once, nothing else about the hours changes.
+  const setLive = async (next: boolean) => {
+    setSwitching(true);
+    setSetup({ ...setup, settings: { ...setup.settings, live: next } });
+    try {
+      await bookingsAdmin("setLive", { live: next });
+      toast.success(next ? "Bookings are on" : "Bookings are off");
+    } catch (e: any) {
+      setSetup({ ...setup, settings: { ...setup.settings, live: !next } });
+      toast.error(e?.message || "That didn't save. Please try again.");
+    } finally { setSwitching(false); }
+  };
 
   return (
     <div className="bkg-page">
@@ -82,7 +96,7 @@ export function Bookings() {
           ) : (
             <div className="bkg-next-body">
               <span className="bkg-next-who">Nothing booked yet</span>
-              <span className="bkg-next-what">{!setup.services.length ? "Add what customers can book under Services." : setup.settings.live ? "New bookings show here the moment they're made." : "Turn on your bookings page under Hours & rules to take bookings."}</span>
+              <span className="bkg-next-what">{!setup.services.length ? "Add what customers can book under Services." : setup.settings.live ? "New bookings show here the moment they're made." : "Turn Bookings on to start taking them."}</span>
             </div>
           )}
         </div>
@@ -96,9 +110,13 @@ export function Bookings() {
           <p className="bkg-big bkg-big-money">{moneyText(figures.takenMinor, SHOP_CURRENCY)}</p>
           <p className="bkg-sub">{thisWeek ? "this week" : weekLabel.toLowerCase()}</p>
         </div>
-        <div className="bkg-tile bkg-tile-ink bkg-pagecard">
-          <p className="bkg-kicker">Bookings page</p>
-          <p className="bkg-page-state">{setup.settings.live ? "Taking bookings" : "Hidden"}</p>
+        <div className="bkg-tile bkg-tile-ink bkg-pagecard" data-live={live || undefined}>
+          <div className="bkg-switch-row">
+            <p className="bkg-kicker">Bookings</p>
+            <Toggle label={live ? "On" : "Off"} checked={live} disabled={switching || (noServices && !live)} onChange={(v) => void setLive(v)} />
+          </div>
+          <p className="bkg-page-state">{live ? "Taking bookings" : "Not taking bookings"}</p>
+          <p className="bkg-page-note">{noServices && !live ? "Add a service to turn this on." : live ? "Your website shows Book a time." : "Hidden from your website. Bookings already made stay."}</p>
           <div className="bkg-pill-row">
             <button type="button" className="bkg-pill" onClick={() => void copyText(bookPageUrl(), "Link")}><Copy size={14} aria-hidden /> Copy link</button>
             <a className="bkg-pill" href={bookPageUrl()} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden /> View</a>
@@ -238,6 +256,11 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           <div><dt>Booked</dt><dd>{b.source === "admin" ? "By you" : "On your website"}{b.createdAt ? `, ${new Date(b.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</dd></div>
         </dl>
         {b.note && <blockquote className="bkg-note">“{b.note}”</blockquote>}
+        {!!b.answers?.length && (
+          <dl className="bkg-answers">
+            {b.answers.map((a, i) => <div key={i}><dt>{a.label}</dt><dd>{a.answer}</dd></div>)}
+          </dl>
+        )}
         {b.status === "confirmed" && (
           <div className="bkg-detail-toggles">
             <Toggle label="Didn't turn up" checked={!!b.noShow} disabled={!!busy} onChange={(v) => void run("noshow", "noShow", { value: v }, v ? "Marked as a no-show" : "No-show taken off")} />
@@ -431,7 +454,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0 };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0, questions: [] };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -475,6 +498,8 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
   const [problem, setProblem] = useState("");
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const questions = form.questions || [];
+  const setQuestion = (i: number, change: Partial<(typeof questions)[number]>) => set("questions", questions.map((q, j) => (j === i ? { ...q, ...change } : q)));
   const save = async () => {
     setSaving(true); setProblem("");
     try {
@@ -501,6 +526,24 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
         <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free. Paid bookings are paid by card when booked." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
         <TextArea label="About it (optional)" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+        <fieldset className="bkg-questions">
+          <legend>Questions to ask</legend>
+          <p className="bkg-questions-hint">Customers answer these when they book, after their name and email.</p>
+          {questions.map((q, i) => (
+            <div key={q.id} className="bkg-question">
+              <TextField label={`Question ${i + 1}`} placeholder="What would you like to work on?" value={q.label} maxLength={140}
+                onChange={(e) => setQuestion(i, { label: e.target.value })} />
+              <div className="bkg-question-row">
+                <Toggle label="Must answer" checked={q.required} onChange={(v) => setQuestion(i, { required: v })} />
+                <Toggle label="Long answer" checked={q.long} onChange={(v) => setQuestion(i, { long: v })} />
+                <button type="button" className="bkg-question-remove" aria-label={`Remove question ${i + 1}`} onClick={() => set("questions", questions.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
+              </div>
+            </div>
+          ))}
+          {questions.length < MAX_QUESTIONS
+            ? <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("questions", [...questions, { id: `q${Date.now().toString(36)}`, label: "", long: false, required: false }])}>Add a question</SecondaryButton>
+            : <p className="bkg-questions-hint">That's the most a service can ask ({MAX_QUESTIONS}).</p>}
+        </fieldset>
         <Toggle label="Customers can book it" checked={form.active} onChange={(v) => set("active", v)} />
         {problem && <p className="bkg-error" role="alert">{problem}</p>}
       </div>
@@ -516,24 +559,18 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
   const [form, setForm] = useState<BookingSettings>(settings);
   const [saving, setSaving] = useState(false);
   const [newDayOff, setNewDayOff] = useState("");
-  useEffect(() => setForm(settings), [settings]);
-  const dirty = !saved || JSON.stringify(form) !== JSON.stringify(settings);
+  // The on/off switch lives at the top of the page and saves by itself, so flipping it never throws away hours being edited.
+  const hoursOf = JSON.stringify({ ...settings, live: false });
+  useEffect(() => setForm(settings), [hoursOf]);
+  const dirty = !saved || JSON.stringify({ ...form, live: false }) !== hoursOf;
   const setDay = (wd: number, windows: { start: string; end: string }[]) => setForm((f) => ({ ...f, hours: f.hours.map((h, i) => (i === wd ? windows : h)) }));
   const save = async () => {
     setSaving(true);
-    try { await bookingsAdmin("saveSettings", { settings: form }); toast.success(form.live && !settings.live ? "Your bookings page is live" : "Hours saved"); onSaved(); }
+    try { await bookingsAdmin("saveSettings", { settings: { ...form, live: settings.live } }); toast.success("Hours saved"); onSaved(); }
     catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   };
   return (
     <div className="bkg-hours">
-      <div className="bkg-tile bkg-tile-mint bkg-live">
-        <div>
-          <p className="bkg-kicker">Bookings page</p>
-          <p className="bkg-live-words">{form.live ? "Customers can book on your website." : "Hidden from customers."}</p>
-        </div>
-        <Toggle label="Show on my website" checked={form.live} onChange={(v) => setForm({ ...form, live: v })} />
-      </div>
-
       <section className="bkg-tile">
         <h2 className="bkg-tile-title">Opening hours</h2>
         <ul className="bkg-week-hours">

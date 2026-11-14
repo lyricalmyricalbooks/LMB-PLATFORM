@@ -17,6 +17,6 @@ describe("collectionIntro", () => {
     expect(collectionIntro({ copy: { collectionIntroBooks: "Edited." } }, "books", { name: "Books" })).toBe("Edited.");
     expect(collectionIntro({ copy: { collectionIntroBooks: "" } }, "books", { name: "Books" })).toBe("");
     expect(collectionIntro({}, "other", { name: "Other" })).toBe("");
-    expect(collectionIntro({}, "books", "ALL")).toContain("Photobooks");
+    expect(collectionIntro({}, "books", "ALL")).toContain("Books published by");
   });
 });

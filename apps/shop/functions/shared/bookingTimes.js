@@ -8,8 +8,10 @@
 // week, with days off. A time is free when it fits inside the day's hours, is far enough ahead, isn't past the last day
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time in phase 1.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.REMINDER_HOURS = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = void 0;
+exports.isDay = exports.weekdayOf = exports.REMINDER_HOURS = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = void 0;
 exports.cleanService = cleanService;
+exports.cleanQuestions = cleanQuestions;
+exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
 exports.zonedTime = zonedTime;
 exports.dayOf = dayOf;
@@ -23,6 +25,7 @@ exports.customerCanChange = customerCanChange;
 exports.bookingIcs = bookingIcs;
 exports.bookingsFeedIcs = bookingsFeedIcs;
 exports.googleCalendarLink = googleCalendarLink;
+exports.MAX_QUESTIONS = 5;
 exports.BOOKING_STEPS = [15, 30, 60];
 exports.MAX_SERVICES = 30;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -73,7 +76,39 @@ function cleanService(raw, id = "") {
         location: text(s.location, 160),
         active: s.active !== false,
         order: whole(s.order, 0, 999, 0),
+        questions: cleanQuestions(s.questions),
     };
+}
+/** The owner's questions, cleaned: empty ones dropped, at most MAX_QUESTIONS, each with its own id. */
+function cleanQuestions(raw) {
+    const out = [];
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const q = item && typeof item === "object" ? item : {};
+        const label = text(q.label, 140);
+        if (!label || out.length >= exports.MAX_QUESTIONS)
+            continue;
+        let id = text(q.id, 24).replace(/[^A-Za-z0-9_-]/g, "") || `q${out.length + 1}`;
+        while (out.some((o) => o.id === id))
+            id += "x";
+        out.push({ id, label, long: q.long === true, required: q.required === true });
+    }
+    return out;
+}
+/**
+ * The customer's answers to a service's questions, or which required one is missing. Only the service's own questions
+ * are kept (whatever else a page sends is ignored), and an unanswered optional question is left out.
+ */
+function cleanAnswers(questions, raw, enforce = true) {
+    const given = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const answers = [];
+    for (const q of questions) {
+        const answer = typeof given[q.id] === "string" ? given[q.id].trim().slice(0, q.long ? 1000 : 200) : "";
+        if (!answer && q.required && enforce)
+            return { problem: `Please answer: ${q.label}`, questionId: q.id };
+        if (answer)
+            answers.push({ label: q.label, answer });
+    }
+    return { answers };
 }
 /** The opening hours and rules, cleaned; anything missing or broken takes the default. */
 function cleanBookingSettings(raw) {

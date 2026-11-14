@@ -1,3 +1,4 @@
+import { setBookingsLive } from "./bookingsLive";
 import { useLocation } from "react-router";
 import { consentAllows, CONSENT_EVENT, noteCookieBanner } from "../../lib/consent";
 import { noteShopLanguage } from "./shopLanguage";
@@ -280,6 +281,9 @@ export function useSiteData() {
   const wordedDesign = started.design;
   // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
   useEffect(() => { setSiteIdentity(wordedDesign); }, [wordedDesign]);
+  // The header, phone menu and footer show "Book a time" while the shop takes bookings (bookingsLive.ts).
+  const bookingsLive = (settings as any)?.bookingsLive === true;
+  useEffect(() => { setBookingsLive(bookingsLive); }, [bookingsLive]);
   return { books: sellableBooks, settings: { ...started, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };
 }
 
