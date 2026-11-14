@@ -82,4 +82,9 @@ describe("Checkout wiring (source text)", () => {
     expect(currency).toContain("loadRates()");
     expect(currency).not.toContain("await fetch(");
   });
+  it("the free-shipping hint counts only things that ship (no e-books or gift cards)", () => {
+    expect(src).toContain("const shippable = shippableBagTotal(catalogItems, cartTotal);");
+    expect(src).toContain("freeShippingGap(shippable, t)");
+    expect(src).toContain("all.filter((_, i) => catalogItems[i]?.physical)");
+  });
 });
