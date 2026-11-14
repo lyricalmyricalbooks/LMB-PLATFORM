@@ -105,3 +105,6 @@ jobs:
               echo "$job couldn't be started now; it runs on its schedule." >> "$GITHUB_STEP_SUMMARY"
             sleep 60
           done
+      # What the checks now say about each test shop, with the cause of any red line, for whoever reads this run.
+      - name: What the health checks say
+        run: node setup/test-shop-health.js || echo "The checks' results couldn't be read." >> "$GITHUB_STEP_SUMMARY"
