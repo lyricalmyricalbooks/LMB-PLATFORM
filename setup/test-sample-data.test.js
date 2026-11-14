@@ -125,6 +125,9 @@ test("the test shop's public details: a made-up contact address and policies, no
   assert.equal(filled.info.email, "hello@test-press.example");
   assert.equal(filled.design.social.instagram, "");
   assert.equal(filled.policies.shipping, "My own shipping words");
+  assert.equal(filled.info.name, "Test Press", "the admin's brand is the shop's name, not Your Press");
+  assert.equal(filled.design.copy.siteName, "Test Press");
+  assert.equal(testShopDetails({ info: { name: "Salt Hymns" }, design: { copy: { siteName: "Salt Hymns" } }, policies: testShopDetails({}, "x").policies, }, "Test Press")?.info?.name ?? "Salt Hymns", "Salt Hymns", "a name the owner typed stays");
   for (const key of ["returns", "privacy", "terms"]) assert.ok(filled.policies[key].length > 40, `${key} has words`);
   assert.equal(testShopDetails(filled, "Test Press"), null, "a second run changes nothing");
   assert.equal(testShopDetails({}, "Test Goods").info.email, "hello@test-goods.example");

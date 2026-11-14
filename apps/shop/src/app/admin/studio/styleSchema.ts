@@ -423,7 +423,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "showFooterBrandDivider", label: "Show a line between the logo and the links", kind: "toggle", defaultValue: true },
       { key: "footerSocialBoxes", label: "Show Instagram & email icons as square buttons", kind: "toggle", defaultValue: true },
       { key: "footerSocialHoverColor", label: "Square button colour on hover (blank = footer accent)", kind: "color" },
-      { key: "showFooterAdminLink", label: "Show “Admin” link in the footer's bottom bar", kind: "toggle", defaultValue: true },
+      { key: "showFooterAdminLink", label: "Show “Admin” link in the footer's bottom bar", kind: "toggle", defaultValue: false },
       { key: "footerLogo", label: "Logo picture in the footer", kind: "select", defaultValue: "", options: [{ value: "", label: "No picture (shop name only)" }, { value: "image", label: "Picture instead of the shop name" }, { value: "both", label: "Picture above the shop name" }] },
       { key: "footerLogoUrl", label: "Footer logo picture (blank = the header's Logo image)", kind: "image" },
       { key: "footerLogoWidth", label: "Footer logo width", kind: "range", defaultValue: 120, min: 40, max: 320, step: 4, suffix: "px" },

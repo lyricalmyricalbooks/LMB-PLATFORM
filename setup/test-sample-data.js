@@ -104,6 +104,7 @@ export function testSampleDocs(kind = "books", now = new Date()) {
   ];
 }
 
+const PLACEHOLDER_NAME = "Your Press";
 const PLACEHOLDER_INSTAGRAM = "https://www.instagram.com/yourpress";
 const placeholderEmail = (email) => !email || /^owner@example\.com$/i.test(String(email));
 
@@ -128,6 +129,10 @@ export function testShopDetails(current, pressName, { replace = false } = {}) {
   let changed = false;
   const email = `hello@${String(pressName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "test-shop"}.example`;
   if (replace || placeholderEmail(settings.info?.email)) { settings.info = { ...(settings.info ?? {}), email }; changed = true; }
+  // The shop's name: the admin, wordmark, footer and emails read these two, and a test shop left on "Your Press" looks unfinished.
+  const unnamed = (value) => !String(value ?? "").trim() || String(value).trim() === PLACEHOLDER_NAME;
+  if (replace || unnamed(settings.info?.name)) { settings.info = { ...(settings.info ?? {}), name: pressName }; changed = true; }
+  if (replace || unnamed(settings.design?.copy?.siteName)) { settings.design = { ...(settings.design ?? {}), copy: { ...(settings.design?.copy ?? {}), siteName: pressName } }; changed = true; }
   const social = settings.design?.social;
   if (replace ? social?.instagram : social?.instagram === PLACEHOLDER_INSTAGRAM) { settings.design = { ...(settings.design ?? {}), social: { ...social, instagram: "" } }; changed = true; }
   const policies = testPolicies(pressName);

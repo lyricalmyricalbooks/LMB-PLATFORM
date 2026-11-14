@@ -218,7 +218,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           </div>
 
           {/* Style › Footer & social links › Show “Admin” link; words in Text & labels › Footer. */}
-          {d.showFooterAdminLink !== false && (
+          {d.showFooterAdminLink === true && (
             <Link to="/admin" rel="nofollow" {...regionProps("footerAdmin")} data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer admin link"
               className="fm-footer-icon text-[9px] uppercase tracking-[0.3em] text-white/55 hover:text-white transition-colors">
               <span data-studio-copy="footerAdmin">{getCopy(d, "footerAdmin")}</span>
