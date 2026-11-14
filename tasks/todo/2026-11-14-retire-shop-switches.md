@@ -18,7 +18,8 @@ receipts in Gmail, Read orders from Gmail, Orders from an old shop system). All 
 - [x] Follow-up PR 1: delete the stockroom's Gmail receipt finder (tabs, pill, outbox, Apps Script service, Gmail sign-in,
       unused styles). The background receipt sweep, the Gmail add-on inbox and Paste & Upload stay; the sweep's search and
       checks moved to `src/lib/receipt-email.js`.
-- [ ] Follow-up PR 2: delete the stockroom's Gmail order scan and old-shop tab code.
+- [x] ~~Follow-up PR 2: delete the stockroom's Gmail order scan and old-shop tab code.~~ Not doing (Julian, 14 November
+      2026): that code is woven into stock recording and shipping labels, so it stays, switched off for good.
 
 ## Verification
 
