@@ -24,7 +24,7 @@
 //   settings  platformSettings(env) (services/settings.js): platformName, platformUrl, trialDays
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { START_NUDGE_WORDS, nudgeDayOf, startNudgeDue } from "./startNudges.js";
-import { sellsBooks, sellsOf, wordsFor } from "../../shared/sells/sells.js";
+import { sellsBooks, sellsOf, sellsServices, wordsFor } from "../../shared/sells/sells.js";
 
 export const TIP_DAYS = Object.freeze([2, 4, 7, 21, 60]);
 const DAY = 86_400_000;
@@ -34,6 +34,9 @@ const GAP_DAYS = 2;
 export const TIPS = Object.freeze({
   logo: { subject: "Put your logo on your shop", paragraphs: ["Your logo sits in your shop's header, on your emails and in the picture people see when they share your shop.", "Open Design and add it. A square or wide picture works best."], action: "Add your logo", hash: "designer" },
   look: { subject: "Make your shop look like your press", paragraphs: ["Your look is waiting in Design. Change the colours and type until it feels like yours, then press Publish so shoppers see it.", "Every look keeps your words, books and pages, so you can try a few."], action: "Open Design", hash: "designer" },
+  "add-services": { subject: "Add your first service", paragraphs: ["A name, how long it takes and a price are enough. Clients choose from your services when they book.", "Your website stays private while you work, so nobody sees a half-finished list."], action: "Open your calendar", hash: "bookings" },
+  hours: { subject: "Set your opening hours", paragraphs: ["Clients are only offered times inside your hours, so set the days and times you work.", "You can block a day off at any time, and bookings already made stay as they are."], action: "Open your calendar", hash: "bookings" },
+  "booking-page": { subject: "Turn Bookings on", paragraphs: ["The switch at the top of your calendar puts Book a time on your website.", "From then on clients book themselves in, and each booking lands in your calendar with an email to you both."], action: "Open your calendar", hash: "bookings" },
   "add-books": { subject: "Add your first book", paragraphs: ["A title, a price and a photo are enough to start. You can fill in the rest later.", "Your shop stays private while you work, so nobody sees a half-finished book."], action: "Add a book", hash: "catalog" },
   "bring-books": { subject: "Bring your books over from your old shop", paragraphs: ["Export your products from your old shop and choose that file in Books › Import spreadsheet. Photos, prices and editions come over as drafts.", "Old links keep working, so shoppers who bookmarked a book still find it."], action: "Open Books", hash: "catalog" },
   "import-spreadsheet": { subject: "Bring in your spreadsheet of books", paragraphs: ["Choose your spreadsheet of books in Books › Import spreadsheet: Excel or CSV both work.", "You see every book before anything is saved, and each one arrives as a draft."], action: "Open Books", hash: "catalog" },
@@ -61,12 +64,17 @@ function withFreeAddress(tip, freeAddress) {
   return { ...tip, paragraphs: [`Your shop's free address is ${freeAddress}. Share it: put it on your social pages, your cards and your email signature.`, "If you own a name of your own, connect it in Settings › General. Your free address keeps working too."] };
 }
 
+/** What a services shop reads where a shop's tip talks about shipping or returns: it needs privacy and terms only. */
+const SERVICES_TIPS = Object.freeze({
+  policies: { paragraphs: ["Clients read your privacy and terms pages before they book, and the law asks for them. Your website opens once both have words.", "Each one has a Start from our wording button, so it takes a minute."] },
+});
+
 /** A tip in the words of what the shop sells (code plan 12.18): a books shop's tips are exactly TIPS. */
 export function tipWords(step, sells, { freeAddress = "" } = {}) {
   const tip = step === "address" ? withFreeAddress(TIPS[step], freeAddress) : TIPS[step];
   if (!tip || sellsBooks(sells)) return tip;
   const w = wordsFor(sells);
-  return { ...tip, subject: w(tip.subject), paragraphs: tip.paragraphs.map(w), action: w(tip.action), ...GOODS_TIPS[step] };
+  return { ...tip, subject: w(tip.subject), paragraphs: tip.paragraphs.map(w), action: w(tip.action), ...GOODS_TIPS[step], ...(sellsServices(sells) ? SERVICES_TIPS[step] : {}) };
 }
 
 /** A Get started nudge in the shop's words, like tipWords. */

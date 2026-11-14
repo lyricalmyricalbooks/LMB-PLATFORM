@@ -5,6 +5,7 @@ import { practiced } from "./firstWeek";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import { SHOP_COUNTRY, US_SHOP } from "./moneySign";
 import { platformCardsProvider } from "../../lib/shopProfile";
+import { bookable, hasHours, type BookingsFacts } from "./servicesSetup";
 import { accountConnected, CONTINUE_WITH_STRIPE, needsLine, paymentsReady, providerName, type PlatformPaymentsAnswer } from "./platformPayments";
 
 /** Admin-only "Ready to sell?" checks. Read-only guidance; nothing here changes data. */
@@ -28,14 +29,40 @@ export type ReadinessInput = {
    * they couldn't be counted). Left out, or null, when it couldn't be read: no row then.
    */
   signIn?: { twoStep: boolean; codesLeft: number | null } | null;
+  /**
+   * A services shop that sells no products (servicesSetup.ts): its services and hours, or null when they couldn't be
+   * read. Its checks then ask for something to book, not for products, shipping or a practice order. Left out for
+   * every other shop, whose checks are unchanged.
+   */
+  bookings?: BookingsFacts | null;
 };
 
 const REQUIRED_POLICIES: Array<[string, string]> = [["shipping", "Shipping"], ["returns", "Returns"], ["privacy", "Privacy"], ["terms", "Terms"]];
+/** A services shop ships and takes back nothing: its cancellation rule is set, and shown to clients, in Calendar. */
+const SERVICES_POLICIES = REQUIRED_POLICIES.filter(([k]) => k === "privacy" || k === "terms");
+const CALENDAR = { tab: "bookings", action: "Open Calendar" } as const;
+
+/** A services shop's own checks: something to book, hours to book it in, and the booking page switched on. */
+function bookingChecks(facts: BookingsFacts | null): ReadinessItem[] {
+  if (!facts) return [{ id: "services", label: "Your services couldn't be checked", detail: "Open Calendar to see your services and hours.", status: "warn", ...CALENDAR }];
+  const ready = bookable(facts);
+  const items: ReadinessItem[] = [ready.length
+    ? { id: "services", label: `${plural(ready.length, "service")} ready to book`, detail: ready.slice(0, 3).map(s => s.name).join(", ") + (ready.length > 3 ? "…" : ""), status: "ok", ...CALENDAR }
+    : { id: "services", label: "No services to book", detail: "Clients have nothing to book yet. Add your first service in Calendar, under Services.", status: "block", ...CALENDAR }];
+  items.push(hasHours(facts)
+    ? { id: "booking-hours", label: "Opening hours are set", detail: "Clients are offered times inside your hours.", status: "ok", ...CALENDAR }
+    : { id: "booking-hours", label: "No opening hours", detail: "Clients are offered no times until you set your hours in Calendar, under Hours & rules.", status: "block", ...CALENDAR });
+  items.push(facts.settings.live
+    ? { id: "booking-page", label: "Your booking page is on", detail: "Your website shows Book a time.", status: "ok", ...CALENDAR }
+    : { id: "booking-page", label: "Your booking page is off", detail: "Clients can't book online yet. Turn Bookings on at the top of Calendar.", status: "block", ...CALENDAR });
+  return items;
+}
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const hasText = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
-export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount, signIn }: ReadinessInput): ReadinessItem[] {
+export function launchReadiness({ settings, books, shippingProfiles, emailLog, orders, platformCards = platformCardsProvider(), platformAccount, signIn, bookings }: ReadinessInput): ReadinessItem[] {
+  const services = bookings !== undefined;
   const items: ReadinessItem[] = [];
   const payments = settings?.payments || {};
   // The shop's own Stripe keys count only when the platform doesn't take its cards (a Square shop never reads them).
@@ -83,27 +110,30 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
         : { id: "stripe-secret", label: "No Stripe secret key entered here", detail: "Fine only if the STRIPE_SECRET_KEY Functions secret is set — use Payments › Test connection to confirm.", status: "warn", tab: "payments", action: "Open Payments" }); // Stripe shops only (own keys)
   }
 
-  // Catalogue
-  const live = (books || []).filter(b => (b.status || "published") === "published");
-  if (!live.length) items.push({ id: "books", label: "No published books", detail: "Shoppers have nothing to buy yet.", status: "block", tab: "catalog", action: "Open Books" });
+  if (services) items.push(...bookingChecks(bookings ?? null));
   else {
-    const incomplete = live.filter(b => !(Number(b.retailPrice) > 0) || !(b.photos?.length || b.coverImage || b.image) || !hasText(b.description));
-    items.push(incomplete.length
-      ? { id: "books", label: `${plural(incomplete.length, "published book")} missing a price, photo or description`, detail: incomplete.slice(0, 3).map(b => b.title || "Untitled").join(", ") + (incomplete.length > 3 ? "…" : ""), status: "warn", tab: "catalog", action: "Open Books" }
-      : { id: "books", label: `${plural(live.length, "published book")} ready`, detail: "Every published book has a price, photo and description.", status: "ok", tab: "catalog", action: "Open Books" });
+    // Catalogue
+    const live = (books || []).filter(b => (b.status || "published") === "published");
+    if (!live.length) items.push({ id: "books", label: "No published books", detail: "Shoppers have nothing to buy yet.", status: "block", tab: "catalog", action: "Open Books" });
+    else {
+      const incomplete = live.filter(b => !(Number(b.retailPrice) > 0) || !(b.photos?.length || b.coverImage || b.image) || !hasText(b.description));
+      items.push(incomplete.length
+        ? { id: "books", label: `${plural(incomplete.length, "published book")} missing a price, photo or description`, detail: incomplete.slice(0, 3).map(b => b.title || "Untitled").join(", ") + (incomplete.length > 3 ? "…" : ""), status: "warn", tab: "catalog", action: "Open Books" }
+        : { id: "books", label: `${plural(live.length, "published book")} ready`, detail: "Every published book has a price, photo and description.", status: "ok", tab: "catalog", action: "Open Books" });
+    }
+
+    // Reuse the same diagnostics as Shipping, rather than treating a profile count as proof.
+    const shipping = summarizeShipping(shippingProfiles || [], live);
+    const shipIssue = shipping.issues.find(i => i.severity === "blocking") || shipping.issues[0];
+    items.push(shipIssue
+      ? { id: "shipping", label: shipIssue.label, detail: `${shipIssue.detail}${shipping.issues.length > 1 ? ` ${shipping.issues.length - 1} additional shipping checks need attention.` : ""}`, status: shipIssue.severity === "blocking" ? "block" : "warn", tab: "shipping", action: "Open Shipping" }
+      : { id: "shipping", label: "Shipping configuration passes checks", detail: `${plural(shipping.zoneCount, "zone")}, ${plural(shipping.rateCount, "rate")}. Live carrier quotes and label purchases still need a walkthrough.`, status: "ok", tab: "shipping", action: "Open Shipping" });
+
+    const metadata = live.filter(b => !hasText(b.subtitle) || (!hasText(b.edition) && !(b.variants || []).some((v: any) => hasText(v.name))));
+    items.push({ id: "catalog-metadata", label: metadata.length ? `${plural(metadata.length, "book")} need contributor or edition review` : "Contributor and edition metadata present", detail: metadata.length ? metadata.slice(0, 3).map(b => b.title || "Untitled").join(", ") + ". Review display contributors and edition details; these checks never change books." : "Published books identify their contributors and edition.", status: metadata.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
+    const testTitles = live.filter(b => /^(test|sample|demo|placeholder|untitled)(?:\b|[_-])/i.test(String(b.title || "").trim()));
+    items.push({ id: "catalog-test-content", label: testTitles.length ? `${plural(testTitles.length, "published title")} may be test content` : "No obvious test titles found", detail: testTitles.length ? testTitles.slice(0, 3).map(b => b.title).join(", ") + ". Review before launch; legitimate titles can match this check." : "This title check does not replace an owner review of the public catalog.", status: testTitles.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
   }
-
-  // Reuse the same diagnostics as Shipping, rather than treating a profile count as proof.
-  const shipping = summarizeShipping(shippingProfiles || [], live);
-  const shipIssue = shipping.issues.find(i => i.severity === "blocking") || shipping.issues[0];
-  items.push(shipIssue
-    ? { id: "shipping", label: shipIssue.label, detail: `${shipIssue.detail}${shipping.issues.length > 1 ? ` ${shipping.issues.length - 1} additional shipping checks need attention.` : ""}`, status: shipIssue.severity === "blocking" ? "block" : "warn", tab: "shipping", action: "Open Shipping" }
-    : { id: "shipping", label: "Shipping configuration passes checks", detail: `${plural(shipping.zoneCount, "zone")}, ${plural(shipping.rateCount, "rate")}. Live carrier quotes and label purchases still need a walkthrough.`, status: "ok", tab: "shipping", action: "Open Shipping" });
-
-  const metadata = live.filter(b => !hasText(b.subtitle) || (!hasText(b.edition) && !(b.variants || []).some((v: any) => hasText(v.name))));
-  items.push({ id: "catalog-metadata", label: metadata.length ? `${plural(metadata.length, "book")} need contributor or edition review` : "Contributor and edition metadata present", detail: metadata.length ? metadata.slice(0, 3).map(b => b.title || "Untitled").join(", ") + ". Review display contributors and edition details; these checks never change books." : "Published books identify their contributors and edition.", status: metadata.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
-  const testTitles = live.filter(b => /^(test|sample|demo|placeholder|untitled)(?:\b|[_-])/i.test(String(b.title || "").trim()));
-  items.push({ id: "catalog-test-content", label: testTitles.length ? `${plural(testTitles.length, "published title")} may be test content` : "No obvious test titles found", detail: testTitles.length ? testTitles.slice(0, 3).map(b => b.title).join(", ") + ". Review before launch; legitimate titles can match this check." : "This title check does not replace an owner review of the public catalog.", status: testTitles.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
 
   // Sales tax (charged server-side from Settings › Taxes rates)
   const collecting = taxCollectionOn(settings);
@@ -121,13 +151,13 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   }
 
   // Policies
-  const missing = REQUIRED_POLICIES.filter(([k]) => !hasText(settings?.policies?.[k])).map(([, label]) => label);
+  const missing = (services ? SERVICES_POLICIES : REQUIRED_POLICIES).filter(([k]) => !hasText(settings?.policies?.[k])).map(([, label]) => label);
   items.push(missing.length
     // A block, not a warning (legal review, 3 November 2026): Ontario's and Quebec's consumer laws expect the seller's
     // delivery, returns and privacy terms before an online sale, and card networks ask for them. Each policy has a
     // "Start from our wording" button, so this takes a minute.
-    ? { id: "policies", label: `Missing store policies: ${missing.join(", ")}`, detail: "Shoppers must be able to read your shipping, returns, privacy and terms pages before they buy, and card networks ask for them too. Each one has a Start from our wording button to fill it in a minute.", status: "block", tab: "general", action: "Open General" }
-    : { id: "policies", label: "Store policy content is present", detail: "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open General" });
+    ? { id: "policies", label: `Missing store policies: ${missing.join(", ")}`, detail: services ? "Clients must be able to read your privacy and terms pages before they book, and card networks ask for them too. Each one has a Start from our wording button to fill it in a minute." : "Shoppers must be able to read your shipping, returns, privacy and terms pages before they buy, and card networks ask for them too. Each one has a Start from our wording button to fill it in a minute.", status: "block", tab: "general", action: "Open General" }
+    : { id: "policies", label: "Store policy content is present", detail: services ? "Privacy and terms contain text. Review their public pages for accuracy." : "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open General" });
 
   // Postal address: every email footer carries it (Settings › General › Location) and abandoned-cart
   // reminders are not sent without one. Mirrors functions/marketingOptOut.js footerAddress.
@@ -157,7 +187,9 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
 
   // End-to-end proof. On a Colophon shop a practice order (plan 7.6) proves checkout without moving money, so it counts.
   const realSale = (orders || []).some(isRealPaidOrder);
-  if (platformCards) items.push(realSale || (orders || []).some(practiced)
+  // A services shop has no bag to practise with: its first booking is the proof, and Calendar shows it.
+  if (services) { /* no row */ }
+  else if (platformCards) items.push(realSale || (orders || []).some(practiced)
     ? { id: "first-sale", label: "Checkout works", detail: realSale ? "A real order has gone through, from the bag to the receipt." : "A practice order went through, from the bag to the receipt. No money moved.", status: "ok", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "Try a practice order", detail: "While your shop is private, press Try a practice order in Payments and buy one item with the practice card. No money moves.", status: "warn", tab: "payments", action: "Open Payments" });
   else items.push(realSale

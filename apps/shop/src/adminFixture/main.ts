@@ -935,11 +935,14 @@ if (new URLSearchParams(location.search).get("variants")) {
 
 // Design (redesign): a live look, a draft with two changes waiting, and two pages (`?page=design`).
 // ── A services shop (`?sells=hair|wellness|lessons|fitness|studio|services`): the calendar-first menu and "clients".
-// `&products=1` is the same shop with "Sell products too" on. In memory. ──
+// `&products=1` is the same shop with "Sell products too" on; `&start=1` is the shop at Get started's services step
+// (with `&bookings=new`, before any service is added). In memory. ──
 {
   const sells = new URLSearchParams(location.search).get("sells");
   if (sells) {
-    const week: any = { publishes: sells, welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso" }, sellsProducts: new URLSearchParams(location.search).get("products") === "1" };
+    // `&start=1`: the shop is at Get started's second step (its services), before it has a look.
+    const starting = new URLSearchParams(location.search).get("start") === "1";
+    const week: any = { publishes: sells, details: { at: "2026-11-01T09:00:00.000Z" }, ...(starting ? {} : { bring: { at: "2026-11-01T09:30:00.000Z", skipped: true }, welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso" } }), sellsProducts: new URLSearchParams(location.search).get("products") === "1" };
     const api = adminApi as any;
     api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
     api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };

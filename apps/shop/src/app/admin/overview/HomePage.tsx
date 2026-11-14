@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adminApi } from "../api";
 import { getOrdersCached, peekOrders } from "../ordersCache";
-import { readSignIn } from "../launchCheck";
+import { readBookingsFacts, readSignIn } from "../launchCheck";
 import { launchReadiness } from "../launchReadiness";
 import { platformCardsProvider } from "../../../lib/shopProfile";
 import { mergeNewestPage } from "../ordersDesk";
@@ -72,7 +72,9 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
       platformCardsProvider() ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(undefined),
       // Two-step sign-in and backup codes, recommended before going live (never fails the other checks).
       readSignIn(),
-    ]).then(([settings, shippingProfiles, emailLog, platformAccount, signIn]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount, signIn }, error: false }))
+      // A services shop's services and hours stand in for products and shipping (undefined for every other shop).
+      readBookingsFacts(),
+    ]).then(([settings, shippingProfiles, emailLog, platformAccount, signIn, bookings]) => setLaunch({ parts: { settings, shippingProfiles, emailLog, platformAccount, signIn, bookings }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { seenShared.current = o; setAllOrders({ orders: o, error: false }); })
       .catch(() => setAllOrders({ orders: null, error: true }));
@@ -171,7 +173,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "" }: {
       {/* A cancelled plan: the day the shop closes, with the download and Keep my plan (ClosingTile.tsx). */}
       <ClosingTile />
       {/* Plans 6.3 and 6.9: only a shop whose setup wrote the sign-up answers shows Choose your look, then the guide. */}
-      <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness}
+      <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness} bookings={launch.parts?.bookings}
         settings={launch.parts ? launch.parts.settings : launch.error ? null : undefined}
         onOpen={go} onSetWall={onSetWall} onRetrySettings={refresh} />
       {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
