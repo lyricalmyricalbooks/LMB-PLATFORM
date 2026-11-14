@@ -4,8 +4,9 @@ import {
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from "react";
 import {
-  AlertTriangle, BookOpen, Check, ChevronDown, ChevronRight, CircleDashed, CreditCard, Gift, Globe, Hourglass, Inbox, LayoutGrid, Lock,
-  Minus, Package, Percent, RotateCw, Search, Tag, Truck, Waves, X,
+  AlertTriangle, BookOpen, Building2, Check, ChevronDown, ChevronRight, CircleCheck, CircleDashed, Clock, CreditCard, FileText, FolderOpen,
+  Gift, Globe, Hourglass, Inbox, Landmark, LayoutGrid, Lock, Minus, NotebookPen, Package, Percent, Receipt, Repeat, RotateCw, Search,
+  ShoppingCart, Store, Tag, Truck, Users, Waves, X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import "./adminThemes.css";
@@ -541,10 +542,10 @@ export function TabPanel({ tabId, active, children, alone = false }: {
 
 /* ── Overlays ────────────────────────────────────────────────────────── */
 
-export function Dialog({ open, onClose, title, description, footer, footerStart, badge, logo, children, size, variant = "dialog", appearance }: {
+export function Dialog({ open, onClose, title, description, footer, footerStart, logo, children, size, variant = "dialog", appearance }: {
   open: boolean; onClose: () => void; title: string; description?: string; footer?: ReactNode;
   /** Partner companies this dialog is about: their logos sit before the title. */ logo?: BrandId | BrandId[];
-  /** A destructive action, alone on the far left of the footer. */ footerStart?: ReactNode; badge?: string;
+  /** A destructive action, alone on the far left of the footer. */ footerStart?: ReactNode;
   children: ReactNode; size?: "md" | "lg" | "full"; variant?: "dialog" | "drawer"; appearance?: "light" | "dark";
 }) {
   // `appearance` set = mounted outside an AppShell (owns its tokens); unset = inherits the shell's.
@@ -559,7 +560,7 @@ export function Dialog({ open, onClose, title, description, footer, footerStart,
         style={size === "full" ? { width: "min(100%, 1400px)", height: "calc(100dvh - 32px)", maxHeight: "none" } : undefined}>
         <div className="rp-dialog-head">
           <div>
-            <h2 id={titleId} className="rp-dialog-title">{badge && <span className="rp-dialog-badge" aria-hidden="true">{badge}</span>}{logo && (
+            <h2 id={titleId} className="rp-dialog-title">{logo && (
               <span className="rp-dialog-logos">{(Array.isArray(logo) ? logo : [logo]).map((id) => <BrandLogo key={id} id={id} size="md" />)}</span>
             )}{title}</h2>
             {description && <p className="rp-card-desc">{description}</p>}
@@ -655,10 +656,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 const STATE_ICONS: Record<string, typeof Inbox> = {
   "📭": Inbox, "⚠": AlertTriangle, "%": Percent, "🌍": Globe, "🎁": Gift, "🏷️": Tag, "🏷": Tag, "💳": CreditCard, "📚": BookOpen, "📦": Package,
   "🔒": Lock, "🚚": Truck, "⏳": Hourglass, "✓": Check, "◌": CircleDashed, "↻": RotateCw, "≈": Waves, "▦": LayoutGrid, "–": Minus,
+  "🧾": Receipt, "✅": CircleCheck, "🔍": Search, "🔎": Search, "🔁": Repeat, "📝": NotebookPen, "🏦": Landmark, "🛒": ShoppingCart,
+  "🗂️": FolderOpen, "🗂": FolderOpen, "🕒": Clock, "📄": FileText, "👥": Users, "🏬": Building2, "🏪": Store,
 };
 function stateIcon(icon: ReactNode) {
   const Icon = typeof icon === "string" ? STATE_ICONS[icon] : undefined;
-  return Icon ? <Icon size={24} strokeWidth={2} aria-hidden /> : icon;
+  if (Icon) return <Icon size={24} strokeWidth={2} aria-hidden />;
+  return typeof icon === "string" ? <Inbox size={24} strokeWidth={2} aria-hidden /> : icon;
 }
 
 export function EmptyState({ title, description, action, icon, inline }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode; inline?: boolean }) {

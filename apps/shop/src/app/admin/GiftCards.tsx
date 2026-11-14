@@ -76,7 +76,7 @@ export function IssueDialog({ onClose, onIssued, initial, credit = false }: {
 
   if (issued) {
     return (
-      <Dialog open onClose={onClose} title={credit ? "Store credit created" : "Gift card created"} badge="🎁"
+      <Dialog open onClose={onClose} title={credit ? "Store credit created" : "Gift card created"}
         description="Copy the code now if you're passing it on yourself. You can see it again any time: open the card from the Gift cards list."
         footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
         <div className="rp-stack" style={{ gap: 12 }}>
@@ -90,7 +90,7 @@ export function IssueDialog({ onClose, onIssued, initial, credit = false }: {
   }
 
   return (
-    <Dialog open onClose={onClose} title={credit ? "Give store credit" : "Issue a gift card"} badge="🎁" size="lg"
+    <Dialog open onClose={onClose} title={credit ? "Give store credit" : "Issue a gift card"} size="lg"
       description={credit
         ? "The customer gets a code worth this amount to spend at checkout. It doesn't refund their card."
         : "Create a gift card yourself — for a prize, a refund as store credit or a goodwill gesture. It works at checkout like a bought one."}
@@ -179,7 +179,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
 
   if (result) {
     return (
-      <Dialog open onClose={onClose} title="Gift cards brought over" badge="🎁" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
+      <Dialog open onClose={onClose} title="Gift cards brought over" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
         <div className="rp-stack" style={{ gap: 12 }} role="status">
           <StatusBadge tone={result.added ? "success" : "neutral"}>{plural(result.added, "gift card")} added</StatusBadge>
           {result.emailed > 0 && <p className="rp-hint" style={{ margin: 0 }}>{plural(result.emailed, "holder")} {result.emailed === 1 ? "was" : "were"} emailed a new code.</p>}
@@ -191,7 +191,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
   }
 
   return (
-    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring gift cards over" badge="🎁" size="lg"
+    <Dialog open onClose={() => { if (!busy) onClose(); }} title="Bring gift cards over" size="lg"
       description="Choose the gift card file from your old shop. Every card with money left comes over with its balance, so the people holding them can still spend them."
       footer={<>
         <SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton>
