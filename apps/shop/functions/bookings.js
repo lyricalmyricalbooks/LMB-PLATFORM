@@ -10,7 +10,7 @@
 //                            note, answers: [{ label, answer }] (the service's own questions), status: "held" | "confirmed" | "cancelled", payment: "free" | "card" | "atShop", priceMinor,
 //                            currency, paid, sessions, paidSession?, paymentIntent?, refund?, holdUntil?, manageKeyHash,
 //                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt }
-//   bookingDays/{day}      { items: { [bookingId]: { start, end, held } } }: what is taken on one shop day, read and
+//   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
 //                          written in the same transaction as the booking, so two customers can never take one time.
 //
 // A paid booking holds its time while the customer pays on the shop's own Stripe or Square page
@@ -21,7 +21,7 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES,
 } = require("./shared/bookingTimes");
 
@@ -47,7 +47,7 @@ function busyFrom(daySnaps, nowMs, except = "") {
     for (const [id, item] of Object.entries(items)) {
       if (id === except || !item || !Number.isFinite(item.start) || !Number.isFinite(item.end)) continue;
       if (item.held && Number.isFinite(item.at) && nowMs - item.at > STALE_HOLD_MS) continue;
-      busy.push({ start: item.start, end: item.end });
+      busy.push({ start: item.start, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined });
     }
   }
   return busy;
@@ -191,7 +191,7 @@ function bookingActions({
       const held = record.status === "held";
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        items[id] = { start, end: blockEnd, held, at: nowMs };
+        items[id] = { start, end: blockEnd, held, at: nowMs, s: record.serviceId };
         tx.set(dayRef(d), { items });
       });
       tx.set(bookings().doc(id), { ...record, start: new Date(start).toISOString(), end: new Date(end).toISOString() });
@@ -229,7 +229,7 @@ function bookingActions({
       all.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         delete items[id];
-        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs };
+        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId };
         tx.set(dayRef(d), { items });
       });
       tx.set(bookings().doc(id), {
@@ -325,7 +325,7 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active);
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, location, questions }) => ({ id, name, description, minutes, priceMinor, payment, location, questions })),
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, location, questions, places }) => ({ id, name, description, minutes, priceMinor, payment, location, questions, places })),
         });
       }
       if (action === "bookingTimes") {
@@ -338,8 +338,16 @@ function bookingActions({
         const snaps = await Promise.all([addDays(from, -1), ...days, addDays(from, count)].map((d) => dayRef(d).get()));
         const busy = busyFrom(snaps, nowMs);
         const out = {};
-        for (const day of days) out[day] = freeTimes({ service, settings, busy, day, zone: zone(), nowMs }).map((ms) => new Date(ms).toISOString());
-        return res.status(200).json({ on: true, days: out });
+        // A group class also says how many places each time has left.
+        const left = {};
+        for (const day of days) {
+          out[day] = freeTimes({ service, settings, busy, day, zone: zone(), nowMs }).map((ms) => {
+            const iso = new Date(ms).toISOString();
+            if (isClass(service)) left[iso] = placesLeft(ms, service, busy);
+            return iso;
+          });
+        }
+        return res.status(200).json({ on: true, days: out, ...(isClass(service) ? { places: service.places, left } : {}) });
       }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
@@ -371,7 +379,7 @@ function bookingActions({
           source: "website", history: [{ at, what: "booked", by: "customer" }], createdAt: at, updatedAt: at,
         };
         const took = await takeTime({ id, service, settings, start, record });
-        if (!took) return fail(res, 409, "Someone just took that time. Please pick another.", "taken");
+        if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
           await tellCustomer(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() }, "booked", { key });
           return res.status(200).json({ id, key, status: "confirmed" });
@@ -435,8 +443,8 @@ function bookingActions({
         const service = (await readServices()).find((s) => s.id === b.serviceId) || { minutes: b.minutes, gapAfter: b.gapAfter || 0 };
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time first.");
-        const moved = await moveTime(id, b, { ...service, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, settings, start);
-        if (!moved) return fail(res, 409, "Someone just took that time. Please pick another.", "taken");
+        const moved = await moveTime(id, b, { ...service, id: b.serviceId, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, settings, start);
+        if (!moved) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         const next = { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() };
         await tellCustomer(id, next, "moved", { key });
         return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
@@ -529,8 +537,8 @@ function bookingActions({
         };
         // The owner may book any time that doesn't clash, outside the hours too (a favour for a regular).
         const own = { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]), daysOff: [], step: 5 };
-        const took = await takeTime({ id, service, settings: own, start, record });
-        if (!took) return fail(res, 409, "That time clashes with another booking.", "taken");
+        const took = await takeTime({ id, service: { ...service, classTimes: [] }, settings: own, start, record });
+        if (!took) return fail(res, 409, isClass(service) ? "That class is full, or the time clashes with another booking." : "That time clashes with another booking.", "taken");
         if (req.body?.sendEmail !== false) await tellCustomer(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() }, "booked", { key, byShop: true });
         return res.status(200).json({ ok: true, id });
       }
@@ -564,8 +572,10 @@ function bookingActions({
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time.");
         const own = { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]), daysOff: [], step: 5 };
-        const moved = await moveTime(id, b, { minutes: b.minutes, gapAfter: b.gapAfter || 0 }, own, start, { by });
-        if (!moved) return fail(res, 409, "That time clashes with another booking.", "taken");
+        // A class keeps its places when one of its people is moved: they may join another start of the same class.
+        const theirs = (await readServices()).find((s) => s.id === b.serviceId);
+        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, own, start, { by });
+        if (!moved) return fail(res, 409, isClass(theirs) ? "That class is full, or the time clashes with another booking." : "That time clashes with another booking.", "taken");
         // A new link: the old one in the customer's first email still works, since the key is unchanged.
         if (req.body?.notify !== false) await tellCustomer(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() }, "moved", { byShop: true });
         return res.status(200).json({ ok: true });

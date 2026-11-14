@@ -799,3 +799,5 @@ Steps: service (skipped with one service) → time (a week of days, times groupe
 **Service questions:** the details form shows the chosen service's questions (fields `bt-q-<id>`, a box or a longer
 one) between phone and note; a must-answer one left empty shows `bookTimeNeedAnswer`, the others carry
 `bookTimeOptional` (both in Text & labels). Answers reset when the service changes; the server checks them again.
+**Group classes:** a service with `places` above 1 shows `bookTimeClassSize` on its card and, on each time chip, how many
+places are left (`bookTimePlacesLeft`, `bookTimeLastPlace`; from the server's `left`). The Studio preview has a sample class.

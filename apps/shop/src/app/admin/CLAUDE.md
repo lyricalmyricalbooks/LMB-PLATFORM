@@ -1078,3 +1078,6 @@ Orders › **Bookings** (`Bookings.tsx`, `bookings.css`, pure `bookingsView.ts`,
 `platform/features`, nobody write it). Tabs: Calendar (a week, new / move / cancel / no-show / paid at the shop),
 Services, Hours & rules. Every write goes to the server (`bookingsAdmin`), never straight to Firestore. Turned on per shop
 in the control room's shop record › Bookings (beta). Fixture: `admin-fixture.html?page=bookings`.
+**Group classes:** the service dialog's *Who can book a time* (One customer / A group class: places and weekly class
+times). In the week, everyone at one start of a class shares a card (`daySlots`, `classCount` in `bookingsView.ts`); a
+name opens that person's booking.

@@ -3,6 +3,31 @@
 import { addDays, dayOf, weekdayOf } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
+/** One card in a day's column: a single booking, or a group class with everyone booked into it. */
+export type DaySlot = { kind: "one"; booking: Booking } | { kind: "class"; key: string; start: string; serviceName: string; places: number; people: Booking[] };
+
+/** A day's bookings as cards: the people in one start of a group class share a card, everything else has its own. */
+export function daySlots(list: readonly Booking[], placesOf: (serviceId: string) => number): DaySlot[] {
+  const out: DaySlot[] = [];
+  const classes = new Map<string, Extract<DaySlot, { kind: "class" }>>();
+  for (const b of list) {
+    const places = placesOf(b.serviceId);
+    if (places <= 1) { out.push({ kind: "one", booking: b }); continue; }
+    const key = `${b.serviceId}|${b.start}`;
+    let slot = classes.get(key);
+    if (!slot) {
+      slot = { kind: "class", key, start: b.start, serviceName: b.serviceName, places, people: [] };
+      classes.set(key, slot);
+      out.push(slot);
+    }
+    slot.people.push(b);
+  }
+  return out;
+}
+
+/** "5 of 8 booked", or "Full" when every place is taken. */
+export const classCount = (people: number, places: number): string => (people >= places ? `Full · ${people} booked` : `${people} of ${places} booked`);
+
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 
 /** The Monday of the week a day falls in. */

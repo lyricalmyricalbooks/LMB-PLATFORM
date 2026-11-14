@@ -1206,3 +1206,9 @@ switch. Off stops `bookingInfo` / `bookingTimes` / `bookingStart`; customers sti
 required }`, cleaned by `cleanQuestions` in the shared rules). `bookingInfo` sends them; `bookingStart` runs
 `cleanAnswers` and refuses a missing must-answer one (400, code `answers`); the owner's own `create` never enforces.
 A booking keeps `answers` as `{ label, answer }` pairs (the wording at the time), shown in the owner's email and feed.
+**Group classes (14 November 2026):** a service with `places` above 1 is a class (`isClass`), with optional weekly
+`classTimes` (`{ weekday, time }`; set, the class runs only then, outside the opening hours too, days off still closed).
+Each day item carries its service (`s`), so `busyFrom` gives `serviceId` and the shared `placesLeft` lets a class share a
+time only with its own bookings at the very same start, up to its places; anything else overlapping is a clash, both
+ways. One booking is one place. `bookingTimes` adds `places` and `left` (per time) for a class. The owner's `create`
+ignores `classTimes` but never the places; the owner's `move` looks the service up so a person can join another start.

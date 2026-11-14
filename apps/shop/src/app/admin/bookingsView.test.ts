@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byDay, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { byDay, classCount, daySlots, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import type { Booking } from "./bookingsApi";
 
 const ZONE = "America/Toronto";
@@ -44,5 +44,19 @@ describe("the list", () => {
   });
   it("adds up the week", () => {
     expect(weekFigures([b({}), b({ minutes: 30, payment: "card", paid: true, priceMinor: 4000 }), b({ status: "cancelled" })])).toEqual({ count: 2, hours: 1.5, takenMinor: 4000 });
+  });
+});
+
+describe("a group class in the week", () => {
+  it("puts everyone at one start of a class on one card, and leaves other bookings alone", () => {
+    const list = [b({ id: "1" }), b({ id: "2", serviceId: "ws", serviceName: "Workshop" }), b({ id: "3", serviceId: "ws", serviceName: "Workshop" }),
+      b({ id: "4", serviceId: "ws", serviceName: "Workshop", start: "2026-11-17T19:00:00.000Z" })];
+    const slots = daySlots(list, (id) => (id === "ws" ? 8 : 1));
+    expect(slots.map((s) => (s.kind === "class" ? s.people.map((p) => p.id) : s.booking.id))).toEqual(["1", ["2", "3"], ["4"]]);
+    expect(slots[1]).toMatchObject({ kind: "class", places: 8, serviceName: "Workshop" });
+  });
+  it("says how full it is", () => {
+    expect(classCount(5, 8)).toBe("5 of 8 booked");
+    expect(classCount(8, 8)).toBe("Full · 8 booked");
   });
 });

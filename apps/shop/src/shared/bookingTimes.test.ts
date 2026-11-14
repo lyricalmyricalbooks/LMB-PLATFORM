@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
-  cleanAnswers, cleanQuestions, freeTimes, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
+  cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -122,5 +122,43 @@ describe("questions on the booking form", () => {
     expect(cleanAnswers(questions, { a: " A3 ", b: "x".repeat(2000), c: "ignored" })).toEqual({
       answers: [{ label: "Paper size", answer: "A3" }, { label: "Notes", answer: "x".repeat(1000) }],
     });
+  });
+});
+
+describe("group classes", () => {
+  const workshop = { id: "ws", minutes: 120, gapAfter: 0, places: 3, classTimes: [{ weekday: 6, time: "14:00" }] };
+  const sat = at("2026-11-21", "14:00");
+  const taken = (n: number) => Array.from({ length: n }, () => ({ start: sat, end: sat + 120 * 60_000, serviceId: "ws" }));
+
+  it("counts the places left at one start and stops at full", () => {
+    expect(placesLeft(sat, workshop, [])).toBe(3);
+    expect(placesLeft(sat, workshop, taken(2))).toBe(1);
+    expect(placesLeft(sat, workshop, taken(3))).toBe(0);
+    expect(clashes(sat, workshop, taken(2))).toBe(false);
+  });
+
+  it("shares a time only with the same class at the same start", () => {
+    expect(placesLeft(sat, workshop, [{ start: sat, end: sat + 3_600_000, serviceId: "other" }])).toBe(0);
+    expect(placesLeft(sat, workshop, [{ start: sat, end: sat + 3_600_000 }])).toBe(0);
+    expect(placesLeft(sat + 30 * 60_000, workshop, taken(1))).toBe(0);
+    // One customer at a time never shares, whatever the id.
+    expect(placesLeft(sat, { ...workshop, places: 1 }, taken(1))).toBe(0);
+  });
+
+  it("offers a class at its own weekly times, outside the opening hours too, and not once full", () => {
+    expect(freeTimes({ service: workshop, settings, busy: taken(2), day: "2026-11-21", zone: ZONE, nowMs: NOW })).toEqual([sat]);
+    expect(freeTimes({ service: workshop, settings, busy: taken(3), day: "2026-11-21", zone: ZONE, nowMs: NOW })).toEqual([]);
+    expect(freeTimes({ service: workshop, settings, busy: [], day: "2026-11-20", zone: ZONE, nowMs: NOW })).toEqual([]);
+    expect(freeTimes({ service: workshop, settings: { ...settings, daysOff: ["2026-11-21"] }, busy: [], day: "2026-11-21", zone: ZONE, nowMs: NOW })).toEqual([]);
+    // Without its own times a class follows the opening hours like any service.
+    expect(freeTimes({ service: { ...workshop, classTimes: [] }, settings, busy: [], day: "2026-11-21", zone: ZONE, nowMs: NOW })).toEqual([]);
+    expect(freeTimes({ service: { ...workshop, classTimes: [] }, settings, busy: [], day: "2026-11-20", zone: ZONE, nowMs: NOW }).length).toBeGreaterThan(3);
+  });
+
+  it("cleans the weekly times", () => {
+    expect(cleanClassTimes([{ weekday: 6, time: "14:00" }, { weekday: 1, time: "09:30" }, { weekday: 6, time: "14:00" }, { weekday: 7, time: "10:00" }, { weekday: 2, time: "25:00" }, "x"]))
+      .toEqual([{ weekday: 1, time: "09:30" }, { weekday: 6, time: "14:00" }]);
+    expect(cleanService({ name: "Solo", minutes: 30 })).toMatchObject({ places: 1, classTimes: [] });
+    expect(cleanService({ name: "Big", minutes: 30, places: 5000 })).toMatchObject({ places: 100 });
   });
 });

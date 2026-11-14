@@ -3,15 +3,15 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, MapPin, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, MapPin, Plus, Trash2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, type Booking } from "./bookingsApi";
-import { byDay, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { byDay, classCount, daySlots, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { copyText } from "./clipboard";
@@ -132,7 +132,7 @@ export function Bookings() {
           <EmptyState title="Add what customers can book" description="A studio visit, a class for one, a portfolio review: give it a length and a price, then turn on your bookings page."
             action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setAdding(true); setTab("services"); }}>Add a service</PrimaryButton>} />
         ) : (
-          <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} />
+          <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} />
         )}
       </TabPanel>
       <TabPanel tabId="services" active={tab === "services"}>
@@ -150,9 +150,10 @@ export function Bookings() {
 
 // ── Calendar ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function WeekView({ monday, setMonday, rows, error, settings, onOpen }: {
-  monday: string; setMonday: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; onOpen: (b: Booking) => void;
+function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }: {
+  monday: string; setMonday: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; services: BookingService[]; onOpen: (b: Booking) => void;
 }) {
+  const placesOf = (serviceId: string) => services.find((s) => s.id === serviceId)?.places || 1;
   const days = weekDays(monday);
   const groups = useMemo(() => byDay(rows || [], ZONE), [rows]);
   const now = today();
@@ -191,13 +192,29 @@ function WeekView({ monday, setMonday, rows, error, settings, onOpen }: {
               </header>
               {rows === null ? <div className="bkg-skeleton" aria-hidden /> : list.length === 0 ? (
                 <p className="bkg-day-empty">{closed ? "Closed" : "Nothing booked"}</p>
-              ) : list.map((b) => (
-                <button key={b.id} type="button" className="bkg-slot" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
-                  <span className="bkg-slot-time">{timeText(b.start, ZONE)}</span>
-                  <span className="bkg-slot-who">{b.customer.name}</span>
-                  <span className="bkg-slot-what">{b.serviceName}</span>
-                  {b.status === "held" && <span className="bkg-slot-tag">{b.clearing ? "Payment clearing" : "Paying now"}</span>}
-                  {b.noShow && <span className="bkg-slot-tag">No-show</span>}
+              ) : daySlots(list, placesOf).map((slot) => slot.kind === "class" ? (
+                <div key={slot.key} className="bkg-class" data-full={slot.people.length >= slot.places || undefined}>
+                  <span className="bkg-slot-time">{timeText(slot.start, ZONE)}</span>
+                  <span className="bkg-slot-who">{slot.serviceName}</span>
+                  <span className="bkg-class-count"><Users size={13} aria-hidden /> {classCount(slot.people.length, slot.places)}</span>
+                  <span className="bkg-class-bar" aria-hidden><i style={{ width: `${Math.min(100, Math.round((slot.people.length / slot.places) * 100))}%` }} /></span>
+                  <ul className="bkg-class-people">
+                    {slot.people.map((b) => (
+                      <li key={b.id}>
+                        <button type="button" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
+                          {b.customer.name}{b.status === "held" ? <em>{b.clearing ? "clearing" : "paying"}</em> : b.noShow ? <em>no-show</em> : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <button key={slot.booking.id} type="button" className="bkg-slot" data-status={slot.booking.status} data-noshow={slot.booking.noShow || undefined} onClick={() => onOpen(slot.booking)}>
+                  <span className="bkg-slot-time">{timeText(slot.booking.start, ZONE)}</span>
+                  <span className="bkg-slot-who">{slot.booking.customer.name}</span>
+                  <span className="bkg-slot-what">{slot.booking.serviceName}</span>
+                  {slot.booking.status === "held" && <span className="bkg-slot-tag">{slot.booking.clearing ? "Payment clearing" : "Paying now"}</span>}
+                  {slot.booking.noShow && <span className="bkg-slot-tag">No-show</span>}
                 </button>
               ))}
             </section>
@@ -454,7 +471,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0, questions: [] };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0, questions: [], places: 1, classTimes: [] };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -473,7 +490,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
               <h3>{s.name}</h3>
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
-            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}</p>
+            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}</p>
             <p className="bkg-service-price">{s.payment === "full" ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
@@ -499,6 +516,9 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const questions = form.questions || [];
+  const classTimes = form.classTimes || [];
+  const group = form.places > 1;
+  const setClassTime = (i: number, change: Partial<(typeof classTimes)[number]>) => set("classTimes", classTimes.map((t, j) => (j === i ? { ...t, ...change } : t)));
   const setQuestion = (i: number, change: Partial<(typeof questions)[number]>) => set("questions", questions.map((q, j) => (j === i ? { ...q, ...change } : q)));
   const save = async () => {
     setSaving(true); setProblem("");
@@ -525,6 +545,32 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
         </div>
         <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free. Paid bookings are paid by card when booked." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
+        <fieldset className="bkg-questions">
+          <legend>Who can book a time</legend>
+          <div className="bkg-seg" role="radiogroup" aria-label="Who can book a time">
+            <button type="button" role="radio" aria-checked={!group} onClick={() => set("places", 1)}>One customer</button>
+            <button type="button" role="radio" aria-checked={group} onClick={() => { if (!group) set("places", 8); }}>A group class</button>
+          </div>
+          {group && (
+            <>
+              <TextField label="Places at each time" inputMode="numeric" value={String(form.places)} hint="Each booking takes one place."
+                onChange={(e) => set("places", Math.min(MAX_PLACES, Math.max(2, Number(e.target.value.replace(/\D/g, "")) || 2)))} />
+              <p className="bkg-questions-hint">{classTimes.length ? "The class runs at these times each week." : "Add the times the class runs each week, or leave this empty to offer every free time in your hours."}</p>
+              {classTimes.map((t, i) => (
+                <div key={i} className="bkg-classtime">
+                  <SelectField label="Day" value={String(t.weekday)} onChange={(e) => setClassTime(i, { weekday: Number(e.target.value) })}>
+                    {ORDERED_DAYS.map((d) => <option key={d} value={d}>{WEEKDAYS[d]}</option>)}
+                  </SelectField>
+                  <TextField label="Starts" type="time" value={t.time} onChange={(e) => setClassTime(i, { time: e.target.value })} />
+                  <button type="button" className="bkg-question-remove" aria-label={`Remove ${WEEKDAYS[t.weekday]} ${t.time}`} onClick={() => set("classTimes", classTimes.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
+                </div>
+              ))}
+              {classTimes.length < MAX_CLASS_TIMES && (
+                <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("classTimes", [...classTimes, { weekday: classTimes[classTimes.length - 1]?.weekday ?? 6, time: classTimes[classTimes.length - 1]?.time ?? "14:00" }])}>Add a class time</SecondaryButton>
+              )}
+            </>
+          )}
+        </fieldset>
         <TextArea label="About it (optional)" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
         <fieldset className="bkg-questions">
           <legend>Questions to ask</legend>

@@ -3,7 +3,7 @@
 import { addDays } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
-export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full"; location: string; questions?: BookingQuestion[] };
+export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full"; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[] };
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; start: string; end: string;

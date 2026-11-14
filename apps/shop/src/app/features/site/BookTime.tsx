@@ -5,7 +5,7 @@
 // (functions/bookings.js); this page only shows what it answers.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Clock, Loader2, MapPin } from "lucide-react";
+import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Users } from "lucide-react";
 import { functionFetch } from "../../lib/functionsBase";
 import { useSEO } from "../../lib/seo";
 import { StoreChrome } from "./StoreChrome";
@@ -189,6 +189,7 @@ function NewBooking({ c }: { c: Copy }) {
               <span className="fm-book-meta fm-track-mono">
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
+                {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
               </span>
             </button>
@@ -295,6 +296,7 @@ function ServiceMeta({ service, currency, c }: { service: BookingServiceView; cu
       <span><Clock size={12} aria-hidden="true" /> {lengthText(service.minutes)}</span>
       <span translate="no">{service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree")}</span>
       {service.location && <span><MapPin size={12} aria-hidden="true" /> {service.location}</span>}
+      {(service.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: service.places! })}</span>}
     </p>
   );
 }
@@ -320,6 +322,8 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
 }) {
   const [from, setFrom] = useState(today);
   const [times, setTimes] = useState<Record<string, string[]> | null>(null);
+  // A group class: how many places each time still has.
+  const [left, setLeft] = useState<Record<string, number>>({});
   const [failed, setFailed] = useState(false);
   const [day, setDay] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -333,6 +337,7 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
       if (cancelled) return;
       const got = (answer.days || {}) as Record<string, string[]>;
       setTimes(got);
+      setLeft((answer.left || {}) as Record<string, number>);
       setDay((current) => (current && days.includes(current) && (got[current] || []).length ? current : firstOpenDay(days, got)));
     }).catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
@@ -378,7 +383,10 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c }: {
             <p className="fm-track-mono fm-book-group">{c(g.group === "morning" ? "bookTimeMorning" : g.group === "afternoon" ? "bookTimeAfternoon" : "bookTimeEvening")}</p>
             <div className="fm-book-times">
               {g.times.map((t) => (
-                <button key={t} type="button" className="fm-book-time" aria-pressed={t === picked} onClick={() => onPick(t)} translate="no">{timeText(t, zone)}</button>
+                <button key={t} type="button" className="fm-book-time" aria-pressed={t === picked} onClick={() => onPick(t)}>
+                  <span translate="no">{timeText(t, zone)}</span>
+                  {left[t] > 0 && <small data-last={left[t] === 1 || undefined}>{left[t] === 1 ? c("bookTimeLastPlace") : c("bookTimePlacesLeft", { count: left[t] })}</small>}
+                </button>
               ))}
             </div>
           </div>
