@@ -424,7 +424,6 @@
               <form id="settings-form" class="rp-card">
                 <div class="rp-card-body cr-form" style="padding-top: 20px">
                   <div id="settings-fields" class="cr-form-grid"></div>
-                  <div class="rp-field"><label class="rp-label" for="settings-reason">Why are you changing this? (goes in the activity log)</label><input id="settings-reason" class="rp-input" name="reason" required minlength="10" maxlength="500"></div>
                   <div class="cr-row"><button type="submit" class="rp-btn rp-btn-primary">Save settings</button> <span class="rp-hint" id="settings-updated"></span></div>
                 </div>
               </form>
@@ -496,7 +495,6 @@
                     <div class="rp-field"><label class="rp-label" for="message-notice">Is this a notice the terms promise?</label><select id="message-notice" class="rp-select" name="notice"><option value="">No</option><option value="price-rise">Yes: a price rise</option><option value="new-helper">Yes: a new helper company</option><option value="terms-change">Yes: a change to the terms</option></select><span class="rp-hint">The terms promise brands 30 days' notice by email for these. A notice is always emailed.</span></div>
                     <div class="rp-field" id="message-effect-field" hidden><label class="rp-label" for="message-effect">The change takes effect on (at least 30 days from the start)</label><input id="message-effect" class="rp-input" type="date" name="takesEffect"></div>
                   </div>
-                  <div class="rp-field"><label class="rp-label" for="message-reason">Why are you sending this? (goes in the activity log)</label><input id="message-reason" class="rp-input" name="reason" required minlength="10" maxlength="500"></div>
                   <div><button type="submit" class="rp-btn rp-btn-primary">Send the message</button></div>
                 </div>
               </form>
@@ -518,7 +516,7 @@
 
           <section data-page="runbook" id="view-emergency" aria-labelledby="h-runbook" hidden>
             <div class="rp-page-header">
-              <div><h1 class="rp-page-title" id="h-runbook">Run book</h1><p class="rp-page-desc">For when the platform owner can't be reached: pause releases, roll back one shop, or post a note on the status page. The backup person opens this with a reason first; the owner is emailed at once, and every use after it.</p></div>
+              <div><h1 class="rp-page-title" id="h-runbook">Run book</h1><p class="rp-page-desc">For when the platform owner can't be reached: pause releases, roll back one shop, or post a note on the status page. The backup person opens it first; the owner is emailed at once, and every use after it.</p></div>
             </div>
             <div id="emergency" class="cr-list"></div>
           </section>

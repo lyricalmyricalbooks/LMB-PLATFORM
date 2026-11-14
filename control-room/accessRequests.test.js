@@ -84,8 +84,6 @@ test("no yes, no staff sign-in: Make changes asks the press, emails the owner an
   assert.match(early.body.message, /hasn't said yes yet/);
   assert.equal((await w.openWith("no-such-request")).status, 404);
   assert.equal(w.shopAccess.calls.length, 0);
-  // A reason is still needed to ask.
-  assert.equal((await w.askPress(SHOP, "help")).status, 400);
 });
 
 test("approve: exactly one 30-minute staff sign-in, recorded in the shop's audit log", async () => {

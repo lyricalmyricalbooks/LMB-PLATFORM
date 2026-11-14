@@ -25,7 +25,7 @@
 //              important message is refused, so nobody thinks the presses were emailed
 //   activity   optional: the activity log (activity.js)
 import { createHash } from "node:crypto";
-import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
+import { ControlError, adminOf, noteOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
 import { PLANS } from "../setup/steps.js";
 import { dateText } from "../services/billing/billing.js";
@@ -146,11 +146,7 @@ function datesOf({ startsAt, endsAt }, nowMs) {
   return { startsAt: new Date(start).toISOString(), endsAt: new Date(end).toISOString() };
 }
 
-const reasonOf = (reason) => {
-  const text = typeof reason === "string" ? reason.trim() : "";
-  if (text.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the activity log.`);
-  return text.slice(0, 500);
-};
+const reasonOf = noteOf;
 
 export function createPressMessages({ store, registry, auditLog, shopData, email, activity, admins, now = () => new Date() }) {
   const at = () => now().toISOString();

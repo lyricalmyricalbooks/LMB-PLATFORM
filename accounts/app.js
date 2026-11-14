@@ -727,11 +727,11 @@ function accessCard(shop, waiting, visits) {
     no.addEventListener("click", answer(false));
     return el("div", { className: "card warning", role: "alert" },
       el("strong", { textContent: `Colophon support asks to make changes in ${shop.pressName}` }),
-      el("p", { style: "margin:0", textContent: `${request.by} would like to open your admin for 30 minutes, able to make changes. Why: ${request.reason}. Answer by ${day(request.expiresAt)}; nothing changes unless you say yes.` }),
+      el("p", { style: "margin:0", textContent: `${request.by} would like to open your admin for 30 minutes, able to make changes.${request.reason ? ` Why: ${request.reason}.` : ""} Answer by ${day(request.expiresAt)}; nothing changes unless you say yes.` }),
       el("div", { className: "row" }, yes, no));
   });
   const visitList = visits.length
-    ? el("ul", { className: "list" }, ...visits.map((visit) => el("li", { className: "hint", textContent: `${day(visit.at)} · ${visit.by} · ${visit.mode === "edit" ? "made changes" : "looked only"} · ${visit.reason}` })))
+    ? el("ul", { className: "list" }, ...visits.map((visit) => el("li", { className: "hint", textContent: `${day(visit.at)} · ${visit.by} · ${visit.mode === "edit" ? "made changes" : "looked only"}${visit.reason ? ` · ${visit.reason}` : ""}` })))
     : null;
   return el("div", { className: "card stack" },
     el("h3", { textContent: `${shop.pressName}: support visits` }),

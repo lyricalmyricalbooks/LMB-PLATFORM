@@ -125,9 +125,8 @@ test("health: ok, watch and problem, in plain words", () => {
   assert.deepEqual(shopHealth({ row: live, profile: {}, repairs: [{ problem: "step 4 stopped for a person" }] }).reasons, ["in the repair queue: step 4 stopped for a person"]);
 });
 
-test("act as this shop: a reason is required, the use is logged first, and no log means no sign-in", async () => {
+test("act as this shop: the use is logged first, and no log means no sign-in", async () => {
   const w = await world();
-  assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: ID, reason: "help" })).status, 400);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: "press-two", reason: "the owner asked for help" })).status, 409);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/act-as", { shopId: "no-such-shop", reason: "the owner asked for help" })).status, 404);
   assert.equal(w.shopAccess.calls.length, 0);
@@ -243,11 +242,10 @@ test("a shop's time zone moves its record, its saved profile and its registry ro
   assert.equal("timeZone" in record.profile, false);
   assert.equal("timeZone" in (await w.registry.getProfile(ID)), false);
 
-  // Refused: a made-up zone, no reason, an unknown shop, a shop with its own project, and a room that can't write zones.
+  // Refused: a made-up zone, an unknown shop, a shop with its own project, and a room that can't write zones.
   const ask = (body) => w.ask(ADMIN, "POST", "/api/control/time-zone", { shopId: ID, reason: "a good reason here", ...body });
   assert.equal((await ask({ timeZone: "Pacific time" })).status, 400);
   assert.equal((await ask({ timeZone: "Mars/Olympus_Mons" })).status, 400);
-  assert.equal((await ask({ timeZone: "America/Denver", reason: "" })).status, 400);
   assert.equal((await ask({ timeZone: "America/Denver", shopId: "nope" })).status, 404);
   shared.clear();
   assert.equal((await ask({ timeZone: "America/Denver" })).status, 409);
@@ -255,21 +253,33 @@ test("a shop's time zone moves its record, its saved profile and its registry ro
   assert.equal((await w.ask(PRESS, "POST", "/api/control/time-zone", { shopId: ID, timeZone: "America/Denver", reason: "a good reason here" })).status, 403);
 });
 
-test("a switch refuses a made-up switch, a missing on/off, a missing reason and a shop with no profile", async () => {
+test("no reason is asked for: a switch, a switch for every shop and closing a shop all go through without one, still logged with who and when", async () => {
+  const w = await world();
+  const name = SWITCHES[0];
+  const answer = await w.ask(ADMIN, "POST", "/api/control/switch", { shopId: ID, name, on: true });
+  assert.equal(answer.status, 200);
+  const [entry] = w.events();
+  assert.deepEqual([entry.what, entry.switch, entry.to, entry.by, typeof entry.at], ["switch-set", name, true, ADMIN.email, "string"]);
+  assert.equal(entry.reason ?? "", "", "nothing made up for the reason");
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/switch-all", { name, on: false })).status, 200);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID })).status, 200);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID })).status, 200);
+});
+
+test("a switch refuses a made-up switch, a missing on/off and a shop with no profile", async () => {
   const w = await world();
   const ask = (body) => w.ask(ADMIN, "POST", "/api/control/switch", { shopId: ID, reason: "a good reason here", ...body });
   assert.equal((await ask({ name: "freeMoney", on: true })).status, 400);
   assert.equal((await ask({ name: SWITCHES[0], on: "yes" })).status, 400);
-  assert.equal((await ask({ name: SWITCHES[0], on: true, reason: "" })).status, 400);
   assert.equal((await ask({ shopId: "press-two", name: SWITCHES[0], on: true })).status, 409);
   assert.equal(w.events().length, 0, "nothing changed, nothing logged");
 });
 
-test("the command line: same change and log, refuses without a name, a reason or real clients", async () => {
+test("the command line: same change and log, refuses without a name or real clients", async () => {
   const w = await world();
   const name = SWITCHES[1];
   assert.throws(() => parseSwitchArgs([ID, name, "maybe", "why"]), /Usage/);
-  assert.throws(() => parseSwitchArgs([ID, name, "on"]), /Usage/);
+  assert.deepEqual(parseSwitchArgs([ID, name, "on"]), { shopId: ID, name, on: true, reason: "" }, "a note is optional");
   const argv = [ID, name, "on", "the", "press", "still", "uses", "its", "old", "address"];
   await assert.rejects(switchCommand({ argv, env: {}, clients: {} }), /CONTROL_ROOM_BY/);
   await assert.rejects(switchCommand({ argv, env: { CONTROL_ROOM_BY: "admin@example.com" } }), /needs the platform's real clients\. Nothing was changed/);
@@ -320,7 +330,6 @@ test("two-step off for someone who lost their phone and codes: admins only, a re
   w.shopAccess.twoStep.set(`${ID} staff@example.com`, 1);
   const reason = "owner replied from the address on file";
   assert.equal((await w.ask(PRESS, "POST", "/api/control/two-step-reset", { shopId: ID, email: "staff@example.com", reason })).status, 403);
-  assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "staff@example.com", reason: "lost it" })).status, 400);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: ID, email: "not an address", reason })).status, 400);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/two-step-reset", { shopId: "press-two", email: "two@example.com", reason })).status, 409);
   assert.equal(w.events().length, 0);
@@ -350,12 +359,11 @@ test("the real two-step reset reaches the shop's own sign-in project", async () 
   await assert.rejects(access.removeTwoStep("press-two", "two@example.com"), /no sign-in project/);
 });
 
-test("close a shop for abuse: admins only, a reason, logged first, checkout and pages closed; opening it again puts things back", async () => {
+test("close a shop for abuse: admins only, logged first, checkout and pages closed; opening it again puts things back", async () => {
   const w = await world();
   const settingsKey = `${ID} settings/website`;
   w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: false, message: "Back after the fair" } });
   assert.equal((await w.ask(PRESS, "POST", "/api/control/close", { shopId: ID, reason: "selling stolen card numbers" })).status, 403);
-  assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID, reason: "spam" })).status, 400);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: "no-such-shop", reason: "selling stolen card numbers" })).status, 404);
   assert.equal(w.events().length, 0);
 
@@ -391,7 +399,6 @@ test("close a shop for abuse: admins only, a reason, logged first, checkout and 
   assert.equal(w.services.world.docs.get(settingsKey).maintenance.enabled, true);
 
   // Opening again: the pause goes back to how the press had it, and the payment service lets the shop in.
-  assert.equal((await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID, reason: "x" })).status, 400);
   w.services.world.docs.set(settingsKey, { shopName: "Test Press", maintenance: { enabled: true, message: "" } });
   const opened = await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID, reason: "the press proved the cards were theirs" });
   assert.equal(opened.status, 200);
@@ -409,7 +416,6 @@ test("emergency payments: a shop moves to the press's own Stripe keys and back, 
   const ask = (body) => w.ask(ADMIN, "POST", "/api/control/payments", { shopId: ID, reason: "the platform's Stripe account is paused", ...body });
   assert.equal((await w.ask(PRESS, "POST", "/api/control/payments", { shopId: ID, to: "own", reason: "the platform's Stripe account is paused" })).status, 403);
   assert.equal((await ask({ to: "paypal" })).status, 400);
-  assert.equal((await ask({ to: "own", reason: "" })).status, 400);
   assert.equal((await ask({ to: "own", shopId: "no-such-shop" })).status, 404);
   assert.equal((await ask({ to: "platform" })).body.shops[0].skipped, "already on the platform's payments", "off unless used");
 
@@ -555,7 +561,6 @@ test("a paused newsletter is turned back on by a platform admin only, with a rea
   const w = await world({ newsletters });
   const path = "/api/control/newsletter/resume";
   assert.equal((await w.ask(PRESS, "POST", path, { shopId: ID, reason: "the press cleaned its list" })).status, 403);
-  assert.equal((await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "ok" })).status, 400);
   assert.equal((await w.ask(ADMIN, "POST", path, { shopId: "no-such-shop", reason: "the press cleaned its list" })).status, 404);
   const answer = await w.ask(ADMIN, "POST", path, { shopId: ID, reason: "the press cleaned its list" });
   assert.equal(answer.status, 200);

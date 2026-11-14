@@ -14,10 +14,9 @@
 // auditLog (a roll back is also written in the shop's own history), now.
 import { releaseWindowAt } from "../services/release-runner/releaseWindow.js";
 import { createHash } from "node:crypto";
-import { twoStepProblem } from "./controlRoom.js";
+import { noteOf, twoStepProblem } from "./controlRoom.js";
 
 export const SEAL_HOURS = 12;
-export const MIN_REASON = 10;
 
 export const RUN_BOOK_ACTIONS = Object.freeze({
   "pause-releases": "paused releases",
@@ -49,11 +48,8 @@ export function createBackupAccess({ people = {}, admins = [], runBook, state, e
     return { role, by: who };
   }
 
-  const reasonOf = (reason) => {
-    const text = typeof reason === "string" ? reason.trim() : "";
-    if (text.length < MIN_REASON) throw new EmergencyError(400, `Say why, in at least ${MIN_REASON} characters. Julian is told.`);
-    return text.slice(0, 500);
-  };
+  // Julian is still emailed when the access is opened or used; a note is optional (14 November 2026).
+  const reasonOf = noteOf;
 
   async function openSeal() {
     const seal = await state.get("backupSeal");

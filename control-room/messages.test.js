@@ -108,7 +108,6 @@ test("the words are plain text up to 400 characters, with an end date at most 60
   await assert.rejects(w.messages.add(w.admin(), { ...base, ...all, endsAt: ends(-1) }), /after now/);
   await assert.rejects(w.messages.add(w.admin(), { ...base, ...all, startsAt: ends(3), endsAt: ends(2) }), /after it starts/);
   await assert.rejects(w.messages.add(w.admin(), { ...base, ...all, level: "loud" }), /info or important/);
-  await assert.rejects(w.messages.add(w.admin(), { ...base, ...all, reason: "short" }), /at least 10/);
   assert.equal(w.store.rows.size, 0);
   // "Orders > 5" is words, not markup.
   assert.equal((await w.messages.add(w.admin(), { ...base, ...all, words: "Orders over 5 > ship free this week." })).added, true);

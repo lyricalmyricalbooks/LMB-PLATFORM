@@ -14,7 +14,7 @@
 //   shopMaking     optional: whether Create my shop can make a press's Google project here (false on the hosted server
 //                  until its Google access is connected)
 import { EDITABLE, SETTINGS_RECORD, editableValues, liveSettings, platformSettings, savedSettingsProblems } from "../services/settings.js";
-import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
+import { ControlError, adminOf, noteOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
 import { EMAIL_SETTING } from "../services/email/index.js";
 import { RECEIPT_MAIL_SETTING } from "../services/receipts/index.js";
@@ -49,11 +49,7 @@ export const TODAY_NOTES = "todayNotes";
 const MAX_TODAY_NOTES = 200;
 
 
-const reasonOf = (reason) => {
-  const text = typeof reason === "string" ? reason.trim() : "";
-  if (text.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the activity log.`);
-  return text.slice(0, 500);
-};
+const reasonOf = noteOf;
 
 export function createPlatformControls({ admins, settingsStore, env = process.env, activity, waitlist, invites, signups, project = null, shopMaking = true, keyEnv = env, now = () => new Date() }) {
   const at = () => now().toISOString();

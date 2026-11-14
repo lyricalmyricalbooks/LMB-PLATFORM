@@ -18,7 +18,7 @@
 //   registry  getShop(shopId), so a note is only ever on a shop that exists
 //   activity  record(entry)
 import { randomUUID } from "node:crypto";
-import { ControlError, MIN_REASON, adminOf } from "./controlRoom.js";
+import { ControlError, adminOf, noteOf } from "./controlRoom.js";
 import { activityEntry } from "./activity.js";
 
 export const MAX_NOTE = 1000;
@@ -44,11 +44,7 @@ export function cleanTags(tags) {
 export function createShopNotes({ admins, store, registry, activity, now = () => new Date(), newId = () => randomUUID() }) {
   const at = () => now().toISOString();
   const record = async (by, what, shopId, detail) => (activity ? activity.record(activityEntry({ at: at(), by, what, shopId, detail })) : null);
-  const reasonOf = (reason) => {
-    const text = typeof reason === "string" ? reason.trim() : "";
-    if (text.length < MIN_REASON) throw new ControlError(400, `Say why, in at least ${MIN_REASON} characters. It goes in the activity log.`);
-    return text.slice(0, 500);
-  };
+  const reasonOf = noteOf;
   async function shopOr404(shopId) {
     if (typeof shopId !== "string" || !shopId || !(await registry.getShop(shopId))) throw new ControlError(404, "There's no shop with that id.");
   }

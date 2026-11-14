@@ -3,7 +3,7 @@
 // again at their current release so the new /shop-profile.js is live.
 //
 //   CONTROL_ROOM_BY=you@yourpress.example RELEASE_BUILD_ROOT=/var/lmb/builds \
-//   node control-room/switch.js <shop id> <switch> on|off "<why, at least 10 characters>"
+//   node control-room/switch.js <shop id> <switch> on|off ["<a note for the log, if you like>"]
 //
 // It works on a real shop, so it needs the platform's real clients and a person running it: the token comes from
 // `gcloud auth print-access-token`, and the Firebase command line uses the same signed-in account. It never runs by
@@ -12,13 +12,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { SWITCHES } from "../setup/steps.js";
 import { createControlRoom, profilePublisher } from "./controlRoom.js";
 
-export const USAGE = `Usage: node control-room/switch.js <shop id> <switch> on|off "<why>"\nSwitches: ${SWITCHES.join(", ")}`;
+export const USAGE = `Usage: node control-room/switch.js <shop id> <switch> on|off ["<note>"]\nSwitches: ${SWITCHES.join(", ")}`;
 
 /** Reads the command line: { shopId, name, on, reason } or a refusal in plain words. */
 export function parseSwitchArgs(argv) {
-  const [shopId, name, state, ...why] = argv;
-  if (!shopId || !name || !["on", "off"].includes(state) || !why.length) throw new Error(USAGE);
-  return { shopId, name, on: state === "on", reason: why.join(" ") };
+  const [shopId, name, state, ...note] = argv;
+  if (!shopId || !name || !["on", "off"].includes(state)) throw new Error(USAGE);
+  return { shopId, name, on: state === "on", reason: note.join(" ") };
 }
 
 /**

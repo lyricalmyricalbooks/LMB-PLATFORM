@@ -59,7 +59,6 @@ test("a note is added and deleted with a reason; each change is in the activity 
   assert.deepEqual(read.body.notes.map((n) => n.words), ["Call before the spring list.", "Asked about wholesale prices at the fair."], "newest first");
 
   const id = added.body.note.id;
-  assert.equal((await w.ask(ADMIN, "/api/control/notes/delete", { shopId: SHOP, id, reason: "short" })).status, 400);
   assert.equal((await w.ask(ADMIN, "/api/control/notes/delete", { shopId: SHOP, id: "nope", reason: "it was about the wrong press" })).status, 404);
   assert.equal((await w.ask(ADMIN, "/api/control/notes/delete", { shopId: SHOP, id, reason: "it was about the wrong press" })).status, 200);
   assert.equal((await w.ask(ADMIN, "/api/control/notes/delete", { shopId: SHOP, id, reason: "it was about the wrong press" })).status, 404, "already gone");
@@ -82,7 +81,6 @@ test("tags: lowercase words or short phrases, at most 10 of 30 characters; the s
   assert.throws(() => cleanTags("poetry"), /list/);
 
   const w = await world();
-  assert.equal((await w.ask(ADMIN, "/api/control/tags", { shopId: SHOP, tags: ["Poetry"], reason: "short" })).status, 400);
   const set = await w.ask(ADMIN, "/api/control/tags", { shopId: SHOP, tags: ["Poetry", "Needs Help"], reason: "sorting the presses for the spring" });
   assert.deepEqual([set.status, set.body.tags, set.body.changed], [200, ["poetry", "needs help"], true]);
   const again = await w.ask(ADMIN, "/api/control/tags", { shopId: SHOP, tags: ["poetry", "needs help"], reason: "sorting the presses for the spring" });
