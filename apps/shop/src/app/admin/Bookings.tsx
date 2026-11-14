@@ -24,6 +24,8 @@ const bookPageUrl = () => new URL(`${(import.meta.env.BASE_URL || "/").replace(/
 
 export function Bookings() {
   const [tab, setTab] = useState<Tab>("calendar");
+  // The empty Calendar's "Add a service" opens the form straight away, not just the tab.
+  const [adding, setAdding] = useState(false);
   const [setup, setSetup] = useState<{ services: BookingService[]; settings: BookingSettings; saved: boolean } | null>(null);
   const [setupError, setSetupError] = useState("");
   const [monday, setMonday] = useState(() => weekStartOf(today()));
@@ -51,6 +53,9 @@ export function Bookings() {
 
   const weekRows = (rows || []).filter((b) => { const d = dayOf(Date.parse(b.start), ZONE); return d >= monday && d <= addDays(monday, 6); });
   const figures = weekFigures(weekRows);
+  // The figures follow the week on show, so say which week that is.
+  const thisWeek = monday === weekStartOf(today());
+  const weekLabel = thisWeek ? "This week" : `Week of ${dayText(monday)}`;
   const next = nextUp(upcoming, Date.now());
   const noServices = setup.services.length === 0;
 
@@ -77,22 +82,22 @@ export function Bookings() {
           ) : (
             <div className="bkg-next-body">
               <span className="bkg-next-who">Nothing booked yet</span>
-              <span className="bkg-next-what">{!setup.services.length ? "Add what customers can book under Services." : setup.settings.live ? "New bookings show here the moment they're made." : "Turn on your Book a time page under Hours to take bookings."}</span>
+              <span className="bkg-next-what">{!setup.services.length ? "Add what customers can book under Services." : setup.settings.live ? "New bookings show here the moment they're made." : "Turn on your bookings page under Hours & rules to take bookings."}</span>
             </div>
           )}
         </div>
         <div className="bkg-tile bkg-figure">
-          <p className="bkg-kicker">This week</p>
+          <p className="bkg-kicker">{weekLabel}</p>
           <p className="bkg-big">{figures.count}</p>
           <p className="bkg-sub">{figures.count === 1 ? "booking" : "bookings"} · {figures.hours} h</p>
         </div>
         <div className="bkg-tile bkg-figure">
           <p className="bkg-kicker">Taken by card</p>
           <p className="bkg-big bkg-big-money">{moneyText(figures.takenMinor, SHOP_CURRENCY)}</p>
-          <p className="bkg-sub">this week</p>
+          <p className="bkg-sub">{thisWeek ? "this week" : weekLabel.toLowerCase()}</p>
         </div>
         <div className="bkg-tile bkg-tile-ink bkg-pagecard">
-          <p className="bkg-kicker">Book a time page</p>
+          <p className="bkg-kicker">Bookings page</p>
           <p className="bkg-page-state">{setup.settings.live ? "Taking bookings" : "Hidden"}</p>
           <div className="bkg-pill-row">
             <button type="button" className="bkg-pill" onClick={() => void copyText(bookPageUrl(), "Link")}><Copy size={14} aria-hidden /> Copy link</button>
@@ -106,14 +111,14 @@ export function Bookings() {
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
-          <EmptyState title="Add what customers can book" description="A studio visit, a class for one, a portfolio review: give it a length and a price, then turn on your Book a time page."
-            action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setTab("services")}>Add a service</PrimaryButton>} />
+          <EmptyState title="Add what customers can book" description="A studio visit, a class for one, a portfolio review: give it a length and a price, then turn on your bookings page."
+            action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setAdding(true); setTab("services"); }}>Add a service</PrimaryButton>} />
         ) : (
           <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} />
         )}
       </TabPanel>
       <TabPanel tabId="services" active={tab === "services"}>
-        <ServicesPanel services={setup.services} onChanged={reloadSetup} />
+        <ServicesPanel services={setup.services} onChanged={reloadSetup} startAdding={adding} onStarted={() => setAdding(false)} />
       </TabPanel>
       <TabPanel tabId="hours" active={tab === "hours"}>
         <HoursPanel settings={setup.settings} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
@@ -329,8 +334,9 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0 };
 
-function ServicesPanel({ services, onChanged }: { services: BookingService[]; onChanged: () => void }) {
+function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
+  useEffect(() => { if (startAdding) { setEditing({ ...EMPTY_SERVICE, order: services.length }); onStarted?.(); } }, [startAdding]);
   const [ask, confirmNode] = useConfirm();
   const remove = async (s: BookingService) => {
     if (!(await ask({ title: `Delete ${s.name}?`, message: "Customers can't book it any more. Bookings already made stay as they are.", confirmLabel: "Delete" }))) return;
@@ -416,14 +422,14 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
   const setDay = (wd: number, windows: { start: string; end: string }[]) => setForm((f) => ({ ...f, hours: f.hours.map((h, i) => (i === wd ? windows : h)) }));
   const save = async () => {
     setSaving(true);
-    try { await bookingsAdmin("saveSettings", { settings: form }); toast.success(form.live && !settings.live ? "Your Book a time page is live" : "Hours saved"); onSaved(); }
+    try { await bookingsAdmin("saveSettings", { settings: form }); toast.success(form.live && !settings.live ? "Your bookings page is live" : "Hours saved"); onSaved(); }
     catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   };
   return (
     <div className="bkg-hours">
       <div className="bkg-tile bkg-tile-mint bkg-live">
         <div>
-          <p className="bkg-kicker">Book a time page</p>
+          <p className="bkg-kicker">Bookings page</p>
           <p className="bkg-live-words">{form.live ? "Customers can book on your website." : "Hidden from customers."}</p>
         </div>
         <Toggle label="Show on my website" checked={form.live} onChange={(v) => setForm({ ...form, live: v })} />

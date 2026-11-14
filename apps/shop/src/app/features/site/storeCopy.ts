@@ -204,7 +204,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "policyTitleTerms", label: "Policy link & page title: Terms", default: "Terms of Service" },
       { key: "policyTitleAccessibility", label: "Policy link & page title: Accessibility statement", default: "Accessibility" },
       { key: "footerLocationHeading", label: "Location heading (4-column footer)", default: "Location" },
-      { key: "footerLocation", label: "Location line", default: "Toronto, Canada" },
+      { key: "footerLocation", label: "Location line", default: "", hint: "Your town or city, as you want it in the footer." },
       {
         key: "footerCopyright",
         label: "Copyright line",

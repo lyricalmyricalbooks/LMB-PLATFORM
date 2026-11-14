@@ -147,7 +147,7 @@ export const FRENCH_COPY: Record<string, string> = {
   policyTitleTerms: "Conditions d'utilisation",
   policyTitleAccessibility: "Accessibilité",
   footerLocationHeading: "Adresse",
-  footerLocation: "Toronto, Canada",
+  footerLocation: "",
   footerCopyright: "© {year} {name} · Tous droits réservés",
   pdpCrumbShop: "Boutique",
   pdpCrumbSeparator: "/",
