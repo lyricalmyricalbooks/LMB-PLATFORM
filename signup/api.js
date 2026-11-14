@@ -129,7 +129,7 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
         ...(percentOff > 0 ? { foundingOffer: { percentOff, presses: now.foundingOffer.presses } } : {}),
         // The front door (14 November 2026): the countries a shop can open in today (the rest are kept on a later
         // list, signup.js), and the fee in each billing currency, so a US shop sees US dollars before it signs up.
-        openCountries: [...(settings.openCountries ?? ["CA"])],
+        openCountries: [...(settings.openCountries ?? ["CA", "US"])],
         fees: feesByCurrency(priced, percentOff),
         termsVersion: currentTermsVersion(),
       };

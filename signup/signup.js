@@ -77,7 +77,7 @@ export function personOf(claims) {
 
 export function createSignup({ accounts, signups, registry, billing, email, auth, throttle, settings, invites = null, admins = [], live = () => liveSettings(), now = () => new Date(), suffix = randomSuffix }) {
   const at = () => now().toISOString();
-  const isOpenCountry = (country) => (settings.openCountries ?? ["CA"]).includes(country);
+  const isOpenCountry = (country) => (settings.openCountries ?? ["CA", "US"]).includes(country);
 
   /** Is this address free for this account? Taken in the registry, or by another person's sign-up, means no. */
   async function isFree(address, accountId) {

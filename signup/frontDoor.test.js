@@ -726,7 +726,7 @@ test("two presses with the same name on one account open two shops", async () =>
 
 test("a press whose country hasn't opened yet is told so and stays in setup, and can open once it has", async () => {
   const w = world();
-  const pressId = await readyPress(w, { pressName: "Moth Press", country: "US", plan: "shop" });
+  const pressId = await readyPress(w, { pressName: "Moth Press", country: "GB", plan: "shop" });
   const waits = await w.ask("POST", "/api/press/open", { pressId, ...OPEN }, ADA);
   assert.equal(waits.status, 200);
   assert.equal(waits.body.press.status, "setup");

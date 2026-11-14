@@ -28,17 +28,17 @@ function make({ env = {}, invited = [], stores = fakeSignupStores() } = {}) {
 
 test("a press outside Canada is kept on a later list: no shop, no trial, plain words", async () => {
   const { signup, trials, stores } = make();
-  const answer = await signup.start(press(1), details(1, "US"));
+  const answer = await signup.start(press(1), details(1, "GB"));
   assert.equal(answer.status, "later");
   assert.equal(answer.message, LATER_WORDS);
   assert.match(LATER_WORDS, /^Colophon isn't open in your country yet\./);
   assert.equal(trials.length, 0, "no trial days lost while waiting");
   const row = stores.signups.rows.get(answer.shopId);
-  assert.equal(row.country, "US");
+  assert.equal(row.country, "GB");
   assert.ok(!row.trialStartedAt && !row.admittedAt);
   assert.equal((await signup.mine(press(1)))[0].message, LATER_WORDS);
   // Signing up again changes nothing.
-  assert.equal((await signup.start(press(1), details(1, "US"))).status, "later");
+  assert.equal((await signup.start(press(1), details(1, "GB"))).status, "later");
   assert.equal(trials.length, 0);
 });
 
@@ -53,12 +53,12 @@ test("a later press never uses the day's room, and an invite does not skip the r
 });
 
 test("with a country opened in the settings, its presses start like anyone else; a waiting press joins the line", async () => {
-  const open = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,US" } });
-  assert.equal((await open.signup.start(press(1), details(1, "US"))).status, "queued");
+  const open = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,GB" } });
+  assert.equal((await open.signup.start(press(1), details(1, "GB"))).status, "queued");
   const first = make();
-  assert.equal((await first.signup.start(press(2), details(2, "US"))).status, "later");
-  const opened = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,US" }, stores: first.stores });
-  const again = await opened.signup.start(press(2), details(2, "US"));
+  assert.equal((await first.signup.start(press(2), details(2, "GB"))).status, "later");
+  const opened = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,GB" }, stores: first.stores });
+  const again = await opened.signup.start(press(2), details(2, "GB"));
   assert.equal(again.status, "queued", "its country opened, so it starts (the day has room)");
   assert.equal(opened.trials.length, 1);
 });
