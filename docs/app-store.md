@@ -226,6 +226,21 @@ through the app connection with the key a press gives it, so it can do only what
 
 Turning it on (Julian): `services/zapier/README.md` › Putting it on Zapier.
 
+## Connect Shippo (built 14 November 2026, waiting for Colophon's Shippo partner codes)
+
+Julian chose "each shop connects its own Shippo" for live carrier prices and labels: the press signs in to its own
+free Shippo account, pays postage to Shippo, and no label money passes through Colophon. It is not an app store
+install: it lives in the shop's Settings › Shipping › Carrier, and rides the app store's shop door for its three calls
+(`shippo.status`, `shippo.connectLink`, `shippo.claim`; `services/shippo/link.js`). Shippo sends the press back to
+`<PLATFORM_URL>/api/shippo/oauth`, which keeps Shippo's code under a one-use ticket for ten minutes and returns the press
+to its own admin; the shop's server (owner signed in) claims it, and the token is kept only in the shop's admin-only
+Shippo record (apps/shop `functions/shippoLink.js`). The platform keeps neither code nor token.
+
+To switch it on (Julian): register Colophon as a Shippo partner (goshippo.com, "Become a Shippo partner"), give
+`<PLATFORM_URL>/api/shippo/oauth` as the return address, then put the client id and secret in Secret Manager as
+`shippo-client-id` and `shippo-client-secret` (and Shippo's `utm_source` word as `SHIPPO_UTM_SOURCE`, if given) and
+deploy the server. Until then every shop's card says "Opens soon".
+
 ## Colophon's own apps (11 November 2026)
 
 The apps the platform team builds (Chit Chats, Mailchimp and Zapier) put themselves on the store

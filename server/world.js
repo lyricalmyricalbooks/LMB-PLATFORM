@@ -72,6 +72,7 @@ import { createAppConnection } from "../services/apps/connection.js";
 import { createAppAlerts } from "../services/apps/alerts.js";
 import { appInstallPublicRoutes, appInstallRoutes, appMakerRoutes, appShopDoorRoutes, appStorePublicRoutes } from "../services/apps/routes.js";
 import { createAppShopDoor } from "../services/apps/shopDoor.js";
+import { createShippoLink, firestoreShippoStates, shippoLinkConfig } from "../services/shippo/link.js";
 import { createReceiptMail, receiptShopDoorRoutes } from "../services/receipts/index.js";
 import { bankFeedShopDoorRoutes, createBankFeed } from "../services/bankfeed/index.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
@@ -375,6 +376,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     exchange: (args) => appInstalls.exchange(args), appCall: (request) => appConnection(request),
     roleIn: (who, shopId) => accounts.roleIn(who, shopId), fetch, now, returnAddress: `${settings.platformUrl}/account/mailchimp.html`,
   });
+  // Connect Shippo (services/shippo/link.js): each shop signs in to its own Shippo account for live carrier prices and
+  // labels. "Opens soon" in every shop until SHIPPO_CLIENT_ID and SHIPPO_CLIENT_SECRET are in the server's settings.
+  const shippoLink = createShippoLink({ ...shippoLinkConfig(env, settings.platformUrl), states: firestoreShippoStates(platform), registry, auditLog, fetch, now: nowMs });
   // The QuickBooks link (services/accounting, plan 7.15): a shop's Settings › Bookkeeping connects the press's own
   // QuickBooks company, and the shop's nightly run sends its sales there. Hidden in every shop until Intuit's keys and
   // ACCOUNTING_ENABLED are in (docs/accounting.md, Turning it on).
@@ -522,7 +526,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers, shippo: shippoLink })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,
@@ -572,6 +576,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     if (path === "/api/accounting" || path.startsWith("/api/accounting/")) {
       if (!accounting) return { status: 503, body: { error: { code: "not_connected", message: NOT_CONNECTED.bookkeeping.words } } };
       return accounting.handle({ ...request, path: path.slice("/api/accounting".length) || "/" });
+    }
+    if (path === "/api/shippo/oauth") {
+      if (request.method !== "GET") return { status: 405, body: { ok: false, message: "Open the link from Shippo." } };
+      return shippoLink.oauthCallback(request.query ?? {});
     }
     if (path === "/api/google" || path.startsWith("/api/google/")) return googleDoor({ ...request, path: path.slice("/api/google".length) || "/" });
     if (path === "/tips/off" || path === "/checkup/off") {

@@ -96,6 +96,7 @@ const { checkoutAdminActions } = require("./checkoutAdmin");
 const { customDomainActions } = require("./customDomains");
 const { googleConnectActions } = require("./googleConnect");
 const { appsLinkActions } = require("./appsLink");
+const { shippoLinkActions, shippoAuthHeaders } = require("./shippoLink");
 const { bookkeepingActions, dayFromOrders } = require("./quickbooksLink");
 const { socialActions } = require("./socialLink");
 const { practiceCheckoutActions } = require("./practiceCheckout");
@@ -834,10 +835,8 @@ async function fetchWithTimeout(url, options = {}, ms = 3000) {
 // Timeout: a hung Shippo call must never hold a function open until it is killed. Label purchases
 // are the one place an aborted request may still have been processed, so they stay "uncertain".
 async function callShippo(endpoint, method, body, token, timeoutMs = 15000) {
-  const headers = {
-    "Authorization": `ShippoToken ${token}`,
-    "Content-Type": "application/json"
-  };
+  // A pasted key is "ShippoToken <key>"; a Colophon shop's connected account is a bearer token (shippoLink.js).
+  const headers = { ...shippoAuthHeaders(token), "Content-Type": "application/json" };
   const res = await fetchWithTimeout(`https://api.goshippo.com/${endpoint}`, {
     method,
     headers,
@@ -1853,6 +1852,11 @@ const { handleGoogleConnect } = googleConnectActions({ url: shopConfig.platformG
 // Settings › Apps: installed apps, the store and Remove, through the platform's app store door (appsLink.js, plan 26.5).
 const { handleApps } = appsLinkActions({ url: shopConfig.platformAppsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireOwner });
 
+// Settings › Shipping › Live rates and labels on a Colophon shop: Connect Shippo, the press's own account, through the
+// same app store door (shippoLink.js). The token lands in this shop's own Shippo record, read by getShippoToken.
+const { handleShippoLink } = shippoLinkActions({ url: shopConfig.platformAppsUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireOwner,
+  configDoc: () => SHIPPO_CONFIG_DOC(), callShippo: (...args) => callShippo(...args) });
+
 // Bookkeeping › Transactions › Bank feed (beta, a paid add-on, bankFeed.js): the shop's bank transactions through the
 // platform's bank door (Plaid, read-only). The bookkeeper may look; connecting and deciding are the admin's.
 const bankFeed = require("./bankFeed").bankFeedActions({ url: shopConfig.platformBankFeedUrl, shopId: platformShopId, serviceKey: platformServiceKey, requireAdmin, requireBooksReader, db });
@@ -2004,6 +2008,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   customDomains: handleCustomDomains,
   googleConnect: handleGoogleConnect,
   apps: handleApps,
+  shippoLink: handleShippoLink,
   receiptInbox: receiptInbox.handleReceiptInbox,
   bankFeed: bankFeed.handleBankFeed,
   bookkeeping: handleBookkeeping,

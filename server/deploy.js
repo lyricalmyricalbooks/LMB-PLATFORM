@@ -34,6 +34,15 @@ export const MAILCHIMP_SECRETS = Object.freeze([
   { env: "MAILCHIMP_CLIENT_SECRET", secret: "mailchimp-client-secret", api: true, jobs: true },
 ]);
 
+/**
+ * Connect Shippo (services/shippo/link.js): Colophon's Shippo partner registration. Optional: until both are there,
+ * every shop's Live rates and labels card says it opens soon. SHIPPO_UTM_SOURCE (Shippo's tracking word) is plain settings.
+ */
+export const SHIPPO_SECRETS = Object.freeze([
+  { env: "SHIPPO_CLIENT_ID", secret: "shippo-client-id", api: true, jobs: false },
+  { env: "SHIPPO_CLIENT_SECRET", secret: "shippo-client-secret", api: true, jobs: false },
+]);
+
 /** The Firebase command line, pinned like the waitlist's README. */
 export const FIREBASE_TOOLS = "firebase-tools@15.32.1";
 export const IMAGE_STORE = "platform";
@@ -51,6 +60,7 @@ export const SECRETS = Object.freeze([
   { env: "TRIAL_TIPS_SECRET", secret: "trial-tips-secret", api: true, jobs: true },
   { env: "CHECKUP_SECRET", secret: "checkup-secret", api: true, jobs: true },
   ...MAILCHIMP_SECRETS,
+  ...SHIPPO_SECRETS,
   ...ACCOUNTING_SECRETS,
   ...SOCIAL_SECRETS,
   ...BANK_FEED_SECRETS,
@@ -61,7 +71,7 @@ export const SECRETS = Object.freeze([
  * connected). Without them sign-in by Google, the control room and every page work; email and Stripe answer "not
  * connected" until their secret is added and the deploy runs again, and Connect Google says "coming soon". The two link phrases are always needed.
  */
-export const OPTIONAL_SECRETS = Object.freeze(new Set([...PAYMENTS_SECRETS, ...BILLING_SECRETS, ...GOOGLE_SECRETS, ...MAILCHIMP_SECRETS, ...ACCOUNTING_SECRETS, ...SOCIAL_SECRETS, ...BANK_FEED_SECRETS].map((s) => s.secret)));
+export const OPTIONAL_SECRETS = Object.freeze(new Set([...PAYMENTS_SECRETS, ...BILLING_SECRETS, ...GOOGLE_SECRETS, ...MAILCHIMP_SECRETS, ...SHIPPO_SECRETS, ...ACCOUNTING_SECRETS, ...SOCIAL_SECRETS, ...BANK_FEED_SECRETS].map((s) => s.secret)));
 
 /** The services' own accounts and the roles each holds in the platform project. */
 export const ACCOUNTS = Object.freeze([
