@@ -38,6 +38,11 @@
   .fd-chips, .fd-today { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .cp :is(.fd-chips, .fd-today) label.choice { min-height: 50px; padding: 0 18px; border-radius: 14px; display: flex; align-items: center; }
   .cp :is(.fd-chips, .fd-today) label.choice strong { font-size: 14px; font-weight: 600; }
+  /* Bookshop or general shop: two option cards, a name and one line each. */
+  .fd-types { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cp .fd-types label.choice { min-height: 88px; padding: 16px 18px; border-radius: 16px; align-content: start; }
+  .cp .fd-types label.choice strong { font-size: 16px; }
+  @media (max-width: 480px) { .fd-types { grid-template-columns: minmax(0, 1fr); } .cp .fd-types label.choice { min-height: 0; } }
   @media (max-width: 640px) { .fd-chips, .fd-today { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .fd-sub { margin: 0; font: 600 13px/1.3 var(--rp-font-body); }
   .fd-code::placeholder { color: var(--rp-text-faint); }
@@ -53,6 +58,7 @@
   .fd-browser-bar span { margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fd-browser small { font-size: 13px; color: var(--rp-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fd-browser b { font: 600 clamp(22px, 2.4vw, 30px)/1.1 var(--rp-font-display); letter-spacing: -0.03em; }
+  .fd-browser-line { font-size: 13px; color: var(--rp-text-muted); }
   .fd-new-dl { display: grid; gap: 12px; margin: 0; }
   .fd-new-dl > div { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
   .fd-new-dl dt { color: var(--rp-text-muted); }
@@ -60,6 +66,7 @@
   .fd-new-dl > div.fd-after { padding-top: 12px; border-top: 1px solid var(--rp-divider); }
   .fd-new-dl > div.fd-after dt { color: var(--rp-text); font-weight: 600; }
   .fd-new-note { margin: 0; font: 400 12px/1.6 var(--rp-font-mono); color: var(--rp-text-subtle); }
+  .fd-new-note a { color: inherit; }
   .fd-new-design { margin: 0; display: flex; justify-content: space-between; font: 500 13px/1.4 var(--rp-font-body, inherit); }
   .fd-new-design span::before { content: "✓ "; }
   /* Setting up your store: a card over the page. */
@@ -88,7 +95,7 @@
       <li data-step="brand"><b>02</b> About your brand</li>
     </ol>
     <h1>Start your free trial</h1>
-    <p class="cp-lede" id="story-lede">Three quick questions, then you're in your store. Everything is included for 14 days. No card needed.</p>
+    <p class="cp-lede" id="story-lede">A few quick questions, then you're in your store. Everything is included for 14 days. No card needed.</p>
   <div class="card fd-step">
 
   <!-- 1. Email, or Google. New and returning presses come in the same way. -->
@@ -127,18 +134,22 @@
     <div class="fd-pick" id="pick-list"></div>
   </section>
 
-  <!-- 3. About your brand (design "Colophon platform", sign-up): three questions and an optional fourth, then the store is
+  <!-- 3. About your brand (design "Colophon platform", sign-up): name, bookshop or general shop (and, for a general
+       shop, what it sells), country, and an optional last one, then the store is
        made at once with a free trial of everything. The plan is picked later, in the store's Billing. -->
   <section id="view-start" class="stack" hidden aria-labelledby="start-title">
     <h2 id="start-title" tabindex="-1" class="rp-sr-only">About your brand</h2>
     <form class="stack" id="start-form" novalidate>
       <label>Brand name<input name="pressName" autocomplete="organization" maxlength="120" required></label>
       <p class="error" id="pressName-error" role="alert" hidden></p>
-      <div role="group" aria-labelledby="sells-label" class="stack" style="gap:8px"><p class="fd-sub" id="sells-label">What do you sell?</p>
+      <div role="radiogroup" aria-labelledby="type-label" class="stack" style="gap:8px"><p class="fd-sub" id="type-label">What kind of shop?</p>
+        <div class="fd-types" id="type-choices"></div></div>
+      <p class="error" id="shopType-error" role="alert" hidden></p>
+      <div role="radiogroup" aria-labelledby="sells-label" class="stack" style="gap:8px" id="sells-group" hidden><p class="fd-sub" id="sells-label">What do you sell?</p>
         <div class="fd-chips" id="sells-choices"></div></div>
       <p class="error" id="sells-error" role="alert" hidden></p>
       <label>Where is your brand based?<select name="country" id="country"></select></label>
-      <p class="hint">Sets your currency and taxes. Colophon starts in Canada; elsewhere we'll save your place.</p>
+      <p class="hint" id="country-note">Sets your shop's currency and taxes.</p>
       <p class="error" id="country-error" role="alert" hidden></p>
       <fieldset class="fd-part"><legend>Selling somewhere already? <span class="fd-optional">(optional)</span></legend>
         <p class="hint" style="margin:0">We'll start you on bringing your products over.</p>
@@ -159,14 +170,15 @@
   <aside class="card fd-new" aria-label="Your new store">
     <p class="fd-new-top"><span>Your new store</span><span class="pill" data-tone="info">Free trial</span></p>
     <div class="fd-browser" aria-hidden="true"><span class="fd-browser-bar"><i></i><i></i><i></i><span id="new-address">yourbrand.web.app</span></span>
-      <small id="new-name">Your brand</small><b id="new-kind">Your store</b></div>
+      <small id="new-name">Your brand</small><b id="new-kind">Your store</b><span class="fd-browser-line" id="new-line" hidden></span></div>
     <p class="fd-new-design" id="new-design" hidden><span>Your design is saved</span> <a href="">Edit</a></p>
     <dl class="fd-new-dl">
       <div><dt>Free trial</dt><dd id="new-days">14 days</dd></div>
       <div><dt>Includes</dt><dd>Shop and stockroom</dd></div>
-      <div class="fd-after"><dt>After the trial</dt><dd id="new-after">Pick a plan</dd></div>
+      <div class="fd-after"><dt>After the trial</dt><dd id="new-after">A small monthly fee + running cost</dd></div>
+      <div id="new-founding-row" hidden><dt id="new-founding-label">Founding shops</dt><dd id="new-founding"></dd></div>
     </dl>
-    <p class="fd-new-note">Pick a plan any time in the store. Your web address is free; connect your own later.</p>
+    <p class="fd-new-note">Running cost is what your shop cost to run last month, at cost. <a href="/pricing">See pricing</a></p>
   </aside>
   <p id="status" role="status" aria-live="polite"></p>
 </main>

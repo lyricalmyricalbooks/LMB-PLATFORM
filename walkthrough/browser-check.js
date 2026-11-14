@@ -80,11 +80,29 @@ async function checkFrontDoor(browser, walk, log) {
       await page.fill("#code", code);
       await visible("#view-start");
     });
-    await step("three questions, the terms, and the store made at once", async () => {
+    await step("the questions, the terms, and the store made at once", async () => {
       await page.fill("#start-form input[name=pressName]", "Front Door Press");
       if ((await page.locator("#new-name").textContent()) !== "Front Door Press") throw new Error("Your new store doesn't show the brand's name");
       if (!/^front-door-[a-z]+\.web\.app$/.test(await page.locator("#new-address").textContent())) throw new Error("Your new store doesn't show its address");
+      // Bookshop or general shop comes first; only a general shop is asked what it sells.
+      if (await page.locator("#sells-group").isVisible()) throw new Error("What do you sell? shows before the shop type is picked");
+      await page.click("#type-choices label.choice:has(input[value=books])");
+      if ((await page.locator("#new-kind").textContent()) !== "Bookshop") throw new Error("Your new store doesn't say Bookshop");
+      if (await page.locator("#sells-group").isVisible()) throw new Error("a bookshop is asked what it sells");
+      if (process.env.WALKTHROUGH_SHOTS) {
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-bookshop-phone.png"), fullPage: true });
+        const phone = page.viewportSize();
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.screenshot({ path: join(process.env.WALKTHROUGH_SHOTS, "join-bookshop.png"), fullPage: true });
+        if (phone) await page.setViewportSize(phone);
+      }
+      await page.click("#type-choices label.choice:has(input[value=general])");
+      await visible("#sells-group");
+      // A general shop that hasn't said what it sells is asked to.
+      await page.click("#start-form button[type=submit]");
+      await visible("#sells-error");
       await page.click("#sells-choices label.choice:has-text('Clothing & accessories')");
+      if ((await page.locator("#new-kind").textContent()) !== "Clothing & accessories") throw new Error("Your new store doesn't show what it sells");
       await page.click("#today-choices label.choice:has(input[value=online])");
       await page.selectOption("#country", "CA");
       // Without the terms ticked, nothing is made.

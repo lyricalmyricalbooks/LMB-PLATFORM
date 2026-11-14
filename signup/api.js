@@ -18,7 +18,8 @@
 // `limits` (optional, limits.js createLimits, plan 19.5): fair-use limits per person, per costly call and per network;
 // over one the call answers 429 with `retryAfter`. A path may carry a query (`?shopId=…`); it reaches routes as
 // `request.query`.
-import { planList } from "../services/billing/plans.js";
+import { PLAN, planList } from "../services/billing/plans.js";
+import { BILLING_CURRENCIES, feeIn, moneyWords } from "../services/billing/currencies.js";
 import { DEFAULT_ALERT_CENTS, examples } from "../services/billing/runningCost.js";
 import { priceText } from "../services/settings.js";
 import { currentTermsVersion } from "../terms/terms.js";
@@ -42,6 +43,15 @@ export function usageWords(settings, percentOff = 0) {
     examples: examples(fee).map(({ id, name, line, runningCents, totalCents }) => ({ id, name, line, runningText: money(runningCents), totalText: money(totalCents) })),
     alertText: money(DEFAULT_ALERT_CENTS),
   };
+}
+
+/** The monthly fee in each billing currency ("$5", "US$5"), with its founding price when the offer is on. */
+export function feesByCurrency(settings, percentOff = 0) {
+  const words = (cents, code) => moneyWords(cents, code, settings).replace(/\.00$/, "");
+  return Object.fromEntries([...new Set(Object.values(BILLING_CURRENCIES))].map((code) => {
+    const fee = feeIn(PLAN, settings, code);
+    return [code, { feeText: words(fee, code), ...(percentOff > 0 ? { foundingFeeText: words(Math.round((fee * (100 - percentOff)) / 100), code) } : {}) }];
+  }));
 }
 
 /** 200 basis points -> "2%", 250 -> "2.5%". */
@@ -117,6 +127,10 @@ export function createApi({ signup, verifyIdToken, settings, routes = {}, public
         productName: settings.platformName,
         signupOpen: now.signupOpen === true,
         ...(percentOff > 0 ? { foundingOffer: { percentOff, presses: now.foundingOffer.presses } } : {}),
+        // The front door (14 November 2026): the countries a shop can open in today (the rest are kept on a later
+        // list, signup.js), and the fee in each billing currency, so a US shop sees US dollars before it signs up.
+        openCountries: [...(settings.openCountries ?? ["CA"])],
+        fees: feesByCurrency(priced, percentOff),
         termsVersion: currentTermsVersion(),
       };
     },

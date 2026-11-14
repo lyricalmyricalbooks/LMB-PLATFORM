@@ -731,7 +731,7 @@ test("a press whose country hasn't opened yet is told so and stays in setup, and
   assert.equal(waits.status, 200);
   assert.equal(waits.body.press.status, "setup");
   assert.equal(waits.body.shop.status, "later");
-  assert.match(waits.body.shop.message, /Canada/);
+  assert.match(waits.body.shop.message, /isn't open in your country yet/);
   assert.equal(w.trials.length, 0);
   // Still in setup: it can change its answers, and pressing again re-checks.
   await w.ask("POST", "/api/press/setup", { pressId, country: "CA" }, ADA);

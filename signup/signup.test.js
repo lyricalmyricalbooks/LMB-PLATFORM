@@ -214,6 +214,9 @@ test("the plans route lists the three plans with their fee, what shops pay to ru
   assert.deepEqual([body.usage.feeText, body.usage.sameFee, body.usage.examples.map((e) => e.totalText)], ["$5.00", true, ["$5.51", "$7.53", "$19.95"]]);
   assert.equal(body.trialDays, 14);
   assert.equal(body.productName, "Colophon");
+  // The front door's preview: the fee in the shop's billing currency, and which countries can open a shop today.
+  assert.deepEqual(body.fees, { CAD: { feeText: "$5", foundingFeeText: "$3.75" }, USD: { feeText: "US$5", foundingFeeText: "US$3.75" } });
+  assert.deepEqual(body.openCountries, ["CA"]);
   assert.equal((await ask("GET", "/api/nothing")).status, 404);
 });
 
