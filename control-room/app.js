@@ -749,7 +749,7 @@ function testShopTile(shop) {
   });
   return el("div", { className: "rp-card-body", style: "padding-top: 16px", dataset: { testShop: shop.kind } },
     el("div", { className: "cr-row" }, el("h3", { className: "cr-title cr-grow", textContent: shop.kindWords }), pill(TONE[shop.health.level], LEVEL[shop.health.level])),
-    meta(shop.pressName, shop.kind === "books" ? "sells books" : "sells other things", check, on),
+    meta(shop.pressName, shop.services ? "takes bookings" : shop.kind === "books" ? "sells books" : "sells other things", check, on),
     el("div", { className: "cr-actions" }, link(shop.storefrontUrl, "Open shop", "primary"), testShopAdminButton(shop), reset));
 }
 
@@ -861,7 +861,7 @@ async function loadLaunch() {
     const live = shop.status === "live";
     return sheet({
       title: shop.kindWords, tone: live ? "success" : "warning", pillWords: live ? "Live" : "Not live yet",
-      body: [el("p", { className: "rp-hint", textContent: `${shop.pressName}, ${shop.kind === "books" ? "a shop that sells books" : "a shop that sells other things"}.` })],
+      body: [el("p", { className: "rp-hint", textContent: `${shop.pressName}, ${shop.services ? "a shop that takes bookings" : shop.kind === "books" ? "a shop that sells books" : "a shop that sells other things"}.` })],
       actions: el("div", { className: "cr-actions" }, shop.storefrontUrl ? outLink(shop.storefrontUrl, "Open shop", "primary") : null, testShopAdminButton(shop)),
     });
   }) : [emptyState("No test shops yet", "They show here once they're made.")]));

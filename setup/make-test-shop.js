@@ -290,7 +290,7 @@ export async function makeTestShopWith({
   const config = await makerConfig();
   for (const place of TEST_SHOPS) {
     const shop = testShop(ownerEmail, place);
-    print(`The test shop ${place.shopId} (${place.kind === "books" ? "sells books" : "sells other things"}${place.currency === "USD" ? ", in US dollars" : ""}), at ${place.address}:`);
+    print(`The test shop ${place.shopId} (${place.kind === "books" ? "sells books" : place.kind === "services" ? "takes bookings" : "sells other things"}${place.currency === "USD" ? ", in US dollars" : ""}), at ${place.address}:`);
     // A test shop at a site of its own gets a copy of the project's site first, so its address answers in step 9.
     if (place.site !== TEST_PROJECT) {
       if (!apply) print(`${place.site}: would get a copy of ${TEST_PROJECT}'s site.`);

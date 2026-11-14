@@ -96,8 +96,11 @@ test("a real run readies the project, retires the old test shop, sends the first
   assert.deepEqual([goods.projectId, goods.status, goods.testShop, goods.testMode, goods.freeAddress, goods.publishes], [TEST_PROJECT, "live", true, true, "lmb-test-goods.web.app", "other"]);
   assert.equal(stepClients.shared.addresses.map.get("lmb-test-goods.web.app").shopId, "test-goods");
   assert.equal((await registry.getProfile("test-goods")).sells, "other");
-  assert.deepEqual(copies, ["lmb-test-goods", "lmb-test-press-us"]);
-  assert.deepEqual(published, [TEST_SHOP_ID, "test-goods", "test-press-us"]);
+  assert.deepEqual(copies, ["lmb-test-goods", "lmb-test-press-us", "lmb-test-studio"]);
+  assert.deepEqual(published, [TEST_SHOP_ID, "test-goods", "test-press-us", "test-studio"]);
+  // The services test shop: a hair studio with Bookings on, its own address, and the general catalogue for the release check.
+  const studio = await registry.getShop("test-studio");
+  assert.deepEqual([studio.projectId, studio.status, studio.testShop, studio.freeAddress, studio.publishes, studio.bookingsBeta], [TEST_PROJECT, "live", true, "lmb-test-studio.web.app", "hair", true]);
 
   // The US dollar test shop: a book shop signed up from the United States, at a third site. Its server record and
   // its pages' profile both say US dollars; the other two say nothing new and stay in Canadian dollars.
@@ -226,7 +229,7 @@ test("the run ends by trying the shops as the platform's own server accounts, an
   const proved = [];
   const ok = await run(true, { provePlatform: async (shopIds) => { proved.push(shopIds); } });
   assert.equal(ok.ok, true);
-  assert.deepEqual(proved, [["test-press", "test-goods", "test-press-us"]]);
+  assert.deepEqual(proved, [["test-press", "test-goods", "test-press-us", "test-studio"]]);
   const dry = setup();
   let dryAsked = 0;
   await dry.run(false, { provePlatform: async () => { dryAsked += 1; } });
