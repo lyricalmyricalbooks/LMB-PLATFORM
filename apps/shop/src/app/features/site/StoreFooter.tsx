@@ -13,7 +13,7 @@ import { regionProps } from "./storefrontRegions";
 import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigation";
 import { FooterMenu } from "../../components/StoreMenu";
 import { wordmarkSecondaryStyle } from "../../components/LogoMark";
-import { footerLinksAlign, footerStyleCss } from "./footerStyle";
+import { footerLinksAlign, footerShape, footerStyleCss } from "./footerStyle";
 import { pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
 import { BackToTop } from "./extras/footer-back-to-top/BackToTop.tsx";
@@ -58,9 +58,10 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   const email = settings?.info?.email || "owner@example.com";
   const footerAbout: string = String((settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : shopCopyFallback(settings, "footerAbout") || getCopy(settings?.design, "footerAbout")) ?? "");
   const footerLocation: string = String(getCopy(d, "footerLocation") ?? "");
+  const shape = footerShape(d);
   const badges = d?.showPaymentBadges !== false ? resolveFooterBadges(d, settings) : [];
   return (
-    <footer {...regionProps("footerPanel")} data-fm-footer=""
+    <footer {...regionProps("footerPanel")} data-fm-footer="" data-footer-shape={shape || undefined}
       data-studio-target="style:footer|style:catalogElements|copy:Footer" data-studio-label="Footer"
       className="border-t-2 border-white/30 bg-black/40"
       style={elementScheme(d, "footer") ? { backgroundColor: "var(--bg-color)", color: "var(--text-color)" } : d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
@@ -161,6 +162,9 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         {d.showFooterLegalHeading !== false && <span className="fm-footer-heading text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
         {policyKeys.map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
       </div>}
+
+      {/* Style › Footer & social links › Footer shape › Big name: the shop name huge across the page. */}
+      {shape === "bigname" && <p {...regionProps("footerBigName")} aria-hidden="true" className="fm-footer-bigname fm-footer-text text-white" data-studio-target="style:footer|copy:Footer" data-studio-label="Big shop name">{shopName(d) || getCopy(d, "footerWordmark")}</p>}
 
       {/* Bottom bar: copyright on the left; payment icons, social icons and the Admin link on the right. */}
       <div {...regionProps("footerBottom")} data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer bottom bar"

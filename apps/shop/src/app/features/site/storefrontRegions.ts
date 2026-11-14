@@ -31,6 +31,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "footerLinks", label: "Footer link groups", copy: "Footer" },
     { id: "footerLegal", label: "Footer legal row", copy: "Footer" },
     { id: "footerBottom", label: "Footer bottom bar", copy: "Footer" },
+    { id: "footerBigName", label: "Footer big shop name", copy: "Footer" },
     { id: "footerAdmin", label: "Footer admin link", copy: "Footer" },
   ] },
   { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx"], regions: [

@@ -19,6 +19,18 @@ export function footerLinksAlign(d: any): FooterLinksAlign {
   return d?.footerLinksAlign === "start" || d?.footerLinksAlign === "spread" ? d.footerLinksAlign : "end";
 }
 
+/** Style › Footer & social links › Footer shape: the footer's overall structure. */
+export const FOOTER_SHAPE_OPTIONS = [
+  { value: "", label: "Standard: brand beside the link groups" },
+  { value: "centered", label: "Centred: everything stacked down the middle" },
+  { value: "bigname", label: "Big name: your shop name huge across the bottom" },
+  { value: "compact", label: "Compact: one slim row of links and the bottom bar" },
+];
+export type FooterShape = "" | "centered" | "bigname" | "compact";
+export function footerShape(d: any): FooterShape {
+  return ["centered", "bigname", "compact"].includes(d?.footerShape) ? d.footerShape : "";
+}
+
 export type FooterBrandAlign = "center" | "start";
 export function footerBrandAlign(d: any): FooterBrandAlign {
   return d?.footerBrandAlign === "start" ? "start" : "center";
@@ -101,6 +113,23 @@ export function footerStyleCss(d: any = {}): string {
   }
   if (d.showFooterBrandDivider !== false) {
     css += `@media (min-width:768px){${s} .fm-footer-brand{border-right:1px solid ${rule};padding-right:${num(d.footerColumnGap, 64, 16, 200)}px;}}`;
+  }
+  const shape = footerShape(d);
+  if (shape === "centered") {
+    css += `${s} .fm-footer-main{display:flex !important;flex-direction:column;align-items:center;text-align:center;}`
+      + `${s} .fm-footer-brand{border-right:0 !important;padding-right:0 !important;align-items:center;margin-inline:auto;}`
+      + `${s} .fm-footer-groups{justify-content:center;justify-self:center !important;text-align:center;}`
+      + `${s} .fm-footer-legal,${s} .fm-footer-bar{justify-content:center !important;align-items:center !important;text-align:center;}`;
+  }
+  if (shape === "compact") {
+    css += `${s} .fm-footer-brand{display:none !important;}`
+      + `${s} .fm-footer-main{display:block !important;}`
+      + `${s} .fm-footer-groups{display:flex !important;flex-wrap:wrap;gap:${colGap / 2}px ${colGap}px;}`
+      + `${s} .fm-footer-groups .fm-footer-heading{display:none !important;}`
+      + `${s} .fm-footer-list{display:flex;flex-wrap:wrap;gap:${linkGap}px ${Math.max(16, linkGap * 2)}px;}${s} .fm-footer-list>*+*{margin-top:0 !important;}`;
+  }
+  if (shape === "bigname") {
+    css += `${s} .fm-footer-bigname{font-family:var(--heading-font, inherit);font-size:clamp(3rem,15vw,13rem) !important;line-height:.82 !important;letter-spacing:-.04em;font-weight:700;margin:${padY}px 0 0;overflow-wrap:anywhere;}`;
   }
   if (d.footerSocialBoxes !== false) {
     const hoverBox = colour(d.footerSocialHoverColor) || accent;
