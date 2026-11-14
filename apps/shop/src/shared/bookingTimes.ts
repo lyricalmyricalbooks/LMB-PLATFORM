@@ -21,7 +21,15 @@ export type BookingService = {
   location: string;
   active: boolean;
   order: number;
+  /** The owner's own questions on the booking form, asked after name and email. */
+  questions: BookingQuestion[];
 };
+
+/** A question the customer answers when booking this service ("What would you like to work on?"). */
+export type BookingQuestion = { id: string; label: string; /** A few lines instead of one. */ long: boolean; required: boolean };
+/** What the customer answered, kept with the question's words as they were asked. */
+export type BookingAnswer = { label: string; answer: string };
+export const MAX_QUESTIONS = 5;
 
 export type HoursWindow = { start: string; end: string };
 
@@ -97,7 +105,37 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     location: text(s.location, 160),
     active: s.active !== false,
     order: whole(s.order, 0, 999, 0),
+    questions: cleanQuestions(s.questions),
   };
+}
+
+/** The owner's questions, cleaned: empty ones dropped, at most MAX_QUESTIONS, each with its own id. */
+export function cleanQuestions(raw: unknown): BookingQuestion[] {
+  const out: BookingQuestion[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const q = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const label = text(q.label, 140);
+    if (!label || out.length >= MAX_QUESTIONS) continue;
+    let id = text(q.id, 24).replace(/[^A-Za-z0-9_-]/g, "") || `q${out.length + 1}`;
+    while (out.some((o) => o.id === id)) id += "x";
+    out.push({ id, label, long: q.long === true, required: q.required === true });
+  }
+  return out;
+}
+
+/**
+ * The customer's answers to a service's questions, or which required one is missing. Only the service's own questions
+ * are kept (whatever else a page sends is ignored), and an unanswered optional question is left out.
+ */
+export function cleanAnswers(questions: readonly BookingQuestion[], raw: unknown, enforce = true): { answers: BookingAnswer[] } | { problem: string; questionId: string } {
+  const given = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const answers: BookingAnswer[] = [];
+  for (const q of questions) {
+    const answer = typeof given[q.id] === "string" ? (given[q.id] as string).trim().slice(0, q.long ? 1000 : 200) : "";
+    if (!answer && q.required && enforce) return { problem: `Please answer: ${q.label}`, questionId: q.id };
+    if (answer) answers.push({ label: q.label, answer });
+  }
+  return { answers };
 }
 
 /** The opening hours and rules, cleaned; anything missing or broken takes the default. */

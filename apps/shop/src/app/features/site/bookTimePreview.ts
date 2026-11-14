@@ -15,7 +15,8 @@ export const isBookingPreview = () => typeof window !== "undefined"
 
 const SERVICES: BookingServiceView[] = [
   { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Orders › Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio" },
-  { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio" },
+  { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio",
+    questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
   { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "" },
 ];
 const TIMES = ["10:00", "11:00", "13:30", "15:00", "18:00"];

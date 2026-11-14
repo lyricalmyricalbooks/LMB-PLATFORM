@@ -795,3 +795,7 @@ Steps: service (skipped with one service) → time (a week of days, times groupe
 `?booking=<id>&key=<key>` shows the booking with Add to calendar, change time and cancel. Every word is Text & labels ›
 **Book a time page** (`bookTime*`, French in `frenchCopy.ts`); server errors map to those words by code (`taken`,
 `too_late`), never shown raw. The manage view is noindex. Closed shops (`on: false`) see `bookTimeClosed`.
+
+**Service questions:** the details form shows the chosen service's questions (fields `bt-q-<id>`, a box or a longer
+one) between phone and note; a must-answer one left empty shows `bookTimeNeedAnswer`, the others carry
+`bookTimeOptional` (both in Text & labels). Answers reset when the service changes; the server checks them again.

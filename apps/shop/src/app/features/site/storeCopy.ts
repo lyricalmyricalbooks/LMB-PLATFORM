@@ -613,6 +613,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookTimeNote", label: "Note label", default: "Anything we should know? (optional)" },
       { key: "bookTimeNeedName", label: "Missing name", default: "Please add your name." },
       { key: "bookTimeNeedEmail", label: "Missing or wrong email", default: "Please add an email address we can send your booking to." },
+      { key: "bookTimeNeedAnswer", label: "Missing answer to one of your own questions", default: "Please answer this question." },
+      { key: "bookTimeOptional", label: "After a question customers may skip", default: "(optional)" },
       { key: "bookTimeBook", label: "Book button (free)", default: "Book it" },
       { key: "bookTimePay", label: "Book button (paid)", default: "Pay {amount} and book", hint: "Use {amount} for the price." },
       { key: "bookTimeBooking", label: "Book button (working)", default: "Booking…" },

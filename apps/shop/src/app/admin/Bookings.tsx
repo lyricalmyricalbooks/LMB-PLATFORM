@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, type Booking } from "./bookingsApi";
 import { byDay, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { copyText } from "./clipboard";
@@ -256,6 +256,11 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           <div><dt>Booked</dt><dd>{b.source === "admin" ? "By you" : "On your website"}{b.createdAt ? `, ${new Date(b.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</dd></div>
         </dl>
         {b.note && <blockquote className="bkg-note">“{b.note}”</blockquote>}
+        {!!b.answers?.length && (
+          <dl className="bkg-answers">
+            {b.answers.map((a, i) => <div key={i}><dt>{a.label}</dt><dd>{a.answer}</dd></div>)}
+          </dl>
+        )}
         {b.status === "confirmed" && (
           <div className="bkg-detail-toggles">
             <Toggle label="Didn't turn up" checked={!!b.noShow} disabled={!!busy} onChange={(v) => void run("noshow", "noShow", { value: v }, v ? "Marked as a no-show" : "No-show taken off")} />
@@ -449,7 +454,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0 };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0, questions: [] };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -493,6 +498,8 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
   const [problem, setProblem] = useState("");
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const questions = form.questions || [];
+  const setQuestion = (i: number, change: Partial<(typeof questions)[number]>) => set("questions", questions.map((q, j) => (j === i ? { ...q, ...change } : q)));
   const save = async () => {
     setSaving(true); setProblem("");
     try {
@@ -519,6 +526,24 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
         <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free. Paid bookings are paid by card when booked." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
         <TextArea label="About it (optional)" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+        <fieldset className="bkg-questions">
+          <legend>Questions to ask</legend>
+          <p className="bkg-questions-hint">Customers answer these when they book, after their name and email.</p>
+          {questions.map((q, i) => (
+            <div key={q.id} className="bkg-question">
+              <TextField label={`Question ${i + 1}`} placeholder="What would you like to work on?" value={q.label} maxLength={140}
+                onChange={(e) => setQuestion(i, { label: e.target.value })} />
+              <div className="bkg-question-row">
+                <Toggle label="Must answer" checked={q.required} onChange={(v) => setQuestion(i, { required: v })} />
+                <Toggle label="Long answer" checked={q.long} onChange={(v) => setQuestion(i, { long: v })} />
+                <button type="button" className="bkg-question-remove" aria-label={`Remove question ${i + 1}`} onClick={() => set("questions", questions.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
+              </div>
+            </div>
+          ))}
+          {questions.length < MAX_QUESTIONS
+            ? <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("questions", [...questions, { id: `q${Date.now().toString(36)}`, label: "", long: false, required: false }])}>Add a question</SecondaryButton>
+            : <p className="bkg-questions-hint">That's the most a service can ask ({MAX_QUESTIONS}).</p>}
+        </fieldset>
         <Toggle label="Customers can book it" checked={form.active} onChange={(v) => set("active", v)} />
         {problem && <p className="bkg-error" role="alert">{problem}</p>}
       </div>
