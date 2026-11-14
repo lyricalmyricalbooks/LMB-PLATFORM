@@ -5,12 +5,13 @@ import {
   StatusBadge, TextField, useConfirm,
 } from "./riso/components";
 import { printBill } from "./billPaper";
+import { RunningCostCard } from "./RunningCosts";
 import "./addOns.css";
 import { PlaidLogo } from "./stockroom/PlaidLogo";
 import { hubReady, planDate, type PlatformPlan } from "./platformPlan";
 import {
-  BillingCallError, DROP_CHOICES, alertCents, bankFeedBanksWords, bankFeedPriceWords, priceWords, EMAIL_LANGUAGES, downloadableClosedApps, emailLanguageWords, planAddingBack, ADDRESS_COUNTRIES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
-  type BankFeedAddOn, type Bill, type BillingDetails, type BillingStatus, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
+  BillingCallError, DROP_CHOICES, bankFeedBanksWords, bankFeedPriceWords, priceWords, EMAIL_LANGUAGES, downloadableClosedApps, emailLanguageWords, planAddingBack, ADDRESS_COUNTRIES, appsInWords, billCoversWords, billState, billingCall, previewWords, statusBadge,
+  type BankFeedAddOn, type Bill, type BillingDetails, type PaymentWayView, type PlanId, type PlanPreview, type SavedCard, type StatusAnswer, type UpcomingBill,
 } from "./platformBilling";
 
 // The billing hub inside the shop admin (code plan 22.3), where Shopify keeps it:
@@ -96,36 +97,6 @@ function TwoStepNote({ answer }: { answer: StatusAnswer }) {
     <p className="rp-hint" style={{ margin: 0 }} data-two-step-note="">
       Your plan is paid, so changes to your plan, cards and billing details need two-step sign-in. Turn it on under <a href="#settings/security">Settings › Security</a>, then sign in again with your code.
     </p>
-  );
-}
-
-/** Pay what you use: last month's running cost and the "email me if a month may pass" amount. */
-function RunningCostCard({ plan, usage, change }: { plan: Hub["plan"]; usage: NonNullable<BillingStatus["usage"]>; change: ReturnType<typeof useChange> }) {
-  const [typed, setTyped] = useState(() => (usage.alert.cents / 100).toFixed(2));
-  const [saved, setSaved] = useState(false);
-  const cents = alertCents(typed);
-  const save = async () => {
-    if (cents === null) return;
-    setSaved(false);
-    const done = await change.run("cost-alert", () => billingCall(plan, "cost-alert", { cents }));
-    if (done !== undefined) setSaved(true);
-  };
-  return (
-    <SectionCard title="Running cost" description="What your shop cost to run, at cost. Added to your next bill." collapsible={false}>
-      <div data-running-cost="" style={{ display: "grid", gap: 16 }}>
-        <Facts rows={[
-          ["Last month", usage.lastMonth ? `${usage.lastMonth.text} for ${usage.lastMonth.monthWords}` : "Shows after your first paid month"],
-          ["Platform fee", `${usage.fee} a month`],
-        ]} />
-        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <TextField label="Email me if a month's bill may pass" inputMode="decimal" value={typed} style={{ maxWidth: 140 }}
-            onChange={(e) => { setTyped(e.target.value); setSaved(false); }}
-            error={cents === null ? "Type an amount, like 25 or 25.50. 0 turns the email off." : undefined}
-            hint={saved ? "Saved." : cents === 0 ? "Off: we won't email you." : undefined} />
-          <SecondaryButton size="sm" disabled={cents === null || cents === usage.alert.cents} busy={change.busy === "cost-alert"} onClick={() => void save()}>Save</SecondaryButton>
-        </div>
-      </div>
-    </SectionCard>
   );
 }
 
@@ -434,7 +405,7 @@ export function BillingPage({ plan }: Hub) {
           )}
       </SectionCard>
 
-      {billing.usage && <RunningCostCard plan={plan} usage={billing.usage} change={change} />}
+      {billing.usage && <RunningCostCard plan={plan} usage={billing.usage} bill={bill?.cents} change={change} />}
 
       <SectionCard title="Payment methods" description="The primary card pays your plan. Cards are saved by our payment partner; we never see the full number."
         actions={<SecondaryButton size="sm" icon={<Plus size={14} aria-hidden />} busy={change.busy === "card"} onClick={() => void addCard()}>Add a card</SecondaryButton>} collapsible={false}>

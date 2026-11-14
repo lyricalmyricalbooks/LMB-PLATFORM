@@ -1051,3 +1051,14 @@ spotlit stop per page, end card). Offered once per owner (`walkthrough/tourStore
 again from Help or the avatar menu. Each stop points at the rail item `[data-nav]`, or on phones the bottom pill / More / menu
 button. A new menu page that matters gets a stop. Help is the `#help` page (`HelpPage.tsx`, pure `helpAnswers.ts`), reading the
 platform's `help/articles.js` through the `@help` alias. Fixture: `admin-fixture.html?tour=1`.
+
+## Running costs tracker (14 November 2026)
+Settings › Billing › **Running costs** (`RunningCosts.tsx`, `runningCosts.css`; words in `platformBilling.ts`:
+`billEstimate`, `trendWords`, `alertWords`, `moneyLike`). It asks the platform's billing door for `costs`
+(`services/billing/costTracker.js` + `billing.costTracker`, the same meters and straight-line estimate as the heads-up
+email) and only lays the answer out: So far (mint), By month end (apricot), the month's bill (fee, founding discount on
+the fee only, running cost, tax at the rate of the next bill's `cents`), Where it goes (five plain groups that add up to
+the total), Month by month (billed months, this month dashed as the estimate) and the email-me amount with an on-track
+line. Nothing measured yet, or a failed read, falls back to the three plain facts. No Home tile: the v4 Home has no
+slot for one. Fixture: `admin-fixture.html?plan=open&page=settings/billing` (`&costs=over|new|trial`, `&cur=usd`,
+`&founding=1`). Control room: Costs › Each shop's use › "Owner sees so far".

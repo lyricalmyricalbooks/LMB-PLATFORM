@@ -26,7 +26,7 @@ function status(over: Record<string, unknown> = {}) {
   };
 }
 
-type World = { status: any; calls: Array<[string, any]>; refuse?: Record<string, any>; cards: any[] };
+type World = { status: any; calls: Array<[string, any]>; refuse?: Record<string, any>; cards: any[]; costs?: any };
 let world: World;
 function platform() {
   return vi.fn(async (url: string, init: RequestInit) => {
@@ -56,6 +56,7 @@ function platform() {
       case "email-language": world.status = { ...world.status, emailLanguage: { choice: body.language, sends: body.language === "auto" ? "en" : body.language } }; return send(200, { ok: true, changed: true });
       case "download": return send(200, { ok: true, emailedTo: "owner@example.com", expiresAt: "2026-11-10T12:00:00Z" });
       case "cost-alert": return send(200, { ok: true, changed: true });
+      case "costs": return world.costs ? send(200, { ok: true, costs: world.costs }) : send(404, { ok: false, message: "There's nothing here." });
       case "pay-now": world.status = { ...world.status, status: "active", paymentProblem: null, canPayNow: false }; return send(200, { ok: true, paid: true });
       default: return send(404, { ok: false, message: "There's nothing here." });
     }
@@ -230,6 +231,35 @@ describe("Settings › Billing", () => {
     await type("Email me if a month's bill may pass", "40");
     await click(button("Save"));
     expect(world.calls.filter(([c]) => c === "cost-alert").map(([, b]) => b.cents)).toEqual([4000]);
+  });
+
+  it("the running-cost tracker: so far, the month-end estimate, the bill, where it goes and the months before", async () => {
+    const $ = (cents: number) => ({ cents, text: `$${(cents / 100).toFixed(2)}` });
+    world.status = status({ price: "$5.00", founding: null, usage: { fee: "$5.00", lastMonth: { month: "2026-10", monthWords: "October 2026", cents: 268, text: "$2.68" }, alert: { cents: 2500, text: "$25.00" } } });
+    world.costs = {
+      month: "2026-11", monthWords: "November 2026", monthName: "November", day: 14, days: 30, measured: true, currency: "CAD", plusTax: true, updatedAt: "2026-11-14T06:00:00Z",
+      soFar: $(150), monthEnd: $(321),
+      groups: [{ id: "visitors", words: "Visitors", used: "5.6 GB of pages and photos shown", ...$(116) }, { id: "emails", words: "Emails", used: "236 emails sent", ...$(34) }, { id: "records", words: "Shop records", used: "", ...$(0) }],
+      estimate: { fee: $(500), discount: $(125), percentOff: 25, running: $(321), beforeTax: $(696), freeTrial: false },
+      trend: [{ month: "2026-09", words: "Sep", now: false, cents: null, text: "" }, { month: "2026-10", words: "Oct", now: false, ...$(268) }, { month: "2026-11", words: "Nov", now: true, ...$(321) }],
+      lastMonth: { month: "2026-10", monthWords: "October 2026", ...$(268) }, average: $(268), change: 20,
+      alert: { ...$(2500), on: true, watched: $(696), passing: false, used: 0.28, sent: false },
+    };
+    await mount(BillingPage);
+    const card = document.querySelector("[data-running-cost]")!;
+    expect(card.getAttribute("data-state")).toBe("measured");
+    expect(card.querySelector('[data-rc="so-far"]')!.textContent).toContain("$1.50");
+    expect(card.querySelector('[data-rc="so-far"]')!.textContent).toContain("Day 14 of 30");
+    expect(card.querySelector('[data-rc="month-end"]')!.textContent).toContain("By 30 November, about$3.21");
+    expect(card.querySelector('[data-rc="month-end"]')!.textContent).toContain("20% more than October");
+    // This test's next bill carries no cents, so the estimate is before tax and says tax comes on top.
+    expect(card.querySelector('[data-rc="estimate"]')!.textContent).toContain("$6.96");
+    expect(card.querySelector('[data-rc="estimate"]')!.textContent).toContain("$5.00 fee · −$1.25 founding discount · $3.21 running cost · plus tax");
+    expect([...card.querySelectorAll(".rp-rc-group")].map((li) => li.textContent)).toEqual(["Visitors5.6 GB of pages and photos shown$1.16", "Emails236 emails sent$0.34", "Shop recordsCounted when the month closes$0.00"]);
+    // A month before the first bill isn't drawn; this month is marked as the estimate.
+    expect([...card.querySelectorAll(".rp-rc-month")].map((li) => li.textContent)).toEqual(["$2.68Oct", "$3.21Nov (estimate)"]);
+    expect(card.textContent).toContain("On track: about $6.96 before tax, under your $25.00.");
+    expect(card.textContent).not.toMatch(/database|egress|invocation/i);
   });
 
   it("without pay what you use there is no running-cost card", async () => {

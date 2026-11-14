@@ -1,0 +1,46 @@
+/* Settings › Billing › Running costs: three figures, where the money goes, month by month, and the heads-up amount.
+   Tokens only (adminThemes.css), so day and night both read. */
+.rp-rc { display: grid; gap: var(--rp-space-5, 20px); }
+.rp-rc-tiles { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.rp-rc-tiles .rp-tile { min-height: 0; padding: 20px 22px; }
+.rp-rc-bill { background: var(--rp-surface-2); }
+.rp-rc-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--rp-space-5, 20px) 32px; align-items: start; }
+.rp-rc-part { display: grid; gap: 12px; min-width: 0; }
+.rp-rc-head { margin: 0; font: 600 var(--rp-text-md, 15px)/1.3 var(--rp-font-body, inherit); }
+.rp-rc-head .rp-hint { font-weight: 400; }
+
+.rp-rc-groups { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.rp-rc-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: baseline; }
+.rp-rc-name { font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+.rp-rc-amount { font-variant-numeric: tabular-nums; font-family: var(--rp-font-mono, monospace); }
+.rp-rc-bar { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--rp-surface-2); overflow: hidden; }
+.rp-rc-bar > span { display: block; height: 100%; min-width: 2px; border-radius: 999px; background: var(--rp-text); }
+.rp-rc-used { font-weight: 400; }
+
+.rp-rc-months { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 64px); justify-content: start; gap: 8px; height: 168px; }
+.rp-rc-month { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; justify-items: center; align-items: end; min-width: 0; }
+.rp-rc-month-amount { font: 500 11px/1.2 var(--rp-font-mono, monospace); font-variant-numeric: tabular-nums; white-space: nowrap; min-height: 14px; }
+.rp-rc-month-bar { width: 100%; max-width: 44px; border-radius: 8px 8px 3px 3px; background: var(--rp-text); align-self: end; }
+.rp-rc-month[data-now] .rp-rc-month-bar { background: var(--rp-tile-apricot, var(--rp-surface-2)); outline: 1.5px dashed var(--rp-text); outline-offset: -1.5px; }
+.rp-rc-month[data-empty] .rp-rc-month-bar { height: 2px !important; background: var(--rp-divider); }
+.rp-rc-month-name { font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-rc-month[data-now] .rp-rc-month-name { color: var(--rp-text); font-weight: 600; }
+
+.rp-rc-facts { margin: 0; display: grid; gap: 10px; }
+.rp-rc-facts > div { display: grid; grid-template-columns: minmax(96px, 35%) minmax(0, 1fr); gap: 12px; }
+.rp-rc-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+.rp-rc-alert { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 28px; padding: var(--rp-space-4, 16px); border-radius: var(--rp-radius, 16px); background: var(--rp-surface-2); }
+.rp-rc-alert[data-tone="warn"] { background: var(--rp-tile-apricot, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); }
+.rp-rc-alert[data-tone="warn"] :is(.rp-hint, .rp-label, label) { color: inherit; }
+.rp-rc-alert-field { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.rp-rc-watch { display: grid; gap: 8px; flex: 1 1 240px; min-width: 0; padding-bottom: 6px; }
+.rp-rc-meter { height: 8px; border-radius: 999px; background: var(--rp-surface); overflow: hidden; }
+.rp-rc-meter > span { display: block; height: 100%; min-width: 2px; border-radius: 999px; background: var(--rp-text); }
+.rp-rc-watch-words { font-size: var(--rp-text-sm); }
+
+@media (max-width: 767px) {
+  .rp-rc-split { grid-template-columns: minmax(0, 1fr); }
+  .rp-rc-months { height: 140px; gap: 4px; }
+  .rp-rc-month-amount { font-size: 10px; }
+}

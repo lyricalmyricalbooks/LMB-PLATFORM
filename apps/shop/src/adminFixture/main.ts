@@ -941,11 +941,42 @@ let helperShown = false;
       // The bank feed add-on (beta): `&bankaddon=on` shows it turned on with two banks, `&bankaddon=none` hides it.
       addOns: new URLSearchParams(location.search).get("bankaddon") === "none" ? undefined
         : { bankFeed: { on: new URLSearchParams(location.search).get("bankaddon") === "on", price: "CA$4", extraPrice: "CA$1.50", included: 2, banks: new URLSearchParams(location.search).get("bankaddon") === "on" ? 2 : 0, plusTax: true } } };
-    const answers: Record<string, () => unknown> = {
+    // The running-cost tracker (Settings › Billing › Running costs): `&costs=over` is a month heading past the owner's
+    // amount, `&costs=new` a shop with nothing measured yet, `&costs=trial` a free trial; `&cur=usd` bills in US
+    // dollars and `&founding=1` takes the founding 25% off the fee.
+    const q = new URLSearchParams(location.search);
+    const usd = q.get("cur") === "usd", costsKind = q.get("costs") ?? "", founding = q.get("founding") === "1";
+    const $ = (cents: number) => ({ cents, text: `${usd ? "US$" : "$"}${(cents / 100).toFixed(2)}` });
+    const alertAt = costsKind === "over" ? 1000 : 2500;
+    billing = { ...billing, price: $(500).text, currency: usd ? "USD" : "CAD",
+      founding: founding ? { percentOff: 25, price: $(375).text } : null,
+      usage: { fee: $(500).text, lastMonth: costsKind === "new" || costsKind === "trial" ? null : { month: "2026-10", monthWords: "October 2026", ...$(268) }, alert: $(alertAt) } };
+    const costsAnswer = () => {
+      const over = costsKind === "over", measured = costsKind !== "new", trial = costsKind === "trial";
+      const groups = (over
+        ? [["visitors", "Visitors", "14.2 GB of pages and photos shown", 294], ["work", "Orders and upkeep", "212,400 tasks run", 31], ["emails", "Emails", "410 emails sent", 25], ["storage", "Photos and files", "3.1 GB kept", 11], ["records", "Shop records", "", 0]]
+        : [["visitors", "Visitors", "5.6 GB of pages and photos shown", 116], ["emails", "Emails", "236 emails sent", 14], ["work", "Orders and upkeep", "38,200 tasks run", 12], ["storage", "Photos and files", "2.3 GB kept", 8], ["records", "Shop records", "", 0]]
+      ).map(([id, words, used, cents]) => ({ id, words, used, ...$(cents as number) }));
+      const soFar = groups.reduce((sum, g) => sum + g.cents, 0), monthEnd = Math.round((soFar * 30) / 14);
+      const fee = 500, after = founding ? 375 : 500, running = trial ? 0 : monthEnd;
+      const past = costsKind === "new" || trial ? [null, null, null, null, null] : [null, 142, 197, 231, 268];
+      const watched = after + monthEnd;
+      return { costs: {
+        month: "2026-11", monthWords: "November 2026", monthName: "November", day: 14, days: 30, measured, currency: usd ? "USD" : "CAD", plusTax: true, updatedAt: measured ? "2026-11-14T06:00:00Z" : null,
+        soFar: measured ? $(soFar) : null, monthEnd: measured ? $(monthEnd) : null, groups: measured ? groups : [],
+        estimate: { fee: $(fee), discount: founding ? $(125) : null, percentOff: founding ? 25 : null, running: measured ? $(running) : null, beforeTax: measured ? $(after + running) : null, freeTrial: trial },
+        trend: [...["Jun", "Jul", "Aug", "Sep", "Oct"].map((words, i) => ({ month: `2026-${String(i + 6).padStart(2, "0")}`, words, now: false, ...(past[i] === null ? { cents: null, text: "" } : $(past[i]!)) })), { month: "2026-11", words: "Nov", now: true, ...(measured ? $(monthEnd) : { cents: null, text: "" }) }],
+        lastMonth: past[4] === null ? null : { month: "2026-10", monthWords: "October 2026", ...$(268) }, average: past[4] === null ? null : $(210), change: past[4] === null || !measured ? null : Math.round(((monthEnd - 268) / 268) * 100),
+        alert: { ...$(billing.usage.alert.cents), on: billing.usage.alert.cents > 0, watched: measured ? $(watched) : null, passing: measured && billing.usage.alert.cents > 0 && watched > billing.usage.alert.cents, used: measured && billing.usage.alert.cents > 0 ? Math.min(1, watched / billing.usage.alert.cents) : null, sent: over },
+      } };
+    };
+    const answers: Record<string, (body?: any) => unknown> = {
+      costs: costsAnswer,
+      "cost-alert": (body) => { billing = { ...billing, usage: { ...billing.usage, alert: $(body?.cents ?? 0) } }; return {}; },
       status: () => ({ billing, accountPage: "https://platform.example/account/", changesNeedTwoStep: false }),
       cancel: () => { billing = { ...billing, cancelAtPeriodEnd: true, nextPaymentAt: null }; return {}; },
       keep: () => { billing = { ...billing, cancelAtPeriodEnd: false, nextPaymentAt: billing.currentPeriodEnd }; return {}; },
-      upcoming: () => ({ bill: billing.cancelAtPeriodEnd ? null : { date: billing.currentPeriodEnd, lines: [{ words: "Colophon fee", amount: "$5.00" }, { words: "Running cost, November", amount: "$2.40" }], subtotal: "$7.40", discount: "$0.00", tax: "$0.96", total: "$8.36" } }),
+      upcoming: () => ({ bill: billing.cancelAtPeriodEnd ? null : { date: billing.currentPeriodEnd, lines: [{ words: "Colophon fee", amount: $(500).text }, { words: "Running cost, October 2026", amount: $(268).text }], subtotal: $(768).text, discount: founding ? $(125).text : "", tax: usd ? "" : $(founding ? 84 : 100).text, total: $((founding ? 643 : 768) + (usd ? 0 : founding ? 84 : 100)).text, cents: { beforeTax: founding ? 643 : 768, tax: usd ? 0 : founding ? 84 : 100 } } }),
       "payment-methods": () => ({ cards: [{ id: "pm_1", words: "Visa ending 4242", brand: "visa", last4: "4242", expMonth: 12, expYear: 2030, primary: true, expired: false }] }),
       invoices: () => ({ invoices: [{ id: "in_1", number: "COL-0001", date: "2026-11-12T12:00:00Z", amount: "$8.36", tax: "$0.96", status: "paid", pdfUrl: null, pageUrl: null }], more: false, after: null }),
       details: () => ({ details: { name: "Test Press", email: "owner@example.com", address: null, taxNumber: "", taxLabel: "GST/HST", plusTax: true, country: "CA" } }),
@@ -957,7 +988,8 @@ let helperShown = false;
       const url = String(input instanceof Request ? input.url : input);
       if (!url.startsWith(HUB)) return realFetch(input as any, init);
       const answer = answers[url.slice(HUB.length).split("?")[0]];
-      return new Response(JSON.stringify({ ok: true, ...(answer ? (answer() as object) : {}) }), { status: 200, headers: { "Content-Type": "application/json" } });
+      const sent = (() => { try { return JSON.parse(String(init?.body ?? "{}")); } catch { return {}; } })();
+      return new Response(JSON.stringify({ ok: true, ...(answer ? (answer(sent) as object) : {}) }), { status: 200, headers: { "Content-Type": "application/json" } });
     }) as typeof fetch;
   }
 }

@@ -38,7 +38,7 @@ export type StatusAnswer = { billing: BillingStatus | null; accountPage: string;
 export type PlanPreview = { plan: PlanId; planName: string; price: string; from: PlanId | null; adds: string[]; closes: string[]; immediate: boolean; closesAt: string | null; downloadUntil: string | null; prorate: boolean; prorated: { amount: number; text: string } | null };
 export type SavedCard = { id: string; words: string; brand: string; last4: string; expMonth: number | null; expYear: number | null; primary: boolean; expired: boolean };
 export type BillingDetails = { name: string; email: string; address: { line1: string; line2: string; city: string; state: string; postalCode: string; country: string } | null; taxNumber: string; taxLabel: string; plusTax: boolean; currency?: string; country?: string };
-export type UpcomingBill = { date: string | null; lines: Array<{ words: string; amount: string }>; subtotal: string; discount: string; tax: string; total: string };
+export type UpcomingBill = { date: string | null; lines: Array<{ words: string; amount: string }>; subtotal: string; discount: string; tax: string; total: string; cents?: BillCents };
 /** What a bill says, for the printed copy in the Colophon look (services/billing billPaper); every amount is Stripe's. */
 export type BillPaper = {
   from: { name: string; address: string; taxNumbers: string[] };
@@ -253,4 +253,64 @@ export function bankFeedBanksWords(addOn: Pick<BankFeedAddOn, "banks" | "include
   if (!addOn.banks) return "No bank connected yet";
   const extra = Math.max(0, addOn.banks - addOn.included);
   return `${addOn.banks} bank${addOn.banks === 1 ? "" : "s"} connected${extra ? `: ${extra} extra` : ""}`;
+}
+
+// ── The running-cost tracker (Settings › Billing › Running costs; the platform's services/billing/costTracker.js) ──
+
+type Money = { cents: number; text: string };
+/** The platform's answer to `costs`: this month so far, where it's heading, the months before and the heads-up. */
+export type CostTracker = {
+  month: string; monthWords: string; monthName: string; day: number; days: number; measured: boolean; currency: string; plusTax: boolean; updatedAt: string | null;
+  soFar: Money | null; monthEnd: Money | null;
+  groups: Array<{ id: string; words: string; used: string; cents: number; text: string }>;
+  estimate: { fee: Money | null; discount: Money | null; percentOff: number | null; running: Money | null; beforeTax: Money | null; freeTrial: boolean };
+  trend: Array<{ month: string; words: string; now: boolean; cents: number | null; text: string }>;
+  lastMonth: (Money & { month: string; monthWords: string }) | null; average: Money | null; change: number | null;
+  alert: { cents: number; text: string; on: boolean; watched: Money | null; passing: boolean; used: number | null; sent: boolean };
+};
+/** The next bill's cents, when the platform sends them: the tracker taxes its estimate at that bill's rate. */
+export type BillCents = { beforeTax: number; tax: number };
+
+/** An amount written like another the platform already wrote ("$3.04" after "$5.00", "US$3.04" after "US$5.00"). */
+export function moneyLike(sample: string, cents: number): string {
+  const sign = sample.replace(/[\d.,\s]+$/, "") || "$";
+  return `${sign}${(Math.max(0, cents) / 100).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * The month's bill as the tracker estimates it: fee, founding discount, running cost, tax, total. The tax is worked
+ * out at the rate of the press's next bill (`bill`), so it follows their own province or state; with no bill to go by,
+ * `taxLater` says tax comes on top. Null until the month has been measured.
+ */
+export function billEstimate(costs: CostTracker, bill: BillCents | null | undefined): { total: string; parts: string[]; taxLater: boolean; free: boolean } | null {
+  const { fee, discount, running, beforeTax, freeTrial } = costs.estimate;
+  if (!fee || !running || !beforeTax) return null;
+  const rated = bill && Number.isInteger(bill.tax) && Number.isInteger(bill.beforeTax) && bill.beforeTax > 0 && bill.tax >= 0;
+  const tax = costs.plusTax && rated ? Math.round((beforeTax.cents * bill!.tax) / bill!.beforeTax) : 0;
+  const taxLater = costs.plusTax && !rated;
+  const parts = [`${fee.text} fee`];
+  if (discount) parts.push(`−${discount.text} founding discount`);
+  parts.push(`${running.text} running cost`);
+  if (tax > 0) parts.push(`${moneyLike(fee.text, tax)} tax`);
+  // A trial month is free; "after that" is the fee plus a whole month like this one.
+  const usual = fee.cents - (discount?.cents ?? 0) + (costs.monthEnd?.cents ?? 0);
+  const usualTax = costs.plusTax && rated ? Math.round((usual * bill!.tax) / bill!.beforeTax) : 0;
+  return { total: moneyLike(fee.text, freeTrial ? usual + usualTax : beforeTax.cents + tax), parts, taxLater, free: freeTrial };
+}
+
+/** "12% more than October" / "About the same as October" / "" when there's no month to compare with. */
+export function trendWords(costs: Pick<CostTracker, "change" | "lastMonth">): string {
+  if (costs.change === null || !costs.lastMonth) return "";
+  const month = costs.lastMonth.monthWords.split(" ")[0];
+  if (Math.abs(costs.change) < 5) return `About the same as ${month}`;
+  if (costs.change >= 100) return `About ${Math.round(costs.change / 100) + 1} times ${month}`;
+  return `${Math.abs(costs.change)}% ${costs.change > 0 ? "more" : "less"} than ${month}`;
+}
+
+/** The line under the heads-up amount: where this month stands against it. */
+export function alertWords(alert: CostTracker["alert"]): { tone: "ok" | "warn" | "off"; words: string } {
+  if (!alert.on) return { tone: "off", words: "Off: we won't email you." };
+  if (!alert.watched) return { tone: "ok", words: `We'll email you if a month looks set to pass ${alert.text}.` };
+  if (alert.passing) return { tone: "warn", words: alert.sent ? `Heading for about ${alert.watched.text} before tax. We emailed you.` : `Heading for about ${alert.watched.text} before tax, past your ${alert.text}.` };
+  return { tone: "ok", words: `On track: about ${alert.watched.text} before tax, under your ${alert.text}.` };
 }
