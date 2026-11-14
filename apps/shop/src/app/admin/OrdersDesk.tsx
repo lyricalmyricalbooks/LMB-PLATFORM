@@ -8,11 +8,12 @@ import { orderApi } from "../lib/commerce";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./ordersStore";
-import { EmptyState, LoadingState, MetricCard, PageActions, PrimaryButton, SearchField, SecondaryButton, StatusBadge, Tabs, Toggle } from "./riso/components";
+import { EmptyState, LoadingState, MetricCard, PageActions, PrimaryButton, SearchField, SecondaryButton, StatusBadge, Tabs, Toggle, useConfirm } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
-import { LIST_FILTERS, badgeText, packableOf, listFulfilment, listPayment, gridOrders, itemCount, listOrders, outsideQueue, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab, type ListFilter } from "./shipStation";
-import { listDate, orderMoney, waitedText } from "./orderListHelpers";
-import { printOrders } from "./orderPrint";
+import { LIST_FILTERS, badgeText, batchOf, printableOf, type BatchKind, listFulfilment, listPayment, gridOrders, itemCount, listOrders, outsideQueue, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab, type ListFilter } from "./shipStation";
+import { batchDispatchFields, listDate, orderMoney, waitedText } from "./orderListHelpers";
+import { printOrders, type SlipShop } from "./orderPrint";
+import { getCopy } from "../features/site/storeCopy";
 import { packingKey, queueOf } from "./fulfillment";
 import type { CatalogSearchIndex } from "./orderSearch";
 import { useShopSells, useShopWords } from "./shopWords";
@@ -39,6 +40,26 @@ const typingIn = (t: EventTarget | null) => {
 // one order at a time) and the All orders covers page (Open / Completed / All orders). The right side of
 // the station IS the full order page (OrderDetail), so payment sync with Stripe, refunds, disputes,
 // labels and dispatch all work exactly as before, and finishing an order moves straight to the next one.
+const plural = (n: number) => (n === 1 ? "" : "s");
+/** Words for the list's bulk steps. */
+export const BATCH_WORDS: Record<BatchKind, { button: string; busy: string; none: string; title: (n: number) => string; ask: string; done: (n: number) => string; skipped: (n: number) => string }> = {
+  pack: {
+    button: "Mark packed", busy: "Packing…", none: "Nothing to pack in the selection", title: (n) => `Pack ${n} order${plural(n)}?`, ask: "",
+    done: (n) => `Packed ${n} order${plural(n)}`, skipped: (n) => `${n} not ready to pack (check the address first)`,
+  },
+  ship: {
+    button: "Mark shipped", busy: "Shipping…", none: "Nothing to ship in the selection: only packed orders with a bought label can be marked shipped here",
+    title: (n) => `Mark ${n} parcel${plural(n)} shipped?`,
+    ask: "Do this once the parcels are with the carrier. Each customer gets their shipping email with tracking. Orders without a label are skipped: open them to add tracking.",
+    done: (n) => `Shipped ${n} order${plural(n)}, customers emailed`, skipped: (n) => `${n} skipped (not packed, or no label yet)`,
+  },
+  deliver: {
+    button: "Mark delivered", busy: "Saving…", none: "Nothing on its way in the selection", title: (n) => `Mark ${n} parcel${plural(n)} delivered?`,
+    ask: "Do this once the carrier shows them as delivered.",
+    done: (n) => `Marked ${n} order${plural(n)} delivered`, skipped: (n) => `${n} not on their way yet`,
+  },
+};
+
 export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string | null) => void }) {
   const w = useShopWords();
   const goods = !sellsBooks(useShopSells());
@@ -59,7 +80,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const [shown, setShown] = useState(PAGE);
   /** Rows ticked on the list (v4 bulk bar). */
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
-  const [packing, setPacking] = useState(false);
+  const [packing, setPacking] = useState<BatchKind | null>(null);
+  const [confirm, confirmNode] = useConfirm();
   const [showTest, setShowTest] = useState(false);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(max-width: 900px)").matches);
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(PHONE_MQ).matches);
@@ -286,26 +308,49 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     const tickedHere = page.filter((o) => picked.has(o.id)).length;
     const allTicked = page.length > 0 && tickedHere === page.length;
     const tick = (id: string, on: boolean) => setPicked((p) => { const next = new Set(p); if (on) next.add(id); else next.delete(id); return next; });
-    const markPacked = async () => {
-      const { pack, skipped } = packableOf(orders || [], picked);
-      if (!pack.length) { toast("Nothing to pack in the selection"); return; }
-      setPacking(true);
+    // Bulk steps from the Lyricalmyrical shop's Orders table: pack, ship (orders with a bought label) and delivered.
+    // Each order goes through the same server action as its own page, one by one; failures stay ticked.
+    const runBatch = async (kind: BatchKind) => {
+      const { act, skipped } = batchOf(orders || [], picked, kind);
+      const words = BATCH_WORDS[kind];
+      if (!act.length) { toast(words.none); return; }
+      if (kind !== "pack" && !(await confirm({ title: words.title(act.length), message: words.ask, confirmLabel: words.button }))) return;
+      setPacking(kind);
       let done = 0;
       const failedIds: string[] = [];
-      for (const o of pack) {
-        try { await adminApi.fulfillmentAction(o.id, "pack", { packingKey: packingKey(o) }); done += 1; }
-        catch { failedIds.push(o.orderId || o.id); }
+      for (const o of act) {
+        try {
+          if (kind === "pack") await adminApi.fulfillmentAction(o.id, "pack", { packingKey: packingKey(o) });
+          else if (kind === "ship") {
+            const fields = batchDispatchFields(o);
+            if ("problem" in fields) throw new Error(fields.problem);
+            await adminApi.fulfillmentAction(o.id, "dispatch", fields);
+          } else await adminApi.fulfillmentAction(o.id, "delivery_status", { status: "delivered" });
+          done += 1;
+        } catch { failedIds.push(o.orderId || o.id); }
       }
-      setPacking(false);
-      setPicked(new Set(failedIds.length ? pack.filter((o) => failedIds.includes(o.orderId || o.id)).map((o) => o.id) : []));
+      setPacking(null);
+      setPicked(new Set(failedIds.length ? act.filter((o) => failedIds.includes(o.orderId || o.id)).map((o) => o.id) : []));
       void refreshOrdersCache().then((data) => { setOrders(data); setFailed(false); }).catch(() => setFailed(true));
-      const parts = [done ? `Packed ${done} order${done === 1 ? "" : "s"}` : "", skipped ? `${skipped} not ready to pack (check the address first)` : ""].filter(Boolean);
-      if (failedIds.length) toast.error(`${parts.join(". ")}${parts.length ? ". " : ""}Couldn't pack ${failedIds.join(", ")}: open ${failedIds.length === 1 ? "it" : "them"} to see why.`);
+      const parts = [done ? words.done(done) : "", skipped ? words.skipped(skipped) : ""].filter(Boolean);
+      if (failedIds.length) toast.error(`${parts.join(". ")}${parts.length ? ". " : ""}Couldn't save ${failedIds.join(", ")}: open ${failedIds.length === 1 ? "it" : "them"} to see why.`);
       else toast.success(parts.join(". ") + ".");
+    };
+    const printTicked = async (pickList: boolean) => {
+      const list = printableOf(orders || [], picked);
+      if (!list.length) { toast("Nothing to print in the selection"); return; }
+      if (pickList) { printOrders(list, true, { goods }); return; }
+      let shop: SlipShop = {};
+      try {
+        const s: any = await adminApi.getPublicSettings();
+        shop = { name: getCopy(s?.design || {}, "siteName"), location: s?.location };
+      } catch { /* print without the shop block */ }
+      printOrders(list, false, { ...shop, goods });
     };
     return (
       <div className="rp-stack od-list-page" style={{ gap: 16 }}>
         <style>{DESK_CSS}</style>
+        {confirmNode}
         <PageActions>
           <SecondaryButton onClick={exportCsv}>Export CSV</SecondaryButton>
           <PrimaryButton onClick={() => setMakingLink(true)}>Create order</PrimaryButton>
@@ -337,7 +382,11 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             {picked.size > 0 && (
               <div className="od-bulk" role="region" aria-label="Selected orders">
                 <strong>{picked.size} selected</strong>
-                <button type="button" className="od-bulk-btn" onClick={() => void markPacked()} disabled={packing}>{packing ? "Packing…" : "Mark packed"}</button>
+                {(["pack", "ship", "deliver"] as BatchKind[]).map((k) => (
+                  <button key={k} type="button" className="od-bulk-btn" onClick={() => void runBatch(k)} disabled={!!packing}>{packing === k ? BATCH_WORDS[k].busy : BATCH_WORDS[k].button}</button>
+                ))}
+                <button type="button" className="od-bulk-btn od-bulk-quiet" onClick={() => void printTicked(false)} disabled={!!packing}>Packing slips</button>
+                <button type="button" className="od-bulk-btn od-bulk-quiet" onClick={() => void printTicked(true)} disabled={!!packing}>Pick list</button>
                 <button type="button" className="od-link" onClick={() => setPicked(new Set())}>Clear</button>
               </div>
             )}
@@ -587,6 +636,7 @@ const DESK_CSS = `
 .od-bulk{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 14px;border-radius:var(--rp-radius);background:var(--rp-surface-2);font-size:var(--rp-text-sm)}
 .od-bulk-btn{min-height:34px;padding:0 16px;border:0;border-radius:999px;background:var(--rp-text);color:var(--rp-canvas);font:600 var(--rp-text-sm)/1 var(--rp-font-body);cursor:pointer}
 .od-bulk-btn:disabled{opacity:.6;cursor:default}
+.od-bulk-quiet{background:transparent;color:var(--rp-text);box-shadow:inset 0 0 0 1.5px var(--rp-text)}
 .od-bulk-btn:focus-visible,.od-check-col input:focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px}
 .od-table tbody tr:hover td{background:var(--rp-surface-sunken)}
 .od-num-col,.od-table th.od-num-col{text-align:right;white-space:nowrap;padding-right:22px}

@@ -3,7 +3,7 @@
 import { queueOf, terminal } from "./fulfillment";
 import { deskOrders, deskQueue, rowStatus } from "./ordersDesk";
 import { orderMatches, type CatalogSearchIndex } from "./orderSearch";
-import { isArchived, orderTime } from "./orderListHelpers";
+import { batchDispatchFields, isArchived, orderTime } from "./orderListHelpers";
 import { shopDayKey } from "../lib/shopDay";
 
 const DAY = 86_400_000;
@@ -158,7 +158,25 @@ export const listOrders = (orders: any[], filter: ListFilter, showTest = false) 
  * books not packed yet). The rest are left alone and counted, so the owner hears what was skipped.
  */
 export function packableOf(orders: any[], picked: ReadonlySet<string>): { pack: any[]; skipped: number } {
-  const chosen = orders.filter((o) => picked.has(o.id));
-  const pack = chosen.filter((o) => queueOf(o) === "Ready to pack");
-  return { pack, skipped: chosen.length - pack.length };
+  const { act, skipped } = batchOf(orders, picked, "pack");
+  return { pack: act, skipped };
 }
+
+/** The list's three bulk steps, as in the Lyricalmyrical shop's Orders table. */
+export type BatchKind = "pack" | "ship" | "deliver";
+const BATCH_QUEUE: Record<BatchKind, string> = { pack: "Ready to pack", ship: "Ready to ship", deliver: "In transit" };
+
+/**
+ * Of the ticked orders, the ones a bulk step can act on: packing needs "Ready to pack"; shipping needs "Ready to ship"
+ * and a bought label with tracking (never a guessed carrier); delivered needs a parcel on its way. Test orders never
+ * count. The rest are left alone and counted, so the owner hears what was skipped.
+ */
+export function batchOf(orders: any[], picked: ReadonlySet<string>, kind: BatchKind): { act: any[]; skipped: number } {
+  const chosen = orders.filter((o) => picked.has(o.id));
+  const act = chosen.filter((o) => !o.isTest && queueOf(o) === BATCH_QUEUE[kind] && (kind !== "ship" || !("problem" in batchDispatchFields(o))));
+  return { act, skipped: chosen.length - act.length };
+}
+
+/** Ticked orders that can go on a packing slip or pick list: real, paid orders with something to send. */
+export const printableOf = (orders: any[], picked: ReadonlySet<string>) =>
+  orders.filter((o) => picked.has(o.id) && !o.isTest && o.paymentStatus === "paid" && !terminal(o));
