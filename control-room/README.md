@@ -123,6 +123,7 @@ platform's one web door with `routes: controlRoutes(room)`:
 | `GET /api/control/shops` | every shop, its health and switches |
 | `GET /api/control/test-shop` | `{ testShop }`: the test shop's card, or null |
 | `POST /api/control/test-shop/reset` | `{ shopId }` -> `{ shopId, reset }` |
+| `POST /api/control/test-shop/open` | `{ shopId }` -> `{ shopId, url }`: a test shop's admin, signed in as its owner (logged first; test shops only) |
 | `POST /api/control/google-run-again` | `{ shopId, step }` -> `{ outcome }`: one Google step again (needs `googleSteps`) |
 | `POST /api/control/act-as` | `{ shopId, reason, mode? }` (`"view"`, the default, or `"edit"`) -> `{ url, expiresAt, mode }`; `"edit"` asks the press first and opens only with an approved `requestId` (19.6, below) |
 | `POST /api/control/switch` | `{ shopId, name, on, reason }` |

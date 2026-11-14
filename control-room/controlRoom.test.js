@@ -781,6 +781,31 @@ test("your test shop: the card finds it, and Reset the sample books is admin onl
   assert.ok((await w.activity.list()).some((e) => e.what === "test-shop-reset"));
 });
 
+test("Open admin on a test shop signs the platform's admin in as its owner: admin only, logged first, test shops only", async () => {
+  const w = await world();
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/test-shop/open", { shopId: ID })).status, 403);
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/test-shop/open", { shopId: "press-two" })).status, 409, "a press's shop never opens this way");
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/test-shop/open", { shopId: "nobody" })).status, 404);
+  assert.equal(w.shopAccess.calls.length, 0);
+
+  const opened = await w.ask(ADMIN, "POST", "/api/control/test-shop/open", { shopId: ID });
+  assert.equal(opened.status, 200);
+  assert.equal(opened.body.url, `https://${ID}.example/admin/#support=owner-1`);
+  assert.deepEqual(w.shopAccess.calls, [{ shopId: ID, testOwner: true }]);
+  assert.ok(w.events().some((e) => e.what === "test-shop-open" && e.by === "admin@example.com"));
+  assert.ok((await w.activity.list()).some((e) => e.what === "test-shop-open"));
+
+  // Google refuses (the server's access to the test project isn't given yet): plain words and what to run.
+  w.shopAccess.fail = true;
+  const refused = await w.ask(ADMIN, "POST", "/api/control/test-shop/open", { shopId: ID });
+  assert.equal(refused.status, 502);
+  assert.match(refused.body.error ?? refused.body.message ?? JSON.stringify(refused.body), /Make the test shop/);
+  w.shopAccess.fail = false;
+
+  await w.registry.updateShop(ID, { status: "making" });
+  assert.equal((await w.ask(ADMIN, "POST", "/api/control/test-shop/open", { shopId: ID })).status, 409);
+});
+
 test("no test shop yet: the card says so instead of failing (plan 9.10)", async () => {
   const w = await world();
   await w.registry.updateShop(ID, { testShop: false });

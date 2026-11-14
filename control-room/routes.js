@@ -47,6 +47,7 @@ export function controlRoutes(room) {
     "GET /api/control/shops": (claims) => room.shops(claims),
     "GET /api/control/test-shop": (claims) => room.testShop(claims),
     "POST /api/control/test-shop/reset": (claims, request) => room.resetTestShop(claims, body(request)),
+    "POST /api/control/test-shop/open": (claims, request) => room.openTestShop(claims, body(request)),
     "POST /api/control/google-run-again": (claims, request) => room.googleRunAgain(claims, body(request)),
     "POST /api/control/act-as": (claims, request) => room.actAs(claims, body(request)),
     "POST /api/control/switch": (claims, request) => room.switch(claims, body(request)),

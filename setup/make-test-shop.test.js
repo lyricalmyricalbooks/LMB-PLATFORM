@@ -202,6 +202,25 @@ test("the deploy account is let sign the test owner's pass before the shop's ste
   assert.deepEqual(second.published, []);
 });
 
+test("the platform's server is let open the test shops' admins (control room Open admin), and a refusal stops the run plainly", async () => {
+  const { run } = setup();
+  let asked = 0;
+  const ok = await run(true, { allowPlatformSignIn: async () => { asked += 1; return { changed: false }; } });
+  assert.equal(ok.ok, true);
+  assert.equal(asked, 1);
+  const dry = setup();
+  let dryAsked = 0;
+  await dry.run(false, { allowPlatformSignIn: async () => { dryAsked += 1; return { changed: true }; } });
+  assert.equal(dryAsked, 0, "a dry run gives nothing");
+
+  const second = setup();
+  const refused = await second.run(true, { allowPlatformSignIn: async () => { throw new Error("no setIamPolicy"); } });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.stage, "platform-sign-in");
+  assert.match(refused.error, /platform-api@lmb-platform-prod\.iam\.gserviceaccount\.com .*Firebase Authentication Admin on lmb-test-shop/);
+  assert.deepEqual(second.published, []);
+});
+
 test("with Connect off in the platform's Stripe account, step 7 waits and the test shop is still made", async () => {
   const connectOff = { number: 7, name: "Connect the press's payments", check: async () => false, act: async () => { throw new Error("You can only create new accounts if you've signed up for Connect, which you can do at https://dashboard.stripe.com/connect."); } };
   const lines = [];

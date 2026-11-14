@@ -498,6 +498,28 @@ export function createControlRoom({
     },
 
     /**
+     * Open a test shop's admin, signed in as its owner (the platform's admin): one click from Today or Launch, no
+     * Google pop-up. Only the platform's own test shops, only once live; logged in the registry, the shop's audit log
+     * and the activity log before the sign-in is made. { shopId, url }: the browser opens `url`.
+     */
+    async openTestShop(claims, { shopId } = {}) {
+      const by = adminOf(claims, admins, now().getTime());
+      const row = await shopOr404(shopId);
+      if (row.testShop !== true) throw new ControlError(409, "Only the platform's own test shops open this way. Use Act as this shop for a press's shop.");
+      if (row.status !== "live") throw new ControlError(409, "That test shop isn't live yet, so there's no admin to open.");
+      if (!shopAccess?.testOwnerSignIn) throw new ControlError(503, "Opening a test shop's admin from here isn't switched on yet.");
+      await log(shopId, "test-shop-open", { by });
+      try {
+        const { url } = await shopAccess.testOwnerSignIn(shopId);
+        return { shopId, url };
+      } catch (error) {
+        if (error?.status === 503) throw error;
+        // Google refused the sign-in (most likely the server's access to the test project isn't given yet).
+        throw new ControlError(502, `Google didn't let the control room sign you in to ${row.pressName ?? shopId} (${String(error?.message ?? error).slice(0, 160)}). Run "Make the test shop" on GitHub once, then try again.`);
+      }
+    },
+
+    /**
      * Reset the sample data (9.10): the test shop's starter products and shipping zone go back to how setup step 12 made
      * them, 5 copies each (setup/test-catalogue.js), and its sample records are written again with today's dates
      * (setup/test-sample-data.js: past orders, a code, reviews and, when the stockroom answers, the stockroom's sample

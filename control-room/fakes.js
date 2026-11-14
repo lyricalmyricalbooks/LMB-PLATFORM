@@ -12,6 +12,12 @@ export function fakeShopAccess() {
       calls.push({ shopId, ...options });
       return { url: `https://${shopId}.example/admin/?support=${calls.length}` };
     },
+    // The platform's own test shops open signed in as their owner (supportAccess.js testShopOwnerAccess).
+    async testOwnerSignIn(shopId) {
+      if (this.fail) throw new Error("the shop didn't answer (pretend error)");
+      calls.push({ shopId, testOwner: true });
+      return { url: `https://${shopId}.example/admin/#support=owner-${calls.length}` };
+    },
     // People with two-step on, by "shopId email" -> how many second steps; removeTwoStep takes them off.
     twoStep: new Map(),
     async removeTwoStep(shopId, email) {

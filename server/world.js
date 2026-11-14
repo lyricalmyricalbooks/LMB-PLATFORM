@@ -39,7 +39,8 @@
 import { freeAddressTaken } from "../services/domains/freeAddress.js";
 import { accountRoutes, deletionRoutes } from "../accounts/routes.js";
 import { createAccountDeletion } from "../accounts/deleteAccount.js";
-import { platformAuthUsers } from "../clients/identity.js";
+import { identityClient, platformAuthUsers } from "../clients/identity.js";
+import { testShopOwnerAccess } from "../control-room/supportAccess.js";
 import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js";
 import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
@@ -297,7 +298,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const accessRequests = createAccessRequests({ store: firestoreAccessRequests(platform), email, settings, now });
   // The shop's own sign-in (support visits, two-step reset, sign-in safety) waits for the platform's access to it.
   const shopAccess = { ...notConnectedClient(NOT_CONNECTED.supportSignIn, ["supportSignIn"]), ...notConnectedClient(NOT_CONNECTED.twoStepReset, ["removeTwoStep"]),
-    ...notConnectedClient(NOT_CONNECTED.signInSafety, ["signInSafety"]) };
+    ...notConnectedClient(NOT_CONNECTED.signInSafety, ["signInSafety"]),
+    // The platform's own test shops open signed in as their owner (the platform's admin). No waiting on IAM: a refusal
+    // shows at once with what to run (control-room/supportAccess.js).
+    ...testShopOwnerAccess({ identity: identityClient({ fetch, token, signRetries: 0 }), registry }) };
   const room = createControlRoom({
     // Today lists shops with stuck Chit Chats orders; the desk is made further down, and only called once a request comes.
     parcels: () => chitChatsDesk.shops(),
