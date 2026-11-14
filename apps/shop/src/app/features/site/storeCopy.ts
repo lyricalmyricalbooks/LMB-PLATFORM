@@ -579,7 +579,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
     ],
   },
   {
-    group: "Book a time page",
+    group: "Bookings page",
     fields: [
       { key: "bookTimeEyebrow", label: "Eyebrow", default: "Bookings" },
       { key: "bookTimeTitle", label: "Heading", default: "Book a time" },

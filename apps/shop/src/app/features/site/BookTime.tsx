@@ -50,7 +50,7 @@ function BookTimeContent() {
   useSEO({ title: c("bookTimeTitle"), description: c("bookTimeSubtitle"), noindex: !!manage });
 
   return (
-    <div data-fm-store data-studio-target="copy:Book a time page|style:colors" data-studio-label="Book a time page" className="fm-track min-h-screen fm-page text-white font-sans relative pb-24">
+    <div data-fm-store data-studio-target="copy:Bookings page|style:colors" data-studio-label="Bookings page" className="fm-track min-h-screen fm-page text-white font-sans relative pb-24">
       <StorefrontThemeStyle design={design} />
       <style>{TRACKING_CSS}</style>
       <style>{BOOK_TIME_CSS}</style>
