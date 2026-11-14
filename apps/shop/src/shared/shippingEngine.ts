@@ -61,17 +61,22 @@ function groupCharge(rate: any, group: any, cart: any, leader: boolean) {
   return { fixed: base, variable: additional * (leader ? Math.max(0, group.qty - 1) : group.qty) };
 }
 
-function zoneFor(profile: any, country: string) {
+function zoneFor(profile: any, country: string, region: string, postal: string) {
   const zones = profile && Array.isArray(profile.zones) ? profile.zones : [];
-  return zones.length ? matchShippingZone(country, zones) || null : null;
+  return zones.length ? matchShippingZone(country, zones, region, postal) || null : null;
 }
+
+/** Where a parcel goes. `state` is checkout's field; `province`/`region` are older or carrier spellings. */
+export type ShippingDestination = { country?: string; state?: string; province?: string; region?: string; zip?: string; postalCode?: string };
 
 /**
  * items: [{ price, quantity, shippingProfileId, weightGrams? }]
  * Returns quotes sorted cheapest-first: [{ id, name, price, deliveryDays, type }]
  */
-export function quoteShipping(items: ShippingItem[], address: { country?: string } | null | undefined, profiles: any[], opts: { freeAll?: boolean } = {}): ShippingQuote[] {
+export function quoteShipping(items: ShippingItem[], address: ShippingDestination | null | undefined, profiles: any[], opts: { freeAll?: boolean } = {}): ShippingQuote[] {
   const country = (address && address.country) || "Canada";
+  const region = String((address && (address.state || address.province || address.region)) || "");
+  const postal = String((address && (address.zip || address.postalCode)) || "");
   const list = Array.isArray(profiles) ? profiles : [];
   const byId = new Map<string, any>(list.map((p) => [p.id, p] as [string, any]));
   const general = byId.get("general-profile") || list[0] || null;
@@ -96,7 +101,7 @@ export function quoteShipping(items: ShippingItem[], address: { country?: string
   const anyZones = list.some((p: any) => Array.isArray(p && p.zones) && p.zones.length > 0);
   const perGroup: any[] = [];
   for (const g of groups.values()) {
-    const zone = zoneFor(g.profile, country);
+    const zone = zoneFor(g.profile, country, region, postal);
     if (!zone) {
       // Legacy flat profile (no zones): a single synthetic rate.
       const p = g.profile || {};

@@ -15,8 +15,8 @@ describe("shipping and your address: the starter for the country (plan 17.11)", 
   it("the starter profile has the zones Settings suggests, with the profile name", () => {
     const world = starterProfile("world", ids);
     expect(world?.name).toBe("Standard shipping");
-    expect(world?.zones.map((z: any) => z.name)).toEqual(["Canada", "United States", "Rest of world"]);
-    expect(starterProfile("north-america", ids)?.zones.length).toBe(2);
+    expect(world?.zones.map((z: any) => z.name)).toEqual(["Canada", "The territories", "United States", "Rest of world"]);
+    expect(starterProfile("north-america", ids)?.zones.length).toBe(3);
     expect(starterProfile("blank", ids)).toBeNull();
   });
 

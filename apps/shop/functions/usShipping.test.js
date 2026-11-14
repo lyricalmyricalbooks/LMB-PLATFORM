@@ -37,11 +37,13 @@ describe("labels and live rates in an American shop", () => {
     expect(profileStarters().slice(0, 3).map((s) => s.label)).toEqual(["Canada, US & everywhere else", "Canada & United States", "Canada only"]);
     const us = starterPrices("world", null, "US");
     const ca = starterPrices("world", null, "CA");
-    expect(us.map((z) => z.zone)).toEqual(["United States", "Canada", "Rest of world"]);
-    expect(ca.map((z) => z.zone)).toEqual(["Canada", "United States", "Rest of world"]);
+    expect(us.map((z) => z.zone)).toEqual(["United States", "Alaska, Hawaii & Puerto Rico", "Canada", "Rest of world"]);
+    expect(ca.map((z) => z.zone)).toEqual(["Canada", "The territories", "United States", "Rest of world"]);
     // Sending within the shop's own country costs what "within Canada" does for a Canadian shop.
     expect(us[0].first).toBe(ca[0].first);
     expect(us[1].first).toBe(ca[1].first);
-    expect(starterPrices("canada", null, "US").map((z) => z.countries)).toEqual([["US"]]);
+    expect(us[2].first).toBe(ca[2].first);
+    expect(us[1].regions).toEqual(["US-AK", "US-HI", "US-PR"]);
+    expect(starterPrices("canada", null, "US").map((z) => z.countries)).toEqual([["US"], []]);
   });
 });

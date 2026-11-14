@@ -16,7 +16,7 @@ function calculateShipping(items, customerAddress, profiles) {
 
   const subtotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
-  const zoneForCountry = matchShippingZone(country, profiles) || profiles[0];
+  const zoneForCountry = matchShippingZone(country, profiles, customerAddress && customerAddress.state, customerAddress && customerAddress.zip) || profiles[0];
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];

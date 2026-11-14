@@ -2,8 +2,9 @@
 // Shipping zones — shared geography model used by the admin zone editor, the
 // storefront checkout and the Functions (one copy: src/shared/CLAUDE.md).
 //
-// A zone targets geography three ways (any combination):
-//   • countries:   explicit ISO country codes (most specific — always wins)
+// A zone targets geography four ways (any combination):
+//   • regions:     US states / Canadian provinces as ISO 3166-2 codes ("US-AK", "CA-ON") — most specific, always wins
+//   • countries:   explicit ISO country codes
 //   • continents:  whole continents
 //   • restOfWorld: catch-all for anywhere not covered by another zone
 //
@@ -11,6 +12,7 @@
 // ("Europe", "Canada"…) — matching falls back to comparing that text against
 // the customer's country and continent so old data keeps working.
 // ─────────────────────────────────────────────────────────────────────────────
+import { provinceFromPostal, regionsFor } from "./postalRegion";
 
 export type Continent =
   | "Africa"
@@ -186,6 +188,7 @@ export type ShippingZoneLike = {
   freeOver?: string | number;
   freeThreshold?: string | number; // main's field name for the free-over threshold
   countries?: string[];   // ISO codes
+  regions?: string[];     // ISO 3166-2 codes: "US-AK", "CA-ON"
   continents?: string[];  // Continent names
   restOfWorld?: boolean;
   rates?: unknown[];      // Rates offered in this zone (see shippingEngine)
@@ -206,6 +209,11 @@ export function describeZoneGeography(zone: ShippingZoneLike): string {
   if (zone.restOfWorld) return "Rest of world (everywhere not covered by another zone)";
   const parts: string[] = [];
   if (zone.continents?.length) parts.push(zone.continents.join(", "));
+  if (zone.regions?.length) {
+    const names = zone.regions.map(regionName).slice(0, 4);
+    const extra = zone.regions.length - names.length;
+    parts.push(names.join(", ") + (extra > 0 ? ` +${extra} more` : ""));
+  }
   if (zone.countries?.length) {
     const names = zone.countries
       .map((code) => COUNTRIES.find((c) => c.code === code)?.name || code)
@@ -217,15 +225,57 @@ export function describeZoneGeography(zone: ShippingZoneLike): string {
   return parts.join(" · ");
 }
 
+/** The countries whose zones can name a state or province. */
+export const REGION_COUNTRIES = ["US", "CA"] as const;
+
+/** [code, name] states/provinces for a country that has a fixed list (US, CA), else []. */
+export function regionList(countryNameOrCode: unknown): [string, string][] {
+  const country = findCountry(countryNameOrCode);
+  return (country && regionsFor(country.code)) || [];
+}
+
 /**
- * Pick the zone that applies to a customer's country.
- * Specificity: explicit country > continent > legacy region text > rest of world.
+ * "ON" / "Ontario" / "CA-ON" (+ country) -> "CA-ON", or "" when it can't tell.
+ * A postal code fills in a missing region (ZIP / postal-code prefixes), so a quote never depends on a picked drop-down.
  */
-export function matchShippingZone(countryNameOrCode: string, zones: ShippingZoneLike[]): ShippingZoneLike | null {
+export function regionCode(countryNameOrCode: unknown, region: unknown, postalCode?: unknown): string {
+  const country = findCountry(countryNameOrCode);
+  if (!country) return "";
+  const list = regionsFor(country.code);
+  if (!list) return "";
+  let q = String(region ?? "").trim().toLowerCase();
+  if (q.startsWith(country.code.toLowerCase() + "-")) q = q.slice(3);
+  const hit = q ? list.find(([code, name]) => code.toLowerCase() === q || name.toLowerCase() === q) : undefined;
+  const code = hit ? hit[0] : provinceFromPostal(country.code, String(postalCode ?? ""));
+  return code ? `${country.code}-${code}` : "";
+}
+
+/** "US-AK" -> "Alaska" (unknown codes come back as given). */
+export function regionName(code: string): string {
+  const [cc, rc] = String(code || "").split("-");
+  return regionList(cc).find(([c]) => c === rc)?.[1] || code;
+}
+
+/**
+ * Pick the zone that applies to a customer's country (and state / province when known).
+ * Specificity: state/province > explicit country > continent > legacy region text > rest of world.
+ */
+export function matchShippingZone(
+  countryNameOrCode: string,
+  zones: ShippingZoneLike[],
+  region?: unknown,
+  postalCode?: unknown,
+): ShippingZoneLike | null {
   if (!zones || zones.length === 0) return null;
   const country = findCountry(countryNameOrCode);
 
   if (country) {
+    const sub = regionCode(country.code, region, postalCode);
+    if (sub) {
+      const byRegion = zones.find((z) => (z.regions || []).some((entry) => regionCode(country.code, entry) === sub));
+      if (byRegion) return byRegion;
+    }
+
     // Zone lists hold ISO codes (current editor) or names (older saves): compare resolved codes.
     const byCountry = zones.find((z) => (z.countries || []).some((entry) => findCountry(entry)?.code === country.code));
     if (byCountry) return byCountry;

@@ -165,6 +165,12 @@ pure starters/duplicate in `shippingProfileStarters.ts`). The profile editor is 
 figures strip; `shippingProfileEditor.test.tsx`); never add kicker/subcopy headings or numbered steps back. Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
 profile, rate dialog).
 
+**States and provinces (14 November 2026):** a zone may list `regions` (ISO codes like `US-AK`, `CA-ON`). Matching picks
+region > country > continent > rest of world (`matchShippingZone(country, zones, region, postal)` in `shippingZones.ts`);
+a blank state is read from the postal/ZIP code (`shared/postalRegion.ts`). Checkout, the cart preview, `orderMath.js` and
+`resolveShipping` all pass the address's state and postal code. Admin: zone editor › States and provinces
+(`admin/shipping/ZoneRegionPicker.tsx`, rules `zoneRegions.ts`); `shippingHealth.ts` flags a state in two zones.
+
 **Weights are metric (18 October 2026).** Book/edition weights are entered in g or kg only (`WEIGHT_UNITS`); older
 "1 lb"/"8 oz" values still parse identically (`parseWeightGrams`), open in grams (`splitWeight`) and are saved as whole
 grams by the book editor (`withMetricWeights`) and CSV import (`metricWeightValue`). Shoppers see `metricWeight`

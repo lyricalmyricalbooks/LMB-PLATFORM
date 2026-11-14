@@ -421,7 +421,7 @@ export default function BookDetail() {
     const line = catalogFulfillmentItems([{ id: book.id, variantId: variant?.id, price: unit, quantity: 1 }], new Map([[book.id, book]]))?.[0];
     if (!line?.physical) return null;
     const weightGrams = parseWeightGrams(variant?.weight) ?? parseWeightGrams((book as any).weight) ?? bundleWeightGrams(book, new Map(books.map((b: any) => [b.id, b])));
-    const quote = quoteShipping([{ price: unit, quantity: 1, shippingProfileId: (book as any).shippingProfileId || null, weightGrams }], { country: String(settings?.location?.country || homeCountryName()) }, shippingProfiles)
+    const quote = quoteShipping([{ price: unit, quantity: 1, shippingProfileId: (book as any).shippingProfileId || null, weightGrams }], { country: String(settings?.location?.country || homeCountryName()), state: settings?.location?.state, zip: settings?.location?.zip }, shippingProfiles)
       .find((q) => q.type !== "pickup");
     return shippingDetailsData(quote, shopCountry, shopCurrency(), getCopy(settings?.design, "seoHandlingDays"));
   }, [book, selectedVariant, shippingProfiles, settings, books, shopCountry]);

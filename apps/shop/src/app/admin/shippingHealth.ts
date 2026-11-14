@@ -1,4 +1,4 @@
-import { findCountry } from "../features/site/shippingZones";
+import { findCountry, regionCode, regionList, regionName } from "../features/site/shippingZones";
 import { US_SHOP } from "./moneySign";
 
 export type ShippingIssue = {
@@ -40,6 +40,9 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
   for (const profile of profiles) {
     const zones = Array.isArray(profile?.zones) ? profile.zones : [];
     const claimedCountries = new Set<string>();
+    const claimedRegions = new Set<string>();
+    let wholeWorld = false;
+    const continentsCovered = new Set<string>();
     zoneCount += zones.length;
     if (zones.length === 0) {
       issues.push({
@@ -59,7 +62,11 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
       // Compare by resolved ISO code — that is what checkout matches on (names and codes both resolve).
       const unknown = rawCountries.filter((entry) => !findCountry(entry));
       const zoneCountries = Array.from(new Set(rawCountries.map((entry) => findCountry(entry)?.code).filter(Boolean) as string[]));
-      if (zoneCountries.length === 0 && continents.length === 0 && !catchAll && !String(zone?.region || "").trim()) {
+      const rawRegions: string[] = Array.isArray(zone?.regions) ? zone.regions : [];
+      const zoneRegions = Array.from(new Set(rawRegions.map((entry) => regionCode(String(entry).split("-")[0], entry)).filter(Boolean)));
+      if (catchAll) wholeWorld = true;
+      continents.forEach((c) => continentsCovered.add(c));
+      if (zoneCountries.length === 0 && zoneRegions.length === 0 && continents.length === 0 && !catchAll && !String(zone?.region || "").trim()) {
         issues.push({ id: `profile:${profile.id}:zone:${zone.id}:countries`, label: `${zone.name || "Untitled zone"} has no destinations`, detail: "Select at least one country, or make it the rest-of-world zone, so it can match a checkout address.", profileId: profile.id, severity: "blocking" });
       }
       if (unknown.length > 0) {
@@ -71,6 +78,11 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
       }
       zoneCountries.forEach((country: string) => claimedCountries.add(country));
       zoneCountries.forEach((country: string) => countries.add(country));
+      const regionDuplicates = zoneRegions.filter((code) => claimedRegions.has(code));
+      if (regionDuplicates.length > 0) {
+        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:region-duplicates`, label: `${zone.name || "Untitled zone"} overlaps another zone`, detail: `${regionDuplicates.slice(0, 3).map(regionName).join(", ")}${regionDuplicates.length > 3 ? "…" : ""} is in more than one zone. Keep each state or province in one zone per profile.`, profileId: profile.id, severity: "blocking" });
+      }
+      zoneRegions.forEach((code) => { claimedRegions.add(code); countries.add(code.split("-")[0]); });
       const rates = Array.isArray(zone?.rates) ? zone.rates : [];
       rateCount += rates.length;
       if (rates.length === 0) {
@@ -103,6 +115,20 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
           // Not a problem: checkout never invents an arrival promise. Only a neutral hint.
           hints.push({ id: `profile:${profile.id}:zone:${zone.id}:rate:${rate?.id}:delivery`, label: `${rate?.name || "A rate"} shows no transit time`, detail: "Optional: if your carrier publishes a transit time for this service, you can add it to the rate. Leave it blank rather than guess.", profileId: profile.id, severity: "warning" });
         }
+      });
+    }
+    // States or provinces picked one by one, with nothing for the rest of that country: those addresses can't check out.
+    for (const cc of new Set([...claimedRegions].map((code) => code.split("-")[0]))) {
+      const country = findCountry(cc);
+      if (!country || claimedCountries.has(cc) || wholeWorld || continentsCovered.has(country.continent)) continue;
+      const missing = regionList(cc).filter(([code]) => !claimedRegions.has(`${cc}-${code}`));
+      if (missing.length === 0) continue;
+      issues.push({
+        id: `profile:${profile.id}:regions:${cc}`,
+        label: `${missing.length} ${cc === "CA" ? "province" : "state"}${missing.length === 1 ? "" : "s"} in ${country.name} have no rate`,
+        detail: `${missing.slice(0, 3).map(([, name]) => name).join(", ")}${missing.length > 3 ? "…" : ""} can't check out. Add ${country.name} to a zone to cover the rest, or pick them too.`,
+        profileId: profile.id,
+        severity: "warning",
       });
     }
   }
@@ -213,12 +239,14 @@ export function starterZones(newId: () => string) {
   // An American shop's home zone is the United States, with Canada as the neighbour.
   if (US_SHOP) return [
     { id: newId(), name: "United States", countries: ["US"], continents: [], restOfWorld: false, rates: home },
+    { id: newId(), name: "Alaska, Hawaii & Puerto Rico", countries: [], regions: ["US-AK", "US-HI", "US-PR"], continents: [], restOfWorld: false, rates: [ rate("Standard Shipping", 14, 5, "") ] },
     { id: newId(), name: "Canada", countries: ["CA"], continents: [], restOfWorld: false, rates: [ rate("Standard Shipping", 12, 4, "5-10") ] },
     { id: newId(), name: "Rest of world", countries: [], continents: [], restOfWorld: true, rates: [ rate("International Shipping", 20, 6, "10-21") ] },
   ];
   return [
     { id: newId(), name: "Canada", countries: ["CA"], continents: [], restOfWorld: false, rates: [
       rate("Standard Shipping", 8, 3, "3-7"), rate("Free shipping over $75", 0, 0, "3-7", { type: "free", minPrice: 75 }) ] },
+    { id: newId(), name: "The territories", countries: [], regions: ["CA-NT", "CA-NU", "CA-YT"], continents: [], restOfWorld: false, rates: [ rate("Standard Shipping", 14, 5, "") ] },
     { id: newId(), name: "United States", countries: ["US"], continents: [], restOfWorld: false, rates: [ rate("Standard Shipping", 12, 4, "5-10") ] },
     { id: newId(), name: "Rest of world", countries: [], continents: [], restOfWorld: true, rates: [ rate("International Shipping", 20, 6, "10-21") ] },
   ];
