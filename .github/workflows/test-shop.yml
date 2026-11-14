@@ -99,6 +99,8 @@ jobs:
       # The checks run every five minutes and the backup every night; they are started now so the control room and the
       # status page show the result of this run at once. Never fails the run: the schedule runs them anyway.
       - name: Run the backup and the health checks now
+        # Also after a stopped run: the checks and their report don't depend on the step that stopped it.
+        if: always()
         run: |
           for job in platform-nightly-backups platform-health-checks; do
             gcloud scheduler jobs run "$job" --project=lmb-platform-prod --location=northamerica-northeast1 ||
@@ -107,4 +109,5 @@ jobs:
           done
       # What the checks now say about each test shop, with the cause of any red line, for whoever reads this run.
       - name: What the health checks say
+        if: always()
         run: node setup/test-shop-health.js || echo "The checks' results couldn't be read." >> "$GITHUB_STEP_SUMMARY"
