@@ -110,16 +110,22 @@ export function shopStores({ env = {}, fetch, token, rowOf = null }) {
     };
   // `recordsFor(shopId)`: the record store of the shared project the shop lives in (its `shops/<id>` record, which the
   // front door serves), or null for a shop with a project of its own.
-  if (typeof rowOf !== "function") return { shared, ...byDefault, recordsFor: async () => shared?.records ?? null };
-
-  // A shop never moves between projects, so its place is looked up once. A row that can't be read is not remembered.
-  const places = new Map();
+  // `storesOf(row)`: the stores of the shared project a registry row places its shop in (the address book and the
+  // shop's record, for the domain service), or null for a shop with a project of its own.
   const others = new Map();
   const storesIn = (project) => {
     if (project === projectId) return shared;
     if (!others.has(project)) others.set(project, sharedStores({ fetch, token, projectId: project }));
     return others.get(project);
   };
+  const storesOf = (row) => {
+    if (row?.shared !== true) return null;
+    return PROJECT_ID.test(row.projectId ?? "") ? storesIn(row.projectId) : shared;
+  };
+  if (typeof rowOf !== "function") return { shared, ...byDefault, storesOf, recordsFor: async () => shared?.records ?? null };
+
+  // A shop never moves between projects, so its place is looked up once. A row that can't be read is not remembered.
+  const places = new Map();
   const placeOf = async (shopId) => {
     if (!places.has(shopId)) {
       const row = await rowOf(shopId);
@@ -140,7 +146,7 @@ export function shopStores({ env = {}, fetch, token, rowOf = null }) {
     const project = await placeOf(shopIdOf(shopId));
     return project ? storesIn(project).records : null;
   };
-  return { shared, shopDb: found("shopDb"), stockroomDb: found("stockroomDb"), recordsFor };
+  return { shared, shopDb: found("shopDb"), stockroomDb: found("stockroomDb"), storesOf, recordsFor };
 }
 
 /**

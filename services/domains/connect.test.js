@@ -126,7 +126,7 @@ test("no template at the seller, no key, or an unknown seller: the guide, one li
     assert.equal(res.body.allowUrl, undefined, label);
     const guide = res.body.guide;
     assert.ok(guide.steps.length >= 3, label);
-    assert.deepEqual(guide.lines.map((l) => [l.action, l.kind, l.name, l.value]), [["add", "Address", "shop", "199.36.158.100"], ["remove", "Address", "shop", "192.0.2.10"]], label);
+    assert.deepEqual(guide.lines.map((l) => [l.action, l.kind, l.name, l.value]), [["remove", "Address", "shop", "192.0.2.10"], ["add", "Address", "shop", "199.36.158.100"]], label);
     assert.match(guide.message.body, /Kind: Address/, label);
   }
   const named = await world({ table: { "mothpress.example": { registrar: { name: "Namecheap, Inc." }, domainConnect: null } } });
@@ -304,4 +304,12 @@ test("a sub-address gets no www partner, and www failing never stops the main on
   const answer = await u.service.connect(SHOP, "mothpress.example", { www: true });
   assert.equal(answer.name, "mothpress.example");
   assert.deepEqual((await u.registry.getShop(SHOP)).domains.map((d) => d.name), ["a.example", "b.example", "mothpress.example"], "the third address is the most a shop has");
+});
+
+test("the fallback guess for a domain reads two-part endings, so yourpress.co.uk is the domain and www its partner", async () => {
+  const { zoneGuess } = await import("./sellers.js");
+  assert.equal(zoneGuess("shop.mothpress.co.uk"), "mothpress.co.uk");
+  assert.equal(zoneGuess("mothpress.com"), "mothpress.com");
+  assert.equal(zoneGuess("www.mothpress.ca"), "mothpress.ca");
+  assert.equal(zoneGuess("co.uk"), "co.uk");
 });

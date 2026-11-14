@@ -83,7 +83,6 @@ export const RUNNERS = Object.freeze({
  */
 export const WAITING_JOBS = Object.freeze({
   "shop-maker": NOT_CONNECTED.shopMaking,
-  "web-addresses": NOT_CONNECTED.domains,
   "self-checks": NOT_CONNECTED.selfChecks,
   "running-costs": NOT_CONNECTED.runningCosts,
   "usage-meters": NOT_CONNECTED.usageMeters,
@@ -93,7 +92,9 @@ export const WAITING_JOBS = Object.freeze({
 export function waitingJobs(env = {}) {
   const shared = Boolean(String(env.SHARED_SHOPS_PROJECT ?? "").trim() && String(env.SHARED_SHOPS_DOMAIN ?? "").trim());
   // With the shared system on, it makes shops, meters each one's use and bills running costs by those meters.
-  const on = new Set(shared ? ["shop-maker", "usage-meters", "running-costs", "web-addresses"] : []);
+  // Web addresses wait on nothing (14 November 2026): a press's own domain is looked after in whichever shared project
+  // its shop is in, so that job is never in the waiting list.
+  const on = new Set(shared ? ["shop-maker", "usage-meters", "running-costs"] : []);
   return Object.fromEntries(Object.entries(WAITING_JOBS).filter(([name]) => !on.has(name)));
 }
 

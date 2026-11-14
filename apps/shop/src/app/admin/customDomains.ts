@@ -35,9 +35,9 @@ export function describeDomain(state: DomainState | undefined): { tone: Tone; la
   switch (state) {
     case "live": return { tone: "success", label: "Live", text: "Your shop opens at this address, with a secure padlock." };
     case "securing": return { tone: "info", label: "Securing", text: "The address points at your shop. Google is making its secure certificate, which can take up to a day." };
-    case "conflict": return { tone: "danger", label: "In use elsewhere", text: "Another website is already set up on this address. Remove it there first, then check again." };
-    case "missing": return { tone: "danger", label: "Not found", text: "Google has no record of this address for your shop. Add it again." };
-    case "waiting_dns": return { tone: "warning", label: "Waiting for you", text: "Finish connecting it below. Changes can take a few hours to reach everyone; we check every few minutes and email you when it opens your shop." };
+    case "conflict": return { tone: "danger", label: "In use elsewhere", text: "This address is still tied to another website. Disconnect it there, then press Check again." };
+    case "missing": return { tone: "warning", label: "Setting up", text: "Still getting this address ready. Press Check again in a minute." };
+    case "waiting_dns": return { tone: "warning", label: "Waiting for you", text: "Finish the steps below. This page checks by itself, and we email you when the address opens your shop. It can take a few hours." };
     default: return { tone: "neutral", label: "Connecting", text: "Getting the address ready." };
   }
 }
@@ -49,6 +49,18 @@ export function describeEntry(entry: Pick<DomainEntry, "free" | "former">, state
   }
   return describeDomain(state);
 }
+
+/**
+ * The three stages every address of the press's own goes through, for the small tracker on its card: which are done
+ * and which one it is on now.
+ */
+export function domainStages(state: DomainState | undefined): { label: string; done: boolean; current: boolean }[] {
+  const at = state === "live" ? 3 : state === "securing" ? 1 : 0;
+  return ["Connect", "Secure", "Live"].map((label, i) => ({ label, done: i < at, current: i === at }));
+}
+
+/** How often the card looks again by itself while an address isn't working yet. */
+export const RECHECK_MS = 30_000;
 
 /** A name typed for the free address, as the platform cleans it: "Moth Books!" -> "moth-books". */
 export function freeNameOf(text: string): string {

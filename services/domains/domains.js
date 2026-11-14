@@ -102,16 +102,25 @@ const RECORD_ACTIONS = { ADD: "add", REMOVE: "remove" };
 /** Where an address stands, in the press's terms, from Firebase Hosting's CustomDomain. */
 export function domainState(found) {
   if (!found) return { state: "missing", records: [] };
+  // Google lists what to add under `desired` and what it found that must go under `discovered` (the lines a domain
+  // still has from the website it showed before). Both are read, lines to take out first, each line once.
   const records = [];
-  for (const set of found.requiredDnsUpdates?.desired ?? []) {
+  const updates = found.requiredDnsUpdates ?? {};
+  for (const set of [...(updates.discovered ?? []), ...(updates.desired ?? [])]) {
     for (const record of set?.records ?? []) {
       const action = RECORD_ACTIONS[record?.requiredAction];
-      if (action) records.push({ action, host: record.domainName ?? set.domainName ?? "", type: record.type ?? "", value: record.rdata ?? "" });
+      if (!action) continue;
+      const line = { action, host: String(record.domainName ?? set.domainName ?? "").replace(/\.$/, ""), type: record.type ?? "", value: record.rdata ?? "" };
+      if (!records.some((r) => r.action === line.action && r.host === line.host && r.type === line.type && r.value === line.value)) records.push(line);
     }
   }
+  records.sort((a, b) => Number(a.action === "add") - Number(b.action === "add"));
   const cert = found.cert?.state;
+  // Lines left from an old website (they point somewhere else as well, or another project is named) are the press's
+  // to take out, like any other line: "conflict" is only for when Google names nothing to change.
+  const tangled = ["HOST_CONFLICT", "HOST_MISMATCH"].includes(found.hostState) || ["OWNERSHIP_CONFLICT", "OWNERSHIP_MISMATCH"].includes(found.ownershipState);
   let state = "waiting_dns";
-  if (found.hostState === "HOST_CONFLICT" || found.ownershipState === "OWNERSHIP_CONFLICT") state = "conflict";
+  if (tangled) state = records.length ? "waiting_dns" : "conflict";
   else if (found.hostState === "HOST_ACTIVE" && (cert === "CERT_ACTIVE" || cert === "CERT_EXPIRING_SOON")) state = "live";
   else if (found.hostState === "HOST_ACTIVE") state = "securing";
   return { state, records };
@@ -147,7 +156,7 @@ const sameLines = (a = [], b = []) => JSON.stringify(a) === JSON.stringify(b);
 export function createDomainService({
   registry, auditLog, hosting, envFiles, profileFiles, deploy, payments = null, platformDomain,
   sellers = null, publicLines = null, domainConnect = null, email = null, freeAddress = null, platformZone = null, presses = null,
-  shared = null, publishSite = null, sharedOnly = false,
+  shared = null, publishSite = null, sharedOnly = false, signIn = null,
   newState = () => randomBytes(12).toString("hex"), now = () => Date.now(),
 }) {
   const iso = () => new Date(now()).toISOString();
@@ -166,19 +175,48 @@ export function createDomainService({
     if (sharedOnly && row.shared !== true) throw new DomainError(409, "not_shared", "This shop's web addresses are looked after by the Colophon team for now. Write to support and we'll connect it.");
     return row;
   }
-  const inShared = (row) => row.shared === true && Boolean(shared);
+  // The stores of the shared project this shop lives in (its address book and record), or null. `shared` is one
+  // project's stores, or a function of the registry row when shops live in more than one shared project (the test
+  // shops' project and the live one, clients/shared.js storesOf): an address always goes in the book of the project
+  // whose front door serves the shop.
+  const storesOf = async (row) => {
+    if (row?.shared !== true || !shared) return null;
+    return typeof shared === "function" ? (await shared(row)) ?? null : shared;
+  };
 
   // The front door's address book (shared system): an address opens only the shop it names, and never two shops.
   async function claim(row, name, kind) {
-    if (!inShared(row)) return;
-    if (await shared.addresses.create(name, { shopId: row.shopId, kind, createdAt: iso() })) return;
-    const holder = await shared.addresses.get(name);
+    const stores = await storesOf(row);
+    if (!stores) return;
+    if (await stores.addresses.create(name, { shopId: row.shopId, kind, createdAt: iso() })) return;
+    const holder = await stores.addresses.get(name);
     if (holder?.shopId !== row.shopId) throw new DomainError(409, "in_use", "That address is already connected to another shop.");
   }
   async function release(row, name) {
-    if (!inShared(row)) return;
-    const holder = await shared.addresses.get(name);
-    if (holder?.shopId === row.shopId) await shared.addresses.remove(name);
+    const stores = await storesOf(row);
+    if (!stores) return;
+    const holder = await stores.addresses.get(name);
+    if (holder?.shopId === row.shopId) await stores.addresses.remove(name);
+  }
+
+  // Signing in (the owner at /admin, shoppers' accounts) works only from addresses the shop's project lists. A shared
+  // shop's own address is put on that list when it is connected and taken off when it is let go. Never stops a
+  // connect: the daily watch puts it on again if it is ever missing.
+  async function allowSignIn(row, name) {
+    if (!signIn || row.shared !== true) return false;
+    try {
+      return (await signIn.allow(projectOf(row), name))?.changed === true;
+    } catch (err) {
+      console.error(`Letting ${name} sign people in for ${row.shopId} failed:`, err?.message || err);
+      return false;
+    }
+  }
+  async function forgetSignIn(row, name) {
+    // Never the project's own addresses: every shop in the project signs in through those.
+    if (!signIn?.forget || row.shared !== true || /\.(web\.app|firebaseapp\.com)$/.test(name)) return;
+    try { await signIn.forget(projectOf(row), name); } catch (err) {
+      console.error(`Taking ${name} off the sign-in list for ${row.shopId} failed:`, err?.message || err);
+    }
   }
   const domainsOf = (row) => (Array.isArray(row.domains) ? row.domains.filter((d) => d && typeof d.name === "string") : []);
   const projectOf = (row) => row.projectId ?? row.shopId;
@@ -239,12 +277,13 @@ export function createDomainService({
   // One field of a shared shop's record (`server` or `profile`), brought up to date; false when it already was, or the
   // shop maker hasn't written it yet (it writes it from the registry, so nothing is lost).
   async function syncRecord(row, field, next) {
-    if (!shared) return false;
-    const have = (await shared.records.get(row.shopId))?.[field];
+    const stores = await storesOf(row);
+    if (!stores) return false;
+    const have = (await stores.records.get(row.shopId))?.[field];
     if (!have || typeof have !== "object") return false;
     const want = next(have);
     if (isDeepStrictEqual(want, have)) return false;
-    await shared.records.set(row.shopId, { [field]: want }, { fields: [field] });
+    await stores.records.set(row.shopId, { [field]: want }, { fields: [field] });
     return true;
   }
 
@@ -264,8 +303,26 @@ export function createDomainService({
     const row = await rowOf(shopId);
     const entry = domainsOf(row).find((d) => d.name === name);
     if (!entry) throw new DomainError(404, "unknown_domain", "That address isn't connected to this shop.");
-    const { state, records } = domainState(await hosting.getDomain(projectOf(row), name));
+    let found = await hosting.getDomain(projectOf(row), name);
+    // Google has no record of an address the shop still has (an add that stopped halfway): asked again here, so
+    // "Check again" is all the press ever needs.
+    if (!found) {
+      try {
+        await claim(row, name, entry.free ? "free" : "own");
+        await hosting.addDomain(projectOf(row), name, ...(entry.redirectTo ? [{ redirectTo: entry.redirectTo }] : []));
+        found = await hosting.getDomain(projectOf(row), name);
+        await logChange(shopId, `domain-added-again-${name}-${iso()}`, { kind: "domains.added-again", domain: name });
+      } catch (err) {
+        if (err instanceof DomainError) throw err;
+        console.error(`Adding ${name} again for ${shopId} failed:`, err?.message || err);
+      }
+    }
+    const { state, records } = domainState(found);
     const fields = {};
+    // Sign-in from the address: when it starts opening the shop, and again on the daily watch.
+    if (state === "live" && !entry.redirectTo && (entry.state !== "live" || watching.has(`${shopId}/${name}`))) {
+      if (await allowSignIn(row, name)) await logChange(shopId, `domain-sign-in-${name}-${iso()}`, { kind: "domains.sign-in-allowed", domain: name });
+    }
     // A free address's lines are the platform's to write: put in on every check until it is live.
     if (entry.free && state !== "live" && platformZone && records.length) {
       await platformZone.apply(records);
@@ -374,6 +431,9 @@ export function createDomainService({
     return { name, state, records, paymentDomain, ...view.answer };
   }
 
+  // Addresses the daily watch is looking at right now (its check also looks after the sign-in list).
+  const watching = new Set();
+
   async function allShow(records) {
     if (!publicLines || !records?.length) return false;
     for (const record of records) if (!(await publicLines.has(record))) return false;
@@ -434,7 +494,11 @@ export function createDomainService({
     }
     // A "send it to" address (www to the bare domain, as the big shop builders do) is served as a redirect by Hosting.
     if (redirectTo) await hosting.addDomain(projectOf(row), name, { redirectTo });
-    else await hosting.addDomain(projectOf(row), name);
+    else {
+      await hosting.addDomain(projectOf(row), name);
+      // Before anyone can open the shop there, so the owner's first sign-in at the new address works.
+      if (await allowSignIn(row, name)) await logChange(shopId, `domain-sign-in-${name}`, { kind: "domains.sign-in-allowed", domain: name });
+    }
     return check(shopId, name);
   }
 
@@ -479,15 +543,22 @@ export function createDomainService({
     }
     if (entry.free && !entry.former) throw new DomainError(400, "own_address", "This is your shop's free address. It always works and can't be removed.");
     if (mainAddress(row) === name) throw new DomainError(409, "is_main", "This is your shop's main address. Make another address main first, then remove this one.");
-    await hosting.removeDomain(projectOf(row), name);
-    await release(row, name);
+    // An address that only sends visitors on to this one (its www partner) goes with it: left behind, it would send
+    // people to an address that no longer opens the shop.
+    const partners = entry.free ? [] : domainsOf(row).filter((d) => !d.free && d.redirectTo === name).map((d) => d.name);
+    const gone = [name, ...partners];
+    for (const each of gone) {
+      await hosting.removeDomain(projectOf(row), each);
+      await release(row, each);
+      await forgetSignIn(row, each);
+    }
     if (entry.free && platformZone && entry.zoneLines?.length) await platformZone.apply(entry.zoneLines.map((l) => ({ ...l, action: "remove" })));
     // The shop's emails stop coming from orders@<this address> too (its email lines went with the entry), so the
     // address is free for whoever owns it next.
-    const fields = { domains: domainsOf(row).filter((d) => d.name !== name) };
+    const fields = { domains: domainsOf(row).filter((d) => !gone.includes(d.name)) };
     if (row.emailSender?.domain === name) fields.emailSender = null;
     await registry.updateShop(shopId, fields);
-    await logChange(shopId, `domain-removed-${name}-${iso()}`, { kind: "domains.removed", domain: name });
+    for (const each of gone) await logChange(shopId, `domain-removed-${each}-${iso()}`, { kind: "domains.removed", domain: each, ...(each === name ? {} : { with: name }) });
     if (fields.emailSender === null) await logChange(shopId, `domain-email-sender-off-${name}-${iso()}`, { kind: "domains.email-sender-off", domain: name });
     await syncServer(await rowOf(shopId));
     return { removed: name, ...(await list(shopId)) };
@@ -699,6 +770,9 @@ export function createDomainService({
     await hosting.removeDomain(projectOf(row), name);
     await release(row, name);
     const entry = domainsOf(row).find((d) => d.name === name);
+    // A free address under the shops' own domain stays on the list only as long as its shop; a press's own domain
+    // always comes off.
+    await forgetSignIn(row, name);
     if (entry?.free && platformZone && entry.zoneLines?.length) await platformZone.apply(entry.zoneLines.map((l) => ({ ...l, action: "remove" })));
     const fields = { domains: domainsOf(row).filter((d) => d.name !== name) };
     if (normalDomain(row.mainDomain ?? "") === name) fields.mainDomain = null;
@@ -738,7 +812,9 @@ export function createDomainService({
    * up until, and the expiry email when one is due.
    */
   async function watch(shopId, name) {
-    const found = await check(shopId, name);
+    watching.add(`${shopId}/${name}`);
+    let found;
+    try { found = await check(shopId, name); } finally { watching.delete(`${shopId}/${name}`); }
     const row = await rowOf(shopId);
     const entry = domainsOf(row).find((d) => d.name === name);
     const fields = { watchedAt: iso() };

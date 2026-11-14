@@ -72,8 +72,15 @@ export function guideFor({ seller = null, zone, domain, records = [] }) {
   return { seller, zone, host: hostInZone(domain, zone), steps, lines, message };
 }
 
-/** The zone when nothing better is known: the last two parts of the address. */
-export const zoneGuess = (domain) => String(domain).split(".").slice(-2).join(".");
+// Endings that are two parts long, so yourpress.co.uk is the domain and not co.uk. Only a fallback: the public lookup
+// names the domain as bought whenever it answers.
+const TWO_PART_ENDINGS = new Set(["co.uk", "org.uk", "me.uk", "ltd.uk", "com.au", "net.au", "org.au", "co.nz", "org.nz", "co.za", "com.mx", "com.br", "co.jp", "co.in", "com.sg", "co.il", "qc.ca", "on.ca", "bc.ca", "ab.ca", "mb.ca", "sk.ca", "ns.ca", "nb.ca", "nl.ca", "pe.ca"]);
+
+/** The zone when nothing better is known: the last two parts of the address (three for endings like co.uk). */
+export const zoneGuess = (domain) => {
+  const parts = String(domain).toLowerCase().split(".");
+  return parts.slice(TWO_PART_ENDINGS.has(parts.slice(-2).join(".")) && parts.length > 2 ? -3 : -2).join(".");
+};
 
 /**
  * The public lookup: `lookup(domain) -> { zone, registrar: { name } | null, domainConnect }`, where `domainConnect`

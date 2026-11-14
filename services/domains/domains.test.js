@@ -62,7 +62,7 @@ test("adding an address lets it call the server code first, then asks Hosting to
   const res = await call("domains.add", { domain: "Shop.MothPress.example" });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.body.state, "waiting_dns");
-  assert.deepEqual(res.body.records.map((r) => r.action), ["add", "remove"]);
+  assert.deepEqual(res.body.records.map((r) => r.action), ["remove", "add"]);
   assert.deepEqual((await registry.getShop(SHOP)).domains, [{ name: "shop.mothpress.example", state: "waiting_dns", addedAt: "2026-10-28T12:00:00.000Z" }]);
   assert.match(envFiles.map.get(SHOP), /^SHOP_EXTRA_ORIGINS="https:\/\/shop\.mothpress\.example"$/m);
   // Redeployed at the version the shop runs, with the new file, before Hosting was asked.

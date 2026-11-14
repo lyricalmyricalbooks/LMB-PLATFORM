@@ -682,6 +682,10 @@ themselves don't change.
   when the server answers `not_available` (no `PLATFORM_DOMAINS_URL`). Plan 5.9: "Your main address" line, **Make main** on
   a live address and **Remove** on any address but the main one, each behind a confirm (`domainActions` in
   `customDomains.ts`; `CustomDomainCard.test.tsx`). Going back to the shop's own address is a button under the main line.
+  **Bringing a domain over (14 November 2026):** each own address shows a Connect · Secure · Live tracker
+  (`domainStages`), the card looks again by itself every `RECHECK_MS` while one isn't live (quietly, only on screen),
+  lines to take out come first with Copy on each name and value, and the www partner's lines stay folded. Fixture:
+  `admin-fixture.html?page=settings/general&domain=waiting|securing|live`.
 - Settings › Payments › Card payments (`PlatformPaymentsCard.tsx`, plan 2.2b) replaces the Stripe keys card on platform
   shops.
 - **What Stripe still needs (plan 7.9):** `account.status` carries `needs: [{ words, pastDue }]` (plain words made by

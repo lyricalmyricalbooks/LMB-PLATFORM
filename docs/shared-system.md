@@ -106,7 +106,7 @@ needed a Google organization before any shop could be made ("In the queue") and 
   project passes, each of its shops' pages are drawn again from its own books (`setup/shopSite.js`); a shop whose
   pages fail keeps its last good ones and is listed, and the release goes on. Data changes still run per project, so
   the shared release refuses to start while the release has any. The per-project runner leaves shared shops out.
-- **Web addresses.** The domain service runs on the hosted server once the shared system is on
+- **Web addresses.** The domain service runs on the hosted server always (a press's own domain waits on no setting, and each shop's address goes in the address book of the shared project it lives in; free addresses still wait for `SHARED_SHOPS_DOMAIN`)
   (`services/domains/hosted.js`, `/api/domains`, the `web-addresses` job). A shop's address goes in `addresses/{host}`
   first (refused when another shop holds it), then on the shared Hosting site; letting one go takes it off the site,
   then out of `addresses/` (only an entry that names this shop). Its server settings (`SHOP_EXTRA_ORIGINS`,

@@ -226,11 +226,40 @@ test("hosting: a press's domain is added once and read back; a missing one is nu
     { method: "POST", url: `${CD}?customDomainId=shop.mothpress.example`, body: {}, json: { name: "operations/1" } },
     { method: "POST", url: `${CD}?customDomainId=shop.mothpress.example`, body: {}, ...exists },
     { method: "GET", url: `${CD}/shop.mothpress.example`, json: domain },
+    { method: "GET", url: `${CD}/shop.mothpress.example`, json: domain },
   ]);
   assert.equal(await google.hosting.getDomain(P, "shop.mothpress.example"), null);
   await google.hosting.addDomain(P, "shop.mothpress.example");
   await google.hosting.addDomain(P, "shop.mothpress.example");
   assert.deepEqual(await google.hosting.getDomain(P, "shop.mothpress.example"), domain);
+  fetch.done();
+});
+
+test("hosting: an address removed in the last 30 days is brought back when added again, and reads as gone until then", async () => {
+  const CD = `https://firebasehosting.googleapis.com/v1beta1/projects/${P}/sites/${P}/customDomains`;
+  const exists = { status: 409, json: { error: { code: 409, status: "ALREADY_EXISTS", message: "exists" } } };
+  const deleted = { name: `projects/${P}/sites/${P}/customDomains/mothpress.example`, deleteTime: "2026-11-10T00:00:00Z", redirectTarget: "www.mothpress.example" };
+  const { fetch, google } = clients([
+    { method: "GET", url: `${CD}/mothpress.example`, json: deleted },
+    { method: "POST", url: `${CD}?customDomainId=mothpress.example`, body: {}, ...exists },
+    { method: "GET", url: `${CD}/mothpress.example`, json: deleted },
+    { method: "POST", url: `${CD}/mothpress.example:undelete`, body: {}, json: { name: "operations/3" } },
+    { method: "PATCH", url: `${CD}/mothpress.example?updateMask=redirectTarget`, body: { redirectTarget: "" }, json: { name: "operations/4" } },
+  ]);
+  assert.equal(await google.hosting.getDomain(P, "mothpress.example"), null);
+  await google.hosting.addDomain(P, "mothpress.example");
+  fetch.done();
+});
+
+test("sign-in list: an address a shop let go is taken off, and one not listed changes nothing", async () => {
+  const CONFIG = `https://identitytoolkit.googleapis.com/v2/projects/${P}/config`;
+  const { fetch, google } = clients([
+    { method: "GET", url: CONFIG, json: { authorizedDomains: ["lmb-test-shop.web.app", "mothpress.example"] } },
+    { method: "PATCH", url: `${CONFIG}?updateMask=authorizedDomains`, body: { authorizedDomains: ["lmb-test-shop.web.app"] }, json: {} },
+    { method: "GET", url: CONFIG, json: { authorizedDomains: ["lmb-test-shop.web.app"] } },
+  ]);
+  assert.deepEqual(await google.authConfig.forgetDomain(P, "mothpress.example"), { changed: true });
+  assert.deepEqual(await google.authConfig.forgetDomain(P, "mothpress.example"), { changed: false });
   fetch.done();
 });
 

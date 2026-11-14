@@ -6,10 +6,14 @@ export function fakeHosting() {
   const domains = new Map();
   const calls = [];
   const key = (projectId, domain) => `${projectId}/${domain}`;
+  // As Google answers: lines to add under `desired`, lines it found that must go under `discovered` (with a trailing
+  // dot on names, and found lines repeated in both lists).
   const DNS = (domain) => ({
+    discovered: [{ domainName: `${domain}.`, records: [
+      { domainName: `${domain}.`, type: "A", rdata: "192.0.2.10", requiredAction: "REMOVE" },
+    ] }],
     desired: [{ domainName: domain, records: [
       { domainName: domain, type: "A", rdata: "199.36.158.100", requiredAction: "ADD" },
-      { domainName: domain, type: "A", rdata: "192.0.2.10", requiredAction: "REMOVE" },
       { domainName: domain, type: "TXT", rdata: "hosting-site=moth-press", requiredAction: "NONE" },
     ] }],
   });
@@ -29,6 +33,8 @@ export function fakeHosting() {
       if (found.state === "live") return { name, hostState: "HOST_ACTIVE", ownershipState: "OWNERSHIP_ACTIVE", cert: { state: "CERT_ACTIVE" }, requiredDnsUpdates: { desired: [] } };
       if (found.state === "securing") return { name, hostState: "HOST_ACTIVE", ownershipState: "OWNERSHIP_ACTIVE", cert: { state: "CERT_PROPAGATING" } };
       if (found.state === "conflict") return { name, hostState: "HOST_CONFLICT", ownershipState: "OWNERSHIP_CONFLICT" };
+      // Still showing the website it had before: Google names the old lines to take out.
+      if (found.state === "old-site") return { name, hostState: "HOST_MISMATCH", ownershipState: "OWNERSHIP_MISSING", cert: { state: "CERT_PREPARING" }, requiredDnsUpdates: DNS(domain) };
       return { name, hostState: "HOST_UNHOSTED", ownershipState: "OWNERSHIP_MISSING", cert: { state: "CERT_PREPARING" }, requiredDnsUpdates: DNS(domain) };
     },
     async addDomain(projectId, domain, options) {
