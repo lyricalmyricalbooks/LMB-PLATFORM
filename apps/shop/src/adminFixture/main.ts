@@ -21,6 +21,8 @@ import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
 import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stockroomCopies";
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
+import { bookingsData, type Booking } from "../app/admin/bookingsApi";
+import { DEFAULT_BOOKING_SETTINGS, type BookingService } from "../shared/bookingTimes";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 // Read at load: the fixture puts the address back to the page it opens, so later reads would miss it.
@@ -73,6 +75,61 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   receiptInboxApi.codeSeen = async () => set({ gmailCode: null });
   receiptInboxApi.done = async (id) => { set({ waiting: view.waiting.filter((w) => w.id !== id) }); };
   receiptInboxApi.file = async () => new File(["%PDF-1.4"], "receipt.pdf", { type: "application/pdf" });
+}
+
+// ── Orders › Bookings (beta): on, with three services and a week of sample bookings (`?bookings=off`: the platform hasn't
+// turned it on; `?bookings=new`: on, nothing set up yet). In memory; changes answer at once. ──
+{
+  const mode = new URLSearchParams(window.location.search).get("bookings") || "on";
+  const service = (id: string, name: string, minutes: number, priceMinor: number, order: number, extra: Partial<BookingService> = {}): BookingService => ({
+    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", location: "456 Example Ave", active: true, order, ...extra,
+  });
+  let services: BookingService[] = mode === "new" ? [] : [
+    service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes." }),
+    service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room" }),
+    service("binding", "Bookbinding class", 90, 3000, 2, { active: false }),
+  ];
+  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new" };
+  const at = (days: number, hour: number, minute = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, minute, 0, 0); return d.toISOString(); };
+  const plus = (iso: string, minutes: number) => new Date(Date.parse(iso) + minutes * 60_000).toISOString();
+  const booking = (id: string, s: BookingService, start: string, customer: string, extra: Partial<Booking> = {}): Booking => ({
+    id, serviceId: s.id, serviceName: s.name, minutes: s.minutes, location: s.location, start, end: plus(start, s.minutes),
+    customer: { name: customer, email: `${customer.split(" ")[0].toLowerCase()}@example.com` }, status: "confirmed",
+    payment: s.priceMinor ? "card" : "free", priceMinor: s.priceMinor, currency: "CAD", paid: s.priceMinor > 0, source: "website", ...extra,
+  });
+  let rows: Booking[] = mode === "on" ? [
+    booking("bk-1", services[0], at(0, 11), "Ada Example"),
+    booking("bk-2", services[1], at(0, 14, 30), "Ben Example", { note: "First time on a riso." }),
+    booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin" }),
+    booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
+    booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
+    booking("bk-6", services[0], at(-1, 16), "Fay Example", { noShow: true }),
+  ] : [];
+  const watchers = new Set<() => void>();
+  const changed = () => watchers.forEach((w) => w());
+  bookingsData.watchOn = (onChange) => { onChange(mode !== "off"); return () => {}; };
+  bookingsData.readSetup = async () => ({ services: [...services], settings, saved: mode !== "new" });
+  bookingsData.follow = (from, to, onRows) => {
+    const send = () => onRows(rows.filter((b) => b.start >= from && b.start < to).sort((a, b) => a.start.localeCompare(b.start)));
+    watchers.add(send); send();
+    return () => void watchers.delete(send);
+  };
+  bookingsData.admin = async (op, body) => {
+    const id = String(body.id ?? "");
+    if (op === "saveService") { const s = body.service as BookingService; services = [...services.filter((x) => x.id !== s.id), { ...s, id: s.id || `svc-${services.length + 1}` }]; }
+    if (op === "deleteService") services = services.filter((x) => x.id !== id);
+    if (op === "saveSettings") settings = { ...settings, ...(body.settings as object) };
+    if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b));
+    if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));
+    if (op === "paidAtShop") rows = rows.map((b) => (b.id === id ? { ...b, paid: true } : b));
+    if (op === "move") rows = rows.map((b) => (b.id === id ? { ...b, start: String(body.start), end: plus(String(body.start), b.minutes) } : b));
+    if (op === "times") {
+      const day = String(body.day || new Date().toLocaleDateString("en-CA"));
+      return { times: [10, 10.5, 11, 13, 14.5, 15].map((h) => new Date(`${day}T${String(Math.floor(h)).padStart(2, "0")}:${h % 1 ? "30" : "00"}:00`).toISOString()) };
+    }
+    changed();
+    return { ok: true };
+  };
 }
 
 // ── Bookkeeping › Transactions › Bank feed (beta, a paid add-on): `?bank=soon|off|connect|signin|empty` (default: one

@@ -223,7 +223,7 @@ describe("The shop's plan", () => {
   it("is written by no browser, read by admins only, with a public open-or-not status", () => {
     const platform = block("platform/{docId}");
     expect(platform).toMatch(/allow write: if false;/);
-    expect(platform).toMatch(/allow read: if docId == 'status' \|\| \(\(docId == 'plan' \|\| docId == 'messages'\) && isAdmin\(\)\);/);
+    expect(platform).toMatch(/allow read: if docId == 'status' \|\| \(\(docId == 'plan' \|\| docId == 'messages' \|\| docId == 'features'\) && isAdmin\(\)\);/);
   });
   it("leaves stopping orders to the server, which every checkout path goes through", () => {
     // functions/planPause.test.js proves the refusal; the guest order rule is at the engine's expression limit.

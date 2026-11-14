@@ -220,7 +220,7 @@ test("the email reads plainly and keeps a press's words as words", () => {
 test("the banner is the admin's only: the storefront never reads the messages document", () => {
   // The shop's rules let only its admins read platform/messages and no browser write it.
   const rules = readFileSync(new URL("../apps/shop/firestore.rules", import.meta.url), "utf8");
-  assert.match(rules, /allow read: if docId == 'status' \|\| \(\(docId == 'plan' \|\| docId == 'messages'\) && isAdmin\(\)\);/);
+  assert.match(rules, /allow read: if docId == 'status' \|\| \(\(docId == 'plan' \|\| docId == 'messages' \|\| docId == 'features'\) && isAdmin\(\)\);/);
   // The shop's admin reads it; the storefront's own code never names it.
   const api = readFileSync(new URL("../apps/shop/src/app/admin/platformMessagesApi.ts", import.meta.url), "utf8");
   assert.match(api, /doc\(db, "platform", "messages"\)/);

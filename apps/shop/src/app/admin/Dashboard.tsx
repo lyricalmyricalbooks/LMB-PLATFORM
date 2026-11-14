@@ -26,7 +26,7 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, PageTabs, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot, PageHeadSlot, BackLink, type PageHeadOverride,
+  IconButton, Dialog, EmptyState, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, PageActionsSlot, PageHeadSlot, BackLink, type PageHeadOverride,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount, StoreSwitcher } from "./riso/shellParts";
 import { blockedMessage, blockersBeforeOpening, openButtonLabel } from "./launchCheck";
@@ -67,6 +67,7 @@ import { stockroomBridge } from "./stockroomBridge";
 import { NATIVE_PAGES } from "./stockroom/nativePages";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { setProductSells } from "../lib/productHref";
+import { useBookingsOn } from "./bookingsApi";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -78,6 +79,7 @@ const WebsiteOrdersAuto = lazy(() => import("./stockroom/WebsiteOrders").then(m 
 const StockroomCopyAuto = lazy(() => import("./stockroom/StockroomCopies.tsx").then(m => ({ default: m.StockroomCopyAuto })));
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
+const Bookings = lazy(() => import("./Bookings").then(m => ({ default: m.Bookings })));
 const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
 const SocialPosts = lazy(() => import("./SocialPosts").then(m => ({ default: m.SocialPosts })));
 const DesignHome = lazy(() => import("./DesignHome").then(m => ({ default: m.DesignHome })));
@@ -300,8 +302,10 @@ export function Dashboard() {
     window.addEventListener(SELLS_CHANGED_EVENT, on);
     return () => window.removeEventListener(SELLS_CHANGED_EVENT, on);
   }, []);
+  // Bookings (beta): shown only once the platform's control room turned it on for this shop (platform/features).
+  const bookingsOn = useBookingsOn(!!user);
   // Bookkeeping › Artist payouts is a book shop's (or a mixed one's); other shops never see the tab.
-  const hiddenPages = new Set([...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
+  const hiddenPages = new Set([...(bookingsOn ? [] : ["bookings"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
     ...(hasPublisherTools(sellsAnswer) ? [] : [STOCKROOM_ITEM_PREFIX + "artists"])]);
   // Product addresses follow the same answer: /products/<slug> in a shop that doesn't sell books (lib/productHref.ts).
   setProductSells(sellsAnswer);
@@ -798,7 +802,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -832,6 +836,7 @@ export function Dashboard() {
         }}
         onRetry={() => refreshAlertsRef.current()} />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
+      case "bookings": return bookingsOn ? <Bookings /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
       case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
       case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;
       case "design": return settings ? <DesignHome settings={settings} onViewSite={openSite}

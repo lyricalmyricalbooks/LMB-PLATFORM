@@ -41,6 +41,7 @@ const PageView = lazy(whenPrerenderedReady(() => import("./features/site/PageVie
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
+const BookTime = lazy(() => import("./features/site/BookTime"));
 // The bag drawer is closed when a page opens: its code (and the shipping estimate's country list) loads next to
 // the page instead of inside the first download. It still mounts on every page as soon as it arrives.
 // If its code can't load (a dropped connection, a page open across a deploy) the page carries on without the bag
@@ -194,6 +195,7 @@ export default function App() {
                   <Route path="/admin/*" element={<Dashboard />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/track" element={<OrderTracking />} />
+                  <Route path="/book" element={<BookTime />} />
                 <Route path="*" element={<NotFoundPage />} />
                 </Routes>
           </Suspense>

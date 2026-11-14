@@ -775,3 +775,12 @@ yes only when the owner turned the banner off), and never in the Studio preview,
 robots. Page views (App.tsx route effect, never on admin, account or tracking) and one purchase per paid order
 (`commerce.ts` trackPurchase: amount, currency and order number only). Saying no later revokes Meta's consent and stops
 every further event. Configured from `useSiteData` like Google and Clarity.
+
+## Book a time page (Bookings beta, 14 November 2026)
+
+`/book` (`BookTime.tsx`, pure `bookTimeRules.ts`, token-only `bookTimeStyle.ts`) sits in the order slip's look
+(`StoreChrome surface="trackingPage"`, `fm-track-*` plus `fm-book-*`), so it follows the Studio theme with no new surface.
+Steps: service (skipped with one service) → time (a week of days, times grouped Morning / Afternoon / Evening) → details;
+`?booking=<id>&key=<key>` shows the booking with Add to calendar, change time and cancel. Every word is Text & labels ›
+**Book a time page** (`bookTime*`, French in `frenchCopy.ts`); server errors map to those words by code (`taken`,
+`too_late`), never shown raw. The manage view is noindex. Closed shops (`on: false`) see `bookTimeClosed`.
