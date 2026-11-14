@@ -226,6 +226,13 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     },
   },
   {
+    type: "FollowUsSection",
+    label: "Follow us",
+    description: "Your social media accounts as icons (from Settings › General › Social media).",
+    category: "Engagement",
+    defaults: { title: "Follow us", description: "", iconSize: 24, showNames: false, align: "center" },
+  },
+  {
     type: "TextContentSection",
     label: "Text Content",
     description: "Headline plus paragraph copy.",
@@ -1663,6 +1670,14 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "buttonLabel", label: "Button label", kind: "text" },
     { key: "successMessage", label: "Message after signing up", kind: "text" },
     { key: "errorMessage", label: "Message when the email isn't valid", kind: "text" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+  ],
+  FollowUsSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "description", label: "Description", kind: "textarea", rows: 2 },
+    { key: "iconSize", label: "Icon size", kind: "range", min: 16, max: 48, step: 2, suffix: "px" },
+    { key: "showNames", label: "Show each network's name beside its icon", kind: "toggle" },
+    { key: "iconColor", label: "Icon color (empty = the text color)", kind: "color" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   TextContentSection: [

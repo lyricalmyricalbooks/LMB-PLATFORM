@@ -5,7 +5,7 @@ const KIND: Record<string, string> = {
   ProductGridHeaderSection: "books", ProductShowcaseGridSection: "books", FeaturedCollectionSection: "books", CollectionListSection: "books",
   ProductCoverCarouselSection: "carousel",
   FeaturedProductSection: "spotlight", BookSpotlightSection: "spotlight", ImageWithTextSection: "spotlight",
-  FeatureGridSection: "columns", MulticolumnSection: "columns", StatsCounterSection: "columns", PricingTableSection: "columns", LogoListSection: "logos", BlogPostsSection: "columns",
+  FeatureGridSection: "columns", MulticolumnSection: "columns", StatsCounterSection: "columns", PricingTableSection: "columns", LogoListSection: "logos", FollowUsSection: "logos", BlogPostsSection: "columns",
   TestimonialsSection: "quotes", PraiseQuotesSection: "quotes",
   TextContentSection: "text", RichTextSection: "text", PageContentSection: "text", CustomHTMLSection: "code",
   NewsletterSection: "form", ContactFormSection: "form", NewsletterPopupSection: "popup",

@@ -14,3 +14,16 @@
 .rp .rp-social-foot { margin: 0; }
 .rp .rp-social-foot a { color: var(--rp-text); }
 @media (pointer: coarse) { .rp .rp-social-add { min-height: 44px; } }
+.rp .rp-social-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rp .rp-social-order { display: inline-flex; gap: 2px; }
+.rp .rp-social-arrow { width: 28px; height: 28px; display: inline-grid; place-items: center; border: 0; border-radius: 999px; background: transparent; color: var(--rp-text-subtle); font: 600 14px/1 var(--rp-font-body); cursor: pointer; }
+.rp .rp-social-arrow:hover:not(:disabled) { background: var(--rp-surface-2); color: var(--rp-text); }
+.rp .rp-social-arrow:disabled { opacity: .35; cursor: default; }
+.rp .rp-social-arrow:focus-visible, .rp .rp-social-checkbtn:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp .rp-social-foot-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.rp .rp-social-checkbtn { min-height: 36px; padding: 8px 16px; border: 1px solid var(--rp-border-strong); border-radius: 999px; background: transparent; color: var(--rp-text); font: 600 13px/1 var(--rp-font-body); cursor: pointer; }
+.rp .rp-social-checkbtn:hover:not(:disabled) { background: var(--rp-surface-2); }
+.rp .rp-social-checkbtn:disabled { opacity: .6; cursor: progress; }
+.rp .rp-social-status { margin: 0; color: var(--rp-text-subtle); font-size: 13px; }
+.rp .rp-social-status:empty { display: none; }
+@media (pointer: coarse) { .rp .rp-social-arrow { width: 44px; height: 44px; } .rp .rp-social-checkbtn { min-height: 44px; } }

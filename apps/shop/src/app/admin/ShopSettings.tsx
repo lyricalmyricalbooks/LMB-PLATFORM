@@ -170,7 +170,7 @@ export function ShopSettings({
 }
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
-  const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "social", "policies"] as const;
+  const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "social", "socialOrder", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
   const sellsAnswer = useShopSells();
@@ -184,7 +184,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   };
   const discard = () => {
     const next = { ...settings };
-    dirty.forEach((k) => { next[k] = JSON.parse(JSON.stringify(originalSettings?.[k] ?? {})); });
+    dirty.forEach((k) => { next[k] = originalSettings?.[k] === undefined ? undefined : JSON.parse(JSON.stringify(originalSettings[k])); });
     setSettings(next);
   };
 
@@ -196,7 +196,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   // Your press first, as in the redesign's General page (11 November 2026).
   const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
-    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "social", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "social", "socialOrder", "policies", "domain"].some((k) => hasChanges(k)) },
     { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") || hasChanges("digitalDownloads") },
     { id: "gs-visitors", title: "Visitors & Google" },
     { id: "gs-tools", title: "Tools & records" },
@@ -229,7 +229,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </SettingsAnchor>
           <SettingsAnchor id="gs-social">
             <FormSection title="Social media" description="Shown as small icons on your website.">
-              <SocialAccountsFields settings={settings} books={sellsBooks(sellsAnswer)} onChange={(social) => setSettings((prev: any) => ({ ...prev, social }))} />
+              <SocialAccountsFields settings={settings} books={sellsBooks(sellsAnswer)} onChange={(social) => setSettings((prev: any) => ({ ...prev, social }))} onOrder={(socialOrder) => setSettings((prev: any) => ({ ...prev, socialOrder }))} />
             </FormSection>
           </SettingsAnchor>
           <SettingsAnchor id="gs-location">

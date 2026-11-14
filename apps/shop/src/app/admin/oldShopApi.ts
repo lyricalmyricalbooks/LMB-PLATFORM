@@ -91,3 +91,11 @@ export async function suggestedRates(currencies: string[], from: string, to: str
   for (const [c, r] of Object.entries(data?.rates || {})) if (typeof r === "number" && r > 0) rates[c] = r;
   return rates;
 }
+
+export type SocialCheck = "ok" | "missing" | "unknown";
+
+/** Settings › Social media › Check my links (functions/socialCheck.js): whether each account still has a page. */
+export async function checkSocialLinks(links: Record<string, string>): Promise<Record<string, SocialCheck>> {
+  const data = await ask("checkSocialLinks", { links });
+  return data?.results && typeof data.results === "object" ? data.results : {};
+}

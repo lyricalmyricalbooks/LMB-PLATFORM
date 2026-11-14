@@ -46,3 +46,17 @@ describe("shopSocialLinks", () => {
     for (const n of SOCIAL_NETWORKS) expect(socialIconPath(n.key).length, n.key).toBeGreaterThan(50);
   });
 });
+
+describe("icon order", () => {
+  it("puts the owner's order first, then the networks' own order", async () => {
+    const { orderedNetworks, moveSocial, shopSocialLinks } = await import("./socialAccounts");
+    expect(orderedNetworks(["youtube", "instagram"]).slice(0, 3).map((n) => n.key)).toEqual(["youtube", "instagram", "tiktok"]);
+    expect(orderedNetworks("junk")[0].key).toBe("instagram");
+    const filled = ["instagram", "tiktok", "youtube"];
+    expect(moveSocial(undefined, filled, "youtube", -1)).toEqual(["instagram", "youtube", "tiktok"]);
+    expect(moveSocial(undefined, filled, "instagram", -1)).toEqual(filled);
+    const links = shopSocialLinks({ social: { instagram: "@a", tiktok: "@b" }, socialOrder: ["tiktok"] });
+    expect(links.map((l) => l.key)).toEqual(["tiktok", "instagram"]);
+    expect(links[0].path).toBeTruthy();
+  });
+});
