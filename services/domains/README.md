@@ -170,3 +170,13 @@ under it, so a shop's pages can never read the platform's sign-in. Unset, shops 
   registry). A press whose own name can't be an address (`freeNameNeeded`) is asked for one. Only one former address is kept: the next rename takes the older one off (Hosting and zone).
 - **Email.** `free-address-live` goes once when the current free address works (the welcome email goes out before it
   exists).
+
+## A domain bought at GoDaddy (14 November 2026)
+
+Checked against GoDaddy's own public answers: a GoDaddy domain's `_domainconnect` line leads to
+`domainconnect.api.godaddy.com`, whose settings name `urlSyncUX`, `urlAPI` and `urlControlPanel`, and its template
+address answers 404 until Colophon's template is registered there (then the press gets the one-press Connect button;
+until then the guide). The guide for GoDaddy tells the press to take out GoDaddy's own parked line first (GoDaddy
+shows its value as "Parked"), each line carries `pick` (the word to choose in the seller's Type box: A, TXT, CNAME),
+and `openUrl` is GoDaddy's own page for a domain's lines (the card's Open GoDaddy button). A shop with no domain yet
+gets a "Find a domain at GoDaddy" link on the card. `shared.test.js` walks a GoDaddy domain from typed to live.

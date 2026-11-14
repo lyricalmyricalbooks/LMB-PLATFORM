@@ -1,15 +1,20 @@
 // Where a press bought their domain (plan 6.15), and the plain-words guide for adding the lines by hand when that
 // domain seller has no Allow window for Colophon. Press-facing words here never say what kind of technical line it
 // is by its technical name: an "Address" line, a "Text" line, a "Mail" line or an "Alias" line, with a Copy button
-// for each value on the card.
+// for each value on the card. The one exception is `pick` on each line: the exact word to choose in the seller's
+// own Type box (A, TXT, CNAME...), because that is the button the press has to find there.
 //
 // The lookup is public: RDAP (the registries' own "who sold this domain" answer) finds the zone and the seller, and
 // the zone's `_domainconnect` line names the seller's Domain Connect settings. Tests pass a pretend lookup (fakes.js).
 import { hostInZone, normalRecord, relativeHost } from "./domainConnect.js";
 
-/** Domain sellers with their own steps. `match` reads the seller's registered name. Never a rival shop platform. */
+/**
+ * Domain sellers with their own steps. `match` reads the seller's registered name. Never a rival shop platform.
+ * `open` is the seller's own page for a domain's lines, as the seller itself names it (GoDaddy's `urlControlPanel`
+ * answer, read 14 November 2026): the card's "Open GoDaddy" button.
+ */
 export const SELLERS = Object.freeze([
-  { id: "godaddy", name: "GoDaddy", match: /godaddy/i, steps: ["Sign in at GoDaddy and open your Domain Portfolio.", "Choose {zone}, then open the tab that lists its lines (it shows a list with Type, Name and Value).", "For each line below, choose Add New Record, then copy across its kind, name and value, and save."] },
+  { id: "godaddy", name: "GoDaddy", match: /godaddy/i, open: "https://dcc.godaddy.com/manage/dns", steps: ["Sign in at GoDaddy and open your Domain Portfolio.", "Choose {zone}, then open the tab that lists its lines (it shows a list with Type, Name and Value).", "A new GoDaddy domain comes with lines of its own. Take out the ones marked Take out below first. GoDaddy may show the value of its own line as Parked: that is the one to take out. If GoDaddy won't save a new line, an old line with the same name is still there.", "For each line marked Add below, choose Add New Record, pick its type, copy across its name and value, and save."] },
   { id: "namecheap", name: "Namecheap", match: /namecheap/i, steps: ["Sign in at Namecheap and open Domain List.", "Press Manage next to {zone}, then open the Advanced tab.", "For each line below, press Add New Record, then copy across its kind, name and value, and press the tick to save."] },
   { id: "cloudflare", name: "Cloudflare", match: /cloudflare/i, steps: ["Sign in at Cloudflare and choose {zone}.", "Open Records in the menu on the left.", "For each line below, press Add record, copy across its kind, name and value, and turn the orange cloud off so it shows grey. Then save."] },
   { id: "porkbun", name: "Porkbun", match: /porkbun/i, steps: ["Sign in at Porkbun and open Domain Management.", "Next to {zone}, open Details, then the edit button by the records list.", "For each line below, fill in its kind, name and value, and press Add."] },
@@ -52,14 +57,14 @@ export function guideFor({ seller = null, zone, domain, records = [] }) {
     const r = normalRecord(raw, domain);
     const kind = KINDS[r.type];
     if (!kind || !r.value) continue;
-    const line = { action: r.action, kind, name: relativeHost(r.host, zone), value: r.value };
+    const line = { action: r.action, kind, pick: r.type, name: relativeHost(r.host, zone), value: r.value };
     if (r.priority !== undefined) line.priority = r.priority;
     if (!lines.some((l) => l.action === line.action && l.kind === line.kind && l.name === line.name && l.value === line.value)) lines.push(line);
   }
   const where = seller ?? "your domain seller";
   const describe = (l) => [
     l.action === "add" ? "Add a line" : "Remove the line, if it's there",
-    `Kind: ${l.kind}`, `Name: ${l.name}`, `Value: ${l.value}`, ...(l.priority !== undefined ? [`Priority: ${l.priority}`] : []),
+    `Kind: ${l.kind} (type ${l.pick})`, `Name: ${l.name}`, `Value: ${l.value}`, ...(l.priority !== undefined ? [`Priority: ${l.priority}`] : []),
   ].join("\n");
   const message = {
     subject: `Please connect ${domain} to our shop`,
@@ -69,7 +74,7 @@ export function guideFor({ seller = null, zone, domain, records = [] }) {
       "Thank you!",
     ].join("\n\n"),
   };
-  return { seller, zone, host: hostInZone(domain, zone), steps, lines, message };
+  return { seller, zone, host: hostInZone(domain, zone), steps, lines, message, ...(known?.open ? { openUrl: known.open } : {}) };
 }
 
 // Endings that are two parts long, so yourpress.co.uk is the domain and not co.uk. Only a fallback: the public lookup

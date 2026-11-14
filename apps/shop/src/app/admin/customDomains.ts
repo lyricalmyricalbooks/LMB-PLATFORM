@@ -5,9 +5,13 @@ export type DomainState = "connecting" | "waiting_dns" | "securing" | "live" | "
 /** `former`: a free address the shop had before a new name (it still opens the shop). `free`: the shop's free address on the platform's shop domain (set up by the platform, never removed). `sendsTo`: this
  * address sends visitors on to that one (www to the bare domain). */
 export type DomainEntry = { name: string; state: DomainState; addedAt?: string; paymentDomainAt?: string | null; main?: boolean; free?: boolean; former?: boolean; sendsTo?: string };
-/** One thing to add (or take out) by hand, in plain words: `kind` is Address, Text, Mail or Alias (plan 6.15). */
-export type GuideLine = { action: "add" | "remove"; kind: string; name: string; value: string; priority?: number };
-export type DomainGuide = { seller: string | null; zone: string; steps: string[]; lines: GuideLine[]; message: { subject: string; body: string } };
+/**
+ * One thing to add (or take out) by hand, in plain words: `kind` is Address, Text, Mail or Alias (plan 6.15). `pick`
+ * is the exact word to choose in the domain seller's own Type box (A, TXT, CNAME), the button the press looks for there.
+ */
+export type GuideLine = { action: "add" | "remove"; kind: string; pick?: string; name: string; value: string; priority?: number };
+/** `openUrl`: the seller's own page for a domain's lines, when it is known (the "Open GoDaddy" button). */
+export type DomainGuide = { seller: string | null; zone: string; steps: string[]; lines: GuideLine[]; message: { subject: string; body: string }; openUrl?: string };
 /** `allowUrl`: the domain seller's own sign-in-and-Allow window; `guide`: the same by hand (plan 6.15). */
 export type DomainCheck = {
   name: string; state: DomainState; records: DnsRecord[]; paymentDomain?: "registered" | "not_yet" | "failed";
@@ -89,6 +93,14 @@ export function allowLabel(seller: string | null | undefined): string {
 export function guideLineTitle(line: GuideLine): string {
   return line.action === "add" ? "Add" : "Take out, if it's there";
 }
+
+/** Beside a line's title: its kind in plain words, and the word to pick in the seller's Type box. */
+export function guideLineKind(line: GuideLine): string {
+  return `${line.kind} line${line.pick && line.action === "add" ? ` · in the Type box choose ${line.pick}` : ""}${line.priority !== undefined ? ` · Priority ${line.priority}` : ""}`;
+}
+
+/** Where a press with no domain yet can buy one: a search at GoDaddy, opened in a new tab. */
+export const BUY_DOMAIN_URL = "https://www.godaddy.com/domains";
 
 /** A mail link that sends the guide to the press's web person. */
 export function guideMailto(guide: DomainGuide): string {
