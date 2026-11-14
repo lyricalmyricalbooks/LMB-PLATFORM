@@ -54,7 +54,8 @@ test("field labels are Archivo, never the mono face, and mono is never faked bol
 test("no admin dialog wears an emoji badge", async () => {
   const { readdirSync, readFileSync, statSync } = await import("node:fs");
   const { join } = await import("node:path");
-  const root = new URL("../../apps/shop/src/app/admin/", import.meta.url).pathname;
+  const { fileURLToPath } = await import("node:url");
+  const root = fileURLToPath(new URL("../../apps/shop/src/app/admin/", import.meta.url));
   const hits = [];
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {
