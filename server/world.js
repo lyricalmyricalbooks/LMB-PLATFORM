@@ -152,6 +152,7 @@ import { NOT_CONNECTED, notConnectedClient, notConnectedFn, notConnectedPage } f
 import { resolveTxt } from "node:dns/promises";
 import { sellerLookupClient } from "../services/domains/sellers.js";
 import { sharedDomainService } from "../services/domains/hosted.js";
+import { readDomainConnectConfig } from "../services/domains/config.js";
 import { handleDomains } from "../services/domains/http.js";
 
 export const DEFAULT_PROJECT = "lmb-platform-prod";
@@ -205,7 +206,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const platform = firestoreClient({ fetch, token, projectId });
   const registry = firestoreRegistry(platform, { now });
   // A shop whose registry row places it in a shared project (the test shops, in the shared test project) is reached there.
-  const { shared, shopDb, stockroomDb, recordsFor } = shopStores({ env, fetch, token, rowOf: (shopId) => registry.getShop(shopId) });
+  const { shared, shopDb, stockroomDb, recordsFor, storesOf } = shopStores({ env, fetch, token, rowOf: (shopId) => registry.getShop(shopId) });
   const platformState = firestorePlatformState(platform);
   const live = () => liveSettings({ env, store: platformState });
 
@@ -260,7 +261,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const stagedFiles = notConnectedClient(NOT_CONNECTED.stagedImports, ["uploadUrl", "stat", "read", "remove"]);
   // "Your web address" in setup names where a press bought its domain from the public lookup (nothing is connected
   // until the shop is made). Whether that seller has Colophon's Allow window waits for the Domain Connect settings.
-  const domainLookup = sellerLookupClient({ fetch, resolveTxt });
+  const domainLookup = sellerLookupClient({ fetch, resolveTxt, config: readDomainConnectConfig(env) });
   const frontDoor = createFrontDoor({ ...firestoreFrontDoorStores(platform), email, auth: signInLinkMaker, settings, now, signup, stagedFiles, making: (shopId) => shopMaker.progress(shopId), domainLookup, freeNameTaken: freeAddressTaken(registry) });
   // The clock for a press that hasn't opened (18.11): two warnings, then its setup is cleared.
   const setupClock = createSetupClock({ presses: firestoreFrontDoorStores(platform).presses, stagedFiles, email, settings, now });
@@ -274,7 +275,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // maker puts a new shop's free address on the shared site (step 9) and connects the domain it brought in setup once
   // it is ready (shopMaker.js connectAddresses).
   const presses = firestoreFrontDoorStores(platform).presses;
-  const domains = sharedDomainService({ env, fetch, token, shared, registry, auditLog, payments, email, presses, sellers: domainLookup, settings, now });
+  // A press's own domain works for every shop in a shared project, the test shops' and the live one: each shop's
+  // address goes in the address book of the project it lives in (`storesOf`). Only free addresses wait for the settings.
+  const domains = sharedDomainService({ env, fetch, token, shared: storesOf, registry, auditLog, payments, email, presses, sellers: domainLookup, settings, now });
   // The control room's "new shops start with" switches (Shops > Switches for every shop) reach each shop as it is made.
   const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform, addresses: domains, switchDefaults: async () => (await platformState.get(NEW_SHOP_SWITCHES))?.values ?? null });
   const shopMaker = sharedRun

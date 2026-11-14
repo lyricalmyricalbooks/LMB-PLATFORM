@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { adminApi } from "./api";
 import { BrandLogo, isBrandId } from "../components/brand/BrandLogo";
 import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { allowLabel, describeEntry, domainActions, freeNameOf, guideLineTitle, guideMailto, moveWarning, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
+import { allowLabel, describeEntry, domainActions, domainStages, freeNameOf, guideLineTitle, guideMailto, moveWarning, RECHECK_MS, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
 import { copyText } from "./clipboard";
 
 /** The domain seller's own logo on its Connect button, when the brand kit has it (GoDaddy today). */
@@ -71,6 +71,28 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
   };
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A live status: while an address isn't working yet the card looks again by itself, quietly (no spinner, no error
+  // for a look that failed), only while the page is on screen and nothing else is in hand.
+  const live = useRef({ domains, busy });
+  live.current = { domains, busy };
+  const waiting = (domains || []).some((d) => d.state !== "live");
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(async () => {
+      if (live.current.busy || document.visibilityState === "hidden") return;
+      for (const d of live.current.domains || []) {
+        if (d.state === "live") continue;
+        try {
+          const found = (await adminApi.customDomains("check", d.name)) as DomainCheck;
+          setChecks((c) => ({ ...c, [d.name]: found }));
+          setDomains((list) => (list || []).map((e) => (e.name === d.name ? { ...e, state: found.state } : e)));
+          if (found.state === "live") setNotice(`${d.name} now opens your shop.`);
+        } catch { /* the next look tries again */ }
+      }
+    }, RECHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [waiting]);
 
   const add = async () => {
     const name = draft.trim();
@@ -182,7 +204,7 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                 )}
               </div>
             )}
-            {domains.length === 0 && <p className="rp-hint" style={{ margin: 0 }}>No address of your own yet. Buy one from any domain seller, then add it here.</p>}
+            {domains.filter((d) => !d.free).length === 0 && <p className="rp-hint" style={{ margin: 0 }}>Already have a domain? Bring it here: it stays with the company you bought it from, and you keep your email there. No domain yet? Buy one from any domain seller, then add it.</p>}
             {domains.map((d) => {
               const found = checks[d.name];
               const state = found?.state ?? d.state;
@@ -199,6 +221,15 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                       <StatusBadge tone={info.tone}>{info.label}</StatusBadge>
                     </span>
                   </div>
+                  {!d.free && !d.sendsTo && state !== "conflict" && (
+                    <ol aria-label={`Progress for ${d.name}`} data-domain-stages style={{ display: "flex", flexWrap: "wrap", gap: 8, listStyle: "none", margin: "12px 0 0", padding: 0 }}>
+                      {domainStages(state).map((s, i) => (
+                        <li key={s.label} aria-current={s.current ? "step" : undefined} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, border: "1px solid var(--rp-border)", background: s.current ? "var(--rp-surface-2)" : "transparent", fontWeight: s.current ? 600 : 400, opacity: s.done || s.current ? 1 : 0.6 }}>
+                          <span aria-hidden="true">{s.done ? "✓" : i + 1}</span>{s.label}{s.done && <span className="rp-sr-only"> (done)</span>}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
                   <p className="rp-hint" style={{ margin: "8px 0 0" }}>{info.text}</p>
                   {state !== "live" && !d.free && found?.allowUrl && (
                     <div className="rp-stack" style={{ gap: 8, marginTop: 12 }} data-allow>
@@ -209,24 +240,24 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                     </div>
                   )}
                   {guide && (
-                    <details style={{ marginTop: 12 }} open={!found?.allowUrl} data-guide>
-                      <summary style={{ cursor: "pointer", fontWeight: 600 }}>{found?.allowUrl ? "Prefer to do it yourself?" : `Connect ${d.name} yourself`}</summary>
-                      <p className="rp-hint" style={{ margin: "8px 0 0" }}>{moveWarning(d.name).message}</p>
-                      <ol style={{ margin: "8px 0", paddingLeft: 20 }}>
-                        {guide.steps.map((step, i) => <li key={i}>{step}</li>)}
-                      </ol>
-                      <div className="rp-stack" style={{ gap: 8 }}>
+                    <details style={{ marginTop: 12 }} open={!found?.allowUrl && !d.sendsTo} data-guide>
+                      <summary style={{ cursor: "pointer", fontWeight: 600 }}>{d.sendsTo ? `Lines for ${d.name}, so it works too` : found?.allowUrl ? "Prefer to do it yourself?" : `Connect ${d.name} yourself`}</summary>
+                      {/* The partner address is added in the same place as the one above: only its lines are new. */}
+                      {!d.sendsTo && <>
+                        <p className="rp-hint" style={{ margin: "8px 0 0" }}>{moveWarning(d.name).message}</p>
+                        <ol style={{ margin: "8px 0", paddingLeft: 22, listStyle: "decimal" }}>
+                          {guide.steps.map((step, i) => <li key={i} style={{ marginBottom: 4 }}>{step}</li>)}
+                        </ol>
+                      </>}
+                      <div className="rp-stack" style={{ gap: 8, marginTop: 8 }}>
                         {guide.lines.map((line, i) => (
                           <div key={i} className="rp-card" style={{ padding: 12, boxShadow: "none" }} data-guide-line>
                             <strong>{guideLineTitle(line)}</strong>
-                            <dl style={{ margin: "4px 0 8px", display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 12px" }}>
-                              <dt>Kind</dt><dd style={{ margin: 0 }}>{line.kind}</dd>
-                              <dt>Name</dt><dd style={{ margin: 0, fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.name}</dd>
-                              <dt>Value</dt><dd style={{ margin: 0, fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.value}</dd>
-                              {line.priority !== undefined && <><dt>Priority</dt><dd style={{ margin: 0 }}>{line.priority}</dd></>}
-                            </dl>
-                            <div className="rp-card-actions">
+                            <span className="rp-hint"> · {line.kind} line{line.priority !== undefined ? ` · Priority ${line.priority}` : ""}</span>
+                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "8px 12px", alignItems: "center", marginTop: 8 }}>
+                              <span><span className="rp-hint" style={{ display: "block" }}>Name</span><span style={{ fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.name}</span></span>
                               <SecondaryButton size="sm" onClick={() => copyText(line.name, "Name")}>Copy name</SecondaryButton>
+                              <span><span className="rp-hint" style={{ display: "block" }}>Value</span><span style={{ fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.value}</span></span>
                               <SecondaryButton size="sm" onClick={() => copyText(line.value, "Value")}>Copy value</SecondaryButton>
                             </div>
                           </div>
@@ -277,7 +308,7 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
             {domains.filter((d) => !d.free).length < max && (
               <div className="rp-stack" style={{ gap: 8 }}>
                 <TextField label="Connect an address you own" placeholder="shop.yourpress.com" spellCheck={false} autoCapitalize="none" value={draft}
-                  hint="Type the address, press Connect, and we'll take you through the rest."
+                  hint="Your domain stays where you bought it. Type it, press Connect, and we'll take you through the rest."
                   onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
                 <div className="rp-card-actions">
                   <PrimaryButton disabled={!draft.trim() || !!busy} onClick={add}>{busy === "add" ? "Connecting…" : "Connect"}</PrimaryButton>

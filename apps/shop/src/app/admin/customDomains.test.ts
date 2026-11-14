@@ -4,7 +4,7 @@ import { allowLabel, describeDomain, describeEntry, domainActions, guideLineTitl
 describe("Your web address", () => {
   test("each state has a badge and a plain sentence", () => {
     expect(describeDomain("live")).toMatchObject({ tone: "success", label: "Live" });
-    expect(describeDomain("waiting_dns").text).toMatch(/Finish connecting it below/);
+    expect(describeDomain("waiting_dns").text).toMatch(/Finish the steps below/);
     expect(describeDomain("securing").tone).toBe("info");
     expect(describeDomain("conflict").tone).toBe("danger");
     expect(describeDomain(undefined).label).toBe("Connecting");
@@ -38,5 +38,19 @@ describe("Your web address", () => {
     expect(describeEntry({}, "waiting_dns").label).toBe("Waiting for you");
     expect(moveWarning("mothpress.example").message).toMatch(/take your last orders and close its checkout first/);
     expect(moveWarning("mothpress.example").message).not.toMatch(/DNS|CNAME|TXT|record/);
+  });
+});
+
+describe("the tracker and the words for a domain brought over", () => {
+  test("shows Connect, Secure, Live with the stage it is on", async () => {
+    const { domainStages } = await import("./customDomains");
+    expect(domainStages("waiting_dns").map((s) => [s.label, s.done, s.current])).toEqual([["Connect", false, true], ["Secure", false, false], ["Live", false, false]]);
+    expect(domainStages("securing").map((s) => s.current)).toEqual([false, true, false]);
+    expect(domainStages("live").every((s) => s.done)).toBe(true);
+  });
+  test("never tells a press to add an address again, and names no technical term", () => {
+    for (const state of ["connecting", "waiting_dns", "securing", "live", "conflict", "missing"] as const) {
+      expect(describeDomain(state).text).not.toMatch(/add it again|DNS|CNAME|record/i);
+    }
   });
 });

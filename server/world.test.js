@@ -153,11 +153,11 @@ test("with the shared project named, making a shop runs the shared shop maker (d
   assert.match(String(outside.other[0]?.url ?? outside.other[0] ?? ""), /lmb-test-shop\/webApps/);
 });
 
-test("a shop's web addresses answer through the platform once the shared system is on, and plainly not before", async () => {
+test("a shop's web addresses answer through the platform, with or without the shared system's settings", async () => {
+  // A press's own domain waits on no setting (14 November 2026): the door answers, and refuses a call with no key.
   const off = build();
   const before = await off.world.handle({ method: "POST", path: "/api/domains/shop", headers: {}, body: { op: "domains.list" } });
-  assert.equal(before.status, 503);
-  assert.match(before.body.error.message, /aren't switched on yet/);
+  assert.equal(before.status, 401);
 
   const env = { ...TEST_ENV, SHARED_SHOPS_PROJECT: "lmb-test-shop", SHARED_SHOPS_DOMAIN: "shops.example" };
   const { world } = build(env);

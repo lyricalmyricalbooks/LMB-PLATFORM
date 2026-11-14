@@ -5,6 +5,22 @@ for shops with `shared: true` only. Their addresses also go in the front door's 
 Hosting serves them, out after), and steps 3 and 7 below write the shop's record (`server`, `profile`) instead of a
 settings file and a deploy (`domains.js` `syncRecord`). Everything else below is the same.
 
+**Bringing a domain over (14 November 2026).** A press's own domain needs no platform setting: the hosted service is
+always on, and looks after each shop in the shared project its registry row names (`clients/shared.js` `storesOf`: the
+test shops' project and the live one each have their own address book). What changed with it:
+- `domainState` reads Google's `requiredDnsUpdates.discovered` as well as `desired`: the lines a domain still has from
+  its old website come back as lines to take out, first in the list. A domain pointing somewhere else (`HOST_MISMATCH`,
+  `HOST_CONFLICT`, another project's ownership line) is `waiting_dns` with those lines; `conflict` is only for when
+  Google names nothing to change.
+- The address joins the shared project's sign-in list (`signIn.allow`, `clients/google.js` `authConfig.allowDomain`)
+  when it is added, when it goes live and on the daily watch, and leaves it when removed (`forgetDomain`; never a
+  `web.app` address). Without this the owner's Google sign-in is refused at `/admin` on the new address.
+- `check` asks Hosting for an address again when Google has no record of it, so "Check again" repairs a half-done add.
+- `remove` takes the address's www partner (an entry whose `redirectTo` is it) with it.
+- `hosting.addDomain` brings back an address removed in the last 30 days (Google keeps it as deleted;
+  `customDomains.undelete`), and `getDomain` reads a deleted one as gone.
+- No transfer-in: the domain stays with the company the press bought it from (Julian, 4 November 2026).
+
 A press puts their shop on their own web address from the shop's settings (code plan 2.9). Plain Node 22 ES modules,
 no packages; tests use a pretend Firebase Hosting and a pretend deploy (`domains.test.js`, `fakes.js`).
 
@@ -113,11 +129,8 @@ builds the template file Julian registers with each seller (a one-time step), an
 
 ## Not yet
 
-- The scheduler that runs `checkAll()` every few minutes, and the real `sellers` / `publicLines` wiring (RDAP over
-  `fetch`, Node's resolver), the template registration with each seller, and the public key line, all with hosting.
-
-- Hosting this service (one function in the platform project) and writing its address into the shops' settings
-  (`PLATFORM_DOMAINS_URL`, like `PLATFORM_EMAIL_URL`).
+- The template registration with each domain seller and the public key line (until then every press gets the guide).
+  The sweep (`web-addresses` job), the seller lookup and the hosted door (`/api/domains`) are all running.
 - Stripe keeps a removed address's Apple Pay registration (harmless: nothing is served there any more).
 - The shop's own copy of the sitemap is written only by a full shop build; platform shops' pages skip it (see
   `services/release-runner/builder.js`), so the main address reaches the sitemap whenever that build runs.

@@ -343,7 +343,9 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
     hosting: {
       /** The custom domain as Google sees it (hostState, ownershipState, cert, requiredDnsUpdates), or null. */
       async getDomain(projectId, domain) {
-        return orNull(call("GET", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`));
+        const found = await orNull(call("GET", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`));
+        // Google keeps a removed address for about 30 days (`deleteTime`); to the shop it is gone.
+        return found?.deleteTime ? null : found;
       },
       /**
        * Starts connecting `domain`; one that is already there is left as it is. `redirectTo`: Hosting sends visitors
@@ -354,6 +356,13 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
           await call("POST", `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains`, { query: { customDomainId: domain }, body: redirectTo ? { redirectTarget: redirectTo } : {} });
         } catch (error) {
           if (!isAlreadyExists(error)) throw error;
+          // An address removed in the last 30 days is still kept by Google as deleted: adding it again brings it back
+          // (customDomains.undelete), then makes it serve or send on as asked now.
+          const name = `${HOSTING}/projects/${projectId}/sites/${projectId}/customDomains/${encodeURIComponent(domain)}`;
+          const found = await orNull(call("GET", name));
+          if (!found?.deleteTime) return;
+          await call("POST", `${name}:undelete`, { body: {} });
+          if ((found.redirectTarget ?? "") !== (redirectTo ?? "")) await call("PATCH", name, { query: { updateMask: "redirectTarget" }, body: { redirectTarget: redirectTo ?? "" } });
         }
       },
       /**
@@ -466,6 +475,14 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         const { authorizedDomains = [] } = await call("GET", `${IDENTITY}/projects/${projectId}/config`);
         if (authorizedDomains.includes(name)) return { changed: false };
         await call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "authorizedDomains" }, body: { authorizedDomains: [...authorizedDomains, name] } });
+        return { changed: true };
+      },
+      /** Takes `host` off the sign-in list again (an address a shop let go). One that isn't listed is fine. -> { changed } */
+      async forgetDomain(projectId, host) {
+        const name = String(host ?? "").trim().toLowerCase();
+        const { authorizedDomains = [] } = await call("GET", `${IDENTITY}/projects/${projectId}/config`);
+        if (!name || !authorizedDomains.includes(name)) return { changed: false };
+        await call("PATCH", `${IDENTITY}/projects/${projectId}/config`, { query: { updateMask: "authorizedDomains" }, body: { authorizedDomains: authorizedDomains.filter((d) => d !== name) } });
         return { changed: true };
       },
       /** Replaces the second-step settings (projects.updateConfig, updateMask mfa). */

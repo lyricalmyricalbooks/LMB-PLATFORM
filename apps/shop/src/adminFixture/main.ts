@@ -524,6 +524,41 @@ inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) =
 };
 (window as any).__adminFixture = { orders: ORDERS };
 
+// Settings › General › Web address: ?domain=waiting (a domain brought over, with its steps), ?domain=securing,
+// ?domain=live, else only the free address. Nothing leaves the page.
+{
+  const mode = new URLSearchParams(window.location.search).get("domain") || "";
+  const FREE = "moth-press.shops.example";
+  const OWN = "mothpress.example";
+  let main = mode === "live" ? OWN : FREE;
+  let own: { name: string; state: string; sendsTo?: string }[] = mode
+    ? [{ name: OWN, state: mode === "live" ? "live" : mode === "securing" ? "securing" : "waiting_dns" }, { name: `www.${OWN}`, state: mode === "live" ? "live" : "waiting_dns", sendsTo: OWN }]
+    : [];
+  const list = () => ({ domains: [{ name: FREE, state: "live", free: true, main: main === FREE }, ...own.map((d) => ({ ...d, main: d.name === main }))], own: FREE, main, max: 3 });
+  const guide = (name: string) => ({
+    seller: "GoDaddy", zone: OWN,
+    steps: ["Sign in at GoDaddy and open your Domain Portfolio.", `Choose ${OWN}, then open the tab that lists its lines (it shows a list with Type, Name and Value).`, "For each line below, choose Add New Record, then copy across its kind, name and value, and save.", "If a name is @, some sellers want that box left empty. Changes can take a few hours to reach everyone; we check every few minutes."],
+    lines: [{ action: "remove", kind: "Address", name: name === OWN ? "@" : "www", value: "192.0.2.10" }, { action: "add", kind: "Address", name: name === OWN ? "@" : "www", value: "199.36.158.100" }, { action: "add", kind: "Text", name: name === OWN ? "@" : "www", value: "hosting-site=shops" }],
+    message: { subject: `Please connect ${name} to our shop`, body: "Hello, could you add these lines?" },
+  });
+  const checkOf = (name: string) => {
+    const state = own.find((d) => d.name === name)?.state ?? "live";
+    return { name, state, records: [], paymentDomain: "registered", ...(state === "waiting_dns" ? { way: "guide", seller: "GoDaddy", guide: guide(name) } : {}) };
+  };
+  (adminApi as any).customDomains = async (step: string, domain?: string) => {
+    if (step === "list") return list();
+    if (step === "check") return checkOf(domain!);
+    if (step === "connect" || step === "add") {
+      const name = String(domain).trim().toLowerCase();
+      if (!own.some((d) => d.name === name)) own = [...own, { name, state: "waiting_dns" }];
+      return checkOf(name);
+    }
+    if (step === "makeMain") { main = domain || FREE; return list(); }
+    if (step === "remove") { own = own.filter((d) => d.name !== domain && d.sendsTo !== domain); return { removed: domain, ...list() }; }
+    throw Object.assign(new Error("Not in the fixture."), { code: "not_available" });
+  };
+}
+
 // Settings › Team: the fixture signs in as the owner, with three people on the Team.
 (adminApi as any).myRole = async () => "owner";
 // The account holder, as refreshMyRole would tell a co-owner after sign-in (kept for this page only).

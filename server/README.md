@@ -49,7 +49,7 @@ Not connected yet (`notConnected.js`). Each answers in plain words, never with m
 | Deleting a closed shop's project | Your go, once the organization exists |
 | Deleting a closed app's records after its 90 days | Server access to each shop's project, after 15.5 (until then the Apps closing list shows each one waiting) |
 | Marking a closing email that bounced | Reading returned mail in the platform's Google mailbox (Gmail has no delivery events) |
-| Web addresses for shops | The shared system (`SHARED_SHOPS_PROJECT` and `SHARED_SHOPS_DOMAIN`): then `/api/domains` and the `web-addresses` job run (`services/domains/hosted.js`); a free address's lines are written once `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` name its Cloud DNS zone |
+| Web addresses for shops | Nothing for a press's own domain: `/api/domains` and the `web-addresses` job always run (`services/domains/hosted.js`), for every shop in a shared project. The server's account needs Firebase Hosting Admin and Firebase Authentication Admin on each shared project (the test one too). Free addresses need `SHARED_SHOPS_DOMAIN`; a free address's lines are written once `SHOP_ADDRESS_ZONE` and `SHOP_ADDRESS_ZONE_PROJECT` name its Cloud DNS zone |
 | QuickBooks | The platform's QuickBooks app keys (`docs/accounting.md`) |
 | Facebook & Instagram, Pinterest and TikTok | Each network's app keys and `SOCIAL_ENABLED` (`docs/social.md`): `/api/social` already answers "off" |
 | What each shop costs | Google's billing export to BigQuery (the Costs page shows its empty state) |

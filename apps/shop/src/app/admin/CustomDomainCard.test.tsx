@@ -212,7 +212,7 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
     await act(async () => button(el, "Connect")!.click());
     const card = el.querySelector('[data-domain="shop.mothpress.example"]')!;
     expect(card.querySelector("details")?.hasAttribute("open")).toBe(true);
-    expect([...card.querySelectorAll("li")].map((li) => li.textContent)).toEqual(GUIDE.steps);
+    expect([...card.querySelectorAll("details li")].map((li) => li.textContent)).toEqual(GUIDE.steps);
     const lines = [...card.querySelectorAll("[data-guide-line]")];
     expect(lines).toHaveLength(2);
     expect(lines[0].textContent).toContain("199.36.158.100");
@@ -225,5 +225,36 @@ describe("Your web address: connect in one step (plan 6.15)", () => {
     expect(mail.getAttribute("href")).toContain("mailto:?subject=Please%20connect%20shop.mothpress.example");
     expect(button(card, "Connect with Namecheap")).toBeUndefined();
     expect(el.textContent).not.toMatch(/DNS|CNAME|\bTXT\b|record type/);
+  });
+});
+
+describe("Your web address: a domain brought over", () => {
+  it("looks again by itself and turns Live without a click; old lines to take out are listed first", async () => {
+    vi.useFakeTimers();
+    try {
+      let now = "waiting_dns";
+      const guide = { seller: null, zone: "mothpress.example", steps: ["Sign in where you bought mothpress.example."], lines: [{ action: "remove", kind: "Address", name: "@", value: "192.0.2.10" }, { action: "add", kind: "Address", name: "@", value: "199.36.158.100" }], message: { subject: "s", body: "b" } };
+      state.domains = [{ name: "mothpress.example", state: "waiting_dns" }];
+      state.main = OWN;
+      api.customDomains.mockImplementation(async (step: string, domain?: string) => {
+        if (step === "list") return listOf();
+        if (step === "check") return now === "live" ? { name: domain, state: "live", records: [] } : { name: domain, state: now, records: [], way: "guide", guide };
+        throw new Error(`unexpected ${step}`);
+      });
+      const el = await mount();
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      const card = el.querySelector('[data-domain="mothpress.example"]')!;
+      expect([...card.querySelectorAll("[data-guide-line] strong")].map((n) => n.textContent)).toEqual(["Take out, if it's there", "Add"]);
+      expect(card.querySelector('[data-domain-stages] [aria-current="step"]')!.textContent).toContain("Connect");
+      now = "live";
+      await act(async () => { await vi.advanceTimersByTimeAsync(31_000); });
+      expect(card.textContent).toContain("Live");
+      expect(card.querySelector("[data-guide]")).toBeNull();
+      expect(el.textContent).toContain("mothpress.example now opens your shop.");
+      // Nothing left waiting: the card stops asking.
+      const calls = api.customDomains.mock.calls.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(65_000); });
+      expect(api.customDomains.mock.calls.length).toBe(calls);
+    } finally { vi.useRealTimers(); }
   });
 });
