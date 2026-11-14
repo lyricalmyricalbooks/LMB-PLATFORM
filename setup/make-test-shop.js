@@ -92,7 +92,7 @@ export function testShop(ownerEmail, place = TEST_SHOPS[0]) {
  */
 export function testShopSteps({ clients, config, connected, print = () => {} }) {
   return sharedShopSteps({ ...clients, addresses: null, config }).map((step) => {
-    if (step.number === 7 && connected[7]) return paymentsOrWait(step, print);
+    if (step.number === 7 && connected[7]) return paymentsOrWait(step, print, { forget: (shop) => forgetTestAccount({ registry: clients.registry, shop, print }) });
     if (!(step.number in LATER_STEPS) || connected[step.number]) return step;
     return { number: step.number, name: `${step.name} (waits for ${LATER_STEPS[step.number]})`, check: async () => true, act: async () => {} };
   });
@@ -103,13 +103,32 @@ export const CONNECT_OFF = /signed up for Connect|dashboard\.stripe\.com\/connec
 /** Stripe's answer when it takes new connected accounts only through its newer accounts API (/v2/core/accounts). */
 export const ACCOUNTS_V2_ONLY = /Accounts v1|\/v2\/core\/accounts/i;
 
+/** The shop maker's words when the registry names an account the payment service can't find (setup/payments.js). */
+export const ACCOUNT_LOST = /but the payment service can't find it/;
+
+/**
+ * Drops the registry's note of a test shop's Stripe test account that Stripe no longer has, so step 7 makes a new one.
+ * Only for one of the platform's own test shops and only an account in test mode: anything else answers false and the
+ * run stops for a person, as before. The dropped account id is kept as a registry event.
+ */
+export async function forgetTestAccount({ registry, shop, print = () => {}, now = () => new Date() }) {
+  const row = await registry.getShop(shop.shopId);
+  const saved = row?.payments;
+  if (row?.testShop !== true || shop.testMode !== true || !saved?.accountId || saved.mode !== "test") return false;
+  const at = now().toISOString();
+  await registry.recordEvent(shop.shopId, { id: `payments-test-account-lost-${at}`, kind: "payments.test-account-lost", accountId: saved.accountId, at });
+  await registry.updateShop(shop.shopId, { payments: null });
+  print(`Step 7: Stripe no longer has the test account ${saved.accountId} for ${shop.shopId}; a new test account is made.`);
+  return true;
+}
+
 /**
  * Step 7 on the test shop: payments can't be connected while the platform's Stripe account has Connect off (a one-time
  * choice in Stripe's dashboard), or while Stripe takes new connected accounts only through its newer accounts API, which
  * the payments service doesn't use yet. Until then the step waits (the shop is made without payments) instead of
  * stopping the run; it is looked at again on every run, so it connects once the cause is gone.
  */
-export function paymentsOrWait(step, print = () => {}) {
+export function paymentsOrWait(step, print = () => {}, { forget = null } = {}) {
   // The runner checks again after `act`: a step that waited counts as passed for this run (every run looks at it anew).
   let waited = false;
   const wait = (line, waiting) => {
@@ -117,12 +136,29 @@ export function paymentsOrWait(step, print = () => {}) {
     waited = true;
     return { detail: { waiting } };
   };
+  // A test shop's Stripe account is throwaway test data. When Stripe no longer has it (the platform's test key was
+  // changed, or the test accounts were cleared in Stripe), the registry's note of it is dropped and a new test account
+  // is made, instead of stopping for a person as a press's shop does (setup/payments.js compare).
+  const lost = (error) => typeof forget === "function" && ACCOUNT_LOST.test(String(error?.message));
   return {
     ...step,
-    check: async (ctx) => waited || step.check(ctx),
+    async check(ctx) {
+      if (waited) return true;
+      try {
+        return await step.check(ctx);
+      } catch (error) {
+        if (lost(error)) return false;
+        throw error;
+      }
+    },
     async act(ctx) {
       try {
-        return await step.act(ctx);
+        try {
+          return await step.act(ctx);
+        } catch (error) {
+          if (!lost(error) || !(await forget(ctx.shop))) throw error;
+          return await step.act(ctx);
+        }
       } catch (error) {
         const said = String(error?.message);
         if (CONNECT_OFF.test(said)) {
