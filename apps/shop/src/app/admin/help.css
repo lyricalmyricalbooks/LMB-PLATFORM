@@ -37,3 +37,14 @@
 }
 .rp .rp-help-ask-person { margin: 0; font-size: 15px; line-height: 1.5; }
 .rp .rp-help-ask-person a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.rp .rp-help-clear { flex: none; border: 0; background: none; padding: 6px 4px; color: var(--rp-text-muted); font: 500 15px/1 var(--rp-font-body); cursor: pointer; border-radius: 8px; }
+.rp .rp-help-clear:hover { color: var(--rp-text); }
+.rp .rp-help-clear:focus-visible, .rp .rp-help-all:focus-visible, .rp .rp-help-vote button:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+.rp .rp-help-answer .rp-help-topic { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 600; color: var(--rp-text-muted); }
+.rp .rp-help-answer a, .rp .rp-help-vote a { color: var(--rp-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.rp .rp-help-vote { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--rp-divider); font-size: 15px; line-height: 1.5; color: var(--rp-text-muted); }
+.rp .rp-help-vote span:first-child { margin-right: 4px; }
+.rp .rp-help-vote button { min-height: 36px; padding: 0 16px; border: 1px solid var(--rp-divider); border-radius: 999px; background: var(--rp-surface); color: var(--rp-text); font: 600 15px/1 var(--rp-font-body); cursor: pointer; }
+.rp .rp-help-vote button:hover { background: var(--rp-tab-hover); }
+.rp .rp-help-all { display: block; margin: 4px 0 12px; padding: 8px 0; border: 0; background: none; color: var(--rp-text); font: 600 15px/1.4 var(--rp-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; border-radius: 8px; }
+.rp .rp-help-group + .rp-help-group { margin-top: 16px; }

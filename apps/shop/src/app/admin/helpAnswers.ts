@@ -96,6 +96,7 @@ function nearMiss(a: string, b: string): boolean {
  * centre's answers stay as written. An answer with none is found by its own words only.
  */
 export const ALSO_ASKED: Record<string, string> = {
+  "refund-order": "refund cancel money back return charge customer undo order",
   "add-a-book": "add new product item listing create",
   "shipping": "postage rates delivery prices cost ship send",
   "get-paid": "money payouts payout bank stripe square deposit when paid",
@@ -214,4 +215,24 @@ export function wherePage(path: string, { combined }: { combined: boolean }): st
   if (FIRST[first]) return FIRST[first];
   if (combined && STOCKROOM[first]) return STOCKROOM_ITEM_PREFIX + STOCKROOM[first];
   return null;
+}
+
+/** The answers about one admin page (`orders`, `settings/shipping`…): the "Help with this page" list. */
+export function answersForPage(list: readonly HelpEntry[], page: string | null | undefined, { combined }: { combined: boolean }): HelpEntry[] {
+  if (!page || page === "help") return [];
+  return list.filter((a) => (a.where || []).some((p) => wherePage(p, { combined }) === page));
+}
+
+/** Answers on the same topic as `entry`, nearest first by shared words in the question. */
+export function relatedTo(list: readonly HelpEntry[], entry: HelpEntry): HelpEntry[] {
+  const stems = queryStems(entry.question);
+  return list.filter((a) => a.id !== entry.id && a.topic === entry.topic)
+    .map((a) => ({ a, s: scoreAnswer(a, stems) })).sort((p, q) => q.s - p.s).map((r) => r.a);
+}
+
+/** The Ask a person link with the owner's question already in the form's subject line. */
+export function askWith(askUrl: string, question: string): string {
+  const q = question.trim().slice(0, 150);
+  if (!q) return askUrl;
+  try { const url = new URL(askUrl); url.searchParams.set("subject", q); return url.href; } catch { return askUrl; }
 }
