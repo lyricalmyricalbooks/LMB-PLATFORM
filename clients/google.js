@@ -110,8 +110,23 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
     const found = await orNull(call("GET", `${FIREBASE_STORAGE}/projects/${projectId}/defaultBucket`));
     return found?.bucket?.name ? found.bucket.name.split("/").at(-1) : null;
   };
+  // Firebase answers "no default bucket" for a project whose bucket it doesn't list as the default one (the test
+  // project, 14 November 2026: every nightly backup failed while the shop's files sat in its bucket). The bucket is
+  // then found by the two names Firebase gives a project's own bucket; one that lists its files for us is the one.
+  // A name taken by someone else's project answers 403 or 404 and is passed over.
+  const namedBucket = async (projectId) => {
+    for (const name of [`${projectId}.firebasestorage.app`, `${projectId}.appspot.com`]) {
+      try {
+        await call("GET", `${GCS}/b/${name}/o`, { query: { maxResults: 1, fields: "kind" } });
+        return name;
+      } catch (error) {
+        if (!(error instanceof GoogleError) || ![403, 404].includes(error.status)) throw error;
+      }
+    }
+    return null;
+  };
   const needBucket = async (projectId) => {
-    const bucket = await defaultBucket(projectId);
+    const bucket = (await defaultBucket(projectId)) ?? (await namedBucket(projectId));
     if (!bucket) throw new Error(`${projectId} has no storage bucket yet (step 5)`);
     return bucket;
   };
