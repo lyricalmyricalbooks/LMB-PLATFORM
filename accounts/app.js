@@ -459,8 +459,13 @@ $("#help-back").addEventListener("click", () => loadShops().catch((failure) => {
 // the help form (the hash is cleared, so Back to your shops and a reload show the shops as usual).
 function openHelpFromLink() {
   if (location.hash !== "#get-help" || !auth.currentUser) return;
-  history.replaceState(null, "", location.pathname + location.search);
-  openHelp().catch((failure) => { showFailure(status, failure); });
+  // The shop admin's Help page sends the owner's question along (?subject=), so they don't type it twice.
+  const params = new URLSearchParams(location.search);
+  const subject = (params.get("subject") || "").slice(0, 150);
+  params.delete("subject");
+  history.replaceState(null, "", location.pathname + (params.size ? `?${params}` : ""));
+  openHelp().then(() => { if (subject && !$("#help-form").subject.value) $("#help-form").subject.value = subject; })
+    .catch((failure) => { showFailure(status, failure); });
 }
 addEventListener("hashchange", openHelpFromLink);
 

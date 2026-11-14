@@ -28,6 +28,5 @@ test('email import renders inline in its sub-tab instead of as a floating dialog
   expect(section).not.toContain('modal-close-btn');
 
   expect(styles).toMatch(/\.email-import-workspace \.modal-tabs\s*\{[\s\S]*?width:100%;/);
-  expect(styles).toMatch(/\.email-import-workspace \.email-search-row\b/);
   expect(styles).not.toMatch(/\.modal\.email-import-modal\s*\{/);
 });

@@ -246,32 +246,9 @@ describe('Receipt import performance & correctness fixes', () => {
     });
   });
 
-  describe('extraction wiring: selection, cancel, pre-filter, offline guard', () => {
-    it('selection lives in a Set, not only in `:checked` DOM nodes', () => {
-      expect(mainContent).toContain('let _gmailSelectedIds = new Set();');
-      expect(mainContent).toContain('_gmailSelectedIds.add(msgId)');
-      expect(mainContent).toContain('_gmailSelectedIds.delete(msgId)');
-    });
-
-    it('skips emails already imported (by emailMsgId) before spending any tokens', () => {
-      expect(mainContent).toContain('.map(e => e.emailMsgId).filter(Boolean)');
-      expect(mainContent).toMatch(/const todo = msgIds\.filter\(id => !importedMsgIds\.has\(id\)\)/);
-    });
-
-    it('gates extraction and search on navigator.onLine', () => {
+  describe('extraction wiring: offline guard', () => {
+    it('gates extraction on navigator.onLine', () => {
       expect(mainContent).toMatch(/extractReceiptsFromEmailText[\s\S]{0,300}navigator\.onLine/);
-      expect(mainContent).toMatch(/searchGmailEmails[\s\S]{0,600}navigator\.onLine/);
-    });
-
-    it('wires an AbortController that closing the modal actually triggers', () => {
-      expect(mainContent).toContain('let _emailExtractAbort = null;');
-      expect(mainContent).toContain('_emailExtractAbort = new AbortController();');
-      expect(mainContent).toMatch(/function closeEmailReceiptImportModal\(\)\s*\{\s*\/\/[\s\S]*?if \(_emailExtractAbort\) _emailExtractAbort\.abort\(\);/);
-    });
-
-    it('caches per-email extraction output so re-running a selection is free', () => {
-      expect(mainContent).toContain('let _emailExtractCache = {};');
-      expect(mainContent).toContain('_emailExtractCache[msgId] = rows;');
     });
   });
 

@@ -18,7 +18,7 @@ export function planReadOnly(plan) {
 /** Every function in firebase.js that changes the stored data (tests/plan-pause.test.js keeps this list complete). */
 export const PLAN_WRITE_FUNCTIONS = Object.freeze([
   '_fbSaveModeFlags', '_fbAdoptBook', '_fbMarkLinkSwitchedOn', '_fbNoteWords', '_fbUploadReceipt', '_fbDeleteReceipt',
-  '_fbCommitFoundReceipt', '_fbSave', '_fbSubmitActivity', '_fbDeleteBook', '_fbDeleteSubmission', '_fbSaveSettings',
+  '_fbSave', '_fbSubmitActivity', '_fbDeleteBook', '_fbDeleteSubmission', '_fbSaveSettings',
   '_fbDeleteInboxItem', '_fbWriteAppTodo', '_fbRequestWebsiteLink', '_fbSetShopBookDismissed', '_fbPublishWebsiteLink',
   '_fbSaveCatalog', '_fbSaveBookOwners', '_fbSaveBackupSnapshot', '_fbDeleteBackupSnapshot', '_fbMassMigrate',
   '_fbClaimFairSale', '_fbWriteFairMenu', '_fbAddFairSale', '_fbCancelFairSale',

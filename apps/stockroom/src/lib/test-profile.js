@@ -294,7 +294,6 @@ export function createSandboxBackend(store) {
       }
       return URLs.createObjectURL(file);
     },
-    _fbConnectReceiptGmail: async () => { throw new Error('Gmail is not connected in the Test Profile'); },
     _fbPublishWebsiteLink: async () => { throw new Error('The website is not updated from the Test Profile'); },
   };
 }

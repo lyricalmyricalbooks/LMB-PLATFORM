@@ -1049,8 +1049,9 @@ One small doc per day; a browser whose clock is off by more than two minutes isn
 `walkthrough/tourSteps.ts` (pure: stops, chapters, `tourFor`, card placement) and `walkthrough/AdminTour.tsx` (welcome, a
 spotlit stop per page, end card). Offered once per owner (`walkthrough/tourStore.ts`, value `tour-2`, device + `adminPrefs`);
 again from Help or the avatar menu. Each stop points at the rail item `[data-nav]`, or on phones the bottom pill / More / menu
-button. A new menu page that matters gets a stop. Help is the `#help` page (`HelpPage.tsx`, pure `helpAnswers.ts`), reading the
+button. A new menu page that matters gets a stop. Help is the `#help` page (ask box on a mint tile; search in helpAnswers.ts: stems, stop words, same-meaning groups, one-letter typos, ALSO_ASKED owner words per answer, checked by helpQuestions.test.ts — add a question there when an owner reports a miss; the best answer in full, other matches as links, Take the tour · Ask a person; Julian 14 Nov: keep it simple, and help is admin-only: the public site has no Help link) (`HelpPage.tsx`, pure `helpAnswers.ts`), reading the
 platform's `help/articles.js` through the `@help` alias. Fixture: `admin-fixture.html?tour=1`.
+Help best practices (14 Nov): answers for the page Help was opened from come first (`answersForPage`, Dashboard's `helpFrom`), each answer asks "Did this answer your question?", Ask a person carries the question as `?subject=` (`askWith`; accounts/app.js fills the form), Related = same topic (`relatedTo`), See all answers by topic, "/" focuses the box, Escape/Clear empties it. A missed question with no answer at all needs a new article in help/articles.js (update help.test.js's count).
 
 ## Running costs tracker (14 November 2026)
 Settings › Billing › **Running costs** (`RunningCosts.tsx`, `runningCosts.css`; words in `platformBilling.ts`:

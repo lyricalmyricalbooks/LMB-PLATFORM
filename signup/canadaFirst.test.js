@@ -28,17 +28,17 @@ function make({ env = {}, invited = [], stores = fakeSignupStores() } = {}) {
 
 test("a press outside Canada is kept on a later list: no shop, no trial, plain words", async () => {
   const { signup, trials, stores } = make();
-  const answer = await signup.start(press(1), details(1, "US"));
+  const answer = await signup.start(press(1), details(1, "GB"));
   assert.equal(answer.status, "later");
   assert.equal(answer.message, LATER_WORDS);
-  assert.match(LATER_WORDS, /^Colophon starts in Canada\./);
+  assert.match(LATER_WORDS, /^Colophon isn't open in your country yet\./);
   assert.equal(trials.length, 0, "no trial days lost while waiting");
   const row = stores.signups.rows.get(answer.shopId);
-  assert.equal(row.country, "US");
+  assert.equal(row.country, "GB");
   assert.ok(!row.trialStartedAt && !row.admittedAt);
   assert.equal((await signup.mine(press(1)))[0].message, LATER_WORDS);
   // Signing up again changes nothing.
-  assert.equal((await signup.start(press(1), details(1, "US"))).status, "later");
+  assert.equal((await signup.start(press(1), details(1, "GB"))).status, "later");
   assert.equal(trials.length, 0);
 });
 
@@ -53,19 +53,20 @@ test("a later press never uses the day's room, and an invite does not skip the r
 });
 
 test("with a country opened in the settings, its presses start like anyone else; a waiting press joins the line", async () => {
-  const open = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,US" } });
-  assert.equal((await open.signup.start(press(1), details(1, "US"))).status, "queued");
+  const open = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,GB" } });
+  assert.equal((await open.signup.start(press(1), details(1, "GB"))).status, "queued");
   const first = make();
-  assert.equal((await first.signup.start(press(2), details(2, "US"))).status, "later");
-  const opened = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,US" }, stores: first.stores });
-  const again = await opened.signup.start(press(2), details(2, "US"));
+  assert.equal((await first.signup.start(press(2), details(2, "GB"))).status, "later");
+  const opened = make({ env: { SIGNUP_OPEN_COUNTRIES: "CA,GB" }, stores: first.stores });
+  const again = await opened.signup.start(press(2), details(2, "GB"));
   assert.equal(again.status, "queued", "its country opened, so it starts (the day has room)");
   assert.equal(opened.trials.length, 1);
 });
 
-test("the waitlist and sign-up pages say Colophon starts in Canada", () => {
+test("the sign-up pages say a country that isn't open yet keeps its place, without naming one country", () => {
   assert.match(readFileSync(new URL("../waitlist/index.html", import.meta.url), "utf8"), /we're starting in Canada/);
   const page = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(page, /Colophon starts in Canada\. If your press is somewhere else, we'll save your place/);
-  assert.match(readFileSync(new URL("./app.js", import.meta.url), "utf8"), /later: "Colophon starts in Canada/);
+  assert.match(page, /If Colophon isn't open in your country yet, we'll save your place/);
+  assert.match(readFileSync(new URL("./app.js", import.meta.url), "utf8"), new RegExp(`later: "${LATER_WORDS.replace(/[.?]/g, "\\$&")}"`));
+  assert.doesNotMatch(readFileSync(new URL("../join/index.html", import.meta.url), "utf8"), /starts in Canada/);
 });
