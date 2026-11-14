@@ -283,18 +283,18 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       // would collide with the header).
       { type: "ProductCoverCarouselSection", settings: {
         title: "{{shop.name}}",
-        tagline: "An independent publishing house specializing in contemporary photography and art books.",
+        tagline: "An independent press for new writing and well-made books.",
       } },
       { type: "MarqueeSection", settings: {
-        text: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
+        text: "AN INDEPENDENT PRESS FOR NEW WRITING AND WELL-MADE BOOKS",
         separator: "", speed: 24, fontSize: 11, bold: false, fontWeight: 600, letterSpacing: 0.14, uppercase: true,
         background: "#141219", color: "rgba(243,241,238,0.56)",
       } },
       { type: "ProductShowcaseGridSection", settings: { title: "Recent Releases" } },
       { type: "StaffNotesTableSection", settings: { title: "Staff Notes", backgroundColor: "#0c0b12" } },
       { type: "HeroSection", settings: {
-        eyebrow: "FEATURED RELEASE", title: "Roadkill", titleItalic: true,
-        subtitle: "Photographs taken along secondary highways — a document of what gets left behind.",
+        eyebrow: "FEATURED RELEASE", title: "Our newest book", titleItalic: true,
+        subtitle: "A line or two about it: what it is, and why you made it.",
         ctaText: "SHOP NOW", metaText: "Softcover · 112pp", height: "medium", align: "left",
         overlayOpacity: 0.55, textTransform: "none", headingWeight: 600,
       } },
@@ -400,7 +400,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       { type: "EphemeraRowSection", settings: { align: "center" } },
       { type: "RowSection", settings: { layout: "33-67", gap: 48, verticalAlign: "top", items: [
         { kind: "text", title: "WHY THIS EXISTS", body: "" },
-        { kind: "text", title: "", body: "{{shop.name}} is an independent imprint publishing contemporary photography and art books in small, considered runs. We care more about ink, paper, and sequence than trends. Independently run, and updated whenever there's something worth printing." },
+        { kind: "text", title: "", body: "{{shop.name}} is an independent imprint publishing books in small, considered runs. We care more about ink, paper, and sequence than trends. Independently run, and updated whenever there's something worth printing." },
       ] } },
       { type: "ImageWithTextSection", settings: {
         eyebrow: "CONTACT", title: "Got a manuscript, a proposal, or a question about an order?",
@@ -425,7 +425,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     name: "Editorial Launch",
     description: "Hero, story, featured title, social proof and email capture — a classic publisher homepage.",
     sections: [
-      { type: "HeroSection", settings: { title: "THE NEW COLLECTION", subtitle: "Photography & art books", ctaText: "EXPLORE", align: "center", overlayOpacity: 0.5 } },
+      { type: "HeroSection", settings: { title: "THE NEW COLLECTION", subtitle: "New books", ctaText: "EXPLORE", align: "center", overlayOpacity: 0.5 } },
       { type: "ImageWithTextSection", settings: { eyebrow: "OUR STORY", title: "Independent by design", body: "Tell the story behind your imprint — what you publish and why it matters.", ctaText: "Read more", layout: "image-left" } },
       { type: "FeaturedProductSection", settings: { eyebrow: "FEATURED", ctaText: "View product" } },
       { type: "TestimonialsSection", settings: { title: "WHAT COLLECTORS SAY" } },
@@ -466,7 +466,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     name: "Minimal Gallery",
     description: "A quiet, image-first page: hero, gallery, one paragraph, email capture.",
     sections: [
-      { type: "HeroSection", settings: { title: "{{shop.name}}", subtitle: "Photography & art books", ctaText: "ENTER", overlayOpacity: 0.35, align: "center" } },
+      { type: "HeroSection", settings: { title: "{{shop.name}}", subtitle: "New books", ctaText: "ENTER", overlayOpacity: 0.35, align: "center" } },
       { type: "GallerySection", settings: { columns: 3 } },
       { type: "TextContentSection", settings: { title: "", content: "A short statement about your practice." } },
       { type: "NewsletterSection", settings: { title: "STAY IN TOUCH" } },
