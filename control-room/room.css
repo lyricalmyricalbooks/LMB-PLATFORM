@@ -162,7 +162,7 @@
 .rp.cl .rp-nav-item .rp-nav-badge, .rp.cl .rp-nav-item[aria-current="page"] .rp-nav-badge { margin-left: auto; background: var(--cl-apricot); color: var(--cl-on-tile); }
 .rp.cl .rp-sidebar-foot { margin-top: auto; padding: 14px 0 0; border-top: 1px solid var(--rp-rail-line); }
 .rp.cl .rp-sidebar-foot .cr-who { display: grid; gap: 4px; padding: 4px 6px; border: 0; background: none; }
-.rp.cl .rp-sidebar-foot .cr-who strong { font-weight: 600; font-size: 13px; }
+.rp.cl .rp-sidebar-foot .cr-who strong { font-weight: 600; font-size: 12px; letter-spacing: -0.01em; overflow-wrap: anywhere; word-break: normal; }
 .rp.cl .cr-two-step { display: inline-flex; align-items: center; gap: 6px; font: 400 11px/1.4 var(--rp-font-mono); letter-spacing: 0.04em; color: var(--rp-rail-faint); }
 .rp.cl .cr-two-step .rp-status-dot { width: 6px; height: 6px; background: var(--cl-dot-good); }
 .rp.cl .rp-sidebar-foot .cr-signout { justify-self: start; margin-top: 4px; color: var(--rp-rail-text); }

@@ -1374,7 +1374,7 @@ function card(shop) {
     }
     clicked.disabled = false;
   };
-  const act = button("View this shop", "primary", { disabled: shop.status !== "live" });
+  const act = button("View this shop", shop.testShop ? "secondary" : "primary", { disabled: shop.status !== "live" });
   act.addEventListener("click", actAs("view"));
   // Making changes waits for the press's yes (19.6): "Ask the press" emails them; once they approve, "Open their admin".
   const change = button("Ask the press", "secondary", { disabled: shop.status !== "live" });
@@ -2362,6 +2362,8 @@ const ACTIVITY_WORDS = {
 
   "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
   "drift-snoozed": "snoozed a drifting press", "drift-woken": "ended a drifting press's snooze",
+  "test-shop-open": "opened a test shop's admin", "bookings-set": "switched Bookings on or off",
+  "newsletter-paused": "paused the newsletter", "payments-moved": "moved card payments", "roll-back": "rolled a shop back to an earlier version", "plan-changed": "changed a shop's plan", "trial-started": "started a free trial", "address-live": "put a web address live", "member-deleted-account": "deleted their account", "repair-opened": "opened a repair",
   "today-snoozed": "snoozed a line on Today", "today-woken": "put a line back on Today",
 };
 
@@ -2748,7 +2750,7 @@ const wholeMoney = (cents, currency) => new Intl.NumberFormat(undefined, { style
 
 /** A tidy top for the income axis: 1, 2 or 5 times a power of ten, in whole currency units. */
 function axisTop(cents) {
-  const units = Math.max(1, cents / 100);
+  const units = Math.max(10, cents / 100);
   const power = 10 ** Math.floor(Math.log10(units));
   const step = [1, 2, 5, 10].find((m) => m * power >= units);
   return step * power * 100;

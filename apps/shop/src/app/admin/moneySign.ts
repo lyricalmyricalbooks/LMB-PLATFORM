@@ -4,6 +4,16 @@ import { shopCurrency } from "../../lib/shopProfile";
 import { currencyName, currencySign, shopCountryOf } from "../../shared/shopCurrency";
 
 export const SHOP_CURRENCY = shopCurrency();
+/**
+ * The currency the stockroom's ledger counts in: the shop's own (every stored amount is in it). A saved Tax centre
+ * setting for the other of CAD and USD is left over from an older copy of the stockroom that started every shop in
+ * Canadian dollars, so it never wins; any other saved currency is the owner's choice and stays.
+ */
+export function homeCurrency(saved?: unknown): string {
+  const code = typeof saved === "string" ? saved.trim().toUpperCase() : "";
+  if (!code || code === "CAD" || code === "USD") return SHOP_CURRENCY;
+  return code;
+}
 export const MONEY_SIGN = currencySign(SHOP_CURRENCY);
 /** "Canadian dollars" or "US dollars". */
 export const MONEY_NAME = currencyName(SHOP_CURRENCY);

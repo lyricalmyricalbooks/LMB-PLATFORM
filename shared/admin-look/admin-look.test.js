@@ -27,3 +27,12 @@ test("the platform pages layer names no colour of its own", async () => {
   const css = readFileSync(new URL("./platform-pages.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.deepEqual(css.match(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/gi) ?? [], []);
 });
+
+test("a drawer's long content scrolls inside it instead of stretching it past the screen", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./pressroom.css", import.meta.url), "utf8");
+  const rule = css.split("\n").find((line) => line.startsWith('.rp-dialog-root[data-variant="drawer"] {'));
+  assert.ok(rule, "the drawer root rule exists");
+  // Without a fixed row, the grid grows to the content's height and the body never scrolls (the shop record was unreachable below "The record").
+  assert.match(rule, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
+});

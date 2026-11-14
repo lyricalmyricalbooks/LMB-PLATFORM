@@ -104,6 +104,39 @@ export function testSampleDocs(kind = "books", now = new Date()) {
   ];
 }
 
+const PLACEHOLDER_INSTAGRAM = "https://www.instagram.com/yourpress";
+const placeholderEmail = (email) => !email || /^owner@example\.com$/i.test(String(email));
+
+/** The store policies a test shop gets, in plain made-up words (every shop's policy pages need text to show). */
+export function testPolicies(pressName = "Test Shop") {
+  return {
+    shipping: `${pressName} is a test shop, so nothing here is ever sent.\n\nOrders placed in a real shop leave within two business days. You get a tracking link by email as soon as the parcel is on its way.`,
+    returns: `${pressName} is a test shop.\n\nIn a real shop you may return an unused item within 30 days for a refund to the card you paid with. Write to the shop first and it will tell you where to send it.`,
+    privacy: `${pressName} is a test shop and keeps no real customer data.\n\nA real shop uses your name, address and email only to take your order, send it and tell you where it is. It never sells them.`,
+    terms: `${pressName} is a test shop. Prices, stock and orders here are made up.\n\nA real shop's terms say what you agree to when you place an order: the price you see is the price you pay, plus any shipping and tax shown at checkout.`,
+    accessibility: `${pressName} aims to be easy to use for everyone. If something on this site is hard for you to use, write to the shop and it will help.`,
+  };
+}
+
+/**
+ * The test shop's public details, laid over its website settings (placeholders only: an owner's own words stay): a
+ * contact address, no made-up Instagram link, and the five store policies. Returns the settings to save, or null when
+ * nothing needs filling. `replace` (the control room's reset) fills them all again.
+ */
+export function testShopDetails(current, pressName, { replace = false } = {}) {
+  const settings = structuredClone(current ?? {});
+  let changed = false;
+  const email = `hello@${String(pressName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "test-shop"}.example`;
+  if (replace || placeholderEmail(settings.info?.email)) { settings.info = { ...(settings.info ?? {}), email }; changed = true; }
+  const social = settings.design?.social;
+  if (replace ? social?.instagram : social?.instagram === PLACEHOLDER_INSTAGRAM) { settings.design = { ...(settings.design ?? {}), social: { ...social, instagram: "" } }; changed = true; }
+  const policies = testPolicies(pressName);
+  for (const [key, text] of Object.entries(policies)) {
+    if (replace || !String(settings.policies?.[key] ?? "").trim()) { settings.policies = { ...(settings.policies ?? {}), [key]: text }; changed = true; }
+  }
+  return changed ? settings : null;
+}
+
 /**
  * The stockroom side of a test shop's sample records: each item's records by id (as the stockroom keeps a book's state,
  * apps/stockroom/src/lib/merge-state.js), the catalogue fields to add to those items, and the invoice details.
@@ -178,6 +211,13 @@ const parse = (text) => {
  */
 export async function writeTestSamples({ shop, stockroom = null }, shopId, kind, { replace = false, now = new Date(), pressName, currency = "CAD" } = {}) {
   const written = [];
+  // The public details (contact address, policies) are laid over the website settings, never replacing the design.
+  const settings = await shop.get(shopId, "settings/website");
+  const filled = testShopDetails(settings, pressName ?? (kind === "books" ? "Test Press" : "Test Goods"), { replace });
+  if (filled) {
+    await shop.set(shopId, "settings/website", filled);
+    written.push("settings/website");
+  }
   for (const { path, data } of testSampleDocs(kind, now)) {
     if (!replace && (await shop.get(shopId, path))) continue;
     await shop.set(shopId, path, data);

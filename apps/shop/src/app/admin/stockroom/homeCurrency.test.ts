@@ -36,3 +36,15 @@ describe("the stockroom's home currency", () => {
     expect(expense.baseCurrencyOf(null)).toBe("USD");
   });
 });
+
+describe("a saved Tax centre currency from an older stockroom", () => {
+  it("never overrides the shop's own currency, but another saved currency stays", async () => {
+    vi.resetModules();
+    vi.stubGlobal("window", { __SHOP_PROFILE__: { ...DEFAULT_SHOP_PROFILE, currency: "USD" } });
+    const { baseCurrencyOf } = await import("./taxExpense");
+    expect(baseCurrencyOf({ settings: { baseCurrency: "CAD" } })).toBe("USD");
+    expect(baseCurrencyOf({ settings: { baseCurrency: "usd" } })).toBe("USD");
+    expect(baseCurrencyOf({ settings: { baseCurrency: "EUR" } })).toBe("EUR");
+    expect(baseCurrencyOf(null)).toBe("USD");
+  });
+});
