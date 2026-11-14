@@ -45,7 +45,7 @@ import { billingPublicRoutes, billingRoutes } from "../accounts/billingRoutes.js
 import { createShopBillingDoor, SHOP_BILLING_PREFIX } from "../accounts/shopBillingDoor.js";
 import { createAccounts } from "../accounts/accounts.js";
 import { controlRoutes } from "../control-room/routes.js";
-import { NEW_SHOP_SWITCHES, controlRoomAdmins, createControlRoom, profilePublisher, switchPublisher, zoneWriter } from "../control-room/controlRoom.js";
+import { controlRoomAdmins, createControlRoom, profilePublisher, sharedPublisher, zoneWriter } from "../control-room/controlRoom.js";
 import { readFeeSettings } from "../services/payments/fees.js";
 import { createPlatformControls, platformRoutes } from "../control-room/platformControls.js";
 import { createBackupAccess, emergencyRoutes } from "../control-room/backupPerson.js";
@@ -278,8 +278,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // A press's own domain works for every shop in a shared project, the test shops' and the live one: each shop's
   // address goes in the address book of the project it lives in (`storesOf`). Only free addresses wait for the settings.
   const domains = sharedDomainService({ env, fetch, token, shared: storesOf, registry, auditLog, payments, email, presses, sellers: domainLookup, settings, now });
-  // The control room's "new shops start with" switches (Shops > Switches for every shop) reach each shop as it is made.
-  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform, addresses: domains, switchDefaults: async () => (await platformState.get(NEW_SHOP_SWITCHES))?.values ?? null });
+  const sharedRun = sharedShopRun({ env, fetch, token, payments: setupClient(payments), email, settings, registryFirestore: platform, addresses: domains });
   const shopMaker = sharedRun
     ? createShopMaker({ signups: stores.signups, run: sharedRun, registry, repairs, line: signup, billing, steps: SHARED_STEP_PLAN, presses, domains, now })
     : createShopMaker({ signups: stores.signups, run: notConnectedFn(NOT_CONNECTED.shopMaking), registry, repairs, line: signup, billing, now });
@@ -308,9 +307,9 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     // Today lists shops with stuck Chit Chats orders; the desk is made further down, and only called once a request comes.
     parcels: () => chitChatsDesk.shops(),
     registry, auditLog, profileFiles, shopAccess, repairs, signups: stores.signups, shopData, stockroomData,
-    // A switch reaches a shared-system shop through its record (the front door serves the profile from there), and a
-    // shop with a project of its own by deploying its pages again. The shop record shows the fee the payment service charges.
-    publish: switchPublisher({ registry, recordsFor, fallback: profilePublisher({ deploy, registry }) }), writeZone: zoneWriter({ recordsFor }), feeDefaults: readFeeSettings(env), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
+    // A shared-system shop's profile is served from its record, so nothing is deployed; a shop with a project of its own
+    // deploys its pages again. The shop record shows the fee the payment service charges.
+    publish: sharedPublisher({ recordsFor, fallback: profilePublisher({ deploy, registry }) }), writeZone: zoneWriter({ recordsFor }), feeDefaults: readFeeSettings(env), settings: live, email, breaches: createBreachRegister({ store: firestoreBreaches(platform), registry, auditLog, now }), people,
     activity, supportStore, recoveryStore, platformState, accessRequests, admins, now, presses: firestoreFrontDoorStores(platform).presses,
     googleReady: (at) => googleReadinessFromEnv(env, at),
     taxWatch: () => billing.taxWatch(),

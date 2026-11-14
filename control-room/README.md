@@ -43,7 +43,7 @@ It wears the Colophon bento look (`look/colophon.css`, `room.css`), laid out by 
 - **Inbox** (tabs Support, Repairs, Account recovery, App store): the list beside the one you're reading (stacked on a
   phone); Support adds **Send and close** and **Open shop**.
 - **Money** (tabs Income, Failed payments, Why brands leave, Costs, Prices and sign-up).
-- **Platform**: a card for each tool (Launch, Switches, Jobs and releases, Messages to brands, Run book, Breach register,
+- **Platform**: a card for each tool (Launch, Jobs and releases, Messages to brands, Run book, Breach register,
   Activity log) with its state, and the **Danger zone** (emergency payments, which also asks you to type MOVE ALL).
 - The **find bar** (Ctrl K or ⌘K, `palette.js`) finds shops, pages and actions. Every older address still opens its
   page (`#support`, `#tickets`, `#test-shop`, `#payments`…). A phone gets a tab bar of the five groups at the bottom.
@@ -66,8 +66,10 @@ change the source there, never the copies. Day or night is kept in the browser.
 - **Make changes**: the same visit with staff access. It asks why, then asks a second time.
   - Who, why and until when go in the registry and in the shop's own audit log before the sign-in is made.
   - If the log can't be written, there is no sign-in.
-- **Switches** (`setup/steps.js` `SWITCHES`): a box for each. It asks why, then changes the switch the same way as the
-  command below.
+- **Switches**: retired on 14 November 2026. The five were one brand's old features from its move here (old stockroom
+  sign-in, forwarding an old web address, the Gmail receipt finder, reading orders from Gmail, orders from an old shop
+  system), off in every shop. The page, the routes, `switch.js` and the features behind them were removed; an older
+  saved profile that still names `switches` is accepted and written without them (`profile/profile.js`).
 
 - **Close this shop** (plan 8.4, `closure.js`): for abuse. It asks why, logs it, then turns on the shop's own pause
   (`settings/website` `maintenance`: the pause page with the press's own words, and checkout closed on the shop's
@@ -79,7 +81,7 @@ change the source there, never the copies. Day or night is kept in the browser.
 New trials can't take real money before Stripe has checked the press: the payment service refuses a live payment
 until the account's `charges_enabled` is true (`services/payments/service.js` `liveChargesAllowed`).
 
-## One shop's record, its fee, and switches for every shop (plan 9.3, 9.6, 9.7)
+## One shop's record and its fee (plan 9.3, 9.6)
 
 - **Search and filters** over the shop list: press name, shop id or owner email; health, plan and billing state.
 - **Open record** (`POST /api/control/shop { shopId }`): owner, plan and billing, setup steps, connections (payments,
@@ -89,29 +91,6 @@ until the account's `charges_enabled` is true (`services/payments/service.js` `l
   the row as `platformFee.next { basisPoints, refunded, from }` 30 days ahead and the press is emailed
   (`platform-fee-changing`) once; `services/payments/fees.js` `feeForShop` uses it from `from` on. Setting today's fee
   again cancels a change that hasn't started. Pass `feeDefaults` (`readFeeSettings(env)`) to show the platform's fee.
-- **Switches for every shop** (`POST /api/control/switch-all { name, on, reason }`): `setSwitch` for every live shop,
-  each logged; a failure is reported and the rest carry on. **New shops start with** (`GET`/`POST
-  /api/control/new-shop-switches`): kept as `platformState/newShopSwitches`; the shop maker passes them to the setup
-  steps as `config.switchDefaults`, which step 6 uses only where the shop has nothing saved. Give `createControlRoom`
-  `platformState`.
-
-## The command line (`switch.js`)
-
-```bash
-CONTROL_ROOM_BY=you@yourpress.example RELEASE_BUILD_ROOT=/var/lmb/builds \
-node control-room/switch.js <shop id> <switch> on|off "<why>"
-```
-
-The command and the page's switch boxes both run `setSwitch`. It does four things:
-
-1. Updates the shop's saved profile in the registry. Everything else in the profile is kept.
-2. Writes the shop's `/shop-profile.js`.
-3. Logs who, from, to and why in the registry and the shop's audit log.
-4. Deploys the shop's pages again at the release they're already on, so the new profile is live. That release is
-   built first if it isn't on hand.
-
-Running it twice is safe: the second run changes nothing and is logged too. It refuses an unknown switch, a missing
-on/off or a reason under 10 characters. With no real clients it refuses, so nothing pretends to have changed a shop.
 
 ## The server (`controlRoom.js`, `routes.js`)
 
@@ -120,13 +99,12 @@ platform's one web door with `routes: controlRoutes(room)`:
 
 | Route | What |
 | --- | --- |
-| `GET /api/control/shops` | every shop, its health and switches |
+| `GET /api/control/shops` | every shop and its health |
 | `GET /api/control/test-shop` | `{ testShop }`: the test shop's card, or null |
 | `POST /api/control/test-shop/reset` | `{ shopId }` -> `{ shopId, reset }` |
 | `POST /api/control/test-shop/open` | `{ shopId }` -> `{ shopId, url }`: a test shop's admin, signed in as its owner (logged first; test shops only) |
 | `POST /api/control/google-run-again` | `{ shopId, step }` -> `{ outcome }`: one Google step again (needs `googleSteps`) |
 | `POST /api/control/act-as` | `{ shopId, reason, mode? }` (`"view"`, the default, or `"edit"`) -> `{ url, expiresAt, mode }`; `"edit"` asks the press first and opens only with an approved `requestId` (19.6, below) |
-| `POST /api/control/switch` | `{ shopId, name, on, reason }` |
 
 ## The support sign-in (`supportAccess.js`)
 
@@ -176,14 +154,13 @@ it. The calls are `POST /api/control/support`, `/api/control/support/answer` and
 
 After the platform changes a shop, these look at the shop as the platform left it. They run:
 
-- after a switch change;
 - when the shop maker finishes;
 - from **Check now** on the page;
 - on the daily sweep (`self-check.js`).
 
 | Check | Passes when | On failure |
 | --- | --- | --- |
-| profile | a live shop has a saved profile with no problems, and every switch is written down | a missing switch is written down as off and published (what setup does); anything else goes to the repair queue |
+| profile | a live shop has a saved profile with no problems | repair queue |
 | profile-file | the `/shop-profile.js` the platform keeps matches the saved profile | rewritten from the saved profile, and the pages are deployed again at their release |
 | release | the rules, the server code and every app's pages are on the release the registry records | repair queue |
 | service-key | a shop with a shop app has its service key, and it matches the registry's hash | repair queue |

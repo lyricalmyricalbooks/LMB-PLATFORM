@@ -5,13 +5,10 @@
 //   POST /api/control/shop     { shopId }: one shop's record (9.3)
 //   POST /api/control/shop-bills { shopId, after? }: the shop's platform bills, newest first, each with its PDF
 //   POST /api/control/fee      { shopId, basisPoints, refunded, reason }: the shop's per-order fee, 30 days' notice (9.6)
-//   POST /api/control/switch-all  { name, on, reason }: one switch for every live shop (9.7)
 //   GET /api/control/tax-watch               plan sales by province against the registration lines (15.20)
 //   GET /api/control/google-ready            what is still to do before Connect Google can be switched on (15.4)
-//   GET/POST /api/control/new-shop-switches  the switches new shops start with (9.7)
-//   GET  /api/control/shops    every shop: plan, version, health, switches
+//   GET  /api/control/shops    every shop: plan, version, health
 //   POST /api/control/act-as   { shopId, reason } -> { url, expiresAt }: logged before the sign-in is made
-//   POST /api/control/switch   { shopId, name, on, reason }: one switch, then the shop's profile is re-published
 //   POST /api/control/time-zone { shopId, timeZone, reason }: the shop's own time zone, written into its record
 //   POST /api/control/repairs  { status: "open" | "fixed" }: the repair queue
 //   POST /api/control/repairs/fixed  { id, note }: a person marks a repair fixed
@@ -39,18 +36,14 @@ export function controlRoutes(room) {
     "POST /api/control/shop": (claims, request) => room.shop(claims, body(request)),
     "POST /api/control/shop-bills": (claims, request) => room.shopBills(claims, body(request)),
     "POST /api/control/fee": (claims, request) => room.setFee(claims, body(request)),
-    "POST /api/control/switch-all": (claims, request) => room.switchAll(claims, body(request)),
     "GET /api/control/tax-watch": (claims) => room.taxWatch(claims),
     "GET /api/control/google-ready": (claims) => room.googleReadiness(claims),
-    "GET /api/control/new-shop-switches": (claims) => room.newShopSwitches(claims),
-    "POST /api/control/new-shop-switches": (claims, request) => room.setNewShopSwitch(claims, body(request)),
     "GET /api/control/shops": (claims) => room.shops(claims),
     "GET /api/control/test-shop": (claims) => room.testShop(claims),
     "POST /api/control/test-shop/reset": (claims, request) => room.resetTestShop(claims, body(request)),
     "POST /api/control/test-shop/open": (claims, request) => room.openTestShop(claims, body(request)),
     "POST /api/control/google-run-again": (claims, request) => room.googleRunAgain(claims, body(request)),
     "POST /api/control/act-as": (claims, request) => room.actAs(claims, body(request)),
-    "POST /api/control/switch": (claims, request) => room.switch(claims, body(request)),
     "POST /api/control/time-zone": (claims, request) => room.timeZone(claims, body(request)),
     "POST /api/control/repairs": (claims, request) => room.repairs(claims, body(request)),
     "POST /api/control/repairs/fixed": (claims, request) => room.markFixed(claims, body(request)),

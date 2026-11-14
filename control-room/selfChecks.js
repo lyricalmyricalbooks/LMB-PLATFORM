@@ -19,7 +19,7 @@
 // deploy (deployed), publish (controlRoom.js profilePublisher), repairs (repairs.js), google (secrets.latest; optional:
 // without it the service-key check only looks for the registry's hash), shopData (get, set: the shop's own database;
 // optional: without it the closed check isn't run).
-import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
+import { PLANS } from "../setup/steps.js";
 import { hasServiceKey } from "../setup/serviceKey.js";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { closedShopCheck } from "./closure.js";
@@ -35,20 +35,6 @@ export function selfChecks({ registry, profileFiles, deploy, publish, google, sh
         if (!profile) return { ok: false, problem: "the shop is live but has no saved profile" };
         const problems = profileProblems(profile);
         if (problems.length) return { ok: false, problem: `the saved profile has problems: ${problems.join("; ")}` };
-        const missing = SWITCHES.filter((name) => typeof profile.switches?.[name] !== "boolean");
-        if (missing.length) {
-          return {
-            ok: false, problem: `the saved profile doesn't say whether these are on: ${missing.join(", ")}`,
-            // Writing them down as off is what setup does for a new shop (setup/steps.js shopSwitches).
-            fix: async () => {
-              const fixed = { ...profile, switches: shopSwitches(profile.switches) };
-              await registry.saveProfile(row.shopId, fixed);
-              await profileFiles.write(row.shopId, profileScript(fixed));
-              await publish(row.shopId);
-              return "wrote the missing switches down as off and published the profile";
-            },
-          };
-        }
         if (profile.shopId !== row.shopId) return { ok: false, problem: `the saved profile is for ${profile.shopId}` };
         return { ok: true };
       },

@@ -109,24 +109,11 @@ export function projectDisplayName(shop) {
   return name.length >= 4 ? name : shop.shopId;
 }
 
-// Features one press needed once (profile/shop-profile.schema.json `switches`). A new shop gets every one written down
-// as off; a value already in the shop's saved profile is kept, so re-running setup never turns one back off.
-export const SWITCHES = Object.freeze(["legacyStockroomSignIn", "githubPagesForwarding", "gmailReceiptFinder", "gmailOrderScan", "oldShopSync"]);
-
 /**
- * All the switches, off unless `saved` (the switches in the shop's saved profile) has them as true or false. `defaults`
- * are the control room's switches for new shops (plan 9.7, `config.switchDefaults`), used only where nothing is saved.
- */
-export function shopSwitches(saved, defaults = undefined) {
-  const pick = (name) => (typeof saved?.[name] === "boolean" ? saved[name] : typeof defaults?.[name] === "boolean" ? defaults[name] : false);
-  return Object.fromEntries(SWITCHES.map((name) => [name, pick(name)]));
-}
-
-/**
- * The public shop profile for this shop, from its web app's settings and the switches it already has. `savedPayments`
+ * The public shop profile for this shop, from its web app's settings. `savedPayments`
  * (the saved profile's `payments`, written by step 13 once the press's account exists) is kept as it is.
  */
-export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches = undefined, savedPayments = undefined, switchDefaults = undefined, siteUrl = "") {
+export function shopProfile(shop, webAppConfig, region = REGION, savedPayments = undefined, siteUrl = "") {
   const { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId } = webAppConfig;
   return {
     version: 1,
@@ -146,7 +133,6 @@ export function shopProfile(shop, webAppConfig, region = REGION, savedSwitches =
     apps: { ...PLANS[shop.plan] },
     // Where the stockroom keeps its data in this project (read by apps/stockroom/src/lib/shop-profile.js).
     ...(PLANS[shop.plan].stockroom ? { stockroom: { firestoreDatabase: STOCKROOM_DATABASE, storageBucket: stockroomBucketName(shop.shopId) } } : {}),
-    switches: shopSwitches(savedSwitches, switchDefaults),
     ...(savedPayments ? { payments: savedPayments } : {}),
   };
 }
@@ -232,8 +218,7 @@ export function projectSteps({ google, region = REGION }) {
 
 /**
  * Steps 1–6. `config.folder` is the `shops` folder (`folders/…`) and `config.billingAccount` the platform's billing
- * account (`billingAccounts/…`); both are passed in, never written here. `config.switchDefaults` (optional) are the
- * switches a new shop starts with, from the control room (plan 9.7).
+ * account (`billingAccounts/…`); both are passed in, never written here.
  */
 export function firstSteps({ google, registry, profileFiles, config, now = () => new Date() }) {
   if (!config?.folder?.startsWith("folders/")) throw new Error("config.folder must be the shops folder, like folders/123");
@@ -306,7 +291,7 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
         const settings = await webAppConfig(shop.shopId);
         if (!settings) return false;
         const saved = await registry.getProfile(shop.shopId);
-        const profile = shopProfile(shop, settings, region, saved?.switches, saved?.payments, config.switchDefaults, await mainSiteUrl(shop));
+        const profile = shopProfile(shop, settings, region, saved?.payments, await mainSiteUrl(shop));
         return isDeepStrictEqual(saved, profile) && (await profileFiles.read(shop.shopId)) === profileScript(profile);
       },
       async act({ shop }) {
@@ -316,13 +301,11 @@ export function firstSteps({ google, registry, profileFiles, config, now = () =>
           settings = await google.firebase.getWebAppConfig(shop.shopId, appId);
         }
         const saved = await registry.getProfile(shop.shopId);
-        const profile = shopProfile(shop, settings, region, saved?.switches, saved?.payments, config.switchDefaults, await mainSiteUrl(shop));
+        const profile = shopProfile(shop, settings, region, saved?.payments, await mainSiteUrl(shop));
         const problems = profileProblems(profile);
         if (problems.length) throw new Error(`the shop profile has problems: ${problems.join("; ")}`);
         await registry.saveProfile(shop.shopId, profile);
         await profileFiles.write(shop.shopId, profileScript(profile));
-        // Kept in the registry and the shop's audit log with this step's entry (runner.js).
-        return { detail: { switches: profile.switches } };
       },
     },
   ];

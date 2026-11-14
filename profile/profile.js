@@ -4,11 +4,23 @@ import { readFileSync } from "node:fs";
 
 export const schema = JSON.parse(readFileSync(new URL("./shop-profile.schema.json", import.meta.url), "utf8"));
 
+/**
+ * Parts older profiles still hold that the format no longer has. `switches` (one press's one-off features) was retired
+ * on 14 November 2026: a saved profile that still names it is fine, and it is left out whenever the profile is written.
+ */
+export const RETIRED_KEYS = Object.freeze(["switches"]);
+
+/** The profile without its retired parts: what gets checked, saved and served. */
+export function currentProfile(profile) {
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) return profile;
+  return Object.fromEntries(Object.entries(profile).filter(([key]) => !RETIRED_KEYS.includes(key)));
+}
+
 /** Returns a list of problems in plain words; an empty list means the profile is good. */
 export function profileProblems(profile) {
   const problems = [];
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) return ["the profile is not an object"];
-  checkObject(schema, profile, "profile", problems);
+  checkObject(schema, currentProfile(profile), "profile", problems);
   return problems;
 }
 
@@ -51,7 +63,7 @@ export function profileScript(profile) {
   // JSON is valid JavaScript; escaping "<" keeps the text safe if a page ever inlines it. Keys are written in sorted
   // order, so the text depends only on what the profile says: a profile read back from Firestore (which keeps no key
   // order) gives the same text as the one written, and the steps that compare texts see it as already written.
-  const json = JSON.stringify(sortedKeys(profile), null, 2).replace(/</g, "\\u003c");
+  const json = JSON.stringify(sortedKeys(currentProfile(profile)), null, 2).replace(/</g, "\\u003c");
   return `// Written by the platform. Do not edit by hand.\nwindow.__SHOP_PROFILE__ = ${json};\n`;
 }
 

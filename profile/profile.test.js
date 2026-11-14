@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { profileProblems, profileScript, schema } from "./profile.js";
+import { currentProfile, profileProblems, profileScript, schema } from "./profile.js";
 
 const example = JSON.parse(readFileSync(new URL("./examples/test-shop.json", import.meta.url), "utf8"));
 
@@ -39,21 +39,13 @@ test("bad shapes are refused", () => {
   assert.deepEqual(profileProblems(null), ["the profile is not an object"]);
 });
 
-test("switches are optional true/false values, and only the five known ones", () => {
-  const all = { legacyStockroomSignIn: false, githubPagesForwarding: true, gmailReceiptFinder: false, gmailOrderScan: false, oldShopSync: false };
-  assert.deepEqual(profileProblems({ ...example, switches: all }), []);
-  assert.deepEqual(profileProblems({ ...example, switches: {} }), []);
-  assert.deepEqual(profileProblems({ ...example, switches: { gmailReceiptFinder: true } }), []);
-  assert.deepEqual(profileProblems({ ...example, switches: { gmailOrderScan: true } }), []);
-  assert.deepEqual(profileProblems({ ...example, switches: { oldShopSync: true } }), []);
-  assert.ok(profileProblems({ ...example, switches: { oldShopSync: "on" } }).includes("profile.switches.oldShopSync must be true or false"));
-  assert.ok(profileProblems({ ...example, switches: { gmailOrderScan: 1 } }).includes("profile.switches.gmailOrderScan must be true or false"));
-  assert.ok(profileProblems({ ...example, switches: { gmailReceiptFinder: "yes" } }).includes("profile.switches.gmailReceiptFinder must be true or false"));
-  assert.ok(profileProblems({ ...example, switches: { somethingElse: true } }).includes("profile.switches.somethingElse is not part of the profile"));
-  assert.ok(profileProblems({ ...example, switches: true }).includes("profile.switches must be an object"));
-  assert.ok(profileProblems({ ...example, switches: [] }).includes("profile.switches must be an object"));
-  assert.deepEqual(Object.keys(schema.properties.switches.properties), Object.keys(all));
-  assert.equal(schema.required.includes("switches"), false);
+test("the retired switches are allowed in an older profile and left out of the written file", () => {
+  const older = { ...example, switches: { legacyStockroomSignIn: false, oldShopSync: false } };
+  assert.deepEqual(profileProblems(older), []);
+  assert.equal("switches" in schema.properties, false);
+  assert.deepEqual(currentProfile(older), example);
+  assert.equal(profileScript(older), profileScript(example));
+  assert.ok(!profileScript(older).includes("switches"));
 });
 
 test("what the shop sells is an optional short answer (plan 10.23)", () => {
@@ -82,15 +74,6 @@ test("the stockroom's own database and bucket are optional, and both are needed 
   }
   assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, storageBucket: "gs://x" } }).length);
   assert.ok(profileProblems({ ...example, stockroom: { ...stockroom, extra: "x" } }).includes("profile.stockroom.extra is not part of the profile"));
-});
-
-test("the shop and the stockroom know the same switches as the format", async () => {
-  const names = Object.keys(schema.properties.switches.properties);
-  const { SHOP_SWITCHES: stockroom } = await import("../apps/stockroom/src/lib/shop-profile.js");
-  assert.deepEqual([...stockroom], names);
-  const shopSource = readFileSync(new URL("../apps/shop/src/lib/shopProfile.ts", import.meta.url), "utf8");
-  const shop = shopSource.match(/SHOP_SWITCHES = \[([^\]]+)\]/)[1].match(/"(\w+)"/g).map((name) => name.slice(1, -1));
-  assert.deepEqual(shop, names);
 });
 
 test("payments name the provider, the mode and only public payment-form ids", () => {

@@ -11,7 +11,7 @@ export const GROUPS = [
   { id: "shops", name: "Shops", pages: ["shops", "signups", "setting-up"], tabs: [["shops", "Shops"], ["signups", "Sign-ups"], ["setting-up", "Setting up"]] },
   { id: "inbox", name: "Inbox", pages: ["support", "repairs", "recovery", "apps"], tabs: [["support", "Support"], ["repairs", "Repairs"], ["recovery", "Account recovery"], ["apps", "App store"]] },
   { id: "money", name: "Money", pages: ["money", "failed-payments", "brands-leaving", "costs", "settings"], tabs: [["money", "Income"], ["failed-payments", "Failed payments"], ["brands-leaving", "Why brands leave"], ["costs", "Costs"], ["settings", "Prices and sign-up"]] },
-  { id: "platform", name: "Platform", pages: ["platform", "launch", "switches", "jobs", "messages", "runbook", "breaches", "activity", "payments"] },
+  { id: "platform", name: "Platform", pages: ["platform", "launch", "jobs", "messages", "runbook", "breaches", "activity", "payments"] },
 ];
 
 /** Every page of the five groups, and the places on a page worth jumping to. `go` is the address's #. */
@@ -37,7 +37,6 @@ export const PLACES = Object.freeze([
   { words: "Prices and sign-up", go: "settings", group: "Money" },
   { words: "Platform tools", go: "platform", group: "Platform" },
   { words: "Launch", go: "launch", group: "Platform" },
-  { words: "Switches for every shop", go: "switches", group: "Platform" },
   { words: "Jobs and releases", go: "jobs", group: "Platform" },
   { words: "Messages to brands", go: "messages", group: "Platform" },
   { words: "Run book", go: "runbook", group: "Platform" },

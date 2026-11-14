@@ -15,7 +15,6 @@ import { fakeVerifyIdToken } from "../signup/fakes.js";
 import { platformSettings } from "../services/settings.js";
 import { runSteps } from "../setup/runner.js";
 import { shopSteps } from "../setup/later-steps.js";
-import { SWITCHES } from "../setup/steps.js";
 import { profileScript } from "../profile/profile.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "../setup/fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
@@ -69,14 +68,13 @@ test("a /shop-profile.js that drifted fixes itself: rewritten from the saved pro
   assert.deepEqual(w.open(), [], "nothing for a person");
 });
 
-test("a switch missing from the profile is written down as off, the way setup does", async () => {
+test("a profile saved with the retired switches still passes the profile checks", async () => {
   const w = await world();
   const profile = await w.registry.getProfile(ID);
-  delete profile.switches[SWITCHES[2]];
-  await w.registry.saveProfile(ID, profile);
+  await w.registry.saveProfile(ID, { ...profile, switches: { gmailReceiptFinder: false } });
   const result = await w.selfCheck.check(ID);
-  assert.equal(result.ok, true, JSON.stringify(result.results));
-  assert.equal((await w.registry.getProfile(ID)).switches[SWITCHES[2]], false);
+  const profileCheck = result.results.find((r) => r.check === "profile");
+  assert.equal(profileCheck.ok, true, JSON.stringify(profileCheck));
 });
 
 test("a problem a person must fix goes to the repair queue once, then closes itself when the check passes", async () => {
@@ -132,12 +130,12 @@ test("the service key, an ended plan, a failed fix and a check that throws all r
   assert.ok(w.open().some((r) => /couldn't check: the shop didn't answer in time/.test(r.problem)));
 });
 
-test("a switch change runs the self-checks, and the queue shows in the control room", async () => {
+test("Check now runs the self-checks, and the queue shows in the control room", async () => {
   const w = await world();
   await w.registry.updateShop(ID, { billing: { access: "closed" } });
-  const answer = await w.ask("POST", "/api/control/switch", { shopId: ID, name: SWITCHES[0], on: true, reason: "the press asked for it" });
+  const answer = await w.ask("POST", "/api/control/check", { shopId: ID });
   assert.equal(answer.status, 200);
-  assert.equal(answer.body.selfCheck.ok, false);
+  assert.equal(answer.body.ok, false);
   const [first] = (await w.ask("GET", "/api/control/shops")).body.shops;
   assert.equal(first.health.level, "problem");
   assert.match(first.health.reasons.join(" "), /in the repair queue: the plan has ended but the shop is still marked live/);

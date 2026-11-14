@@ -1,5 +1,5 @@
-// The control room page (control-room/index.html): every shop with its plan, version, health and switches, an
-// "Act as this shop" button, a switch for each feature, and the support requests to answer. Plain browser JavaScript with no framework, like the
+// The control room page (control-room/index.html): every shop with its plan, version and health, an
+// "Act as this shop" button, and the support requests to answer. Plain browser JavaScript with no framework, like the
 // sign-up page. The server (control-room/routes.js) checks that the person is a platform admin and logs who did what and
 // when. Nothing asks for a reason (Julian, 14 November 2026); the few careful actions ask a plain yes or no (askYes).
 //
@@ -100,15 +100,6 @@ function costCell(cost) {
 }
 
 const LEVEL = { problem: "Problem", watch: "Look", ok: "OK" };
-// Each shop switch in plain words: a name and one line on what it does (the five are one brand's old features, plan 1.17).
-const SWITCH_WORDS = {
-  legacyStockroomSignIn: { title: "Old stockroom sign-in", line: "The admin also signs in to a separate, older stockroom." },
-  githubPagesForwarding: { title: "Forward an old web address", line: "Sends visitors from the shop's old GitHub Pages address to its shop." },
-  gmailReceiptFinder: { title: "Find receipts in Gmail", line: "Adds a Gmail search to the stockroom's receipt import." },
-  gmailOrderScan: { title: "Read orders from Gmail", line: "Fills in orders from order emails in the owner's Gmail." },
-  oldShopSync: { title: "Orders from an old shop system", line: "Shows a tab for orders from a brand's previous shop, and checks for missing ones." },
-};
-const switchTitle = (name) => SWITCH_WORDS[name]?.title ?? name;
 
 // ── The admin's pieces, in plain JavaScript (same markup as admin/riso/components.tsx). ──
 // Status never relies on colour alone: every pill carries a glyph and a word.
@@ -225,7 +216,6 @@ async function load() {
     await loadRecoveries();
     await loadBreaches();
     await loadWaitlist();
-    await loadEverySwitch();
     await loadSettings();
     await loadActivity();
     await loadBusiness();
@@ -1449,24 +1439,6 @@ function card(shop) {
     }
   });
 
-  const switches = shop.switches
-    ? el("div", { className: "cr-switches" }, ...Object.entries(shop.switches).map(([name, on]) => {
-      const box = el("input", { type: "checkbox", checked: on });
-      box.addEventListener("change", async () => {
-        box.disabled = true;
-        try {
-          await api("POST", "/control/switch", { shopId: shop.shopId, name, on: box.checked });
-          status.textContent = `${switchTitle(name)} is ${box.checked ? "on" : "off"} for ${shop.pressName}.`;
-        } catch (failure) {
-          box.checked = !box.checked;
-          status.textContent = failure.message;
-        }
-        box.disabled = false;
-      });
-      return el("label", { className: "rp-check" }, box, switchTitle(name));
-    }))
-    : null;
-
   const recordSlot = el("div", {}, el("p", { className: "rp-hint", textContent: "Opening the record…" }));
   api("POST", "/control/shop", { shopId: shop.shopId })
     .then((record) => recordSlot.replaceChildren(recordView(record)))
@@ -1490,8 +1462,6 @@ function card(shop) {
     shop.testShop ? el("div", { className: "cr-do" }, testShopAdminButton(shop, "primary"), shop.siteUrl ? outLink(shop.siteUrl, "Open shop") : null) : null,
     el("div", { className: "cr-do" }, act, change, check, exportButton(shop)),
     accessSlot,
-    switches ? el("h3", { className: "cr-section", textContent: "Switches for this shop" }) : null,
-    switches,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Card payments" }) : null,
     shop.status === "live" ? paymentsMenu(shop.paymentsMoved?.to ?? "platform", { shopId: shop.shopId }, shop.pressName) : null,
     shop.status === "live" ? providerSwitchLine(shop) : null,
@@ -2705,78 +2675,6 @@ onAuthStateChanged(auth, (user) => {
   if (user) load();
   else showOnly("#view-signin");
 });
-
-// ── Switches for every shop (plan 9.7): one switch for every live shop at once, and what new shops start with. ──
-async function loadEverySwitch() {
-  const board = $("#every-switch");
-  let answer;
-  try {
-    answer = await api("GET", "/control/new-shop-switches");
-  } catch (failure) {
-    board.replaceChildren(emptyState("The switches didn't load", failure.message));
-    return;
-  }
-  const { switches, live = {} } = answer;
-  const names = Object.keys(switches);
-  const onSomewhere = names.filter((name) => switches[name] || live[name]?.on).length;
-  toolChip("switches", onSomewhere ? `${onSomewhere} on` : "All off", onSomewhere ? "apricot" : "mint");
-  if (!names.length) {
-    board.replaceChildren(emptyState("No switches yet."));
-    return;
-  }
-  board.replaceChildren(
-    el("div", { className: "cr-switch-head", ariaHidden: "true" }, el("span", { textContent: "Feature" }), el("span", { textContent: "Live shops" }), el("span", { textContent: "New shops" })),
-    ...names.map((name) => switchRow(name, switches[name], live[name] ?? null)));
-}
-
-/** One feature: what it is, where it stands in the live shops with one button, and a switch for new shops. */
-function switchRow(name, startsOn, live) {
-  const words = SWITCH_WORDS[name] ?? { title: name, line: "" };
-  const shops = live?.of ?? 0;
-  const onIn = live?.on ?? 0;
-  const liveWords = !shops ? "No live shops yet" : onIn === 0 ? `Off in all ${shops}` : onIn === shops ? `On in all ${shops}` : `On in ${onIn} of ${shops}`;
-    const all = shops ? button(onIn === 0 ? "Turn on for all" : "Turn off for all", "secondary") : null;
-  all?.addEventListener("click", async () => {
-    const on = onIn === 0;
-    if (!(await askYes(`${on ? "Turn on" : "Turn off"} "${words.title}" in every live shop? Each shop updates in about a minute.`, { yes: on ? "Turn on for all" : "Turn off for all" }))) return;
-    all.disabled = true;
-    try {
-      const { shops: done } = await api("POST", "/control/switch-all", { name, on });
-      const failed = done.filter((s) => s.error);
-      status.textContent = `${words.title}: ${on ? "on" : "off"} in ${done.length - failed.length} shop${done.length - failed.length === 1 ? "" : "s"}.${failed.length ? ` Not done: ${failed.map((s) => `${s.shopId} (${s.error})`).join("; ")}` : ""}`;
-      await loadEverySwitch();
-    } catch (failure) {
-      status.textContent = failure.message;
-      all.disabled = false;
-    }
-  });
-  const toggleId = `new-${name}`;
-  const toggleWords = el("span", { className: "cr-switch-state", textContent: startsOn ? "On" : "Off" });
-  // The whole switch and its word are one button, so it is easy to press on a phone.
-  const toggle = el("button", { type: "button", id: toggleId, className: "cr-toggle", role: "switch", ariaChecked: String(startsOn), ariaLabel: `New shops start with ${words.title}` },
-    el("span", { className: "rp-toggle-track", ariaHidden: "true" }), toggleWords);
-  toggle.addEventListener("click", async () => {
-    const on = toggle.getAttribute("aria-checked") !== "true";
-    toggle.setAttribute("aria-checked", String(on));
-    toggleWords.textContent = on ? "On" : "Off";
-    toggle.disabled = true;
-    try {
-      await api("POST", "/control/new-shop-switches", { name, on });
-      status.textContent = `New shops start with ${words.title} ${on ? "on" : "off"}.`;
-    } catch (failure) {
-      toggle.setAttribute("aria-checked", String(!on));
-      toggleWords.textContent = on ? "Off" : "On";
-      status.textContent = failure.message;
-    }
-    toggle.disabled = false;
-  });
-  return el("div", { className: "cr-switch-row", dataset: { on: String(startsOn || onIn > 0) } },
-    el("div", { className: "cr-switch-what" }, el("h3", { className: "cr-title", textContent: words.title }), words.line ? el("p", { className: "rp-hint", textContent: words.line }) : null),
-    el("div", { className: "cr-switch-cell" }, el("span", { className: "cr-switch-label", textContent: "Live shops" }),
-      el("span", { className: "cr-switch-state", textContent: liveWords }), all),
-    el("div", { className: "cr-switch-cell" }, el("span", { className: "cr-switch-label", textContent: "New shops" }),
-      toggle));
-}
 
 // ── Support asks before making changes (plan 19.6): "Ask the press", their answer, then "Open their admin" once. ──
 const ACCESS_STATE = {

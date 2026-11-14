@@ -1,6 +1,5 @@
-// The control room (code plan 2.8): the platform's own admin. It lists every shop with its plan, release version,
-// health and switches; lets a platform admin "act as this shop" for support, logging every use first; and turns one
-// shop switch on or off, re-publishing that shop's profile.
+// The control room (code plan 2.8): the platform's own admin. It lists every shop with its plan, release version and
+// health, and lets a platform admin "act as this shop" for support, logging every use first.
 //
 // Only platform admins get in: a confirmed email on the PLATFORM_ADMIN_EMAILS list (none by default, so nobody is an
 // admin by accident), signed in with two steps in the last 12 hours (plan 9.1).
@@ -27,8 +26,7 @@
 //   newsletters   optional: the newsletter pause (services/email/reputation.js): resume(shopId, { by, reason })
 //   settings      optional: () -> the live platform settings (services/settings.js liveSettings), for Today's income
 //   supportStore, recoveryStore, signups   optional: list({ status }) / list(): what's waiting, for Today (9.2)
-//   platformState optional: the platform's small records (clients/stores.js firestorePlatformState), for the switch
-//                 defaults new shops get (9.7, record `newShopSwitches`)
+//   platformState optional: the platform's small records (clients/stores.js firestorePlatformState)
 //   feeDefaults   the platform's default per-order fee (services/payments/fees.js readFeeSettings), shown with a shop's fee
 //   activity      optional: the activity log (activity.js, plan 9.9): record(entry); every logged action goes there too
 //   accessRequests optional: support-access requests (accessRequests.js createAccessRequests, plan 19.6). "Make
@@ -43,8 +41,7 @@ import { writeTestSamples } from "../setup/test-sample-data.js";
 import { testShopKind } from "../setup/testShopPlace.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
-import { PLANS, SWITCHES, shopSwitches } from "../setup/steps.js";
-import { profileProblems, profileScript } from "../profile/profile.js";
+import { PLANS } from "../setup/steps.js";
 import { SETTINGS_DOC, isPaused, pausedSettings, restoredSettings } from "./closure.js";
 import { PAYMENT_ROUTES, emergencyPayments } from "./emergencyPayments.js";
 import { providerSwitch, switchWaiting } from "./providerSwitch.js";
@@ -84,8 +81,6 @@ export function emailSample(row, settings, today) {
 
 /** A change to a press's per-order fee starts this many days after the press is emailed (Julian, 28 October 2026). */
 export const FEE_NOTICE_DAYS = 30;
-/** Where the switch defaults for new shops are kept (`platformState`), read by the shop maker's setup step 6. */
-export const NEW_SHOP_SWITCHES = "newShopSwitches";
 /**
  * A note for the log, if the person gave one. Never asked for and never required (Julian, 14 November 2026): the log
  * already says who did what and when, so an empty note is fine.
@@ -217,21 +212,14 @@ export function profilePublisher({ deploy, registry, build = async () => {} }) {
 
 /**
  * A shop in the shared system has no pages of its own to deploy: the front door serves its profile from the shop's
- * record (`shops/<id>.profile`), and its pages read it when they open. So a switch reaches such a shop by copying the
- * saved switches into that record (only the switches: setup's payments step writes the record's other fields).
- * `recordsFor(shopId)` (clients/shared.js shopStores) is null for a shop with a project of its own, which `fallback`
- * (profilePublisher) publishes as before. Safe to repeat: a record that already matches is left alone.
+ * record (`shops/<id>.profile`), which setup writes, and its pages read it when they open. So there is nothing to
+ * publish for such a shop. `recordsFor(shopId)` (clients/shared.js shopStores) is null for a shop with a project of its
+ * own, which `fallback` (profilePublisher) publishes as before.
  */
-export function switchPublisher({ registry, recordsFor, fallback }) {
+export function sharedPublisher({ recordsFor, fallback }) {
   return async function publish(shopId) {
-    const records = await recordsFor(shopId);
-    if (!records) return fallback(shopId);
-    const profile = (await records.get(shopId))?.profile;
-    // A record with no profile yet gets the saved one from setup (step 3).
-    if (!profile) return { apps: [] };
-    const switches = shopSwitches((await registry.getProfile(shopId))?.switches);
-    if (!isDeepStrictEqual(profile.switches, switches)) await records.set(shopId, { profile: { ...profile, switches } }, { fields: ["profile"] });
-    return { apps: ["shop", "stockroom"] };
+    if (!(await recordsFor(shopId))) return fallback(shopId);
+    return { apps: [] };
   };
 }
 
@@ -327,32 +315,6 @@ export function createControlRoom({
   }
 
   /**
-   * Turns one switch on or off for one shop. Safe to repeat: the saved profile, its file and the live pages end up the
-   * same, and each call is logged. Used by the control room and by `switch.js` on the command line.
-   */
-  async function setSwitch({ by, shopId, name, on, reason }) {
-    if (!SWITCHES.includes(name)) throw new ControlError(400, `There's no switch called ${name}. The switches are: ${SWITCHES.join(", ")}.`);
-    if (typeof on !== "boolean") throw new ControlError(400, "Say on or off.");
-    const why = reasonOf(reason);
-    await shopOr404(shopId);
-    const saved = await registry.getProfile(shopId);
-    if (!saved) throw new ControlError(409, "That shop has no saved profile yet. Its setup writes one (step 6).");
-    const from = shopSwitches(saved.switches)[name];
-    const profile = { ...saved, switches: { ...shopSwitches(saved.switches), [name]: on } };
-    const problems = profileProblems(profile);
-    if (problems.length) throw new ControlError(409, `The shop's profile has problems, so nothing was changed: ${problems.join("; ")}`);
-    if (!isDeepStrictEqual(saved, profile)) await registry.saveProfile(shopId, profile);
-    const text = profileScript(profile);
-    if ((await profileFiles.read(shopId)) !== text) await profileFiles.write(shopId, text);
-    // The log entry comes before the pages go live, so a change that reaches a shop is always on record.
-    await log(shopId, "switch-set", { by, switch: name, from, to: on, reason: why });
-    const { apps } = await publish(shopId);
-    // Self-checks after every change (2.11): anything off goes to the repair queue.
-    const checked = selfCheck ? await selfCheck.check(shopId, { why: `switch ${name} ${on ? "on" : "off"}` }) : null;
-    return { shopId, switch: name, from, to: on, changed: from !== on, published: apps, ...(checked ? { selfCheck: { ok: checked.ok, results: checked.results } } : {}) };
-  }
-
-  /**
    * Moves one shop to another time zone: its sale and release dates, the end day of its codes, its daily numbers and
    * its morning emails follow it from then on. Saved on the profile and the registry row, written into the shop's
    * record, and logged. Safe to repeat.
@@ -378,7 +340,6 @@ export function createControlRoom({
   }
 
   return {
-    setSwitch,
     setTimeZone,
 
     /** One shop's time zone (its day, its dates and its morning emails), with a reason for its log. */
@@ -404,7 +365,6 @@ export function createControlRoom({
           access: row.billing?.access ?? null,
           lastCheck: checks.at(-1) ? { ok: checks.at(-1).ok, at: checks.at(-1).finishedAt ?? null, version: checks.at(-1).version ?? null } : null,
           health: shopHealth({ row, profile, checks, repairs: open }),
-          switches: profile ? shopSwitches(profile.switches) : null,
           siteUrl: profile?.siteUrl ?? null,
           ownerEmail: row.ownerEmail ?? null,
           billingStatus: row.billing?.status ?? null,
@@ -435,7 +395,7 @@ export function createControlRoom({
         });
       }
       const order = { problem: 0, watch: 1, ok: 2 };
-      return { shops: shops.sort((a, b) => order[a.health.level] - order[b.health.level] || a.pressName.localeCompare(b.pressName)), switchNames: [...SWITCHES] };
+      return { shops: shops.sort((a, b) => order[a.health.level] - order[b.health.level] || a.pressName.localeCompare(b.pressName)) };
     },
 
     /**
@@ -685,58 +645,6 @@ export function createControlRoom({
       return { shopId, changed: true, fee: own, next };
     },
 
-    /**
-     * One switch for every live shop at once (9.7), each changed, logged and published as one shop's switch is; one
-     * shop's trouble doesn't stop the others and is reported.
-     */
-    async switchAll(claims, { name, on, reason } = {}) {
-      const by = adminOf(claims, admins, now().getTime());
-      if (!SWITCHES.includes(name)) throw new ControlError(400, `There's no switch called ${name}.`);
-      if (typeof on !== "boolean") throw new ControlError(400, "Say on or off.");
-      reasonOf(reason);
-      const shops = [];
-      for (const row of await registry.listShops()) {
-        if (row.status !== "live") continue;
-        try {
-          const done = await setSwitch({ by, shopId: row.shopId, name, on, reason });
-          shops.push({ shopId: row.shopId, changed: done.changed });
-        } catch (error) {
-          shops.push({ shopId: row.shopId, error: error.message });
-        }
-      }
-      return { switch: name, to: on, shops };
-    },
-
-    /**
-     * The switch defaults new shops get (9.7): every switch, off unless saved on. `live` says, per switch, how many of
-     * the live shops have it on (`of` live shops), so the Switches page shows where each one stands today.
-     */
-    async newShopSwitches(claims) {
-      adminOf(claims, admins, now().getTime());
-      const saved = platformState ? await platformState.get(NEW_SHOP_SWITCHES) : null;
-      const liveRows = (await registry.listShops()).filter((row) => row.status === "live");
-      const profiles = await Promise.all(liveRows.map((row) => registry.getProfile(row.shopId).catch(() => null)));
-      const live = Object.fromEntries(SWITCHES.map((name) => [name, {
-        on: profiles.filter((profile) => shopSwitches(profile?.switches)[name]).length, of: liveRows.length,
-      }]));
-      return { switches: shopSwitches(saved?.values), live, updatedAt: saved?.updatedAt ?? null, updatedBy: saved?.updatedBy ?? null };
-    },
-
-    async setNewShopSwitch(claims, { name, on, reason } = {}) {
-      const by = adminOf(claims, admins, now().getTime());
-      if (!SWITCHES.includes(name)) throw new ControlError(400, `There's no switch called ${name}.`);
-      if (typeof on !== "boolean") throw new ControlError(400, "Say on or off.");
-      const why = reasonOf(reason);
-      if (!platformState) throw new ControlError(503, "The platform's records aren't set up here, so nothing was saved.");
-      const saved = await platformState.get(NEW_SHOP_SWITCHES);
-      const values = shopSwitches(saved?.values);
-      if (values[name] === on) return { switches: values, changed: false };
-      values[name] = on;
-      await platformState.set(NEW_SHOP_SWITCHES, { values, updatedAt: at(), updatedBy: by });
-      if (activity) await activity.record(activityEntry({ at: at(), by, what: "new-shop-switch", detail: { switch: name, to: on, reason: why } }));
-      return { switches: values, changed: true };
-    },
-
     /** Today (9.2): the numbers, monthly income and everything that needs a person. */
     async today(claims) {
       adminOf(claims, admins, now().getTime());
@@ -924,10 +832,6 @@ export function createControlRoom({
       return { shopId, resumed };
     },
 
-    /** The control room's switch button. */
-    async switch(claims, { shopId, name, on, reason } = {}) {
-      return setSwitch({ by: adminOf(claims, admins, now().getTime()), shopId, name, on, reason });
-    },
 
     /** A shop's support-access requests (19.6), newest first, for the shop drawer's "Ask the press". */
     async accessRequests(claims, { shopId } = {}) {
