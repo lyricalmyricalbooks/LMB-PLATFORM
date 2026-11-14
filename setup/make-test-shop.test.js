@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, paymentsOrWait, testShop, testShopSteps } from "./make-test-shop.js";
+import { LATER_STEPS, OLD_TEST_SHOP_ID, TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID, makeTestShopWith, paymentsOrWait, testShop, testShopSteps, provePlatformAccess } from "./make-test-shop.js";
 import { fakeAuditLog, fakeGoogle, fakeRegistry, fakeServices, fakeShared, fakeTenants } from "./fakes.js";
 import { TEST_CONFIG } from "./test-shop.js";
 import { SHARED_RELEASE_LOCK } from "../services/release-runner/shared.js";
@@ -217,8 +217,48 @@ test("the platform's server is let open the test shops' admins (control room Ope
   const refused = await second.run(true, { allowPlatformSignIn: async () => { throw new Error("no setIamPolicy"); } });
   assert.equal(refused.ok, false);
   assert.equal(refused.stage, "platform-sign-in");
-  assert.match(refused.error, /platform-api@lmb-platform-prod\.iam\.gserviceaccount\.com .*Firebase Authentication Admin on lmb-test-shop/);
+  assert.match(refused.error, /on lmb-test-shop give platform-api@lmb-platform-prod\.iam\.gserviceaccount\.com .*roles\/identitytoolkit\.admin.*platform-jobs@lmb-platform-prod\.iam\.gserviceaccount\.com roles\/datastore\.user/);
   assert.deepEqual(second.published, []);
+});
+
+test("the run ends by trying the shops as the platform's own server accounts, and stops when one is still refused", async () => {
+  const { run } = setup();
+  const proved = [];
+  const ok = await run(true, { provePlatform: async (shopIds) => { proved.push(shopIds); } });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(proved, [["test-press", "test-goods", "test-press-us"]]);
+  const dry = setup();
+  let dryAsked = 0;
+  await dry.run(false, { provePlatform: async () => { dryAsked += 1; } });
+  assert.equal(dryAsked, 0);
+  const refused = await setup().run(true, { provePlatform: async () => { throw new Error("platform-jobs still can't reach the test shops: Missing or insufficient permissions."); } });
+  assert.deepEqual([refused.ok, refused.stage], [false, "platform-access"]);
+  assert.match(refused.error, /insufficient permissions/);
+});
+
+test("provePlatformAccess reads each shop as each account, makes the owner's pass as the control room's, and waits out a new permission", async () => {
+  const calls = [];
+  let refusals = 2;
+  const registry = { getShop: async (shopId) => ({ shopId, testShop: true, shared: true, tenant: `${shopId}-list`, ownerEmail: "owner@example.com" }), getProfile: async () => ({ firebase: { projectId: "lmb-test-shop" } }) };
+  const as = async (account) => ({
+    shopDb: (shopId) => ({ get: async (path) => { if (refusals > 0) { refusals -= 1; throw new Error("Missing or insufficient permissions."); } calls.push(`${account} reads ${shopId}/${path}`); return null; } }),
+    identity: {
+      ensureUser: async (project, email, list) => { calls.push(`${account} finds ${email} on ${list.tenantId}`); return { uid: "u1", email }; },
+      customToken: async (signer, uid, claims, list) => { calls.push(`${account} signs as ${signer} for ${list.tenantId}`); return "token"; },
+    },
+  });
+  const waits = [];
+  const lines = [];
+  await provePlatformAccess({ shopIds: ["test-press"], registry, as, sleep: async (ms) => waits.push(ms), print: (l) => lines.push(l) });
+  assert.deepEqual(waits, [15_000, 15_000]);
+  assert.deepEqual(calls, [
+    "platform-api@lmb-platform-prod.iam.gserviceaccount.com reads test-press/systemStatus/backup",
+    "platform-api@lmb-platform-prod.iam.gserviceaccount.com finds owner@example.com on test-press-list",
+    "platform-api@lmb-platform-prod.iam.gserviceaccount.com signs as firebase-adminsdk-fbsvc@lmb-test-shop.iam.gserviceaccount.com for test-press-list",
+    "platform-jobs@lmb-platform-prod.iam.gserviceaccount.com reads test-press/systemStatus/backup",
+  ]);
+  assert.equal(lines.length, 2);
+  await assert.rejects(provePlatformAccess({ shopIds: ["test-press"], registry, tries: 2, sleep: async () => {}, as: async () => { throw new Error("INSUFFICIENT_PERMISSION"); } }), /platform-api@.*still can't reach the test shops: INSUFFICIENT_PERMISSION/);
 });
 
 test("with Connect off in the platform's Stripe account, step 7 waits and the test shop is still made", async () => {

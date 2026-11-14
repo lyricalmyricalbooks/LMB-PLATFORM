@@ -39,8 +39,10 @@ import { firstSharedRelease, sharedProjectProfile } from "../services/release-ru
 import { commandTail } from "../services/release-runner/run.js";
 import { TEST_PROJECT, TEST_SHOPS, TEST_SHOP_ADDRESS, TEST_SHOP_ID } from "./testShopPlace.js";
 import { firestoreClient } from "../clients/firestore.js";
-import { AUTH_ADMIN, identityClient, projectSigner } from "../clients/identity.js";
-import { API_SERVICE } from "../server/schedules.js";
+import { AUTH_ADMIN, identityClient, projectSigner, testOwnerToken } from "../clients/identity.js";
+import { BACKUP_ROLE } from "../clients/google.js";
+import { sharedStores } from "../clients/shared.js";
+import { API_SERVICE, JOBS_SERVICE } from "../server/schedules.js";
 import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { firestoreAccounts, firestoreSentLog } from "../clients/stores.js";
 import { createEmailService, hasEmailSending } from "../services/email/index.js";
@@ -153,6 +155,50 @@ export async function retireOldTestShop({ registry, apply, print = () => {}, now
 
 /** The platform server's own account (the web door, server/deploy.js ACCOUNTS): the control room runs in it. */
 export const PLATFORM_SERVER_ACCOUNT = `${API_SERVICE}@${PLATFORM_PROJECT}.iam.gserviceaccount.com`;
+/** The scheduled jobs' own account: the five-minute health checks and the nightly backup run in it. */
+export const PLATFORM_JOBS_ACCOUNT = `${JOBS_SERVICE}@${PLATFORM_PROJECT}.iam.gserviceaccount.com`;
+
+/**
+ * What each of the platform's server accounts may do in the test project. Both live in the platform's own project and
+ * start with nothing here, so until this is given the control room can't sign anyone in to a test shop and every
+ * health check that reads a shop's data fails. `signIn`: the account also makes the test owner's sign-in pass.
+ *   web door: reads and writes each shop's data, and looks up (or adds) the owner on a shop's own sign-in list. A
+ *     sign-in list is an Identity Platform tenant, which Firebase Authentication Admin alone doesn't reach.
+ *   jobs: reads each shop's data for the checks, and exports the databases for the nightly backup.
+ */
+export const PLATFORM_ACCESS = Object.freeze([
+  { account: PLATFORM_SERVER_ACCOUNT, words: "the control room", signIn: true, roles: ["roles/datastore.user", AUTH_ADMIN, "roles/identitytoolkit.admin", "roles/serviceusage.serviceUsageConsumer"] },
+  { account: PLATFORM_JOBS_ACCOUNT, words: "the health checks", signIn: false, roles: ["roles/datastore.user", BACKUP_ROLE, "roles/firebasestorage.viewer", "roles/storage.objectViewer", "roles/serviceusage.serviceUsageConsumer"] },
+]);
+
+/**
+ * Tries, as each of the platform's server accounts, what it was just allowed: reading every test shop's data, and for
+ * the control room making the owner's sign-in pass on that shop's own list. A new permission takes a minute or two to
+ * reach all of Google, so a refusal is tried again for a while. Throws with Google's own words when it still fails, so
+ * the run stops instead of leaving a control room that can't open the shops.
+ *   as(account) -> { identity, shopDb(shopId) }: clients that act as that account.
+ */
+export async function provePlatformAccess({ shopIds, registry, as, access = PLATFORM_ACCESS, signer = projectSigner(TEST_PROJECT), tries = 12, waitMs = 15_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), print = () => {} }) {
+  for (const { account, words, signIn } of access) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const { identity, shopDb } = await as(account);
+        for (const shopId of shopIds) {
+          await shopDb(shopId).get("systemStatus/backup");
+          if (!signIn) continue;
+          const shop = await registry.getShop(shopId);
+          const profile = await registry.getProfile(shopId);
+          await testOwnerToken({ identity, shop, profile, serviceAccount: signer });
+        }
+        break;
+      } catch (error) {
+        if (attempt >= tries) throw new Error(`${account} (${words}) still can't reach the test shops: ${message(error)}`);
+        await sleep(waitMs);
+      }
+    }
+    print(`Checked as ${account}: ${words} can ${signIn ? "open" : "read"} ${shopIds.join(", ")}.`);
+  }
+}
 
 /**
  * The whole run, with its clients passed in (tests use fakes): `google`, `registry`, `auditLog`, `stepClients` (what
@@ -162,7 +208,7 @@ export const PLATFORM_SERVER_ACCOUNT = `${API_SERVICE}@${PLATFORM_PROJECT}.iam.g
  */
 export async function makeTestShopWith({
   apply, ownerEmail, version = FIRST_RELEASE, google, registry, auditLog, stepClients, deploy, builder, makerConfig, publishPages, copySite = null,
-  allowOwnerSigning = null, allowPlatformSignIn = null, connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
+  allowOwnerSigning = null, allowPlatformSignIn = null, provePlatform = null, connected = {}, platformUrl = PLATFORM_URL, region = REGION, print = () => {}, now = () => new Date(),
 }) {
   testShop(ownerEmail); // the owner's address is checked before anything is touched
   print(`The shared test project ${TEST_PROJECT}:`);
@@ -200,7 +246,7 @@ export async function makeTestShopWith({
       const { changed } = await allowPlatformSignIn();
       print(changed ? "The control room may now open the test shops' admins." : "The control room may open the test shops' admins.");
     } catch (error) {
-      return { ok: false, stage: "platform-sign-in", error: `the platform's server couldn't be let open the test shops' admins (${message(error)}); give ${PLATFORM_SERVER_ACCOUNT} Service Account Token Creator on ${projectSigner(TEST_PROJECT)} and Firebase Authentication Admin on ${TEST_PROJECT}` };
+      return { ok: false, stage: "platform-sign-in", error: `the platform's server couldn't be let open the test shops' admins (${message(error)}); on ${TEST_PROJECT} give ${PLATFORM_ACCESS.map(({ account, roles }) => `${account} ${roles.join(", ")}`).join("; and ")}; and give ${PLATFORM_SERVER_ACCOUNT} Service Account Token Creator on ${projectSigner(TEST_PROJECT)}` };
     }
   }
 
@@ -244,6 +290,14 @@ export async function makeTestShopWith({
     print(`${place.shopId} is ready at https://${place.address}.`);
   }
   if (!apply) return { ok: true, stage: "shop", dryRun: true };
+  // Proof, not hope: the platform's own server accounts are tried against the shops just made.
+  if (provePlatform) {
+    try {
+      await provePlatform(TEST_SHOPS.map((place) => place.shopId));
+    } catch (error) {
+      return { ok: false, stage: "platform-access", error: message(error) };
+    }
+  }
   print(`The test shops are ready. Run the release check (node release-check/run.js <shop id>) for a test purchase.`);
   return { ok: true, stage: "done" };
 }
@@ -345,10 +399,30 @@ export async function makeTestShop({ apply, ownerEmail, serviceAccount, root = p
     },
     async allowPlatformSignIn() {
       const identity = identityClient({ fetch, token });
-      const member = `serviceAccount:${PLATFORM_SERVER_ACCOUNT}`;
-      const signing = await identity.allowSigning(serviceAccount, member);
-      const auth = await identity.allowProjectRole(TEST_PROJECT, AUTH_ADMIN, member);
-      return { changed: signing.changed || auth.changed };
+      const member = (account) => `serviceAccount:${account}`;
+      let changed = false;
+      for (const { account, signIn } of PLATFORM_ACCESS) {
+        if (signIn) changed = (await identity.allowSigning(serviceAccount, member(account))).changed || changed;
+      }
+      const grants = PLATFORM_ACCESS.flatMap(({ account, roles }) => roles.map((role) => ({ role, member: member(account) })));
+      return { changed: (await identity.allowProjectRoles(TEST_PROJECT, grants)).changed || changed };
+    },
+    async provePlatform(shopIds) {
+      const identity = identityClient({ fetch, token });
+      const account = await deployAccount(env);
+      if (!account) throw new Error("this run's own account isn't known (DEPLOY_ACCOUNT)");
+      const me = `${account.endsWith(".gserviceaccount.com") ? "serviceAccount" : "user"}:${account}`;
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await provePlatformAccess({
+        shopIds, registry: clients.registry, signer: serviceAccount, sleep, print,
+        // The deploy account acts as each server account for this one check (it manages them already).
+        async as(platformAccount) {
+          await identity.allowSigning(platformAccount, me);
+          const value = await identity.accessTokenAs(platformAccount);
+          const asAccount = async () => value;
+          return { identity: identityClient({ fetch, token: asAccount, signRetries: 0 }), shopDb: sharedStores({ fetch, token: asAccount, projectId: TEST_PROJECT }).shopDb };
+        },
+      });
     },
     // Payments and email join when the workflow hands this script their keys (platformServices).
     connected: { 7: Boolean(clients.providers.stripe), 8: Boolean(clients.email) },

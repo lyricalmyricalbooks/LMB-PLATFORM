@@ -96,3 +96,12 @@ jobs:
           TEST_SHOP_OWNER_EMAIL=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n 's/^PLATFORM_ADMIN_EMAIL: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -n 1)
           export TEST_SHOP_OWNER_EMAIL
           node setup/make-test-shop.js --apply
+      # The checks run every five minutes and the backup every night; they are started now so the control room and the
+      # status page show the result of this run at once. Never fails the run: the schedule runs them anyway.
+      - name: Run the backup and the health checks now
+        run: |
+          for job in platform-nightly-backups platform-health-checks; do
+            gcloud scheduler jobs run "$job" --project=lmb-platform-prod --location=northamerica-northeast1 ||
+              echo "$job couldn't be started now; it runs on its schedule." >> "$GITHUB_STEP_SUMMARY"
+            sleep 60
+          done

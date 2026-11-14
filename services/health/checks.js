@@ -32,9 +32,11 @@ const hoursBetween = (later, earlier) => (Date.parse(later) - Date.parse(earlier
  * with console links and project ids) never go on screen; the run's log keeps them.
  */
 export function plainCheckProblem(error) {
-  const said = message(error);
+  // Google's status travels beside its words (clients/http.js GoogleError): Firestore refuses with "Missing or
+  // insufficient permissions.", which names neither 403 nor PERMISSION_DENIED.
+  const said = [message(error), error?.code, error?.status].filter(Boolean).join(" ");
   if (/has not been used in project|it is disabled|SERVICE_DISABLED/i.test(said)) return "the shop's data couldn't be reached (the platform looked in the wrong place, or the database is off)";
-  if (/permission denied|PERMISSION_DENIED|\b403\b/i.test(said)) return "the platform isn't allowed to read this shop's data";
+  if (/permission denied|insufficient.permission|PERMISSION_DENIED|\b403\b/i.test(said)) return "the platform isn't allowed to read this shop's data";
   if (/not found|NOT_FOUND|\b404\b/i.test(said)) return "the shop's data wasn't found";
   if (/timed? ?out|aborted|ETIMEDOUT|ECONNRESET|socket hang up|fetch failed|network|unreachable/i.test(said)) return "the shop didn't answer in time";
   if (/quota|RESOURCE_EXHAUSTED|\b429\b/i.test(said)) return "Google is limiting requests just now";

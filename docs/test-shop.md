@@ -114,8 +114,10 @@ These steps need Julian's Google account. Nothing here touches his own shop, sto
    (`firebase-adminsdk-fbsvc@<test project>`). "Make the test shop" lets the deploy account sign as it (Service Account
    Token Creator; the deploy account owns the project, so it gives this itself). `PLATFORM_SERVICE_ACCOUNT` can still
    name another signer. It also lets the platform's server (`platform-api@lmb-platform-prod`) sign that pass and keep
-   the owner on each test shop's sign-in list (Token Creator on the same account, Firebase Authentication Admin on the
-   test project), so the control room's **Open admin** on a test shop (Today, Launch and the shop's record) opens its
+   the owner on each test shop's sign-in list (Token Creator on the same account; on the test project the roles in
+   `PLATFORM_ACCESS`, `setup/make-test-shop.js`, which also let the scheduled jobs' account `platform-jobs` read each
+   shop for the health checks and export the nightly backup). The run ends by trying all of it as those two accounts
+   (`provePlatformAccess`) and stops with Google's words if one is still refused, so the control room's **Open admin** on a test shop (Today, Launch and the shop's record) opens its
    admin already signed in as the owner, with no Google pop-up (`POST /api/control/test-shop/open`, logged first;
    `control-room/supportAccess.js` `testShopOwnerAccess`). Never for a press's shop: those use Act as this shop.
 3. **Choose the test inbox**, a mailbox the platform owns that receives the test shop's order emails (it is

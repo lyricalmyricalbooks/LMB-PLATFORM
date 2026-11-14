@@ -515,7 +515,7 @@ export function createControlRoom({
       } catch (error) {
         if (error?.status === 503) throw error;
         // Google refused the sign-in (most likely the server's access to the test project isn't given yet).
-        throw new ControlError(502, `Google didn't let the control room sign you in to ${row.pressName ?? shopId} (${String(error?.message ?? error).slice(0, 160)}). Run "Make the test shop" on GitHub once, then try again.`);
+        throw new ControlError(502, `Google didn't let the control room sign you in to ${row.pressName ?? shopId} (${String(error?.message ?? error).slice(0, 160)}). The platform's server is missing its access to the test shops; the "Make the test shop" run on GitHub gives it and checks it.`);
       }
     },
 

@@ -17,6 +17,8 @@
 //                       body { token, returnSecureToken: true } -> { idToken, refreshToken, expiresIn }
 //   Resource Manager v1 projects.getIamPolicy / projects.setIamPolicy  POST https://cloudresourcemanager.googleapis.com/v1/projects/{project}:getIamPolicy
 //                       body { options: { requestedPolicyVersion: 3 } } -> policy; :setIamPolicy body { policy }
+//   IAM Credentials v1  projects.serviceAccounts.generateAccessToken  POST …/serviceAccounts/{email}:generateAccessToken
+//                       body { scope: [..] } -> { accessToken }
 // The custom token's claims (iss, sub, aud, iat, exp, uid) follow Firebase's "create custom tokens using a third-party
 // JWT library" guide. Firebase takes it only when it is signed by a service account of the sign-in's own project, so
 // the test owner's pass is signed by that project's Firebase admin account (`projectSigner`); the caller needs
@@ -103,15 +105,35 @@ export function identityClient({ fetch, token, now = () => new Date(), sleep = (
    * again: { changed: false } when it is already there. Used to let the platform's server open the test shops' admins.
    */
   async function allowProjectRole(projectId, role, member) {
+    return allowProjectRoles(projectId, [{ role, member }]);
+  }
+
+  /** The same for several `{ role, member }` pairs at once: the project's access list is read and written once. */
+  async function allowProjectRoles(projectId, grants) {
     const resource = `${RESOURCE_MANAGER}/projects/${projectId}`;
     const policy = await call("POST", `${resource}:getIamPolicy`, { body: { options: { requestedPolicyVersion: 3 } } });
     const bindings = structuredClone(policy.bindings ?? []);
-    const binding = bindings.find((b) => b.role === role && !b.condition);
-    if (binding?.members?.includes(member)) return { changed: false };
-    if (binding) binding.members = [...(binding.members ?? []), member];
-    else bindings.push({ role, members: [member] });
-    await call("POST", `${resource}:setIamPolicy`, { body: { policy: { ...policy, bindings, version: 3 } } });
-    return { changed: true };
+    let changed = false;
+    for (const { role, member } of grants) {
+      const binding = bindings.find((b) => b.role === role && !b.condition);
+      if (binding?.members?.includes(member)) continue;
+      if (binding) binding.members = [...(binding.members ?? []), member];
+      else bindings.push({ role, members: [member] });
+      changed = true;
+    }
+    if (changed) await call("POST", `${resource}:setIamPolicy`, { body: { policy: { ...policy, bindings, version: 3 } } });
+    return { changed };
+  }
+
+  /**
+   * An access token for `account`, for a caller with "Service Account Token Creator" on it (IAM Credentials v1
+   * projects.serviceAccounts.generateAccessToken, body { scope } -> { accessToken }). The test shop run uses it to try,
+   * as the platform's own server accounts, what they were just allowed (setup/make-test-shop.js provePlatformAccess).
+   */
+  async function accessTokenAs(account) {
+    const { accessToken } = await call("POST", `${IAM_CREDENTIALS}/projects/-/serviceAccounts/${encodeURIComponent(account)}:generateAccessToken`, { body: { scope: ["https://www.googleapis.com/auth/cloud-platform"] } });
+    if (!accessToken) throw new Error(`Google gave no access token for ${account}`);
+    return accessToken;
   }
 
   /** Signs in with the custom token through the shop's public web key, as the apps' own sign-in would. */
@@ -150,7 +172,7 @@ export function identityClient({ fetch, token, now = () => new Date(), sleep = (
     });
   }
 
-  return { ensureUser, customToken, allowSigning, allowProjectRole, signIn, removeSecondSteps, secondStepsOf };
+  return { ensureUser, customToken, allowSigning, allowProjectRole, allowProjectRoles, accessTokenAs, signIn, removeSecondSteps, secondStepsOf };
 }
 
 /**
