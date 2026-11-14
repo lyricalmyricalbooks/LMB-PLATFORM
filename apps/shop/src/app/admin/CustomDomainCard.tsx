@@ -3,7 +3,7 @@ import { adminApi } from "./api";
 import { BrandLogo, isBrandId } from "../components/brand/BrandLogo";
 import { DestructiveButton, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { friendlyError } from "./settingsLayout";
-import { allowLabel, describeEntry, domainActions, domainStages, freeNameOf, guideLineTitle, guideMailto, moveWarning, RECHECK_MS, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
+import { allowLabel, BUY_DOMAIN_URL, describeEntry, domainActions, domainStages, freeNameOf, guideLineKind, guideLineTitle, guideMailto, moveWarning, RECHECK_MS, type DomainCheck, type DomainEntry, type DomainList } from "./customDomains";
 import { copyText } from "./clipboard";
 
 /** The domain seller's own logo on its Connect button, when the brand kit has it (GoDaddy today). */
@@ -204,7 +204,15 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                 )}
               </div>
             )}
-            {domains.filter((d) => !d.free).length === 0 && <p className="rp-hint" style={{ margin: 0 }}>Already have a domain? Bring it here: it stays with the company you bought it from, and you keep your email there. No domain yet? Buy one from any domain seller, then add it.</p>}
+            {domains.filter((d) => !d.free).length === 0 && (
+              <div className="rp-stack" style={{ gap: 8 }} data-no-domain>
+                <p className="rp-hint" style={{ margin: 0 }}>Already have a domain? Add it below: it stays with the company you bought it from, and you keep your email there.</p>
+                <p className="rp-hint" style={{ margin: 0 }}>No domain yet? Buy one, then come back and add it below.</p>
+                <div className="rp-card-actions">
+                  <a className="rp-btn rp-btn-secondary rp-btn-sm" href={BUY_DOMAIN_URL} target="_blank" rel="noopener noreferrer" data-buy-domain style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><BrandLogo id="godaddy" size="sm" />Find a domain at GoDaddy</a>
+                </div>
+              </div>
+            )}
             {domains.map((d) => {
               const found = checks[d.name];
               const state = found?.state ?? d.state;
@@ -253,7 +261,7 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                         {guide.lines.map((line, i) => (
                           <div key={i} className="rp-card" style={{ padding: 12, boxShadow: "none" }} data-guide-line>
                             <strong>{guideLineTitle(line)}</strong>
-                            <span className="rp-hint"> · {line.kind} line{line.priority !== undefined ? ` · Priority ${line.priority}` : ""}</span>
+                            <span className="rp-hint"> · {guideLineKind(line)}</span>
                             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "8px 12px", alignItems: "center", marginTop: 8 }}>
                               <span><span className="rp-hint" style={{ display: "block" }}>Name</span><span style={{ fontFamily: "var(--rp-font-mono)", overflowWrap: "anywhere" }}>{line.name}</span></span>
                               <SecondaryButton size="sm" onClick={() => copyText(line.name, "Name")}>Copy name</SecondaryButton>
@@ -264,6 +272,9 @@ export function CustomDomainCard({ fallback, bare }: { fallback: ReactNode; bare
                         ))}
                       </div>
                       <div className="rp-card-actions" style={{ marginTop: 8 }}>
+                        {guide.openUrl && guide.seller && !d.sendsTo && (
+                          <a className="rp-btn rp-btn-primary rp-btn-sm" href={guide.openUrl} target="_blank" rel="noopener noreferrer" data-open-seller style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>{sellerLogo(guide.seller)}Open {guide.seller}</a>
+                        )}
                         <a className="rp-btn rp-btn-secondary rp-btn-sm" href={guideMailto(guide)}>Send these to my web person</a>
                       </div>
                     </details>

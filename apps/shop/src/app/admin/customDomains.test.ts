@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allowLabel, describeDomain, describeEntry, domainActions, guideLineTitle, guideMailto, moveWarning } from "./customDomains";
+import { allowLabel, BUY_DOMAIN_URL, guideLineKind, describeDomain, describeEntry, domainActions, guideLineTitle, guideMailto, moveWarning } from "./customDomains";
 
 describe("Your web address", () => {
   test("each state has a badge and a plain sentence", () => {
@@ -52,5 +52,12 @@ describe("the tracker and the words for a domain brought over", () => {
     for (const state of ["connecting", "waiting_dns", "securing", "live", "conflict", "missing"] as const) {
       expect(describeDomain(state).text).not.toMatch(/add it again|DNS|CNAME|record/i);
     }
+  });
+
+  test("a line to add says which type to pick at the seller; a line to take out doesn't need it", () => {
+    expect(guideLineKind({ action: "add", kind: "Alias", pick: "CNAME", name: "www", value: "x.example" })).toBe("Alias line · in the Type box choose CNAME");
+    expect(guideLineKind({ action: "remove", kind: "Address", pick: "A", name: "@", value: "1.2.3.4" })).toBe("Address line");
+    expect(guideLineKind({ action: "add", kind: "Mail", name: "@", value: "mx.example", priority: 10 })).toBe("Mail line · Priority 10");
+    expect(BUY_DOMAIN_URL).toMatch(/^https:\/\/www\.godaddy\.com\//);
   });
 });

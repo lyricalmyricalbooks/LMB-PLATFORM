@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createDomainService, domainState } from "./domains.js";
-import { fakeDeploy, fakeEnvFiles, fakeHosting, fakeProfileFiles } from "./fakes.js";
+import { fakeDeploy, fakeEnvFiles, fakeHosting, fakeSellers, fakeProfileFiles } from "./fakes.js";
 import { fakePlatformZone } from "./platformZone.js";
 import { fakeAuditLog, fakeRegistry } from "../../setup/fakes.js";
 
@@ -145,7 +145,7 @@ test("on the hosted server a shop with a project of its own is refused in plain 
 });
 
 // Bringing a domain over from another website (14 November 2026): the whole path a press walks.
-async function bringWorld({ rows = [], storesByProject = null } = {}) {
+async function bringWorld({ rows = [], storesByProject = null, sellers = null } = {}) {
   const registry = fakeRegistry();
   await registry.createShop(SHOP, { shopId: SHOP, projectId: SHARED, shared: true, status: "live", region: "northamerica-northeast1", freeAddress: FREE, domains: [] });
   for (const row of rows) await registry.createShop(row.shopId, row);
@@ -161,6 +161,7 @@ async function bringWorld({ rows = [], storesByProject = null } = {}) {
   const service = createDomainService({
     registry, auditLog: fakeAuditLog(), hosting, envFiles: fakeEnvFiles(), profileFiles: fakeProfileFiles(), deploy: fakeDeploy(),
     platformDomain: "platform.example", shared: storesByProject ? (row) => storesByProject[row.projectId] ?? null : shared, signIn, sharedOnly: true, now: () => NOW,
+    ...(sellers ? { sellers } : {}),
   });
   return { registry, shared, hosting, service, listOf };
 }
@@ -227,4 +228,35 @@ test("two shops in two shared projects: each address goes in its own project's b
   await assert.rejects(service.add(SHOP, "presstwo.example"), (err) => err.code === "in_use");
   await assert.rejects(service.remove(SHOP, "presstwo.example"), (err) => err.code === "unknown_domain");
   assert.deepEqual([...live.addressesMap.keys()], ["presstwo.example"]);
+});
+
+test("a domain just bought at GoDaddy, start to finish: GoDaddy's steps, its parked line out first, then live, main and sign-in", async () => {
+  // GoDaddy is known as the seller, and Colophon has no one-press template with it yet: the press gets the guide.
+  const sellers = fakeSellers({ "mothpress.example": { registrar: { name: "GoDaddy.com, LLC" }, domainConnect: null } });
+  const { service, registry, shared, hosting, listOf } = await bringWorld({ sellers });
+  const first = await service.connect(SHOP, "https://www.MothPress.example/", { main: true, www: true });
+  assert.equal(first.name, "www.mothpress.example", "typed with www and capitals, it is still accepted");
+  await service.remove(SHOP, "www.mothpress.example");
+
+  const added = await service.connect(SHOP, "mothpress.example", { main: true, www: true });
+  assert.equal(added.state, "waiting_dns");
+  assert.equal(added.seller, "GoDaddy");
+  assert.equal(added.way, "guide");
+  hosting.set(SHARED, "mothpress.example", "old-site"); // GoDaddy's own parked page
+  const parked = await service.check(SHOP, "mothpress.example");
+  assert.equal(parked.guide.openUrl, "https://dcc.godaddy.com/manage/dns");
+  assert.match(parked.guide.steps.join(" "), /GoDaddy.*Parked/s);
+  assert.deepEqual(parked.guide.lines.map((l) => [l.action, l.pick, l.name]), [["remove", "A", "@"], ["add", "A", "@"]]);
+
+  hosting.set(SHARED, "mothpress.example", "securing");
+  assert.equal((await service.check(SHOP, "mothpress.example")).state, "securing");
+  hosting.set(SHARED, "mothpress.example", "live");
+  hosting.set(SHARED, "www.mothpress.example", "live");
+  await service.checkAll();
+  const row = await registry.getShop(SHOP);
+  assert.equal(row.mainDomain, "mothpress.example", "the bought domain becomes the main address once it works");
+  assert.deepEqual(row.domains.map((d) => [d.name, d.state, d.redirectTo ?? null]), [["mothpress.example", "live", null], ["www.mothpress.example", "live", "mothpress.example"]]);
+  assert.equal(shared.addressesMap.get("mothpress.example")?.shopId ?? shared.addressesMap.get("mothpress.example"), SHOP);
+  assert.equal(shared.recordsMap.get(SHOP).server.SHOP_SITE_URL, "https://mothpress.example");
+  assert.deepEqual(listOf(SHARED), ["mothpress.example"]);
 });

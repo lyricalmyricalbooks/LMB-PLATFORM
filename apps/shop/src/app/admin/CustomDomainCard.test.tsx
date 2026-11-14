@@ -257,4 +257,39 @@ describe("Your web address: a domain brought over", () => {
       expect(api.customDomains.mock.calls.length).toBe(calls);
     } finally { vi.useRealTimers(); }
   });
+
+  it("a domain bought at GoDaddy: a link to buy one, then Open GoDaddy and the type to pick on each line to add", async () => {
+    state.domains = [{ name: "moth-press.shops.example", state: "live", free: true }];
+    state.main = "moth-press.shops.example";
+    const guide = {
+      seller: "GoDaddy", zone: "mothpress.example", openUrl: "https://dcc.godaddy.com/manage/dns", steps: ["Sign in at GoDaddy and open your Domain Portfolio."],
+      lines: [{ action: "remove", kind: "Address", pick: "A", name: "@", value: "76.223.105.230" }, { action: "add", kind: "Address", pick: "A", name: "@", value: "199.36.158.100" }],
+      message: { subject: "s", body: "b" },
+    };
+    api.customDomains.mockImplementation(async (step: string, domain?: string) => {
+      if (step === "list") return listOf();
+      if (step === "connect") { state.domains = [...state.domains, { name: domain, state: "waiting_dns" }]; return { name: domain, state: "waiting_dns", records: [], way: "guide", seller: "GoDaddy", guide }; }
+      if (step === "check") return { name: domain, state: "waiting_dns", records: [], way: "guide", seller: "GoDaddy", guide };
+      throw new Error(`unexpected ${step}`);
+    });
+    const el = await mount();
+    const buy = el.querySelector("[data-buy-domain]") as HTMLAnchorElement;
+    expect(buy.href).toMatch(/^https:\/\/www\.godaddy\.com\//);
+    expect(buy.target).toBe("_blank");
+    const input = el.querySelector("input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "mothpress.example");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => button(el, "Connect")!.click());
+    const card = el.querySelector('[data-domain="mothpress.example"]')!;
+    expect((card.querySelector("[data-open-seller]") as HTMLAnchorElement).href).toBe("https://dcc.godaddy.com/manage/dns");
+    expect(card.querySelector("[data-open-seller]")!.textContent).toBe("Open GoDaddy");
+    const lines = [...card.querySelectorAll("[data-guide-line]")].map((n) => n.textContent);
+    expect(lines[0]).toContain("Take out");
+    expect(lines[0]).not.toContain("Type box");
+    expect(lines[1]).toContain("in the Type box choose A");
+    // Once a domain is being connected, the buy link goes.
+    expect(el.querySelector("[data-buy-domain]")).toBeNull();
+  });
 });

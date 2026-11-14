@@ -133,6 +133,25 @@ test("no template at the seller, no key, or an unknown seller: the guide, one li
   assert.ok((await named.call("domains.connect", { domain: "shop.mothpress.example" })).body.guide.steps[0].includes("Namecheap"));
 });
 
+test("a domain bought at GoDaddy: its own parked line comes out first, and the steps say so", () => {
+  // What a new GoDaddy domain looks like to Google: GoDaddy's parking address at the domain, and www pointing at it.
+  const records = [
+    { action: "remove", host: "mothpress.example", type: "A", value: "76.223.105.230" },
+    { action: "remove", host: "www.mothpress.example", type: "CNAME", value: "mothpress.example" },
+    { action: "add", host: "mothpress.example", type: "A", value: "199.36.158.100" },
+    { action: "add", host: "mothpress.example", type: "TXT", value: "hosting-site=moth-press" },
+    { action: "add", host: "www.mothpress.example", type: "A", value: "199.36.158.100" },
+  ];
+  const guide = guideFor({ seller: sellerName("GoDaddy.com, LLC"), zone: "mothpress.example", domain: "mothpress.example", records });
+  assert.deepEqual(guide.lines.map((l) => [l.action, l.pick, l.name]), [["remove", "A", "@"], ["remove", "CNAME", "www"], ["add", "A", "@"], ["add", "TXT", "@"], ["add", "A", "www"]]);
+  const steps = guide.steps.join(" ");
+  assert.match(steps, /Domain Portfolio/);
+  assert.equal(guide.openUrl, "https://dcc.godaddy.com/manage/dns");
+  assert.equal(guideFor({ seller: null, zone: "mothpress.example", domain: "mothpress.example", records }).openUrl, undefined);
+  assert.match(steps, /Parked/);
+  assert.ok(guide.steps.findIndex((s) => /Take out/.test(s)) < guide.steps.findIndex((s) => /Add New Record/.test(s)));
+});
+
 test("the guide per seller uses no technical names, and a rival seller reads as 'your domain seller'", () => {
   assert.equal(sellerName("GoDaddy.com, LLC"), "GoDaddy");
   assert.equal(sellerName("Squarespace Domains II LLC"), null);
@@ -140,10 +159,12 @@ test("the guide per seller uses no technical names, and a rival seller reads as 
   const records = [{ action: "add", host: "mothpress.example", type: "A", value: "199.36.158.100" }, { action: "add", host: "mothpress.example", type: "TXT", value: "hosting-site=moth-press" }, { action: "add", type: "CNAME", host: "www.mothpress.example", value: "mothpress.example" }];
   for (const seller of ["GoDaddy", "Namecheap", "Cloudflare", "Porkbun", "Hover", "Gandi", "IONOS", "Name.com", "Dynadot", null]) {
     const guide = guideFor({ seller, zone: "mothpress.example", domain: "mothpress.example", records });
-    const words = [...guide.steps, guide.message.subject, guide.message.body].join(" ");
+    // The word to pick in the seller's own Type box is the one technical name a press is shown (`pick`).
+    const words = [...guide.steps, guide.message.subject, guide.message.body.replace(/ \(type [A-Z]+\)/g, "")].join(" ");
     assert.ok(!/\b(DNS|CNAME|TXT|MX|nameserver)\b/.test(words), `${seller}: ${words}`);
     assert.ok(!/shopify|squarespace|wix|etsy/i.test(words), `${seller}: ${words}`);
-    assert.deepEqual(guide.lines.map((l) => [l.kind, l.name]), [["Address", "@"], ["Text", "@"], ["Alias", "www"]]);
+    assert.deepEqual(guide.lines.map((l) => [l.kind, l.pick, l.name]), [["Address", "A", "@"], ["Text", "TXT", "@"], ["Alias", "CNAME", "www"]]);
+    assert.match(guide.message.body, /Kind: Alias \(type CNAME\)/);
     assert.ok(guide.steps.length >= 4 && guide.steps.some((s) => s.includes("mothpress.example")));
   }
 });
