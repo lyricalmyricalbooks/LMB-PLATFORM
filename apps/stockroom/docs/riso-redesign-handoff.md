@@ -406,8 +406,7 @@ is where a redesign half-lands.
     is not a commented declaration — the custom property swallows the comment into its value and
     then eats the following declaration too, so the element falls back to whatever it inherits.
     See §0b: this shipped, silently, past every automated gate in the repo.
-10. **`src/styles/receipt-finder.css` loads last**, after `theme-dark.css`, via a deep import
-    chain — equal-specificity conflicts resolve in its favour.
+10. *(Retired 14 November 2026: `src/styles/receipt-finder.css` was removed with the Gmail receipt finder.)*
 11. **Merged PR ≠ finished branch.** PR #850 was merged at commit 2 of 5, which shipped a live
     font regression to `main` (the font link had dropped Playfair/Syne while 123 declarations
     still named them). If a PR for this branch is already merged, start the follow-up from a

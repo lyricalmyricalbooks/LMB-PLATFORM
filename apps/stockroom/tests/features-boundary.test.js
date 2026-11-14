@@ -74,8 +74,6 @@ const MAIN_IMPORT_BUDGET = {
   // category lists and the expense being edited now come from that sibling.
   // 20 -> 19 when the dashboard moved out: updateDash comes from dashboard.js.
   'receipts.js': 14,
-  // Composed by receipts.js with injected adapters; no main.js cycle at all.
-  'receipt-finder.js': 0,
   // The bookkeeper's read-only screen (plan 7.17) needs nothing from main.js.
   'bookkeeper-view.js': 0,
   // The fair helper's till needs nothing from main.js either.
@@ -322,7 +320,6 @@ describe('feature module boundary', () => {
 // still high enough that the module cannot quietly decay into a stray helper.
 const MIN_EXPORTS = {
   'intel.js': 12,
-  'receipt-finder.js': 4,
   // Open it, read the queue, repaint it, ask whether it is showing.
   'review-inbox.js': 4,
   // The practice book's fake spreadsheet: one writer, one renderer and the
@@ -406,13 +403,8 @@ describe('feature modules are the only home of what they own', () => {
         // exposeLegacyInlineHandlers lists handlers as shorthand properties, so
         // a name main.js references but never imported is a build error. This
         // guards the inverse: that the import block is real and non-empty.
-        // New composed features may belong to another feature rather than
-        // main.js. Check the actual owner without introducing a needless cycle.
-        const owner = file === 'receipt-finder.js'
-          ? fs.readFileSync(path.join(featureDir, 'receipts.js'), 'utf8') : mainJs;
-        const prefix = file === 'receipt-finder.js' ? './' : './features/';
-        const m = owner.match(
-          new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*'${prefix}${file.replace('.', '\\.')}'`));
+        const m = mainJs.match(
+          new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*'\\./features/${file.replace('.', '\\.')}'`));
         expect(m).not.toBeNull();
         const imported = m[1].split(',').map(s => s.trim()).filter(Boolean);
         expect(imported.length).toBeGreaterThan(0);

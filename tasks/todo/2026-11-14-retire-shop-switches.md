@@ -15,7 +15,11 @@ receipts in Gmail, Read orders from Gmail, Orders from an old shop system). All 
       job, `pagesRedirect.mjs`, `build-pages-redirect.mjs`, `movedState.ts`) and the switch reader removed.
 - [x] Stockroom: the switch reader removed; the Gmail receipt finder, Gmail order scan and old-shop tab stay off for
       every shop, even with an older profile that names them on.
-- [ ] Follow-up PR: delete the stockroom's now-unreachable Gmail receipt finder, Gmail order scan and old-shop code.
+- [x] Follow-up PR 1: delete the stockroom's Gmail receipt finder (tabs, pill, outbox, Apps Script service, Gmail sign-in,
+      unused styles). The background receipt sweep, the Gmail add-on inbox and Paste & Upload stay; the sweep's search and
+      checks moved to `src/lib/receipt-email.js`.
+- [x] ~~Follow-up PR 2: delete the stockroom's Gmail order scan and old-shop tab code.~~ Not doing (Julian, 14 November
+      2026): that code is woven into stock recording and shipping labels, so it stays, switched off for good.
 
 ## Verification
 

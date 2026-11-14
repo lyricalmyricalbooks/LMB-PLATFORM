@@ -6,8 +6,6 @@ import { roundCents } from '../src/lib/money.js';
 import { expenseBaseAmount } from '../src/lib/attention-input.js';
 import { totalsByCurrency } from '../src/lib/expense-totals.js';
 import { uniqueZipPath } from '../src/lib/zip.js';
-import { receiptDuplicate, receiptExpense } from '../src/lib/receipt-finder.js';
-import { flushReceiptOutbox } from '../src/lib/receipt-finder-outbox.js';
 import { toLocalRef } from '../src/lib/receipt-storage.js';
 import { expenseBaseAmount } from '../src/lib/tax-ledger.js';
 
@@ -256,21 +254,6 @@ describe('foreign receipts are converted at the expense date\'s rate', () => {
     expect(receiptsSrc).toContain('datedRates.get(rateKeyOf(currency, item.date || today()))');
     expect(receiptsSrc).toContain('await resolveExpenseRate(currency, row.date || today(), base)');
   });
-
-  it('the Gmail finder asks for the invoice date\'s rate when it files', async () => {
-    const rate = vi.fn(async () => 1.3);
-    const draft = {
-      id: 'd1', status: 'queued', account: 'a@x.com', messageId: 'm1', vendor: 'Acme', date: '2026-02-03',
-      currency: 'USD', amount: 10, category: 'Other', attachmentIds: [], attachments: [], confidence: 1,
-    };
-    const state = { drafts: [draft], emails: { 'a@x.com:m1': { id: 'm1', account: 'a@x.com', fileParts: [] } } };
-    await flushReceiptOutbox(state, {
-      canSync: () => true, expenses: () => [], rate,
-      files: async () => ['u'], commit: async (e) => ({ expense: e }), accept: () => {},
-      save: async () => {}, render: () => {},
-    });
-    expect(rate).toHaveBeenCalledWith('USD', '2026-02-03');
-  });
 });
 
 describe('the receipt sweep', () => {
@@ -372,45 +355,7 @@ describe('the camera and the tidy-up folder pick', () => {
   });
 });
 
-// ── Gmail finder + add-on ────────────────────────────────────────────────
-
-describe('a second identical receipt from a different email is not silently dropped', () => {
-  const draft = {
-    id: 'new', account: 'a@x.com', messageId: 'm2', vendor: 'Canada Post', date: '2026-05-01',
-    currency: 'CAD', amount: 9.5, reference: '', attachmentIds: [],
-  };
-  const filed = (over = {}) => ({
-    id: 'old', vendor: 'Canada Post', date: '2026-05-01', currency: 'CAD', amount: 9.5,
-    emailMsgId: 'm1', emailAccount: 'a@x.com', ref: '', ...over,
-  });
-
-  it('files it when the matching expense came from another email and neither has an invoice number', () => {
-    expect(receiptDuplicate(draft, [filed()])).toBeNull();
-  });
-  it('still flags the same email, a matching invoice number, or a hand-entered expense', () => {
-    expect(receiptDuplicate(draft, [filed({ emailMsgId: 'm2' })])).not.toBeNull();
-    expect(receiptDuplicate({ ...draft, reference: 'INV-1' }, [filed({ ref: 'INV-1' })])).not.toBeNull();
-    expect(receiptDuplicate(draft, [filed({ emailMsgId: '', emailAccount: '' })])).not.toBeNull();
-  });
-});
-
-describe('an oversized attachment no longer blocks filing', () => {
-  it('receiptExpense keeps the slots of the other files and drops the empty one', () => {
-    const draft = {
-      id: 'd', vendor: 'V', date: '2026-01-01', currency: 'CAD', amount: 5, category: 'Other', description: 'x',
-      account: 'a@x.com', messageId: 'm', attachmentIds: ['p1', 'p2'],
-      attachments: [{ name: 'big.pdf' }, { name: 'ok.pdf' }],
-    };
-    const e = receiptExpense(draft, 1, ['u-body', '', 'u-ok']);
-    expect(e.receiptFiles).toEqual(['u-body', 'u-ok']);
-    expect(e.emailAttachments.map(a => a.downloadUrl)).toEqual(['', 'u-ok']);
-  });
-  it('the files step skips an attachment with no bytes instead of throwing', () => {
-    const src = read('src/features/receipt-finder.js');
-    expect(src).not.toContain('Original attachment missing');
-    expect(src).toContain("if (entry.skipped) { output.push(''); continue; }");
-  });
-});
+// ── Gmail add-on ─────────────────────────────────────────────────────────
 
 describe('the Gmail add-on does not guess a bare $ is USD', () => {
   const gs = read('apps-script/GmailAddon.gs');

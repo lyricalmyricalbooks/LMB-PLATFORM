@@ -1,9 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getDatabase, connectDatabaseEmulator, ref, set, onValue, get, push, remove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
-import { getAuth, connectAuthEmulator, signInWithPopup, reauthenticateWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { getAuth, connectAuthEmulator, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { getStorage, connectStorageEmulator, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, getDocFromCache, getDocsFromCache, collection, onSnapshot, deleteDoc, writeBatch, runTransaction, query, where, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { receiptDuplicate } from './lib/receipt-finder.js';
 import { ALL_PARTS, LIST_PARTS, assembleParts, emptyPart, splitState, stitchState, mergePart, mergeSettingDoc, stableStringify, MERGED_SETTING_KEYS } from './lib/merge-state.js';
 import { readOldCopyCached, oldCopyCache } from './lib/old-copy-cache.js';
 import { planWebsitePublish } from './lib/website-link.js';
@@ -348,51 +347,6 @@ window._fbSignOut = () => signOut(auth);
 window._fbOnAuthStateChanged = (cb) => onAuthStateChanged(auth, cb);
 // The signed-in user's ID token, for the Apps Script webhook (see lib/gas-auth.js).
 window._fbGetIdToken = async () => (auth.currentUser ? auth.currentUser.getIdToken() : '');
-
-// Gmail permission is incremental, separate from normal app sign-in.
-//
-// `prompt: 'consent'` used to be forced here, which made Google re-run the full
-// consent screen on every single connect — the reason the publisher had to
-// grant Gmail access again every time they opened the finder. Google only
-// prompts when a scope has not been granted yet, so dropping it turns a repeat
-// connect into a popup that opens and closes on its own.
-//
-// Returns the expiry alongside the token so the caller can reuse a live token
-// and reconnect exactly once it has actually lapsed, rather than guessing.
-window._fbConnectReceiptGmail = async () => {
-  if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Sign in as publisher first');
-  const provider = new GoogleAuthProvider();
-  provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
-  provider.setCustomParameters({ login_hint: auth.currentUser.email });
-  const result = await reauthenticateWithPopup(auth.currentUser, provider);
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  if (!credential?.accessToken) throw new Error('Google did not grant Gmail access');
-  // Google's tokens last an hour. Expire ours a few minutes early so a scan
-  // never starts on a token that dies halfway through it.
-  const seconds = Number(result?._tokenResponse?.oauthExpireIn);
-  const lifetime = Number.isFinite(seconds) && seconds > 0 ? seconds : 3600;
-  return { token: credential.accessToken, expiresAt: Date.now() + Math.max(60, lifetime - 300) * 1000 };
-};
-
-// Append against the latest global ledger, atomically. The finder outbox
-// handles offline retry; an imported receipt is acknowledged only after commit.
-window._fbCommitFoundReceipt = async (expense, draft) => {
-  if (!auth.currentUser || !window.IS_PUBLISHER) throw new Error('Publisher access required');
-  if (!window._useFirestoreGlobal()) throw new Error('Enable global Firestore storage before importing receipts');
-  return runTransaction(fs, async transaction => {
-    const target = doc(home, 'settings', 'taxCenter');
-    const snapshot = await transaction.get(target);
-    if (!snapshot.exists()) throw new Error('Save Tax Centre settings to Firestore before importing receipts');
-    const current = JSON.parse(snapshot.data().data);
-    const expenses = current.businessExpenses || [];
-    const duplicate = receiptDuplicate(draft, expenses);
-    if (!duplicate) {
-      current.businessExpenses = [expense, ...expenses];
-      transaction.set(target, { data: JSON.stringify(current), ts: Date.now() });
-    }
-    return { expense: duplicate || expense, duplicate: !!duplicate };
-  });
-};
 
 // ─────────────────────────────────────────────
 // PER-BOOK DATA

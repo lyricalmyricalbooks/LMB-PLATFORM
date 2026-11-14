@@ -16,7 +16,6 @@ import {
   toOpenAIMessages,
 } from '../src/lib/openrouter-chat.js';
 import { closeIntelExchange, trimIntelHistory } from '../src/lib/intel-history.js';
-import { systemicReceiptFailure } from '../src/lib/receipt-finder-client.js';
 
 // The backup exists for one day in particular: the day Gemini's allowance runs
 // out. Each suite here is one way that day used to go wrong.
@@ -124,13 +123,6 @@ describe('backup failures worded for what actually fixes them', () => {
     expect(friendlyOpenRouterError(new Error('No endpoints found that support image input'))).toMatch(/supports everything/);
   });
 
-  it('stops a Gmail scan with daily wording rather than "wait a few minutes"', () => {
-    const halt = systemicReceiptFailure(Object.assign(
-      new Error('OpenRouter: OpenRouter’s free allowance is used up for today (50 requests a day)'), { status: 429 },
-    ));
-    expect(halt).toMatch(/for today/);
-    expect(halt).not.toMatch(/few minutes/);
-  });
 });
 
 describe('not retrying a limit that will not clear in seconds', () => {

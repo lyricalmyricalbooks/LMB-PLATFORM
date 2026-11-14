@@ -148,110 +148,7 @@ import {
   vendorFrom,
 } from '../lib/receipt-naming.js';
 import { isExpiringLabelUrl, isLabelUrlExpired, shippoTxIdFromRef } from '../lib/carriers/shippo-invoices.js';
-import { mountReceiptFinder, startReceiptFinder, stopReceiptFinder } from './receipt-finder.js';
-import { receiptTextForAi } from '../lib/receipt-finder-client.js';
-import { RECEIPT_QUERY, RECEIPT_NOISE, receiptWorthReading } from '../lib/receipt-finder.js';
-
-// The Gmail receipt finder (Gmail Finder and Gmail Import tabs, the outbox it restores at sign-in) was retired on 14 November 2026 with the other shop switches, off in every shop.
-// Receipts by email replaced it. Paste & Upload and Review stay.
-const GMAIL_TABS = new Set(['gmail', 'direct']);
-function gmailReceiptFinderOn() {
-  return false;
-}
-
-/** Shows or hides everything in the receipt import that reads the publisher's Gmail. */
-function applyGmailReceiptSwitch(on = gmailReceiptFinderOn()) {
-  for (const id of ['email-tab-gmail', 'email-tab-direct', 'email-account-pill']) {
-    const el = $(id);
-    if (el) el.hidden = !on;
-  }
-  if (!on) {
-    for (const id of ['email-panel-gmail', 'email-panel-direct']) {
-      const el = $(id);
-      if (el) el.style.display = 'none';
-    }
-  }
-  return on;
-}
-
-function receiptFinderDependencies() {
-  return {
-    user: () => window._fbAuth?.currentUser,
-    publisher: () => !!window.IS_PUBLISHER && !isAuthor(),
-    // Receipt reading runs through the same Apps Script deployment that syncs
-    // the Google Sheet, so there is no second address for the publisher to
-    // deploy, paste and keep up to date.
-    service: () => sheetsUrl,
-    expenses: () => TAX_CENTER.businessExpenses || [],
-    hasAppAi: () => !!(TAX_CENTER.settings?.geminiKey || TAX_CENTER.settings?.openRouterKey?.trim()),
-    readAi: (parts, opts) => _callAiForReceipts(TAX_CENTER.settings?.geminiKey, parts, opts),
-    categories: EXPENSE_CATEGORIES, inferCategory: inferReceiptCategory,
-    habitCategory: vendor => vendorFilingHabit(vendor, _receiptHabitIndex(), { allowed: EXPENSE_CATEGORIES })?.category || '',
-    toast: showToast, confirm: confirmDialog,
-    upload: (file, path) => window._fbUploadReceipt(file, path),
-    commit: (expense, draft) => window._fbCommitFoundReceipt(expense, draft),
-    // The rate published for the receipt's own date (else today's, else none) —
-    // what the manual expense form uses — so a receipt filed weeks after its
-    // invoice carries the CAD value it had on that day.
-    rate: async (currency, date) => {
-      const base = (TAX_CENTER.settings?.baseCurrency || 'CAD').toUpperCase();
-      if (currency === base) return 1;
-      return (await resolveExpenseRate(currency, date, base)) || null;
-    },
-    accept: expense => {
-      if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
-      if (!TAX_CENTER.businessExpenses.some(row => row.id === expense.id)) TAX_CENTER.businessExpenses.unshift(expense);
-      renderTaxCenter();
-    },
-    subscription: _finderSubscriptionOutcome,
-  };
-}
-
-/**
- * What the Gmail finder does with a found receipt that belongs to a
- * subscription charge, instead of filing it as a new expense. Only a receipt
- * at the charge's own amount is kept with it here; anything the owner has to
- * answer for (which subscription, or what a different amount is) is held with
- * a reason, because the finder has no place to ask.
- */
-async function _finderSubscriptionOutcome(draft, email) {
-  const receipt = {
-    vendor: draft.vendor, description: draft.description, date: draft.date,
-    amount: draft.amount, currency: draft.currency, emailFrom: email?.from || '',
-  };
-  if (!_subscriptionMatch(receipt)) return null;
-  // Matched against a fresh copy of the books, so a charge another device has
-  // already posted is found rather than posted again.
-  await refreshRecurringCharges();
-  const result = _subscriptionMatch(receipt);
-  const m = result?.match;
-  if (!m || m.paused) return null;
-  const name = m.sub.desc || 'a subscription';
-  if (m.covered) return { kind: 'skip' };
-  if (result.ambiguous || !m.amountMatches) {
-    return {
-      kind: 'hold',
-      message: result.ambiguous
-        ? 'This may be the charge of more than one of your subscriptions. Remove it here and add it by hand, choosing which one.'
-        : `This looks like part of your ${name} subscription, but the amount differs from its charge. Remove it here if it is that charge’s receipt, or add it by hand if it is a separate purchase.`,
-    };
-  }
-  return {
-    kind: 'attach',
-    attach: async files => {
-      const item = { ...receipt, msgId: draft.messageId, ref: draft.reference || '', receiptImportId: draft.id };
-      const kept = _keepReceiptWithSubscription(item, m, {
-        currency: String(draft.currency || '').toUpperCase(),
-        amount: Number(draft.amount) || 0,
-        receiptFiles: (files || []).filter(Boolean),
-        choice: 'keep',
-      });
-      if (!kept) throw new Error(`The ${name} charge changed while this was saving. Try again.`);
-      if ((await saveTaxCenter()) === false) throw new Error('Could not save. Retry when connected.');
-      renderTaxCenter();
-    },
-  };
-}
+import { RECEIPT_QUERY, RECEIPT_NOISE, receiptTextForAi, receiptWorthReading } from '../lib/receipt-email.js';
 
 // IndexedDB names for the folder handle and the on-device receipt cache.
 // They moved out of main.js with this domain; nothing else uses them.
@@ -2347,32 +2244,9 @@ function _filterAlreadyImportedDrafts(drafts) {
 }
 
 let _emailReceiptDrafts = [];
-let _activeEmailImportTab = 'gmail';
-let _gmailEmailsFetched = [];
-let _gmailSearchMeta = null;
+let _activeEmailImportTab = 'manual';
 let _emailContentCache = {};
-// Selection lived only in `:checked` DOM nodes, so re-rendering the list (a
-// fresh search, a preset chip) silently wiped it. This is the source of truth;
-// the checkbox `checked` state is just its rendering.
-let _gmailSelectedIds = new Set();
-// The restored, no-AI Gmail archive path intentionally keeps its search and
-// selection state separate from the AI finder mounted in the first tab.
-let _directGmailEmailsFetched = [];
-let _directGmailSearchMeta = null;
-let _directGmailSelectedIds = new Set();
 
-// toLocaleDateString with options builds a fresh Intl.DateTimeFormat on every
-// call, and both Gmail lists run it once per email on every re-render (each
-// search, and each "Select all" in the archive list), so build the two
-// formatters once. format() throws on an invalid date where
-// toLocaleDateString returned "Invalid Date", so keep that output for an
-// unparseable email date.
-const GMAIL_DATE_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
-const DIRECT_GMAIL_DATE_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-function formatEmailDate(formatter, value) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? 'Invalid Date' : formatter.format(d);
-}
 // Receipts pushed in by the Gmail add-on (Firestore `emailReceiptInbox`).
 let _emailInboxItems = [];
 let _emailInboxSeen = null; // Set of seen ids; null until the first snapshot.
@@ -2532,54 +2406,18 @@ function openEmailReceiptImportModal({ review = false } = {}) {
 
     renderEmailReceiptDrafts(_emailReceiptDrafts);
     writePersistedEmailReceiptDrafts(_emailReceiptDrafts);
-  const gmailOn = applyGmailReceiptSwitch();
-  _activeEmailImportTab = gmailOn ? 'gmail' : 'manual';
-  _gmailSelectedIds = new Set();
-  _directGmailSelectedIds = new Set();
-  _directGmailEmailsFetched = [];
-  _directGmailSearchMeta = null;
-  _activeGmailPresetIdx = -1;
-  _activeDirectGmailPresetIdx = -1;
-  _emailAttExcluded = {};
-  _emailExtractCache = {};
-
-  // Connection pill status. A saved Google Sheet address says nothing about
-  // whether Gmail itself is connected, so claiming "Gmail Connected" off the
-  // back of it was simply wrong. Start neutral; the finder sets the real state
-  // from the live Gmail token as soon as it mounts, a few lines below.
-  const pill = $('email-account-pill');
-  if (pill && gmailOn) {
-    pill.textContent = '○ Checking Gmail…';
-    pill.className = 'pill gray email-connected-pill';
-  }
+  _activeEmailImportTab = 'manual';
 
   // Progressive category strip begins hidden until drafts exist
   const bulkCatBar = $('email-bulk-category-bar');
   if (bulkCatBar) bulkCatBar.style.display = _emailReceiptDrafts.length ? 'flex' : 'none';
 
   // A notification opens the actual review rows; ordinary entry opens them
-  // whenever saved drafts are waiting, so they do not hide behind Gmail Finder.
-  // Without the Gmail finder, Paste & Upload is where receipts come in.
-  switchEmailImportTab(review || _emailReceiptDrafts.length ? 'review' : gmailOn ? 'gmail' : 'manual');
-
-  // The preset chips, the default query and the results list all render into
-  // #email-panel-gmail, which mountReceiptFinder() replaces wholesale a few
-  // lines below — so building them here was work done and thrown away on every
-  // single open, including a re-render of every previously fetched email. The
-  // finder owns that panel now; these render paths stay for the tab's other
-  // callers but are no longer run on open.
+  // whenever saved drafts are waiting; otherwise Paste & Upload is where receipts come in.
+  switchEmailImportTab(review || _emailReceiptDrafts.length ? 'review' : 'manual');
 
   _setupEmailPastePanel();
   _updateEmailExtractButtonLabel();
-
-  // Surface anything the Gmail add-on has pushed in as ready-to-edit drafts.
-    if (gmailOn) {
-      loadGmailInboxDrafts();
-      mountReceiptFinder($('email-panel-gmail'), receiptFinderDependencies()).catch(error => {
-        console.error('[receipt-finder] Could not open', error);
-        showToast('Could not open saved receipts: ' + error.message, 'err');
-      });
-    }
   } finally {
     _inOpenEmailReceiptModal = false;
   }
@@ -2699,10 +2537,6 @@ function _setupEmailPastePanel() {
 }
 
 function closeEmailReceiptImportModal() {
-  // Closing the modal must actually stop an in-flight extraction — otherwise
-  // it keeps hitting Apps Script and Gemini against a hidden, orphaned UI.
-  if (_emailExtractAbort) _emailExtractAbort.abort();
-  stopReceiptFinder();
   const bulkCatBar = $('email-bulk-category-bar');
   if (bulkCatBar) bulkCatBar.style.display = 'none';
   closeM('email-receipt-import-modal');
@@ -2712,9 +2546,6 @@ function closeEmailReceiptImportModal() {
 // The add-on writes draft expenses to Firestore `emailReceiptInbox`; we watch
 // that collection live and feed items into the existing review/import flow.
 function startEmailInboxWatcher() {
-  if (window.IS_PUBLISHER && !isAuthor() && gmailReceiptFinderOn()) {
-    startReceiptFinder(receiptFinderDependencies()).catch(error => console.error('[receipt-finder] Could not restore outbox', error));
-  }
   if (isAuthor() || typeof window._fbWatchEmailInbox !== 'function') return;
   window._fbWatchEmailInbox(items => {
     _emailInboxItems = filterDismissedReceipts(Array.isArray(items) ? items : []);
@@ -2999,592 +2830,34 @@ async function localizeInboxReceiptFiles(item) {
 }
 
 function switchEmailImportTab(tab) {
-  if (GMAIL_TABS.has(tab) && !gmailReceiptFinderOn()) tab = 'manual';
+  if (tab !== 'review') tab = 'manual';
   _activeEmailImportTab = tab;
   const tabReview = $('email-tab-review');
-  const tabGmail = $('email-tab-gmail');
   const tabManual = $('email-tab-manual');
-  const tabDirect = $('email-tab-direct');
-  const panelGmail = $('email-panel-gmail');
   const panelReview = $('email-panel-review');
   const panelManual = $('email-panel-manual');
-  const panelDirect = $('email-panel-direct');
   tabReview?.setAttribute('aria-selected', String(tab === 'review'));
-  tabGmail?.setAttribute('aria-selected', String(tab === 'gmail'));
   tabManual?.setAttribute('aria-selected', String(tab === 'manual'));
-  tabDirect?.setAttribute('aria-selected', String(tab === 'direct'));
-  if ($('email-receipt-results')) $('email-receipt-results').hidden = tab !== 'manual' && tab !== 'review';
-  if ($('email-bulk-category-bar')) $('email-bulk-category-bar').hidden = tab !== 'manual' && tab !== 'review';
-  if ($('email-receipt-scan-btn')) $('email-receipt-scan-btn').hidden = tab === 'gmail';
   tabReview?.classList.toggle('active', tab === 'review');
-  tabGmail?.classList.toggle('active', tab === 'gmail');
   tabManual?.classList.toggle('active', tab === 'manual');
-  tabDirect?.classList.toggle('active', tab === 'direct');
   if (panelReview) panelReview.style.display = tab === 'review' ? 'block' : 'none';
-  if (panelGmail) panelGmail.style.display = tab === 'gmail' ? 'block' : 'none';
   if (panelManual) panelManual.style.display = tab === 'manual' ? 'block' : 'none';
-  if (panelDirect) panelDirect.style.display = tab === 'direct' ? 'block' : 'none';
-  if (tab === 'direct' && !$('email-direct-chips')?.childElementCount) renderDirectGmailChips();
   _updateEmailExtractButtonLabel();
 }
 
-// Single source of truth for the quick-preset chips — this used to be
-// copy-pasted into both renderGmailChips and applyGmailPresetQuery, so
-// editing one without the other made a chip's label lie about its query.
-// Built on the finder's own receipt search: the old queries matched "order"
-// and "payment" anywhere, so the list filled with delivery pings, promotions
-// and the shop's own sale alerts before the real receipts.
-const _RECEIPT_MAIL = `${RECEIPT_QUERY} ${RECEIPT_NOISE}`;
-const GMAIL_RECEIPT_PRESETS = [
-  { icon: '🕒', label: 'Past 7 days', query: `newer_than:7d ${_RECEIPT_MAIL}` },
-  { icon: '📅', label: 'Past 30 days', query: `newer_than:30d ${_RECEIPT_MAIL}` },
-  { icon: '📎', label: 'Has a PDF or photo', query: `newer_than:90d has:attachment (filename:pdf OR filename:jpg OR filename:jpeg OR filename:png) ${_RECEIPT_MAIL}` },
-  { icon: '🧾', label: 'Invoices & bills', query: `newer_than:1y (invoice OR bill) ${_RECEIPT_MAIL}` },
-  { icon: '📦', label: 'Shipping costs', query: `newer_than:1y (shipping OR postage OR label OR shippo OR courier) ${RECEIPT_NOISE}` }
-];
-let _activeGmailPresetIdx = -1;
-
-function renderGmailChips() {
-  const chipsContainer = $('email-gmail-chips');
-  if (!chipsContainer) return;
-  chipsContainer.innerHTML = GMAIL_RECEIPT_PRESETS.map((p, idx) => {
-    return `<button type="button" class="filter-chip${idx === _activeGmailPresetIdx ? ' active' : ''}" onclick="applyGmailPresetQuery(${idx})"><span aria-hidden="true">${p.icon}</span> ${escapeHtml(p.label)}</button>`;
-  }).join('');
-}
-
-function applyGmailPresetQuery(index) {
-  const p = GMAIL_RECEIPT_PRESETS[index];
-  if (!p) return;
-  _activeGmailPresetIdx = index;
-  const input = $('email-gmail-search-query');
-  if (input) input.value = p.query;
-  document.querySelectorAll('#email-gmail-chips .filter-chip').forEach((chip, idx) => {
-    chip.classList.toggle('active', idx === index);
-  });
-  searchGmailEmails();
-}
-
-async function searchGmailEmails() {
-  if (!sheetsUrl) {
-    showToast('Connect Google Sheets first to scan Gmail', 'warn');
-    return;
-  }
-  if (!navigator.onLine) {
-    showToast('Offline — reconnect to search Gmail. You can still use Paste & Upload.', 'warn');
-    return;
-  }
-  const queryInput = $('email-gmail-search-query');
-  const query = (queryInput?.value || '').trim();
-  if (!query) {
-    showToast('Please enter a search query', 'warn');
-    return;
-  }
-
-  const btn = $('email-gmail-search-btn');
-  const prevBtnText = btn ? btn.textContent : 'Search';
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>Searching…';
-  }
-
-  const listWrap = $('email-gmail-list-wrap');
-  if (listWrap) {
-    listWrap.innerHTML = `
-      <div style="padding:40px 20px;text-align:center;">
-        <div class="spinner" style="width:20px;height:20px;margin-bottom:12px;"></div>
-        <div style="font-size:var(--text-sm);color:var(--text3);">Searching Gmail inbox (Apps Script)…</div>
-      </div>`;
-  }
-
-  // Apps Script reports its own errors as HTTP 200 + {error: ...} — that is a
-  // deterministic failure (bad query, stale deployment) and retrying it three
-  // times just burns ~3x the wait to show the exact same message. Only an
-  // actual transport failure (network drop, 5xx) is worth retrying.
-  const MAX_RETRIES = 2;
-  let attempt = 0;
-  let lastError = null;
-  let data = null;
-
-  while (attempt < MAX_RETRIES) {
-    attempt++;
-    try {
-      const destUrl = sheetsUrl + (sheetsUrl.includes('?') ? '&' : '?') + 'action=listReceiptEmails&limit=50&q=' + encodeURIComponent(query);
-      const res = await fetch(destUrl, { method: 'GET', mode: 'cors' });
-      if (!res.ok) {
-        const err = new Error(`HTTP ${res.status}`);
-        err.retryable = res.status >= 500;
-        throw err;
-      }
-      data = await res.json();
-      if (!data || !data.ok) {
-        const err = new Error(data?.error || 'Server returned failure');
-        err.retryable = false;
-        throw err;
-      }
-      break;
-    } catch (err) {
-      lastError = err;
-      data = null;
-      console.warn(`[searchGmailEmails] attempt ${attempt}/${MAX_RETRIES} failed:`, err);
-      const isNetworkDrop = /failed to fetch|networkerror|load failed/i.test(err.message || '');
-      if (attempt < MAX_RETRIES && (err.retryable || isNetworkDrop)) {
-        if (listWrap) {
-          listWrap.innerHTML = `
-            <div style="padding:40px 20px;text-align:center;">
-              <div class="spinner" style="width:20px;height:20px;margin-bottom:12px;"></div>
-              <div style="font-size:var(--text-sm);color:var(--text3);">Retrying… (${attempt}/${MAX_RETRIES})</div>
-            </div>`;
-        }
-        await new Promise(r => setTimeout(r, 600));
-      } else {
-        break;
-      }
-    }
-  }
-
-  if (data && data.ok) {
-    _gmailEmailsFetched = data.emails || [];
-    // Capture which mailbox answered and how much it matched, so the UI can
-    // prove the search actually reached Gmail (and which account's Gmail).
-    _gmailSearchMeta = {
-      account: data.account || '',
-      query: data.query || query,
-      threadsFound: typeof data.threadsFound === 'number' ? data.threadsFound : null,
-      count: typeof data.count === 'number' ? data.count : _gmailEmailsFetched.length,
-      skipped: typeof data.skipped === 'number' ? data.skipped : 0,
-      skipError: data.skipError || ''
-    };
-    renderGmailEmailsList();
-  } else {
-    const msg = (lastError && lastError.message) ? lastError.message : String(lastError || 'Unknown error');
-    // A raw "Failed to fetch" means the browser couldn't read a CORS response —
-    // almost always an outdated or unauthorized Apps Script deployment rather
-    // than a bad query. Point the user at the real fix instead of a vague hint.
-    const isNetwork = /failed to fetch|networkerror|load failed|cors/i.test(msg);
-    const hint = isNetwork
-      ? 'The Apps Script didn\'t return a readable response. Re-deploy the latest <code>Code.gs</code> as a Web App (Execute as: <b>Me</b> · Who has access: <b>Anyone</b>) and authorize Gmail access when prompted, then try again.'
-      : 'Check that the Apps Script Web App URL is correct and the latest code is deployed.';
-    if (listWrap) {
-      listWrap.innerHTML = `
-        <div class="empty-state" style="padding:20px;color:var(--red);">
-          ❌ Search failed: ${escapeHtml(msg)}<br>
-          <span style="font-size:var(--text-xs);color:var(--text3);margin-top:6px;display:block;">${hint}</span>
-        </div>`;
-    }
-    showToast(isNetwork ? 'Gmail search failed: Re-deploy Apps Script' : 'Gmail search failed', 'err');
-  }
-
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = prevBtnText;
-  }
-}
-
-function renderGmailEmailsList() {
-  const listWrap = $('email-gmail-list-wrap');
-  if (!listWrap) return;
-  if (!_gmailEmailsFetched.length) {
-    const meta = _gmailSearchMeta || {};
-    const acct = meta.account ? escapeHtml(meta.account) : '';
-    // Gmail matched threads but every one failed to read — an Apps Script
-    // problem (usually a stale deployment), not an empty mailbox. Say so,
-    // with the real error, instead of the misleading "no emails matched".
-    const allSkipped = typeof meta.threadsFound === 'number' && meta.threadsFound > 0;
-    const acctLine = allSkipped
-      ? `Gmail matched <b>${meta.threadsFound}</b> conversation${meta.threadsFound > 1 ? 's' : ''}${acct ? ` in <b>${acct}</b>` : ''}, but none could be read.`
-      : (acct
-        ? `Searched the Gmail account <b>${acct}</b> — no emails matched.`
-        : 'No matching emails found.');
-    const hint = allSkipped
-      ? `The deployed Apps Script hit an error on every email — copy the latest code from the <b>Connect your Google Sheet</b> tab and deploy a new version.${meta.skipError ? `<br>Error: <code>${escapeHtml(meta.skipError)}</code>` : ''}`
-      : `If your receipts are in a different Google account, re-deploy the Apps Script from that account.
-          Otherwise widen the window (try the <b>Past 30 Days</b> chip) or simplify the query.`;
-    const q = meta.query ? escapeHtml(meta.query) : '';
-    listWrap.innerHTML = `
-      <div class="empty-state" style="padding:26px 20px;font-size:var(--text-sm);color:var(--text3);text-align:center;line-height:1.6;">
-        <span style="font-size:24px;display:block;margin-bottom:8px;">📭</span>
-        ${acctLine}
-        <span style="font-size:var(--text-xs);display:block;margin-top:8px;">${hint}</span>
-        ${q ? `<code style="font-size:var(--text-2xs);display:block;margin-top:8px;word-break:break-all;">${q}</code>` : ''}
-      </div>`;
-    return;
-  }
-
-  const importedMsgIds = new Set(
-    (TAX_CENTER.businessExpenses || []).map(e => e.emailMsgId).filter(Boolean)
-  );
-
-  const esc = escapeHtml;
-  // One card per email, not a fixed-column table row. The table put every
-  // action into a 74px track and clipped anything wider — the Preview button
-  // lost its last 14px on every row — and it forced subject and snippet onto
-  // one truncated line each. A card lets the action size itself and gives the
-  // text two lines to breathe.
-  const rowsHtml = _gmailEmailsFetched.map((email) => {
-    const dateStr = formatEmailDate(GMAIL_DATE_FMT, email.date);
-    const attNames = Array.isArray(email.attachmentNames) ? email.attachmentNames : [];
-    const attachmentBadge = email.hasAttachments
-      ? `<span class="pill gray email-card-att" title="${esc(attNames.join(', ')) || 'Attachments'}">📎 ${email.attachmentCount}</span>`
-      : '';
-
-    const fromParts = (email.from || '').match(/^(.*?)\s*<.*>$/);
-    const cleanFrom = fromParts ? fromParts[1].replace(/['"]/g, '').trim() : (email.from || 'Unknown');
-    const isChecked = _gmailSelectedIds.has(email.id);
-    const isImported = importedMsgIds.has(email.id);
-    const subject = email.subject || '(No subject)';
-
-    return `
-      <li class="email-card${isChecked ? ' selected' : ''}" id="email-row-${email.id}">
-        <div class="email-card-main">
-          <label class="email-card-check" title="Select this email">
-            <input type="checkbox" class="gmail-email-cb" data-msg-id="${email.id}" ${isChecked ? 'checked' : ''}
-              aria-label="Select email: ${esc(subject)}"
-              onchange="toggleEmailRowSelection('${email.id}', this.checked)">
-          </label>
-          <div class="email-card-body">
-            <div class="email-card-meta">
-              <span class="email-sender" title="${esc(email.from || '')}">${esc(cleanFrom)}</span>
-              <span class="email-card-date">${esc(dateStr)}</span>
-              ${isImported ? '<span class="pill green email-card-imported">✓ imported</span>' : ''}
-            </div>
-            <div class="email-subject">${esc(subject)}</div>
-            ${email.snippet ? `<div class="email-snippet">${esc(email.snippet)}</div>` : ''}
-          </div>
-          <div class="email-card-actions">
-            ${attachmentBadge}
-            <button type="button" class="btn sm email-preview-btn" id="email-preview-btn-${email.id}"
-              onclick="toggleEmailPreview('${email.id}')">Preview</button>
-          </div>
-        </div>
-        <div class="email-card-preview" id="email-preview-row-${email.id}" style="display:none;">
-          <div class="email-preview-drawer" id="email-preview-drawer-${email.id}">
-            <!-- populated dynamically -->
-          </div>
-        </div>
-      </li>
-    `;
-  }).join('');
-
-  const meta = _gmailSearchMeta || {};
-  const shown = _gmailEmailsFetched.length;
-  const moreNote = (typeof meta.threadsFound === 'number' && meta.threadsFound > shown) ? ` of ${meta.threadsFound} matched` : '';
-  const skippedNote = meta.skipped ? ` · ${meta.skipped} unreadable` : '';
-  const allSelected = shown > 0 && _gmailEmailsFetched.every(e => _gmailSelectedIds.has(e.id));
-  const metaHeader = `
-    <div class="email-list-meta-header">
-      <label class="email-select-all" title="Select every email in this list">
-        <input type="checkbox" id="gmail-email-select-all" ${allSelected ? 'checked' : ''} onchange="toggleAllGmailSelections(this.checked)">
-        <span>Select all</span>
-      </label>
-      <span class="email-list-meta-count">
-        <span class="email-list-meta-account">✓ ${meta.account ? `<b>${escapeHtml(meta.account)}</b>` : 'Gmail'}</span>
-        <span class="email-list-meta-tally">${shown} shown${moreNote}${skippedNote}</span>
-      </span>
-      <button type="button" class="btn sm" onclick="searchGmailEmails()" title="Re-run this search to catch anything new">↻ Refresh</button>
-    </div>`;
-
-  // Preserve scroll position across the rebuild — otherwise every checkbox
-  // click that triggers a re-render (there are none today, but future ones)
-  // and every re-search jumps back to row 1.
-  const prevScroll = listWrap.scrollTop;
-
-  listWrap.innerHTML = `
-    ${metaHeader}
-    <ul class="email-card-list" id="email-card-list">
-      ${rowsHtml}
-    </ul>
-  `;
-
-  // Fitts's law: the whole card is the selection target, not just a 14px
-  // checkbox. Delegated so it survives every re-render, and it stands aside
-  // for the controls inside the card (Preview, the checkbox itself, links in
-  // an open drawer) and for anyone selecting text to copy an order number.
-  const cardList = $('email-card-list');
-  if (cardList) {
-    cardList.addEventListener('click', (ev) => {
-      if (ev.target.closest('button, a, input, label, .email-card-preview')) return;
-      if (String(window.getSelection?.() || '').length) return;
-      const card = ev.target.closest('.email-card');
-      const cb = card?.querySelector('.gmail-email-cb');
-      if (!cb) return;
-      cb.checked = !cb.checked;
-      toggleEmailRowSelection(cb.getAttribute('data-msg-id'), cb.checked);
-    });
-  }
-  listWrap.scrollTop = prevScroll;
-  _updateEmailExtractButtonLabel();
-}
-
-function toggleEmailRowSelection(msgId, isChecked) {
-  _applyEmailRowSelection(msgId, isChecked);
-  _syncGmailSelectAllBox();
-  _updateEmailExtractButtonLabel();
-}
-
-// The per-row half of a selection change, without the two list-wide passes.
-// Bulk callers do the whole list first and settle the header once.
-function _applyEmailRowSelection(msgId, isChecked) {
-  if (isChecked) _gmailSelectedIds.add(msgId);
-  else _gmailSelectedIds.delete(msgId);
-  const row = $('email-row-' + msgId);
-  if (row) row.classList.toggle('selected', isChecked);
-  // The row's own checkbox, found through the row rather than a document-wide
-  // query: a Gmail message id is opaque, so an attribute selector built from
-  // it would break on one stray quote, and scanning every checkbox to find one
-  // row made a select-all quadratic.
-  const cb = row ? row.querySelector('.gmail-email-cb') : null;
-  if (cb) cb.checked = isChecked;
-}
-
-// Keeps the header's select-all box honest about the rows below it: ticked
-// when every email is selected, indeterminate on a partial selection. Without
-// it the box stays ticked after one row is unticked, and the next click on it
-// clears the whole list instead of selecting it.
-function _syncGmailSelectAllBox() {
-  const all = $('gmail-email-select-all');
-  if (!all) return;
-  const total = _gmailEmailsFetched.length;
-  const picked = _gmailEmailsFetched.filter(e => _gmailSelectedIds.has(e.id)).length;
-  all.checked = total > 0 && picked === total;
-  all.indeterminate = picked > 0 && picked < total;
-}
-
-function toggleAllGmailSelections(isChecked) {
-  // One pass over the rows, then one header sync and one button update — not
-  // a full re-scan of the list per row.
-  document.querySelectorAll('.gmail-email-cb').forEach(cb => {
-    cb.checked = isChecked;
-    _applyEmailRowSelection(cb.getAttribute('data-msg-id'), isChecked);
-  });
-  _syncGmailSelectAllBox();
-  _updateEmailExtractButtonLabel();
-}
-
-let _activeDirectGmailPresetIdx = -1;
-
-function renderDirectGmailChips() {
-  const chips = $('email-direct-chips');
-  if (!chips) return;
-  chips.innerHTML = GMAIL_RECEIPT_PRESETS.map((preset, index) => `
-    <button type="button" class="filter-chip${index === _activeDirectGmailPresetIdx ? ' active' : ''}" aria-pressed="${index === _activeDirectGmailPresetIdx}" onclick="applyDirectGmailPresetQuery(${index})">
-      <span aria-hidden="true">${preset.icon}</span> ${escapeHtml(preset.label)}
-    </button>`).join('');
-}
-
-function applyDirectGmailPresetQuery(index) {
-  const preset = GMAIL_RECEIPT_PRESETS[index];
-  if (!preset) return;
-  // A chip narrows whatever is typed in the box rather than overwriting it
-  // with raw Gmail syntax; clicking the chosen one again turns it off.
-  _activeDirectGmailPresetIdx = _activeDirectGmailPresetIdx === index ? -1 : index;
-  renderDirectGmailChips();
-  searchDirectGmailEmails();
-}
-
-// What is typed, narrowed by the chosen chip. With nothing at all, the past
-// month of receipt-shaped mail — the same default a blank finder search uses.
-function _directGmailQuery() {
-  const typed = ($('email-direct-search-query')?.value || '').trim();
-  const preset = GMAIL_RECEIPT_PRESETS[_activeDirectGmailPresetIdx];
-  if (preset) return [typed, preset.query].filter(Boolean).join(' ');
-  return typed ? `${typed} ${RECEIPT_NOISE}` : GMAIL_RECEIPT_PRESETS[1].query;
-}
-
-// Said in the list itself, where the owner is looking — a toast alone left the
-// list showing its "pick the emails" invitation as though nothing went wrong.
-function _directGmailNotice(icon, title, sub) {
-  const list = $('email-direct-list-wrap');
-  if (list) list.innerHTML = `<div class="email-zero-state"><div class="email-zero-state-icon" aria-hidden="true">${icon}</div><div class="email-zero-state-title">${escapeHtml(title)}</div><div class="email-zero-state-sub">${escapeHtml(sub)}</div></div>`;
-}
-
-async function searchDirectGmailEmails() {
-  if (!sheetsUrl) {
-    _directGmailNotice('🔌', 'Connect your Google Sheet first', 'This tab reads Gmail through the same Google script that keeps your sheet in sync. Set it up once in the “Connect your Google Sheet” tab.');
-    return;
-  }
-  if (!navigator.onLine) {
-    _directGmailNotice('📴', 'You are offline', 'Gmail can only be searched with a connection. Anything already saved is still in your expenses.');
-    return;
-  }
-  const query = _directGmailQuery();
-
-  const btn = $('email-direct-search-btn');
-  const list = $('email-direct-list-wrap');
-  const label = btn?.textContent || 'Search Gmail';
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Searching…'; }
-  if (list) list.innerHTML = '<div class="email-zero-state"><div class="spinner"></div><div class="email-zero-state-sub">Reading your Gmail search…</div></div>';
-
-  try {
-    const destUrl = sheetsUrl + (sheetsUrl.includes('?') ? '&' : '?')
-      + 'action=listReceiptEmails&limit=50&q=' + encodeURIComponent(query);
-    const response = await fetch(destUrl, { method: 'GET', mode: 'cors' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    if (!data?.ok) throw new Error(data?.error || 'Gmail search failed');
-    _directGmailEmailsFetched = data.emails || [];
-    _directGmailSearchMeta = {
-      account: data.account || '',
-      threadsFound: typeof data.threadsFound === 'number' ? data.threadsFound : null,
-      count: typeof data.count === 'number' ? data.count : _directGmailEmailsFetched.length
-    };
-    renderDirectGmailEmailsList();
-  } catch (error) {
-    console.error('[searchDirectGmailEmails]', error);
-    _directGmailNotice('⚠️', 'Gmail could not be searched', `${error.message || String(error)} — try again in a moment.`);
-    showToast('Gmail search failed', 'err');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = label; }
-  }
-}
-
-function _directGmailVendor(email) {
-  const from = String(email?.from || '');
-  const named = from.match(/^(.*?)\s*<.*>$/)?.[1]?.replace(/["']/g, '').trim();
-  return named || from || 'Email receipt';
-}
-
-function renderDirectGmailEmailsList() {
-  const list = $('email-direct-list-wrap');
-  if (!list) return;
-  if (!_directGmailEmailsFetched.length) {
-    const account = _directGmailSearchMeta?.account ? ` in ${escapeHtml(_directGmailSearchMeta.account)}` : '';
-    list.innerHTML = `<div class="email-zero-state"><div class="email-zero-state-icon">📭</div><div class="email-zero-state-title">No emails matched</div><div class="email-zero-state-sub">Try a wider search${account}, such as “receipt” or “invoice”.</div></div>`;
-    return;
-  }
-
-  const imported = new Set((TAX_CENTER.businessExpenses || []).map(expense => expense.emailMsgId).filter(Boolean));
-  const allSelected = _directGmailEmailsFetched.every(email => _directGmailSelectedIds.has(email.id));
-  const rows = _directGmailEmailsFetched.map(email => {
-    const selected = _directGmailSelectedIds.has(email.id);
-    const date = email.date ? formatEmailDate(DIRECT_GMAIL_DATE_FMT, email.date) : 'Date unavailable';
-    const subject = email.subject || '(No subject)';
-    return `<li class="email-card${selected ? ' selected' : ''}" id="direct-email-row-${email.id}">
-      <div class="email-card-main">
-        <label class="email-card-check" title="Select this email to archive">
-          <input type="checkbox" class="direct-gmail-email-cb" data-msg-id="${email.id}" ${selected ? 'checked' : ''} aria-label="Archive email: ${escapeHtml(subject)}" onchange="toggleDirectGmailSelection('${email.id}', this.checked)">
-        </label>
-        <div class="email-card-body">
-          <div class="email-card-meta"><span class="email-sender" title="${escapeHtml(email.from || '')}">${escapeHtml(_directGmailVendor(email))}</span><span class="email-card-date">${escapeHtml(date)}</span>${imported.has(email.id) ? '<span class="pill green email-card-imported">✓ imported</span>' : ''}</div>
-          <div class="email-subject">${escapeHtml(subject)}</div>
-          ${email.snippet ? `<div class="email-snippet">${escapeHtml(email.snippet)}</div>` : ''}
-        </div>
-        <div class="email-card-actions">${email.hasAttachments ? `<span class="pill gray email-card-att">📎 ${Number(email.attachmentCount) || ''}</span>` : ''}<button type="button" class="btn sm email-preview-btn" id="direct-email-preview-btn-${email.id}" onclick="toggleDirectEmailPreview('${email.id}')">Preview</button></div>
-      </div>
-      <div class="email-card-preview" id="direct-email-preview-row-${email.id}" style="display:none;"><div class="email-preview-drawer" id="direct-email-preview-drawer-${email.id}"></div></div>
-    </li>`;
-  }).join('');
-  const account = _directGmailSearchMeta?.account ? `<b>${escapeHtml(_directGmailSearchMeta.account)}</b>` : 'Gmail';
-  list.innerHTML = `<div class="email-list-meta-header"><label class="email-select-all"><input type="checkbox" id="direct-gmail-select-all" ${allSelected ? 'checked' : ''} onchange="toggleAllDirectGmailSelections(this.checked)"><span>Select all</span></label><span class="email-list-meta-count"><span class="email-list-meta-account">✓ ${account}</span><span class="email-list-meta-tally">${_directGmailEmailsFetched.length} shown</span></span><button type="button" class="btn sm" onclick="searchDirectGmailEmails()">↻ Refresh</button></div><ul class="email-card-list">${rows}</ul>`;
-  _updateEmailExtractButtonLabel();
-}
-
-function toggleDirectGmailSelection(msgId, selected) {
-  if (selected) _directGmailSelectedIds.add(msgId);
-  else _directGmailSelectedIds.delete(msgId);
-  const row = $('direct-email-row-' + msgId);
-  if (row) row.classList.toggle('selected', selected);
-  const all = $('direct-gmail-select-all');
-  if (all) {
-    const count = _directGmailEmailsFetched.filter(email => _directGmailSelectedIds.has(email.id)).length;
-    all.checked = count === _directGmailEmailsFetched.length;
-    all.indeterminate = count > 0 && count < _directGmailEmailsFetched.length;
-  }
-  _updateEmailExtractButtonLabel();
-}
-
-function toggleAllDirectGmailSelections(selected) {
-  _directGmailEmailsFetched.forEach(email => {
-    if (selected) _directGmailSelectedIds.add(email.id);
-    else _directGmailSelectedIds.delete(email.id);
-  });
-  renderDirectGmailEmailsList();
-}
-
-async function toggleDirectEmailPreview(msgId) {
-  const row = $('direct-email-preview-row-' + msgId);
-  const btn = $('direct-email-preview-btn-' + msgId);
-  const drawer = $('direct-email-preview-drawer-' + msgId);
-  if (!row || !btn || !drawer) return;
-  if (row.style.display !== 'none') { row.style.display = 'none'; btn.textContent = 'Preview'; return; }
-  row.style.display = '';
-  btn.textContent = 'Close';
-  drawer.innerHTML = '<div style="padding:var(--space-4);text-align:center;"><span class="spinner"></span></div>';
-  try {
-    const email = await _fetchEmailContent(msgId);
-    const body = escapeHtml(String(email.body || '')).slice(0, 4000).replace(/\n/g, '<br>');
-    const attachmentCount = (email.fileParts || []).length;
-    drawer.innerHTML = `<div class="email-preview-body">${body || 'No email body available.'}</div><div style="margin-top:var(--space-2);font-size:var(--text-xs);color:var(--content-muted);">${attachmentCount ? `📎 ${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'} will be archived with this email.` : 'This email will be archived as a receipt record.'}</div>`;
-  } catch (error) {
-    drawer.innerHTML = `<div style="padding:var(--space-3);color:var(--red);">Could not load this email: ${escapeHtml(error.message || String(error))}</div>`;
-  }
-}
-
-// Keeps the shared footer button honest about which tab's data it will act
-// on and how many emails are selected, instead of a static "Extract drafts"
-// that silently no-ops if the user is looking at the wrong tab.
+// Keeps the shared footer button honest about what it will read.
 function _updateEmailExtractButtonLabel() {
   const btn = $('email-receipt-scan-btn');
   if (!btn) return;
-  if (_activeEmailImportTab === 'gmail') {
-    const n = _gmailSelectedIds.size;
-    btn.textContent = n ? `✨ Extract from ${n} email${n > 1 ? 's' : ''}` : '✨ Select emails to extract';
-    btn.disabled = !n;
-  } else if (_activeEmailImportTab === 'direct') {
-    const n = _directGmailSelectedIds.size;
-    btn.textContent = n ? `Archive ${n} email${n === 1 ? '' : 's'} without AI` : 'Select emails to archive';
-    btn.disabled = !n;
-  } else {
-    const pasted = ($('email-receipt-source')?.value || '').trim();
-    const files = ($('email-receipt-files')?.files || []).length;
-    const what = [files ? `${files} file${files === 1 ? '' : 's'}` : '', pasted ? 'the pasted text' : ''].filter(Boolean).join(' and ');
-    btn.textContent = what ? `✨ Read ${what} with AI` : '✨ Paste text or add a file first';
-    btn.disabled = !pasted && !files;
-  }
+  const pasted = ($('email-receipt-source')?.value || '').trim();
+  const files = ($('email-receipt-files')?.files || []).length;
+  const what = [files ? `${files} file${files === 1 ? '' : 's'}` : '', pasted ? 'the pasted text' : ''].filter(Boolean).join(' and ');
+  btn.textContent = what ? `✨ Read ${what} with AI` : '✨ Paste text or add a file first';
+  btn.disabled = !pasted && !files;
 }
 
 function handleEmailImportPrimaryAction() {
-  if (_activeEmailImportTab === 'direct') return importDirectGmailEmails();
   return extractReceiptsFromEmailText();
-}
-
-async function toggleEmailPreview(msgId) {
-  const row = $('email-preview-row-' + msgId);
-  const btn = $('email-preview-btn-' + msgId);
-  if (!row || !btn) return;
-
-  const isVisible = row.style.display !== 'none';
-  if (isVisible) {
-    row.style.display = 'none';
-    btn.textContent = 'Preview';
-  } else {
-    row.style.display = '';
-    btn.textContent = 'Close';
-
-    const drawer = $('email-preview-drawer-' + msgId);
-    if (drawer && !_emailContentCache[msgId]) {
-      drawer.innerHTML = `
-        <div style="padding:16px;text-align:center;">
-          <div class="spinner" style="width:14px;height:14px;margin-bottom:6px;"></div>
-          <div style="font-size:var(--text-xs);color:var(--text3);">Fetching email contents &amp; attachments…</div>
-        </div>`;
-
-      try {
-        const destUrl = sheetsUrl + (sheetsUrl.includes('?') ? '&' : '?') + 'action=getEmailContent&id=' + msgId;
-        const res = await fetch(destUrl, { method: 'GET', mode: 'cors' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!data || !data.ok) throw new Error(data.error || 'Failed to fetch content');
-
-        _emailContentCache[msgId] = data.email;
-        renderEmailPreviewContent(msgId, drawer);
-      } catch (err) {
-        console.error('[toggleEmailPreview]', err);
-        drawer.innerHTML = `<div style="padding:12px;color:var(--red);font-size:var(--text-xs);">Error loading content: ${escapeHtml(err.message || err)}</div>`;
-      }
-    } else if (drawer) {
-      renderEmailPreviewContent(msgId, drawer);
-    }
-  }
 }
 
 // Build a self-contained HTML receipt from an email that has no file
@@ -3609,81 +2882,10 @@ h1{font-size:18px;margin:0 0 4px;}.meta{color:#666;font-size:12px;margin-bottom:
   return new File([html], `${nameBase}.html`, { type: 'text/html' });
 }
 
-// Per-message set of attachment indices the user has explicitly UNticked in
-// the preview drawer. The drawer's DOM is destroyed every time it's closed
-// and reopened, so without this store, unticking a fat irrelevant PDF and
-// reopening the drawer silently re-armed it for the Gemini upload.
-let _emailAttExcluded = {};
-
-// Which of an email's PDF/image attachments are selected for scanning/saving.
-// The preview drawer's checkboxes only exist once the drawer has been opened
-// — so no checkboxes in the DOM means "all attachments", not "none".
-// Otherwise the common select → extract flow (which never opens a preview)
-// would silently drop every file.
+// Every PDF/image attachment on the email is read and saved with the receipt.
 function _selectedFileParts(msgId, email) {
-  const all = (email && email.fileParts) || [];
-  const boxes = Array.from(document.querySelectorAll(`.email-att-cb-${msgId}`));
-  if (boxes.length) {
-    return boxes
-      .filter(cb => cb.checked)
-      .map(cb => all[parseInt(cb.getAttribute('data-idx'))])
-      .filter(Boolean);
-  }
-  const excluded = _emailAttExcluded[msgId];
-  if (!excluded || !excluded.size) return all.slice();
-  return all.filter((_, idx) => !excluded.has(idx));
+  return ((email && email.fileParts) || []).slice();
 }
-
-function renderEmailPreviewContent(msgId, container) {
-  const email = _emailContentCache[msgId];
-  if (!email || !container) return;
-
-  const esc = escapeHtml;
-  const truncatedBody = email.body.length > 2500 ? email.body.substring(0, 2500) + '\n\n[TRUNCATED FOR PREVIEW]' : email.body;
-  const excluded = _emailAttExcluded[msgId];
-
-  let attachmentsHtml = '';
-  if (email.fileParts && email.fileParts.length) {
-    const listItems = email.fileParts.map((f, idx) => {
-      const isDoc = f.mime === 'application/pdf';
-      const typeLabel = isDoc ? 'PDF Document' : 'Image';
-      const icon = isDoc ? '📄' : '🖼️';
-      const isChecked = !(excluded && excluded.has(idx));
-      return `
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:4px 0;padding:2px 0;">
-          <input type="checkbox" class="email-att-cb-${msgId}" data-idx="${idx}" ${isChecked ? 'checked' : ''} onchange="_setEmailAttExcluded('${msgId}', ${idx}, !this.checked)" style="width:14px;height:14px;">
-          <span style="font-family:var(--font-mono);font-size:var(--text-xs);">${icon} ${esc(f.name)} <span style="opacity:.6;font-size:var(--text-2xs);">(${typeLabel})</span></span>
-        </label>
-      `;
-    }).join('');
-
-    attachmentsHtml = `
-      <div style="margin-top:10px;border-top:var(--stroke-hair) dashed var(--border);padding-top:8px;">
-        <div style="font-weight:700;font-size:var(--text-xs);margin-bottom:6px;color:var(--text2);">Include attachments in AI Scan (${email.fileParts.length}):</div>
-        <div style="background:var(--surface-card);padding:6px 12px;border:var(--stroke-hair) solid var(--border2);border-radius:var(--r);max-height:100px;overflow-y:auto;">
-          ${listItems}
-        </div>
-      </div>
-    `;
-  } else {
-    attachmentsHtml = `<div style="margin-top:6px;font-size:var(--text-2xs);color:var(--text3);font-style:italic;">No PDF or image attachments found.</div>`;
-  }
-
-  container.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <div style="font-weight:700;font-size:var(--text-xs);color:var(--text2);margin-bottom:4px;">Email Body Preview:</div>
-      <div class="email-preview-body">${esc(truncatedBody)}</div>
-      ${attachmentsHtml}
-    </div>
-  `;
-}
-
-function _setEmailAttExcluded(msgId, idx, isExcluded) {
-  if (!_emailAttExcluded[msgId]) _emailAttExcluded[msgId] = new Set();
-  if (isExcluded) _emailAttExcluded[msgId].add(idx);
-  else _emailAttExcluded[msgId].delete(idx);
-}
-
 
 // Above this serialized size, don't probe the fallback chain — re-uploading
 // megabytes to guess at a model costs far more than surfacing the error.
@@ -5827,12 +5029,6 @@ async function _postBatchToProjectLedger(rows) {
   return { logged, failed: failedUids.size, failedUids, receiptsLost, pending: author };
 }
 
-// In-flight extraction, so Cancel and closing the modal can actually stop it.
-let _emailExtractAbort = null;
-// Gemini output keyed by Gmail message id — adjusting the selection and
-// re-running no longer re-pays for emails already extracted this session.
-let _emailExtractCache = {};
-
 function _buildReceiptPrompt() {
   const allowedCats = EXPENSE_CATEGORIES.join(' | ');
   return `You extract purchase receipts/invoices from a single email for bookkeeping.
@@ -6061,65 +5257,6 @@ function _draftsFromReceiptRows(rows, msgId) {
   return { drafts, flagged };
 }
 
-// Live progress panel pinned above the drafts table, with a Cancel that works.
-function _renderExtractProgress(state) {
-  const wrap = $('email-receipt-results');
-  if (!wrap) return;
-  let panel = wrap.querySelector('[data-extract-progress]');
-  if (!panel) {
-    panel = document.createElement('div');
-    panel.setAttribute('data-extract-progress', '1');
-    panel.className = 'email-extract-progress';
-    wrap.prepend(panel);
-  }
-  if (state.done) { panel.remove(); return; }
-  const pct = state.total ? Math.round((state.completed / state.total) * 100) : 0;
-  panel.innerHTML = `
-    <div class="email-extract-progress-head">
-      <span class="spinner" style="width:13px;height:13px;"></span>
-      <span>Reading email ${Math.min(state.completed + 1, state.total)} of ${state.total}${state.found ? ` · ${state.found} receipt${state.found === 1 ? '' : 's'} found` : ''}</span>
-      <button type="button" class="btn sm" onclick="cancelEmailReceiptExtraction()">Cancel</button>
-    </div>
-    <div class="email-extract-progress-bar"><span style="width:${pct}%;"></span></div>`;
-}
-
-function cancelEmailReceiptExtraction() {
-  if (_emailExtractAbort) {
-    _emailExtractAbort.abort();
-    showToast('Extraction cancelled', 'warn');
-  }
-}
-
-// One-line accounting of what happened, shown above the drafts table so a
-// partial batch failure or a row that needs a figure is never invisible.
-function _renderExtractSummary({ total, failures, alreadyImported, flaggedRows, truncated }) {
-  const wrap = $('email-receipt-results');
-  if (!wrap) return;
-  const bits = [];
-  if (alreadyImported) bits.push(`${alreadyImported} already imported, skipped`);
-  if (failures && failures.length) bits.push(`${failures.length} of ${total} couldn't be read — <button type="button" class="btn sm" onclick="retryFailedEmailExtractions()">Retry</button>`);
-  if (flaggedRows) bits.push(`${flaggedRows} row${flaggedRows > 1 ? 's' : ''} need${flaggedRows > 1 ? '' : 's'} an amount before importing`);
-  if (truncated) bits.push(`a response was truncated — some receipts on a busy email may be missing`);
-  if (!bits.length) return;
-  const banner = document.createElement('div');
-  banner.className = 'email-extract-summary';
-  banner.innerHTML = bits.join(' · ');
-  wrap.prepend(banner);
-  if (failures && failures.length) _lastFailedEmailIds = failures.map(f => f.item);
-}
-
-let _lastFailedEmailIds = [];
-function retryFailedEmailExtractions() {
-  if (!_lastFailedEmailIds.length) return;
-  _gmailSelectedIds = new Set(_lastFailedEmailIds);
-  document.querySelectorAll('.gmail-email-cb').forEach(cb => {
-    const id = cb.getAttribute('data-msg-id');
-    cb.checked = _gmailSelectedIds.has(id);
-    toggleEmailRowSelection(id, cb.checked);
-  });
-  extractReceiptsFromEmailText();
-}
-
 async function extractReceiptsFromEmailText() {
   const apiKey = TAX_CENTER.settings?.geminiKey;
   if (!apiKey && !TAX_CENTER.settings?.openRouterKey?.trim()) { showToast('Gemini or OpenRouter API key required in Config', 'err'); return; }
@@ -6134,143 +5271,6 @@ async function extractReceiptsFromEmailText() {
 
   let parts = [];
   const prompt = _buildReceiptPrompt();
-
-  if (_activeEmailImportTab === 'gmail') {
-    const msgIds = _gmailSelectedIds.size
-      ? Array.from(_gmailSelectedIds)
-      : Array.from(document.querySelectorAll('.gmail-email-cb:checked'))
-        .map(cb => cb.getAttribute('data-msg-id'));
-    if (!msgIds.length) {
-      showToast('Select at least one email to extract drafts from', 'warn');
-      return;
-    }
-
-    // Emails already imported carry their message id on the expense, so this
-    // is an exact skip — no tokens spent re-extracting last month's receipts.
-    const importedMsgIds = new Set(
-      (TAX_CENTER.businessExpenses || []).map(e => e.emailMsgId).filter(Boolean)
-    );
-    const todo = msgIds.filter(id => !importedMsgIds.has(id));
-    const alreadyImported = msgIds.length - todo.length;
-    if (!todo.length) {
-      showToast(`All ${msgIds.length} selected email${msgIds.length === 1 ? ' is' : 's are'} already imported`, 'warn');
-      return;
-    }
-
-    _emailExtractAbort = new AbortController();
-    const signal = _emailExtractAbort.signal;
-    const timeoutId = setTimeout(() => _emailExtractAbort && _emailExtractAbort.abort(), 180000);
-
-    if (btn) { btn.disabled = true; btn.textContent = 'Extracting…'; }
-    if (wrap) wrap.innerHTML = '';
-
-    const collected = [];
-    const failures = [];
-    let completed = 0;
-    let flaggedRows = 0;
-    let truncatedAny = false;
-    _renderExtractProgress({ completed: 0, total: todo.length, found: 0 });
-
-    // On a deployed Apps Script new enough to advertise it, fetch every
-    // message's content in a handful of batched calls up front instead of
-    // one call per message inside the pool below. Falls through silently on
-    // an older deployment — _fetchEmailContent's per-message path still runs.
-    try {
-      const caps = await fetchSheetsCapabilities();
-      if (caps && caps.batchEmailContent) {
-        await _batchFetchEmailContents(todo, signal);
-      }
-    } catch (_) { /* fall back to per-message fetch below */ }
-
-    try {
-      await _runExtractionPool(todo, EMAIL_EXTRACT_CONCURRENCY, async (msgId) => {
-        let rows;
-        if (_emailExtractCache[msgId]) {
-          rows = _emailExtractCache[msgId];
-        } else {
-          const email = await _fetchEmailContent(msgId, signal);
-          const selected = _selectedFileParts(msgId, email);
-          // The batch endpoint sends attachment metadata only — fetch bytes
-          // for just the files actually selected, not everything on the
-          // message.
-          await _hydrateSelectedAttachmentBytes(msgId, selected, signal);
-          // Shrink whatever arrived at full size. The older per-message
-          // endpoint hands attachment bytes back inline, so hydration never
-          // sees those — without this, only half the Gmail path got smaller.
-          await Promise.all(selected.map(f => _shrinkInlineAttachment(f)));
-          const emailParts = [
-            { text: prompt },
-            {
-              text: `--- SUBJECT: "${email.subject}" FROM: ${email.from} DATE: ${email.date} ---\n`
-                + _trimEmailBodyForScan(email.body)
-            }
-          ];
-          for (const f of selected) {
-            if (f && f.base64) {
-              // The shrunk copy when there is one, the original otherwise.
-              emailParts.push({
-                inline_data: { mime_type: f.scanMime || f.mime, data: f.scanBase64 || f.base64 }
-              });
-            }
-          }
-          const out = await _callAiForReceipts(apiKey, emailParts, {
-            signal,
-            schema: RECEIPT_EXTRACTION_SCHEMA,
-            thinkingBudget: GEMINI_THINKING_SORT
-          });
-          if (out.truncated) truncatedAny = true;
-          rows = _parseReceiptJson(out.text || '{}').receipts || [];
-          _emailExtractCache[msgId] = rows;
-        }
-
-        const { drafts, flagged } = _draftsFromReceiptRows(rows, msgId);
-        flaggedRows += flagged;
-        collected.push(...drafts);
-        completed++;
-        // Rows land as they arrive instead of after the whole batch.
-        _setManualDrafts(collected);
-        renderEmailReceiptDrafts(_emailReceiptDrafts);
-        _renderExtractProgress({ completed, total: todo.length, found: collected.length });
-        return drafts;
-      }).then(results => {
-        results.forEach(r => { if (r && !r.ok) failures.push(r); });
-      });
-    } catch (e) {
-      if (e && e.name === 'AbortError') {
-        _renderExtractProgress({ done: true });
-        if (btn) { btn.disabled = false; btn.textContent = prev; }
-        _emailExtractAbort = null;
-        clearTimeout(timeoutId);
-        _setManualDrafts(collected);
-        renderEmailReceiptDrafts(_emailReceiptDrafts);
-        return;
-      }
-      console.error('[email-receipt-import] extraction failed', e);
-    } finally {
-      clearTimeout(timeoutId);
-      _emailExtractAbort = null;
-    }
-
-    _renderExtractProgress({ done: true });
-    _setManualDrafts(collected);
-    renderEmailReceiptDrafts(_emailReceiptDrafts);
-    _renderExtractSummary({
-      total: todo.length,
-      found: collected.length,
-      failures,
-      alreadyImported,
-      flaggedRows,
-      truncated: truncatedAny
-    });
-
-    if (btn) { btn.disabled = false; btn.textContent = prev; }
-    if (collected.length) {
-      showToast(`✓ Found ${collected.length} receipt${collected.length > 1 ? 's' : ''}`);
-    } else if (!failures.length) {
-      showToast('No receipts detected in the selected emails', 'warn');
-    }
-    return;
-  }
 
   parts.push({ text: prompt });
 
@@ -6781,90 +5781,6 @@ async function _saveDraftReceiptFiles(item, ctx) {
   return fallback ? [fallback] : [];
 }
 
-async function importDirectGmailEmails() {
-  const msgIds = Array.from(_directGmailSelectedIds);
-  const selectedEmails = new Map(_directGmailEmailsFetched.map(email => [email.id, email]));
-  const importedMsgIds = new Set((TAX_CENTER.businessExpenses || []).map(expense => expense.emailMsgId).filter(Boolean));
-  const todo = msgIds.filter(msgId => !importedMsgIds.has(msgId));
-  if (!todo.length) {
-    showToast(msgIds.length ? 'Those emails are already imported' : 'Select at least one email to archive', 'warn');
-    return;
-  }
-
-  const btn = $('email-receipt-scan-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Archiving originals…'; }
-  if (!TAX_CENTER.businessExpenses) TAX_CENTER.businessExpenses = [];
-
-  const baseCurrency = TAX_CENTER.settings?.baseCurrency || 'CAD';
-  const fallbackCategory = $('email-receipt-default-cat')?.value || 'Other';
-  const gmailSavedByMsg = {};
-  const failed = [];
-  let imported = 0;
-
-  for (const msgId of todo) {
-    try {
-      const email = await _fetchEmailContent(msgId);
-      const listed = selectedEmails.get(msgId) || email;
-      const vendor = _directGmailVendor(listed);
-      const item = {
-        msgId,
-        vendor,
-        description: email.subject || listed.subject || `Email receipt from ${vendor}`,
-        reference: `email-import:${msgId}`,
-        selectedAtts: Array.isArray(email.fileParts) ? email.fileParts : []
-      };
-      const receiptFiles = await _saveDraftReceiptFiles(item, {
-        gmailSavedByMsg,
-        savedReceiptPaths: [],
-        draftIdx: imported
-      });
-      const receipt = receiptFiles[0] || '';
-      const date = normalizeReceiptDate(email.date || listed.date) || today();
-      TAX_CENTER.businessExpenses.unshift({
-        id: Date.now() + Math.floor(Math.random() * 100000),
-        desc: item.description,
-        vendor,
-        cat: fallbackCategory,
-        currency: baseCurrency,
-        amount: 0,
-        amountUnknown: true,
-        origCurrency: baseCurrency,
-        origAmount: 0,
-        fxRate: 1,
-        baseAmount: 0,
-        date,
-        ref: item.reference,
-        receipt,
-        receiptFiles,
-        emailMsgId: msgId,
-        sourceSnippet: String(email.body || listed.snippet || '').replace(/\s+/g, ' ').slice(0, 240),
-        importedFromEmail: true,
-        importedWithoutAi: true,
-        importedAt: new Date().toISOString()
-      });
-      imported++;
-    } catch (error) {
-      console.error('[importDirectGmailEmails]', error);
-      failed.push(msgId);
-    }
-  }
-
-  if (imported) {
-    await saveTaxCenter();
-    renderTaxCenter();
-    todo.filter(msgId => !failed.includes(msgId)).forEach(msgId => _directGmailSelectedIds.delete(msgId));
-  }
-  if (failed.length) renderDirectGmailEmailsList();
-  showToast(
-    imported
-      ? `Archived ${imported} email${imported === 1 ? '' : 's'} — add the amount when you review the expense.${failed.length ? ` ${failed.length} could not be archived.` : ''}`
-      : 'Could not archive the selected emails',
-    imported ? 'ok' : 'err'
-  );
-  if (imported && !failed.length) closeEmailReceiptImportModal();
-  else if (btn) _updateEmailExtractButtonLabel();
-}
-
 async function importEmailReceiptDrafts() {
   const drafts = (_emailReceiptDrafts || []).filter(r => r.include !== false);
   if (!drafts.length) { showToast('No drafts selected', 'warn'); return; }
@@ -7188,15 +6104,12 @@ function _clearResolvedSweepPending(resolvedDrafts) {
   writeReceiptSweepPending(remaining);
 }
 
-// The "Past 30 Days" preset, dated to the sweep's own window instead of a
-// fixed 30 days. Kept as a mechanical swap of the one clause that changes —
-// same senders, same subject terms, same -from:me — rather than a new query,
-// the same way the shipping-email sweep dates its own preset.
+// The receipt search, dated to the sweep's own window: same senders, same
+// subject terms, same -from:me.
 function _receiptSweepQuery(sinceMs) {
-  const preset = GMAIL_RECEIPT_PRESETS[1].query;
   const d = new Date(sinceMs);
   const day = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-  return preset.replace('newer_than:30d', `after:${day}`);
+  return `after:${day} ${RECEIPT_QUERY} ${RECEIPT_NOISE}`;
 }
 
 /** Take the owner straight to the review inbox, on the receipts, from the card. */
@@ -8247,13 +7160,10 @@ export {
   _runReceiptScan,
   _saveDraftReceiptFiles,
   _selectedFileParts,
-  _setEmailAttExcluded,
   _setReceiptCamStatus,
   _stopReceiptCamStream,
   applyBatchExpenseBulk,
   applyBulkCategoryToEmailDrafts,
-  applyDirectGmailPresetQuery,
-  applyGmailPresetQuery,
   attachReceiptToExpenseRow,
   authorizeReceiptFolder,
   backfillReceiptCache,
@@ -8266,7 +7176,6 @@ export {
   batchScanAndRelinkReceipts,
   cacheAllReceiptsNow,
   cacheReceiptFile,
-  cancelEmailReceiptExtraction,
   captureReceiptPhoto,
   checkReceiptFolderHealth,
   chooseOrganizerSource,
@@ -8297,7 +7206,6 @@ export {
   formatReceiptDiagnostic,
   getPendingWebcamReceipt,
   importEmailReceiptDrafts,
-  importDirectGmailEmails,
   inferReceiptCategory,
   listCachedReceiptMeta,
   listFilesRecursive,
@@ -8331,13 +7239,8 @@ export {
   removeBatchExpenseRow,
   renderBatchExpenseModal,
   renderBatchExpenseRows,
-  renderEmailPreviewContent,
   renderEmailReceiptDrafts,
   renderExpenses,
-  renderGmailChips,
-  renderGmailEmailsList,
-  renderDirectGmailChips,
-  renderDirectGmailEmailsList,
   renderOrganizerTable,
   renderReceiptCacheStatus,
   renderReceiptFolderAlert,
@@ -8347,7 +7250,6 @@ export {
   rescanBatchExpenseRow,
   resolveLocalReceiptFile,
   retakeReceiptPhoto,
-  retryFailedEmailExtractions,
   runReceiptExport,
   runReceiptOrganizer,
   saveReceiptBestEffort,
@@ -8355,8 +7257,6 @@ export {
   saveReceiptToLocalFile,
   scanAllBatchExpenses,
   scanProjectReceiptWithAI,
-  searchDirectGmailEmails,
-  searchGmailEmails,
   setBatchExpenseDest,
   setPendingWebcamReceipt,
   setupReceiptFolder,
@@ -8368,12 +7268,6 @@ export {
   handleEmailImportPrimaryAction,
   toggleAllBatchExpenses,
   toggleAllEmailDrafts,
-  toggleAllGmailSelections,
-  toggleAllDirectGmailSelections,
-  toggleDirectEmailPreview,
-  toggleDirectGmailSelection,
-  toggleEmailPreview,
-  toggleEmailRowSelection,
   toggleExpenseReceiptFilter,
   toggleExpenseReimburseSelect,
   toggleOrganizerSkip,

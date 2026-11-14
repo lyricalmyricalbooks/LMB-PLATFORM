@@ -29,7 +29,7 @@ describe('the retired shop switches', () => {
   });
 });
 
-describe('the Gmail receipt finder stays off', () => {
+describe('the Gmail receipt finder is gone', () => {
   let app;
   beforeAll(async () => {
     app = await loadApp();
@@ -42,27 +42,27 @@ describe('the Gmail receipt finder stays off', () => {
   const el = (id) => document.getElementById(id);
   const shown = (id) => el(id).style.display !== 'none';
 
-  it('off: the import opens on Paste & Upload and the Gmail tabs, pill and panels stay hidden', async () => {
+  it('the import has no Gmail tabs, pill or panels and opens on Paste & Upload', async () => {
+    for (const id of ['email-tab-gmail', 'email-tab-direct', 'email-account-pill', 'email-panel-gmail', 'email-panel-direct']) {
+      expect(el(id), id).toBeNull();
+    }
     app.window.openEmailReceiptImportModal();
     await app.settle();
-    for (const id of ['email-tab-gmail', 'email-tab-direct', 'email-account-pill']) expect(el(id).hidden, id).toBe(true);
     expect(el('email-tab-manual').getAttribute('aria-selected')).toBe('true');
     expect(shown('email-panel-manual')).toBe(true);
-    expect(shown('email-panel-gmail')).toBe(false);
-    expect(shown('email-panel-direct')).toBe(false);
-    // The finder never mounted, so its placeholder is still what the page shipped with.
-    expect(el('email-panel-gmail').textContent).toContain('Opening your receipt finder');
+    expect(app.window.searchGmailEmails).toBeUndefined();
+    expect(app.window.importDirectGmailEmails).toBeUndefined();
   });
 
-  it('off even for an older profile that names the switch as on', async () => {
+  it('an older profile that names the switch as on changes nothing', async () => {
     window.__SHOP_PROFILE__ = profile(ALL_ON);
     app.window.openEmailReceiptImportModal();
     await app.settle();
-    for (const id of ['email-tab-gmail', 'email-tab-direct', 'email-account-pill']) expect(el(id).hidden, id).toBe(true);
+    expect(el('email-tab-gmail')).toBeNull();
     expect(el('email-tab-manual').getAttribute('aria-selected')).toBe('true');
   });
 
-  it('off: asking for a Gmail tab opens Paste & Upload instead', async () => {
+  it('asking for an old Gmail tab opens Paste & Upload instead', async () => {
     app.window.openEmailReceiptImportModal();
     await app.settle();
     for (const tab of ['gmail', 'direct']) {
