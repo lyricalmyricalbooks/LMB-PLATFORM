@@ -78,9 +78,10 @@ service cloud.firestore {
       // through). The guest order rule below doesn't read the status too: it sits at the rules engine's limit of 1000
       // expressions (a free order already reaches it), and an unpaid order record can't be paid without that server.
       // platform/messages (code plan 19.14): the control room's notes to the press, admin-only like the plan; the admin
-      // shows them as a banner, the storefront never reads them.
+      // shows them as a banner, the storefront never reads them. platform/features (Bookings beta, 14 November 2026): the
+      // control room's per-shop feature switches, admin-only too; the shop's functions read them on the server.
       match /platform/{docId} {
-        allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages') && isAdmin());
+        allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages' || docId == 'features') && isAdmin());
         allow write: if false;
       }
 

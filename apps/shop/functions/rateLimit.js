@@ -90,6 +90,8 @@ const LIMITS = {
   aiWrite: { max: 120, windowMs: 10 * 60 * 1000 },
   // Shopper-side crash reports (functions/clientErrors.js): enough for a page that fails a few times in a row.
   clientError: { max: 20, windowMs: 10 * 60 * 1000 },
+  // Bookings (beta): the Book a time page reads times as the customer pages through days, then books.
+  booking: { max: 120, windowMs: 10 * 60 * 1000 },
   // Admin Overview reads of Google Analytics (each is 3 Data API calls; GA4 allows thousands a day).
   ga4: { max: 60, windowMs: 10 * 60 * 1000 },
   // Books › Import reading an old shop's address (functions/oldShopRead.js): each read can fetch up to 20 pages.

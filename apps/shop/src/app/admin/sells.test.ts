@@ -36,7 +36,8 @@ describe("What a shop sells (plan 10.1)", () => {
   it("a shop that sells clothing reads no book words anywhere shoppers read", () => {
     const design = withStarterWords({}, "clothing");
     const left = Object.keys(DEFAULT_COPY)
-      .filter(key => !BOOK_ONLY_COPY.has(key))
+      // The Book a time page says "book" as the verb, the same for every kind of shop.
+      .filter(key => !BOOK_ONLY_COPY.has(key) && !key.startsWith("bookTime"))
       .map(key => [key, getCopy(design, key).replace(/\{\w+\}/g, "")])
       .filter(([key, text]) => BOOK_WORDS.test(text) && !/Publish\b/.test(text) && !["seoBookTitleByline", "reviewsAuthor", "reviewsEmail"].includes(key));
     expect(left).toEqual([]);

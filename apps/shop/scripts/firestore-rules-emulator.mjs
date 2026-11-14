@@ -557,6 +557,42 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't read another shop's invoice pay link", assertFails(getDoc(doc(ownerS2, "invoicePayLinks/bbbb"))));
 }
 
+// Bookings (beta, functions/bookings.js): the team reads services, hours and bookings; only Functions write; nobody reads
+// the per-day records; platform/features is admin-read and platform-written; another shop's bookings stay shut.
+{
+  await env.withSecurityRulesDisabled(ctx => Promise.all([
+    setDoc(doc(folder(ctx.firestore()), "bookings/b1"), { serviceName: "Studio visit", status: "confirmed", customer: { email: "reader@example.com" } }),
+    setDoc(doc(folder(ctx.firestore()), "bookingServices/visit"), { name: "Studio visit", minutes: 30 }),
+    setDoc(doc(folder(ctx.firestore()), "bookingSettings/main"), { live: true }),
+    setDoc(doc(folder(ctx.firestore()), "bookingDays/2026-11-20"), { items: {} }),
+    setDoc(doc(folder(ctx.firestore()), "platform/features"), { bookings: true }),
+    setDoc(doc(ctx.firestore(), "shops/s2/bookings/b2"), { serviceName: "Their visit", status: "confirmed" }),
+    setDoc(doc(ctx.firestore(), "shops/s2/bookingServices/visit2"), { name: "Their visit", minutes: 30 }),
+  ]));
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
+  const ownerS2 = signedIn("o1", { email: "owner@example.com", email_verified: true }, { shop: "s2" });
+  const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  await check("owner reads a booking", assertSucceeds(getDoc(doc(owner, "bookings/b1"))));
+  await check("owner reads a booking service", assertSucceeds(getDoc(doc(owner, "bookingServices/visit"))));
+  await check("owner reads the booking hours", assertSucceeds(getDoc(doc(owner, "bookingSettings/main"))));
+  await check("owner can't write a booking", assertFails(setDoc(doc(owner, "bookings/b1"), { status: "cancelled" }, { merge: true })));
+  await check("owner can't write a booking service", assertFails(setDoc(doc(owner, "bookingServices/visit"), { minutes: 5 }, { merge: true })));
+  await check("owner can't read the booking days", assertFails(getDoc(doc(owner, "bookingDays/2026-11-20"))));
+  await check("anon can't read a booking", assertFails(getDoc(doc(anon, "bookings/b1"))));
+  await check("the customer can't read their booking directly", assertFails(getDoc(doc(reader, "bookings/b1"))));
+  await check("anon can't write a booking", assertFails(setDoc(doc(anon, "bookings/b9"), { status: "confirmed" })));
+  await check("anon can't write the booking days", assertFails(setDoc(doc(anon, "bookingDays/2026-11-21"), { items: {} })));
+  await check("owner reads platform/features", assertSucceeds(getDoc(doc(owner, "platform/features"))));
+  await check("anon can't read platform/features", assertFails(getDoc(doc(anon, "platform/features"))));
+  await check("a customer can't read platform/features", assertFails(getDoc(doc(reader, "platform/features"))));
+  await check("another shop's owner can't read this shop's platform/features", assertFails(getDoc(doc(ownerThereInS1, "platform/features"))));
+  await check("owner can't turn bookings on", assertFails(setDoc(doc(owner, "platform/features"), { bookings: true })));
+  await check("owner can't read another shop's bookings", assertFails(getDoc(doc(ownerS2, "bookings/b2"))));
+  await check("owner can't read another shop's booking services", assertFails(getDoc(doc(ownerS2, "bookingServices/visit2"))));
+  await check("another shop's owner can't read this shop's bookings", assertFails(getDoc(doc(ownerThereInS1, "bookings/b1"))));
+}
+
 // Walls between shops (docs/shared-system.md). Shop s2 has its own records; nobody from s1's sign-in list may touch
 // them, and nobody from s2's (or from no list at all) may touch s1's, whatever role or address the pass carries.
 {

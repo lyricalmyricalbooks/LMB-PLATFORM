@@ -1071,3 +1071,10 @@ the tracker, the control room and the heads-up email. When the email goes, billi
 `shopPlan.js` copies to `platform/plan` as `headsUp`; `billHeadsUpAlert` (adminAlerts.ts) turns it into an Alerts tile
 (action `billing`) for the rest of that month; raising the amount past the month end takes it off. No extra reads: the
 admin already watches `platform/plan`. Fixture: `admin-fixture.html?plan=open&costs=over&page=alerts`.
+
+## Bookings (beta, 14 November 2026)
+Orders › **Bookings** (`Bookings.tsx`, `bookings.css`, pure `bookingsView.ts`, calls in `bookingsApi.ts`) shows only while
+`platform/features.bookings` is true (`useBookingsOn`, Dashboard hides the page otherwise; rules let admins read
+`platform/features`, nobody write it). Tabs: Calendar (a week, new / move / cancel / no-show / paid at the shop),
+Services, Hours & rules. Every write goes to the server (`bookingsAdmin`), never straight to Firestore. Turned on per shop
+in the control room's shop record › Bookings (beta). Fixture: `admin-fixture.html?page=bookings`.

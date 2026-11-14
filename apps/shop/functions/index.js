@@ -157,6 +157,7 @@ const { inviteKey, teamChange, teamInviteEmail } = require("./teamInvite");
 const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
 const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
+const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
@@ -1928,6 +1929,17 @@ const { handlePaymentLink, handleCustomerAddOn } = paymentLinkActions({ db, requ
 const { handleInvoicePay, handleInvoicePayOpen } = require("./invoicePay").invoicePayActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
 });
+// Bookings (beta, bookings.js): customers book a time from /book; off until the platform turns it on for the shop.
+const bookingDesk = require("./bookings").bookingActions({
+  db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
+  zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
+  escapeHtml, risoLayout, risoButton,
+  emailBrand: async () => {
+    const settings = await loadNotificationSettings();
+    const brand = settings.brand || {};
+    return { logoUrl: brand.logoUrl || "", accent: brand.brandColor || "", theme: brand.emailTheme || "light", shopName: String(settings.shopName || shopConfig.senderName || "") };
+  },
+});
 
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
 const { runNewsletterIssues, newsletterAdminActions, audienceCount, pastBuyerEmails, recipientRows } = require("./newsletterSend");
@@ -2009,6 +2021,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   stockistStatus: handleStockistStatus,
   paymentLink: handlePaymentLink,
   invoicePay: handleInvoicePay,
+  bookingsAdmin: (req, res) => bookingDesk.handleAdmin(req, res),
   invoicePayOpen: handleInvoicePayOpen,
   addToOrder: handleCustomerAddOn,
   privacyRequest: handlePrivacyRequest,
@@ -4313,6 +4326,8 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   }
 
   if (req.body?.action === "clientError") return handleClientError(req, res);
+  // Bookings (beta): the Book a time page's own actions (bookings.js, rate limited there).
+  if (typeof req.body?.action === "string" && PUBLIC_BOOKING_ACTIONS.includes(req.body.action)) return bookingDesk.handlePublic(req, res);
 
   // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
   // the server will charge. Customer lists and usage counts stay private.
@@ -4699,6 +4714,12 @@ exports.receiptInboxSweep = onSchedule({ schedule: "every 15 minutes", name: "re
 exports.bankFeedSweep = onSchedule({ schedule: "every 3 hours", name: "bankFeedSweep", timeoutSeconds: 300, secrets: withPlatformKey([]) }, async () => {
   if (!shopConfig.platformBankFeedUrl) return;
   await bankFeed.sweepBankFeed();
+});
+
+// Bookings (beta): a paid booking's hold is confirmed once paid, or its time freed when the hold runs out (bookings.js).
+exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingSweep", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) }, async () => {
+  const out = await bookingDesk.sweepHolds();
+  if (out.confirmed || out.freed) console.log(`bookingSweep: ${out.confirmed} confirmed, ${out.freed} freed`);
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

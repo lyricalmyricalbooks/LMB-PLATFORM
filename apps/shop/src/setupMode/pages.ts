@@ -2,7 +2,7 @@
 // every other page locked until the shop opens. Pure, so the menu and the locks are tested without a browser.
 import { sellsBooks } from "../shared/shopSells";
 import type { NavEntry } from "../app/admin/riso/components";
-import { NAV, SETTINGS_ITEM_PREFIX, sideMenu, sideOf, sidebarItems, type AdminSide } from "../app/admin/riso/nav";
+import { NAV, SETTINGS_ITEM_PREFIX, sideMenu, sideOf, sidebarItems, withoutPages, type AdminSide } from "../app/admin/riso/nav";
 import { COMBINED_PAGES, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../app/admin/combined";
 import type { SetupPress } from "./door";
 
@@ -26,9 +26,11 @@ export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
 /**
  * The menu: exactly the admin's own (v4: the Website · Stockroom switch, each side's items; Plan sits under Settings, as
  * it does once the shop opens), so the admin a press meets in setup is the one it keeps. Help is in the rail's foot.
+ * Pages the platform turns on shop by shop (Bookings, in beta) aren't promised before the shop exists.
  */
+const NOT_IN_SETUP: ReadonlySet<string> = new Set(["bookings"]);
 export function setupMenu(side: AdminSide = "website", nav: NavEntry[] = NAV): NavEntry[] {
-  return sidebarItems(nav, sideMenu(side));
+  return withoutPages(sidebarItems(nav, sideMenu(side)), NOT_IN_SETUP);
 }
 
 /** Both sides' items, for finding any page by its address or name. */

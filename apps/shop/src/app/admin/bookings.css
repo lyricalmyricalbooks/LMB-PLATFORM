@@ -1,0 +1,142 @@
+/* Admin › Orders › Bookings (Bookings.tsx): the Colophon bento look. White tiles with 22px corners on the cream canvas,
+   one mint tile, an ink tile with black pills, Archivo for words and DM Mono for small labels. Tokens only. */
+.rp .bkg-page { display: grid; gap: 16px; min-width: 0; }
+.rp .bkg-page > * { min-width: 0; }
+
+.rp .bkg-beta { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--rp-text-muted); }
+
+.rp .bkg-tile { box-sizing: border-box; min-width: 0; padding: 24px 26px; border-radius: 22px; background: var(--rp-surface); color: var(--rp-text); }
+.rp .bkg-tile-mint { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .bkg-tile-ink { background: var(--rp-inverse); color: var(--rp-on-inverse); }
+.rp .bkg-kicker { margin: 0 0 10px; font: 500 11px/1.3 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.72; }
+.rp .bkg-tile-title { margin: 0 0 16px; font: 600 19px/1.25 var(--rp-font-body); letter-spacing: -0.015em; text-transform: none; color: inherit; }
+
+/* At a glance */
+.rp .bkg-bento { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; }
+.rp .bkg-next-body { display: grid; gap: 4px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.rp button.bkg-next-body { cursor: pointer; border-radius: 12px; }
+.rp button.bkg-next-body:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+.rp .bkg-next-when { font: 600 34px/1.05 var(--rp-font-body); letter-spacing: -0.03em; }
+.rp .bkg-next-when span { font-size: 15px; font-weight: 500; letter-spacing: 0; opacity: 0.75; margin-left: 6px; }
+.rp .bkg-next-who { font: 600 18px/1.3 var(--rp-font-body); letter-spacing: -0.01em; }
+.rp .bkg-next-what { font-size: 14px; line-height: 1.45; opacity: 0.8; max-width: 46ch; }
+.rp .bkg-big { margin: 0; font: 600 34px/1.05 var(--rp-font-body); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rp .bkg-big.bkg-big-money { white-space: nowrap; overflow-wrap: normal; font-size: clamp(22px, 2.1vw, 30px); }
+.rp .bkg-sub { margin: 6px 0 0; font-size: 14px; color: var(--rp-text-muted); }
+.rp .bkg-page-state { margin: 0 0 14px; font: 600 20px/1.2 var(--rp-font-body); letter-spacing: -0.015em; }
+.rp .bkg-pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp .bkg-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 1px solid currentColor; border-radius: 999px; background: transparent; color: inherit; font: 600 13px/1 var(--rp-font-body); text-decoration: none; cursor: pointer; }
+.rp .bkg-pill:hover { background: var(--rp-on-inverse); color: var(--rp-inverse); }
+.rp .bkg-pill:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+
+/* The week */
+.rp .bkg-week { display: grid; gap: 14px; }
+.rp .bkg-week-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rp .bkg-week-title { margin: 0; font: 600 22px/1.2 var(--rp-font-body); letter-spacing: -0.02em; text-transform: none; color: var(--rp-text); }
+.rp .bkg-week-nav { display: flex; align-items: center; gap: 6px; }
+.rp .bkg-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+.rp .bkg-day { display: flex; flex-direction: column; gap: 8px; min-height: 220px; padding: 14px 12px; border-radius: 22px; background: var(--rp-surface); }
+.rp .bkg-day[data-past] { opacity: 0.7; }
+.rp .bkg-day[data-today] { box-shadow: inset 0 0 0 2px var(--rp-text); }
+.rp .bkg-day-head { display: grid; gap: 2px; padding: 0 4px 6px; border-bottom: 1px solid var(--rp-divider); }
+.rp .bkg-day-name { font: 600 15px/1.3 var(--rp-font-body); }
+.rp .bkg-day-hours { font: 500 11px/1.4 var(--rp-font-mono); color: var(--rp-text-muted); letter-spacing: 0.02em; }
+.rp .bkg-day-empty { margin: 4px; font-size: 13px; color: var(--rp-text-faint); }
+.rp .bkg-slot { display: grid; gap: 2px; width: 100%; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font: inherit; text-align: left; cursor: pointer; }
+.rp .bkg-slot:hover { filter: brightness(0.97); }
+.rp .bkg-slot:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+.rp .bkg-slot[data-status="held"] { background: var(--rp-warning-tint); color: var(--rp-text); }
+.rp .bkg-slot[data-noshow] { background: var(--rp-surface-2); color: var(--rp-text-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.rp .bkg-slot-time { font: 500 12px/1.3 var(--rp-font-mono); letter-spacing: 0.02em; }
+.rp .bkg-slot-who { font: 600 14px/1.3 var(--rp-font-body); overflow-wrap: anywhere; }
+.rp .bkg-slot-what { font-size: 12px; line-height: 1.35; opacity: 0.8; overflow-wrap: anywhere; }
+.rp .bkg-slot-tag { justify-self: start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: 500 10px/1.5 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; }
+.rp .bkg-skeleton { height: 56px; border-radius: 14px; background: var(--rp-surface-2); }
+.rp .bkg-daypills { display: none; }
+.rp .bkg-error { margin: 0; color: var(--rp-danger); font-size: 14px; }
+
+/* One booking */
+.rp .bkg-detail { display: grid; gap: 16px; }
+.rp .bkg-detail-when { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 18px; border-radius: 18px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .bkg-detail-when div { display: grid; gap: 2px; }
+.rp .bkg-detail-when strong { font: 600 20px/1.2 var(--rp-font-body); letter-spacing: -0.015em; }
+.rp .bkg-detail-when span { font-size: 13px; opacity: 0.8; }
+.rp .bkg-detail-line { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--rp-text-muted); }
+.rp .bkg-facts { display: grid; gap: 0; margin: 0; }
+.rp .bkg-facts > div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--rp-divider); }
+.rp .bkg-facts dt { font: 500 11px/1.6 var(--rp-font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .bkg-facts dd { margin: 0; overflow-wrap: anywhere; }
+.rp .bkg-facts a { color: inherit; text-underline-offset: 3px; }
+.rp .bkg-note { margin: 0; padding: 14px 18px; border-radius: 16px; background: var(--rp-surface-2); font-style: italic; color: var(--rp-text); }
+.rp .bkg-detail-toggles { display: grid; gap: 10px; }
+.rp .bkg-history summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.rp .bkg-history ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--rp-text-muted); display: grid; gap: 4px; }
+
+/* Picking a time */
+.rp .bkg-form { display: grid; gap: 14px; }
+.rp .bkg-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rp .bkg-dayrow { display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: 8px; }
+.rp .bkg-times { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.rp .bkg-times legend { width: 100%; margin-bottom: 8px; font: 600 15px/1.3 var(--rp-font-body); }
+.rp .bkg-time { min-height: 40px; min-width: 84px; padding: 0 14px; border: 1px solid var(--rp-border); border-radius: 999px; background: var(--rp-surface); color: var(--rp-text); font: 500 14px/1 var(--rp-font-body); font-variant-numeric: tabular-nums; cursor: pointer; }
+.rp .bkg-time:hover { border-color: var(--rp-text); }
+.rp .bkg-time[aria-pressed="true"] { background: var(--rp-inverse); border-color: var(--rp-inverse); color: var(--rp-on-inverse); }
+.rp .bkg-time:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+
+/* Services */
+.rp .bkg-services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.rp .bkg-service { display: flex; flex-direction: column; gap: 6px; }
+.rp .bkg-service[data-off] { opacity: 0.65; }
+.rp .bkg-service-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.rp .bkg-service h3 { margin: 0; font: 600 18px/1.25 var(--rp-font-body); letter-spacing: -0.015em; text-transform: none; color: inherit; overflow-wrap: anywhere; }
+.rp .bkg-service-meta { margin: 0; font: 500 12px/1.4 var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp .bkg-service-price { margin: 6px 0 0; font: 600 26px/1.1 var(--rp-font-body); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+.rp .bkg-service-desc { margin: 0; font-size: 14px; line-height: 1.5; color: var(--rp-text-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rp .bkg-service-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; }
+.rp .bkg-add { display: grid; place-content: center; justify-items: center; gap: 8px; min-height: 180px; border: 2px dashed var(--rp-border-strong); background: transparent; color: var(--rp-text-muted); font: 600 15px/1.3 var(--rp-font-body); cursor: pointer; }
+.rp .bkg-add:hover { color: var(--rp-text); border-color: var(--rp-text); }
+.rp .bkg-add:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+
+/* Hours & rules */
+.rp .bkg-hours { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.rp .bkg-live { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.rp .bkg-live .bkg-kicker { margin-bottom: 4px; }
+.rp .bkg-live-words { margin: 0; font: 600 20px/1.25 var(--rp-font-body); letter-spacing: -0.015em; }
+.rp .bkg-hours-side { display: grid; gap: 12px; }
+.rp .bkg-week-hours { list-style: none; margin: 0; padding: 0; }
+.rp .bkg-hours-row { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--rp-divider); }
+.rp .bkg-hours-row:first-child { border-top: 0; padding-top: 0; }
+.rp .bkg-hours-windows { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.rp .bkg-hours-windows input[type="time"] { min-width: 136px; }
+.rp .bkg-window { display: flex; align-items: center; gap: 8px; }
+.rp .bkg-window input { width: 120px; }
+.rp .bkg-closed { color: var(--rp-text-faint); font-size: 14px; }
+.rp .bkg-dayoff-add { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8px; margin-bottom: 12px; }
+.rp .bkg-chips { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rp .bkg-chips li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 4px 14px; border-radius: 999px; background: var(--rp-surface-2); font-size: 14px; }
+
+@media (max-width: 1100px) {
+  .rp .bkg-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp .bkg-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .rp .bkg-tile { padding: 20px; }
+  .rp .bkg-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .rp .bkg-next, .rp .bkg-pagecard { grid-column: 1 / -1; }
+  .rp .bkg-next-when, .rp .bkg-big { font-size: 28px; }
+  .rp .bkg-big.bkg-big-money { font-size: 24px; }
+  .rp .bkg-daypills { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .rp .bkg-daypill { position: relative; display: grid; justify-items: center; gap: 2px; min-height: 58px; padding: 8px 0; border: 0; border-radius: 16px; background: var(--rp-surface); color: var(--rp-text); font: 500 11px/1.2 var(--rp-font-mono); cursor: pointer; }
+  .rp .bkg-daypill strong { font: 600 17px/1.1 var(--rp-font-body); }
+  .rp .bkg-daypill[data-today] { box-shadow: inset 0 0 0 2px var(--rp-text); }
+  .rp .bkg-daypill[aria-selected="true"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
+  .rp .bkg-daypill i { position: absolute; bottom: 6px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .rp .bkg-daypill:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+  .rp .bkg-grid { grid-template-columns: minmax(0, 1fr); }
+  .rp .bkg-day { display: none; min-height: 0; }
+  .rp .bkg-day[data-phone-shown] { display: flex; }
+  .rp .bkg-hours { grid-template-columns: minmax(0, 1fr); }
+  .rp .bkg-hours-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .rp .bkg-two { grid-template-columns: minmax(0, 1fr); }
+  .rp .bkg-facts > div { grid-template-columns: 90px 1fr; }
+}

@@ -1177,3 +1177,16 @@ sandbox orders get `TEST-KEY-…` stand-ins. A short pool leaves `licenceKeysSho
 up (oldest first, 100 a run) when keys are added and emails the buyer. `onOrderReviewCleared` assigns held orders. Keys
 show in the confirmation email (`licenceKeysEmailSection`) and on the tracking page (region `trackingKeys`, words
 `trackKeysTitle`/`trackKeysWaiting`). Tests: `licenceKeys.test.js`, `digitalDownloads.test.js`.
+
+## Bookings (beta, 14 November 2026)
+
+`functions/bookings.js` (plan: LMB-PLATFORM `tasks/todo/2026-11-14-bookings-beta.md`). Off until the platform's control
+room writes `platform/features { bookings: true }` (`control-room/bookingsBeta.js`); every action checks it first.
+Records: `bookingServices`, `bookingSettings/main`, `bookings`, `bookingDays/{day}` (what is taken that shop day; read
+and written in the booking's own transaction, so a time is never sold twice). Times come from the shared rules
+(`src/shared/bookingTimes.ts`, generated copy `functions/shared/bookingTimes.js`). Public actions (`PUBLIC_BOOKING_ACTIONS`,
+through `validateDiscountCode`, rate limited): `bookingInfo`, `bookingTimes`, `bookingStart`, `bookingView`,
+`bookingCancel`, `bookingMove`; the customer's link carries a key whose hash is kept (`manageKeyHash`). Owner actions go
+through `createStripeCheckoutSession` `action: "bookingsAdmin"`. A card booking holds its time for `HOLD_MINUTES` on the
+shop's own standalone pay page (no shop order, the webhook ignores it); `bookingSweep` (every 5 min) confirms a paid hold
+or frees the time. Cancelling a paid booking refunds it. A new action needs a rate limit and the switch check.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV, SETTINGS_ITEM_PREFIX, STOCKROOM_SIDE, WEBSITE_SIDE, sidebarItems } from "../app/admin/riso/nav";
+import { NAV, SETTINGS_ITEM_PREFIX, STOCKROOM_SIDE, WEBSITE_SIDE, sidebarItems, withoutPages } from "../app/admin/riso/nav";
 import type { SetupPress } from "./door";
 import { DESIGN_PAGE, GENERAL_PAGE, HELP_PAGE, HOME_PAGE, PLAN_PAGE, guideProgress, guideSteps, setupGroups, helpFor, nextGuideStep, pageFromHash, readyToCreate, setupLocked, showMoveIn, setupMenu, setupMenuItemFor, setupPageLabel, setupSide, allSetupItems } from "./pages";
 
@@ -11,7 +11,9 @@ describe("setup mode's menu (code plan 18.6)", () => {
   const menu = setupMenu();
 
   it("is exactly the admin's own menu (v4: the website side, and the stockroom side behind the switch)", () => {
-    expect(menu).toEqual(sidebarItems(NAV, WEBSITE_SIDE));
+    // Bookings is turned on shop by shop (beta), so it isn't shown before the shop exists.
+    expect(menu).toEqual(withoutPages(sidebarItems(NAV, WEBSITE_SIDE), new Set(["bookings"])));
+    expect(JSON.stringify(menu)).not.toContain("bookings");
     expect(menu.map((i) => i.label)).toEqual(["Home", "Orders", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]);
     expect(setupMenu("stockroom")).toEqual(sidebarItems(NAV, STOCKROOM_SIDE));
     expect(setupSide("stockroom/expenses")).toBe("stockroom");

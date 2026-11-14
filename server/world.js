@@ -111,6 +111,7 @@ import { broughtOverRoutes, createBroughtOver } from "../control-room/broughtOve
 import { createTookData, tookDataRoutes } from "../control-room/tookData.js";
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
+import { bookingsBetaRoutes, createBookingsBeta } from "../control-room/bookingsBeta.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
@@ -404,6 +405,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const tookData = createTookData({ admins, registry, shopData, exports: dataExportStore, now });
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now });
+  const bookingsBeta = createBookingsBeta({ admins, registry, auditLog, shopData, activity, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
   const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
   const appUse = createAppUse({ admins, installs: appInstallStore, outbox: appAlertOutbox, now });
@@ -501,6 +503,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...tookDataRoutes(tookData),
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
+    ...bookingsBetaRoutes(bookingsBeta),
     ...shopLooksRoutes(shopLooks),
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),

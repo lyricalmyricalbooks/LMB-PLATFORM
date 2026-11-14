@@ -1485,6 +1485,8 @@ function card(shop) {
     shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Apps" }) : null,
     shop.plan !== "stockroom" ? shopAppsSection(shop) : null,
     shop.plan !== "stockroom" ? shopChitChatsSection(shop) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Bookings (beta)" }) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? bookingsBetaSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
@@ -3581,6 +3583,40 @@ function signInSafetySection(shop) {
 // ── What a press brought over from its old shop (control-room/broughtOver.js), in a live shop's record. ──
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const lastOn = (kind) => (kind.lastAt ? `last ${dateOnly(kind.lastAt)}` : null);
+
+// Bookings (beta, control-room/bookingsBeta.js): off for every shop until turned on here. A plain yes or no turns it on
+// or off; turning it off keeps the shop's services and bookings for when it comes back.
+function bookingsBetaSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's bookings…" }));
+  const show = () => api("POST", "/control/bookings", { shopId: shop.shopId }).then(({ bookings: b, words }) => {
+    if (!b) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
+    const flip = button(b.on ? "Turn off" : "Turn on", b.on ? "ghost" : "primary");
+    flip.addEventListener("click", async () => {
+      const sure = await askBox(b.on
+        ? `Turn Bookings off for ${shop.pressName ?? shop.shopId}? The Book a time page closes and the menu item goes. Their services and bookings are kept.`
+        : `Turn Bookings on for ${shop.pressName ?? shop.shopId}? They'll see Bookings under Orders and can open a Book a time page.`,
+      { yes: b.on ? "Turn off" : "Turn on", danger: b.on });
+      if (sure === null) return;
+      flip.disabled = true;
+      try {
+        await api("POST", "/control/bookings/set", { shopId: shop.shopId, on: !b.on });
+        await show();
+      } catch (failure) {
+        flip.disabled = false;
+        slot.append(el("p", { className: "rp-hint", role: "alert", textContent: failure.message }));
+      }
+    });
+    const u = b.use;
+    fill(slot,
+      el("div", { className: "cr-actions" }, b.on ? pill("success", "on") : pill("neutral", "off"), flip,
+        b.changedAt ? meta(`${b.on ? "turned on" : "turned off"} ${dateOnly(b.changedAt)}${b.changedBy ? ` by ${b.changedBy}` : ""}`) : null),
+      u.services || u.lastDays || u.nextDays
+        ? el("p", { className: "rp-hint", textContent: `${plural(u.services, "service")} on offer${u.hiddenServices ? ` (${u.hiddenServices} hidden)` : ""}. ${plural(u.lastDays, "booking")} in the last 30 days, ${u.nextDays} coming in the next 30${u.cancelled ? `, ${u.cancelled} cancelled` : ""}. ${u.paid} paid by card, ${u.fromWebsite} booked by customers online.` })
+        : el("p", { className: "rp-hint", textContent: b.on ? "No services or bookings yet." : "Never used." }));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  show();
+  return slot;
+}
 
 // Newsletters the press sent, its morning emails (orders digest, running low) and orders shipped in parts or added to.
 const ISSUE_WORDS = { queued: "waiting to send", sending: "sending", sent: "sent", paused: "stopped part-way", cancelled: "cancelled", failed: "failed" };

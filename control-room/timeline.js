@@ -59,6 +59,7 @@ function controlAction(what, d = {}) {
     case "today-woken": return { kind: "other", words: "Put a line back on Today" };
     case "drift-snoozed": return { kind: "other", words: `Snoozed the drift warning for ${d.days ?? "?"} days${why(d.reason)}` };
     case "drift-woken": return { kind: "other", words: `Ended the drift warning's snooze${why(d.reason)}` };
+    case "bookings-set": return { kind: "switch", words: `Turned Bookings (beta) ${d.to ? "on" : "off"}` };
     case "job-run": return { kind: "other", words: `Ran the job "${d.job ?? "?"}" by hand${why(d.reason)}` };
     default: return { kind: "other", words: `${plain(what) || "Something was done"}${why(d.reason)}` };
   }
