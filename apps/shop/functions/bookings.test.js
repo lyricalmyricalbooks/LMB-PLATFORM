@@ -312,3 +312,39 @@ describe("busy times", () => {
     expect(busy).toEqual([{ start: 3, end: 4 }, { start: 5, end: 6 }]);
   });
 });
+
+describe("the day-before reminder", () => {
+  test("emails a confirmed customer once, about a day ahead", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    const sent = () => t.emails.filter((m) => String(m.subject).startsWith("Tomorrow:")).length;
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 1 });
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+    expect(sent()).toBe(1);
+    expect(t.db.store.get(`bookings/${r.body.id}`).reminderSentAt).toBeTruthy();
+  });
+
+  test("skips a booking made only hours before", async () => {
+    const t = setup({ now: "2026-11-17T12:00:00Z" });
+    await t.seed();
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+  });
+});
+
+describe("slower ways to pay", () => {
+  test("a payment still clearing keeps the time past the hold", async () => {
+    const t = setup();
+    await t.seed();
+    await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-17", "13:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { status: "complete", payment_status: "unpaid" });
+    t.clock.now = new Date(Date.parse("2026-11-16T13:11:00Z"));
+    expect(await t.desk.sweepHolds()).toEqual({ confirmed: 0, freed: 0 });
+    expect(t.db.store.get("bookings/booking001").status).toBe("held");
+    t.sessions.get("cs_test_00000000").payment_status = "paid";
+    expect(await t.desk.sweepHolds()).toEqual({ confirmed: 1, freed: 0 });
+  });
+});

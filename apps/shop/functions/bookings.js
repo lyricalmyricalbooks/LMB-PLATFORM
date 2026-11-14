@@ -123,8 +123,9 @@ function bookingActions({
       const shop = brand.shopName || shopName() || "the shop";
       const when = whenWords(b);
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
-      const subject = { booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const subject = { reminder: `Tomorrow: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
       const lead = {
+        reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please use the link in your confirmation email or contact the shop.`,
         booked: `You're booked in with ${escapeHtml(shop)}.`,
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
@@ -132,7 +133,7 @@ function bookingActions({
       const calendar = kind === "cancelled" ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a></p>`;
       const manage = kind !== "cancelled" && key ? risoButton(escapeHtml(manageUrl(id, key)), "See or change your booking", brand.accent, brand.theme) : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ reminder: "See you soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
@@ -215,7 +216,7 @@ function bookingActions({
         tx.set(dayRef(d), { items });
       });
       tx.set(bookings().doc(id), {
-        start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: new Date(nowMs).toISOString(),
+        start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: new Date(nowMs).toISOString(), reminderSentAt: null,
         history: [...(b.history || []), { at: new Date(nowMs).toISOString(), what: `moved from ${b.start}`, by }].slice(-20),
       }, { merge: true });
       return true;
@@ -234,6 +235,17 @@ function bookingActions({
       return confirmPaid(id, b, sid, session.payment_intent);
     }
     return b;
+  }
+
+  /** Is a payment on one of this hold's pages finished by the customer but still clearing with their bank? */
+  async function paymentClearing(b, checkout) {
+    if (!checkout) return false;
+    for (const sid of (b.sessions || []).slice(-10)) {
+      if (!SESSION_ID.test(sid)) continue;
+      const session = await checkout.read(sid).catch(() => null);
+      if (session?.status === "complete" && session.payment_status === "unpaid") return true;
+    }
+    return false;
   }
 
   async function confirmPaid(id, b, sid, intent) {
@@ -364,6 +376,7 @@ function bookingActions({
             console.error(`Booking ${id} card payment refused:`, err.code, err?.message || err);
             return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
           }
+          console.error(`Booking ${id} payment page refused:`, err?.type || "", err?.code || "", err?.param || "", err?.message || err);
           throw err;
         }
       }
@@ -541,6 +554,8 @@ function bookingActions({
       b = await refreshHeld(doc.id, b, checkout);
       if (b.status === "confirmed") { confirmed += 1; continue; }
       if (Date.parse(b.holdUntil || "") > nowMs) continue;
+      // A slower way to pay (a bank debit) finishes the page but clears later: keep the time for it until the booking starts.
+      if (Date.parse(b.start || "") > nowMs && (await paymentClearing(b, checkout))) continue;
       // Close every page first, then read once more: a payment that landed just before the close still counts.
       for (const sid of b.sessions || []) if (SESSION_ID.test(sid)) await checkout?.close(sid).catch(() => {});
       b = await refreshHeld(doc.id, b, checkout);
@@ -553,8 +568,35 @@ function bookingActions({
     return { confirmed, freed };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, featureOn };
+  /**
+   * Emails each confirmed customer once, about a day before their booking. Skips bookings made in the last
+   * REMINDER_SKIP_HOURS (the confirmation is fresh) and ones starting within the hour. Marks before sending, so a
+   * second sweep never sends twice.
+   */
+  async function sweepReminders() {
+    if (!(await featureOn())) return { reminded: 0 };
+    const nowMs = now().getTime();
+    const snap = await bookings().where("status", "==", "confirmed").limit(1000).get();
+    let reminded = 0;
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      const start = Date.parse(b.start || "");
+      if (b.reminderSentAt || !Number.isFinite(start)) continue;
+      if (start - nowMs > REMINDER_HOURS * HOUR || start - nowMs < HOUR) continue;
+      if (nowMs - Date.parse(b.createdAt || "") < REMINDER_SKIP_HOURS * HOUR) continue;
+      await bookings().doc(doc.id).set({ reminderSentAt: new Date(nowMs).toISOString() }, { merge: true });
+      await tellCustomer(doc.id, b, "reminder", { byShop: true });
+      reminded += 1;
+    }
+    return { reminded };
+  }
+
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, featureOn };
 }
+
+const HOUR = 60 * 60 * 1000;
+const REMINDER_HOURS = 24;
+const REMINDER_SKIP_HOURS = 6;
 
 const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingStart", "bookingView", "bookingCancel", "bookingMove"]);
 

@@ -4720,6 +4720,8 @@ exports.bankFeedSweep = onSchedule({ schedule: "every 3 hours", name: "bankFeedS
 exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingSweep", timeoutSeconds: 120, secrets: withPlatformKey([RESEND_API_KEY]) }, async () => {
   const out = await bookingDesk.sweepHolds();
   if (out.confirmed || out.freed) console.log(`bookingSweep: ${out.confirmed} confirmed, ${out.freed} freed`);
+  const sent = await bookingDesk.sweepReminders();
+  if (sent.reminded) console.log(`bookingSweep: ${sent.reminded} reminders sent`);
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.
