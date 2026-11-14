@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, type Booking } from "./bookingsApi";
 import { byDay, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, dayOf, DEFAULT_BOOKING_SETTINGS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { copyText } from "./clipboard";
@@ -178,7 +178,7 @@ function WeekView({ monday, setMonday, rows, error, settings, onOpen }: {
                   <span className="bkg-slot-time">{timeText(b.start, ZONE)}</span>
                   <span className="bkg-slot-who">{b.customer.name}</span>
                   <span className="bkg-slot-what">{b.serviceName}</span>
-                  {b.status === "held" && <span className="bkg-slot-tag">Paying now</span>}
+                  {b.status === "held" && <span className="bkg-slot-tag">{b.clearing ? "Payment clearing" : "Paying now"}</span>}
                   {b.noShow && <span className="bkg-slot-tag">No-show</span>}
                 </button>
               ))}
@@ -207,10 +207,12 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
       setBusy("");
     }
   };
+  const paidByCard = b.payment === "card" && b.paid && !b.refund;
+  const [cancelling, setCancelling] = useState(false);
   const cancel = async () => {
-    const paidByCard = b.payment === "card" && b.paid && !b.refund;
-    if (!(await ask({ title: "Cancel this booking?", message: `${b.customer.name} gets an email saying it's cancelled${paidByCard ? ", and their card payment is refunded in full" : ""}. The time opens up for others.`, confirmLabel: "Cancel booking" }))) return;
-    await run("cancel", "cancel", { refund: paidByCard }, paidByCard ? "Cancelled and refunded" : "Booking cancelled");
+    if (paidByCard) { setCancelling(true); return; }
+    if (!(await ask({ title: "Cancel this booking?", message: `${b.customer.name} gets an email saying it's cancelled. The time opens up for others.`, confirmLabel: "Cancel booking" }))) return;
+    await run("cancel", "cancel", { refundMinor: 0 }, "Booking cancelled");
   };
   const service = services.find((s) => s.id === b.serviceId);
   return (
@@ -225,7 +227,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
             <span>{b.minutes} minutes</span>
           </div>
           <StatusBadge tone={b.status === "confirmed" ? "success" : b.status === "held" ? "warning" : "neutral"}>
-            {b.status === "confirmed" ? "Booked" : b.status === "held" ? "Paying now" : "Cancelled"}
+            {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : "Paying now") : "Cancelled"}
           </StatusBadge>
         </div>
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
@@ -249,6 +251,15 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           </details>
         )}
       </div>
+      {cancelling && (
+        <CancelDialog booking={b} onClose={() => setCancelling(false)}
+          onCancel={async (refundMinor) => {
+            await bookingsAdmin("cancel", { id: b.id, refundMinor });
+            toast.success(refundMinor === 0 ? "Booking cancelled" : refundMinor < b.priceMinor ? `Cancelled, ${moneyText(refundMinor, b.currency)} refunded` : "Cancelled and refunded");
+            setCancelling(false);
+            onClose();
+          }} />
+      )}
       {moving && service && (
         <TimeDialog title="Move booking" description={`${b.customer.name} gets an email with the new time.`} service={service} initialDay={day} except={b.id} confirmLabel="Move here"
           onClose={() => setMoving(false)}
@@ -256,6 +267,94 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
       )}
       {confirmNode}
     </Drawer>
+  );
+}
+
+/** The owner's private calendar link: Google or Apple Calendar subscribes to it and shows every booking. */
+function CalendarTile() {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState("");
+  const [ask, confirmNode] = useConfirm();
+  const fetchLink = async (renew: boolean) => {
+    setBusy(renew ? "renew" : "get");
+    try {
+      const r = await bookingsAdmin<{ path: string }>("calendarFeed", { renew });
+      setUrl(new URL(r.path, window.location.origin).toString());
+      if (renew) toast.success("New link made. The old one has stopped working.");
+    } catch (e: any) {
+      toast.error(e?.message || "The calendar link couldn't be made. Please try again.");
+    } finally {
+      setBusy("");
+    }
+  };
+  const renew = async () => {
+    if (!(await ask({ title: "Make a new calendar link?", message: "The old link stops working, so any calendar using it stops getting bookings. Add the new link to your calendar afterwards.", confirmLabel: "Make new link" }))) return;
+    await fetchLink(true);
+  };
+  const webcal = url.replace(/^https?:/, "webcal:");
+  return (
+    <section className="bkg-tile">
+      <h2 className="bkg-tile-title">Your calendar</h2>
+      <p className="bkg-cal-text">See every booking in Google Calendar or Apple Calendar. New and changed bookings show up there by themselves.</p>
+      {!url ? (
+        <PrimaryButton onClick={() => void fetchLink(false)} busy={busy === "get"}><CalendarPlus size={16} aria-hidden /> Connect a calendar</PrimaryButton>
+      ) : (
+        <div className="bkg-cal">
+          <div className="bkg-cal-actions">
+            <a className="bkg-cal-btn" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`} target="_blank" rel="noopener noreferrer">Add to Google Calendar <ExternalLink size={14} aria-hidden /></a>
+            <a className="bkg-cal-btn" href={webcal}>Add to Apple Calendar</a>
+          </div>
+          <div className="bkg-link">
+            <code>{url}</code>
+            <IconButton label="Copy calendar link" onClick={() => void copyText(url, "Calendar link")}><Copy size={16} aria-hidden /></IconButton>
+          </div>
+          <p className="bkg-cal-note">Keep this link private: anyone with it can see your bookings. Google can take a few hours to show changes; Apple checks every hour.</p>
+          <GhostButton size="sm" onClick={() => void renew()} busy={busy === "renew"}>Make a new link</GhostButton>
+        </div>
+      )}
+      {confirmNode}
+    </section>
+  );
+}
+
+/** Cancels a booking paid by card, refunding all of it, part of it (a shop keeping a deposit) or none. */
+function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number) => Promise<void> }) {
+  const [choice, setChoice] = useState<"all" | "part" | "none">("all");
+  const [part, setPart] = useState("");
+  const [problem, setProblem] = useState("");
+  const [saving, setSaving] = useState(false);
+  const paid = moneyText(b.priceMinor, b.currency);
+  const partMinor = Math.round(Number(part) * 100);
+  const partProblem = choice !== "part" ? "" : !part || !Number.isFinite(partMinor) || partMinor <= 0 ? "Type how much to refund." : partMinor >= b.priceMinor ? `For ${paid} or more, choose Refund all.` : "";
+  const refundMinor = choice === "all" ? b.priceMinor : choice === "none" ? 0 : partMinor;
+  const save = async () => {
+    setSaving(true); setProblem("");
+    try { await onCancel(refundMinor); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
+  };
+  const options = [
+    { id: "all", label: "Refund all", note: paid },
+    { id: "part", label: "Refund part", note: "Keep a deposit" },
+    { id: "none", label: "No refund", note: "Keep the payment" },
+  ] as const;
+  return (
+    <Dialog open onClose={onClose} title="Cancel this booking?" description={`${b.customer.name} paid ${paid} by card. They get an email saying it's cancelled, and the time opens up for others.`}
+      footer={<><SecondaryButton onClick={onClose}>Keep booking</SecondaryButton><DestructiveButton onClick={() => void save()} busy={saving} disabled={!!partProblem}>{refundMinor > 0 ? `Cancel and refund ${moneyText(refundMinor, b.currency)}` : "Cancel booking"}</DestructiveButton></>}>
+      <div className="bkg-form">
+        <fieldset className="bkg-refund">
+          <legend>Refund</legend>
+          {options.map((o) => (
+            <button key={o.id} type="button" className="bkg-refund-choice" aria-pressed={choice === o.id} onClick={() => setChoice(o.id)}>
+              <strong>{o.label}</strong><span>{o.note}</span>
+            </button>
+          ))}
+        </fieldset>
+        {choice === "part" && (
+          <TextField label={`Amount to refund (${b.currency})`} hint={`Up to ${paid}. The rest stays with you.`} inputMode="decimal" placeholder="0.00" autoFocus
+            value={part} onChange={(e) => setPart(e.target.value.replace(/[^\d.]/g, ""))} error={part ? partProblem || undefined : undefined} />
+        )}
+        {problem && <p className="bkg-error" role="alert">{problem}</p>}
+      </div>
+    </Dialog>
   );
 }
 
@@ -473,8 +572,11 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             <SelectField label="Book up to" value={String(form.maxDaysAhead)} onChange={(e) => setForm({ ...form, maxDaysAhead: Number(e.target.value) })}>
               {[7, 14, 30, 60, 90, 180, 365].map((d) => <option key={d} value={d}>{d < 30 ? `${d / 7} week${d === 7 ? "" : "s"} ahead` : d === 365 ? "a year ahead" : `${Math.round(d / 30)} months ahead`}</option>)}
             </SelectField>
-            <SelectField label="Customers can cancel or move" hint="Paid bookings cancelled in time are refunded in full. Later, they contact you." value={String(form.cancelHours)} onChange={(e) => setForm({ ...form, cancelHours: Number(e.target.value) })}>
+            <SelectField label="Customers can cancel or move" hint="Paid bookings cancelled online in time are refunded in full. Later, they contact you." value={String(form.cancelHours)} onChange={(e) => setForm({ ...form, cancelHours: Number(e.target.value) })}>
               {[0, 2, 12, 24, 48, 72].map((h) => <option key={h} value={h}>{h === 0 ? "Until it starts" : `Up to ${h < 24 ? `${h} hours` : `${h / 24} day${h === 24 ? "" : "s"}`} before`}</option>)}
+            </SelectField>
+            <SelectField label="Reminder email" hint="Sent to customers before their booking, with a link to cancel or move it." value={String(form.reminderHours)} onChange={(e) => setForm({ ...form, reminderHours: Number(e.target.value) })}>
+              {REMINDER_HOURS.map((h) => <option key={h} value={h}>{h === 0 ? "Don't send" : h < 24 ? `${h} hours before` : `${h / 24} day${h === 24 ? "" : "s"} before`}</option>)}
             </SelectField>
             <SelectField label="Start times every" value={String(form.step)} onChange={(e) => setForm({ ...form, step: Number(e.target.value) })}>
               {BOOKING_STEPS.map((m) => <option key={m} value={m}>{m === 60 ? "hour" : `${m} minutes`}</option>)}
@@ -495,6 +597,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             </ul>
           )}
         </section>
+        <CalendarTile />
       </div>
       {active && <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={() => setForm(saved ? settings : DEFAULT_BOOKING_SETTINGS)} message={saved ? undefined : "Save your hours to start taking bookings."} />}
     </div>

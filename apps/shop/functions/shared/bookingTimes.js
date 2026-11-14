@@ -8,7 +8,7 @@
 // week, with days off. A time is free when it fits inside the day's hours, is far enough ahead, isn't past the last day
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time in phase 1.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = void 0;
+exports.isDay = exports.weekdayOf = exports.REMINDER_HOURS = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = void 0;
 exports.cleanService = cleanService;
 exports.cleanBookingSettings = cleanBookingSettings;
 exports.zonedTime = zonedTime;
@@ -21,6 +21,7 @@ exports.freeTimes = freeTimes;
 exports.isFreeTime = isFreeTime;
 exports.customerCanChange = customerCanChange;
 exports.bookingIcs = bookingIcs;
+exports.bookingsFeedIcs = bookingsFeedIcs;
 exports.googleCalendarLink = googleCalendarLink;
 exports.BOOKING_STEPS = [15, 30, 60];
 exports.MAX_SERVICES = 30;
@@ -36,7 +37,10 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     maxDaysAhead: 60,
     cancelHours: 24,
     step: 30,
+    reminderHours: 24,
 };
+/** The reminder choices the owner picks from: none, or this many hours before. */
+exports.REMINDER_HOURS = [0, 2, 12, 24, 48, 72];
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const whole = (value, min, max, fallback) => {
     const n = Math.round(Number(value));
@@ -99,6 +103,7 @@ function cleanBookingSettings(raw) {
         maxDaysAhead: whole(s.maxDaysAhead, 1, 365, exports.DEFAULT_BOOKING_SETTINGS.maxDaysAhead),
         cancelHours: whole(s.cancelHours, 0, 24 * 14, exports.DEFAULT_BOOKING_SETTINGS.cancelHours),
         step,
+        reminderHours: exports.REMINDER_HOURS.includes(Number(s.reminderHours)) ? Number(s.reminderHours) : exports.DEFAULT_BOOKING_SETTINGS.reminderHours,
     };
 }
 // ── The shop's clock ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -199,9 +204,27 @@ const icsText = (value) => value.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n")
 function bookingIcs({ id, title, start, end, location = "", details = "", nowMs = Date.now() }) {
     return [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Colophon//Bookings//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        ...icsEvent({ id, title, start, end, location, details }, nowMs),
+        "END:VCALENDAR", "",
+    ].join("\r\n");
+}
+function icsEvent({ id, title, start, end, location = "", details = "" }, nowMs) {
+    return [
         "BEGIN:VEVENT", `UID:${id}@bookings`, `DTSTAMP:${icsTime(nowMs)}`, `DTSTART:${icsTime(start)}`, `DTEND:${icsTime(end)}`,
         `SUMMARY:${icsText(title)}`, ...(location ? [`LOCATION:${icsText(location)}`] : []), ...(details ? [`DESCRIPTION:${icsText(details)}`] : []),
-        "END:VEVENT", "END:VCALENDAR", "",
+        "END:VEVENT",
+    ];
+}
+/**
+ * The owner's calendar feed: every booking as one calendar that Google or Apple Calendar subscribes to and refreshes
+ * by itself. `name` is what the calendar is called in their app.
+ */
+function bookingsFeedIcs(name, events, nowMs = Date.now()) {
+    return [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Colophon//Bookings//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        `X-WR-CALNAME:${icsText(name)}`, "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H",
+        ...events.flatMap((e) => icsEvent(e, nowMs)),
+        "END:VCALENDAR", "",
     ].join("\r\n");
 }
 /** A link that opens Google Calendar with the booking filled in. */

@@ -22,7 +22,7 @@
 const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, freeTimes, isFreeTime, daysTouched, addDays, dayOf, isDay, customerCanChange,
-  googleCalendarLink, MAX_SERVICES,
+  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES,
 } = require("./shared/bookingTimes");
 
 const HOLD_MINUTES = 10;
@@ -114,7 +114,7 @@ function bookingActions({
   const manageUrl = (id, key) => siteLink(`/book?booking=${encodeURIComponent(id)}&key=${key}`);
 
   /** Emails the customer (and tells the owner) about a booking. `kind`: booked, moved, cancelled. Never throws. */
-  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false } = {}) {
+  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop } = {}) {
     try {
       const to = b.customer?.email;
       if (!to || !EMAIL.test(to)) return;
@@ -123,17 +123,19 @@ function bookingActions({
       const shop = brand.shopName || shopName() || "the shop";
       const when = whenWords(b);
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
-      const subject = { reminder: `Tomorrow: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const subject = { notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
       const lead = {
-        reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please use the link in your confirmation email or contact the shop.`,
+        reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
+        notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
         booked: `You're booked in with ${escapeHtml(shop)}.`,
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
-      const calendar = kind === "cancelled" ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a></p>`;
-      const manage = kind !== "cancelled" && key ? risoButton(escapeHtml(manageUrl(id, key)), "See or change your booking", brand.accent, brand.theme) : "";
+      const ended = kind === "cancelled" || kind === "notCleared";
+      const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
+      const manage = !ended && key ? risoButton(escapeHtml(manageUrl(id, key)), "See or change your booking", brand.accent, brand.theme) : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ reminder: "See you soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ notCleared: "Payment didn't clear", reminder: "See you soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
@@ -144,13 +146,14 @@ function bookingActions({
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
       await sendEmail({ to, subject, html });
       const owner = ownerEmail();
-      if (owner && !byShop) {
+      if (owner && toOwner) {
         await sendEmail({
           to: owner,
-          subject: `[BOOKING] ${kind === "booked" ? "New" : kind === "moved" ? "Moved" : "Cancelled"}: ${b.serviceName}, ${when}`,
+          subject: `[BOOKING] ${{ booked: "New", moved: "Moved", notCleared: "Payment didn't clear" }[kind] || "Cancelled"}: ${b.serviceName}, ${when}`,
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(b.serviceName)}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
+            ${kind === "notCleared" ? `<p style="margin:12px 0 0;">Their bank payment was still clearing when the booking was due, so the time was released and nothing was taken. You may want to get in touch with them.</p>` : ""}
             ${b.note ? `<p style="margin:12px 0 0;">“${escapeHtml(b.note)}”</p>` : ""}
             ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}`, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
         });
@@ -275,17 +278,19 @@ function bookingActions({
   }
 
   /** Refunds a paid booking in full. Returns the refund, or null when nothing was paid by card. */
-  async function refundBooking(id, b) {
+  async function refundBooking(id, b, amountMinor = b.priceMinor) {
     if (!b.paid || !b.paymentIntent || b.refund?.refundId) return null;
     const mode = (await shopTestMode()) ? "test" : "live";
-    const refund = await payments.refund({ mode, paymentIntentId: b.paymentIntent, amountMinor: b.priceMinor, metadata: { booking: id }, idempotencyKey: `booking-refund-${id}` });
+    const whole = amountMinor === b.priceMinor;
+    const refund = await payments.refund({ mode, paymentIntentId: b.paymentIntent, amountMinor, metadata: { booking: id }, idempotencyKey: whole ? `booking-refund-${id}` : `booking-refund-${id}-${amountMinor}` });
     return { refundId: refund.refundId, amountMinor: refund.amountMinor, at: now().toISOString() };
   }
 
   async function loadBooking(id, key) {
     if (!ID.test(String(id || "")) || !KEY.test(String(key || ""))) return null;
     const snap = await bookings().doc(id).get();
-    if (!snap.exists || !sameHash(snap.data().manageKeyHash, hash(key))) return null;
+    const data = snap.exists ? snap.data() : null;
+    if (!data || !(sameHash(data.manageKeyHash, hash(key)) || (data.reminderKeyHash && sameHash(data.reminderKeyHash, hash(key))))) return null;
     return snap.data();
   }
 
@@ -451,6 +456,17 @@ function bookingActions({
         await services().doc(id).delete();
         return res.status(200).json({ ok: true });
       }
+      if (op === "calendarFeed") {
+        // The owner's private calendar link (frontDoor.js answers it). Kept server-only; a new one stops the old.
+        const ref = db.collection("bookingFeed").doc("main");
+        const snap = await ref.get();
+        let token = snap.exists ? snap.data()?.token : "";
+        if (!KEY.test(String(token || "")) || req.body?.renew === true) {
+          token = randomKey();
+          await ref.set({ token, madeAt: now().toISOString(), madeBy: by });
+        }
+        return res.status(200).json({ path: `/calendar/${token}.ics` });
+      }
       if (op === "saveSettings") {
         const next = cleanBookingSettings(req.body?.settings);
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
@@ -499,8 +515,12 @@ function bookingActions({
       if (op === "cancel") {
         if (b.status === "cancelled") return res.status(200).json({ ok: true });
         let refund = null;
-        if (req.body?.refund === true) {
-          try { refund = await refundBooking(id, b); } catch (err) {
+        // refund: true is the whole payment; refundMinor a part of it (a shop keeping a deposit), 0 for none.
+        const part = req.body?.refundMinor;
+        const amount = part === undefined ? (req.body?.refund === true ? b.priceMinor : 0) : Number(part);
+        if (!Number.isInteger(amount) || amount < 0 || amount > (b.priceMinor || 0)) return fail(res, 400, "The refund can't be more than they paid.");
+        if (amount > 0) {
+          try { refund = await refundBooking(id, b, amount); } catch (err) {
             console.error(`Booking ${id} refund failed:`, err?.message || err);
             return fail(res, 502, "The refund couldn't be started, so the booking is still on. Try again in a minute.");
           }
@@ -509,8 +529,8 @@ function bookingActions({
         const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, holdUntil: null, updatedAt: at, ...(refund ? { refund } : {}),
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by }].slice(-20) };
         await freeTime(id, b, changes);
-        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: refund ? "Your payment is being refunded to your card." : "" });
-        return res.status(200).json({ ok: true, refunded: !!refund });
+        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: !refund ? "" : refund.amountMinor < b.priceMinor ? `${moneyWords(refund.amountMinor, b.currency)} of your payment is being refunded to your card.` : "Your payment is being refunded to your card." });
+        return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0 });
       }
       if (op === "move") {
         if (b.status !== "confirmed") return fail(res, 409, "Only a confirmed booking can be moved.");
@@ -555,14 +575,18 @@ function bookingActions({
       if (b.status === "confirmed") { confirmed += 1; continue; }
       if (Date.parse(b.holdUntil || "") > nowMs) continue;
       // A slower way to pay (a bank debit) finishes the page but clears later: keep the time for it until the booking starts.
-      if (Date.parse(b.start || "") > nowMs && (await paymentClearing(b, checkout))) continue;
+      if (Date.parse(b.start || "") > nowMs && (await paymentClearing(b, checkout))) {
+        if (!b.clearing) await bookings().doc(doc.id).set({ clearing: true, history: [...(b.history || []), { at: now().toISOString(), what: "payment clearing", by: "customer" }].slice(-20) }, { merge: true });
+        continue;
+      }
       // Close every page first, then read once more: a payment that landed just before the close still counts.
       for (const sid of b.sessions || []) if (SESSION_ID.test(sid)) await checkout?.close(sid).catch(() => {});
       b = await refreshHeld(doc.id, b, checkout);
       if (b.status === "confirmed") { confirmed += 1; continue; }
       const at = now().toISOString();
       await freeTime(doc.id, b, { status: "cancelled", cancelledAt: at, cancelledBy: "hold ran out", holdUntil: null, pendingKey: null, updatedAt: at,
-        history: [...(b.history || []), { at, what: "not paid in time", by: "shop" }].slice(-20) });
+        history: [...(b.history || []), { at, what: b.clearing ? "payment didn't clear" : "not paid in time", by: "shop" }].slice(-20) });
+      if (b.clearing) await tellCustomer(doc.id, b, "notCleared", { byShop: true, toOwner: true });
       freed += 1;
     }
     return { confirmed, freed };
@@ -575,6 +599,8 @@ function bookingActions({
    */
   async function sweepReminders() {
     if (!(await featureOn())) return { reminded: 0 };
+    const { reminderHours } = await readSettings();
+    if (!reminderHours) return { reminded: 0 };
     const nowMs = now().getTime();
     const snap = await bookings().where("status", "==", "confirmed").limit(1000).get();
     let reminded = 0;
@@ -582,10 +608,12 @@ function bookingActions({
       const b = doc.data();
       const start = Date.parse(b.start || "");
       if (b.reminderSentAt || !Number.isFinite(start)) continue;
-      if (start - nowMs > REMINDER_HOURS * HOUR || start - nowMs < HOUR) continue;
-      if (nowMs - Date.parse(b.createdAt || "") < REMINDER_SKIP_HOURS * HOUR) continue;
-      await bookings().doc(doc.id).set({ reminderSentAt: new Date(nowMs).toISOString() }, { merge: true });
-      await tellCustomer(doc.id, b, "reminder", { byShop: true });
+      if (start - nowMs > reminderHours * HOUR || start - nowMs < Math.min(HOUR, reminderHours * HOUR / 2)) continue;
+      if (nowMs - Date.parse(b.createdAt || "") < Math.min(REMINDER_SKIP_HOURS, reminderHours / 2) * HOUR) continue;
+      // Its own link, so the customer can cancel or move from the reminder; the first email's link keeps working.
+      const key = randomKey();
+      await bookings().doc(doc.id).set({ reminderSentAt: new Date(nowMs).toISOString(), reminderKeyHash: hash(key) }, { merge: true });
+      await tellCustomer(doc.id, b, "reminder", { byShop: true, key });
       reminded += 1;
     }
     return { reminded };
@@ -594,10 +622,42 @@ function bookingActions({
   return { handlePublic, handleAdmin, sweepHolds, sweepReminders, featureOn };
 }
 
+/**
+ * The owner's calendar feed for frontDoor.js: every booking from a month back, as one calendar Google or Apple Calendar
+ * subscribes to. `db` is the database root; only shops/<shopId>/… is read. null when the link is wrong or Bookings is off.
+ */
+async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now() }) {
+  if (!KEY.test(String(token || ""))) return null;
+  const shop = db.collection("shops").doc(shopId);
+  const [features, feed] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookingFeed").doc("main").get()]);
+  if (features.data()?.bookings !== true || !sameHash(feed.data()?.token, token)) return null;
+  const snap = await shop.collection("bookings").where("status", "in", ["confirmed", "held"]).limit(2000).get();
+  const from = nowMs - 31 * 24 * HOUR;
+  const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .filter((b) => Date.parse(b.end || "") >= from)
+    .map((b) => ({
+      id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "",
+      title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.status === "held" ? " (not paid yet)" : ""}`,
+      details: [b.customer?.email, b.customer?.phone, b.note ? `“${b.note}”` : ""].filter(Boolean).join("\n"),
+    }));
+  return bookingsFeedIcs(shopName ? `${shopName} bookings` : "Bookings", events, nowMs);
+}
+
+/** One booking as a calendar file, for the customer's "Add to Apple Calendar" link. null for a wrong link or a cancelled booking. */
+async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = Date.now() }) {
+  if (!ID.test(String(id || "")) || !KEY.test(String(key || ""))) return null;
+  const shop = db.collection("shops").doc(shopId);
+  const [features, snap] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookings").doc(id).get()]);
+  const b = snap.exists ? snap.data() : null;
+  if (features.data()?.bookings !== true || !b || b.status !== "confirmed") return null;
+  if (!(sameHash(b.manageKeyHash, hash(key)) || (b.reminderKeyHash && sameHash(b.reminderKeyHash, hash(key))))) return null;
+  return bookingIcs({ id, title: shopName ? `${b.serviceName} · ${shopName}` : b.serviceName, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "", nowMs });
+}
+
 const HOUR = 60 * 60 * 1000;
-const REMINDER_HOURS = 24;
+const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
 const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingStart", "bookingView", "bookingCancel", "bookingMove"]);
 
-module.exports = { bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
+module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

@@ -40,6 +40,8 @@ export type BookingSettings = {
   cancelHours: number;
   /** Start times are offered every this many minutes (15, 30 or 60). */
   step: number;
+  /** Customers are emailed a reminder this many hours before; 0 sends none. */
+  reminderHours: number;
 };
 
 /** A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. */
@@ -60,7 +62,11 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   maxDaysAhead: 60,
   cancelHours: 24,
   step: 30,
+  reminderHours: 24,
 };
+
+/** The reminder choices the owner picks from: none, or this many hours before. */
+export const REMINDER_HOURS = [0, 2, 12, 24, 48, 72] as const;
 
 const text = (value: unknown, max: number): string => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const whole = (value: unknown, min: number, max: number, fallback: number): number => {
@@ -120,6 +126,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     maxDaysAhead: whole(s.maxDaysAhead, 1, 365, DEFAULT_BOOKING_SETTINGS.maxDaysAhead),
     cancelHours: whole(s.cancelHours, 0, 24 * 14, DEFAULT_BOOKING_SETTINGS.cancelHours),
     step,
+    reminderHours: (REMINDER_HOURS as readonly number[]).includes(Number(s.reminderHours)) ? Number(s.reminderHours) : DEFAULT_BOOKING_SETTINGS.reminderHours,
   };
 }
 
@@ -232,9 +239,31 @@ export function bookingIcs({ id, title, start, end, location = "", details = "",
 }): string {
   return [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Colophon//Bookings//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    ...icsEvent({ id, title, start, end, location, details }, nowMs),
+    "END:VCALENDAR", "",
+  ].join("\r\n");
+}
+
+type IcsEventInput = { id: string; title: string; start: number; end: number; location?: string; details?: string };
+
+function icsEvent({ id, title, start, end, location = "", details = "" }: IcsEventInput, nowMs: number): string[] {
+  return [
     "BEGIN:VEVENT", `UID:${id}@bookings`, `DTSTAMP:${icsTime(nowMs)}`, `DTSTART:${icsTime(start)}`, `DTEND:${icsTime(end)}`,
     `SUMMARY:${icsText(title)}`, ...(location ? [`LOCATION:${icsText(location)}`] : []), ...(details ? [`DESCRIPTION:${icsText(details)}`] : []),
-    "END:VEVENT", "END:VCALENDAR", "",
+    "END:VEVENT",
+  ];
+}
+
+/**
+ * The owner's calendar feed: every booking as one calendar that Google or Apple Calendar subscribes to and refreshes
+ * by itself. `name` is what the calendar is called in their app.
+ */
+export function bookingsFeedIcs(name: string, events: readonly IcsEventInput[], nowMs = Date.now()): string {
+  return [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Colophon//Bookings//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    `X-WR-CALNAME:${icsText(name)}`, "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H",
+    ...events.flatMap((e) => icsEvent(e, nowMs)),
+    "END:VCALENDAR", "",
   ].join("\r\n");
 }
 

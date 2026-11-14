@@ -5302,5 +5302,7 @@ exports.frontDoor = require("firebase-functions/v2/https").onRequest(
     bucket: () => sdk.storage().bucket(),
     loadShop: shopEntry.loadShop,
     shellUrl: () => process.env.SHOP_FRONT_DOOR_SHELL_URL || `https://${process.env.GCLOUD_PROJECT}.web.app/spa.html`,
+    bookingCalendar: (shop, id, key) => require("./bookings").customerBookingIcs({ db: sdk.firestore(), shopId: shop.id, id, key, shopName: shop.record?.profile?.name || "" }),
+    calendarFeed: (shop, token) => require("./bookings").bookingsFeed({ db: sdk.firestore(), shopId: shop.id, token, shopName: shop.record?.profile?.name || "" }),
   }),
 );

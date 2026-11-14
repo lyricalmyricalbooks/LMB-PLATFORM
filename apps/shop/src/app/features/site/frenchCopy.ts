@@ -1033,7 +1033,7 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeWhere: "Où",
   bookTimePaid: "Paiement",
   bookTimePaidAmount: "{amount} payé",
-  bookTimeAddCalendar: "Ajouter au calendrier",
+  bookTimeAddCalendar: "Calendrier Apple",
   bookTimeGoogle: "Google Agenda",
   bookTimeMove: "Changer l'heure",
   bookTimeMoveTitle: "Choisissez un nouveau moment",

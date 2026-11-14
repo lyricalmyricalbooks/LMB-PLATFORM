@@ -67,6 +67,11 @@ function profileScript(profile) {
   return `// Written by the platform. Do not edit by hand.\nwindow.__SHOP_PROFILE__ = ${json};\n`;
 }
 
+// The owner's private bookings calendar (Google or Apple Calendar subscribes to it).
+const CALENDAR_PATH = /^\/calendar\/([a-f0-9]{48})\.ics$/;
+// One booking as a calendar file, for the customer (its id and the customer's own key).
+const BOOKING_CALENDAR_PATH = /^\/calendar\/b\/([A-Za-z0-9_-]{6,40})\/([a-f0-9]{48})\.ics$/;
+
 const page = (title, words) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${title}</title></head><body style="font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem"><h1 style="font-size:1.4rem">${title}</h1><p>${words}</p></body></html>`;
 
 /**
@@ -75,8 +80,9 @@ const page = (title, words) => `<!doctype html><html lang="en"><head><meta chars
  * @param {() => any} deps.bucket   the shared file bucket (unscoped), read only under shops/<id>/site/
  * @param {(id: string) => Promise<object|null>} deps.loadShop  shopEntry's record reader (cached)
  * @param {() => string} deps.shellUrl  where the app's blank page is (the shared site's /spa.html)
+ * @param {(shop: object, token: string) => Promise<string|null>} [deps.calendarFeed]  the owner's bookings calendar (bookings.js bookingsFeed)
  */
-function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetch, now = () => Date.now(), log = console, usage = usageLine }) {
+function frontDoor({ rootDb, bucket, loadShop, shellUrl, calendarFeed = null, bookingCalendar = null, fetch = globalThis.fetch, now = () => Date.now(), log = console, usage = usageLine }) {
   const addresses = new Map();
   let shell = null;
 
@@ -138,6 +144,18 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetc
       return send(200, "text/javascript; charset=utf-8", profileScript({ ...profile, ...(shop.tenant ? { tenant: shop.tenant } : {}) }));
     }
 
+    const one = BOOKING_CALENDAR_PATH.exec(pathname);
+    if (one) {
+      const body = bookingCalendar ? await bookingCalendar(shop, one[1], one[2]) : null;
+      if (body) res.set("Content-Disposition", 'inline; filename="booking.ics"');
+      return body ? send(200, "text/calendar; charset=utf-8", body, "private, no-store") : send(404, TYPES[".txt"], "This booking isn't on any more. Check your latest email from the shop.");
+    }
+    const feed = CALENDAR_PATH.exec(pathname);
+    if (feed) {
+      const body = calendarFeed ? await calendarFeed(shop, feed[1]) : null;
+      return body ? send(200, "text/calendar; charset=utf-8", body, "private, max-age=300") : send(404, TYPES[".txt"], "This calendar link no longer works. Get a new one in your shop's Bookings page.");
+    }
+
     const name = pathname.replace(/^\/+/, "");
     if (SITE_FILES.has(name)) {
       const body = await siteFile(shop.id, name);
@@ -158,4 +176,4 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, fetch = globalThis.fetc
   };
 }
 
-module.exports = { frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };
+module.exports = { BOOKING_CALENDAR_PATH, CALENDAR_PATH, frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };

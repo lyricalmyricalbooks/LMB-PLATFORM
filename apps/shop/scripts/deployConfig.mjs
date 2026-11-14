@@ -48,6 +48,8 @@ const FRONT_DOOR_PATHS = [
 const FRONT_DOOR_PAGES = "^/(?:|(?:books|products|page|collections)/[^/]+/?)$";
 // Google's Search Console proof file for the shop's address (functions/frontDoor.js VERIFICATION_FILE).
 const FRONT_DOOR_VERIFICATION = "^/google[0-9a-f]{8,32}\\.html$";
+// The owner's private bookings calendar (functions/frontDoor.js CALENDAR_PATH).
+const FRONT_DOOR_CALENDAR = "^/calendar/(?:b/[A-Za-z0-9_-]{6,40}/)?[a-f0-9]{48}\\.ics$";
 
 /** The Hosting part of the shared site: the per-shop files left out, and their addresses sent to the front door. */
 export function frontDoorHosting(hosting, region) {
@@ -60,6 +62,7 @@ export function frontDoorHosting(hosting, region) {
       ...FRONT_DOOR_PATHS.map(source => ({ source, ...to })),
       { regex: FRONT_DOOR_PAGES, ...to },
       { regex: FRONT_DOOR_VERIFICATION, ...to },
+      { regex: FRONT_DOOR_CALENDAR, ...to },
       ...(hosting.rewrites ?? []),
     ],
   };
