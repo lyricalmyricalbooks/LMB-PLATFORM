@@ -136,9 +136,8 @@ export async function seedRoom(world) {
   });
   await world.room.updateBreach(admin(), { id: breach.id, note: "Low risk: no payment details or address were in the email. Not reportable." });
 
-  // The activity log: an invite from the waitlist, a change to what new shops start with and a per-order fee to come.
+  // The activity log: an invite from the waitlist and a per-order fee to come.
   await world.controls.invite(admin(), { email: "chapbooks@example.com" });
-  await world.room.setNewShopSwitch(admin(), { name: "gmailReceiptFinder", on: true, reason: "New presses ask for it in their first week." });
   await world.room.setFee(admin(), { shopId: "lantern-zines", basisPoints: 50, refunded: true, reason: "Lantern Zines sells mostly at fairs; half a percent online." });
 
   // Sign-in safety: Kestrel's owner has two-step with two backup codes left; Lantern's owner hasn't turned it on.

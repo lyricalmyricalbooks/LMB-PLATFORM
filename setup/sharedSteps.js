@@ -25,7 +25,7 @@
 // domain service (services/domains/hosted.js), which puts the free address on the shared Hosting site in step 9.
 // `shopData`, `stockroom` and
 // `inventoryLink` reach the shop's folder in the shared project (the caller builds them so). Config, as for shopSteps
-// (`release`, `senderEmail`, `paymentsServiceUrl`, `stripePublishableKeys`, `switchDefaults`), plus:
+// (`release`, `senderEmail`, `paymentsServiceUrl`, `stripePublishableKeys`), plus:
 //   sharedProject    the shared project's id
 //   webApp           its web app's settings ({ apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId })
 //   shopDomain       the shops' domain: a shop's free address is <shop id>.<shopDomain>
@@ -140,7 +140,7 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
   const profileFiles = recordProfileFiles(shared.records);
   const profileFor = async (shop) => {
     const saved = await registry.getProfile(shop.shopId);
-    const base = shopProfile(shop, webApp, region, saved?.switches, saved?.payments, config.switchDefaults, await siteUrlFor(shop));
+    const base = shopProfile(shop, webApp, region, saved?.payments, await siteUrlFor(shop));
     return { ...base, stockroom: { firestoreDatabase: STOCKROOM_DATABASE, storageBucket: stockroomBucket } };
   };
   const recordFor = async (shop) => {
@@ -226,7 +226,6 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
         if (problems.length) throw new Error(`the shop profile has problems: ${problems.join("; ")}`);
         await registry.saveProfile(shop.shopId, profile);
         await profileFiles.write(shop.shopId, profileScript(profile));
-        return { detail: { switches: profile.switches } };
       },
     },
     {

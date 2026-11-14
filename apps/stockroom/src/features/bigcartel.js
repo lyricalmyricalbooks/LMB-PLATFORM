@@ -63,7 +63,6 @@ import {
   seedSeenOrders,
 } from '../lib/order-watch.js';
 import { escapeHtml } from '../lib/html.js';
-import { readShopProfile, switchOn } from '../lib/shop-profile.js';
 import { legacyCopy } from '../lib/clipboard.js';
 import { pushAppAlert } from '../lib/app-alert.js';
 import { logNotification } from '../lib/notification-log.js';
@@ -2113,12 +2112,10 @@ function bigCartelOrdersToReview() {
   return pendingGaps(_bcGapResult).length;
 }
 
-// Plan 1.21c: this whole tab is one press's old shop system, so it follows the shop profile's oldShopSync switch and
-// is off for a new shop. Off, its sidebar and tab buttons, its help words, the missing-orders strip on Orders and the
-// order watch stay away, and nothing on screen names the other system.
+// This whole tab is one press's old shop system (plan 1.21c), retired on 14 November 2026 with the other shop switches, off in every shop. Its sidebar and tab buttons,
+// its help words, the missing-orders strip on Orders and the order watch stay away, and nothing on screen names it.
 function oldShopSyncOn() {
-  // Read from the page's profile each time (cheap), so the answer is never a stale copy.
-  return switchOn('oldShopSync', readShopProfile());
+  return false;
 }
 
 /** Shows the old shop system's buttons and words when the switch is on; hides them, badges and strip too, when off. */

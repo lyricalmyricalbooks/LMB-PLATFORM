@@ -52,9 +52,8 @@ and dry runs; Google is never called from tests.
    project holds, stops the run too (plan 1.20).
 6. Create the web app ("Shop"), build the public profile from its settings, check it with `profile/profile.js`, and
    save it to the registry and to the per-shop `/shop-profile.js` file (`profileFiles`). With the stockroom in the plan
-   the profile's `stockroom` block names its database and bucket. Every switch is written down,
-   as `false` for a new shop; a re-run keeps a switch the saved profile already has. The step's audit entry carries
-   the switches it wrote (`detail`; a step's `act` may return `{ detail }` and the runner records it).
+   the profile's `stockroom` block names its database and bucket. A profile saved with the retired
+   `switches` is written again without them.
 
 Google is reached only through the injected `google` clients (shape at the top of `steps.js`). There is no real client
 in this folder yet, so nothing here can create a real project. `fakes.js` has a pretend Google; `test-shop.js` holds the

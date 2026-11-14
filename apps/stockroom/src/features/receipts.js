@@ -151,14 +151,12 @@ import { isExpiringLabelUrl, isLabelUrlExpired, shippoTxIdFromRef } from '../lib
 import { mountReceiptFinder, startReceiptFinder, stopReceiptFinder } from './receipt-finder.js';
 import { receiptTextForAi } from '../lib/receipt-finder-client.js';
 import { RECEIPT_QUERY, RECEIPT_NOISE, receiptWorthReading } from '../lib/receipt-finder.js';
-import { readShopProfile, switchOn } from '../lib/shop-profile.js';
 
-// The Gmail receipt finder (Gmail Finder and Gmail Import tabs, the outbox it restores at sign-in) is one press's
-// one-off: off unless the shop profile's gmailReceiptFinder switch is on (plan 1.17). Paste & Upload and Review stay.
+// The Gmail receipt finder (Gmail Finder and Gmail Import tabs, the outbox it restores at sign-in) was retired on 14 November 2026 with the other shop switches, off in every shop.
+// Receipts by email replaced it. Paste & Upload and Review stay.
 const GMAIL_TABS = new Set(['gmail', 'direct']);
 function gmailReceiptFinderOn() {
-  // Read from the page's profile each time (cheap), so the answer is never a stale copy.
-  return switchOn('gmailReceiptFinder', readShopProfile());
+  return false;
 }
 
 /** Shows or hides everything in the receipt import that reads the publisher's Gmail. */

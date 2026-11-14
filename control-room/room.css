@@ -466,9 +466,9 @@
 .rp.cl .cr-ask .rp-field { margin-top: 14px; }
 
 /*
- * ── Launch as a to-do list, Switches as one board (14 November 2026) ──────────────────────────────────────────────
+ * ── Launch as a to-do list (14 November 2026) ─────────────────────────────────────────────────────────────────
  * Launch: a progress bar, the next step as a big mint tile with its how-to open, the rest as folded rows, done ones
- * folded together. Switches: one tile, a row per feature with where it stands in live shops and a switch for new shops.
+ * folded together.
  */
 .rp.cl .cr-todo { display: grid; gap: 8px; }
 .rp.cl .cr-todo-group { display: grid; gap: 8px; margin-top: 20px; }
@@ -517,18 +517,6 @@
 .rp.cl .cr-choice-words { font-weight: 600; font-size: 15px; }
 .rp.cl .cr-choice:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 
-.rp.cl .cr-switch-board { display: grid; padding: 8px 24px; border-radius: var(--cl-radius-tile); background: var(--rp-surface); }
-.rp.cl .cr-switch-head, .rp.cl .cr-switch-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 0.7fr); gap: 20px; align-items: center; }
-.rp.cl .cr-switch-head { padding: 10px 0; border-bottom: 1px solid var(--rp-divider); font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
-.rp.cl .cr-switch-row { padding: 18px 0; border-bottom: 1px solid var(--rp-divider); }
-.rp.cl .cr-switch-row:last-child { border-bottom: 0; }
-.rp.cl .cr-switch-what .cr-title { margin: 0; }
-.rp.cl .cr-switch-what .rp-hint { margin: 4px 0 0; }
-.rp.cl .cr-switch-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
-.rp.cl .cr-switch-label { display: none; }
-.rp.cl .cr-switch-state { font-size: 14px; color: var(--rp-text-muted); }
-.rp.cl .cr-switch-row[data-on="true"] .cr-switch-what .cr-title::after { content: "On"; margin-left: 8px; padding: 3px 8px; border-radius: 999px; background: var(--cl-apricot); color: var(--cl-on-tile); font: 600 11px/1 var(--rp-font-body); vertical-align: 2px; }
-.rp.cl .cr-switch-foot { margin: 12px 4px 0; }
 @media (max-width: 767px) {
   .rp.cl .cr-next { padding: 22px 18px; }
   .rp.cl .cr-next-title { font-size: 24px; }
@@ -536,19 +524,7 @@
   .rp.cl .cr-step > summary { padding: 10px 16px; }
   .rp.cl .cr-step-body { padding: 0 16px 18px; }
   .rp.cl .cr-step-inner > .cr-actions .rp-btn { flex: 1 1 auto; min-height: 44px; }
-  .rp.cl .cr-switch-board { padding: 4px 18px; }
-  .rp.cl .cr-switch-head { display: none; }
-  .rp.cl .cr-switch-row { grid-template-columns: 1fr; gap: 10px; }
-  .rp.cl .cr-switch-cell { justify-content: space-between; min-height: 44px; }
-  .rp.cl .cr-switch-label { display: block; flex: 1 1 100%; font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
-  .rp.cl .cr-switch-cell:last-child .cr-switch-label { flex: 1; }
 }
-.rp.cl .cr-switch-cell .rp-toggle-track, .rp.cl .cr-switch-cell .rp-toggle-track::after { border-radius: 999px; }
-/* The new-shops switch: the track and its word in one button at least 44px tall; links and folds on Launch the same. */
-.rp.cl .cr-toggle { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.rp.cl .cr-toggle:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; border-radius: 12px; }
-.rp.cl .cr-toggle[aria-checked="true"] .rp-toggle-track { background: var(--rp-primary); }
-.rp.cl .cr-toggle[aria-checked="true"] .rp-toggle-track::after { transform: translateX(18px); }
-.rp.cl .cr-toggle .rp-toggle-track, .rp.cl .cr-toggle .rp-toggle-track::after { border-radius: 999px; }
+/* Links and folds on Launch are at least 44px tall. */
 .rp.cl .cr-how-link { display: inline-flex; align-items: center; min-height: 44px; }
 .rp.cl .cr-tech > summary { display: flex; align-items: center; min-height: 44px; }

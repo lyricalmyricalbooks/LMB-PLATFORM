@@ -1,9 +1,8 @@
-// Plan 1.17: one press's one-offs are switches in the shop profile, off unless turned on. In the stockroom that is
-// the Gmail receipt finder: off, Email Receipt Import opens on Paste & Upload with the Gmail tabs out of sight.
+// Plan 1.17's shop switches were retired on 14 November 2026: the Gmail receipt finder, the Gmail order scan and the
+// old shop system's tab stay off in every shop, even for a profile that still names a switch as on.
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { loadApp } from './helpers/load-app.js';
-import { DEFAULT_SHOP_PROFILE, SHOP_SWITCHES, parseShopProfile, switchOn } from '../src/lib/shop-profile.js';
-import { SHOP_SWITCHES as SHOP_SIDE } from '../../shop/src/lib/shopProfile.ts';
+import * as shopProfileModule from '../src/lib/shop-profile.js';
 
 const profile = (switches) => ({
   version: 1,
@@ -18,28 +17,19 @@ const profile = (switches) => ({
   ...(switches === undefined ? {} : { switches }),
 });
 
-describe('shop switches', () => {
-  it('are all off for a new shop and for the built-in test profile', () => {
-    for (const name of SHOP_SWITCHES) {
-      expect(switchOn(name, DEFAULT_SHOP_PROFILE)).toBe(false);
-      expect(switchOn(name, parseShopProfile(profile()))).toBe(false);
-    }
-  });
+const ALL_ON = { legacyStockroomSignIn: true, githubPagesForwarding: true, gmailReceiptFinder: true, gmailOrderScan: true, oldShopSync: true };
 
-  it('turn on only with true, and unknown names are dropped', () => {
-    const parsed = parseShopProfile(profile({ gmailReceiptFinder: true, legacyStockroomSignIn: 'yes', somethingElse: true }));
-    expect(parsed.switches).toEqual({ gmailReceiptFinder: true });
-    expect(switchOn('gmailReceiptFinder', parsed)).toBe(true);
-    expect(switchOn('legacyStockroomSignIn', parsed)).toBe(false);
-    expect(parseShopProfile(profile('on')).switches).toBeUndefined();
-  });
-
-  it('name the same switches as the shop', () => {
-    expect([...SHOP_SWITCHES]).toEqual([...SHOP_SIDE]);
+describe('the retired shop switches', () => {
+  it('are gone from the profile reader', () => {
+    expect('switchOn' in shopProfileModule).toBe(false);
+    expect('SHOP_SWITCHES' in shopProfileModule).toBe(false);
+    const parsed = shopProfileModule.parseShopProfile(profile(ALL_ON));
+    expect(parsed).not.toBeNull();
+    expect('switches' in parsed).toBe(false);
   });
 });
 
-describe('the Gmail receipt finder follows its switch', () => {
+describe('the Gmail receipt finder stays off', () => {
   let app;
   beforeAll(async () => {
     app = await loadApp();
@@ -64,6 +54,14 @@ describe('the Gmail receipt finder follows its switch', () => {
     expect(el('email-panel-gmail').textContent).toContain('Opening your receipt finder');
   });
 
+  it('off even for an older profile that names the switch as on', async () => {
+    window.__SHOP_PROFILE__ = profile(ALL_ON);
+    app.window.openEmailReceiptImportModal();
+    await app.settle();
+    for (const id of ['email-tab-gmail', 'email-tab-direct', 'email-account-pill']) expect(el(id).hidden, id).toBe(true);
+    expect(el('email-tab-manual').getAttribute('aria-selected')).toBe('true');
+  });
+
   it('off: asking for a Gmail tab opens Paste & Upload instead', async () => {
     app.window.openEmailReceiptImportModal();
     await app.settle();
@@ -73,20 +71,9 @@ describe('the Gmail receipt finder follows its switch', () => {
       expect(shown('email-panel-manual')).toBe(true);
     }
   });
-
-  it('on: the Gmail Finder is offered and opens first, as before', async () => {
-    window.__SHOP_PROFILE__ = profile({ gmailReceiptFinder: true });
-    app.window.openEmailReceiptImportModal();
-    await app.settle();
-    for (const id of ['email-tab-gmail', 'email-tab-direct', 'email-account-pill']) expect(el(id).hidden, id).toBe(false);
-    expect(el('email-tab-gmail').getAttribute('aria-selected')).toBe('true');
-    expect(shown('email-panel-gmail')).toBe(true);
-    app.window.switchEmailImportTab('direct');
-    expect(shown('email-panel-direct')).toBe(true);
-  });
 });
 
-describe('the Gmail order scan follows its switch', () => {
+describe('the Gmail order scan stays off', () => {
   let app;
   beforeAll(async () => {
     app = await loadApp();
@@ -130,17 +117,9 @@ describe('the Gmail order scan follows its switch', () => {
     expect(calls).toEqual([]);
     expect(el('scan-btn').disabled).toBe(false);
   });
-
-  it('on: the scan screen comes back as before', () => {
-    window.__SHOP_PROFILE__ = profile({ gmailOrderScan: true });
-    app.window.renderOrders();
-    for (const part of scanParts()) expect(part.hidden).toBe(false);
-    expect(websiteWords().hidden).toBe(true);
-    expect(el('scan-btn').textContent).toBe('Scan Gmail');
-  });
 });
 
-describe('the old shop system tab follows its switch', () => {
+describe('the old shop system tab stays off', () => {
   let app;
   beforeAll(async () => {
     app = await loadApp();
@@ -194,15 +173,6 @@ describe('the old shop system tab follows its switch', () => {
       window.fetch = realFetch;
     }
     expect(calls).toEqual([]);
-  });
-
-  it('on: the tab, its words and its buttons come back as before', () => {
-    window.__SHOP_PROFILE__ = profile({ oldShopSync: true });
-    app.window.switchTab('bigcartel');
-    for (const part of parts()) expect(part.hidden).toBe(false);
-    expect(el('tab-bigcartel').classList.contains('active')).toBe(true);
-    expect(visibleText(helpAnswer())).toContain('Shipping, Big Cartel, Sheets and Backups');
-    app.window.switchTab('dashboard');
   });
 });
 

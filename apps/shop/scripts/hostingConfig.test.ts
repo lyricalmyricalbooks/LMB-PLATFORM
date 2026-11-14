@@ -136,13 +136,9 @@ describe('deploy workflows agree', () => {
     expect(new Set(versions).size).toBe(1);
   });
 
-  it('GitHub Pages only gets the forwarding pages, and only after the shop itself deployed', () => {
+  it('never publishes to GitHub Pages (the old-address forwarding was retired)', () => {
     const storefront = read('.github/workflows/deploy-pages.yml');
-    const uploads = [...storefront.matchAll(/upload-pages-artifact@\S+\s+with:\s+path: (\S+)/g)].map(m => m[1]);
-    expect(uploads).toEqual(['./pages-redirect']);
-    const redirectJob = storefront.slice(storefront.indexOf('  redirect-old-address:'));
-    expect(redirectJob).toMatch(/needs: \[build-hosting, deploy-hosting\]/);
-    expect(redirectJob).toMatch(/if: github\.event_name != 'schedule'/);
+    expect(storefront).not.toMatch(/upload-pages-artifact|deploy-pages@|github-pages/);
   });
 
   it('never deploys Hosting from the backend workflow, nor the backend from the storefront one', () => {
@@ -158,7 +154,6 @@ describe('deploy workflows agree', () => {
     }
     const storefront = read('.github/workflows/deploy-pages.yml');
     expect(storefront).toMatch(/superseded: \$\{\{ steps\.newest\.outputs\.superseded \}\}/);
-    expect(storefront).toMatch(/needs\.deploy-hosting\.outputs\.deployed == 'true'/);
   });
 
   it('builds while the backend deploys, but publishes only after firebase-first succeeded', () => {

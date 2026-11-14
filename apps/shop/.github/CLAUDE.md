@@ -17,24 +17,12 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   test, `dist` artifact; `scripts/siteAddressCheck.mjs` refuses a `SITE_URL` missing from `ALLOWED_ORIGINS` and a custom one that
   doesn't serve the shop yet) → `deploy-hosting` (downloads `dist`, `firebase deploy --only hosting` with the pinned CLI and
   `FIREBASE_HOSTING_SERVICE_ACCOUNT` (Firebase Hosting Admin only), else `FIREBASE_SERVICE_ACCOUNT`; fails without either; live
-  smoke test) → `redirect-old-address` (push/manual only: `scripts/build-pages-redirect.mjs` publishes forwarding pages to GitHub
-  Pages). Both Hosting jobs run only on `main` and while the repository variable `FIREBASE_HOSTING_ENABLED` is `true` (keep it
+  smoke test). Both Hosting jobs run only on `main` and while the repository variable `FIREBASE_HOSTING_ENABLED` is `true` (keep it
   true; it is the emergency stop). Vite `base` defaults to `/` and `SPA_FALLBACK` to `shell`; every `SITE_URL` default (build
-  scripts, `vite.config.ts`, `build-pages-redirect.mjs`, `functions/index.js` email links), the workflow fallback and
+  scripts, `vite.config.ts`, `functions/index.js` email links), the workflow fallback and
   `index.html`'s address must agree (`scripts/siteAddress.test.ts`). Still use `import.meta.env.BASE_URL` for links.
-- **The old address forwards** only for a shop whose profile turns `switches.githubPagesForwarding` on (plan 1.17; off
-  for every new shop, so `redirect-old-address` is skipped and the shop ignores `#lm-move=`). GitHub Pages (`…github.io/shop/…`) serves only forwarding pages
-  (`scripts/pagesRedirect.mjs`, inlined with `toString()`): `index.html`, `404.html` and one page per prerendered route (200 +
-  canonical to the new page, `<noscript>` refresh, `no-referrer`). `movedUrl` keeps path, query and `#hash` (emails already sent:
-  `/track?orderId&key`, unsubscribe, `/checkout?cartId=`, `/admin#orders/<id>`) and decodes the old `?/…~and~` form. It also
-  hands over, in `#lm-move=<base64url JSON>`, the old origin's bag and wishlist (once per browser, `lm:moved`; gift-card lines
-  stay behind), on `/checkout?order_id=X` that order's `order-access:X` key (plus `attempt` when it was the tab's
-  `fm_last_checkout_order`, so a retry still meets "earlier attempt already paid"; an oversized bag never drops the key), and
-  the referrer's host (`from`; the forwarding page sends `no-referrer`). `features/site/movedState.ts` (`takeMovedState`, first
-  thing in `main.tsx`) strips the hash, fills only an **empty** bag through `sanitizeCart` and **refuses gift-card lines** (a
-  crafted link could otherwise name who receives a paid card's code), merges the wishlist, restores the key/attempt only for the
-  matching `order_id`, and sets `referral_source` (`lib/referralSource.ts`, shared with App.tsx) only with analytics consent. The forwarding pages are replaced only after the Hosting deploy and its
-  live check succeeded. Never point `SITE_URL` back at github.io.
+- **The old address forwarding** (GitHub Pages forwarding pages and the `#lm-move=` hand-over, one brand's move here) was
+  removed on 14 November 2026 with the other retired shop switches. Never point `SITE_URL` back at github.io.
 - **Firebase** (Firestore rules/indexes, Storage rules, Functions) →
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`
   secret and `SHOP_OWNER_EMAIL` variable), or manually: `SHOP_OWNER_EMAIL=… node scripts/deployConfig.mjs --project <id>`
@@ -78,8 +66,8 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
 **No cancelled runs (12 October 2026).** Merging PRs in quick succession used to cancel the earlier runs (red marks on `main`).
 `ci.yml` now cancels only superseded *pull request* runs (group per PR number / commit on main). `deploy-pages.yml` uses one group
 per run and never cancels; `firebase-first` checks whether the run's commit is still the head of `main` and, if not, finishes green
-as "superseded" without building (that check is now its own `newest` job); `deploy-hosting` re-checks right before `firebase deploy` and `redirect-old-address` only runs
-when it deployed. `scripts/hostingConfig.test.ts` forbids `cancel-in-progress: true`. Only the workflows' first real run proves this.
+as "superseded" without building (that check is now its own `newest` job); `deploy-hosting` re-checks right before `firebase deploy`.
+`scripts/hostingConfig.test.ts` forbids `cancel-in-progress: true`. Only the workflows' first real run proves this.
 **Deploy ordering contract (October 2026).** Rules, indexes and Functions go live before the frontend that needs them.
 `deploy-pages.yml`'s `firebase-first` job, on a push to `main`, lists the changed files (GitHub compare API) and, when any
 path watched by `deploy-firebase.yml` changed (keep its regex identical to that workflow's `on.push.paths`), waits for the

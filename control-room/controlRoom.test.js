@@ -1,15 +1,14 @@
 // The control room (code plan 2.8), against a test shop made by the real setup steps with pretend Google and services:
-// only platform admins get in; the list shows plan, version, health and switches; "act as this shop" is logged before
-// any sign-in is made; and a switch changes the saved profile, its file and the live pages, with a log entry.
+// only platform admins get in; the list shows plan, version and health; and "act as this shop" is logged before any
+// sign-in is made.
 import { TIERED_PRICES_ENV } from "../services/billing/fakes.js";
 import { test } from "node:test";
 import { PRIVACY_CONTACT } from "../terms/terms.js";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, payoutWords, profilePublisher, shopHealth, switchPublisher, twoStepProblem, zoneWriter } from "./controlRoom.js";
+import { ACT_AS_MINUTES, SHOPS_AT_ONCE, SIGN_IN_HOURS, adminOf, controlRoomAdmins, createControlRoom, eachInTurn, payoutWords, profilePublisher, sharedPublisher, shopHealth, twoStepProblem, zoneWriter } from "./controlRoom.js";
 import { controlRoutes } from "./routes.js";
 import { platformRoutes } from "./platformControls.js";
-import { parseSwitchArgs, switchCommand } from "./switch.js";
 import { fakeActivity, fakeBreachStore, fakePlatformState, fakeRepairQueue, fakeRepairStore, fakeShopAccess } from "./fakes.js";
 import { feeForShop } from "../services/payments/fees.js";
 import { createBreachRegister, keepUntil } from "./breaches.js";
@@ -28,7 +27,6 @@ import { fakeVerifyIdToken } from "../signup/fakes.js";
 import { platformSettings } from "../services/settings.js";
 import { runSteps } from "../setup/runner.js";
 import { shopSteps } from "../setup/later-steps.js";
-import { SWITCHES, shopSwitches } from "../setup/steps.js";
 import { profileScript } from "../profile/profile.js";
 import { fakeAuditLog, fakeGoogle, fakeProfileFiles, fakeRegistry, fakeServices } from "../setup/fakes.js";
 import { TEST_CONFIG, TEST_SHOP } from "../setup/test-shop.js";
@@ -44,7 +42,7 @@ function fakeEmail() {
   return { sent, sendPlatform: async (message) => void (sent.has(message.idempotencyKey) || sent.set(message.idempotencyKey, structuredClone(message))) };
 }
 
-async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, bills, withStockroom = false, publishWith = null, writeZone = null } = {}) {
+async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch, bills, withStockroom = false, writeZone = null } = {}) {
   const google = fakeGoogle();
   const services = fakeServices();
   const registry = fakeRegistry();
@@ -61,8 +59,7 @@ async function world({ repairs, newsletters, googleSteps, googleReady, taxWatch,
   const built = [];
   const activity = fakeActivity();
   const platformState = fakePlatformState();
-  const pages = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
-  const publish = publishWith ? publishWith({ registry, fallback: pages }) : pages;
+  const publish = profilePublisher({ deploy: services.deploy, registry, build: async (v) => void built.push(v) });
   let clock = Date.parse("2026-10-28T12:00:00Z");
   const room = createControlRoom({
     registry, auditLog, profileFiles, publish, shopAccess, repairs, newsletters, shopData: services.shopData,
@@ -85,12 +82,12 @@ test("only platform admins get in; nobody is an admin unless the list says so", 
   assert.equal((await w.ask(PRESS, "GET", "/api/control/shops")).status, 403);
   assert.equal((await w.ask({ ...ADMIN, email_verified: false }, "GET", "/api/control/shops")).status, 403);
   assert.equal((await w.ask(null, "GET", "/api/control/shops")).status, 401);
-  assert.equal((await w.ask(PRESS, "POST", "/api/control/switch", { shopId: ID, name: SWITCHES[0], on: true, reason: "a press asked for it" })).status, 403);
+  assert.equal((await w.ask(PRESS, "POST", "/api/control/close", { shopId: ID })).status, 403);
   assert.deepEqual(controlRoomAdmins({}), []);
   assert.throws(() => adminOf(ADMIN, []), { status: 403 });
 });
 
-test("the list: every shop with its plan, version, health and switches, problems first", async () => {
+test("the list: every shop with its plan, version and health, problems first", async () => {
   const w = await world({ repairs: fakeRepairQueue({ "press-two": [] }) });
   await w.registry.recordReleaseCheck(ID, { ok: false, failedCheck: 3, error: "the email never came", finishedAt: "2026-10-28T11:00:00Z", version: "0.0.0-test" });
   const answer = await w.ask(ADMIN, "GET", "/api/control/shops");
@@ -100,9 +97,9 @@ test("the list: every shop with its plan, version, health and switches, problems
   assert.deepEqual([first.plan, first.status, first.version, first.testShop], ["both", "live", "0.0.0-test", true]);
   assert.equal(first.health.level, "problem");
   assert.match(first.health.reasons[0], /the last release check failed at check 3: the email never came/);
-  assert.deepEqual(first.switches, Object.fromEntries(SWITCHES.map((name) => [name, false])));
-  assert.deepEqual([second.shopId, second.health.level, second.switches], ["press-two", "watch", null]);
-  assert.deepEqual(answer.body.switchNames, SWITCHES);
+  assert.deepEqual([second.shopId, second.health.level], ["press-two", "watch"]);
+  assert.equal("switches" in first, false, "the retired switches are gone from the list");
+  assert.equal("switchNames" in answer.body, false);
 });
 
 test("the list: cost this month from the budget notices, and a notice past the alert amount marks the shop watch (15.17)", async () => {
@@ -152,62 +149,23 @@ test("act as this shop: the use is logged first, and no log means no sign-in", a
   assert.equal(w.shopAccess.calls.length, 1);
 });
 
-test("a switch: the saved profile, its file and the live pages change, with a log entry; repeating it is safe", async () => {
-  const w = await world();
-  const name = SWITCHES[0];
-  const before = w.services.calls.length;
-  const saved = await w.registry.getProfile(ID);
-  const answer = await w.ask(ADMIN, "POST", "/api/control/switch", { shopId: ID, name, on: true, reason: "the press moved its old stockroom sign-in" });
-  assert.equal(answer.status, 200);
-  assert.deepEqual([answer.body.from, answer.body.to, answer.body.changed, answer.body.published], [false, true, true, ["shop", "stockroom"]]);
-
-  const profile = await w.registry.getProfile(ID);
-  assert.equal(profile.switches[name], true);
-  assert.deepEqual({ ...profile, switches: saved.switches }, saved, "everything else in the profile is kept");
-  assert.equal(await w.profileFiles.read(ID), profileScript(profile));
-  const deploys = w.services.calls.slice(before).filter(([call]) => call === "deploy.pages");
-  assert.deepEqual(deploys.map(([, , version, app]) => [version, app]), [["0.0.0-test", "shop"], ["0.0.0-test", "stockroom"]], "the pages go out again at their own release");
-  assert.deepEqual(w.built, ["0.0.0-test", "0.0.0-test"]);
-  const [entry] = w.events();
-  assert.deepEqual([entry.what, entry.switch, entry.from, entry.to, entry.by], ["switch-set", name, false, true, ADMIN.email]);
-  assert.ok(w.auditLog.entries.get(ID).has(entry.id));
-
-  const again = await w.room.switch(ADMIN, { shopId: ID, name, on: true, reason: "checking it is still on" });
-  assert.equal(again.changed, false);
-  assert.equal((await w.registry.getProfile(ID)).switches[name], true);
-  assert.equal(w.events().length, 2, "every use is on record");
-
-  // Off again; the other switches are untouched.
-  await w.room.switch(ADMIN, { shopId: ID, name, on: false, reason: "the press no longer needs it" });
-  assert.deepEqual((await w.registry.getProfile(ID)).switches, Object.fromEntries(SWITCHES.map((s) => [s, false])));
+test("a shared-system shop has nothing to deploy when its profile changes; a shop with a project of its own is deployed again", async () => {
+  const records = { get: async () => ({ profile: {} }) };
+  const shared = new Set([ID]);
+  const deployed = [];
+  const publish = sharedPublisher({ recordsFor: async (id) => (shared.has(id) ? records : null), fallback: async (id) => (deployed.push(id), { apps: ["shop"] }) });
+  assert.deepEqual(await publish(ID), { apps: [] });
+  assert.deepEqual(deployed, []);
+  shared.clear();
+  assert.deepEqual(await publish(ID), { apps: ["shop"] });
+  assert.deepEqual(deployed, [ID]);
 });
 
-test("a switch reaches a shared-system shop through its record (the front door serves the profile from there), not a deploy", async () => {
-  // The record as setup wrote it; the payments step may have changed its other fields since.
-  const record = { tenant: "t1", profile: null };
-  const sets = [];
-  const records = {
-    get: async () => structuredClone(record),
-    set: async (shopId, data, { fields }) => { sets.push({ shopId, fields }); Object.assign(record, data); },
-  };
-  const shared = new Set([ID]);
-  const w = await world({ publishWith: ({ registry, fallback }) => switchPublisher({ registry, recordsFor: async (id) => (shared.has(id) ? records : null), fallback }) });
-  record.profile = { ...(await w.registry.getProfile(ID)), payments: { provider: "square" } };
-  const before = w.services.calls.length;
-  const name = SWITCHES[2];
-  const answer = await w.ask(ADMIN, "POST", "/api/control/switch", { shopId: ID, name, on: true, reason: "the press wants its receipt finder" });
-  assert.equal(answer.status, 200);
-  assert.deepEqual(answer.body.published, ["shop", "stockroom"]);
-  assert.equal(record.profile.switches[name], true, "the live profile has the switch on");
-  assert.deepEqual(record.profile.payments, { provider: "square" }, "the record's other fields are kept");
-  assert.deepEqual(sets, [{ shopId: ID, fields: ["profile"] }]);
-  assert.deepEqual(w.services.calls.slice(before).filter(([call]) => call === "deploy.pages"), [], "nothing is deployed");
-  // Repeating it writes nothing; a shop with a project of its own still gets its pages deployed again.
-  await w.room.switch(ADMIN, { shopId: ID, name, on: true, reason: "checking it is still on" });
-  assert.equal(sets.length, 1);
-  shared.clear();
-  await w.room.switch(ADMIN, { shopId: ID, name, on: false, reason: "the press no longer needs it" });
-  assert.equal(w.services.calls.slice(before).filter(([call]) => call === "deploy.pages").length, 2);
+test("the retired switches have no routes left", () => {
+  const routes = Object.keys(controlRoutes({}));
+  for (const gone of ["POST /api/control/switch", "POST /api/control/switch-all", "GET /api/control/new-shop-switches", "POST /api/control/new-shop-switches"]) {
+    assert.equal(routes.includes(gone), false, gone);
+  }
 });
 
 test("a shop's time zone moves its record, its saved profile and its registry row, with a log entry", async () => {
@@ -253,53 +211,16 @@ test("a shop's time zone moves its record, its saved profile and its registry ro
   assert.equal((await w.ask(PRESS, "POST", "/api/control/time-zone", { shopId: ID, timeZone: "America/Denver", reason: "a good reason here" })).status, 403);
 });
 
-test("no reason is asked for: a switch, a switch for every shop and closing a shop all go through without one, still logged with who and when", async () => {
+test("no reason is asked for: closing a shop and opening it again go through without one", async () => {
   const w = await world();
-  const name = SWITCHES[0];
-  const answer = await w.ask(ADMIN, "POST", "/api/control/switch", { shopId: ID, name, on: true });
-  assert.equal(answer.status, 200);
-  const [entry] = w.events();
-  assert.deepEqual([entry.what, entry.switch, entry.to, entry.by, typeof entry.at], ["switch-set", name, true, ADMIN.email, "string"]);
-  assert.equal(entry.reason ?? "", "", "nothing made up for the reason");
-  assert.equal((await w.ask(ADMIN, "POST", "/api/control/switch-all", { name, on: false })).status, 200);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID })).status, 200);
   assert.equal((await w.ask(ADMIN, "POST", "/api/control/reopen", { shopId: ID })).status, 200);
-});
-
-test("a switch refuses a made-up switch, a missing on/off and a shop with no profile", async () => {
-  const w = await world();
-  const ask = (body) => w.ask(ADMIN, "POST", "/api/control/switch", { shopId: ID, reason: "a good reason here", ...body });
-  assert.equal((await ask({ name: "freeMoney", on: true })).status, 400);
-  assert.equal((await ask({ name: SWITCHES[0], on: "yes" })).status, 400);
-  assert.equal((await ask({ shopId: "press-two", name: SWITCHES[0], on: true })).status, 409);
-  assert.equal(w.events().length, 0, "nothing changed, nothing logged");
-});
-
-test("the command line: same change and log, refuses without a name or real clients", async () => {
-  const w = await world();
-  const name = SWITCHES[1];
-  assert.throws(() => parseSwitchArgs([ID, name, "maybe", "why"]), /Usage/);
-  assert.deepEqual(parseSwitchArgs([ID, name, "on"]), { shopId: ID, name, on: true, reason: "" }, "a note is optional");
-  const argv = [ID, name, "on", "the", "press", "still", "uses", "its", "old", "address"];
-  await assert.rejects(switchCommand({ argv, env: {}, clients: {} }), /CONTROL_ROOM_BY/);
-  await assert.rejects(switchCommand({ argv, env: { CONTROL_ROOM_BY: "admin@example.com" } }), /needs the platform's real clients\. Nothing was changed/);
-
-  const printed = [];
-  const result = await switchCommand({
-    argv, env: { CONTROL_ROOM_BY: "Admin@Example.com" }, print: (line) => printed.push(line),
-    clients: { registry: w.registry, auditLog: w.auditLog, profileFiles: w.profileFiles, deploy: w.services.deploy },
-  });
-  assert.equal(result.changed, true);
-  assert.equal((await w.registry.getProfile(ID)).switches[name], true);
-  assert.match(printed[0], new RegExp(`${name} is on \\(was off\\)`));
-  const [entry] = w.events();
-  assert.deepEqual([entry.by, entry.reason], ["admin@example.com", "the press still uses its old address"]);
 });
 
 test("the page: admins sign in with Google, every route is used, names are shown as text only", () => {
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   for (const path of [...Object.keys(controlRoutes({})), ...Object.keys(platformRoutes({}))]) assert.ok(app.includes(`"${path.split(" ")[1].replace("/api", "")}"`), path);
-  for (const name of SWITCHES) assert.ok(app.includes(name), `words for ${name}`);
+  for (const gone of ["new-shop-switches", "switch-all", "Old stockroom sign-in", "Find receipts in Gmail"]) assert.ok(!app.includes(gone), `${gone} is gone`);
   assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|document\.write/);
 });
 
@@ -571,10 +492,12 @@ test("a paused newsletter is turned back on by a platform admin only, with a rea
 
 test("every logged control-room action also lands in the activity log, once (plan 9.9)", async () => {
   const w = await world();
-  await w.room.switch(ADMIN, { shopId: ID, name: SWITCHES[0], on: true, reason: "the press asked for it" });
   await w.room.actAs(ADMIN, { shopId: ID, reason: "help with their tax settings" });
+  await w.ask(ADMIN, "POST", "/api/control/close", { shopId: ID });
   const entries = await w.activity.list();
-  assert.deepEqual(entries.map((e) => e.what).sort(), ["act-as", "switch-set"]);
+  assert.equal(entries.filter((e) => e.what === "act-as").length, 1);
+  assert.equal(new Set(entries.map((e) => e.what)).size, entries.length, "each action once");
+  assert.ok(entries.every((e) => e.shopId === ID && e.by === "admin@example.com" && e.keepUntil > e.at));
   assert.ok(entries.every((e) => e.shopId === ID && e.by === "admin@example.com" && e.keepUntil > e.at));
 });
 
@@ -732,29 +655,6 @@ test("the per-order fee: the press is emailed and the change starts 30 days late
   assert.equal(cancelled.cancelled, true);
   assert.equal((await w.registry.getShop(ID)).platformFee.next, undefined);
   assert.deepEqual(w.events().map((e) => e.what).filter((what) => what.startsWith("fee")), ["fee-change-scheduled", "fee-change-cancelled"]);
-});
-
-test("one switch for every live shop, and the switches new shops start with (plan 9.7)", async () => {
-  const w = await world();
-  const all = await w.room.switchAll(ADMIN, { name: "oldShopSync", on: true, reason: "turn the old tab on for everyone" });
-  assert.deepEqual(all.shops, [{ shopId: ID, changed: true }]);
-  assert.equal((await w.registry.getProfile(ID)).switches.oldShopSync, true);
-  // The Switches page sees where each switch stands across the live shops.
-  const { live } = await w.room.newShopSwitches(ADMIN);
-  assert.deepEqual(live.oldShopSync, { on: 1, of: 1 });
-  assert.deepEqual(live.gmailOrderScan, { on: 0, of: 1 });
-  await assert.rejects(w.room.switchAll(ADMIN, { name: "nope", on: true, reason: "turn the old tab on" }), { status: 400 });
-  await assert.rejects(w.room.switchAll(PRESS, { name: "oldShopSync", on: true, reason: "turn the old tab on" }), { status: 403 });
-
-  assert.equal((await w.room.newShopSwitches(ADMIN)).switches.gmailOrderScan, false);
-  assert.equal((await w.room.setNewShopSwitch(ADMIN, { name: "gmailOrderScan", on: true, reason: "every new shop scans Gmail" })).changed, true);
-  assert.equal((await w.room.setNewShopSwitch(ADMIN, { name: "gmailOrderScan", on: true, reason: "every new shop scans Gmail" })).changed, false);
-  const defaults = (await w.room.newShopSwitches(ADMIN)).switches;
-  assert.equal(defaults.gmailOrderScan, true);
-  // Setup step 6 uses them only where the shop has nothing saved.
-  assert.equal(shopSwitches(undefined, defaults).gmailOrderScan, true);
-  assert.equal(shopSwitches({ gmailOrderScan: false }, defaults).gmailOrderScan, false);
-  assert.equal((await w.activity.list()).filter((e) => e.what === "new-shop-switch").length, 1);
 });
 
 test("your test shop: the card finds it, and Reset the sample books is admin only, logged and only for the test shop (plan 9.10)", async () => {

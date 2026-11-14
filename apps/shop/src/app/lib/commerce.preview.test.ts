@@ -20,7 +20,6 @@ vi.mock("../../lib/firebase", () => ({ firestore: {}, db: {}, auth: { currentUse
 vi.mock("../../lib/firebaseApp", () => ({ db: {}, appCheck: null, authState: { loaded: false } }));
 vi.mock("../../lib/firestoreLite", () => ({ liteDb: {}, liteFirestore: {} }));
 vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
-vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
 import { funnelApi } from "./commerce";
 

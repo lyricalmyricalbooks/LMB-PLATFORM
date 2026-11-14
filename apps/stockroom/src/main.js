@@ -1174,7 +1174,7 @@ import { resolveCountryCode } from './lib/countries.js';
 import { PUBLISHER_ONLY_TABS, AUTHOR_ONLY_TABS, helpTabOpenFor, helpQueryWords, helpMatches } from './lib/help-guide.js';
 import { readStoredList } from './lib/stored-list.js';
 import { STORE_REVERSAL_PENDING_KEY } from './lib/store-reversals.js';
-import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, runsOnColophon, shopProfile, switchOn } from './lib/shop-profile.js';
+import { DEFAULT_SHOP_PROFILE, fileStem, hasWebsite, readShopProfile, runsOnColophon, shopProfile } from './lib/shop-profile.js';
 import { googleSheetApplies, sheetSignalInput } from './lib/google-sheet.js';
 import { guideApplies, guideHtml, guideSteps, readGuide, showGuide, writeGuide } from './lib/setup-guide.js';
 import { readReady, readyApplies, readyHtml, readyLines, showReady, writeReady } from './lib/stockroom-ready.js';
@@ -9088,12 +9088,10 @@ export function getAllAppliedIds() {
 // Feature modules call this; they can't reassign the cache themselves.
 export function invalidateAppliedIds() { _appliedIdsCache = null; }
 
-// Plan 1.17: reading order receipts from the publisher's Gmail (Scan Gmail, Backfill shipping info) is one press's
-// one-off, off unless the shop profile's gmailOrderScan switch is on. Off, orders reach the Orders screen only through
-// the website link (src/features/website-link.js), and the screen says so.
+// Reading order receipts from the publisher's Gmail (Scan Gmail, Backfill shipping info) was retired on 14 November 2026 with the other shop switches, off in every shop.
+// Orders reach the Orders screen through the website link (src/features/website-link.js), and the screen says so.
 export function gmailOrderScanOn() {
-  // Read from the page's profile each time (cheap), so the answer is never a stale copy.
-  return switchOn('gmailOrderScan', readShopProfile());
+  return false;
 }
 
 /** Shows the Gmail scan parts of the Orders screen when the switch is on, and the website-only words when it is off. */
