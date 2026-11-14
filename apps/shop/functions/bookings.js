@@ -12,6 +12,9 @@
 //                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt }
 //   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
 //                          written in the same transaction as the booking, so two customers can never take one time.
+//   bookingWaitlist/{id}   { serviceId, serviceName, day, start | null, name, email, createdAt }: someone who asked to hear
+//                          when a full class time (start) or a full day (start null) has room again. Server-only (no rule
+//                          opens it); emailed once when a time frees, then deleted; deleted too once its day has passed.
 //
 // A paid booking holds its time while the customer pays on the shop's own Stripe or Square page
 // (payments.standaloneCheckout, as the stockroom's invoice pay links do). No shop order is made and the webhook ignores
@@ -30,6 +33,8 @@ const MINUTE = 60_000;
 /** A hold the sweep never got to (a failed run) stops blocking its time after this long. */
 const STALE_HOLD_MS = 2 * 60 * 60 * 1000;
 const MAX_DAYS_ASKED = 14;
+/** How many people may wait for one day of one service. */
+const MAX_WAITING = 30;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
 const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
@@ -84,6 +89,7 @@ function bookingActions({
   const settingsRef = () => db.collection("bookingSettings").doc("main");
   const bookings = () => db.collection("bookings");
   const dayRef = (day) => db.collection("bookingDays").doc(day);
+  const waitlist = () => db.collection("bookingWaitlist");
 
   async function featureOn() {
     const snap = await db.collection("platform").doc("features").get().catch(() => null);
@@ -177,6 +183,76 @@ function bookingActions({
     }
   }
 
+  // ── The waiting list ──────────────────────────────────────────────────────────────────────────────────────────────
+
+  async function busyAround(day, nowMs) {
+    const snaps = await Promise.all([addDays(day, -1), day, addDays(day, 1)].map((d) => dayRef(d).get()));
+    return busyFrom(snaps, nowMs);
+  }
+  /** The full starts of a class on one day: its own times that only lack a place (nothing else is in the way). */
+  function fullClassTimes(service, settings, busy, day, nowMs) {
+    if (!isClass(service)) return [];
+    const others = busy.filter((b) => b.serviceId !== service.id);
+    const open = new Set(freeTimes({ service, settings, busy, day, zone: zone(), nowMs }));
+    return freeTimes({ service, settings, busy: others, day, zone: zone(), nowMs }).filter((ms) => !open.has(ms) && busy.some((b) => b.serviceId === service.id && b.start === ms));
+  }
+
+  /**
+   * Emails the people waiting for these days whose time has room again: once each, then their entry is gone. Everyone
+   * waiting for the same place is told together and the first to book gets it. Never throws.
+   */
+  async function tellWaitlist(days) {
+    try {
+      const settings = await readSettings();
+      if (!settings.live) return 0;
+      let told = 0;
+      let list = null;
+      for (const day of [...new Set(days)]) {
+        const snap = await waitlist().where("day", "==", day).limit(MAX_WAITING * 4).get();
+        if (snap.empty) continue;
+        list = list || (await readServices());
+        const nowMs = now().getTime();
+        const busy = await busyAround(day, nowMs);
+        const brand = await emailBrand();
+        const shop = brand.shopName || shopName() || "the shop";
+        for (const doc of snap.docs) {
+          const w = doc.data();
+          const service = list.find((s) => s.id === w.serviceId && s.active);
+          if (!service) { await doc.ref.delete(); continue; }
+          const times = freeTimes({ service, settings, busy, day, zone: zone(), nowMs });
+          const open = w.start ? times.includes(Date.parse(w.start)) : times.length > 0;
+          if (!open || !EMAIL.test(String(w.email || ""))) continue;
+          if (!(await claimEmailSend(db, "bookingEmail", w.email))) continue;
+          await doc.ref.delete();
+          const when = w.start ? whenWords({ start: w.start }) : new Date(`${day}T12:00:00Z`).toLocaleDateString("en-CA", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+          await sendEmail({
+            to: w.email,
+            subject: `A place has opened: ${service.name}, ${when}`,
+            html: risoLayout(`
+              <h4 style="margin:0 0 8px;">A place has opened</h4>
+              <h2 style="margin:0 0 12px;">${escapeHtml(service.name)}</h2>
+              <p style="margin:0 0 16px;">You asked ${escapeHtml(shop)} to tell you if ${w.start ? "a place" : "a time"} opened on ${escapeHtml(when)}. One just did. It isn't held for you, so the first person to book gets it.</p>
+              ${risoButton(escapeHtml(siteLink(`/book?service=${encodeURIComponent(service.id)}&day=${day}`)), "Book it now", brand.accent, brand.theme)}
+            `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+          });
+          told += 1;
+        }
+      }
+      return told;
+    } catch (err) {
+      console.warn("bookings: the waiting list wasn't told:", err?.message || err);
+      return 0;
+    }
+  }
+
+  /** Forgets the people who waited for days now past. */
+  async function sweepWaitlist() {
+    if (!(await featureOn())) return { forgotten: 0 };
+    const snap = await waitlist().where("day", "<", dayOf(now().getTime(), zone())).limit(200).get();
+    for (const doc of snap.docs) await doc.ref.delete();
+    return { forgotten: snap.docs.length };
+  }
+
   // ── Taking, moving and freeing time (one transaction each) ──────────────────────────────────────────────────────
 
   /** Takes `start` for a new booking if it is still free, writing the booking and its days together. */
@@ -212,6 +288,7 @@ function bookingActions({
       });
       tx.set(bookings().doc(id), changes, { merge: true });
     });
+    await tellWaitlist(days);
   }
 
   /** Moves a booking to `start` if free (its own old time doesn't count against it). */
@@ -221,7 +298,7 @@ function bookingActions({
     const blockEnd = end + (b.gapAfter || 0) * MINUTE;
     const newDays = daysTouched(start, blockEnd, zone());
     const all = [...new Set([...oldDays, ...newDays])];
-    return db.runTransaction(async (tx) => {
+    const moved = await db.runTransaction(async (tx) => {
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
       const nearby = snaps.filter((_, i) => newDays.includes(all[i]));
@@ -238,6 +315,9 @@ function bookingActions({
       }, { merge: true });
       return true;
     });
+    // The time left behind may be what someone is waiting for.
+    if (moved) await tellWaitlist(oldDays);
+    return moved;
   }
 
   /** Reads a held booking's payment pages; confirms it when one is paid. Returns the booking as it now stands. */
@@ -347,7 +427,13 @@ function bookingActions({
             return iso;
           });
         }
-        return res.status(200).json({ on: true, days: out, ...(isClass(service) ? { places: service.places, left } : {}) });
+        // A class's full times are listed too, so the page can offer its waiting list.
+        const full = {};
+        if (isClass(service)) for (const day of days) {
+          const list = fullClassTimes(service, settings, busy, day, nowMs);
+          if (list.length) full[day] = list.map((ms) => new Date(ms).toISOString());
+        }
+        return res.status(200).json({ on: true, days: out, ...(isClass(service) ? { places: service.places, left, full } : {}) });
       }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
@@ -409,6 +495,31 @@ function bookingActions({
           console.error(`Booking ${id} payment page refused:`, err?.type || "", err?.code || "", err?.param || "", err?.message || err);
           throw err;
         }
+      }
+      if (action === "bookingWait") {
+        // Hear when a full class time (start) or a full day has room again. Nothing is held for anyone.
+        if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const customer = cleanCustomer(req.body);
+        if (customer.problem) return fail(res, 400, customer.problem.replace("send your booking to", "reach you at"));
+        const start = req.body?.start ? Date.parse(String(req.body.start)) : null;
+        if (start !== null && !Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
+        const day = start !== null ? dayOf(start, zone()) : String(req.body?.day || "");
+        const today = dayOf(nowMs, zone());
+        if (!isDay(day) || day < today || day > addDays(today, settings.maxDaysAhead)) return fail(res, 400, "Pick a day first.");
+        const busy = await busyAround(day, nowMs);
+        const times = freeTimes({ service, settings, busy, day, zone: zone(), nowMs });
+        if (start !== null ? times.includes(start) : times.length > 0) return fail(res, 409, "There is room now. You can book it straight away.", "open");
+        if (start !== null && !fullClassTimes(service, settings, busy, day, nowMs).includes(start)) return fail(res, 400, "That time isn't one you can wait for.");
+        const startIso = start !== null ? new Date(start).toISOString() : null;
+        const wid = hash(`${service.id}|${startIso || day}|${customer.email}`).slice(0, 32);
+        const waiting = await waitlist().where("day", "==", day).limit(MAX_WAITING * 4).get();
+        if (!waiting.docs.some((d) => d.id === wid) && waiting.docs.filter((d) => d.data()?.serviceId === service.id).length >= MAX_WAITING) {
+          return fail(res, 409, "The waiting list for this day is full.", "wait_full");
+        }
+        await waitlist().doc(wid).set({ serviceId: service.id, serviceName: service.name, day, start: startIso, name: customer.name, email: customer.email, createdAt: new Date(nowMs).toISOString() });
+        return res.status(200).json({ ok: true });
       }
       const id = String(req.body?.id || "");
       const key = String(req.body?.key || "");
@@ -516,6 +627,19 @@ function bookingActions({
         const own = { ...settings, minNoticeHours: 0, maxDaysAhead: 366 };
         const times = freeTimes({ service, settings: own, busy: busyFrom(snaps, nowMs, String(req.body?.except || "")), day, zone: zone(), nowMs });
         return res.status(200).json({ times: times.map((ms) => new Date(ms).toISOString()) });
+      }
+      if (op === "waitlist") {
+        // Who is waiting from one day to another (the week on screen). Read here because no browser may read the list.
+        const from = isDay(req.body?.from) ? req.body.from : dayOf(now().getTime(), zone());
+        const to = isDay(req.body?.to) ? req.body.to : addDays(from, 6);
+        const snap = await waitlist().where("day", ">=", from).where("day", "<=", to).limit(500).get();
+        return res.status(200).json({ waiting: snap.docs.map((d) => { const w = d.data(); return { id: d.id, serviceId: w.serviceId, serviceName: w.serviceName, day: w.day, start: w.start || null, name: w.name, email: w.email, createdAt: w.createdAt }; }) });
+      }
+      if (op === "removeWaiting") {
+        const wid = String(req.body?.id || "");
+        if (!/^[a-f0-9]{32}$/.test(wid)) return fail(res, 400, "Unknown entry.");
+        await waitlist().doc(wid).delete();
+        return res.status(200).json({ ok: true });
       }
       if (op === "create") {
         const service = (await readServices()).find((s) => s.id === req.body?.serviceId);
@@ -656,7 +780,7 @@ function bookingActions({
     return { reminded };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, featureOn };
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepWaitlist, featureOn };
 }
 
 /**
@@ -695,6 +819,6 @@ const HOUR = 60 * 60 * 1000;
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingStart", "bookingView", "bookingCancel", "bookingMove"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait"]);
 
 module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
