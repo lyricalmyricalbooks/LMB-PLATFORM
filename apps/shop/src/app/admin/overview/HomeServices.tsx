@@ -5,7 +5,7 @@ import { useContext, useEffect, useState, type ReactNode } from "react";
 import { PageAlertsSlot, StatusBadge } from "../riso/components";
 import { followBookings, type Booking } from "../bookingsApi";
 import { dayText, moneyText, paymentText, timeText } from "../bookingsView";
-import { dayOf } from "../../../shared/bookingTimes";
+import { balanceDue, dayOf } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { greeting } from "./HomeToday";
 import { HOME_BAR_DAYS, HOME_BOOKINGS_AHEAD_DAYS, HOME_BOOKINGS_BACK_DAYS, servicesDay, todayLine } from "./servicesHome";
@@ -103,7 +103,7 @@ export function HomeServices({ ownerName, bookings, todo, onOpen }: {
                       {b.noShow ? <StatusBadge tone="danger" glyph={false}>No-show</StatusBadge>
                         : b.priceMinor === 0 ? <StatusBadge tone="neutral" glyph={false}>Free</StatusBadge>
                         : b.paid ? <StatusBadge tone="success" glyph={false}>Paid</StatusBadge>
-                        : <StatusBadge tone="warning" glyph={false}><span title={paymentText(b)}>To pay</span></StatusBadge>}
+                        : <StatusBadge tone="warning" glyph={false}><span title={paymentText(b)}>{b.depositPaid ? `${moneyText(balanceDue(b), b.currency)} to pay` : "To pay"}</span></StatusBadge>}
                     </li>
                   ))}
                   {day.today.length > 6 && <li><button type="button" className="rp-home-link" onClick={() => onOpen("bookings")}>and {day.today.length - 6} more in Calendar →</button></li>}

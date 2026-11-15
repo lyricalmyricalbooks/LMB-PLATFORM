@@ -1088,6 +1088,11 @@ what they wait for, Remove = op `removeWaiting`). The server emails them; the ow
 the shop's own folder, no server call) into `bookingFigures` (`bookingsView.ts`): a confirmed booking counts (no-shows
 too), a held one doesn't, money is what was paid less refunds (a kept deposit counts), each booking sits on its own
 day in the shop's zone. Bars are plain CSS with the numbers beside them. Fixture: 64 older sample bookings.
+**Deposits (15 November 2026):** the service dialog's *When they pay* (When they book / A deposit now / At the visit;
+a deposit is an amount or a share of the price, `depositHint` says both parts). A booking's drawer says "deposit paid by
+card, … to pay at the shop" (`paymentText`) with the switch **Rest paid at the shop**; cancel offers to refund or keep
+only what the card took. Week and Figures money use `moneyTaken` / `moneyKept`; services Home counts a deposit booking
+with a balance as one to mark paid. Fixture: service "Half-day workshop", booking "Flo Example".
 
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,

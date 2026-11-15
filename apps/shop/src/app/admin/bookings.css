@@ -94,6 +94,7 @@
 .rp .bkg-service-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .rp .bkg-service h3 { margin: 0; font: 600 18px/1.25 var(--rp-font-body); letter-spacing: -0.015em; text-transform: none; color: inherit; overflow-wrap: anywhere; }
 .rp .bkg-service-meta { margin: 0; font: 500 12px/1.4 var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp .bkg-service-pay { display: block; margin-top: 4px; font: 500 13px/1.3 var(--rp-font-body); letter-spacing: 0; color: var(--rp-text-muted); }
 .rp .bkg-service-price { margin: 6px 0 0; font: 600 26px/1.1 var(--rp-font-body); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
 .rp .bkg-service-desc { margin: 0; font-size: 14px; line-height: 1.5; color: var(--rp-text-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .rp .bkg-service-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; }
@@ -184,7 +185,8 @@
 .rp .bkg-answers dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Group classes: the one-or-group choice and weekly times in the service dialog, and a class's card in the week. */
 .rp .bkg-seg { clear: both; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: var(--rp-surface); }
-.rp .bkg-seg button { min-height: var(--rp-touch); border: 0; border-radius: 999px; background: transparent; color: var(--rp-text); font: 600 14px/1.2 var(--rp-font-body); cursor: pointer; }
+.rp .bkg-seg.bkg-seg-3 { grid-template-columns: repeat(3, 1fr); }
+.rp .bkg-seg button { padding: 0 8px; min-height: var(--rp-touch); border: 0; border-radius: 999px; background: transparent; color: var(--rp-text); font: 600 14px/1.2 var(--rp-font-body); cursor: pointer; }
 .rp .bkg-seg button[aria-checked="true"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
 .rp .bkg-seg button:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
 .rp .bkg-classtime { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; padding: 12px 14px; border-radius: 16px; background: var(--rp-surface); }

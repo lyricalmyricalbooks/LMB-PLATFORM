@@ -5,7 +5,7 @@
 // saved and no email is sent.
 import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import type { BookingInfo, BookingServiceView, BookingView } from "./bookTimeRules";
+import { takesDeposit, upFrontMinor, type BookingInfo, type BookingServiceView, type BookingView } from "./bookTimeRules";
 
 export const SAMPLE_BOOKING_ID = "sample-booking";
 export const SAMPLE_BOOKING_KEY = "0".repeat(48);
@@ -17,7 +17,7 @@ const SERVICES: BookingServiceView[] = [
   { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio" },
   { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio",
     questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
-  { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "full", location: "The studio", places: 8 },
+  { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8 },
   { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "" },
 ];
 /** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */
@@ -29,11 +29,13 @@ let sample: BookingView | null = null;
 
 function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?: string, start?: string): BookingView {
   const service = SERVICES.find((s) => s.id === serviceId) || SERVICES[1];
+  const deposit = takesDeposit(service);
   const startMs = start ? Date.parse(start) : zonedTime(addDays(dayOf(nowMs, zone), 3), "11:00", zone);
   return {
     id: SAMPLE_BOOKING_ID, serviceId: service.id, serviceName: service.name, minutes: service.minutes, location: service.location,
     start: new Date(startMs).toISOString(), end: new Date(startMs + service.minutes * 60_000).toISOString(),
-    status: "confirmed", payment: service.priceMinor > 0 ? "card" : "free", paid: service.priceMinor > 0, priceMinor: service.priceMinor, currency,
+    status: "confirmed", payment: deposit ? "deposit" : service.priceMinor > 0 ? "card" : "free", paid: !deposit && service.priceMinor > 0, priceMinor: service.priceMinor, currency,
+    ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service) } : {}),
     name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24,
   };
 }
@@ -70,6 +72,6 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   }
   sample ||= sampleBooking(zone, currency, nowMs);
   if (action === "bookingMove" && typeof body.start === "string") sample = sampleBooking(zone, currency, nowMs, sample.serviceId, body.start);
-  if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid };
+  if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
   return { booking: sample };
 }

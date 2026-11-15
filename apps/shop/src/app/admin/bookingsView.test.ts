@@ -98,3 +98,18 @@ describe("the figures", () => {
     expect(bookingFigures([], ZONE, ["2026-11"], 0).noShowPercent).toBeNull();
   });
 });
+
+describe("deposits", () => {
+  const dep = (over: Partial<Booking> = {}) => b({ payment: "deposit", priceMinor: 14000, depositMinor: 3500, depositPaid: true, ...over });
+  it("says what the deposit covered and what is left for the visit", () => {
+    expect(paymentText(dep())).toMatch(/35\.00 deposit paid by card, .*105\.00 to pay at the shop$/);
+    expect(paymentText(dep({ paid: true }))).toMatch(/^Paid .*140\.00 \(.*35\.00 deposit by card, the rest at the shop\)$/);
+    expect(paymentText(dep({ depositPaid: false, status: "held" }))).toBe("Paying the deposit now");
+    expect(paymentText(dep({ status: "cancelled", refund: { amountMinor: 1000, at: "" } }))).toMatch(/^Refunded .*10\.00 of .*35\.00$/);
+  });
+  it("counts only money really taken: the deposit, then the whole price once the rest is paid", () => {
+    expect(weekFigures([dep(), dep({ paid: true }), b({ payment: "atShop", priceMinor: 6000 })]).takenMinor).toBe(3500 + 14000);
+    const figures = bookingFigures([dep({ status: "cancelled", refund: { amountMinor: 1000, at: "" } }), dep()], ZONE, ["2026-11"]);
+    expect(figures.months.reduce((n, m) => n + m.takenMinor, 0)).toBe(2500 + 3500);
+  });
+});

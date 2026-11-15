@@ -7,8 +7,9 @@
 //   bookingServices/{id}   a service (src/shared/bookingTimes.ts BookingService)
 //   bookingSettings/main   opening hours and rules (BookingSettings)
 //   bookings/{id}          { serviceId, serviceName, minutes, gapAfter, location, start, end, customer: { name, email, phone },
-//                            note, answers: [{ label, answer }] (the service's own questions), status: "held" | "confirmed" | "cancelled", payment: "free" | "card" | "atShop", priceMinor,
-//                            currency, paid, sessions, paidSession?, paymentIntent?, refund?, holdUntil?, manageKeyHash,
+//                            note, answers: [{ label, answer }] (the service's own questions), status: "held" | "confirmed" | "cancelled",
+//                            payment: "free" | "card" | "deposit" | "atShop", priceMinor (the whole price), depositMinor and depositPaid (payment "deposit":
+//                            the part taken by card when booked; the rest is paid at the visit), currency, paid (all of it), sessions, paidSession?, paymentIntent?, refund?, holdUntil?, manageKeyHash,
 //                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt }
 //   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
 //                          written in the same transaction as the booking, so two customers can never take one time.
@@ -25,7 +26,7 @@
 const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
-  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES,
+  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, balanceDue,
 } = require("./shared/bookingTimes");
 
 const HOLD_MINUTES = 10;
@@ -73,6 +74,7 @@ function publicBooking(id, b, settings, nowMs) {
   return {
     id, serviceId: b.serviceId, serviceName: b.serviceName, minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
+    depositMinor: b.payment === "deposit" ? b.depositMinor || 0 : 0, depositPaid: !!b.depositPaid, dueMinor: balanceDue(b),
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
     cancelHours: settings.cancelHours,
@@ -151,6 +153,13 @@ function bookingActions({
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
       const ended = kind === "cancelled" || kind === "notCleared";
+      // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
+      const due = balanceDue(b);
+      const taken = cardTaken(b);
+      const money = ended || !(b.priceMinor > 0) ? "" : [
+        b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
+        due ? `<p style="margin:0 0 4px;"><strong>To pay at your visit:</strong> ${escapeHtml(moneyWords(due, b.currency))}</p>` : `<p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(b.priceMinor, b.currency))}</p>`,
+      ].join("");
       const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = !ended && key ? risoButton(escapeHtml(manageUrl(id, key)), "See or change your booking", brand.accent, brand.theme) : "";
       const html = risoLayout(`
@@ -160,6 +169,7 @@ function bookingActions({
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
         <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
         ${where}
+        ${money}
         ${manage}
         ${calendar}
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
@@ -172,6 +182,7 @@ function bookingActions({
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(b.serviceName)}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
+            ${money}
             ${kind === "notCleared" ? `<p style="margin:12px 0 0;">Their bank payment was still clearing when the booking was due, so the time was released and nothing was taken. You may want to get in touch with them.</p>` : ""}
             ${b.note ? `<p style="margin:12px 0 0;">“${escapeHtml(b.note)}”</p>` : ""}
             ${(b.answers || []).map((a) => `<p style="margin:12px 0 0;"><strong>${escapeHtml(a.label)}</strong><br>${escapeHtml(a.answer)}</p>`).join("")}
@@ -328,7 +339,7 @@ function bookingActions({
       const session = await checkout.read(sid).catch(() => null);
       if (!session || session.payment_status !== "paid") continue;
       if (session.metadata?.booking && session.metadata.booking !== id) continue;
-      if (Number.isFinite(session.amount_total) && session.amount_total !== b.priceMinor) continue;
+      if (Number.isFinite(session.amount_total) && session.amount_total !== cardAsk(b)) continue;
       return confirmPaid(id, b, sid, session.payment_intent);
     }
     return b;
@@ -347,9 +358,11 @@ function bookingActions({
 
   async function confirmPaid(id, b, sid, intent) {
     const at = now().toISOString();
+    // A deposit leaves the rest to pay at the visit, so only the deposit is marked paid.
+    const deposit = b.payment === "deposit";
     const changes = {
-      status: "confirmed", paid: true, paidSession: sid, paymentIntent: typeof intent === "string" ? intent : intent?.id || null,
-      holdUntil: null, updatedAt: at, history: [...(b.history || []), { at, what: "paid", by: "customer" }].slice(-20),
+      status: "confirmed", ...(deposit ? { depositPaid: true, paid: false } : { paid: true }), paidSession: sid, paymentIntent: typeof intent === "string" ? intent : intent?.id || null,
+      holdUntil: null, updatedAt: at, history: [...(b.history || []), { at, what: deposit ? "deposit paid" : "paid", by: "customer" }].slice(-20),
     };
     // The days stop calling it a hold.
     const days = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
@@ -371,11 +384,11 @@ function bookingActions({
     return next;
   }
 
-  /** Refunds a paid booking in full. Returns the refund, or null when nothing was paid by card. */
-  async function refundBooking(id, b, amountMinor = b.priceMinor) {
-    if (!b.paid || !b.paymentIntent || b.refund?.refundId) return null;
+  /** Refunds what a booking took by card (all of it unless a part is named). Returns the refund, or null when nothing was paid by card. */
+  async function refundBooking(id, b, amountMinor = cardTaken(b)) {
+    if (!cardTaken(b) || !b.paymentIntent || b.refund?.refundId) return null;
     const mode = (await shopTestMode()) ? "test" : "live";
-    const whole = amountMinor === b.priceMinor;
+    const whole = amountMinor === cardTaken(b);
     const refund = await payments.refund({ mode, paymentIntentId: b.paymentIntent, amountMinor, metadata: { booking: id }, idempotencyKey: whole ? `booking-refund-${id}` : `booking-refund-${id}-${amountMinor}` });
     return { refundId: refund.refundId, amountMinor: refund.amountMinor, at: now().toISOString() };
   }
@@ -405,7 +418,7 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active);
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, location, questions, places }) => ({ id, name, description, minutes, priceMinor, payment, location, questions, places })),
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places }) => ({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places })),
         });
       }
       if (action === "bookingTimes") {
@@ -448,7 +461,10 @@ function bookingActions({
         // The service's own questions: a required one left empty stops the booking, with the question named.
         const answered = cleanAnswers(service.questions, req.body?.answers);
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
-        const paid = service.payment === "full" && service.priceMinor > 0;
+        // What the card page takes now: the whole price, the deposit, or nothing (free, or all paid at the visit).
+        const upFront = depositOf(service);
+        const paid = upFront > 0;
+        const deposit = paid && service.payment === "deposit";
         let checkout = null;
         if (paid) {
           ({ checkout } = await standalone());
@@ -460,7 +476,8 @@ function bookingActions({
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
-          status: paid ? "held" : "confirmed", payment: paid ? "card" : "free", priceMinor: paid ? service.priceMinor : 0, currency: currency(),
+          status: paid ? "held" : "confirmed", payment: deposit ? "deposit" : paid ? "card" : service.payment === "atShop" && service.priceMinor > 0 ? "atShop" : "free",
+          priceMinor: service.payment === "free" ? 0 : service.priceMinor, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           paid: false, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
           pendingKey: paid ? key : null,
@@ -473,11 +490,11 @@ function bookingActions({
           return res.status(200).json({ id, key, status: "confirmed" });
         }
         try {
-          const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}`.slice(0, 250);
+          const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}${deposit ? " (deposit)" : ""}`.slice(0, 250);
           const metadata = { booking: id };
           const session = await checkout.open({
             mode: "payment",
-            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: service.priceMinor, product_data: { name: description } } }],
+            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: upFront, product_data: { name: description } } }],
             customer_email: customer.email,
             metadata,
             payment_intent_data: { description, metadata },
@@ -548,7 +565,7 @@ function bookingActions({
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by: "customer" }].slice(-20) };
         await freeTime(id, b, changes);
         const next = { ...b, ...changes };
-        await tellCustomer(id, next, "cancelled", { refundText: refund ? "Your payment is being refunded to your card." : "" });
+        await tellCustomer(id, next, "cancelled", { refundText: !refund ? "" : b.payment === "deposit" ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card." });
         return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
       }
       if (action === "bookingMove") {
@@ -659,7 +676,8 @@ function bookingActions({
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           // The owner booking someone in may fill in the service's questions or leave them.
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
-          status: "confirmed", payment: service.payment === "full" ? "atShop" : "free", priceMinor: service.priceMinor, currency: currency(),
+          // Booked in by the owner: nothing is taken by card, so a priced service is all paid at the visit.
+          status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor, currency: currency(),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
           history: [{ at, what: "booked", by }], createdAt: at, updatedAt: at,
         };
@@ -680,8 +698,9 @@ function bookingActions({
         let refund = null;
         // refund: true is the whole payment; refundMinor a part of it (a shop keeping a deposit), 0 for none.
         const part = req.body?.refundMinor;
-        const amount = part === undefined ? (req.body?.refund === true ? b.priceMinor : 0) : Number(part);
-        if (!Number.isInteger(amount) || amount < 0 || amount > (b.priceMinor || 0)) return fail(res, 400, "The refund can't be more than they paid.");
+        const onCard = cardTaken(b);
+        const amount = part === undefined ? (req.body?.refund === true ? onCard : 0) : Number(part);
+        if (!Number.isInteger(amount) || amount < 0 || amount > onCard) return fail(res, 400, "The refund can't be more than they paid.");
         if (amount > 0) {
           try { refund = await refundBooking(id, b, amount); } catch (err) {
             console.error(`Booking ${id} refund failed:`, err?.message || err);
@@ -692,7 +711,7 @@ function bookingActions({
         const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, holdUntil: null, updatedAt: at, ...(refund ? { refund } : {}),
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by }].slice(-20) };
         await freeTime(id, b, changes);
-        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: !refund ? "" : refund.amountMinor < b.priceMinor ? `${moneyWords(refund.amountMinor, b.currency)} of your payment is being refunded to your card.` : "Your payment is being refunded to your card." });
+        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${b.payment === "deposit" ? "deposit" : "payment"} is being refunded to your card.` : `Your ${b.payment === "deposit" ? "deposit" : "payment"} is being refunded to your card.` });
         return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0 });
       }
       if (op === "move") {
@@ -712,7 +731,9 @@ function bookingActions({
         const at = now().toISOString();
         const changes = op === "noShow"
           ? { noShow: req.body?.value !== false, updatedAt: at, history: [...(b.history || []), { at, what: req.body?.value !== false ? "marked no-show" : "no-show taken off", by }].slice(-20) }
-          : { paid: req.body?.value !== false, updatedAt: at, history: [...(b.history || []), { at, what: req.body?.value !== false ? "marked paid at the shop" : "paid mark taken off", by }].slice(-20) };
+          : { paid: req.body?.value !== false, updatedAt: at, history: [...(b.history || []), { at, what: req.body?.value !== false ? (b.payment === "deposit" ? "rest marked paid at the shop" : "marked paid at the shop") : "paid mark taken off", by }].slice(-20) };
+        // Only money due at the visit is marked here: a card booking is paid by its own payment page.
+        if (op === "paidAtShop" && b.payment !== "atShop" && !(b.payment === "deposit" && b.depositPaid)) return fail(res, 409, "Nothing is due at the shop for this booking.");
         await bookings().doc(id).set(changes, { merge: true });
         return res.status(200).json({ ok: true });
       }

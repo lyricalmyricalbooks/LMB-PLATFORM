@@ -19,7 +19,7 @@ import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
-  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, timeText, whenText,
+  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText,
   type BookingInfo, type BookingServiceView, type BookingView,
 } from "./bookTimeRules";
 
@@ -181,6 +181,7 @@ function NewBooking({ c }: { c: Copy }) {
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
+                {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(s), currency), rest: moneyText(s.priceMinor - upFrontMinor(s), currency) })}</span>}
               </span>
             </button>
           ))}
@@ -243,6 +244,7 @@ function NewBooking({ c }: { c: Copy }) {
             {paysUpFront(service) && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             <button type="submit" className="fm-track-btn w-full" disabled={busy}>
               {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("bookTimeBooking")}</>
+                : takesDeposit(service) ? c("bookTimePayDeposit", { amount: moneyText(upFrontMinor(service), currency) })
                 : paysUpFront(service) ? c("bookTimePay", { amount: moneyText(service.priceMinor, currency) }) : c("bookTimeBook")}
             </button>
           </form>
@@ -253,6 +255,8 @@ function NewBooking({ c }: { c: Copy }) {
               <span className="fm-track-mono">{c("bookTimePaid")}</span>
               <strong translate="no">{service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree")}</strong>
             </div>
+            {takesDeposit(service) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(service), currency), rest: moneyText(service.priceMinor - upFrontMinor(service), currency) })}</p>}
+            {service.priceMinor > 0 && !paysUpFront(service) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
             <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 mt-5 cursor-pointer" onClick={() => setStep("time")}>
               <ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeChange")}
             </button>
@@ -583,6 +587,10 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
           <span className="fm-track-mono">{c("bookTimePaid")}</span>
           <strong translate="no">{booking.priceMinor > 0 ? (booking.paid ? c("bookTimePaidAmount", { amount: moneyText(booking.priceMinor, booking.currency) }) : moneyText(booking.priceMinor, booking.currency)) : c("bookTimeFree")}</strong>
         </div>
+        {booking.status !== "cancelled" && !booking.paid && booking.depositPaid && (
+          <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositPaid", { deposit: moneyText(booking.depositMinor || 0, booking.currency), rest: moneyText(booking.dueMinor || 0, booking.currency) })}</p>
+        )}
+        {booking.status === "confirmed" && booking.payment === "atShop" && !booking.paid && booking.priceMinor > 0 && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
       </div>
 
       {booking.status === "held" && (
@@ -622,7 +630,8 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         <div className="fm-track-notice" data-tone="warning" role="alertdialog" aria-labelledby="bt-cancel-q">
           <div>
             <p id="bt-cancel-q"><strong>{c("bookTimeCancelSure")}</strong></p>
-            {booking.paid && <p>{c("bookTimeCancelRefund")}</p>}
+            {booking.payment === "card" && booking.paid && <p>{c("bookTimeCancelRefund")}</p>}
+            {booking.payment === "deposit" && booking.depositPaid && <p>{c("bookTimeCancelDepositRefund")}</p>}
           </div>
           <div className="fm-book-actions">
             <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void act("bookingCancel")}>

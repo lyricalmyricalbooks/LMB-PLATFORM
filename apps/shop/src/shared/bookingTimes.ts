@@ -7,7 +7,11 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 
-export type BookingPayment = "free" | "full";
+/**
+ * When the customer pays: nothing ("free"), all of it by card when booking ("full"), part of it by card when booking and
+ * the rest at the visit ("deposit"), or all of it at the visit ("atShop").
+ */
+export type BookingPayment = "free" | "full" | "deposit" | "atShop";
 
 export type BookingService = {
   id: string;
@@ -19,6 +23,10 @@ export type BookingService = {
   /** In the shop's smallest money unit (cents). 0 with payment "free". */
   priceMinor: number;
   payment: BookingPayment;
+  /** With payment "deposit": the deposit as an amount (cents), or 0 when it is a share of the price. */
+  depositMinor: number;
+  /** With payment "deposit" and no amount: the deposit as a whole percent of the price (1 to 99), else 0. */
+  depositPercent: number;
   location: string;
   active: boolean;
   order: number;
@@ -98,6 +106,33 @@ const whole = (value: unknown, min: number, max: number, fallback: number): numb
 };
 const minutesOf = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 
+/** What a service takes by card when it is booked, in cents: all of it, its deposit, or nothing. */
+export function depositOf(s: { payment?: string; priceMinor?: number; depositMinor?: number; depositPercent?: number } | null | undefined): number {
+  const price = Math.max(0, Math.round(Number(s?.priceMinor) || 0));
+  if (s?.payment === "full") return price;
+  if (s?.payment !== "deposit") return 0;
+  const amount = Math.round(Number(s.depositMinor) || 0);
+  if (amount > 0) return Math.min(amount, price);
+  return Math.min(price, Math.round((price * (Number(s.depositPercent) || 0)) / 100));
+}
+
+/**
+ * The money side of one booking, in cents. `payment` on a booking: "free", "card" (all by card when booked), "deposit"
+ * (part by card when booked, the rest at the visit) or "atShop". `paid` means all of it is paid; `depositPaid` that the
+ * deposit is. Every screen, email and the server read a booking's money through these.
+ */
+export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string };
+/** What the card page asks for when this booking is made. */
+export const cardAsk = (b: BookingMoney): number => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
+/** What was taken by card for this booking (the most that can go back to the card). */
+export const cardTaken = (b: BookingMoney): number => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
+/** Everything the shop has received for this booking, before refunds. */
+export const moneyTaken = (b: BookingMoney): number => (b.paid ? b.priceMinor || 0 : cardTaken(b));
+/** What the shop keeps: received less refunded. */
+export const moneyKept = (b: BookingMoney): number => Math.max(0, moneyTaken(b) - (b.refund?.amountMinor || 0));
+/** What is still to pay at the visit. Nothing for a cancelled booking. */
+export const balanceDue = (b: BookingMoney): number => (b.status === "cancelled" ? 0 : Math.max(0, (b.priceMinor || 0) - moneyTaken(b)));
+
 /** A service as the owner typed it, cleaned, or { problem } in plain words. */
 export function cleanService(raw: unknown, id = ""): BookingService | { problem: string } {
   const s = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
@@ -105,10 +140,23 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   if (!name) return { problem: "Give the service a name, like Studio visit." };
   const minutes = Math.round(Number(s.minutes));
   if (!Number.isFinite(minutes) || minutes < 5 || minutes > 8 * 60) return { problem: "A booking lasts between 5 minutes and 8 hours." };
-  const payment: BookingPayment = s.payment === "full" ? "full" : "free";
-  const priceMinor = payment === "full" ? Math.round(Number(s.priceMinor)) : 0;
-  if (payment === "full" && (!Number.isFinite(priceMinor) || priceMinor < 50)) return { problem: "A paid booking costs at least 0.50." };
+  const payment: BookingPayment = s.payment === "full" || s.payment === "deposit" || s.payment === "atShop" ? s.payment : "free";
+  const priceMinor = payment !== "free" ? Math.round(Number(s.priceMinor)) : 0;
+  if (payment !== "free" && (!Number.isFinite(priceMinor) || priceMinor < 50)) return { problem: "A paid booking costs at least 0.50." };
   if (priceMinor > 1_000_000) return { problem: "That price is too high for one booking." };
+  // A deposit is an amount, or a share of the price; an amount wins when both are sent.
+  let depositMinor = 0;
+  let depositPercent = 0;
+  if (payment === "deposit") {
+    const amount = Math.round(Number(s.depositMinor));
+    const percent = Math.round(Number(s.depositPercent));
+    if (Number.isFinite(amount) && amount > 0) depositMinor = amount;
+    else if (Number.isFinite(percent) && percent >= 1 && percent <= 99) depositPercent = percent;
+    else return { problem: "Say how much the deposit is: an amount, or a share of the price from 1 to 99 percent." };
+    const due = depositOf({ payment, priceMinor, depositMinor, depositPercent });
+    if (due < 50) return { problem: "A deposit is at least 0.50." };
+    if (due >= priceMinor) return { problem: "A deposit is less than the price. To take it all when they book, choose paying in full." };
+  }
   return {
     id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     name,
@@ -117,6 +165,8 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     gapAfter: whole(s.gapAfter, 0, 120, 0),
     priceMinor,
     payment,
+    depositMinor,
+    depositPercent,
     location: text(s.location, 160),
     active: s.active !== false,
     order: whole(s.order, 0, 999, 0),

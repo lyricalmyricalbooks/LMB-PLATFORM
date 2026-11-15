@@ -1230,3 +1230,10 @@ per service. `tellWaitlist(days)` runs after every freed time (`freeTime`, and `
 waiting person whose time or day has room gets one email (the `bookingEmail` budget) linking `/book?service=&day=`,
 and the entry is deleted. Nothing is held. `bookingSweep` forgets past days (`sweepWaitlist`). Admin ops: `waitlist`
 (`{ from, to }`) and `removeWaiting`.
+**Deposits and paying at the visit (15 November 2026):** a service's `payment` is `free`, `full`, `deposit`
+(`depositMinor`, or `depositPercent` 1 to 99; an amount wins) or `atShop`; a booking's is `free`, `card`, `deposit` or
+`atShop`, with `priceMinor` always the whole price. Money questions go through the shared helpers in `bookingTimes`
+(`depositOf`, `cardAsk`, `cardTaken`, `moneyTaken`, `moneyKept`, `balanceDue`); never read `paid` alone. The card page
+asks for `depositOf(service)`; `confirmPaid` sets `depositPaid` (and leaves `paid` false) for a deposit; refunds and the
+owner's keep amount are capped at `cardTaken`; `paidAtShop` is refused unless the booking is `atShop` or a deposit whose
+deposit is paid. The rest of a deposit booking is never charged by card yet.
