@@ -726,6 +726,12 @@ TTL 30 days on `expiresAt`). Admin: Settings › General › Tools & records ›
 
 - **Owner decision (closed, don't re-raise in audits):** analytics/marketing tracking keeps its default of running before the
   cookie banner is answered. Do not change the consent defaults in `lib/consent.ts`.
+- **Privacy and bookings (15 November 2026):** export and erase also read `bookings` (by `customer.email`) and
+  `bookingWaitlist`. Export leaves out link keys and payment ids. Erase deletes waiting-list rows and writes
+  `redactedBookingFields` (`privacyData.js`): a card-paid or refunded booking (`bookingPaid`) keeps name and email and loses
+  phone, note and answers; any other loses every detail (name becomes "Details removed"). Both lose their link keys and get
+  `reminderSentAt`, so no link works and no reminder goes. The time is never freed: the owner keeps or cancels it. Tests:
+  `privacyBookings.test.js`.
 - **Privacy export/erase** (`functions/privacyData.js`, `personalDataFor` / `handlePrivacyAdmin`): addresses match in any
   capitalisation (exact lower-case query plus a bounded field-only scan for older mixed-case rows); browser writes of contact
   messages, review contacts and saved carts now lower-case the email. Export and erase also cover `giftCards` (purchaser/recipient;

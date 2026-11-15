@@ -48,7 +48,7 @@ export function PrivacyRequestsCard() {
   const eraseData = async (address: string, requestId?: string) => {
     const ok = await ask({
       title: `Delete ${address}'s data?`,
-      message: `This deletes their newsletter signup, back-in-stock alerts, saved carts, contact messages, email delivery log, review email and customer account, and removes their name from reviews${reviewAction === "unpublish" ? " (and unpublishes the reviews)" : reviewAction === "remove-text" ? " (and blanks the review title and text)" : " (the review text stays as it is)"}. Gift cards they bought or received lose their names, emails and messages but keep their balance. Orders that were never paid lose the customer's details; paid orders are kept as tax records with private notes blanked. This can't be undone.`,
+      message: `This deletes their newsletter signup, back-in-stock alerts, saved carts, contact messages, email delivery log, review email and customer account, and removes their name from reviews${reviewAction === "unpublish" ? " (and unpublishes the reviews)" : reviewAction === "remove-text" ? " (and blanks the review title and text)" : " (the review text stays as it is)"}. Gift cards they bought or received lose their names, emails and messages but keep their balance. Orders that were never paid lose the customer's details; paid orders are kept as tax records with private notes blanked. Bookings work the same way: ones paid by card are kept without the note, answers and phone number, the rest lose the customer's details (the time stays on your calendar), and they come off any waiting list. This can't be undone.`,
       confirmLabel: "Delete their data",
     });
     if (!ok) return;
@@ -57,7 +57,8 @@ export function PrivacyRequestsCard() {
       const result = await adminApi.privacyAction("privacyErase", address, requestId, { reviewAction });
       const kept = result.keptOrders?.length || 0;
       const cleared = result.redactedUnpaidOrders?.length || 0;
-      toast.success(`Deleted. ${kept ? `${kept} paid order${kept === 1 ? "" : "s"} kept for tax records.` : "No paid orders on file."}${cleared ? ` ${cleared} unpaid order${cleared === 1 ? "" : "s"} cleared of customer details.` : ""}${result.incompleteScan?.length ? ` Some old records may remain in: ${result.incompleteScan.join(", ")}; run it again.` : ""}`);
+      const bookingsTouched = (result.redactedBookings?.length || 0) + (result.keptBookings?.length || 0);
+      toast.success(`Deleted. ${kept ? `${kept} paid order${kept === 1 ? "" : "s"} kept for tax records.` : "No paid orders on file."}${cleared ? ` ${cleared} unpaid order${cleared === 1 ? "" : "s"} cleared of customer details.` : ""}${bookingsTouched ? ` ${bookingsTouched} booking${bookingsTouched === 1 ? "" : "s"} cleared.` : ""}${result.incompleteScan?.length ? ` Some old records may remain in: ${result.incompleteScan.join(", ")}; run it again.` : ""}`);
       await load();
     } catch (err: any) {
       toast.error(friendlyError(err, "delete their data"));

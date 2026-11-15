@@ -95,3 +95,14 @@ Review: one request per visit, shared with nothing else on the page. No per-sect
 
 Review: reads up to 5,000 bookings once when the tab opens; fine for a small shop, worth a monthly summary record if a
 shop ever gets near that. Not yet tried on a live test shop.
+
+## Privacy requests cover bookings (15 November 2026)
+
+- [x] Export lists the person's bookings and waiting list places (no link keys or payment ids).
+- [x] Erase: off every waiting list; bookings lose the details (card-paid ones keep name and email as payment records);
+      links stop working, no reminder goes out, the time stays on the calendar.
+- [x] Admin: the delete warning and the result message mention bookings.
+- [x] Proof: `privacyBookings.test.js` (rules, export, erase leaves other customers alone), full test run, typecheck, lint.
+
+Review: the time of an erased upcoming booking is kept on purpose (cancelling could trigger a refund the owner didn't
+choose). Not tried on a live test shop.
