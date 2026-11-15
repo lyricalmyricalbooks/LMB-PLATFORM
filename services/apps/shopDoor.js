@@ -6,8 +6,9 @@
 //   apps.installed               { apps: [{ appId, name, tagline, category, permissions, installedAt, supportEmail, website }] }
 //   apps.store  { category? }    { apps: [...store copy], categories: [{ id, name }] }
 //   apps.remove { appId, by }    { removed: true }   the app's key stops working at once; `by` is the admin's email
+//   shippo.*                     Connect Shippo (services/shippo/link.js), when `shippo` is passed in
 //
-//   createAppShopDoor({ registry, installs, makers })  ->  shopCall(request)
+//   createAppShopDoor({ registry, installs, makers, shippo? })  ->  shopCall(request)
 import { serviceKeyMatches } from "../email/http.js";
 import { SignupError } from "../../signup/signup.js";
 
@@ -16,7 +17,7 @@ const header = (headers, name) => {
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-export function createAppShopDoor({ registry, installs, makers }) {
+export function createAppShopDoor({ registry, installs, makers, shippo = null }) {
   const OPS = {
     "apps.installed": async (shopId) => ({ apps: await installs.installedOn(shopId) }),
     "apps.store": async (_shopId, args) => {
@@ -40,9 +41,10 @@ export function createAppShopDoor({ registry, installs, makers }) {
       }
       if (row.status === "abandoned") throw new SignupError(403, "This shop is closed.");
       const body = request.body && typeof request.body === "object" ? request.body : {};
+      const args = body.args && typeof body.args === "object" && !Array.isArray(body.args) ? body.args : {};
+      if (shippo && typeof body.op === "string" && body.op.startsWith("shippo.")) return shippo.op(row, body.op, args);
       const op = Object.hasOwn(OPS, body.op) ? OPS[body.op] : null;
       if (!op) throw new SignupError(400, "Unknown call.");
-      const args = body.args && typeof body.args === "object" && !Array.isArray(body.args) ? body.args : {};
       return op(shopId, args);
     },
   };

@@ -13,6 +13,7 @@ import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, findCountry, regionList } from "../features/site/shippingZones";
 import ZoneRegionPicker from "./shipping/ZoneRegionPicker";
+import { ShippoConnectCard } from "./shipping/ShippoConnectCard";
 import { cleanRegions, regionsSummary } from "./shipping/zoneRegions";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
@@ -875,6 +876,64 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   };
 
   const shippoConnected = !!shippoConfig?.configured;
+  // The live-rate switch, its countries and the extra amount: the same on an own-account shop's Shippo card and a Colophon
+  // shop's Live rates and labels card.
+  const renderLiveRateControls = () => (
+            <div className="rp-stack" style={{ gap: 12 }}>
+              <Toggle label="Live carrier rates at checkout" checked={shippoConfig?.dynamicRatesEnabled ?? false}
+                onChange={async (enabled) => {
+                  try {
+                    await adminApi.setShippoDynamicRates(enabled, shippoConfig?.dynamicRateCountries || []);
+                    setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
+                    toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
+                  } catch (err: any) {
+                    toast.error(friendlyError(err, "change live carrier rates"));
+                  }
+                }} />
+              {shippoConfig?.dynamicRatesEnabled && (
+                <div className="rp-stack" style={{ gap: 10, padding: 16, border: "1px solid var(--rp-border)", background: "var(--rp-canvas)" }}>
+                  <div>
+                    <strong>Countries using live rates</strong>
+                    <p className="rp-hint" style={{ margin: "4px 0 0" }}>Ticked countries get live rates. The rest use your profiles.</p>
+                  </div>
+                  <SearchField label="Search live-rate countries" value={carrierCountrySearch} onChange={(e) => setCarrierCountrySearch(e.target.value)} placeholder="Search countries…" />
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8, maxHeight: 260, overflowY: "auto", padding: 4 }}>
+                    {COUNTRIES.filter((country) => country.name.toLowerCase().includes(carrierCountrySearch.trim().toLowerCase())).map((country) => {
+                      const selected = (shippoConfig?.dynamicRateCountries || []).includes(country.code);
+                      return (
+                        <Checkbox key={country.code} label={country.name} checked={selected} onChange={async () => {
+                          // Build from the latest list (not this render's), so quick clicks don't drop a country.
+                          const current = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
+                          const countries = current.includes(country.code)
+                            ? current.filter((code: string) => code !== country.code)
+                            : [...current, country.code];
+                          liveCountriesRef.current = countries;
+                          setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: countries }));
+                          try {
+                            const save = liveSaveChain.current.catch(() => {}).then(() => adminApi.setShippoDynamicRates(true, countries));
+                            liveSaveChain.current = save;
+                            await save;
+                            toast.success(`${country.name} ${selected ? "removed from" : "added to"} live rates`);
+                          } catch (err: any) {
+                            liveCountriesRef.current = current;
+                            setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: current }));
+                            toast.error(friendlyError(err, `update live rates for ${country.name}`));
+                          }
+                        }} />
+                      );
+                    })}
+                  </div>
+                  {(shippoConfig?.dynamicRateCountries || []).length === 0 && <p role="status" className="rp-hint" style={{ margin: 0 }}>None ticked. Everyone gets profile rates.</p>}
+                  <LiveRateExtraField config={shippoConfig}
+                    onSave={async (extra) => {
+                      const countries = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
+                      const result = await adminApi.setShippoDynamicRates(true, countries, extra);
+                      setShippoConfig((prev: any) => ({ ...prev, liveRateExtra: result?.liveRateExtra || extra }));
+                    }} />
+                </div>
+              )}
+            </div>
+  );
   const shippingSummary = useMemo(() => summarizeShipping(profiles, books), [profiles, books]);
   // Every open problem, each fixed on one sub tab (shippingIssueTab).
   const shippingProblems = useMemo(() => [...shippingSummary.issues, ...carrierIssues(shippoConfig)], [shippingSummary, shippoConfig]);
@@ -1057,7 +1116,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                 </div>
               ) : renderShippingProblems(shippingProblems, { showTab: true })}
               <div className="rp-card-actions">
-                {!colophon && <SecondaryButton onClick={() => setShippingView("carrier")}>{shippoConnected ? "Manage Shippo" : "Connect Shippo"}</SecondaryButton>}
+                <SecondaryButton onClick={() => setShippingView("carrier")}>{shippoConnected ? "Manage Shippo" : "Connect Shippo"}</SecondaryButton>
                 <PrimaryButton onClick={() => setShippingView("profiles")}>Manage profiles</PrimaryButton>
               </div>
             </SectionCard>
@@ -1066,9 +1125,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
 
         {shippingView === "carrier" && renderTabProblems(carrierProblems)}
         {shippingView === "carrier" && colophon && (
-        <SectionCard title="Live rates and labels" description="Not available on your plan yet.">
-          <p className="rp-hint" style={{ margin: 0 }}>Shoppers pay the shipping prices from your profiles. Add or change them under Profiles.</p>
-        </SectionCard>
+          <ShippoConnectCard connected={shippoConnected} onChanged={loadShippoConfig}>{renderLiveRateControls()}</ShippoConnectCard>
         )}
         {shippingView === "carrier" && !colophon && (
         <SectionCard title="Shippo connection" description="Address checks, live rates, labels."
@@ -1086,58 +1143,8 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           {shippoConnected && (
             <div className="rp-stack" style={{ gap: 12, marginBottom: 16 }}>
               <p className="rp-hint" style={{ margin: 0 }}>Active {shippoConfig.mode ? `${shippoConfig.mode} ` : ""}key ending in <span className="rp-mono">••••{shippoConfig.lastFour}</span>{shippoConfig.source === "environment" && " (Firebase secret)"}{shippoConfig.verifiedAt ? ` · checked with Shippo ${new Date(shippoConfig.verifiedAt).toLocaleDateString()}` : ""}</p>
-              <Toggle label="Live carrier rates at checkout" checked={shippoConfig?.dynamicRatesEnabled ?? false}
-                onChange={async (enabled) => {
-                  try {
-                    await adminApi.setShippoDynamicRates(enabled, shippoConfig?.dynamicRateCountries || []);
-                    setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
-                    toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
-                  } catch (err: any) {
-                    toast.error(friendlyError(err, "change live carrier rates"));
-                  }
-                }} />
-              {shippoConfig?.dynamicRatesEnabled && (
-                <div className="rp-stack" style={{ gap: 10, padding: 16, border: "1px solid var(--rp-border)", background: "var(--rp-canvas)" }}>
-                  <div>
-                    <strong>Countries using live rates</strong>
-                    <p className="rp-hint" style={{ margin: "4px 0 0" }}>Ticked countries get live rates. The rest use your profiles.</p>
-                  </div>
-                  <SearchField label="Search live-rate countries" value={carrierCountrySearch} onChange={(e) => setCarrierCountrySearch(e.target.value)} placeholder="Search countries…" />
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8, maxHeight: 260, overflowY: "auto", padding: 4 }}>
-                    {COUNTRIES.filter((country) => country.name.toLowerCase().includes(carrierCountrySearch.trim().toLowerCase())).map((country) => {
-                      const selected = (shippoConfig?.dynamicRateCountries || []).includes(country.code);
-                      return (
-                        <Checkbox key={country.code} label={country.name} checked={selected} onChange={async () => {
-                          // Build from the latest list (not this render's), so quick clicks don't drop a country.
-                          const current = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
-                          const countries = current.includes(country.code)
-                            ? current.filter((code: string) => code !== country.code)
-                            : [...current, country.code];
-                          liveCountriesRef.current = countries;
-                          setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: countries }));
-                          try {
-                            const save = liveSaveChain.current.catch(() => {}).then(() => adminApi.setShippoDynamicRates(true, countries));
-                            liveSaveChain.current = save;
-                            await save;
-                            toast.success(`${country.name} ${selected ? "removed from" : "added to"} live rates`);
-                          } catch (err: any) {
-                            liveCountriesRef.current = current;
-                            setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: current }));
-                            toast.error(friendlyError(err, `update live rates for ${country.name}`));
-                          }
-                        }} />
-                      );
-                    })}
-                  </div>
-                  {(shippoConfig?.dynamicRateCountries || []).length === 0 && <p role="status" className="rp-hint" style={{ margin: 0 }}>None ticked. Everyone gets profile rates.</p>}
-                  <LiveRateExtraField config={shippoConfig}
-                    onSave={async (extra) => {
-                      const countries = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
-                      const result = await adminApi.setShippoDynamicRates(true, countries, extra);
-                      setShippoConfig((prev: any) => ({ ...prev, liveRateExtra: result?.liveRateExtra || extra }));
-                    }} />
-                </div>
-              )}
+
+              {renderLiveRateControls()}
             </div>
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>

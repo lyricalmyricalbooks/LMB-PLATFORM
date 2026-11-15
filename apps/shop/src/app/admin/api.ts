@@ -1374,6 +1374,21 @@ export const adminApi = {
     return result as BookkeepingStatus & BookkeepingOptions & { url?: string; results?: { kind: string; ref: string; outcome: string; message?: string }[]; stopped?: string };
   },
 
+  // Settings › Shipping › Live rates and labels on a Colophon shop: Connect Shippo, the press's own account
+  // (functions/shippoLink.js). `finish` takes the one-use ticket Shippo's return put in the address.
+  shippoLink: async (step: "status" | "connect" | "finish" | "disconnect", args: { returnUrl?: string; ticket?: string } = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "shippoLink", step, ...args }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || "Couldn't reach Shippo."), { code: result.code });
+    return result as { available?: boolean; connected?: boolean; url?: string };
+  },
+
   // Sales channels and Social posts (plan 27.5, 27.6): the press's social accounts and posts, through the platform's
   // social service (functions/socialLink.js). A shop without it answers status { enabled: false, networks: [] }.
   social: async (step: "status" | "connect" | "disconnect" | "sendCatalog" | "posts" | "savePost" | "cancelPost" | "retryPost", args: Record<string, unknown> = {}) => {

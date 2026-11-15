@@ -171,6 +171,16 @@ a blank state is read from the postal/ZIP code (`shared/postalRegion.ts`). Check
 `resolveShipping` all pass the address's state and postal code. Admin: zone editor › States and provinces
 (`admin/shipping/ZoneRegionPicker.tsx`, rules `zoneRegions.ts`); `shippingHealth.ts` flags a state in two zones.
 
+**Connect Shippo (14 November 2026):** a Colophon shop connects the press's own Shippo account (Julian's choice: no
+label money through Colophon). `shippoLink.js` (action `shippoLink`, steps `status | connect | finish | disconnect`;
+owner for all but status) asks the platform through the app store door (`PLATFORM_APPS_URL`, ops `shippo.*`, LMB-PLATFORM
+`services/shippo/link.js`, which holds Colophon's Shippo partner codes and the GET return `/api/shippo/oauth`). Shippo
+sends the press back with a one-use `shippoTicket`; `finish` swaps it for the token, checks it with Shippo and saves it
+as the Shippo record's `apiToken` with `authType: "oauth"`, so every Shippo path works unchanged. `callShippo` sends
+such a token (`oauth.…`) as `Bearer` with `Shippo-API-Version` (`shippoAuthHeaders`); pasted keys keep `ShippoToken`.
+Disconnect blanks the token and turns live rates off. Platform shops never fall back to a shared Shippo secret
+(`ownSecret` reads ""). Admin: `admin/shipping/ShippoConnectCard.tsx` (Opens soon until the platform has the codes).
+
 **Weights are metric (18 October 2026).** Book/edition weights are entered in g or kg only (`WEIGHT_UNITS`); older
 "1 lb"/"8 oz" values still parse identically (`parseWeightGrams`), open in grams (`splitWeight`) and are saved as whole
 grams by the book editor (`withMetricWeights`) and CSV import (`metricWeightValue`). Shoppers see `metricWeight`

@@ -17,7 +17,8 @@ function shippoEndpoints({
   // 7. HTTP Endpoint: Validate Address via Shippo (Secure)
   // ──────────────────────────────────────────────────────────────
   // "live" or "test" from the key's own prefix (shippo_live_… / shippo_test_…); null when it is neither.
-  const shippoKeyMode = key => /^shippo_live_/.test(String(key || "")) ? "live" : /^shippo_test_/.test(String(key || "")) ? "test" : null;
+  // A connected Shippo account (Connect Shippo, shippoLink.js, token "oauth.…") is the press's live account.
+  const shippoKeyMode = key => /^(shippo_live_|oauth\.)/.test(String(key || "")) ? "live" : /^shippo_test_/.test(String(key || "")) ? "test" : null;
 
   const getShippoConfig = onBrowserRequest({ secrets: withPlatformKey([SHIPPO_API_TOKEN]) }, async (req, res) => {
     if (applyCors(req, res)) return;
@@ -36,7 +37,9 @@ function shippoEndpoints({
       res.status(200).json({
         configured: Boolean(fallbackToken),
         source: configDoc.exists && config?.apiToken ? "firebase" : fallbackToken ? "environment" : null,
-        lastFour: config?.lastFour || (fallbackToken ? fallbackToken.slice(-4) : null),
+        // A connected account has no key to show the end of.
+        lastFour: config?.authType === "oauth" ? null : config?.lastFour || (fallbackToken ? fallbackToken.slice(-4) : null),
+        connectedAccount: config?.authType === "oauth" && Boolean(config?.apiToken),
         // Which Shippo account the key in use belongs to: a test key buys sandbox labels with no postage.
         mode: shippoKeyMode(fallbackToken),
         verifiedAt: config?.apiToken ? config?.verifiedAt || null : null,
