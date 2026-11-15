@@ -473,10 +473,10 @@ export const ARTICLES = Object.freeze([
     topic: "Stockroom",
     question: "How do I keep my stock right on the website and in the stockroom?",
     answer: [
-      "Link them once in Inventory › Inventory app link. Press Check connection, then match each book on the website to the same book in the stockroom.",
-      "After that, the stockroom keeps the count. Website sales come off it by themselves, and the website shows what the stockroom says.",
+      "You don't need to do anything. The stockroom keeps the count, website sales come off it by themselves, and the website shows what the stockroom says.",
+      "To check one book, open it and look at its Stock and sales tab. A book that isn't matched yet shows a Match them button there.",
     ],
-    where: ["Inventory › Inventory app link"],
+    where: ["Books › a book › Stock and sales"],
     plans: ["shop", "stockroom"],
   },
   {

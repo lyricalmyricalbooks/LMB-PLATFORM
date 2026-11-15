@@ -1,6 +1,6 @@
 # Admin dashboard
 
-The admin (route `/admin`): Riso Press design system, Orders/fulfilment, Overview analytics, inventory app link, settings. Studio (the theme editor) has its own guide in `studio/CLAUDE.md`. The repo-wide rules are in the root `CLAUDE.md`.
+The admin (route `/admin`): Riso Press design system, Orders/fulfilment, Overview analytics, the stockroom link's server side, settings. Studio (the theme editor) has its own guide in `studio/CLAUDE.md`. The repo-wide rules are in the root `CLAUDE.md`.
 
 **No import loop through `api.ts` (27 October 2026).** Most screens import `adminApi` from `api.ts`, so nothing `api.ts`
 imports may import it back: a loop makes one of the two run half set up. `themeStore.ts` did, for the audit log, which
@@ -8,6 +8,12 @@ now lives in `auditLog.ts` (`adminApi.recordAuditLog` / `getAuditLog` hand on to
 another admin call takes it from its own small file the same way. `adminApiImports.test.ts` fails on any new loop.
 
 ## Inventory app link (11 October 2026)
+
+**Page removed (15 November 2026, Julian):** the stockroom lives inside the one admin, so Inventory › Inventory app link
+(`InventoryLinkPanel`), its sub tab (`#inventory/link` now opens Inventory) and every alert that sent the owner there are
+gone; `inventoryLinkAlerts` keeps only the refused-label alerts (action `order`). The server side below still runs
+(sign-up starts it, `signup/shopMaker.js`), the admin still reads `links` for the read-only stock guards, and a single
+book is matched from its Stock and sales tab (`linkNewBook`). The notes below describe the server and the old page.
 
 The shop and the inventory app (`lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom)`, Firebase project `lmb-test-stockroom`) share sales
 and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory repo's `docs/website-link.md` — change both).
@@ -171,8 +177,7 @@ Riso buttons take `busy`. Settings pages group cards with `admin/settingsLayout.
 `admin/plainError.ts`, sign-in errors through `admin/loginError.ts` — never show raw `err.message` in admin. The order page lays itself
 out by its own width (container query on `.fw-detail` in `fulfillment.css`).
 **Sub tabs (owner's preference, 20 October 2026):** split a long admin page into sub tabs (Riso `Tabs` + `TabPanel`) rather than
-one long scroll: Settings › General / Payments (`SettingsTabs`), Email sender (Emails · Sending setup · Deliveries), Inventory
-(Stock · Inventory app link). Panels stay mounted (`hidden`), so unsaved edits survive a switch and one SaveBar covers every tab;
+one long scroll: Settings › General / Payments (`SettingsTabs`), Email sender (Emails · Sending setup · Deliveries). Panels stay mounted (`hidden`), so unsaved edits survive a switch and one SaveBar covers every tab;
 mark a tab with edits with `unsaved`. Tab ids must be unique on the page (`rp-tab-<id>`). Overview and Design are out of scope.
 The open sub tab is in the address bar (`#settings/general/visitors`, `#inventory/link`; the first tab has no slug): add a page's
 tabs to `SUB_TABS` in `adminRoute.ts` and take `subTab` / `onSubTabChange` through `useSubTab` (`settingsLayout.tsx`); switching

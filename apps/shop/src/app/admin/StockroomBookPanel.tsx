@@ -74,7 +74,7 @@ function BookFigures({ edition, id, words, onOpen }: { edition: string | null; i
   if (state.missing || !state.book) {
     return (
       <SectionCard title={title}>
-        <EmptyState inline title={words("This book isn't in the stockroom any more")} description="Match it again on Inventory › Inventory app link." />
+        <EmptyState inline title={words("This book isn't in the stockroom any more")} description="Add it in the stockroom again, and its stock and sales show here." />
       </SectionCard>
     );
   }
@@ -113,7 +113,7 @@ function BookFigures({ edition, id, words, onOpen }: { edition: string | null; i
 }
 
 /**
- * The tab itself. `links` are the matches between website books and stockroom books (Inventory › Inventory app link);
+ * The tab itself. `links` are the matches between website books and stockroom books (kept by the server);
  * an unmatched book gets the stockroom's best guess and one button to match it.
  */
 export function StockroomBookPanel({ book, links, linksFailed, onLinks, words, onOpen }: {
@@ -127,7 +127,7 @@ export function StockroomBookPanel({ book, links, linksFailed, onLinks, words, o
   const linked = linkedStockroomBooks(links, book.id, book.variants);
   const [guess, setGuess] = useState<StockroomMatch | null | undefined | "refused" | "failed">(undefined);
   const [tries, setTries] = useState(0);
-  // A book with editions is matched edition by edition, on Inventory › Inventory app link.
+  // A book with editions is matched edition by edition, which this tab doesn't do yet.
   const editions = (book.variants || []).length > 0;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -152,7 +152,7 @@ export function StockroomBookPanel({ book, links, linksFailed, onLinks, words, o
     return (
       <SectionCard title="In the stockroom">
         <EmptyState inline title={words("Match each edition with the stockroom")}
-          description={words("This book has editions, and each one is counted on its own. Match them on Inventory › Inventory app link, and their stock and sales show here.")} />
+          description={words("This book has editions, and each one is counted on its own in the stockroom.")} />
       </SectionCard>
     );
   }
@@ -175,7 +175,7 @@ export function StockroomBookPanel({ book, links, linksFailed, onLinks, words, o
       {guess === "failed" && <ErrorState title="The stockroom didn't answer" description="It may still be opening, or this device is offline." onRetry={() => setTries((n) => n + 1)} />}
       {guess === null && (
         <EmptyState inline title={words("No matching book in the stockroom")}
-          description={words("Add it in the stockroom, or match it by hand on Inventory › Inventory app link.")} />
+          description={words("Add it in the stockroom, and its stock and sales show here.")} />
       )}
       {guess && typeof guess !== "string" && (
         <EmptyState inline title={`This looks like “${guess.title}” in your stockroom`}

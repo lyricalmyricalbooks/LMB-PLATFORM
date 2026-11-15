@@ -11,7 +11,7 @@ import { isStockLinked } from "./inventoryLink";
 import { hasStockroom } from "../../lib/shopProfile";
 import { SHOP_CURRENCY } from "./moneySign";
 
-/** What a stock change did: the plan it saved, or why nothing was saved (a linked book is counted in the inventory app). */
+/** What a stock change did: the plan it saved, or why nothing was saved (a linked book is counted in the stockroom). */
 export type StockResult = StockPlan | { ok: false; reason: "linked"; live?: number };
 
 export interface InventoryLogEntry {
@@ -28,7 +28,7 @@ export const inventoryApi = {
     const ref = doc(db, "books", bookId);
     return runTransaction(firestore, async (tx) => {
       const snap = await tx.get(ref);
-      // A book matched to the inventory app is counted there; the link sets its stock (docs/INVENTORY_LINK.md).
+      // A book matched to the stockroom is counted there; the link sets its stock (docs/INVENTORY_LINK.md).
       const link = await tx.get(doc(db, "systemStatus", "inventoryLink"));
       // A website-only press keeps all its stock here, whatever an old link left behind.
       if (hasStockroom() && isStockLinked(link.exists() ? (link.data() as any).links : null, bookId, variantId)) return { ok: false, reason: "linked" } as StockResult;

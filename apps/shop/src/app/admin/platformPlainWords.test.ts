@@ -258,7 +258,7 @@ describe("the messages a Colophon shop's press is shown, built with pretend data
       ...inventoryLinkAlerts({
         startDay: "2026-10-01", connection: { ok: false }, lastRunAt: "2026-10-05T13:00:00Z", pendingImport: { count: 3, oldestSince: "2026-10-04T12:00:00Z" },
         lastPush: { failed: 2 }, linkRequestError: "x", shipmentIssues: [{ orderId: "A-1", reason: "Resolve the active return first." }],
-      }, now),
+      }),
       checkFailedAlert(["the payment status", "the email log"]),
       backupAlert({ ok: false, lastAttemptAt: ago(60), error: "The copy failed.", export: { ok: false, permission: true }, copy: { ok: false, error: "The copy failed." } }, now),
       cardAccountAlert({ provider: "stripe", connected: true, chargesEnabled: false, pastDue: true, needs: [{ words: "your business address", pastDue: true }] } as any),

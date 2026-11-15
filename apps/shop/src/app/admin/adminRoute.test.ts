@@ -56,7 +56,7 @@ describe("admin route ↔ hash", () => {
     expect(routeFromHash("#settings/general/visitors")).toEqual({ tab: "settings", settingsTab: "general", subTab: "gs-visitors" });
     expect(routeFromHash("#settings/payments/methods")).toEqual({ tab: "settings", settingsTab: "payments", subTab: "pay-methods" });
     expect(routeFromHash("#settings/notifications/deliveries")).toEqual({ tab: "settings", settingsTab: "notifications", subTab: "email-deliveries" });
-    expect(routeFromHash("#inventory/link")).toEqual({ tab: "inventory", subTab: "inv-link" });
+    expect(routeFromHash("#inventory/link")).toEqual({ tab: "inventory" }); // the old stockroom link page is gone
     expect(routeFromHash("#analytics/traffic")).toEqual({ tab: "analytics", subTab: "an-traffic" });
     expect(routeFromHash("#payments/methods")).toEqual({ tab: "settings", settingsTab: "payments", subTab: "pay-methods" });
     expect(hashForRoute({ tab: "payments", subTab: "pay-more" })).toBe("#settings/payments/more");
@@ -71,7 +71,7 @@ describe("admin route ↔ hash", () => {
     expect(routeFromHash("#settings/taxes/visitors")).toEqual({ tab: "settings", settingsTab: "taxes" });
     expect(routeFromHash("#customers/link")).toEqual({ tab: "customers" });
     expect(hashForRoute({ tab: "settings", settingsTab: "general", subTab: "pay-methods" })).toBe("#settings/general");
-    expect(hashForRoute({ tab: "customers", subTab: "inv-link" })).toBe("#customers");
+    expect(hashForRoute({ tab: "customers", subTab: "pay-methods" })).toBe("#customers");
   });
 
   it("only treats a different order on the same page as the same section", () => {

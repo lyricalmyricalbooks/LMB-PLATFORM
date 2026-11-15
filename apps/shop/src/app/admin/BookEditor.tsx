@@ -144,7 +144,7 @@ interface BookEditorProps {
   onClose: () => void;
   /** `stayOpen`: the owner pressed Save (not Save & close) — refresh lists but keep the editor open. */
   onSave: (opts?: { stayOpen?: boolean }) => void;
-  /** A new book only: fields to start from (e.g. "Add to the shop" from an inventory app book). */
+  /** A new book only: fields to start from (e.g. "Add to the shop" from a stockroom book). */
   prefill?: Record<string, any> | null;
   /** A new book only: called once with its id after the first save creates it. */
   onCreated?: (id: string) => void;
@@ -169,13 +169,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   // The record being edited: the opened book, or the new one once a first Save has created it.
   const [book, setBook] = useState<Book | null>(bookProp);
   useEffect(() => { setBook(bookProp); }, [bookProp]);
-  // Books matched to the inventory app (Inventory › Inventory app link) take their stock from it.
+  // Books matched to the stockroom take their stock from it.
   const [stockLinks, setStockLinks] = useState<InventoryLinks>({});
   // Unknown links (the check failed) keep stock read-only rather than looking editable.
   const [stockLinksFailed, setStockLinksFailed] = useState(false);
   useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => { setStockLinks({}); setStockLinksFailed(true); }); }, []);
-  const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows it (Inventory › Inventory app link).";
-  const LINKS_FAILED_HINT = "Couldn't check whether this stock is counted in the inventory app. Close and reopen it to edit it.";
+  const LINKED_HINT = "Counted in the stockroom. Change it there; the website follows it.";
+  const LINKS_FAILED_HINT = "Couldn't check whether this stock is counted in the stockroom. Close and reopen it to edit it.";
   const stockLocked = (variantId: string | null) => !!book?.id && (stockLinksFailed || isStockLinked(stockLinks, book.id, variantId));
   const stockLockHint = (variantId: string | null) => (stockLocked(variantId) ? (stockLinksFailed ? LINKS_FAILED_HINT : LINKED_HINT) : undefined);
   const [askConfirm, confirmNode] = useConfirm();

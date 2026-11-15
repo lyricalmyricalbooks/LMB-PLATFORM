@@ -60,14 +60,14 @@ it("shows All clear and no pill when nothing needs you", async () => {
 });
 
 it("opens the exact page and sub tab when the Dashboard passes onOpenRoute", async () => {
-  const onOpenRoute = vi.fn(), onOpenOrders = vi.fn(), onOpenInventory = vi.fn();
+  const onOpenRoute = vi.fn(), onOpenOrders = vi.fn(), onOpenWebhook = vi.fn();
   const root = createRoot(container);
-  await act(async () => root.render(<Harness alerts={[a("l1", "danger", "inventory"), a("o1", "warning", "orders")]}
-    onOpenOrders={onOpenOrders} onOpenInventory={onOpenInventory} onOpenRoute={onOpenRoute} />));
+  await act(async () => root.render(<Harness alerts={[a("w1", "danger", "webhook"), a("o1", "warning", "orders")]}
+    onOpenOrders={onOpenOrders} onOpenWebhook={onOpenWebhook} onOpenRoute={onOpenRoute} />));
   const button = (label: string) => Array.from(container.querySelectorAll("button")).find((b) => b.textContent === label)!;
-  await act(async () => button("Open Inventory app link").click());
-  expect(onOpenRoute).toHaveBeenCalledWith({ tab: "inventory", subTab: "inv-link" });
-  expect(onOpenInventory).not.toHaveBeenCalled();
+  await act(async () => button("Open payment checks").click());
+  expect(onOpenRoute).toHaveBeenCalledWith({ tab: "settings", settingsTab: "payments", subTab: "pay-methods" });
+  expect(onOpenWebhook).not.toHaveBeenCalled();
   await act(async () => button("Review orders").click());
   expect(onOpenOrders).toHaveBeenCalled();
   await act(async () => root.unmount());

@@ -237,7 +237,7 @@ export interface ImportOptions {
   stockMode?: "leave" | "set";
   /** Shipping profile IDs that exist (a warning names any other). */
   shippingProfiles?: string[];
-  /** Books counted in the inventory app (Inventory › Inventory app link): their stock is never written. */
+  /** Books counted in the stockroom: their stock is never written. */
   linkedBookIds?: string[];
   /** The owner's matches for headings the shop didn't recognise (plan 23.36). */
   columns?: Record<string, ImportField>;
@@ -411,7 +411,7 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     }
     if (book && "stockLevel" in next && (opts.linkedBookIds || []).includes(book.id)) {
       const live = String(book.stockLevel ?? "");
-      if (show(next.stockLevel) !== show(live)) warnings.push("Stock not changed: this book is counted in the inventory app, and the website follows that count.");
+      if (show(next.stockLevel) !== show(live)) warnings.push("Stock not changed: this book is counted in the stockroom, and the website follows that count.");
       delete next.stockLevel;
     }
     if (book && "stockLevel" in next) {

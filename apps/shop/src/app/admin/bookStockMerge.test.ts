@@ -25,7 +25,7 @@ describe("keepLiveStock", () => {
   });
 });
 
-describe("lockLinkedStock (books counted in the inventory app)", () => {
+describe("lockLinkedStock (books counted in the stockroom)", () => {
   const links = { b1: { _: "hound" }, b2: { pb: "alt-pb" } };
   it("keeps the live count of a linked book, whatever the form typed", () => {
     expect(lockLinkedStock({ stockLevel: 99, title: "New" }, { stockLevel: 4 }, links, "b1")).toEqual({ stockLevel: 4, title: "New" });

@@ -96,7 +96,7 @@ function sameNumber(a: any, b: any): boolean {
 }
 
 /**
- * Books matched to the inventory app are counted there (Inventory › Inventory app link): a save from any
+ * Books matched to the stockroom are counted there: a save from any
  * screen (editor, catalog table, CSV import) keeps their live stock and never writes a typed count.
  * `links` is systemStatus/inventoryLink.links. Pure; used inside adminApi.updateBook's transaction.
  */
