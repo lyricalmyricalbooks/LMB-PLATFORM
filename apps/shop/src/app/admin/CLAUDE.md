@@ -1112,6 +1112,9 @@ service "review" holds a card with a $20 fee; booking "Fay Example" is a no-show
 **Copy pay link**, **Email it** and **Show QR code** all call op `payLink` (the same link each time); the code is a dialog
 with `qrPicture` (`stockroom/qrCodesStore`). `paymentText` says "Paid … by card (deposit, then the rest online)" once `rest`
 is in. Fixture: "Flo Example" (deposit) and "Eve Example" (at the shop) show the panel; op `payLink` answers a sample link.
+**Tips (16 November 2026):** Hours & rules has a **Tips** tile (`TipsTile`: Ask clients for a tip, and the choices as
+"15, 18, 20", saved on blur through `cleanTipPercents`, then with the rest of the form). The drawer shows "Tip: $8.00 by
+card" (`tipTaken`). Fixture: tips on; "Ben Example" has an $8 tip.
 
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,

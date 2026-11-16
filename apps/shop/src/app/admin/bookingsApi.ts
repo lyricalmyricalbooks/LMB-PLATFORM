@@ -17,6 +17,8 @@ export type Booking = {
   cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
   /** What was left, paid later by card from the client's booking page; `restOpen` while a page to pay it is open. */
   rest?: { amountMinor: number; at: string } | null; restOpen?: boolean;
+  /** A tip the client added by card (never part of the price or a refund). */
+  tip?: { amountMinor: number; at: string } | null;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
 };
 

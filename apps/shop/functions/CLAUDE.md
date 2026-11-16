@@ -1277,3 +1277,12 @@ settles a booking whose pages all ran out. `cardTaken` = `bookedCardTaken` + `re
 `refundIds` when both. Admin op `payLink` returns `/book?booking=<id>&key=<payKey>` (`payKey` kept in the booking, admin-only
 readable, so a printed QR code keeps working; `keyFits` accepts it beside the manage and reminder keys, also in
 `customerBookingIcs`) and with `send: true` emails kind `payRest`.
+**Tips (16 November 2026, `tasks/todo/2026-11-16-booking-tips.md`):** settings `tips` / `tipPercents` (shared
+`cleanTipPercents`). `bookingPayRest` takes `tipMinor` (`tipFits`: whole cents, ≥ 50, ≤ `tipLimitMinor` = the price or
+100.00) and the new public `bookingTip` a tip on its own (`tipOpen`: kept, priced, started visit, no tip yet, within 14
+days of its end, and nothing left to pay). Both go through `payPage`: one `restPages` list whose entries carry
+`amountMinor` (the rest) and `tipMinor`; `refreshRest` stores `rest` and/or `tip` `{ amountMinor, paymentIntent, session,
+at }` from the same paid page and sends `restPaid` (naming the tip) or `tipPaid`. `sweepTips` (in `bookingSweep`) emails
+kind `tip` once, `TIP_ASK_HOURS` (2) after a visit ends, with its own key (`tipKeyHash` in `keyFits`); it queries only the
+`end` range (no extra index) and checks the rest in code. `tipTaken` is never in `cardTaken`/`moneyTaken`, so refunds
+leave a tip alone (the rest's refund is capped at `restTaken` even when the same payment carried the tip).

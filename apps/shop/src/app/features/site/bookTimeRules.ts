@@ -15,7 +15,22 @@ export type BookingView = {
   cardHold?: boolean; cardLast4?: string; lateFeeMinor?: number; feeMinor?: number;
   /** Pay the rest: whether what is left can be paid by card from this page, and what was paid that way. */
   canPayRest?: boolean; restPaidMinor?: number;
+  /** Tips: the shop's choices (empty when it doesn't ask), whether a tip can be added on its own, the tip given and the most one may be. */
+  tipPercents?: number[]; canTip?: boolean; tipMinor?: number; tipLimitMinor?: number;
 };
+
+/** A tip pick on the booking page: a percent of the price, none, or an amount the client types. */
+export type TipPick = { kind: "percent"; percent: number } | { kind: "none" } | { kind: "other"; text: string };
+/** The tip a pick comes to, in cents (0 for none or for a typed amount that isn't money). */
+export function tipMinorOf(pick: TipPick, priceMinor: number): number {
+  if (pick.kind === "percent") return Math.round((Math.max(0, priceMinor) * pick.percent) / 100);
+  if (pick.kind === "none") return 0;
+  const n = Number(pick.text.replace(/[^\d.]/g, ""));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
+}
+/** Is the typed or chosen tip one the server takes? 0 is fine (no tip) unless a tip is required. */
+export const tipOk = (tipMinor: number, limitMinor: number, required = false): boolean =>
+  tipMinor === 0 ? !required : tipMinor >= 50 && tipMinor <= limitMinor;
 
 /** How many days the picker shows at once. */
 export const DAYS_SHOWN = 7;

@@ -1175,3 +1175,87 @@ describe("paying the rest by link", () => {
     expect((await t.pub({ action: "bookingPayRest", id: free.body.id, key: free.body.key })).body.code).toBe("nothing_due");
   });
 });
+
+describe("tips", () => {
+  const seedTips = async (t, tips = true) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, tips, tipPercents: [15, 20] });
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 14000, depositPercent: 25 });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const paid = (t, id, intent = "pi_tip") => Object.assign(t.sessions.get(id), { payment_status: "paid", status: "complete", payment_intent: intent });
+
+  test("a tip rides on paying what's left, and never on a refund", async () => {
+    const t = setup();
+    await seedTips(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_dep" });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking).toMatchObject({ tipPercents: [15, 20], canPayRest: true, canTip: false, tipMinor: 0, tipLimitMinor: 14000 });
+    // Too big, too small or not a whole number of cents: refused.
+    for (const tipMinor of [14001, 10, 12.5]) expect((await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key, tipMinor })).body.code).toBe("bad_tip");
+    const pay = await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key, tipMinor: 2100 });
+    expect(t.opened.at(-1).params.line_items[0].price_data).toMatchObject({ unit_amount: 12600, product_data: { name: "Moth Press: Colour (the rest and a tip)" } });
+    expect(t.opened.at(-1).params.metadata).toMatchObject({ booking: "booking001", tip: "2100" });
+    paid(t, pay.body.url.split("/").pop(), "pi_rest");
+    const after = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking;
+    expect(after).toMatchObject({ dueMinor: 0, restPaidMinor: 10500, tipMinor: 2100, canTip: false, tipPercents: [15, 20] });
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ rest: { amountMinor: 10500, paymentIntent: "pi_rest" }, tip: { amountMinor: 2100, paymentIntent: "pi_rest" } });
+    expect(t.emails.find((e) => e.subject.startsWith("Paid in full")).html).toMatch(/with a \$21\.00 tip/);
+    // A full refund gives back the price, and the tip stays with the team.
+    const c = await t.adm({ op: "cancel", id: r.body.id, refund: true });
+    expect(c.body).toMatchObject({ refunded: true, refundMinor: 14000 });
+    expect(t.refunds.map((x) => [x.paymentIntentId, x.amountMinor])).toEqual([["pi_rest", 10500], ["pi_dep", 3500]]);
+  });
+
+  test("a shop that doesn't ask for tips takes none", async () => {
+    const t = setup();
+    await seedTips(t, false);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking).toMatchObject({ tipPercents: [], canTip: false });
+    expect((await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key, tipMinor: 900 })).body.code).toBe("bad_tip");
+    t.clock.now = new Date("2026-11-18T23:00:00Z");
+    expect(await t.desk.sweepTips()).toEqual({ asked: 0 });
+  });
+
+  test("after a paid visit, one Add a tip email whose link adds a tip", async () => {
+    const t = setup();
+    await seedTips(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    await t.adm({ op: "paidAtShop", id: r.body.id });
+    // Not before the visit, nor straight after it.
+    expect((await t.pub({ action: "bookingTip", id: r.body.id, key: r.body.key, tipMinor: 900 })).body.code).toBe("no_tip");
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "15:30")) + 30 * 60_000);
+    expect(await t.desk.sweepTips()).toEqual({ asked: 0 });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "15:30")) + 2.5 * 3_600_000);
+    expect(await t.desk.sweepTips()).toEqual({ asked: 1 });
+    expect(await t.desk.sweepTips()).toEqual({ asked: 0 });
+    const mail = t.emails.at(-1);
+    expect(mail).toMatchObject({ to: "ada@example.com", subject: "Thank you for coming: Cut" });
+    expect(mail.html).toMatch(/Add a tip/);
+    expect(mail.html).not.toMatch(/Add to Google Calendar/);
+    const key = mail.html.match(/key=([a-f0-9]{48})/)[1];
+    const view = (await t.pub({ action: "bookingView", id: r.body.id, key })).body.booking;
+    expect(view).toMatchObject({ canTip: true, canPayRest: false, tipPercents: [15, 20] });
+    const tip = await t.pub({ action: "bookingTip", id: r.body.id, key, tipMinor: 900 });
+    expect(t.opened.at(-1).params.line_items[0].price_data).toMatchObject({ unit_amount: 900, product_data: { name: "Moth Press: Cut (a tip)" } });
+    paid(t, tip.body.url.split("/").pop());
+    await t.desk.sweepHolds();
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ tip: { amountMinor: 900 }, restOpen: false });
+    expect(t.db.store.get("bookings/booking001").rest).toBeUndefined();
+    expect(t.emails.find((e) => e.subject.startsWith("Tip received")).html).toMatch(/Your \$9\.00 tip/);
+    expect(t.emails.some((e) => e.to === "owner@example.com" && e.subject.includes("$9.00 tip"))).toBe(true);
+    expect((await t.pub({ action: "bookingTip", id: r.body.id, key, tipMinor: 900 })).body.code).toBe("tipped");
+  });
+
+  test("no tip email after a no-show or a cancelled visit", async () => {
+    const t = setup();
+    await seedTips(t);
+    const a = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    const b = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "16:00"), ...CUSTOMER });
+    await t.adm({ op: "noShow", id: a.body.id });
+    await t.adm({ op: "cancel", id: b.body.id });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "16:30")) + 2.5 * 3_600_000);
+    expect(await t.desk.sweepTips()).toEqual({ asked: 0 });
+  });
+});

@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
 import { bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, cleanTipPercents, tipTaken, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -571,6 +571,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           {b.customer.phone && <div><dt>Phone</dt><dd><a href={`tel:${b.customer.phone}`}>{b.customer.phone}</a></dd></div>}
           <div><dt>Payment</dt><dd>{paymentText(b)}</dd></div>
           {b.cardHold && <div><dt>Card on file</dt><dd>{b.card ? `${cardText(b.card)}, ${moneyText(b.lateFeeMinor || 0, b.currency)} if missed` : b.status === "held" ? "Being saved" : "Not saved"}</dd></div>}
+          {!!tipTaken(b) && <div><dt>Tip</dt><dd>{moneyText(tipTaken(b), b.currency)} by card</dd></div>}
           {b.fee && <div><dt>Fee</dt><dd>{moneyText(b.fee.amountMinor, b.currency)} charged{b.fee.reason ? ` for a ${b.fee.reason}` : ""}, {new Date(b.fee.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</dd></div>}
           <div><dt>Booked</dt><dd>{b.source === "admin" ? "By you" : "On your website"}{b.createdAt ? `, ${new Date(b.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</dd></div>
         </dl>
@@ -667,6 +668,31 @@ function PayRestPanel({ booking: b }: { booking: Booking }) {
         </Dialog>
       )}
     </div>
+  );
+}
+
+/**
+ * Tips: on or off, and the three or four choices clients see. Clients add one when paying what's left, or from an "Add a
+ * tip" email a couple of hours after a paid visit. Saved with the rest of Hours & rules.
+ */
+function TipsTile({ tips, percents, onChange }: { tips: boolean; percents: number[]; onChange: (tips: boolean, percents: number[]) => void }) {
+  const [text, setText] = useState(percents.join(", "));
+  useEffect(() => setText(percents.join(", ")), [percents.join(",")]);
+  const typed = text.split(/[^\d]+/).filter(Boolean).map(Number);
+  const problem = typed.length === 0 || typed.length > 4 || typed.some((n) => n < 1 || n > 50) ? "Type one to four numbers from 1 to 50, like 15, 18, 20." : "";
+  return (
+    <section className="bkg-tile">
+      <h2 className="bkg-tile-title">Tips</h2>
+      <div className="bkg-form">
+        <Toggle label="Ask clients for a tip" checked={tips} onChange={(v) => onChange(v, percents)} />
+        <p className="bkg-cal-text">{tips ? "Clients can add a tip when they pay what's left. After a paid visit, they get a short email with an Add a tip button. Tips go to your card account with the rest." : "Clients aren't asked for tips."}</p>
+        {tips && (
+          <TextField label="Tip choices (% of the price)" hint="Clients can also type their own amount, or choose no tip." inputMode="numeric"
+            value={text} onChange={(e) => setText(e.target.value)} error={problem || undefined}
+            onBlur={() => { if (!problem) onChange(tips, cleanTipPercents(typed)); }} />
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1186,6 +1212,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             </SelectField>
           </div>
         </section>
+        <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <section className="bkg-tile">
           <h2 className="bkg-tile-title">Days off</h2>
           <div className="bkg-dayoff-add">

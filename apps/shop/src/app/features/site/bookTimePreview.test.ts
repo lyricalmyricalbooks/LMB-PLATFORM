@@ -46,6 +46,9 @@ describe("the Book a time page in Studio's preview", () => {
     const paid = ask("bookingPayRest").booking;
     expect(paid).toMatchObject({ canPayRest: false, dueMinor: 0, restPaidMinor: 4000 });
     expect(paid.url).toBeUndefined();
+    expect(ask("bookingView").booking.tipPercents).toEqual([15, 18, 20]);
+    ask("bookingStart", { serviceId: "sample-class", start: "2026-11-21T19:00:00.000Z" });
+    expect(ask("bookingPayRest", { tipMinor: 900 }).booking).toMatchObject({ tipMinor: 900, dueMinor: 0 });
   });
 });
 
