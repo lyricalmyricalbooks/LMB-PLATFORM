@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.giftCardPart = giftCardPart;
 exports.cleanTipPercents = cleanTipPercents;
@@ -35,6 +35,7 @@ exports.customerCanChange = customerCanChange;
 exports.bookingIcs = bookingIcs;
 exports.bookingsFeedIcs = bookingsFeedIcs;
 exports.googleCalendarLink = googleCalendarLink;
+exports.packProblem = packProblem;
 exports.MAX_PLACES = 100;
 exports.MAX_CLASS_TIMES = 21;
 /** A service that takes more than one person at a time. */
@@ -217,6 +218,20 @@ function cleanService(raw, id = "") {
     }
     // Card on file, for a fee after a missed booking. Paid in full has nothing left to charge, so it never holds a card.
     const holdCard = s.holdCard === true && payment !== "full";
+    // A pack of visits: only for a priced service, two visits or more, at least the smallest card payment.
+    const packVisits = payment !== "free" ? whole(s.packVisits, 0, exports.MAX_PACK_VISITS, 0) : 0;
+    let packPriceMinor = 0;
+    let packDays = 0;
+    if (packVisits === 1)
+        return { problem: "A pack has at least 2 visits." };
+    if (packVisits >= 2) {
+        packPriceMinor = Math.round(Number(s.packPriceMinor));
+        if (!Number.isFinite(packPriceMinor) || packPriceMinor < exports.MIN_CARD_MINOR)
+            return { problem: "Say what the pack costs: at least 0.50." };
+        if (packPriceMinor > 5_000_000)
+            return { problem: "That pack price is too high." };
+        packDays = whole(s.packDays, 0, exports.MAX_PACK_DAYS, 0);
+    }
     let lateFeeMinor = 0;
     if (holdCard) {
         lateFeeMinor = Math.round(Number(s.lateFeeMinor));
@@ -244,6 +259,9 @@ function cleanService(raw, id = "") {
         holdCard,
         lateFeeMinor,
         meet: s.meet === true,
+        packVisits,
+        packPriceMinor,
+        packDays,
     };
 }
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
@@ -515,4 +533,47 @@ function bookingsFeedIcs(name, events, nowMs = Date.now()) {
 function googleCalendarLink({ title, start, end, location = "", details = "" }) {
     const q = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${icsTime(start)}/${icsTime(end)}`, ...(location ? { location } : {}), ...(details ? { details } : {}) });
     return `https://calendar.google.com/calendar/render?${q.toString()}`;
+}
+// ── Packs of visits (16 November 2026) ──────────────────────────────────────────────────────────────────────────
+exports.MAX_PACK_VISITS = 50;
+exports.MAX_PACK_DAYS = 730;
+/** Does this service sell a pack of visits? */
+const offersPack = (s) => (Number(s?.packVisits) || 0) >= 2 && (Number(s?.packPriceMinor) || 0) >= exports.MIN_CARD_MINOR;
+exports.offersPack = offersPack;
+/** The visits booked with a pack and not given back. */
+const packUsed = (p) => (p.uses || []).filter((u) => !u.returned).length;
+exports.packUsed = packUsed;
+/** The visits still to book. */
+const packLeft = (p) => Math.max(0, (Number(p.visits) || 0) - (0, exports.packUsed)(p));
+exports.packLeft = packLeft;
+/** The last shop day a pack bought on `day` can be booked for: `days` later, or null when it never runs out. */
+const packEndsOn = (day, days) => (days > 0 ? addDays(day, days) : null);
+exports.packEndsOn = packEndsOn;
+/** The customer's words for each reason a pack can't book this visit. */
+exports.PACK_MESSAGES = {
+    not_found: "We couldn't find that pack. Check the code in your email.",
+    not_paid: "This pack isn't paid for yet.",
+    closed: "This pack has been closed. Please contact the shop.",
+    other_service: "This pack is for another service.",
+    expired: "This pack has run out of time.",
+    used_up: "Every visit in this pack has been booked.",
+};
+/**
+ * Why `pack` can't book a visit to `serviceId` on shop day `day` (the visit's own day), or null when it can. A pack
+ * running out only stops visits after its last day; a visit booked before then keeps its place.
+ */
+function packProblem(pack, serviceId, day) {
+    if (!pack)
+        return "not_found";
+    if (pack.status === "held")
+        return "not_paid";
+    if (pack.status !== "active")
+        return "closed";
+    if (pack.serviceId !== serviceId)
+        return "other_service";
+    if (pack.expiresOn && day > pack.expiresOn)
+        return "expired";
+    if ((0, exports.packLeft)(pack) <= 0)
+        return "used_up";
+    return null;
 }

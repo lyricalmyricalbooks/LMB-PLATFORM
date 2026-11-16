@@ -306,3 +306,39 @@ describe("gift cards on bookings", () => {
     expect(giftCardPart(4000, 0)).toBe(0);
   });
 });
+
+describe("packs of visits", () => {
+  it("keeps a pack only on a priced service, with two visits or more and a card-sized price", async () => {
+    const { cleanService, offersPack } = await import("./bookingTimes");
+    const base = { name: "Lesson", minutes: 60, payment: "full", priceMinor: 5000 };
+    const pack = cleanService({ ...base, packVisits: 5, packPriceMinor: 22500, packDays: 180 });
+    expect(pack).toMatchObject({ packVisits: 5, packPriceMinor: 22500, packDays: 180 });
+    expect(offersPack(pack as never)).toBe(true);
+    expect(cleanService({ ...base, packVisits: 1, packPriceMinor: 5000 })).toEqual({ problem: "A pack has at least 2 visits." });
+    expect(cleanService({ ...base, packVisits: 5, packPriceMinor: 20 })).toEqual({ problem: "Say what the pack costs: at least 0.50." });
+    expect(cleanService({ ...base, payment: "free", packVisits: 5, packPriceMinor: 5000 })).toMatchObject({ packVisits: 0, packPriceMinor: 0 });
+    expect(cleanService(base)).toMatchObject({ packVisits: 0, packPriceMinor: 0, packDays: 0 });
+    expect(offersPack(cleanService(base) as never)).toBe(false);
+  });
+
+  it("counts what is left and says why a pack can't book", async () => {
+    const { packLeft, packProblem, packEndsOn } = await import("./bookingTimes");
+    const pack = { status: "active", serviceId: "s1", visits: 3, expiresOn: "2026-12-31", uses: [{ bookingId: "a" }, { bookingId: "b", returned: true }] };
+    expect(packLeft(pack)).toBe(2);
+    expect(packProblem(pack, "s1", "2026-12-31")).toBeNull();
+    expect(packProblem(pack, "s1", "2027-01-01")).toBe("expired");
+    expect(packProblem(pack, "s2", "2026-12-01")).toBe("other_service");
+    expect(packProblem({ ...pack, status: "held" }, "s1", "2026-12-01")).toBe("not_paid");
+    expect(packProblem({ ...pack, status: "closed" }, "s1", "2026-12-01")).toBe("closed");
+    expect(packProblem({ ...pack, uses: [{ bookingId: "a" }, { bookingId: "b" }, { bookingId: "c" }] }, "s1", "2026-12-01")).toBe("used_up");
+    expect(packProblem(null, "s1", "2026-12-01")).toBe("not_found");
+    expect(packEndsOn("2026-11-16", 30)).toBe("2026-12-16");
+    expect(packEndsOn("2026-11-16", 0)).toBeNull();
+  });
+
+  it("a booking made with a pack has nothing to pay", async () => {
+    const { balanceDue, cardAsk, moneyTaken, restPayable } = await import("./bookingTimes");
+    const b = { payment: "pack", priceMinor: 0, status: "confirmed" };
+    expect([balanceDue(b), cardAsk(b), moneyTaken(b), restPayable(b)]).toEqual([0, 0, 0, false]);
+  });
+});

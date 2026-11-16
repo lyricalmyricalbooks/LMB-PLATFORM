@@ -1456,3 +1456,115 @@ describe("gift cards on bookings", () => {
     expect((await book(t, { giftCard: CODE })).statusCode).toBe(400);
   });
 });
+
+describe("packs of visits", () => {
+  const ready = async (pack = {}) => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("lesson").set({ name: "Lesson", minutes: 60, gapAfter: 0, payment: "full", priceMinor: 5000, packVisits: 3, packPriceMinor: 13500, packDays: 30, ...pack });
+    return t;
+  };
+  const packPath = (t) => [...t.db.store.keys()].find((k) => k.startsWith("bookingPacks/"));
+  /** Buys a pack and pays its page: answers the code. */
+  const buy = async (t) => {
+    const r = await t.pub({ action: "bookingPackBuy", serviceId: "lesson", ...CUSTOMER });
+    expect(r.body.url).toMatch(/^https:\/\/pay\.example\//);
+    const code = decodeURIComponent(t.opened.at(-1).params.success_url.split("pack=")[1]);
+    Object.assign(t.sessions.get(`cs_test_${String(t.opened.length - 1).padStart(8, "0")}`), { payment_status: "paid", payment_intent: "pi_pack" });
+    return code;
+  };
+  const book = (t, code, day = "2026-11-18", hhmm = "10:00") => t.pub({ action: "bookingStart", serviceId: "lesson", start: at(day, hhmm), ...CUSTOMER, pack: code });
+
+  test("the booking form learns which services sell a pack", async () => {
+    const t = await ready();
+    const info = (await t.pub({ action: "bookingInfo" })).body;
+    expect(info.services.find((s) => s.id === "lesson")).toMatchObject({ packVisits: 3, packPriceMinor: 13500, packDays: 30 });
+    expect(info.services.find((s) => s.id === "review").packVisits).toBeUndefined();
+    expect((await t.pub({ action: "bookingPackBuy", serviceId: "review", ...CUSTOMER })).statusCode).toBe(404);
+  });
+
+  test("buying a pack opens a card page for its price; paying starts it and emails the code once", async () => {
+    const t = await ready();
+    const code = await buy(t);
+    expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(13500);
+    // Only the hash of the code names the record, and the code itself is kept only until it is emailed.
+    expect(packPath(t)).not.toContain(code);
+    expect(t.db.store.get(packPath(t))).toMatchObject({ status: "held", pendingCode: code });
+    const view = await t.pub({ action: "bookingPackView", pack: code.toLowerCase().replace(/-/g, " ") });
+    expect(view.body.pack).toMatchObject({ status: "active", visits: 3, left: 3, serviceId: "lesson", expiresOn: "2026-12-16", last4: code.slice(-4) });
+    expect(t.db.store.get(packPath(t))).toMatchObject({ status: "active", paymentIntent: "pi_pack", pendingCode: null });
+    expect(t.emails.filter((e) => e.to === "ada@example.com")).toHaveLength(1);
+    expect(t.emails[0].html).toContain(code);
+    await t.pub({ action: "bookingPackView", pack: code });
+    expect(t.emails.filter((e) => e.to === "ada@example.com")).toHaveLength(1);
+  });
+
+  test("each visit booked with the pack is free, counted, and given back once on cancel", async () => {
+    const t = await ready();
+    const code = await buy(t);
+    await t.pub({ action: "bookingPackView", pack: code });
+    expect((await t.pub({ action: "bookingPack", serviceId: "lesson", pack: code })).body).toMatchObject({ left: 3, visits: 3 });
+    const r = await book(t, code);
+    expect(r.body.status).toBe("confirmed");
+    expect(t.opened).toHaveLength(1);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ payment: "pack", priceMinor: 0, listPriceMinor: 5000, pack: { last4: code.slice(-4), visit: 1, visits: 3 } });
+    const booked = t.emails.find((e) => e.subject.startsWith("Booked"));
+    expect(booked.html).toMatch(/Paid with your pack ••••.{4}:<\/strong> visit 1 of 3/);
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking).toMatchObject({ dueMinor: 0, packVisit: 1, packVisits: 3 });
+    await book(t, code, "2026-11-19");
+    await book(t, code, "2026-11-20");
+    const fourth = await book(t, code, "2026-11-23");
+    expect(fourth.body).toEqual({ error: "Every visit in this pack has been booked.", code: "pack" });
+    const c = await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect(c.body.booking).toMatchObject({ status: "cancelled", packReturned: true });
+    expect(t.refunds).toHaveLength(0);
+    expect((await t.pub({ action: "bookingPack", serviceId: "lesson", pack: code })).body.left).toBe(1);
+    await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect((await t.pub({ action: "bookingPack", serviceId: "lesson", pack: code })).body.left).toBe(1);
+    expect(t.emails.find((e) => e.subject.startsWith("Cancelled")).html).toMatch(/The visit is back on your pack/);
+  });
+
+  test("a pack books only its own service, only once paid, and only up to its last day", async () => {
+    const t = await ready({ packDays: 2 });
+    const r = await t.pub({ action: "bookingPackBuy", serviceId: "lesson", ...CUSTOMER });
+    expect(r.statusCode).toBe(200);
+    const code = decodeURIComponent(t.opened[0].params.success_url.split("pack=")[1]);
+    expect((await book(t, code)).body).toEqual({ error: "This pack isn't paid for yet.", code: "pack" });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_pack" });
+    await t.pub({ action: "bookingPackView", pack: code });
+    expect((await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "10:00"), ...CUSTOMER, pack: code })).body.code).toBe("pack");
+    expect((await book(t, code, "2026-11-19")).body).toEqual({ error: "This pack has run out of time.", code: "pack" });
+    expect((await book(t, "ZZZZ-ZZZZ-ZZZZ")).body).toEqual({ error: "We couldn't find that pack. Check the code in your email.", code: "pack" });
+    expect((await book(t, code, "2026-11-18")).body.status).toBe("confirmed");
+  });
+
+  test("an unpaid pack is forgotten once its page closes", async () => {
+    const t = await ready();
+    await t.pub({ action: "bookingPackBuy", serviceId: "lesson", ...CUSTOMER });
+    expect(packPath(t)).toBeTruthy();
+    t.clock.now = new Date(Date.parse("2026-11-16T13:00:00Z") + 61 * 60_000);
+    await t.desk.sweepHolds();
+    expect(t.closed).toEqual(["cs_test_00000000"]);
+    expect(packPath(t)).toBeUndefined();
+  });
+
+  test("the owner sees the packs, keeps a visit on a late cancel, and can close a pack with a refund", async () => {
+    const t = await ready();
+    const code = await buy(t);
+    await t.pub({ action: "bookingPackView", pack: code });
+    const r = await book(t, code);
+    const list = (await t.adm({ op: "packs" })).body.packs;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ name: "Ada Reader", visits: 3, left: 2, status: "active", priceMinor: 13500, uses: [{ bookingId: r.body.id, returned: false }] });
+    const c = await t.adm({ op: "cancel", id: r.body.id, packBack: false });
+    expect(c.body.packBack).toBeUndefined();
+    expect((await t.adm({ op: "packs" })).body.packs[0].left).toBe(2);
+    expect((await t.adm({ op: "packClose", id: list[0].id, refundMinor: 99999 })).statusCode).toBe(400);
+    const closed = await t.adm({ op: "packClose", id: list[0].id, refundMinor: 9000 });
+    expect(closed.body).toEqual({ ok: true, refundMinor: 9000 });
+    expect(t.refunds[0]).toMatchObject({ paymentIntentId: "pi_pack", amountMinor: 9000, idempotencyKey: `pack-refund-${list[0].id}-9000` });
+    expect((await book(t, code, "2026-11-19")).body).toEqual({ error: "This pack has been closed. Please contact the shop.", code: "pack" });
+    expect((await t.adm({ op: "packClose", id: list[0].id })).statusCode).toBe(409);
+  });
+});

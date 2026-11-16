@@ -86,6 +86,11 @@ function setup() {
       paid1: { serviceName: 'Portfolio review', start: '2026-11-21T15:00:00.000Z', status: 'confirmed', paid: true, priceMinor: 2500, customer: { name: 'Ada', email: 'ada@example.com', phone: '555' }, note: 'Ring the bell', answers: [{ label: 'Website', answer: 'ada.example' }], manageKeyHash: 'def', paymentIntent: 'pi_1' },
       other: { serviceName: 'Studio visit', status: 'confirmed', paid: false, customer: { name: 'Bo', email: 'bo@example.com', phone: '' }, note: 'Mine', answers: [], manageKeyHash: 'ghi' },
     },
+    bookingPacks: {
+      p1: { serviceName: 'Lesson', status: 'active', visits: 5, customer: { name: 'Ada', email: 'ada@example.com' }, paymentIntent: 'pi_p', sessions: ['cs_p'], pendingCode: null },
+      p2: { serviceName: 'Lesson', status: 'held', visits: 5, customer: { name: 'Ada', email: 'ada@example.com' }, pendingCode: 'ABCD-EFGH-JKLM' },
+      p3: { serviceName: 'Lesson', status: 'held', visits: 5, customer: { name: 'Bo', email: 'bo@example.com' } },
+    },
     bookingWaitlist: {
       w1: { serviceName: 'Evening class', day: '2026-11-22', name: 'Ada', email: 'ada@example.com' },
       w2: { serviceName: 'Evening class', day: '2026-11-22', name: 'Bo', email: 'bo@example.com' },
@@ -112,6 +117,8 @@ describe("the owner's privacy export and erase", () => {
     expect(out.body.bookings.find(b => b.id === 'free1')).toMatchObject({ note: 'Bringing a friend', answers: [{ label: 'Allergies', answer: 'Nuts' }] });
     for (const b of out.body.bookings) for (const key of ['manageKeyHash', 'pendingKey', 'sessions', 'paymentIntent']) expect(b).not.toHaveProperty(key);
     expect(out.body.bookingWaitingList.map(w => w.id)).toEqual(['w1']);
+    expect(out.body.bookingPacks.map(p => p.id).sort()).toEqual(['p1', 'p2']);
+    for (const p of out.body.bookingPacks) for (const key of ['pendingCode', 'sessions', 'paymentIntent']) expect(p).not.toHaveProperty(key);
   });
 
   it("the erase clears that person's bookings and waiting list and nobody else's", async () => {
@@ -126,5 +133,8 @@ describe("the owner's privacy export and erase", () => {
     expect(bookings.get('paid1')).toMatchObject({ customer: { name: 'Ada', email: 'ada@example.com', phone: '' }, note: '', answers: [], manageKeyHash: '', paid: true, priceMinor: 2500 });
     expect(bookings.get('other')).toMatchObject({ customer: { name: 'Bo', email: 'bo@example.com' }, note: 'Mine', manageKeyHash: 'ghi' });
     expect([...db.store.get('bookingWaitlist').keys()]).toEqual(['w2']);
+    // An unpaid pack goes; a paid one stays as the payment record it is.
+    expect(out.body.deleted.unpaidPacks).toBe(1);
+    expect([...db.store.get('bookingPacks').keys()].sort()).toEqual(['p1', 'p3']);
   });
 });

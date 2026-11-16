@@ -836,6 +836,16 @@ for `payNowMinor` (or `bookTimeGiftBook` when it is nothing), the summary gets a
 `giftCard`, and a `gift` error clears it with `bookTimeGiftProblem`. The gift card clears when the service or code changes.
 The manage view shows `giftCardLast4` / `giftMinor`. The Studio preview lets any gift card pay up to 25.00. Words
 `bookTimeGift*` (Text & labels › Book a time page › Discount codes & gift cards; French twins).
+**Packs of visits (16 November 2026):** a service with `packVisits` shows the pack line in its card and, under the time
+step, `PackOffer` (region `bookingsPack`, `.fm-book-pack`): name and email, then `bookingPackBuy`'s card page (Studio's
+preview answers `code` and opens the sample pack). `/book?pack=CODE` is `PackPage` (region `bookingsPass`, noindex): what,
+code's last four, book by, coming up, visits left with `.fm-book-pack-meter`, polling while `held`, and Book a visit →
+`/book?service=<id>&usepack=CODE`, which applies the pack by itself. The details form has a third `ApplyBox` (region
+`bookingsPackCode`); with a pack applied the code and gift card boxes hide, nothing is paid, the button is
+`bookTimePackBook` (or the save-a-card words when the service keeps a card) and the summary says paid with your pack. The
+manage view shows the pack row and, on cancel, `bookTimePackCancelBack`. **The service heading follows a code**
+(`ServiceMeta paidWith`, `withCode`): on the details step it shows the price after the code, or the pack. Words
+`bookTimePack*` (Text & labels › Book a time page › Packs of visits; French twins).
 
 Payments, tips & card on file; French twins). The Studio preview's sample deposit booking pays at once, with no card page.
 **Tips (16 November 2026):** while the shop asks for tips (`tipPercents` in the view) `TipPicker` (region `bookingsTip`)

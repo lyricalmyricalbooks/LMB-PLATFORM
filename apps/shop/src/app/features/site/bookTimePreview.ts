@@ -5,7 +5,7 @@
 // saved and no email is sent.
 import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import { takesDeposit, upFrontMinor, withCode, type BookingCode, type BookingInfo, type BookingServiceView, type BookingView } from "./bookTimeRules";
+import { takesDeposit, upFrontMinor, withCode, type BookingCode, type BookingInfo, type BookingPackView, type BookingServiceView, type BookingView } from "./bookTimeRules";
 
 export const SAMPLE_BOOKING_ID = "sample-booking";
 export const SAMPLE_BOOKING_KEY = "0".repeat(48);
@@ -16,6 +16,7 @@ export const isBookingPreview = () => typeof window !== "undefined"
 const SERVICES: BookingServiceView[] = [
   { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio", holdCard: true, lateFeeMinor: 1500 },
   { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio",
+    packVisits: 5, packPriceMinor: 18000, packDays: 365,
     questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
   { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8 },
   { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "" },
@@ -64,6 +65,15 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
   };
 }
 
+export const SAMPLE_PACK_CODE = "SAMP-LEPA-CK42";
+
+/** The sample pack's own page: two of five visits used, one coming up, a year to book the rest. */
+function samplePack(nowMs: number, zone: string, currency: string): BookingPackView {
+  const day = dayOf(nowMs, zone);
+  return { last4: "CK42", serviceId: "sample-session", serviceName: "One-to-one session", visits: 5, left: 3, status: "active", expiresOn: addDays(day, 300),
+    priceMinor: 18000, currency, coming: [new Date(zonedTime(addDays(day, 4), "11:00", zone)).toISOString()] };
+}
+
 /** What the server would answer, from sample data. */
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
@@ -101,8 +111,21 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     if (!gift) throw Object.assign(new Error(), { code: "gift" });
     return gift;
   }
+  // Packs of visits: buying one opens the sample pack (no card page), and any code of twelve letters and numbers books with it.
+  if (action === "bookingPackBuy") return { code: SAMPLE_PACK_CODE };
+  if (action === "bookingPackView") return { pack: samplePack(nowMs, zone, currency) };
+  if (action === "bookingPack") {
+    const typed = typeof body.pack === "string" ? body.pack.toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
+    const service = SERVICES.find((s) => s.id === body.serviceId);
+    if (typed.length !== 12 || !service?.packVisits) throw Object.assign(new Error(), { code: "pack" });
+    return { last4: typed.slice(-4), left: 3, visits: service.packVisits, expiresOn: addDays(today, 300) };
+  }
   if (action === "bookingStart") {
     sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start, body.code, body.giftCard);
+    if (typeof body.pack === "string" && body.pack) {
+      sample = { ...sample, payment: "pack", paid: true, priceMinor: 0, packLast4: body.pack.replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase(), packVisit: 3, packVisits: 5,
+        depositMinor: undefined, depositPaid: undefined, dueMinor: undefined, canPayRest: undefined, discountCode: undefined, discountMinor: undefined, giftCardLast4: undefined, giftMinor: undefined };
+    }
     return { id: SAMPLE_BOOKING_ID, key: SAMPLE_BOOKING_KEY };
   }
   sample ||= sampleBooking(zone, currency, nowMs);
