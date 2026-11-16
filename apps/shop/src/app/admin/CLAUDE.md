@@ -1090,7 +1090,8 @@ times). In the week, everyone at one start of a class shares a card (`daySlots`,
 name opens that person's booking.
 **Waiting list:** the week reads op `waitlist` for its seven days (again whenever the bookings change) and shows a
 dashed "N waiting" pill under a day's cards (`waitingByDay`, `waitingText`); it opens `WaitingDialog` (name, email,
-what they wait for, Remove = op `removeWaiting`). The server emails them; the owner never has to.
+what they wait for, Remove = op `removeWaiting`). The server emails them; the owner never has to. Someone holding a
+freed place (16 November 2026) shows "Place held until <time>" (`heldUntil`); removing them passes it on.
 **Figures tab:** the last six months (`FiguresPanel`): one read of the bookings (`readBookingsBetween`, admin read of
 the shop's own folder, no server call) into `bookingFigures` (`bookingsView.ts`): a confirmed booking counts (no-shows
 too), a held one doesn't, money is what was paid less refunds (a kept deposit counts), each booking sits on its own
@@ -1122,6 +1123,14 @@ Fixture: `?sells=hair&bookings=new` (nothing set up), `&start=1` (the services s
 `overview/servicesHome.ts`; `HomePage` prop `services` from Dashboard's menu kind): To do is appointments to mark paid,
 messages, privacy requests and the Money side's payments; Today is the day's appointments, who is next, the next seven
 days as bars and Coming up, followed live from Bookings.
+
+## Bookings: who's coming and adding to a class (16 November 2026)
+
+- Each calendar day with bookings has a clipboard button (`DayListDialog` in `Bookings.tsx`): the day by start
+  (`dayList` / `dayListRows` in `bookingsView.ts`), names open the booking. **Print** uses `bookingsDaySheet.ts` (plain
+  black on white, a box to tick per person, everything escaped); **Spreadsheet** saves a CSV with one column per question.
+- A class card with places left and a start still to come shows **Add a person** (`AddToClassDialog`): the server's
+  existing `create` op, so places are still enforced there. Tests: `bookingsDayList.test.ts`.
 
 ## Shipping zones as a page (16 November 2026)
 Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,

@@ -77,6 +77,17 @@ record, so they count as another booking, which is the safe side. Not yet tried 
 Review: a closed day can't be waited for. People are told together and the first to book wins; no automatic booking.
 Not yet tried on a live test shop.
 
+## Hold a freed waiting-list place for the first in line (16 November 2026, next move 5)
+
+- [x] A freed place is held for an hour for the first person waiting (oldest first) and emailed with a link that books it.
+- [x] Nobody else can see or take it meanwhile; the link shows it as free and chooses it.
+- [x] Not booked in time: the five-minute sweep passes it to the next person. Removing the holder passes it on too.
+- [x] The owner's waiting list shows "Place held until"; the Book a time page says how long it is held (EN and FR).
+- [x] Proof: server tests (held and booked with the link, wrong key, used once, lapse to the next, remove, ask again),
+      link parsing test, full shop tests, typecheck, lint.
+
+Review: one person at a time, so a busy class may take a few hours to fill from the list. Not yet tried on a live test shop.
+
 ## A "Book a time" section for any page (14 November 2026)
 
 - [x] Studio › Add section › Book a time: services as cards with price, length, place and class size, a button each.
@@ -106,3 +117,12 @@ shop ever gets near that. Not yet tried on a live test shop.
 
 Review: the time of an erased upcoming booking is kept on purpose (cancelling could trigger a refund the owner didn't
 choose). Not tried on a live test shop.
+
+## Who's coming list and adding to a class (16 November 2026)
+
+- [x] Next move 2: "Add a person" on a class card (no new server work: the owner's `create` already fills a class and
+      refuses when full).
+- [x] Next move 3: per-day "Who's coming" list in the admin, printable with tick boxes, and as a spreadsheet.
+- [x] Proof: `bookingsDayList.test.ts`, full tests, typecheck, lint, screenshots desktop and phone.
+
+Review: the list covers one day; a whole-week print can come later if owners ask. Not tried on a live test shop.
