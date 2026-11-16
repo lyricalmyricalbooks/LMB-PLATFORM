@@ -19,6 +19,7 @@ import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
+  withCode, type BookingCode,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText,
   type BookingInfo, type BookingServiceView, type BookingView,
 } from "./bookTimeRules";
@@ -80,7 +81,10 @@ function NewBooking({ c }: { c: Copy }) {
   const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // A discount code the server accepted for the chosen service (cleared when the service changes).
+  const [applied, setApplied] = useState<BookingCode | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => setApplied(null), [service?.id]);
 
   const load = () => {
     setLoadFailed(false);
@@ -136,12 +140,14 @@ function NewBooking({ c }: { c: Copy }) {
     setError("");
     try {
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers, ...held });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers, ...held, ...(applied ? { code: applied.code } : {}) });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
       setBusy(false);
       if (err?.code === "taken") { setStart(""); setStep("time"); setError(c("bookTimeTaken")); return; }
+      // The code stopped working meanwhile (used up, ended): take it off so the right price shows, and say so.
+      if (err?.code === "code") { setApplied(null); setError(c("bookTimeCodeProblem")); return; }
       setError(c("bookTimeError"));
     }
   };
@@ -208,7 +214,7 @@ function NewBooking({ c }: { c: Copy }) {
         </div>
       )}
 
-      {step === "details" && service && start && (
+      {step === "details" && service && start && (() => { const priced = withCode(service, applied); return (
         <div className="grid gap-8 lg:grid-cols-[1fr_280px] items-start">
           <form {...regionProps("bookingsForm")} onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">
             <Field id="bt-name" label={c("bookTimeName")} problem={problems.name}>
@@ -244,31 +250,80 @@ function NewBooking({ c }: { c: Copy }) {
               <textarea id="bt-note" className="fm-track-input" value={form.note} maxLength={1000}
                 onChange={(e) => setForm({ ...form, note: e.target.value })} />
             </Field>
-            {paysUpFront(service) && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
+            {info.codes && service.priceMinor > 0 && <CodeBox serviceId={service.id} email={form.email} applied={applied} onApplied={setApplied} currency={currency} c={c} />}
+            {paysUpFront(priced) && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
             <button type="submit" className="fm-track-btn w-full" disabled={busy}>
               {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("bookTimeBooking")}</>
-                : takesDeposit(service) ? c("bookTimePayDeposit", { amount: moneyText(upFrontMinor(service), currency) })
-                : paysUpFront(service) ? c("bookTimePay", { amount: moneyText(service.priceMinor, currency) })
+                : takesDeposit(priced) ? c("bookTimePayDeposit", { amount: moneyText(upFrontMinor(priced), currency) })
+                : paysUpFront(priced) ? c("bookTimePay", { amount: moneyText(priced.priceMinor, currency) })
                 : service.holdCard ? c("bookTimeSaveCard") : c("bookTimeBook")}
             </button>
           </form>
           <aside {...regionProps("bookingsSummary")} className="fm-track-card p-6 fm-track-ledger">
             <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
+            {applied && <Row label={c("bookTimeDiscount")} value={`${applied.code} −${moneyText(applied.discountMinor, currency)}`} />}
             <div className="fm-track-total">
               <span className="fm-track-mono">{c("bookTimePaid")}</span>
-              <strong translate="no">{service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree")}</strong>
+              <strong translate="no">{priced.priceMinor > 0 ? moneyText(priced.priceMinor, currency) : c("bookTimeFree")}</strong>
             </div>
-            {takesDeposit(service) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(service), currency), rest: moneyText(service.priceMinor - upFrontMinor(service), currency) })}</p>}
-            {service.priceMinor > 0 && !paysUpFront(service) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
+            {takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
+            {priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
             <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 mt-5 cursor-pointer" onClick={() => setStep("time")}>
               <ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeChange")}
             </button>
             {typeof info.cancelHours === "number" && <p className="mt-4 text-sm leading-6 fm-muted">{c("bookTimeCancelRule", { hours: info.cancelHours })}</p>}
           </aside>
         </div>
-      )}
+      ); })()}
+    </div>
+  );
+}
+
+/** "Have a discount code?": folded until asked for; the server prices the code (bookingCode) and checks it again on booking. */
+function CodeBox({ serviceId, email, applied, onApplied, currency, c }: {
+  serviceId: string; email: string; applied: BookingCode | null; onApplied: (code: BookingCode | null) => void; currency: string; c: Copy;
+}) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [problem, setProblem] = useState("");
+  const [checking, setChecking] = useState(false);
+  if (applied) {
+    return (
+      <div {...regionProps("bookingsCode")} className="fm-book-code" role="status">
+        <span translate="no">{c("bookTimeCodeApplied", { code: applied.code })} · −{moneyText(applied.discountMinor, currency)}</span>
+        <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer" onClick={() => { onApplied(null); setTyped(""); }}>{c("bookTimeCodeRemove")}</button>
+      </div>
+    );
+  }
+  if (!open) {
+    return <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer text-sm" onClick={() => setOpen(true)}>{c("bookTimeCodeOpen")}</button>;
+  }
+  const apply = async () => {
+    if (!typed.trim() || checking) return;
+    setChecking(true);
+    setProblem("");
+    try {
+      onApplied(await ask("bookingCode", { serviceId, code: typed.trim(), email: email.trim() }) as BookingCode);
+    } catch {
+      setProblem(c("bookTimeCodeProblem"));
+    } finally {
+      setChecking(false);
+    }
+  };
+  return (
+    <div {...regionProps("bookingsCode")}>
+      <Field id="bt-code" label={c("bookTimeCodeLabel")} problem={problem}>
+        <div className="fm-book-code-row">
+          <input id="bt-code" className="fm-track-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={typed} maxLength={40}
+            aria-invalid={!!problem} aria-describedby={problem ? "bt-code-err" : undefined}
+            onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); apply(); } }} />
+          <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={apply} disabled={checking || !typed.trim()}>
+            {checking ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : c("bookTimeCodeApply")}
+          </button>
+        </div>
+      </Field>
     </div>
   );
 }
@@ -620,6 +675,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         {booking.meetUrl && booking.status === "confirmed" && (
           <div className="fm-track-row"><span className="fm-track-mono">{c("bookTimeVideo")}</span><a className="text-right underline underline-offset-2" href={booking.meetUrl} target="_blank" rel="noopener noreferrer">{c("bookTimeJoin")}</a></div>
         )}
+        {!!booking.discountMinor && <Row label={c("bookTimeDiscount")} value={`${booking.discountCode || ""} −${moneyText(booking.discountMinor, booking.currency)}`.trim()} />}
         <div className="fm-track-total">
           <span className="fm-track-mono">{c("bookTimePaid")}</span>
           <strong translate="no">{booking.priceMinor > 0 ? (fullyPaid ? c("bookTimePaidAmount", { amount: moneyText(booking.priceMinor, booking.currency) }) : moneyText(booking.priceMinor, booking.currency)) : c("bookTimeFree")}</strong>

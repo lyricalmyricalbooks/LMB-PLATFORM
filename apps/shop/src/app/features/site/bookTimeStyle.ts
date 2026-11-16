@@ -6,6 +6,7 @@
 //   fm-book-times / -time     a day's time chips (aria-pressed)  fm-book-group   Morning / Afternoon / Evening
 //   fm-book-time[data-full]   a full class time (opens the waiting list form, fm-book-wait)
 //   fm-book-summary           the chosen service + time slip      fm-book-actions  a row of buttons
+//   fm-book-code              the discount code box (applied: a ruled slip line; -row: the field + Apply button)
 const S = ".fm-track";
 
 export const BOOK_TIME_CSS = [
@@ -53,6 +54,10 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-summary{display:grid;gap:0;}`,
   `${S} .fm-book-actions{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;}`,
   `${S} .fm-book-actions .fm-track-link{text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px;}`,
+  `${S} .fm-book-code{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 0;border-top:1px dashed var(--t-rule);border-bottom:1px dashed var(--t-rule);font-family:var(--t-mono);font-size:13px;letter-spacing:.06em;}`,
+  `${S} .fm-book-code-row{display:flex;gap:8px;align-items:stretch;}`,
+  `${S} .fm-book-code-row .fm-track-input{flex:1;min-width:0;text-transform:uppercase;font-family:var(--t-mono);letter-spacing:.08em;}`,
+  `${S} .fm-book-code-row .fm-track-btn{flex-shrink:0;width:auto;}`,
   `${S} .fm-book-empty{padding:28px 0;text-align:center;}`,
   `${S} textarea.fm-track-input{min-height:110px;padding:14px 16px;resize:vertical;}`,
   `${S} .fm-book-error{margin:6px 0 0;font-size:13px;color:var(--danger, currentColor);}`,

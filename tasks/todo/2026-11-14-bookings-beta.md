@@ -187,3 +187,17 @@ a live test shop.
 Review: Google's second review must approve the calendar permission before real shops can tick Calendar; until then
 this works only on the platform's test shop. Classes get no Meet link on purpose (one call per person would split the
 class). Not yet tried against real Google.
+
+## Discount codes on bookings (16 November 2026, plan phase 3)
+
+- [x] Discounts: Works on bookings too, only for a manual percentage or amount code on the whole order.
+- [x] Book a time page: Have a discount code? box, price, deposit, summary and button follow the code; EN and FR words.
+- [x] Server checks the code again when booking, counts the use in the same step as taking the time, gives it back on
+      cancel, refuses a code that would leave a few cents for the card page.
+- [x] The code shows on the customer's booking page, emails and the owner's booking drawer; Studio preview has a sample.
+- [x] Proof: pure and handler tests (applied, deposit, refused kinds, too little left, usage limit and give back, one use
+      per customer), preview and rule tests, typecheck, lint, screenshots desktop and phone.
+
+Review: a booking takes the use when the time is taken, even while the card page is open; a hold that runs out gives it
+back. Gift cards on bookings and packages of visits come next.
+

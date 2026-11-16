@@ -12,7 +12,9 @@
 //                            the part taken by card when booked; the rest is paid at the visit), currency, paid (all of it), sessions, paidSession?, paymentIntent?, refund?, holdUntil?, manageKeyHash,
 //                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt,
 //                            cardHold? and lateFeeMinor? (the service keeps a card on file), card? { customer, paymentMethod, brand,
-//                            last4, mode } once saved, fee? { intent, amountMinor, at, by } once a missed-booking fee is charged }
+//                            last4, mode } once saved, fee? { intent, amountMinor, at, by } once a missed-booking fee is charged,
+//                            discount? { id, code, amountMinor, returned? } and listPriceMinor (a discount code typed when booking:
+//                            priceMinor is after it, listPriceMinor before; its use is counted when the time is taken and given back on cancel) }
 //   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
 //                          written in the same transaction as the booking, so two customers can never take one time.
 //   bookingWaitlist/{id}   { serviceId, serviceName, day, start | null, name, email, createdAt, offerStart?, offerUntil?,
@@ -45,6 +47,8 @@ const {
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable,
   secondReminderDue, summaryDue, zonedTime,
 } = require("./shared/bookingTimes");
+const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
+const { emailIdentity } = require("./discountClaims");
 
 const HOLD_MINUTES = 10;
 const MINUTE = 60_000;
@@ -99,6 +103,8 @@ function publicBooking(id, b, settings, nowMs) {
     id, serviceId: b.serviceId, serviceName: b.serviceName, minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
     meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
+    // A discount code: what it took off the service's price (priceMinor is already after it).
+    discountCode: b.discount?.code || "", discountMinor: b.discount?.amountMinor || 0,
     depositMinor: b.payment === "deposit" ? b.depositMinor || 0 : 0, depositPaid: !!b.depositPaid, dueMinor: balanceDue(b),
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
@@ -117,6 +123,9 @@ function bookingActions({
   randomKey = () => crypto.randomBytes(24).toString("hex"),
   // Bookings straight into the owner's Google Calendar (googleConnect.js googleCalendarSync): { put, remove }, or none.
   calendar = null,
+  // Discount codes on bookings: (code, email) → the shop's discount, checked like checkout's (on, dates, usage limit,
+  // who may use it, one use per customer across orders), or throws with the customer's words. None: codes are refused.
+  findDiscount = null,
 }) {
   const services = () => db.collection("bookingServices");
   const settingsRef = () => db.collection("bookingSettings").doc("main");
@@ -258,6 +267,7 @@ function bookingActions({
       const due = balanceDue(b);
       const taken = bookedCardTaken(b);
       const money = ended || !(b.priceMinor > 0) ? "" : [
+        b.discount?.amountMinor ? `<p style="margin:0 0 4px;"><strong>Discount (${escapeHtml(b.discount.code)}):</strong> ${escapeHtml(moneyWords(b.discount.amountMinor, b.currency))} off</p>` : "",
         b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
         due ? `<p style="margin:0 0 4px;"><strong>${kind === "payRest" ? "Left to pay" : "To pay at your visit"}:</strong> ${escapeHtml(moneyWords(due, b.currency))}</p>` : `<p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(b.priceMinor, b.currency))}</p>`,
       ].join("");
@@ -475,6 +485,8 @@ function bookingActions({
    * held for this customer from the waiting list) the held place doesn't count against them and is used up.
    */
   async function takeTime({ id, service, settings, start, record, check = true, offer = null }) {
+    // A discount code's use is counted with the time, so its usage limit holds even when many book at once.
+    const code = record.discount?.id ? db.collection("discounts").doc(record.discount.id) : null;
     const end = start + service.minutes * MINUTE;
     const blockEnd = end + service.gapAfter * MINUTE;
     const days = daysTouched(start, blockEnd, zone());
@@ -482,8 +494,15 @@ function bookingActions({
     return db.runTransaction(async (tx) => {
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
+      const codeSnap = code ? await tx.get(code) : null;
       const nearby = snaps.filter((_, i) => days.includes(all[i]));
       if (check && !isFreeTime({ service, settings, busy: busyFrom(nearby, nowMs, offer?.item || ""), start, zone: zone(), nowMs })) return false;
+      if (codeSnap) {
+        const used = Number(codeSnap.data()?.usageCount) || 0;
+        const limit = Number(codeSnap.data()?.usageLimit) || 0;
+        if (!codeSnap.exists || (limit > 0 && used >= limit)) return "code_used";
+        tx.set(code, { usageCount: used + 1 }, { merge: true });
+      }
       const held = record.status === "held";
       all.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
@@ -500,15 +519,20 @@ function bookingActions({
   /** Frees a booking's time (cancelled, or a hold that ran out), and writes `changes` on the booking. */
   async function freeTime(id, b, changes) {
     const days = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
+    // A cancelled booking gives its discount code's use back, once.
+    const giveBack = changes?.status === "cancelled" && b.discount?.id && !b.discount.returned;
+    const code = giveBack ? db.collection("discounts").doc(b.discount.id) : null;
     await db.runTransaction(async (tx) => {
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
+      const codeSnap = code ? await tx.get(code) : null;
+      if (codeSnap?.exists) tx.set(code, { usageCount: Math.max(0, (Number(codeSnap.data()?.usageCount) || 0) - 1) }, { merge: true });
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         if (!(id in items)) return;
         delete items[id];
         tx.set(dayRef(d), { items });
       });
-      tx.set(bookings().doc(id), changes, { merge: true });
+      tx.set(bookings().doc(id), giveBack ? { ...changes, discount: { ...b.discount, returned: true } } : changes, { merge: true });
     });
     await tellWaitlist(days);
   }
@@ -682,6 +706,45 @@ function bookingActions({
 
   const fail = (res, status, error, code) => res.status(status).json({ error, ...(code ? { code } : {}) });
 
+  // ── Discount codes ────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Does the shop have a code marked "Works on bookings too"? The booking form shows its code box only then. */
+  async function codesOffered() {
+    if (!findDiscount) return false;
+    const snap = await db.collection("discounts").where("forBookings", "==", true).limit(1).get().catch(() => null);
+    return !!snap && !snap.empty;
+  }
+
+  /**
+   * A code typed on the booking form, priced for this service: { discount: { id, code, amountMinor }, priceMinor (after
+   * the code), upFront (what the card page takes now) }. Throws BookingCodeProblem in the customer's words.
+   */
+  async function codeFor(service, raw, email) {
+    const typed = String(raw || "").trim().toUpperCase().slice(0, 40);
+    if (!findDiscount || service.payment === "free" || !typed) throw new BookingCodeProblem("This code can't be used on bookings.");
+    let found;
+    try {
+      found = await findDiscount(typed, email);
+    } catch (err) {
+      // The database failing is not the customer's code being wrong.
+      if (err && err.code !== undefined) throw err;
+      throw new BookingCodeProblem(String(err?.message || "This code can't be used.").slice(0, 160));
+    }
+    const amountMinor = bookingDiscountMinor(found, service.priceMinor);
+    // One use per customer counts bookings too (findDiscount already counted the orders).
+    if (found.onePerCustomer && email) {
+      const me = emailIdentity(email);
+      const snap = await bookings().where("discount.id", "==", found.id).limit(500).get();
+      if (snap.docs.some((d) => d.data()?.status !== "cancelled" && emailIdentity(d.data()?.customer?.email) === me)) {
+        throw new BookingCodeProblem("You have already used this code.");
+      }
+    }
+    const priceMinor = service.priceMinor - amountMinor;
+    const upFront = depositOf({ ...service, priceMinor });
+    if (tooSmallForCard(upFront)) throw new BookingCodeProblem("This code can't be used on this booking.");
+    return { discount: { id: found.id, code: typed, amountMinor }, priceMinor, upFront };
+  }
+
   // ── Customers (validateDiscountCode actions; no sign-in) ───────────────────────────────────────────────────────
 
   async function handlePublic(req, res) {
@@ -697,6 +760,7 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active);
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
+          codes: await codesOffered(),
           services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor }) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
@@ -735,6 +799,20 @@ function bookingActions({
         return res.status(200).json({ on: true, days: out, fullDays, ...(isClass(service) ? { places: service.places, left, full } : {}),
           ...(offer ? { held: { start: new Date(offer.start).toISOString(), until: offer.until } } : {}) });
       }
+      if (action === "bookingCode") {
+        // Try a discount code before booking: what it takes off and what is paid now. Booking checks it again.
+        if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
+        try {
+          const priced = await codeFor(service, req.body?.code, email);
+          return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: priced.priceMinor, payNowMinor: priced.upFront });
+        } catch (err) {
+          if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
+          throw err;
+        }
+      }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
         const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
@@ -746,9 +824,20 @@ function bookingActions({
         // The service's own questions: a required one left empty stops the booking, with the question named.
         const answered = cleanAnswers(service.questions, req.body?.answers);
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
+        // A discount code comes off the price first; a deposit is then worked out on what is left.
+        let priced = null;
+        if (String(req.body?.code || "").trim()) {
+          try {
+            priced = await codeFor(service, req.body.code, customer.email);
+          } catch (err) {
+            if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
+            throw err;
+          }
+        }
+        const price = service.payment === "free" ? 0 : priced ? priced.priceMinor : service.priceMinor;
         // What the card page takes now: the whole price, the deposit, or nothing (free, or all paid at the visit).
-        const upFront = depositOf(service);
-        const deposit = upFront > 0 && service.payment === "deposit";
+        const upFront = priced ? priced.upFront : depositOf(service);
+        const deposit = upFront > 0 && service.payment === "deposit" && upFront < price;
         let checkout = null;
         let mode = "live";
         let holdCard = service.holdCard && canHoldCard();
@@ -765,8 +854,9 @@ function bookingActions({
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
-          status: paid ? "held" : "confirmed", payment: deposit ? "deposit" : upFront > 0 ? "card" : service.payment === "atShop" && service.priceMinor > 0 ? "atShop" : "free",
-          priceMinor: service.payment === "free" ? 0 : service.priceMinor, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
+          status: paid ? "held" : "confirmed", payment: deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
+          priceMinor: price, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
+          ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
           paid: false, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
@@ -774,6 +864,7 @@ function bookingActions({
           source: "website", history: [{ at, what: "booked", by: "customer" }], createdAt: at, updatedAt: at,
         };
         const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs) });
+        if (took === "code_used") return fail(res, 409, "This code has reached its usage limit.", "code");
         if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
           const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
@@ -1347,6 +1438,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest"]);
 
 module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

@@ -29,6 +29,8 @@ const fields = {
   usageLimit: count,
   usageCount: number({ min: 0 }),
   onePerCustomer: boolean(),
+  // "Works on bookings too": the code can be typed on the Book a time page (functions/bookingDiscount.js). Older records miss it.
+  forBookings: optional(boolean()),
   // "catalog" is an older name for "all" that checkout still reads.
   appliesTo: oneOf(["all", "catalog", "categories", "products"] as const),
   selectedCategories: array(string()),

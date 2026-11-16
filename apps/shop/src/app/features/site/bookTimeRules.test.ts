@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront } from "./bookTimeRules";
+import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit } from "./bookTimeRules";
 
 const ZONE = "America/Toronto";
 
@@ -59,5 +59,15 @@ describe("Book a time page rules", () => {
     expect(sectionServices(info, 99)).toHaveLength(4);
     expect(sectionServices({ on: false } as any, 3)).toEqual([]);
     expect(sectionServices(null, 3)).toEqual([]);
+  });
+
+  it("prices a service after a discount code, deposit included", () => {
+    const visit = { id: "v", name: "V", description: "", minutes: 60, priceMinor: 14000, payment: "deposit" as const, depositPercent: 25, location: "" };
+    expect(withCode(visit, null)).toBe(visit);
+    const priced = withCode(visit, { code: "SPRING", discountMinor: 2800, priceMinor: 11200, payNowMinor: 2800 });
+    expect(priced).toMatchObject({ priceMinor: 11200, depositMinor: 2800, depositPercent: 0 });
+    expect(takesDeposit(priced)).toBe(true);
+    const full = { ...visit, payment: "full" as const };
+    expect(withCode(full, { code: "X", discountMinor: 1000, priceMinor: 13000, payNowMinor: 13000 })).toEqual({ ...full, priceMinor: 13000 });
   });
 });
