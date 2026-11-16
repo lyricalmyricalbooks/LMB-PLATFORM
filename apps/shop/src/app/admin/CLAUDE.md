@@ -1120,3 +1120,14 @@ Fixture: `?sells=hair&bookings=new` (nothing set up), `&start=1` (the services s
 `overview/servicesHome.ts`; `HomePage` prop `services` from Dashboard's menu kind): To do is appointments to mark paid,
 messages, privacy requests and the Money side's payments; Today is the day's appointments, who is next, the next seven
 days as bars and Coming up, followed live from Bookings.
+
+## Shipping zones as a page (16 November 2026)
+Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,
+tokens only) in place of the old dialog; the pure picks live in `shipping/zonePlaces.ts` (tested). Quick picks (home
+country, its far-off part, the neighbour, Europe, Everywhere else), one search over countries and US/Canadian states,
+picked chips in a mint tray, then every continent › country › state with tri-state boxes. A place another zone of the
+profile holds shows "In <zone>"; a held country's states can still be picked (a state wins over its country at
+checkout). The name follows `suggestName` until the owner types one; a new zone can take a first flat price
+("Standard shipping"). Zones save ISO codes only (`zoneFromPicks`, `continents: []`). The profile lists each zone by
+`zoneSummary` and, when no zone catches everywhere else (`lacksEverywhereElse`), offers **Add Everywhere else**.
+Fixture: `admin-fixture.html?shipping=1&page=settings/shipping` › Fix profile › Add a zone.
