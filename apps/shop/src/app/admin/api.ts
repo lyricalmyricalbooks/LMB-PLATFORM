@@ -1926,6 +1926,7 @@ export const adminApi = {
       usageLimit: discount.usageLimit ?? null,
       usageCount: discount.usageCount ?? 0,
       onePerCustomer: discount.onePerCustomer ?? false,
+      forBookings: discount.forBookings === true,
       appliesTo: discount.appliesTo || "all",
       selectedCategories: discount.selectedCategories ?? [],
       selectedProducts: discount.selectedProducts ?? [],

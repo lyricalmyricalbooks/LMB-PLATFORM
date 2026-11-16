@@ -27,7 +27,7 @@ function fakeDb() {
     limit: (m) => query(c, filters, m, by),
     orderBy: (f) => query(c, filters, n, f),
     async get() {
-      const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = d.data()[f]; return op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
+      const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = f.split(".").reduce((o, k) => o?.[k], d.data()); return op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
       if (by) hits.sort((a, b) => String(a.data()[by]).localeCompare(String(b.data()[by])));
       const docs = hits.slice(0, n);
       return { docs, empty: docs.length === 0 };
@@ -54,7 +54,7 @@ function res() {
   return out;
 }
 
-function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null } = {}) {
+function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -84,7 +84,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   };
   let n = 0;
   const desk = bookingActions({
-    db, calendar,
+    db, calendar, findDiscount,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
     payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
@@ -1173,6 +1173,102 @@ describe("paying the rest by link", () => {
     // A booking with nothing left to pay has no button.
     const free = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "10:00"), ...CUSTOMER });
     expect((await t.pub({ action: "bookingPayRest", id: free.body.id, key: free.body.key })).body.code).toBe("nothing_due");
+  });
+});
+
+describe("discount codes on bookings", () => {
+  // Like the shop's own lookup (index.js fetchValidDiscount): a plain Error in the customer's words when the code is wrong.
+  const lookup = (db) => async (code) => {
+    const hit = (await db.collection("discounts").where("code", "==", code).limit(1).get()).docs[0];
+    if (!hit) throw new Error("That code isn't valid.");
+    return { id: hit.id, ...hit.data() };
+  };
+
+  const ready = async (discount = {}) => {
+    let db;
+    const t = setup({ findDiscount: async (code, email) => lookup(db)(code, email) });
+    db = t.db;
+    await t.seed();
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 14000, depositPercent: 25 });
+    await t.db.collection("discounts").doc("d1").set({ code: "SPRING", type: "percentage", value: 20, isActive: true, forBookings: true, usageCount: 0, ...discount });
+    return t;
+  };
+  const book = (t, extra = {}) => t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "10:00"), ...CUSTOMER, ...extra });
+
+  test("the booking form offers a code box only when a code works on bookings", async () => {
+    const t = await ready({ forBookings: false });
+    expect((await t.pub({ action: "bookingInfo" })).body.codes).toBe(false);
+    await t.db.collection("discounts").doc("d1").set({ forBookings: true }, { merge: true });
+    expect((await t.pub({ action: "bookingInfo" })).body.codes).toBe(true);
+  });
+
+  test("a code takes its share off the price, and the card page asks for the lower amount", async () => {
+    const t = await ready();
+    const tried = await t.pub({ action: "bookingCode", serviceId: "review", code: " spring ", email: CUSTOMER.email });
+    expect(tried.body).toEqual({ code: "SPRING", discountMinor: 800, priceMinor: 3200, payNowMinor: 3200 });
+    const r = await book(t, { code: "spring" });
+    expect(r.statusCode).toBe(200);
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(3200);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ priceMinor: 3200, listPriceMinor: 4000, discount: { id: "d1", code: "SPRING", amountMinor: 800 } });
+    expect(t.db.store.get("discounts/d1").usageCount).toBe(1);
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_1" });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking).toMatchObject({ status: "confirmed", paid: true, priceMinor: 3200, discountCode: "SPRING", discountMinor: 800 });
+    expect(t.emails.find((e) => e.to === "ada@example.com").html).toMatch(/Discount \(SPRING\):<\/strong> \$8\.00 off/);
+  });
+
+  test("a deposit is worked out on the price after the code", async () => {
+    const t = await ready();
+    const tried = await t.pub({ action: "bookingCode", serviceId: "colour", code: "SPRING", email: CUSTOMER.email });
+    expect(tried.body).toMatchObject({ priceMinor: 11200, payNowMinor: 2800 });
+    await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "13:00"), ...CUSTOMER, code: "SPRING" });
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(2800);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ payment: "deposit", priceMinor: 11200, depositMinor: 2800 });
+  });
+
+  test("codes not marked for bookings, or not a plain amount off, are refused in the customer's words", async () => {
+    for (const discount of [{ forBookings: false }, { type: "freeship" }, { appliesTo: "products" }, { method: "automatic" }]) {
+      const t = await ready(discount);
+      const r = await t.pub({ action: "bookingCode", serviceId: "review", code: "SPRING", email: CUSTOMER.email });
+      expect(r.statusCode).toBe(400);
+      expect(r.body).toEqual({ error: "This code can't be used on bookings.", code: "code" });
+    }
+    const t = await ready();
+    expect((await t.pub({ action: "bookingCode", serviceId: "review", code: "NOPE" })).body).toEqual({ error: "That code isn't valid.", code: "code" });
+    expect((await t.pub({ action: "bookingCode", serviceId: "visit", code: "SPRING" })).statusCode).toBe(400);
+    expect((await book(t, { code: "NOPE" })).statusCode).toBe(400);
+    expect(t.db.store.has("bookings/booking001")).toBe(false);
+  });
+
+  test("a code that leaves too little to pay by card is refused rather than changed", async () => {
+    const t = await ready({ type: "fixed", value: 39.8 });
+    expect((await t.pub({ action: "bookingCode", serviceId: "review", code: "SPRING" })).statusCode).toBe(400);
+    const free = await ready({ type: "fixed", value: 50 });
+    const r = await book(free, { code: "SPRING" });
+    expect(r.body.status).toBe("confirmed");
+    expect(free.db.store.get("bookings/booking001")).toMatchObject({ priceMinor: 0, payment: "free", discount: { amountMinor: 4000 } });
+  });
+
+  test("the usage limit counts bookings, and a cancelled booking gives its use back", async () => {
+    const t = await ready({ usageLimit: 1 });
+    const first = await book(t, { code: "SPRING" });
+    expect(t.db.store.get("discounts/d1").usageCount).toBe(1);
+    const second = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "14:00"), name: "Bo", email: "bo@example.com", code: "SPRING" });
+    expect(second.statusCode).toBe(409);
+    expect(second.body.code).toBe("code");
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_1" });
+    await t.pub({ action: "bookingView", id: first.body.id, key: first.body.key });
+    expect((await t.pub({ action: "bookingCancel", id: first.body.id, key: first.body.key })).statusCode).toBe(200);
+    expect(t.db.store.get("discounts/d1").usageCount).toBe(0);
+    expect(t.db.store.get("bookings/booking001").discount.returned).toBe(true);
+  });
+
+  test("one use per customer counts their bookings too", async () => {
+    const t = await ready({ onePerCustomer: true });
+    await book(t, { code: "SPRING" });
+    const again = await t.pub({ action: "bookingCode", serviceId: "review", code: "SPRING", email: "ADA@example.com" });
+    expect(again.body).toEqual({ error: "You have already used this code.", code: "code" });
+    expect((await t.pub({ action: "bookingCode", serviceId: "review", code: "SPRING", email: "bo@example.com" })).statusCode).toBe(200);
   });
 });
 

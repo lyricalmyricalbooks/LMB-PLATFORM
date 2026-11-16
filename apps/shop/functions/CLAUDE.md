@@ -1277,6 +1277,20 @@ settles a booking whose pages all ran out. `cardTaken` = `bookedCardTaken` + `re
 `refundIds` when both. Admin op `payLink` returns `/book?booking=<id>&key=<payKey>` (`payKey` kept in the booking, admin-only
 readable, so a printed QR code keeps working; `keyFits` accepts it beside the manage and reminder keys, also in
 `customerBookingIcs`) and with `send: true` emails kind `payRest`.
+
+**Discount codes (16 November 2026, plan phase 3).** Pure `bookingDiscount.js`: a code works on bookings only with
+`forBookings: true` (Discounts › **Works on bookings too**, shown while Bookings is on), not automatic, type percentage or
+fixed, `appliesTo` all (`worksOnBookings`); `bookingDiscountMinor` never takes more than the price, applies
+`minOrderAmount` / `maxDiscountAmount`, and `tooSmallForCard` refuses a code that leaves 1 to 49 cents for the card page.
+The shop's own checks come in as dep `findDiscount` (index.js: `fetchValidDiscount`, `validateDiscountCustomer`,
+`assertDiscountNotUsedByCustomer`); its plain Errors are the customer's words, an error with a `code` is a database failure
+and is rethrown. `codeFor` also counts the customer's own bookings for one-use-per-customer (`discount.id` + `emailIdentity`).
+Public action `bookingCode` tries a code (400 `code`); `bookingStart` takes `code`, stores `priceMinor` after it,
+`listPriceMinor` and `discount { id, code, amountMinor }`, and works the deposit out on the lower price. `takeTime` adds one
+to `usageCount` in the same transaction (409 `code` at the limit); `freeTime` gives it back once on any cancel, the hold
+running out included (`discount.returned`). `bookingInfo.codes` says whether any code works on bookings. Emails show
+"Discount (CODE)". Tests: `bookingDiscount.test.js`, bookings.test.js › discount codes on bookings.
+
 **Tips (16 November 2026, `tasks/todo/2026-11-16-booking-tips.md`):** settings `tips` / `tipPercents` (shared
 `cleanTipPercents`). `bookingPayRest` takes `tipMinor` (`tipFits`: whole cents, ≥ 50, ≤ `tipLimitMinor` = the price or
 100.00) and the new public `bookingTip` a tip on its own (`tipOpen`: kept, priced, started visit, no tip yet, within 14

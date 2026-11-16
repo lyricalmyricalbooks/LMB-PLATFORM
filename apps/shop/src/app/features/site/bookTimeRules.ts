@@ -4,7 +4,16 @@ import { addDays, depositOf } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number };
-export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[] };
+export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
+  /** The shop has a discount code that works on bookings, so the form offers a code box. */
+  codes?: boolean };
+/** A discount code the server accepted for one service: what it takes off, the price after it and what is paid now. */
+export type BookingCode = { code: string; discountMinor: number; priceMinor: number; payNowMinor: number };
+/** The service as priced with a code (the server's figures), so every line and button shows what will really be asked. */
+export function withCode<S extends BookingServiceView>(service: S, code: BookingCode | null): S {
+  if (!code) return service;
+  return { ...service, priceMinor: code.priceMinor, ...(service.payment === "deposit" ? { depositMinor: code.payNowMinor, depositPercent: 0 } : {}) };
+}
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; /** A Google Meet link, for a video-call service. */ meetUrl?: string; start: string; end: string;
   status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop"; paid: boolean; priceMinor: number; currency: string;
@@ -15,6 +24,8 @@ export type BookingView = {
   cardHold?: boolean; cardLast4?: string; lateFeeMinor?: number; feeMinor?: number;
   /** Pay the rest: whether what is left can be paid by card from this page, and what was paid that way. */
   canPayRest?: boolean; restPaidMinor?: number;
+  /** A discount code used when booking, and what it took off (priceMinor is after it). */
+  discountCode?: string; discountMinor?: number;
   /** Tips: the shop's choices (empty when it doesn't ask), whether a tip can be added on its own, the tip given and the most one may be. */
   tipPercents?: number[]; canTip?: boolean; tipMinor?: number; tipLimitMinor?: number;
 };

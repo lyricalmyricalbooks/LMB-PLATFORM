@@ -58,4 +58,12 @@ describe("the header's Book a time link", () => {
     expect(bookingsLinkShown(false, {})).toBe(false);
     expect(bookingsLinkShown(true, { hideHeaderBookings: true })).toBe(false);
   });
+
+  it("takes 10% off a paid sample service for any code, and the booking shows it", () => {
+    expect(ask("bookingInfo").codes).toBe(true);
+    expect(ask("bookingCode", { serviceId: "sample-class", code: "spring" })).toEqual({ code: "SPRING", discountMinor: 600, priceMinor: 5400, payNowMinor: 2000 });
+    expect(() => ask("bookingCode", { serviceId: "sample-visit", code: "SPRING" })).toThrow();
+    ask("bookingStart", { serviceId: "sample-session", start: "2026-11-18T15:00:00.000Z", code: "SPRING" });
+    expect(ask("bookingView").booking).toMatchObject({ priceMinor: 4050, discountCode: "SPRING", discountMinor: 450 });
+  });
 });

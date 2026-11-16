@@ -822,6 +822,14 @@ button opening `/book?service=<id>` on that service. It renders nothing unless t
 **Pay the rest (16 November 2026):** the manage view's actions start with `bookTimePayRest` ({amount}) and
 `bookTimePayRestNote` while the server says `canPayRest`; the button asks `bookingPayRest` and goes to the card page, which
 comes back to the same link. Paid that way the total reads paid and `bookTimeRestPaid` shows (Text & labels › Bookings page ›
+Deposits & card on file; French twins). The Studio preview's sample deposit booking pays at once, with no card page.
+**Discount codes (16 November 2026):** while `bookingInfo.codes` and the service costs something, the details form shows
+`CodeBox` (region `bookingsCode`, styles `fm-book-code` / `fm-book-code-row`): "Have a discount code?" opens a field that asks
+`bookingCode`; once applied the money lines, summary (a Discount row) and button use `withCode(service, code)`
+(`bookTimeRules.ts`), and `bookingStart` sends the code (a 400/409 `code` clears it and shows `bookTimeCodeProblem`). The
+manage view shows the Discount row from `discountCode` / `discountMinor`. The Studio preview takes 10% off for any code.
+Words: Text & labels › Book a time page (`bookTimeCode*`, `bookTimeDiscount`; French twins).
+
 Payments, tips & card on file; French twins). The Studio preview's sample deposit booking pays at once, with no card page.
 **Tips (16 November 2026):** while the shop asks for tips (`tipPercents` in the view) `TipPicker` (region `bookingsTip`)
 sits above the Pay button: each percent with its amount, **No tip** (only when paying the rest; the default there), and

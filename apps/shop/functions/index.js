@@ -1940,6 +1940,13 @@ const bookingDesk = require("./bookings").bookingActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
   escapeHtml, risoLayout, risoButton,
+  // Discount codes on bookings: checkout's own checks (bookingDiscount.js says which codes and how much).
+  findDiscount: async (code, email) => {
+    const discount = await fetchValidDiscount(code);
+    validateDiscountCustomer(discount, email);
+    await assertDiscountNotUsedByCustomer(discount, email);
+    return discount;
+  },
   emailBrand: async () => {
     const settings = await loadNotificationSettings();
     const brand = settings.brand || {};

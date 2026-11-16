@@ -1116,6 +1116,10 @@ is in. Fixture: "Flo Example" (deposit) and "Eve Example" (at the shop) show the
 "15, 18, 20", saved on blur through `cleanTipPercents`, then with the rest of the form). The drawer shows "Tip: $8.00 by
 card" (`tipTaken`). Fixture: tips on; "Ben Example" has an $8 tip.
 
+**Discount codes on bookings (16 November 2026):** Discounts › edit › **Works on bookings too** (`forBookings`, only while
+`useBookingsOn` and for a manual percentage or amount code on the whole order; saved false otherwise). The booking drawer
+shows the code and what it took off ("use given back" once cancelled). Server rules: functions/CLAUDE.md › Bookings.
+
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,
 studio, services) gets `MenuKind` "services" (`riso/nav.ts` `adminMenu` / `sideMenu`: Calendar, Clients, Messages, Sales,

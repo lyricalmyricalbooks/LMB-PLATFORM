@@ -5,7 +5,7 @@
 // saved and no email is sent.
 import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import { takesDeposit, upFrontMinor, type BookingInfo, type BookingServiceView, type BookingView } from "./bookTimeRules";
+import { takesDeposit, upFrontMinor, withCode, type BookingCode, type BookingInfo, type BookingServiceView, type BookingView } from "./bookTimeRules";
 
 export const SAMPLE_BOOKING_ID = "sample-booking";
 export const SAMPLE_BOOKING_KEY = "0".repeat(48);
@@ -27,8 +27,19 @@ const TIMES = ["10:00", "11:00", "13:30", "15:00", "18:00"];
 /** The sample booking as last changed in this preview (Change time and Cancel work on it). */
 let sample: BookingView | null = null;
 
-function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?: string, start?: string): BookingView {
-  const service = SERVICES.find((s) => s.id === serviceId) || SERVICES[1];
+/** Any code typed in the preview takes 10% off a paid service, so the code box and its summary row can be designed. */
+function sampleCode(service: BookingServiceView, code: unknown): BookingCode | null {
+  const typed = typeof code === "string" ? code.trim().toUpperCase().slice(0, 40) : "";
+  if (!typed || service.priceMinor <= 0) return null;
+  const discountMinor = Math.round(service.priceMinor / 10);
+  const priceMinor = service.priceMinor - discountMinor;
+  return { code: typed, discountMinor, priceMinor, payNowMinor: upFrontMinor({ ...service, priceMinor }) };
+}
+
+function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?: string, start?: string, code?: unknown): BookingView {
+  const listed = SERVICES.find((s) => s.id === serviceId) || SERVICES[1];
+  const applied = sampleCode(listed, code);
+  const service = withCode(listed, applied);
   const deposit = takesDeposit(service);
   const startMs = start ? Date.parse(start) : zonedTime(addDays(dayOf(nowMs, zone), 3), "11:00", zone);
   return {
@@ -38,6 +49,7 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
     ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service), canPayRest: true, restPaidMinor: 0, tipPercents: [15, 18, 20], tipLimitMinor: 10_000 } : {}),
     name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24,
     ...(service.holdCard ? { cardHold: true, cardLast4: "4242", lateFeeMinor: service.lateFeeMinor } : {}),
+    ...(applied ? { discountCode: applied.code, discountMinor: applied.discountMinor } : {}),
   };
 }
 
@@ -45,7 +57,7 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
   if (action === "bookingInfo") {
-    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES } satisfies BookingInfo;
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true } satisfies BookingInfo;
   }
   if (action === "bookingTimes") {
     const from = typeof body.from === "string" ? body.from : today;
@@ -67,12 +79,17 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     return { on: true, days, fullDays: [], places: 8, left, full };
   }
   if (action === "bookingWait") return { ok: true };
+  if (action === "bookingCode") {
+    const applied = sampleCode(SERVICES.find((s) => s.id === body.serviceId) || SERVICES[1], body.code);
+    if (!applied) throw Object.assign(new Error(), { code: "code" });
+    return applied;
+  }
   if (action === "bookingStart") {
-    sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start);
+    sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start, body.code);
     return { id: SAMPLE_BOOKING_ID, key: SAMPLE_BOOKING_KEY };
   }
   sample ||= sampleBooking(zone, currency, nowMs);
-  if (action === "bookingMove" && typeof body.start === "string") sample = sampleBooking(zone, currency, nowMs, sample.serviceId, body.start);
+  if (action === "bookingMove" && typeof body.start === "string") sample = sampleBooking(zone, currency, nowMs, sample.serviceId, body.start, sample.discountCode);
   // Paying what is left: no card page in the preview, it just shows as paid in full.
   if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0, tipMinor: Number(body.tipMinor) || 0 };
   if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
