@@ -128,46 +128,27 @@ describe("settings alerts", () => {
   });
 });
 
-describe("inventory app link alerts", () => {
-  const now = Date.parse("2026-10-11T15:00:00Z");
-  it("say nothing until sales are switched on", () => {
-    expect(inventoryLinkAlerts({ connection: { ok: false } }, now)).toEqual([]);
-    expect(inventoryLinkAlerts(null, now)).toEqual([]);
+describe("stockroom label alerts", () => {
+  it("say nothing until the link runs", () => {
+    expect(inventoryLinkAlerts({ shipmentIssues: [{ orderId: "A-1" }] })).toEqual([]);
+    expect(inventoryLinkAlerts(null)).toEqual([]);
   });
-  it("flag a broken connection, stalled checks, sales waiting a day and refused labels", () => {
+  it("only flag labels the website refused, whatever else the link's state holds", () => {
     const alerts = inventoryLinkAlerts({
       startDay: "2026-10-01", connection: { ok: false }, lastRunAt: "2026-10-11T13:00:00Z",
       pendingImport: { count: 3, oldestSince: "2026-10-09T12:00:00Z" }, lastPush: { failed: 2 },
+      newMatches: { items: [{ key: "b2|", bookId: "b2", variantId: null, title: "Altrove", edition: "", inventoryBookId: "altrove" }] },
+      app: { todo: { at: new Date().toISOString(), items: [{ id: "x", title: "Waiting", hash: "#todo" }] } },
       shipmentIssues: [{ orderId: "A-1", reason: "Resolve the active return before dispatching the order.", at: "2026-10-11T14:00:00Z" }],
-    }, now);
-    expect(alerts.map((a) => a.id)).toEqual(["inventory-link-down", "inventory-link-stalled", "inventory-link-waiting", "inventory-link-push", "inventory-label-A-1"]);
-    expect(alerts[0]).toMatchObject({ tone: "danger", action: "inventory" });
-    expect(alerts[4]).toMatchObject({ action: "order", orderIds: ["A-1"] });
-  });
-  it("extra website sales in the app only alert once nothing waits to be imported (a refund may be on its way)", () => {
-    const base = { startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", lastSync: { appAhead: [{ title: "The Hound" }] } };
-    expect(inventoryLinkAlerts({ ...base, pendingImport: { count: 1, oldestSince: "2026-10-11T14:00:00Z" } }, now).map((a) => a.id)).toEqual([]);
-    expect(inventoryLinkAlerts({ ...base, pendingImport: { count: 0 } }, now).map((a) => a.id)).toEqual(["inventory-link-ahead"]);
-  });
-  it("books that can be matched, until they are", () => {
-    const base = { startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z" };
-    const items = [{ key: "b2|", bookId: "b2", variantId: null, title: "Altrove", edition: "", inventoryBookId: "altrove" }];
-    const [alert] = inventoryLinkAlerts({ ...base, newMatches: { items }, links: { b1: { _: "hound" } } }, Date.parse("2026-10-11T15:00:00Z"));
-    expect(alert).toMatchObject({ id: "inventory-link-new-books", tone: "info", action: "inventory", title: "1 book can be matched to the inventory app" });
-    expect(inventoryLinkAlerts({ ...base, newMatches: { items }, links: { b2: { _: "altrove" } } }, Date.parse("2026-10-11T15:00:00Z"))).toEqual([]);
-    // No links at all (Unmatch all), or the inventory app book already matched elsewhere: nothing to offer.
-    expect(inventoryLinkAlerts({ ...base, newMatches: { items }, links: {} }, Date.parse("2026-10-11T15:00:00Z"))).toEqual([]);
-    expect(inventoryLinkAlerts({ ...base, newMatches: { items }, links: { b9: { _: "altrove" } } }, Date.parse("2026-10-11T15:00:00Z"))).toEqual([]);
-  });
-  it("a healthy link is quiet", () => {
-    expect(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", pendingImport: { count: 1, oldestSince: "2026-10-11T14:00:00Z" } }, now)).toEqual([]);
+    });
+    expect(alerts.map((a) => a.id)).toEqual(["inventory-label-A-1"]);
+    expect(alerts[0]).toMatchObject({ action: "order", orderIds: ["A-1"], title: "A label bought in the stockroom wasn't used for order A-1" });
   });
 });
 
 describe("alertRoute", () => {
   const hash = (a: any) => { const r = alertRoute(a); return r ? hashForRoute(r) : null; };
   it("opens the sub tab that holds the fix", () => {
-    expect(hash(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: false } }, now)[0])).toBe("#inventory/link");
     const emails = buildAdminAlerts([], null, now, [
       { id: "e1", status: "failed", at: ago(60) },
       { id: "e2", status: "queued", outboxId: "q1", at: ago(30) },
@@ -183,19 +164,6 @@ describe("alertRoute", () => {
     expect(alertRoute({ action: "order" })).toBeNull();
     expect(alertRoute({ action: "orders" })).toBeNull();
     expect(alertRoute({ action: "retry" })).toBeNull();
-  });
-});
-
-describe("held stock alert", () => {
-  const state = (holds: any[]) => ({ startDay: "2026-10-01", autoSync: true, lastRunAt: new Date().toISOString(), lastSync: { holds } });
-  const hold = { bookId: "b1", variantId: "", title: "Injured", hold: "big-change", from: 3, to: 40 };
-
-  it("names the book and stays hidden until the held change itself changes", () => {
-    const [a] = inventoryLinkAlerts(state([hold]));
-    expect(a.detail).toContain("Injured");
-    expect(alertSignature(inventoryLinkAlerts(state([hold]))[0])).toBe(alertSignature(a));
-    expect(alertSignature(inventoryLinkAlerts(state([{ ...hold, to: 41 }]))[0])).not.toBe(alertSignature(a));
-    expect(alertSignature(inventoryLinkAlerts(state([hold, { ...hold, bookId: "b2", title: "Salt" }]))[0])).not.toBe(alertSignature(a));
   });
 });
 

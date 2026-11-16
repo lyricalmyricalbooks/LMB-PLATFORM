@@ -1,5 +1,4 @@
 import { alertRoute, type AdminAlert, type AlertRoute } from "./adminAlerts";
-import { INVENTORY_APP_URL, openInventoryApp } from "./appSwitch";
 import { useShopWords } from "./shopWords";
 import "./overview/overviewViz.css";
 
@@ -11,11 +10,11 @@ const KIND: Record<string, string> = { danger: "Urgent", warning: "Needs a look"
 const TONE: Record<string, string> = { danger: "alert", warning: "apricot" };
 
 const ACTION_LABEL: Record<string, string> = {
-  retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", backups: "Open Backups", notifications: "Open email deliveries",
-  payments: "Open Payments", invoices: "Open invoices", bills: "Open bills to pay", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", inventoryApp: "Open the inventory app", billing: "See running costs",
+  retry: "Try again", general: "Open Backups", backups: "Open Backups", notifications: "Open email deliveries",
+  payments: "Open Payments", invoices: "Open invoices", bills: "Open bills to pay", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", billing: "See running costs",
 };
 
-export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInventory, onOpenInvoices, onOpenBills, onOpenRoute, onRetry }: {
+export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInvoices, onOpenBills, onOpenRoute, onRetry }: {
   /** The alerts still showing (`visibleAlerts`). */
   alerts: AdminAlert[];
   /** How many are hidden in this browser; they can be brought back. */
@@ -29,7 +28,6 @@ export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpe
   onOpenGeneral?: () => void;
   /** The combined admin's one place for backups (Stockroom › Backups); without it a backup alert opens Settings › General. */
   onOpenBackups?: () => void;
-  onOpenInventory?: () => void;
   /** Stockroom › Invoices (the automatic reminders' alert). */
   onOpenInvoices?: () => void;
   /** Stockroom › Bookkeeping › Bills to pay (bills due soon or late). */
@@ -39,12 +37,7 @@ export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpe
   onRetry?: () => void;
 }) {
   const w = useShopWords();
-  // The inventory app's own to-do: the app switch brings its tab forward (or the phone hands the link over).
-  const openApp = (hash = "#todo") => {
-    const url = `${INVENTORY_APP_URL}${hash}`;
-    if (!openInventoryApp(window, url)) window.open(url, "_blank", "noopener");
-  };
-  const runAction = (a: AdminAlert) => (a.action === "inventoryApp" ? openApp(a.appHash) : a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
+  const runAction = (a: AdminAlert) => (a.action === "retry" ? onRetry?.()
     : a.action === "general" || a.action === "backups" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications()
       : a.action === "webhook" || a.action === "payments" || a.action === "cardAccount" ? onOpenWebhook()
         : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders());

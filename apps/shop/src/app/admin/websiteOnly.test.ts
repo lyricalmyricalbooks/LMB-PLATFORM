@@ -1,5 +1,5 @@
 // A website-only press (the profile's apps.stockroom is false) gets an admin with no stockroom in it: no Website ·
-// Inventory switcher, no Inventory app link tab, no stock list sent from the stockroom, no Author role and no
+// Inventory switcher, no stock list sent from the stockroom, no Author role and no
 // stockroom words on the Team page. Its stock is kept on Inventory › Stock. A press with both keeps everything.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -29,12 +29,9 @@ describe("the admin of a website-only press", () => {
     expect(src.match(/<AppSwitch(er|Pill)\b/g)).toHaveLength(2);
   });
 
-  it("keeps stock on Inventory › Stock with no link tab", () => {
+  it("keeps stock on Inventory with no page about linking the stockroom", () => {
     const src = read("Inventory.tsx");
-    expect(src).toMatch(/const view = stockroom \? chosenView : "inv-stock";/);
-    expect(src).toMatch(/\{stockroom && <Tabs variant="page" label="Inventory"/);
-    expect(src).toMatch(/\{stockroom && <TabPanel tabId="inv-link"/);
-    expect(src).toMatch(/<TabPanel tabId="inv-stock" active=\{view === "inv-stock"\} alone=\{!stockroom\}>/);
+    expect(src).not.toMatch(/InventoryLinkPanel|inv-link|<Tabs\b/);
   });
 
   it("doesn't offer the stock list that is read from the stockroom", () => {

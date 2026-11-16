@@ -113,7 +113,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
       setBook({ file, ...text });
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
-      // Books counted in the inventory app keep the stock it sets (adminApi.updateBook enforces it too).
+      // Books counted in the stockroom keep the stock it sets (adminApi.updateBook enforces it too).
       const linkedBookIds = Object.entries(links as Record<string, Record<string, string>>).filter(([, e]) => !!e?.["_"]).map(([id]) => id);
       const src = { text: text.text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
       setSource(src);

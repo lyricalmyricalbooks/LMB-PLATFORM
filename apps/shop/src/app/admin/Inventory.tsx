@@ -4,9 +4,7 @@ import { adminApi } from "./api";
 import { useShopWords } from "./shopWords";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
-import { InventoryLinkPanel } from "./InventoryLinkPanel";
 import { CountStock, type CountItem } from "./CountStock";
-import { useSubTab } from "./settingsLayout";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { smallPhotoUrl } from "../features/site/photoSources";
@@ -18,7 +16,7 @@ import {
 } from "./inventoryInsights";
 import {
   Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState,
-  PageActions, Pagination, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs,
+  PageActions, Pagination, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge,
   ToastProvider, useRisoToast, type BadgeTone, type Column,
 } from "./riso/components";
 import { MONEY_SIGN } from "./moneySign";
@@ -59,7 +57,7 @@ const rowCoverUrl = (r: InventoryRow): string => {
   return (typeof first === "string" ? first : smallPhotoUrl(first, 80)) || (typeof r.book?.coverImage === "string" ? r.book.coverImage : "");
 };
 
-function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: InventoryProps) {
+function InventoryPage({ onEditBook }: InventoryProps) {
   const toast = useRisoToast();
   const w = useShopWords();
   const [ask, askNode] = useAsk();
@@ -69,7 +67,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  // Parts of the page that fell back to defaults because they couldn't be read (low-stock line, cost prices, inventory app links).
+  // Parts of the page that fell back to defaults because they couldn't be read (low-stock line, cost prices, stockroom links).
   const [partial, setPartial] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>("all");
   // Phones (concept A): the table becomes a sheet of rows with a − / count / + stepper.
@@ -80,11 +78,8 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     mq?.addEventListener?.("change", on);
     return () => mq?.removeEventListener?.("change", on);
   }, []);
-  // Page sub tabs: the stock list, and the link to the inventory app.
-  const [chosenView, setView] = useSubTab<"inv-stock" | "inv-link">("inv-stock", subTab, onSubTabChange);
-  // A website-only press has no stockroom to link: stock is kept here, and the link tab isn't offered.
+  // With a stockroom, matched books are counted there and their stock history names it.
   const stockroom = hasStockroom();
-  const view = stockroom ? chosenView : "inv-stock";
   const [q, setQ] = useState("");
   const [threshold, setThreshold] = useState(5);
   const [thresholdDraft, setThresholdDraft] = useState("5");
@@ -103,7 +98,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   const [historyFor, setHistoryFor] = useState<InventoryRow | null>(null);
   const [history, setHistory] = useState<InventoryLogEntry[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
-  // Books matched to the inventory app are counted there (Inventory app link); their stock is read-only here.
+  // Books matched to the stockroom are counted there; their stock is read-only here.
   const [links, setLinks] = useState<InventoryLinks>({});
   // Rows (and the bulk save) already being saved: a fast second click must not apply the change twice.
   const inFlight = useRef<Set<string>>(new Set());
@@ -118,7 +113,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       const [b, o, s, c, l] = await Promise.all([
         adminApi.getAllBooks(), getOrdersCached(),
         inventoryApi.lowStockSetting().catch(orEmpty("the saved low-stock line")), inventoryApi.costs().catch(orEmpty("cost prices")),
-        inventoryLinkApi.links().catch(orEmpty("which books the inventory app counts")),
+        inventoryLinkApi.links().catch(orEmpty("which books the stockroom counts")),
       ]);
       setPartial(missed);
       setBooks(b); setLinks(l); setOrders(o.filter((x: any) => x.paymentStatus === "paid" && x.isTest !== true));
@@ -128,11 +123,6 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
-  // After the inventory app link changes stock: re-read the books only, keeping the page (and the link panel) as it is.
-  const refreshBooks = async () => {
-    try { setBooks(await adminApi.getAllBooks()); }
-    catch (e) { console.error(e); toast("Stock changed, but the list couldn't be refreshed. Reload the page to see the new counts.", { tone: "warn" }); }
-  };
 
   const everything = useMemo(() => buildInventory(books, orders, threshold), [books, orders, threshold]);
   const all = useMemo(() => everything.filter((r) => showHidden || (!r.archived && !r.draft)), [everything, showHidden]);
@@ -199,7 +189,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       }
       if (!res.ok) {
         toast(res.reason === "missing" ? `${rowName(r)} no longer exists. Reload the page.`
-          : res.reason === "linked" ? `${rowName(r)} is counted in the inventory app. Change it there; the website follows.`
+          : res.reason === "linked" ? `${rowName(r)} is counted in the stockroom. Change it there; the website follows.`
           : `${rowName(r)} isn't counted, so its stock can't be changed here.`, { tone: "err" });
         return null;
       }
@@ -316,7 +306,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     if (linked(r)) return (
       <div>
         <span className="rp-mono" aria-label={`Stock for ${rowName(r)}: ${r.stock}`}>{r.stock}</span>
-        <div className="rp-hint">Counted in the inventory app</div>
+        <div className="rp-hint">Counted in the stockroom</div>
       </div>
     );
     const busy = saving.has(r.id) || bulkSaving;
@@ -350,7 +340,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
     { key: "stock", header: "On hand", render: stockCell },
     { key: "status", header: "Status", render: (r) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={TONE[r.status]}>{STATUS_LABELS[r.status]}</StatusBadge></span> },
     ...(receiving ? [
-      { key: "receive", header: "Receive", render: (r: InventoryRow) => linked(r) ? <span className="rp-hint">Receive it in the inventory app</span> : r.editable ? (
+      { key: "receive", header: "Receive", render: (r: InventoryRow) => linked(r) ? <span className="rp-hint">Receive it in the stockroom</span> : r.editable ? (
         <div>
           <input className="rp-input rp-mono" style={{ width: 84 }} placeholder="+12" aria-label={`Copies received for ${rowName(r)} (+12 adds, -3 removes, =40 sets)`}
             value={receive[r.id] ?? ""} disabled={bulkSaving} onChange={(e) => setReceive((d) => ({ ...d, [r.id]: e.target.value }))} />
@@ -427,14 +417,8 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
         </div>
       )}
-      {stockroom && <Tabs variant="page" label="Inventory" value={view} onChange={setView} tabs={[
-        { id: "inv-stock", label: "Stock" },
-        { id: "inv-link", label: "Inventory app link" },
-      ]} />}
-      <TabPanel tabId="inv-stock" active={view === "inv-stock"} alone={!stockroom}>
       <div className="rp-stack">
-      {view === "inv-stock" && (
-        <PageActions>
+      <PageActions>
           {receiving ? (
             <>
               <GhostButton disabled={bulkSaving} onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave receive mode</GhostButton>
@@ -448,8 +432,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
               <PrimaryButton onClick={() => setCounting(true)}>Count stock</PrimaryButton>
             </>
           )}
-        </PageActions>
-      )}
+      </PageActions>
       <FilterBar>
         <div className="rp-grow"><SearchField label={w("Search titles")} placeholder={w("Search titles, SKU or shelf…")} value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <SelectField label="Show" value={tab} onChange={(e) => setTab(e.target.value as Tab)}>
@@ -473,15 +456,9 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
         <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
       </div>
       </div>
-      </TabPanel>
-      {stockroom && <TabPanel tabId="inv-link" active={view === "inv-link"}>
-        <div className="rp-stack">
-          <InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} onAddBook={onAddBook} />
-        </div>
-      </TabPanel>}
 
       <Drawer open={!!historyFor} onClose={() => setHistoryFor(null)} title={historyFor ? `Stock history · ${historyFor.title}` : "Stock history"}
-        description={`Every count change made on this page${stockroom ? " or by the inventory app link" : ""}, newest first. Sales and refunds change stock automatically and are listed on their orders.`}>
+        description={`Every count change made on this page${stockroom ? " or by the stockroom" : ""}, newest first. Sales and refunds change stock automatically and are listed on their orders.`}>
         {historyError ? <ErrorState description="History could not be loaded." onRetry={() => historyFor && openHistory(historyFor)} />
           : !history ? <LoadingState label="Loading history…" />
           : !history.length ? <EmptyState title="No changes recorded yet" description="Changes made from now on appear here." />
@@ -503,11 +480,6 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
 
 type InventoryProps = {
   onEditBook?: (book: any) => void;
-  /** "Add to the shop": open a new book with these values; `onCreated` gets its id after the first save. */
-  onAddBook?: (prefill: Record<string, any>, onCreated: (id: string) => void) => void;
-  /** The open sub tab when the Dashboard keeps it in the address bar (`#inventory/link`). */
-  subTab?: string;
-  onSubTabChange?: (id: string | undefined) => void;
 };
 
 export function Inventory(props: InventoryProps = {}) {

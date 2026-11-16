@@ -4,7 +4,6 @@ import { labelRefundProblems } from "./labelRefunds";
 import { currentRows } from "./emailLogDisplay";
 import { describeBackup, type BackupRecord } from "./backupStatus";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
-import { appOnlyBooks, detailDiffs, openMatches } from "./inventoryLink";
 import { CONTINUE_WITH_STRIPE, needsLine, type PlatformPaymentsAnswer } from "./platformPayments";
 import { providerName } from "./providerWords";
 import { US_SHOP } from "./moneySign";
@@ -21,15 +20,12 @@ export type AdminAlert = {
   orderIds: string[];
   /** What the alert is about when no order is (held books…): a change brings a hidden alert back. */
   key?: string;
-  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp" | "cardAccount" | "backups" | "invoices" | "bills" | "billing";
-  /** action "inventoryApp": where in the inventory app the button opens (a `#…` the app handles). */
-  appHash?: string;
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "cardAccount" | "backups" | "invoices" | "bills" | "billing";
 };
 
 /** Where an alert's button opens: an admin page and, on pages split into sub tabs, the tab holding the fix. */
 export type AlertRoute = { tab: string; settingsTab?: string; subTab?: string };
 const ALERT_ROUTES: Partial<Record<AdminAlert["action"], AlertRoute>> = {
-  inventory: { tab: "inventory", subTab: "inv-link" },                                          // every inventory alert is about the app link
   notifications: { tab: "settings", settingsTab: "notifications", subTab: "email-deliveries" }, // Waiting to send + Recent deliveries
   webhook: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },                 // Stripe › Webhook health
   payments: { tab: "settings", settingsTab: "payments" },                                       // the test mode switch: Ready to take payments?
@@ -235,93 +231,14 @@ export function billHeadsUpAlert(plan: Pick<PlatformPlan, "headsUp"> | null | un
   };
 }
 
-export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] {
+/** Labels bought in the stockroom that the website refused for an order (the link's `shipmentIssues`). */
+export function inventoryLinkAlerts(state: any): AdminAlert[] {
   if (!state || typeof state.startDay !== "string" || !state.startDay) return [];
   const out: AdminAlert[] = [];
-  const link = (id: string, tone: AlertTone, title: string, detail: string): AdminAlert => ({ id, tone, title, detail, orderIds: [], action: "inventory" });
-  if (state.connection && state.connection.ok === false) {
-    out.push(link("inventory-link-down", "danger", "The inventory app link isn't working",
-      "Website sales and stock aren't being shared with the inventory app. Open Inventory › Inventory app link and press Check connection."));
-  }
-  const lastRun = Date.parse(state.lastRunAt || "");
-  if (Number.isFinite(lastRun) && now - lastRun > 60 * MIN) {
-    out.push(link("inventory-link-stalled", "warning", "The inventory app link hasn't checked in for over an hour",
-      "Its regular check runs every 5 minutes. If this stays, the website's scheduled jobs may not be running."));
-  }
-  const pending = state.pendingImport;
-  // Aged by when each order started waiting (a dispatch or refund also waits), not when it was paid.
-  const oldest = Date.parse(pending?.oldestSince || pending?.oldestPaidAt || "");
-  if (pending?.count > 0 && Number.isFinite(oldest) && now - oldest > DAY) {
-    out.push(link("inventory-link-waiting", "warning", `${plural(pending.count, "website order has", "website orders have")} waited over a day for the inventory app`,
-      "New sales, refunds or shipping updates. Open the inventory app so it adds them to its books (website stock already counts them)."));
-  }
-  // Books added to both shops after the matching step (found by the sweep's hourly match check).
-  const open = openMatches(state.newMatches?.items, state.links, state.ignoredMatches || {});
-  if (open.length) {
-    const names = open.slice(0, 3).map((m: any) => (m.edition ? `${m.title} (${m.edition})` : m.title)).join(", ");
-    out.push(link("inventory-link-new-books", "info", `${plural(open.length, "book", "books")} can be matched to the inventory app`,
-      `${names}${open.length > 3 ? " and more" : ""}. Until they're matched, their website sales don't reach the inventory app. Open Inventory › Inventory app link to match them in one click.`));
-  }
-  if (Number(state.lastPush?.failed) > 0) {
-    out.push(link("inventory-link-push", "warning", `${plural(Number(state.lastPush.failed), "website sale", "website sales")} couldn't be sent to the inventory app yet`,
-      "The website keeps trying every 5 minutes. If this stays, check the connection on the Inventory page."));
-  }
-  // A website refund the app hasn't added yet looks the same for a while: only alert once nothing waits.
-  const ahead = Array.isArray(state.lastSync?.appAhead) ? state.lastSync.appAhead : [];
-  if (ahead.length && Number(pending?.count || 0) === 0) {
-    out.push(link("inventory-link-ahead", "warning", `The inventory app counts extra website sales for ${plural(ahead.length, "book", "books")}`,
-      `It has more website rows than the website sent (${ahead.slice(0, 3).map((a: any) => a.title).join(", ")}). Check those books' website sales in the inventory app.`));
-  }
-  const holds = Array.isArray(state.lastSync?.holds) ? state.lastSync.holds.filter((h: any) => ["big-change", "not-derived", "now-has-editions"].includes(h.hold)) : [];
-  if (state.autoSync && holds.length) {
-    const names = holds.slice(0, 3).map((h: any) => (h.edition ? `${h.title} (${h.edition})` : h.title)).filter(Boolean).join(", ");
-    out.push({
-      ...link("inventory-link-holds", "info", `Stock for ${plural(holds.length, "book waits", "books wait")} for you`,
-        `${names ? `${names}${holds.length > 3 ? " and more" : ""}. ` : ""}A big change, a book with no print run in the inventory app, or a matched book now sold in editions isn't applied automatically. Open the stock preview and press Apply, or leave it as it is.`),
-      key: holds.map((h: any) => `${h.bookId}/${h.variantId || "_"}/${h.hold}/${h.to ?? ""}`).sort().join(","),
-    });
-  }
-  // The to-do and new-book exchange with the app failing (its answers would otherwise never arrive).
-  const exchangeError = state.linkRequestError || state.shopCatalogError || state.websiteSideError;
-  if (exchangeError) {
-    out.push(link("inventory-link-exchange", "warning", "The website couldn't share its to-do list or new books with the inventory app",
-      "Books added in one app may not be offered to the other yet. The website tries again every 5 minutes; if this stays, press Check connection on the Inventory page."));
-  }
-  // Books only the inventory app has: offered under Inventory app link › Add to the shop.
-  const onlyInApp = appOnlyBooks(state);
-  if (onlyInApp.length) {
-    const names = onlyInApp.slice(0, 3).map((b) => b.title).join(", ");
-    out.push({
-      ...link("inventory-link-app-books", "info", `${plural(onlyInApp.length, "book in the inventory app isn't", "books in the inventory app aren't")} in the shop yet`,
-        `${names}${onlyInApp.length > 3 ? " and more" : ""}. Add one as a draft website book in one click, or say it's not for the shop.`),
-      key: onlyInApp.map((b) => b.id).sort().join(","),
-    });
-  }
-  const differing = detailDiffs(state);
-  if (differing.length) {
-    const names = [...new Set(differing.map((d) => d.title))];
-    out.push({
-      ...link("inventory-link-details", "info", `${plural(names.length, "book's details differ", "books' details differ")} from the inventory app`,
-        `${names.slice(0, 3).join(", ")}${names.length > 3 ? " and more" : ""}: title, author, ISBN or price. Choose which to keep.`),
-      key: differing.map((d) => `${d.id}:${d.shop}:${d.app}`).sort().join(","),
-    });
-  }
-  // The inventory app's own to-do (websiteLink/app.todo): what waits for you there. Gone after a week without the
-  // app open, since it can't have been checked since.
-  const appTodo = state.app?.todo;
-  const todoAt = Date.parse(appTodo?.at || "");
-  if (Array.isArray(appTodo?.items) && Number.isFinite(todoAt) && now - todoAt < 7 * DAY) {
-    for (const item of appTodo.items.slice(0, 10)) {
-      if (!item?.id || !item?.title) continue;
-      out.push({ id: `inventory-app-${item.id}`, tone: "info", title: String(item.title).slice(0, 200),
-        detail: "Waiting in the inventory app. It updates there each time the app is open.", orderIds: [], action: "inventoryApp",
-        appHash: /^#[A-Za-z0-9_=-]{1,100}$/.test(String(item.hash || "")) ? item.hash : "#todo", key: String(item.count ?? "") });
-    }
-  }
   for (const issue of Array.isArray(state.shipmentIssues) ? state.shipmentIssues : []) {
     if (!issue?.orderId) continue;
-    out.push({ id: `inventory-label-${issue.orderId}`, tone: "warning", title: `A label bought in the inventory app wasn't used for order ${issue.orderId}`,
-      detail: `${issue.reason || "The website refused it."} Sort it out on the order, then mark the parcel shipped again in the inventory app.`, orderIds: [issue.orderId], action: "order" });
+    out.push({ id: `inventory-label-${issue.orderId}`, tone: "warning", title: `A label bought in the stockroom wasn't used for order ${issue.orderId}`,
+      detail: `${issue.reason || "The website refused it."} Sort it out on the order, then mark the parcel shipped again in the stockroom.`, orderIds: [issue.orderId], action: "order" });
   }
   return out;
 }

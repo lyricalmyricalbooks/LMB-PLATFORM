@@ -349,7 +349,7 @@ export const adminApi = {
       dataToSave = await runTransaction(firestore, async tx => {
         const snap = await tx.get(docRef);
         const privSnap = await tx.get(privRef);
-        // Matched to the inventory app (Inventory › Inventory app link): its stock is set from there.
+        // Matched to the stockroom: its stock is set from there.
         const linkSnap = await tx.get(doc(db, "systemStatus", "inventoryLink"));
         // A website-only press keeps all its stock here, whatever an old link left behind.
         const links = hasStockroom() && linkSnap.exists() ? (linkSnap.data() as any).links : null;
@@ -1180,7 +1180,7 @@ export const adminApi = {
         const copies = part.lines.reduce((n, l) => n + l.quantity, 0);
         message = `Part shipped (${copies} item${copies === 1 ? "" : "s"}: ${part.lines.map((l) => `${l.quantity} × ${l.title}`).join(", ")}) via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
       } else if (action === "clear_app_label") {
-        // A label bought in the inventory app (Inventory app link) that won't be used: take its tracking off
+        // A label bought in the stockroom that won't be used: take its tracking off
         // the order so the website can buy its own. Only before the parcel left.
         if (o.trackingSource !== "inventory-app" || o.labelUrl) throw new Error("This order has no inventory app label to remove.");
         if (queueOf(o) === "In transit" || queueOf(o) === "Completed") throw new Error("This order has already been dispatched.");

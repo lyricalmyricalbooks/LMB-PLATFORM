@@ -367,7 +367,7 @@ export function Dashboard() {
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             // A website-only press has no stockroom to link, so there is nothing to read (and nothing to fail).
-            hasStockroom() ? inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }) : Promise.resolve(null),
+            hasStockroom() ? inventoryLinkApi.state().catch(() => { failedParts.push("the stockroom link"); return null; }) : Promise.resolve(null),
             adminApi.getClientErrors(20).catch(() => { failedParts.push("the shop errors"); return []; }),
             // Cards through Colophon: is anything on the press's Stripe account past its deadline? (plan 7.9)
             platformCardsProvider() === "stripe" ? adminApi.platformPayments("status").catch(() => null) : Promise.resolve(null),
@@ -679,11 +679,6 @@ export function Dashboard() {
     setEditingBook(null);
     setShowEditor(true);
   };
-  const handleAddBookFrom = (prefill: Record<string, any>, onCreated: (id: string) => void) => {
-    setNewBookStart({ prefill, onCreated });
-    setEditingBook(null);
-    setShowEditor(true);
-  };
 
   const appearance = adminTheme === "dark" ? "dark" : "light";
   const legacyProps = {
@@ -819,7 +814,7 @@ export function Dashboard() {
         return <AnalyticsPage subTab={subTab} onSubTabChange={openSubTab} setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
-      case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
+      case "inventory": return <Inventory onEditBook={handleEditBook} />;
       case "discounts": return <Discounts />;
       case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} askUrl={askPersonPage(platformPlan)}
         fromPage={helpFrom.current?.page} fromLabel={helpFrom.current?.label}
@@ -834,7 +829,6 @@ export function Dashboard() {
         onOpenBackups={COMBINED ? () => void openStockroomPage("backups") : undefined}
         onOpenInvoices={() => void openStockroomPage("invoices")}
         onOpenBills={() => void openStockroomPage("bills")}
-        onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
         onOpenRoute={(r: AlertRoute) => {
           setActiveTab(r.tab);
           if (r.settingsTab) setSettingsTab(r.settingsTab);

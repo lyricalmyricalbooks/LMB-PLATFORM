@@ -1,7 +1,7 @@
 // The admin page lives in the address bar (`/admin#orders/<id>`, `/admin#settings/payments`), so a reload,
 // the browser Back/Forward buttons and a copied link all land on the same page. Pure and tested.
 // Studio links (`#designer?…`) are read by `parseStudioLocation`; gift-card links keep `#gift-cards/<id>`.
-// A page split into sub tabs adds a readable slug for the open one (`#settings/general/visitors`, `#inventory/link`);
+// A page split into sub tabs adds a readable slug for the open one (`#settings/general/visitors`);
 // the first (default) sub tab has none, so the older addresses stay as they were.
 
 import { DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
@@ -23,7 +23,6 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   payments: [["status", "pay-status"], ["methods", "pay-methods"], ["more", "pay-more"]],
   notifications: [["templates", "email-templates"], ["setup", "email-setup"], ["deliveries", "email-deliveries"]],
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],
-  inventory: [["stock", "inv-stock"], ["link", "inv-link"]],
   analytics: [["overview", "an-overview"], ["traffic", "an-traffic"], ["products", "an-products"], ["checkout", "an-checkout"]],
   apps: [["", "apps"], ["quickbooks", "quickbooks"]],
   // #settings/billing/close scrolls to Close your shop (the help centre and the account page link there).

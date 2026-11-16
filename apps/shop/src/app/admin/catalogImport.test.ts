@@ -68,10 +68,10 @@ describe("planImport", () => {
     expect(plan.rows[1].changes).toEqual([{ field: "stockLevel", label: "Stock", from: "0", to: "4" }]);
   });
 
-  it("never writes stock for a book counted in the inventory app, even when asked to set it", () => {
+  it("never writes stock for a book counted in the stockroom, even when asked to set it", () => {
     const plan = planImport("SKU,Stock\nNF-1,4\n", books, [], { stockMode: "set", linkedBookIds: ["b2"] });
     expect(plan.rows[0].action).toBe("unchanged");
-    expect(plan.rows[0].warnings.join(" ")).toContain("counted in the inventory app");
+    expect(plan.rows[0].warnings.join(" ")).toContain("counted in the stockroom");
   });
 
   it("leaves live stock alone by default and says what the file wanted", () => {

@@ -90,7 +90,7 @@ export function CountStock({ items, onFinish, onClose, money = (n: number) => n.
               </li>
             );
           })}
-          {shown.length === 0 && <li className="rp-fk-hint" style={{ padding: "12px 0" }}>{items.length ? `Nothing matches “${q.trim()}”.` : "Nothing here keeps a stock count yet. Items counted in the inventory app are counted there."}</li>}
+          {shown.length === 0 && <li className="rp-fk-hint" style={{ padding: "12px 0" }}>{items.length ? `Nothing matches “${q.trim()}”.` : "Nothing here keeps a stock count yet. Items the stockroom counts are counted there."}</li>}
         </ul>
       </div>
       {note && <p className="rp-fk-hint" data-error="" role="alert" style={{ marginTop: 12 }}>{note}</p>}
