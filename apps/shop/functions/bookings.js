@@ -43,6 +43,7 @@ const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
+  secondReminderDue, summaryDue, zonedTime,
 } = require("./shared/bookingTimes");
 
 const HOLD_MINUTES = 10;
@@ -178,7 +179,7 @@ function bookingActions({
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
-      const subject = { tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const subject = { tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
       const lead = {
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
@@ -186,6 +187,7 @@ function bookingActions({
         tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.`,
         tipPaid: `Thank you! Your ${escapeHtml(tipText)} tip for your visit to ${escapeHtml(shop)} has gone through.`,
         reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
+        soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
         notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
         booked: `You're booked in with ${escapeHtml(shop)}.`,
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
@@ -205,7 +207,7 @@ function bookingActions({
       const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? "Add a tip" : kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
@@ -1187,6 +1189,81 @@ function bookingActions({
   }
 
   /**
+   * The second, shorter reminder (`secondReminderHours`, off unless the owner picks it): once, a few hours before, with
+   * its own key (`reminder2KeyHash`). Never for a booking made inside those hours. Marked before sending.
+   */
+  async function sweepSecondReminders() {
+    if (!(await featureOn())) return { reminded: 0 };
+    const { secondReminderHours } = await readSettings();
+    if (!secondReminderHours) return { reminded: 0 };
+    const nowMs = now().getTime();
+    // By start time alone (one field, no new index); the status is checked here.
+    const snap = await bookings().where("start", ">=", new Date(nowMs).toISOString()).where("start", "<=", new Date(nowMs + secondReminderHours * HOUR).toISOString()).limit(500).get();
+    let reminded = 0;
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      if (b.status !== "confirmed" || !secondReminderDue(b, secondReminderHours, nowMs)) continue;
+      const key = randomKey();
+      await bookings().doc(doc.id).set({ reminder2SentAt: new Date(nowMs).toISOString(), reminder2KeyHash: hash(key) }, { merge: true });
+      await tellCustomer(doc.id, b, "soon", { byShop: true, key });
+      reminded += 1;
+    }
+    return { reminded };
+  }
+
+  /**
+   * The owner's morning list (`dailySummary`): from DAILY_SUMMARY_HOUR in the shop's time zone, one email naming the day's
+   * bookings in time order. Claimed per day in `bookingSettings/summary` first, so two sweeps never send twice; a day with
+   * nothing booked sends nothing.
+   */
+  async function sweepSummary() {
+    if (!(await featureOn())) return { sent: false };
+    const settings = await readSettings();
+    const owner = ownerEmail();
+    if (!settings.dailySummary || !owner || !EMAIL.test(owner)) return { sent: false };
+    const nowMs = now().getTime();
+    const mark = db.collection("bookingSettings").doc("summary");
+    const day = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(mark);
+      const due = summaryDue(nowMs, zone(), snap.exists ? String(snap.data()?.day || "") : "");
+      if (due) tx.set(mark, { day: due, at: new Date(nowMs).toISOString() });
+      return due;
+    });
+    if (!day) return { sent: false };
+    const from = new Date(zonedTime(day, "00:00", zone())).toISOString();
+    const to = new Date(zonedTime(addDays(day, 1), "00:00", zone())).toISOString();
+    const snap = await bookings().where("start", ">=", from).where("start", "<", to).orderBy("start").limit(300).get();
+    const list = snap.docs.map((d) => d.data()).filter((b) => b.status === "confirmed" || b.status === "held");
+    if (!list.length) return { sent: false, day };
+    try {
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const time = (iso) => new Date(iso).toLocaleTimeString("en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
+      const dayWords = new Date(`${day}T12:00:00Z`).toLocaleDateString("en-CA", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+      const rows = list.map((b) => {
+        const due = balanceDue(b);
+        const extra = [b.status === "held" ? "not confirmed yet" : "", due ? `${moneyWords(due, b.currency)} to pay at the visit` : "", b.customer?.phone || ""].filter(Boolean).join(" · ");
+        return `<tr><td style="padding:8px 12px 8px 0;vertical-align:top;white-space:nowrap;"><strong>${escapeHtml(time(b.start))}</strong></td>
+          <td style="padding:8px 0;vertical-align:top;"><strong>${escapeHtml(b.customer?.name || "")}</strong> · ${escapeHtml(b.serviceName || "")}${extra ? `<br><span style="opacity:.75;">${escapeHtml(extra)}</span>` : ""}${b.note ? `<br><em>“${escapeHtml(b.note)}”</em>` : ""}</td></tr>`;
+      }).join("");
+      await sendEmail({
+        to: owner,
+        subject: `[BOOKINGS] Today: ${list.length} ${list.length === 1 ? "booking" : "bookings"}, first at ${time(list[0].start)}`,
+        html: risoLayout(`<h4 style="margin:0 0 8px;">Today's bookings</h4>
+          <h2 style="margin:0 0 12px;">${escapeHtml(dayWords)}</h2>
+          <table role="presentation" style="border-collapse:collapse;width:100%;">${rows}</table>
+          ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}
+          <p style="margin:16px 0 0;font-size:13px;opacity:.75;">You get this each morning there are bookings. Turn it off in Bookings › Hours &amp; rules.</p>`,
+          { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+      });
+      return { sent: true, day, count: list.length };
+    } catch (err) {
+      console.warn("Bookings day summary failed:", err?.message || err);
+      return { sent: false, day };
+    }
+  }
+
+  /**
    * The "Add a tip" email, once per visit, TIP_ASK_HOURS after it ended (within a day of that), for a shop that asks for
    * tips. Only kept, priced visits with no tip yet; marked before sending, so a second sweep never sends twice.
    */
@@ -1211,7 +1288,7 @@ function bookingActions({
     return { asked };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepWaitlist, sweepTips, featureOn };
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, sweepTips, featureOn };
 }
 
 /**
@@ -1248,7 +1325,7 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
 
 const HOUR = 60 * 60 * 1000;
 /** The booking's own link, the reminder's, the tip email's or the owner's pay link: each opens the customer's booking page. */
-const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.tipKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
+const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
 /** How long a page to pay the rest stays open, and how long before its end a fresh one is opened instead. */
 const REST_PAGE_MINUTES = 60;
 const REST_REUSE_MINUTES = 15;

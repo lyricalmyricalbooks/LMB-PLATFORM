@@ -270,3 +270,60 @@ export function bookingFigures(rows: readonly Booking[], zone: string, months: r
     services: [...services].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 5),
   };
 }
+
+/** What the Calendar's list shows: what is still to come, what has happened, or what was cancelled. */
+export type ListMode = "upcoming" | "past" | "cancelled";
+/** How far the list looks: three months ahead, two months back (cancelled covers both). */
+export const LIST_AHEAD_DAYS = 90;
+export const LIST_BACK_DAYS = 60;
+
+/** The start times the list reads for a mode, as ISO times around now. */
+export function listRange(mode: ListMode, nowMs: number): { from: string; to: string } {
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const day = 86_400_000;
+  if (mode === "upcoming") return { from: iso(nowMs - day), to: iso(nowMs + LIST_AHEAD_DAYS * day) };
+  if (mode === "past") return { from: iso(nowMs - LIST_BACK_DAYS * day), to: iso(nowMs + 3600_000) };
+  return { from: iso(nowMs - LIST_BACK_DAYS * day), to: iso(nowMs + LIST_AHEAD_DAYS * day) };
+}
+
+/** Lower case with accents taken off, so "zoe" finds "Zoë". */
+const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/** One day of the Calendar's list. */
+export type ListDay = { day: string; rows: Booking[] };
+
+/**
+ * The Calendar's list: bookings for the mode, matching the search (name, email, phone or service) and the service
+ * picked, grouped by the shop's day. What is to come reads earliest first; the past and cancelled read newest first.
+ */
+export function bookingList(rows: readonly Booking[], opts: { mode: ListMode; query: string; serviceId: string; nowMs: number; zone: string }): ListDay[] {
+  const words = plain(opts.query).split(/\s+/).filter(Boolean);
+  const keep = rows.filter((b) => {
+    if (opts.mode === "cancelled" ? b.status !== "cancelled" : b.status === "cancelled") return false;
+    if (opts.mode === "upcoming" && Date.parse(b.end) <= opts.nowMs) return false;
+    if (opts.mode === "past" && Date.parse(b.end) > opts.nowMs) return false;
+    if (opts.serviceId && b.serviceId !== opts.serviceId) return false;
+    if (!words.length) return true;
+    const hay = plain([b.customer.name, b.customer.email, b.customer.phone || "", b.serviceName].join(" "));
+    return words.every((w) => hay.includes(w));
+  });
+  const newestFirst = opts.mode !== "upcoming";
+  keep.sort((x, y) => (newestFirst ? y.start.localeCompare(x.start) : x.start.localeCompare(y.start)) || x.customer.name.localeCompare(y.customer.name));
+  const out: ListDay[] = [];
+  for (const b of keep) {
+    const day = dayOf(Date.parse(b.start), opts.zone);
+    const last = out[out.length - 1];
+    if (last && last.day === day) last.rows.push(b);
+    else out.push({ day, rows: [b] });
+  }
+  // Within a past day, read the day top to bottom as it happened.
+  if (newestFirst) for (const d of out) d.rows.reverse();
+  return out;
+}
+
+/** The short tag a list row carries, or "" when the booking is plainly on. */
+export function listTag(b: Pick<Booking, "status" | "noShow" | "clearing">): string {
+  if (b.status === "cancelled") return "Cancelled";
+  if (b.status === "held") return b.clearing ? "Payment clearing" : "Paying now";
+  return b.noShow ? "No-show" : "";
+}

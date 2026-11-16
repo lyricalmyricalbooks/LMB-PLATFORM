@@ -1145,6 +1145,14 @@ days as bars and Coming up, followed live from Bookings.
   black on white, a box to tick per person, everything escaped); **Spreadsheet** saves a CSV with one column per question.
 - A class card with places left and a start still to come shows **Add a person** (`AddToClassDialog`): the server's
   existing `create` op, so places are still enforced there. Tests: `bookingsDayList.test.ts`.
+- The Calendar has a **Week | List** switch (remembered per computer, `colophon.bookings.view`). `ListView` follows its own
+  range (`listRange`: Coming up 90 days ahead, Past 60 days back, Cancelled both) and filters with `bookingList` (search
+  over name, email, phone, service, accents ignored; one service), grouped by the shop's day; rows open the booking.
+  Tests: `bookingsList.test.ts`. The fixture's `follow` includes its older bookings so Past has rows.
+- **Customers** (`Customers.tsx`) reads bookings once when `useBookingsOn` (a year back, six months ahead,
+  `readBookingsBetween`) and merges them with `withBookings` (`customerInsights.ts`): each row gets `bookings` by email,
+  people who only booked are segment `booked` (no money figure counts them). `CustomerDetail` takes `showBookings` for
+  its Bookings tab. Dialog page tabs scroll sideways on phones and phone dialogs have `min-width: 0` (`riso.css`).
 
 ## Shipping zones as a page (16 November 2026)
 Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,

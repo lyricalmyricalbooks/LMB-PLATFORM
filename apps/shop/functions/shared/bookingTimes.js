@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.cardAsk = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.cleanTipPercents = cleanTipPercents;
 exports.tipOpen = tipOpen;
@@ -22,6 +22,8 @@ exports.cleanBookingSettings = cleanBookingSettings;
 exports.zonedTime = zonedTime;
 exports.dayOf = dayOf;
 exports.addDays = addDays;
+exports.summaryDue = summaryDue;
+exports.secondReminderDue = secondReminderDue;
 exports.daysTouched = daysTouched;
 exports.placesLeft = placesLeft;
 exports.clashes = clashes;
@@ -56,11 +58,17 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     tips: false,
     tipPercents: [15, 18, 20],
     waitHoldMinutes: 60,
+    secondReminderHours: 0,
+    dailySummary: false,
 };
 /** How long a freed place may be held for the first person on the waiting list. */
 exports.WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720];
 /** The reminder choices the owner picks from: none, or this many hours before. */
 exports.REMINDER_HOURS = [0, 2, 12, 24, 48, 72];
+/** The second reminder's choices: none, or this many hours before. */
+exports.SECOND_REMINDER_HOURS = [0, 1, 2, 3];
+/** The owner's day summary goes out from this hour of the shop's morning. */
+exports.DAILY_SUMMARY_HOUR = 7;
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const whole = (value, min, max, fallback) => {
     const n = Math.round(Number(value));
@@ -281,6 +289,7 @@ function cleanBookingSettings(raw) {
     });
     const daysOff = [...new Set((Array.isArray(s.daysOff) ? s.daysOff : []).filter((d) => typeof d === "string" && DAY.test(d)))].sort().slice(-200);
     const step = exports.BOOKING_STEPS.includes(Number(s.step)) ? Number(s.step) : exports.DEFAULT_BOOKING_SETTINGS.step;
+    const reminderHours = exports.REMINDER_HOURS.includes(Number(s.reminderHours)) ? Number(s.reminderHours) : exports.DEFAULT_BOOKING_SETTINGS.reminderHours;
     return {
         live: s.live === true,
         hours,
@@ -289,11 +298,20 @@ function cleanBookingSettings(raw) {
         maxDaysAhead: whole(s.maxDaysAhead, 1, 365, exports.DEFAULT_BOOKING_SETTINGS.maxDaysAhead),
         cancelHours: whole(s.cancelHours, 0, 24 * 14, exports.DEFAULT_BOOKING_SETTINGS.cancelHours),
         step,
-        reminderHours: exports.REMINDER_HOURS.includes(Number(s.reminderHours)) ? Number(s.reminderHours) : exports.DEFAULT_BOOKING_SETTINGS.reminderHours,
+        reminderHours,
         tips: s.tips === true,
         tipPercents: cleanTipPercents(s.tipPercents),
         waitHoldMinutes: exports.WAIT_HOLD_MINUTES.includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : exports.DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
+        secondReminderHours: secondReminder(s.secondReminderHours, reminderHours),
+        dailySummary: s.dailySummary === true,
     };
+}
+/** A second reminder only when it comes after the first one: one of the choices, and fewer hours before. */
+function secondReminder(value, first) {
+    const hours = Number(value);
+    if (!exports.SECOND_REMINDER_HOURS.includes(hours))
+        return 0;
+    return first && hours >= first ? 0 : hours;
 }
 // ── The shop's clock ────────────────────────────────────────────────────────────────────────────────────────────────
 const formatters = new Map();
@@ -331,6 +349,29 @@ function addDays(day, n) {
     return d.toISOString().slice(0, 10);
 }
 /** 0 = Sunday … 6 = Saturday, for a YYYY-MM-DD day (the calendar's own weekday, whatever the zone). */
+/**
+ * The shop day whose morning summary is due now, or "" when it isn't: from DAILY_SUMMARY_HOUR in the shop's time zone,
+ * once a day (`lastDay` is the day last sent).
+ */
+function summaryDue(nowMs, zone, lastDay) {
+    const day = dayOf(nowMs, zone);
+    if (day === lastDay)
+        return "";
+    return nowMs >= zonedTime(day, `${String(exports.DAILY_SUMMARY_HOUR).padStart(2, "0")}:00`, zone) ? day : "";
+}
+/** Whether the second reminder is due for a booking: inside its hours, at least 15 minutes ahead, not booked inside them. */
+function secondReminderDue(b, hours, nowMs) {
+    if (!hours || b.reminder2SentAt)
+        return false;
+    const start = Date.parse(b.start);
+    if (!Number.isFinite(start))
+        return false;
+    const left = start - nowMs;
+    if (left > hours * 3_600_000 || left < 15 * MINUTE)
+        return false;
+    const made = Date.parse(b.createdAt || "");
+    return !(Number.isFinite(made) && start - made <= hours * 3_600_000);
+}
 const weekdayOf = (day) => new Date(`${day}T12:00:00Z`).getUTCDay();
 exports.weekdayOf = weekdayOf;
 const isDay = (value) => typeof value === "string" && DAY.test(value);

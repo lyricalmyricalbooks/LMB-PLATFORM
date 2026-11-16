@@ -4729,6 +4729,10 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   if (out.confirmed || out.freed) console.log(`bookingSweep: ${out.confirmed} confirmed, ${out.freed} freed`);
   const sent = await bookingDesk.sweepReminders();
   if (sent.reminded) console.log(`bookingSweep: ${sent.reminded} reminders sent`);
+  const soon = await bookingDesk.sweepSecondReminders();
+  if (soon.reminded) console.log(`bookingSweep: ${soon.reminded} second reminders sent`);
+  const summary = await bookingDesk.sweepSummary();
+  if (summary.sent) console.log(`bookingSweep: day summary for ${summary.day} sent`);
   await bookingDesk.sweepWaitlist();
   const tips = await bookingDesk.sweepTips();
   if (tips.asked) console.log(`bookingSweep: ${tips.asked} tip emails sent`);

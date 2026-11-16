@@ -80,3 +80,37 @@ describe("customers brought over who haven't ordered here yet (plan 23.10)", () 
     expect(SEGMENT_LABELS.moved).toBe("Not ordered here yet");
   });
 });
+
+describe("customers' bookings (Bookings beta)", () => {
+  const bk = (id: string, email: string, start: string, extra: Record<string, unknown> = {}) => ({
+    id, serviceId: "visit", serviceName: "Studio visit", minutes: 60, start, end: new Date(Date.parse(start) + 3600_000).toISOString(),
+    status: "confirmed", payment: "free", priceMinor: 0, currency: "CAD", paid: false, customer: { name: id, email }, ...extra,
+  }) as any;
+  it("puts bookings on the buyer by email, any case, and adds people who only booked", async () => {
+    const { withBookings, SEGMENT_LABELS } = await import("./customerInsights");
+    const buyers = buildCustomers([{ id: "o1", paymentStatus: "paid", total: 20, createdAt: "2026-10-01T00:00:00Z", customer: { email: "Ada@example.com", name: "Ada" } }]);
+    const rows = withBookings(buyers, [
+      bk("a1", "ADA@example.com", "2026-11-01T15:00:00Z"),
+      bk("a2", "ada@example.com", "2026-11-20T15:00:00Z"),
+      bk("b1", "ben@example.com", "2026-11-02T15:00:00Z", { customer: { name: "Ben Old", email: "ben@example.com" } }),
+      bk("b2", " Ben@example.com", "2026-11-09T15:00:00Z", { customer: { name: "Ben New", email: " Ben@example.com" } }),
+      bk("x", "", "2026-11-09T15:00:00Z"),
+    ]);
+    expect(rows.map((c) => [c.key, c.segment, c.bookings?.map((b) => b.id)])).toEqual([
+      ["ada@example.com", "new", ["a2", "a1"]], ["ben@example.com", "booked", ["b2", "b1"]],
+    ]);
+    expect(rows[1]).toMatchObject({ name: "Ben New", email: "Ben@example.com", orderCount: 0, totalSpent: 0 });
+    expect(customerStats(rows).total).toBe(1);
+    expect(withBookings(buyers, [])).toBe(buyers);
+    expect(SEGMENT_LABELS.booked).toBe("Booked, no order yet");
+  });
+  it("says how many bookings and the next one, or else the last", async () => {
+    const { bookingsLine } = await import("./customerInsights");
+    const day = (iso: string) => iso.slice(0, 10);
+    const now = Date.parse("2026-11-16T12:00:00Z");
+    expect(bookingsLine(undefined, now, day)).toBe("");
+    expect(bookingsLine([bk("c", "a@x.com", "2026-11-20T15:00:00Z", { status: "cancelled" })], now, day)).toBe("");
+    expect(bookingsLine([bk("p", "a@x.com", "2026-11-01T15:00:00Z"), bk("n", "a@x.com", "2026-11-25T15:00:00Z"), bk("n2", "a@x.com", "2026-11-18T15:00:00Z")], now, day)).toBe("3 bookings · next 2026-11-18");
+    expect(bookingsLine([bk("p", "a@x.com", "2026-11-01T15:00:00Z")], now, day)).toBe("1 booking · last 2026-11-01");
+  });
+});

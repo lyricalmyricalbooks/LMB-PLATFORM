@@ -3,9 +3,10 @@
 // refund comes off (refundedAmount), and a fully refunded order counts as 0 but keeps the
 // customer listed with that order in their history.
 import { refundedAmount } from "./overview/overviewInsights";
+import type { Booking } from "./bookingsApi";
 
-/** "moved": brought over from the old shop, with no order here yet (plan 23.10). */
-export type CustomerSegment = "vip" | "vip-lapsed" | "returning" | "new" | "at-risk" | "moved";
+/** "moved": brought over from the old shop, with no order here yet (plan 23.10). "booked": booked a time, no order yet. */
+export type CustomerSegment = "vip" | "vip-lapsed" | "returning" | "new" | "at-risk" | "moved" | "booked";
 
 export interface CustomerRow {
   key: string; // lowercased email
@@ -23,13 +24,15 @@ export interface CustomerRow {
   city: string;
   country: string;
   orders: any[];
+  /** Their bookings (Bookings beta), newest first; only filled when the shop has Bookings. */
+  bookings?: Booking[];
 }
 
 export const VIP_SPEND = 250;
 export const AT_RISK_DAYS = 180;
 
 export const SEGMENT_LABELS: Record<CustomerSegment, string> = {
-  vip: "VIP", "vip-lapsed": "VIP · lapsed", returning: "Returning", new: "New", "at-risk": "At risk", moved: "Not ordered here yet",
+  vip: "VIP", "vip-lapsed": "VIP · lapsed", returning: "Returning", new: "New", "at-risk": "At risk", moved: "Not ordered here yet", booked: "Booked, no order yet",
 };
 
 /** Lapsed big spenders are flagged ("VIP · lapsed") rather than hidden under VIP. */
@@ -109,6 +112,44 @@ export function withMovedCustomers(rows: CustomerRow[], notes: { email?: string;
     });
   }
   return added.length ? [...rows, ...added] : rows;
+}
+
+/**
+ * Puts each person's bookings on their customer row (matched by email, any case), and adds the people who booked but
+ * haven't ordered as "booked" customers. Like the moved customers, they count in no money figure.
+ */
+export function withBookings(rows: CustomerRow[], bookings: readonly Booking[]): CustomerRow[] {
+  const byEmail = new Map<string, Booking[]>();
+  for (const b of bookings) {
+    const key = String(b.customer?.email || "").trim().toLowerCase();
+    if (!key) continue;
+    byEmail.set(key, [...(byEmail.get(key) || []), b]);
+  }
+  if (!byEmail.size) return rows;
+  const newestFirst = (list: Booking[]) => [...list].sort((a, b) => b.start.localeCompare(a.start));
+  const out = rows.map((c) => (byEmail.has(c.key) ? { ...c, bookings: newestFirst(byEmail.get(c.key)!) } : c));
+  const known = new Set(rows.map((c) => c.key));
+  for (const [key, list] of byEmail) {
+    if (known.has(key)) continue;
+    const sorted = newestFirst(list);
+    // The name they gave on their latest booking.
+    out.push({
+      key, email: String(sorted[0].customer.email).trim(), name: sorted[0].customer.name || "", orderCount: 0, totalSpent: 0, avgOrder: 0,
+      firstOrderAt: 0, lastOrderAt: 0, daysSinceLast: 0, segment: "booked", city: "", country: "", orders: [], bookings: sorted,
+    });
+  }
+  return out;
+}
+
+/** A customer's bookings in plain words: "3 bookings · next Fri 21 Nov" or "2 bookings · last 4 Nov", "" without any. */
+export function bookingsLine(bookings: readonly Booking[] | undefined, nowMs: number, dayText: (iso: string) => string): string {
+  const kept = (bookings || []).filter((b) => b.status !== "cancelled");
+  if (!kept.length) return "";
+  const count = `${kept.length} booking${kept.length === 1 ? "" : "s"}`;
+  const next = kept.filter((b) => Date.parse(b.end) > nowMs).sort((a, b) => a.start.localeCompare(b.start))[0];
+  if (next) return `${count} · next ${dayText(next.start)}`;
+  const last = [...kept].sort((a, b) => b.start.localeCompare(a.start))[0];
+  return `${count} · last ${dayText(last.start)}`;
 }
 
 export function customerStats(rows: CustomerRow[]) {

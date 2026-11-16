@@ -133,7 +133,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   bookingsData.watchOn = (onChange) => { onChange(mode !== "off"); return () => {}; };
   bookingsData.readSetup = async () => ({ services: [...services], settings, saved: mode !== "new" });
   bookingsData.follow = (from, to, onRows) => {
-    const send = () => onRows(rows.filter((b) => b.start >= from && b.start < to).sort((a, b) => a.start.localeCompare(b.start)));
+    const send = () => onRows([...rows, ...history].filter((b) => b.start >= from && b.start < to).sort((a, b) => a.start.localeCompare(b.start)));
     watchers.add(send); send();
     return () => void watchers.delete(send);
   };
