@@ -1647,7 +1647,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
           )}
 
           {shownTab === "stock" && book?.id && (
-            <StockroomBookPanel book={{ id: book.id, title: formData.title, isbn: formData.isbn, variants: formData.variants || [] }}
+            <StockroomBookPanel book={{ id: book.id, title: formData.title, isbn: formData.isbn, format: formData.format, digital: formData.digital, variants: formData.variants || [] }}
               links={stockLinks} linksFailed={stockLinksFailed} onLinks={setStockLinks} words={w} onOpen={openInStockroom} />
           )}
 

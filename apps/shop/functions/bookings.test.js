@@ -36,7 +36,7 @@ function fakeDb() {
     store,
     collection: (c) => ({ doc: (id) => ref(c, id), ...query(c) }),
     runTransaction(fn) {
-      const run = queue.then(() => fn({ get: (r) => r.get(), set: (r, d, o) => r.set(d, o) }));
+      const run = queue.then(() => fn({ get: (r) => r.get(), set: (r, d, o) => r.set(d, o), delete: (r) => r.delete() }));
       queue = run.catch(() => {});
       return run;
     },
@@ -545,7 +545,8 @@ describe("the waiting list", () => {
     t.emails.length = 0;
     return { t, id, booked };
   }
-  const waitingEmails = (t) => t.emails.filter((m) => /A place has opened/.test(m.subject));
+  const waitingEmails = (t) => t.emails.filter((m) => /A place is held for you/.test(m.subject));
+  const offerIn = (m) => { const [, offer, offerKey] = m.html.match(/offer=([a-f0-9]{32})&#38;offerKey=([a-f0-9]{48})/) || []; return { offer, offerKey }; };
 
   test("a full class time is listed as full, and only a full time can be waited for", async () => {
     const { t, id } = await fullClass();
@@ -574,18 +575,63 @@ describe("the waiting list", () => {
     expect((await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) })).statusCode).toBe(200);
   });
 
-  test("everyone waiting is told once when a customer cancels, with a link to book", async () => {
+  test("the first in line gets the freed place held for them, with a link that books it", async () => {
     const { t, id, booked } = await fullClass();
     await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    t.clock.now = new Date("2026-11-16T13:01:00Z");
     await t.pub({ action: "bookingWait", serviceId: id, start, ...person(4) });
     expect((await t.pub({ action: "bookingCancel", id: booked[0].id, key: booked[0].key })).statusCode).toBe(200);
     const told = waitingEmails(t);
-    expect(told.map((m) => m.to).sort()).toEqual(["p3@example.com", "p4@example.com"]);
-    expect(told[0].html).toContain(`https://press.example/book?service=${id}&#38;day=2026-11-21`);
-    expect((await t.adm({ op: "waitlist", from: "2026-11-21", to: "2026-11-21" })).body.waiting).toEqual([]);
-    // A second place opening tells nobody: their entries are gone.
-    await t.adm({ op: "cancel", id: booked[1].id });
-    expect(waitingEmails(t)).toHaveLength(2);
+    expect(told.map((m) => m.to)).toEqual(["p3@example.com"]);
+    expect(told[0].html).toContain(`https://press.example/book?service=${id}&#38;day=2026-11-21&#38;offer=`);
+    expect(told[0].html).toMatch(/held for you until 9:01/);
+    const { offer, offerKey } = offerIn(told[0]);
+    // Everyone else still sees the class as full and can't take the place.
+    const others = (await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body;
+    expect(others.full).toEqual({ "2026-11-21": [start] });
+    expect(others.held).toBeUndefined();
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(5) })).statusCode).toBe(409);
+    // A wrong key is no help; the right one shows the place as open and books it.
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(5), offer, offerKey: "b".repeat(48) })).statusCode).toBe(409);
+    const theirs = (await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1, offer, offerKey })).body;
+    expect(theirs.days["2026-11-21"]).toEqual([start]);
+    expect(theirs.held).toEqual({ start, until: "2026-11-16T14:01:00.000Z" });
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(3), offer, offerKey })).statusCode).toBe(200);
+    const list = (await t.adm({ op: "waitlist", from: "2026-11-21", to: "2026-11-21" })).body.waiting;
+    expect(list.map((w) => w.email)).toEqual(["p4@example.com"]);
+    expect(Object.keys(t.db.store.get("bookingDays/2026-11-21").items).filter((k) => k.startsWith("offer_"))).toEqual([]);
+    // The hold is used up: the link can't book a second place.
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(6), offer, offerKey })).statusCode).toBe(409);
+  });
+
+  test("a hold that runs out goes to the next person in line", async () => {
+    const { t, id, booked } = await fullClass();
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    t.clock.now = new Date("2026-11-16T13:01:00Z");
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(4) });
+    await t.adm({ op: "cancel", id: booked[0].id });
+    const first = offerIn(waitingEmails(t)[0]);
+    t.clock.now = new Date("2026-11-16T13:30:00Z");
+    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 0, passedOn: 0 });
+    expect((await t.adm({ op: "waitlist", from: "2026-11-21", to: "2026-11-21" })).body.waiting.find((w) => w.email === "p3@example.com").heldUntil).toBe("2026-11-16T14:01:00.000Z");
+    t.clock.now = new Date("2026-11-16T14:05:00Z");
+    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 0, passedOn: 1 });
+    expect(waitingEmails(t).map((m) => m.to)).toEqual(["p3@example.com", "p4@example.com"]);
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(3), ...first })).statusCode).toBe(409);
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(4), ...offerIn(waitingEmails(t)[1]) })).statusCode).toBe(200);
+  });
+
+  test("removing the person holding a place passes it on, and asking again doesn't lose the hold", async () => {
+    const { t, id, booked } = await fullClass();
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    t.clock.now = new Date("2026-11-16T13:01:00Z");
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(4) });
+    await t.adm({ op: "cancel", id: booked[0].id });
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    const holder = (await t.adm({ op: "waitlist", from: "2026-11-21", to: "2026-11-21" })).body.waiting.find((w) => w.email === "p3@example.com");
+    expect(holder.heldUntil).toBeTruthy();
+    await t.adm({ op: "removeWaiting", id: holder.id });
+    expect(waitingEmails(t).map((m) => m.to)).toEqual(["p3@example.com", "p4@example.com"]);
   });
 
   test("the owner cancelling or moving someone out also tells the list", async () => {
@@ -621,9 +667,9 @@ describe("the waiting list", () => {
     await t.adm({ op: "removeWaiting", id: list[0].id });
     expect((await t.adm({ op: "waitlist", from: "2026-11-16", to: "2026-11-22" })).body.waiting).toEqual([]);
     await t.pub({ action: "bookingWait", serviceId: id, start, ...person(4) });
-    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 0 });
+    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 0, passedOn: 0 });
     t.clock.now = new Date("2026-11-22T13:00:00Z");
-    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 1 });
+    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 1, passedOn: 0 });
   });
 });
 

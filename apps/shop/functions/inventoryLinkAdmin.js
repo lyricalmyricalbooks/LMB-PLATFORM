@@ -145,23 +145,25 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     try {
       inventoryIds = (await store.readCatalog()).map(book => book.id);
     } catch {
-      return bad("The website can't read the inventory app right now. The book is saved; match it below once the connection is back.", 409);
+      return bad("The stockroom can't be read right now. Try again in a minute.", 409);
     }
-    if (!inventoryIds.includes(inventoryBookId)) return bad("That book isn't in the inventory app any more.", 409);
+    if (!inventoryIds.includes(inventoryBookId)) return bad("That book isn't in the stockroom any more.", 409);
     const bookSnap = await db.collection("books").doc(bookId).get();
     if (!bookSnap.exists) return bad("That website book wasn't found.", 404);
     const book = { id: bookSnap.id, ...bookSnap.data() };
     const edition = linkableEditions([book]).find(e => (e.variantId || null) === variantId);
-    if (!edition) return bad("Only printed books can be matched to the inventory app.");
+    if (!edition) return bad("Only printed editions can be matched to the stockroom.");
     const result = await db.runTransaction(async tx => {
       const snap = await tx.get(ref);
       const state = snap.exists ? snap.data() : {};
       const current = state.links || {};
-      const used = new Set(Object.values(current).flatMap(e => Object.values(e || {})));
+      // Editions of one book may share a stockroom book (one pile of copies, stockPools.js); two books may not.
+      const usedElsewhere = Object.entries(current).some(([id, entry]) => Object.entries(entry || {})
+        .some(([key, inv]) => inv === inventoryBookId && (id !== bookId || key === "_" || !variantId)));
       const existing = current[bookId]?.[variantId || "_"];
       if (existing === inventoryBookId) return { links: current, already: true };
-      if (existing) return { error: "This website book is already matched to another book in the app." };
-      if (used.has(inventoryBookId)) return { error: "That book in the app is already matched to another website book." };
+      if (existing) return { error: "This product is already matched to another book in the stockroom." };
+      if (usedElsewhere) return { error: "That book in the stockroom is already matched to another product." };
       const links = { ...current, [bookId]: { ...(current[bookId] || {}), [variantId || "_"]: inventoryBookId } };
       const items = (state.appOnlyBooks?.items || []).filter(b => b.id !== inventoryBookId);
       tx.update(ref, {

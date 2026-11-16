@@ -135,7 +135,8 @@ function NewBooking({ c }: { c: Copy }) {
     setBusy(true);
     setError("");
     try {
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers });
+      const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers, ...held });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -192,6 +193,7 @@ function NewBooking({ c }: { c: Copy }) {
       {step === "time" && service && (
         <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
           <TimePicker serviceId={service.id} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
+            offer={service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : undefined}
             waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />
           <div className="fm-book-actions mt-2">
             <button type="button" className="fm-track-btn" disabled={!start} onClick={() => { setError(""); setStep("details"); }}>
@@ -315,8 +317,10 @@ function Row({ label, value }: { label: string; value: string }) {
 
 // ── The day and time picker (new bookings and Change time) ─────────────────────────────────────────────────────────
 
-function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "" }: {
+function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "", offer }: {
   serviceId: string; zone: string; today: string; lastDay: string; picked: string; onPick: (iso: string) => void; c: Copy;
+  /** A place held for this person from the waiting list: the server shows it as free to them only. */
+  offer?: { offer: string; offerKey: string };
   /** New bookings only: full class times and booked-up days offer the waiting list. */
   waitlist?: boolean; startDay?: string;
 }) {
@@ -332,15 +336,21 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitli
   const [failed, setFailed] = useState(false);
   const [day, setDay] = useState(startDay);
   const [attempt, setAttempt] = useState(0);
+  // The held place's start and how long it is held, once the server confirms it is still theirs.
+  const [held, setHeld] = useState<{ start: string; until: string } | null>(null);
   const days = pageDays(from, lastDay);
 
   useEffect(() => {
     let cancelled = false;
     setTimes(null);
     setFailed(false);
-    ask("bookingTimes", { serviceId, from, days: days.length || 1 }).then((answer) => {
+    ask("bookingTimes", { serviceId, from, days: days.length || 1, ...(offer || {}) }).then((answer) => {
       if (cancelled) return;
       const got = (answer.days || {}) as Record<string, string[]>;
+      const hold = (answer.held || null) as { start: string; until: string } | null;
+      setHeld((current) => current || hold);
+      // Their held place starts out chosen.
+      if (hold && !picked) onPick(hold.start);
       setTimes(got);
       setLeft((answer.left || {}) as Record<string, number>);
       const gone = (waitlist ? answer.full || {} : {}) as Record<string, string[]>;
@@ -382,6 +392,11 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitli
           );
         })}
       </div>
+      {held && (
+        <div {...regionProps("bookingsNotice")} className="fm-track-notice mb-6" role="status">
+          <p>{c("bookTimeHeldNote", { time: timeText(held.start, zone), until: timeText(held.until, zone) })}</p>
+        </div>
+      )}
       {failed ? (
         <div className="fm-track-notice mb-6" data-tone="danger" role="alert">
           <p>{c("bookTimeLoadError")}</p>

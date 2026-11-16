@@ -1323,7 +1323,9 @@ div.rp-listcard-main { cursor: default; }
 .rp-toast { max-width: min(440px, calc(100vw - 32px)); overflow-wrap: anywhere; }
 /* Tabs on phones: one sideways-scrolling row instead of ragged wrapped rows */
 @media (max-width: 767px) {
-  .rp-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  /* Phones swipe the pills sideways; a grey scrollbar under them (Windows draws arrows too) only adds clutter. */
+  .rp-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .rp-tabs::-webkit-scrollbar { display: none; }
   .rp-tab { flex-shrink: 0; white-space: nowrap; }
 }
 /* Dialogs on phones: a sheet from the bottom, full width, with thumb-sized footer buttons */
@@ -2443,7 +2445,7 @@ div.rp-listcard-main { cursor: default; }
 @media (max-width: 640px) {
   /* A long status ("3 items not counted yet") takes its own line above the buttons instead of squeezing to four lines. */
   .rp .rp-fk-status { flex-wrap: wrap; border-radius: 24px; }
-  .rp .rp-fk-status-text { flex: 1 1 170px; padding: 6px 0; }
+  .rp .rp-fk-status-text { flex: 1 1 auto; min-width: 0; padding: 6px 0; }
   .rp .rp-fk-status-actions { margin-left: auto; }
   .rp .rp-fk-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .rp .rp-fk-facts > div { padding: 10px 12px; }

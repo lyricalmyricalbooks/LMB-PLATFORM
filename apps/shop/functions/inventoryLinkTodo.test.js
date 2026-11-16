@@ -177,6 +177,24 @@ describe("admin: Add to the shop", () => {
     const taken = await inventoryLinkAdmin(deps(db, store), { op: "linkNewBook", bookId: "new1", inventoryBookId: "hound" });
     expect(taken.status).toBe(409);
   });
+  test("matches each printed edition on its own; editions of one book may share a stockroom book, other books may not", async () => {
+    const db = fakeDb({ "systemStatus/inventoryLink": { ...STATE },
+      "books/b2": { title: "Altrove", variants: [{ id: "pb", name: "Paperback" }, { id: "hc", name: "Hardcover" }, { id: "eb", name: "Ebook", digital: true }] },
+      "books/b1": { title: "The Hound" } });
+    const store = fakeStore();
+    store.catalog = APP;
+    const pb = await inventoryLinkAdmin(deps(db, store), { op: "linkNewBook", bookId: "b2", variantId: "pb", inventoryBookId: "altrove" });
+    expect(pb.status).toBe(200);
+    const hc = await inventoryLinkAdmin(deps(db, store), { op: "linkNewBook", bookId: "b2", variantId: "hc", inventoryBookId: "altrove" });
+    expect(hc.status).toBe(200);
+    expect(stateOf(db).links.b2).toEqual({ pb: "altrove", hc: "altrove" });
+    const ebook = await inventoryLinkAdmin(deps(db, store), { op: "linkNewBook", bookId: "b2", variantId: "eb", inventoryBookId: "zine" });
+    expect(ebook.status).toBe(400);
+    const otherBook = await inventoryLinkAdmin(deps(db, store), { op: "linkNewBook", bookId: "b2", variantId: "hc", inventoryBookId: "hound" });
+    expect(otherBook.status).toBe(409);
+    const whole = await inventoryLinkAdmin(deps(db, store), { op: "linkNewBook", bookId: "b2", inventoryBookId: "zine" });
+    expect(whole.status).toBe(400); // a book sold in editions is matched edition by edition
+  });
   test("Not for the shop, and back", async () => {
     const db = fakeDb({ "systemStatus/inventoryLink": { ...STATE } });
     await inventoryLinkAdmin(deps(db, fakeStore()), { op: "ignoreAppBooks", ids: ["zine"] });

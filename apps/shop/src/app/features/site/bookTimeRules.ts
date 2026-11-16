@@ -119,11 +119,18 @@ export function manageFromSearch(search: string): { id: string; key: string } | 
 }
 
 /** The service and day a waiting-list email links to (`/book?service=…&day=…`), each empty when missing or misshapen. */
-export function wantedFromSearch(search: string): { service: string; day: string } {
+export function wantedFromSearch(search: string): { service: string; day: string; offer: string; offerKey: string } {
   const q = new URLSearchParams(search);
   const service = q.get("service") || "";
   const day = q.get("day") || "";
-  return { service: /^[A-Za-z0-9_-]{1,60}$/.test(service) ? service : "", day: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "" };
+  // A place held for this person from the waiting list (the email's link): both parts or neither.
+  const offer = q.get("offer") || "";
+  const offerKey = q.get("offerKey") || "";
+  const held = /^[a-f0-9]{32}$/.test(offer) && /^[a-f0-9]{48}$/.test(offerKey);
+  return {
+    service: /^[A-Za-z0-9_-]{1,60}$/.test(service) ? service : "", day: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "",
+    offer: held ? offer : "", offerKey: held ? offerKey : "",
+  };
 }
 
 /** The services a "Book a time" section shows: none while bookings are off, else the first few in the shop's order. */

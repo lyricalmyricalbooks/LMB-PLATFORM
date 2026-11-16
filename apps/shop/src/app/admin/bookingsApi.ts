@@ -75,7 +75,9 @@ export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsD
 export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "calendarFeed" | "waitlist" | "removeWaiting";
 
 /** Someone who asked to hear when a full class time (start) or a booked-up day (no start) has room again. */
-export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string };
+export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string;
+  /** A freed place held for them until then (the waiting list offers it first come, first served), else null. */
+  heldUntil?: string | null };
 
 async function adminFromServer(op: AdminOp, body: Record<string, unknown> = {}): Promise<unknown> {
   const idToken = await auth.currentUser?.getIdToken();

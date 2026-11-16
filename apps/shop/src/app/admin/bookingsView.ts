@@ -4,7 +4,7 @@ import { addDays, balanceDue, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf
 import type { Booking, Waiting } from "./bookingsApi";
 
 /** One card in a day's column: a single booking, or a group class with everyone booked into it. */
-export type DaySlot = { kind: "one"; booking: Booking } | { kind: "class"; key: string; start: string; serviceName: string; places: number; people: Booking[] };
+export type DaySlot = { kind: "one"; booking: Booking } | { kind: "class"; key: string; serviceId: string; start: string; serviceName: string; places: number; people: Booking[] };
 
 /** A day's bookings as cards: the people in one start of a group class share a card, everything else has its own. */
 export function daySlots(list: readonly Booking[], placesOf: (serviceId: string) => number): DaySlot[] {
@@ -16,13 +16,46 @@ export function daySlots(list: readonly Booking[], placesOf: (serviceId: string)
     const key = `${b.serviceId}|${b.start}`;
     let slot = classes.get(key);
     if (!slot) {
-      slot = { kind: "class", key, start: b.start, serviceName: b.serviceName, places, people: [] };
+      slot = { kind: "class", key, serviceId: b.serviceId, start: b.start, serviceName: b.serviceName, places, people: [] };
       classes.set(key, slot);
       out.push(slot);
     }
     slot.people.push(b);
   }
   return out;
+}
+
+/** One person on a day's list of who is coming. */
+export type DayListPerson = { id: string; name: string; phone: string; email: string; payment: string; note: string; answers: { label: string; answer: string }[]; tag: string };
+/** One start on that list: a class with everyone in it, or a single visit. */
+export type DayListGroup = { key: string; time: string; serviceName: string; people: DayListPerson[] };
+
+/**
+ * Who is coming on one day, in time order, for the door: each start with its people, their contact details, what is
+ * paid or still owed, their note and their answers. `list` is one day of `byDay` (cancelled bookings already left out).
+ */
+export function dayList(list: readonly Booking[], zone: string): DayListGroup[] {
+  const groups = new Map<string, DayListGroup>();
+  for (const b of [...list].sort((x, y) => x.start.localeCompare(y.start) || x.serviceName.localeCompare(y.serviceName))) {
+    if (b.status === "cancelled") continue;
+    const key = `${b.serviceId}|${b.start}`;
+    if (!groups.has(key)) groups.set(key, { key, time: timeText(b.start, zone), serviceName: b.serviceName, people: [] });
+    groups.get(key)!.people.push({
+      id: b.id, name: b.customer.name, phone: b.customer.phone || "", email: b.customer.email, payment: paymentText(b), note: b.note || "",
+      answers: (b.answers || []).filter((a) => a.answer), tag: b.status === "held" ? "Not confirmed yet" : b.noShow ? "No-show" : "",
+    });
+  }
+  return [...groups.values()];
+}
+
+/** The same list as spreadsheet rows, a header first. Each question the day's services ask gets its own column. */
+export function dayListRows(groups: readonly DayListGroup[]): string[][] {
+  const questions = [...new Set(groups.flatMap((g) => g.people.flatMap((p) => p.answers.map((a) => a.label))))];
+  const rows = [["Time", "Service", "Name", "Phone", "Email", "Payment", "Note", ...questions]];
+  for (const g of groups) for (const p of g.people) {
+    rows.push([g.time, g.serviceName, p.name, p.phone, p.email, p.tag ? `${p.payment} (${p.tag})` : p.payment, p.note, ...questions.map((q) => p.answers.find((a) => a.label === q)?.answer || "")]);
+  }
+  return rows;
 }
 
 /** "5 of 8 booked", or "Full" when every place is taken. */

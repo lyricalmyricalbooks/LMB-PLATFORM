@@ -112,10 +112,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-11", services[0], new Date(Date.now() - 2 * 3_600_000).toISOString(), "Fay Example", { noShow: true, cardHold: true, lateFeeMinor: 2000, card: { customer: "cus_example", paymentMethod: "pm_example", brand: "visa", last4: "4242" } }),
     booking("bk-7", services[1], at(1, 15), "Gus Example", { status: "held", paid: false, clearing: true }),
   ] : [];
-  // Three people waiting for tomorrow's full class and one for a booked-up day.
+  // Two people waiting for tomorrow's full class (the first holding a freed place) and one for a booked-up day.
   const dayAhead = (days: number) => { const d = new Date(); d.setDate(d.getDate() + days); return d.toLocaleDateString("en-CA"); };
   let waiting = mode === "on" ? [
-    { id: "a".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Kit Example", email: "kit@example.com", createdAt: at(-1, 9) },
+    { id: "a".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Kit Example", email: "kit@example.com", createdAt: at(-1, 9), heldUntil: new Date(Date.now() + 42 * 60_000).toISOString() },
     { id: "b".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Lou Example", email: "lou@example.com", createdAt: at(-1, 12) },
     { id: "c".repeat(32), serviceId: "review", serviceName: "Portfolio review", day: dayAhead(1), start: null, name: "Max Example-Longername", email: "max.longername@example.com", createdAt: at(0, 8) },
   ] : [];
@@ -604,10 +604,16 @@ for (const key of Object.keys(adminApi as any)) {
 const links = () => ((window as any).__fixtureLinks ||= {});
 inventoryLinkApi.links = async () => links();
 inventoryLinkApi.state = async () => ({ links: links() });
-inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) => {
-  links()[bookId] = { _: inventoryBookId };
-  return { links: links(), already: false };
+inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string, variantId: string | null = null) => {
+  links()[bookId] = variantId ? { ...links()[bookId], [variantId]: inventoryBookId } : { _: inventoryBookId };
+  return { links: { ...links() }, already: false };
 };
+// The stockroom's books, for matching a product's editions on its Stock and sales tab.
+inventoryLinkApi.catalog = async () => ({ books: [
+  { id: "inv-tee-s", title: "Tee small", author: "", isbn: "", currency: "CAD", maxPrint: null, onHand: 12, feedAt: null },
+  { id: "inv-tee", title: "Tee", author: "", isbn: "", currency: "CAD", maxPrint: null, onHand: 40, feedAt: null },
+  { id: "inv-salt", title: "Salt Almanac", author: "", isbn: "9780000000001", currency: "CAD", maxPrint: null, onHand: 7, feedAt: null },
+] });
 (window as any).__adminFixture = { orders: ORDERS };
 
 // Settings › General › Web address: ?domain=waiting (a domain brought over, with its steps), ?domain=securing,

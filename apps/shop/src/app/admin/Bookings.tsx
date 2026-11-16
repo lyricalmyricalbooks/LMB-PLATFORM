@@ -3,19 +3,22 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, CalendarPlus, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, MapPin, Plus, Trash2, Users, X } from "lucide-react";
+import { BellRing, CalendarPlus, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, MapPin, Plus, Printer, Trash2, Users, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
-import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, MAX_FREE_LATE_FEE, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
 import { copyText } from "./clipboard";
+import { daySheetHtml, printDaySheet } from "./bookingsDaySheet";
+import { toCsv } from "./spreadsheetFile";
+import { saveFile } from "./xlsxWriter";
 import "./bookings.css";
 
 type Tab = "calendar" | "services" | "hours" | "figures";
@@ -157,7 +160,8 @@ export function Bookings() {
 function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }: {
   monday: string; setMonday: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; services: BookingService[]; onOpen: (b: Booking) => void;
 }) {
-  const placesOf = (serviceId: string) => services.find((s) => s.id === serviceId)?.places || 1;
+  const serviceOf = (serviceId: string) => services.find((s) => s.id === serviceId);
+  const placesOf = (serviceId: string) => serviceOf(serviceId)?.places || 1;
   const days = weekDays(monday);
   const groups = useMemo(() => byDay(rows || [], ZONE), [rows]);
   const now = today();
@@ -166,6 +170,8 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
   // The waiting list for the week on show. Read again whenever the bookings change, because a freed place empties it.
   const [waiting, setWaiting] = useState<Waiting[]>([]);
   const [waitingDay, setWaitingDay] = useState("");
+  const [listDay, setListDay] = useState("");
+  const [joining, setJoining] = useState<{ service: BookingService; start: string; left: number } | null>(null);
   useEffect(() => {
     let stale = false;
     bookingsAdmin<{ waiting?: Waiting[] }>("waitlist", { from: monday, to: addDays(monday, 6) })
@@ -204,6 +210,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
               <header className="bkg-day-head">
                 <span className="bkg-day-name">{dayText(d)}</span>
                 <span className="bkg-day-hours">{settings.daysOff.includes(d) ? "Day off" : hoursLine(settings.hours[wd])}</span>
+                {list.length > 0 && <IconButton label={`Who's coming on ${dayText(d, "long")}`} onClick={() => setListDay(d)}><ClipboardList size={16} aria-hidden /></IconButton>}
               </header>
               {rows === null ? <div className="bkg-skeleton" aria-hidden /> : list.length === 0 ? (
                 <p className="bkg-day-empty">{closed ? "Closed" : "Nothing booked"}</p>
@@ -222,6 +229,9 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                       </li>
                     ))}
                   </ul>
+                  {slot.people.length < slot.places && Date.parse(slot.start) > Date.now() && serviceOf(slot.serviceId) && (
+                    <GhostButton size="sm" icon={<UserPlus size={14} aria-hidden />} onClick={() => setJoining({ service: serviceOf(slot.serviceId)!, start: slot.start, left: slot.places - slot.people.length })}>Add a person</GhostButton>
+                  )}
                 </div>
               ) : (
                 <button key={slot.booking.id} type="button" className="bkg-slot" data-status={slot.booking.status} data-noshow={slot.booking.noShow || undefined} onClick={() => onOpen(slot.booking)}>
@@ -241,11 +251,49 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
           );
         })}
       </div>
+      {joining && <AddToClassDialog {...joining} onClose={() => setJoining(null)} />}
+      {listDay && <DayListDialog day={listDay} list={groups.get(listDay) || []} onClose={() => setListDay("")} onOpen={(b) => { setListDay(""); onOpen(b); }} />}
       {waitingDay && (
         <WaitingDialog day={waitingDay} list={waitingDays.get(waitingDay) || []} onClose={() => setWaitingDay("")}
           onRemoved={(id) => setWaiting((all) => all.filter((w) => w.id !== id))} />
       )}
     </div>
+  );
+}
+
+/** Who is coming on one day, for the door: read it here, print it, or take it as a spreadsheet. */
+function DayListDialog({ day, list, onClose, onOpen }: { day: string; list: Booking[]; onClose: () => void; onOpen: (b: Booking) => void }) {
+  const groups = useMemo(() => dayList(list, ZONE), [list]);
+  const count = groups.reduce((n, g) => n + g.people.length, 0);
+  const title = `Who's coming · ${dayText(day, "long")}`;
+  return (
+    <Dialog open onClose={onClose} title={title} description={`${count} ${count === 1 ? "person" : "people"}, in time order, with what they told you when they booked.`}
+      footer={<>
+        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => saveFile(`bookings-${day}.csv`, `\uFEFF${toCsv(dayListRows(groups))}`, "text/csv;charset=utf-8")}>Spreadsheet</SecondaryButton>
+        <PrimaryButton icon={<Printer size={16} aria-hidden />} onClick={() => printDaySheet(daySheetHtml(groups, { title }))}>Print</PrimaryButton>
+      </>}>
+      {groups.length === 0 ? <p className="bkg-day-empty">Nobody is booked now.</p> : (
+        <div className="bkg-daylist">
+          {groups.map((g) => (
+            <section key={g.key}>
+              <h3><span>{g.time}</span>{g.serviceName}{g.people.length > 1 && <em>{g.people.length} people</em>}</h3>
+              <ul>
+                {g.people.map((p) => (
+                  <li key={p.id}>
+                    <button type="button" className="bkg-daylist-name" onClick={() => { const b = list.find((x) => x.id === p.id); if (b) onOpen(b); }}>{p.name}</button>
+                    {p.tag && <StatusBadge tone="warning">{p.tag}</StatusBadge>}
+                    <span className="bkg-daylist-contact">{[p.phone, p.email].filter(Boolean).join(" · ")}</span>
+                    <span className="bkg-daylist-pay">{p.payment}</span>
+                    {p.note && <p>{p.note}</p>}
+                    {p.answers.map((a) => <p key={a.label}><strong>{a.label}</strong> {a.answer}</p>)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
+    </Dialog>
   );
 }
 
@@ -259,7 +307,7 @@ function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: W
     finally { setRemoving(""); }
   };
   return (
-    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="Each person gets one email the moment a place opens. Nothing is held: the first to book gets it."
+    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="When a place opens, it is held for an hour for the first person in line and emailed to them. If they don't book it, it goes to the next."
       footer={<SecondaryButton onClick={onClose}>Done</SecondaryButton>}>
       {list.length === 0 ? <p className="bkg-day-empty">Nobody is waiting now.</p> : (
         <ul className="bkg-waitlist">
@@ -269,6 +317,7 @@ function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: W
                 <strong>{w.name}</strong>
                 <a href={`mailto:${w.email}`}>{w.email}</a>
                 <span>{w.serviceName} · {w.start ? timeText(w.start, ZONE) : "any time"}</span>
+                {w.heldUntil && <StatusBadge tone="warning">Place held until {timeText(w.heldUntil, ZONE)}</StatusBadge>}
               </div>
               <IconButton label={`Remove ${w.name}`} disabled={removing === w.id} onClick={() => void remove(w)}><X size={16} aria-hidden /></IconButton>
             </li>
@@ -628,6 +677,41 @@ function TimeDialog({ title, description, service, initialDay, except = "", conf
             <button key={t} type="button" className="bkg-time" aria-pressed={picked === t} onClick={() => setPicked(t)}>{timeText(t, ZONE)}</button>
           ))}
         </fieldset>
+        {problem && <p className="bkg-error" role="alert">{problem}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+/** Books someone into a class start that still has room: someone who rang, or signed up at the counter. */
+function AddToClassDialog({ service, start, left, onClose }: { service: BookingService; start: string; left: number; onClose: () => void }) {
+  const [who, setWho] = useState({ name: "", email: "", phone: "", note: "" });
+  const [sendEmail, setSendEmail] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
+  const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
+  const save = async () => {
+    setSaving(true); setProblem("");
+    try {
+      await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail });
+      toast.success(`${who.name.trim()} is in ${service.name}`);
+      onClose();
+    } catch (e: any) { setProblem(e?.message || "That didn't save."); } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={`Add a person · ${service.name}`}
+      description={`${dayText(dayOf(Date.parse(start), ZONE), "long")}, ${timeText(start, ZONE)}. ${left === 1 ? "1 place" : `${left} places`} left.`}
+      footer={<><SecondaryButton onClick={onClose}>Close</SecondaryButton><PrimaryButton onClick={() => void save()} disabled={!ready} busy={saving}>Add to class</PrimaryButton></>}>
+      <div className="bkg-form">
+        <div className="bkg-two">
+          <TextField label="Name" value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} autoComplete="off" />
+          <TextField label="Email" type="email" value={who.email} onChange={(e) => setWho({ ...who, email: e.target.value })} autoComplete="off" />
+        </div>
+        <div className="bkg-two">
+          <TextField label="Phone (optional)" type="tel" value={who.phone} onChange={(e) => setWho({ ...who, phone: e.target.value })} autoComplete="off" />
+          <TextField label="Note (optional)" value={who.note} onChange={(e) => setWho({ ...who, note: e.target.value })} />
+        </div>
+        <Toggle label="Email them the booking" checked={sendEmail} onChange={setSendEmail} />
         {problem && <p className="bkg-error" role="alert">{problem}</p>}
       </div>
     </Dialog>
