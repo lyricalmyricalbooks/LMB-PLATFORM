@@ -809,7 +809,7 @@ adds `offer` and `offerKey`, which `TimePicker` and `bookingStart` send; the ser
 `bookTimeHeldNote` ({time}, {until}). The preview's sample class has one full time a day.
 **Card on file (16 November 2026):** a `holdCard` service shows `bookTimeCardNote` on its card, the agreement
 `bookTimeCardAgree` ({fee}, {hours}) under the form and the button `bookTimeSaveCard`; the confirmation shows
-`bookTimeCardOnFile` and, once charged, `bookTimeFeeCharged` (Text & labels › Bookings page › Deposits & card on file).
+`bookTimeCardOnFile` and, once charged, `bookTimeFeeCharged` (Text & labels › Bookings page › Payments, tips & card on file).
 **Book a time section (`BookTimeSection`, Add section › Engagement):** the shop's services as cards on any page, each
 button opening `/book?service=<id>` on that service. It renders nothing unless the shop takes bookings
 (`useBookingsLive`; Studio's preview shows the samples), asks `bookingInfo` once per visit (`bookingInfoOnce` in
@@ -822,4 +822,10 @@ button opening `/book?service=<id>` on that service. It renders nothing unless t
 **Pay the rest (16 November 2026):** the manage view's actions start with `bookTimePayRest` ({amount}) and
 `bookTimePayRestNote` while the server says `canPayRest`; the button asks `bookingPayRest` and goes to the card page, which
 comes back to the same link. Paid that way the total reads paid and `bookTimeRestPaid` shows (Text & labels › Bookings page ›
-Deposits & card on file; French twins). The Studio preview's sample deposit booking pays at once, with no card page.
+Payments, tips & card on file; French twins). The Studio preview's sample deposit booking pays at once, with no card page.
+**Tips (16 November 2026):** while the shop asks for tips (`tipPercents` in the view) `TipPicker` (region `bookingsTip`)
+sits above the Pay button: each percent with its amount, **No tip** (only when paying the rest; the default there), and
+**Other** with a typed amount (`tipMinorOf`, `tipOk` in `bookTimeRules.ts`; `bookTimeTipLimit` under a bad amount). The
+Pay button adds the tip. With nothing left to pay but `canTip` (the "Add a tip" email's link), it starts on the middle
+choice and the button is `bookTimeTipAdd`. A given tip shows `bookTimeTipPaid`. Words `bookTimeTip*` (Text & labels ›
+Bookings page › Payments, tips & card on file; French twins).

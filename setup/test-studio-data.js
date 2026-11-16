@@ -20,7 +20,7 @@ export function testStudioDocs() {
     {
       path: "bookingSettings/main",
       // Tuesday to Saturday, ten to six. Live, so the Book a time page answers.
-      data: { live: true, hours: [[], [], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }]], daysOff: [], minNoticeHours: 2, maxDaysAhead: 60, cancelHours: 24, step: 30, reminderHours: 24 },
+      data: { live: true, hours: [[], [], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }]], daysOff: [], minNoticeHours: 2, maxDaysAhead: 60, cancelHours: 24, step: 30, reminderHours: 24, tips: true, tipPercents: [15, 18, 20] },
     },
   ];
 }

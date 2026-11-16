@@ -77,6 +77,10 @@ export type BookingSettings = {
   step: number;
   /** Customers are emailed a reminder this many hours before; 0 sends none. */
   reminderHours: number;
+  /** Tips: clients may add one when paying what's left, and get an "Add a tip" email after a paid visit. */
+  tips: boolean;
+  /** The tip choices, as a share of the price (1 to 4 of them, each 1 to 50). */
+  tipPercents: number[];
 };
 
 /** A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. */
@@ -101,6 +105,8 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   cancelHours: 24,
   step: 30,
   reminderHours: 24,
+  tips: false,
+  tipPercents: [15, 18, 20],
 };
 
 /** The reminder choices the owner picks from: none, or this many hours before. */
@@ -152,6 +158,32 @@ export const balanceDue = (b: BookingMoney): number => (b.status === "cancelled"
 export const MIN_CARD_MINOR = 50;
 /** Can the client pay what is left by card from their booking page? A confirmed booking with at least 0.50 still due. */
 export const restPayable = (b: BookingMoney): boolean => b.status === "confirmed" && balanceDue(b) >= MIN_CARD_MINOR;
+
+// ── Tips (16 November 2026) ─────────────────────────────────────────────────────────────────────────────────────
+
+/** The owner's tip choices: 1 to 4 whole percents from 1 to 50, smallest first; anything else is the defaults. */
+export function cleanTipPercents(raw: unknown): number[] {
+  const list = [...new Set((Array.isArray(raw) ? raw : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 50))].sort((a, b) => a - b).slice(0, 4);
+  return list.length ? list : [...DEFAULT_BOOKING_SETTINGS.tipPercents];
+}
+/** The tip given, by card. Never part of the price, a refund or the shop's takings. */
+export const tipTaken = (b: { tip?: { amountMinor?: number } | null }): number => Math.max(0, b.tip?.amountMinor || 0);
+/** Each tip choice in money, from the price. */
+export const tipChoices = (priceMinor: number, percents: readonly number[]): { percent: number; amountMinor: number }[] =>
+  percents.map((percent) => ({ percent, amountMinor: Math.round((Math.max(0, priceMinor) * percent) / 100) }));
+/** The biggest tip a client may type: the price itself, and never under 100.00 for a cheap service. */
+export const tipLimitMinor = (priceMinor: number): number => Math.max(10_000, Math.max(0, priceMinor));
+/** A tip amount the server takes: whole cents, at least the card minimum, at most the limit. */
+export const tipFits = (tipMinor: unknown, priceMinor: number): boolean =>
+  Number.isInteger(tipMinor) && (tipMinor as number) >= MIN_CARD_MINOR && (tipMinor as number) <= tipLimitMinor(priceMinor);
+/**
+ * Can the client add a tip on its own (nothing else left to pay)? The shop asks for tips, the visit has started and
+ * was kept (not a no-show), it had a price, no tip yet, and at most 14 days have passed since it ended.
+ */
+export function tipOpen(b: BookingMoney & { noShow?: boolean; tip?: unknown; start?: string; end?: string }, tipsOn: boolean, nowMs: number): boolean {
+  if (!tipsOn || b.status !== "confirmed" || b.noShow || b.tip || !((b.priceMinor || 0) > 0)) return false;
+  return Date.parse(b.start || "") <= nowMs && nowMs <= Date.parse(b.end || "") + 14 * 24 * 3_600_000;
+}
 
 /** The most a missed-booking fee may be: the price for a priced service, else this. */
 export const MAX_FREE_LATE_FEE = 50_000;
@@ -293,6 +325,8 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     cancelHours: whole(s.cancelHours, 0, 24 * 14, DEFAULT_BOOKING_SETTINGS.cancelHours),
     step,
     reminderHours: (REMINDER_HOURS as readonly number[]).includes(Number(s.reminderHours)) ? Number(s.reminderHours) : DEFAULT_BOOKING_SETTINGS.reminderHours,
+    tips: s.tips === true,
+    tipPercents: cleanTipPercents(s.tipPercents),
   };
 }
 

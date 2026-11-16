@@ -61,3 +61,13 @@ describe("Book a time page rules", () => {
     expect(sectionServices(null, 3)).toEqual([]);
   });
 });
+
+describe("tip choices on the booking page", () => {
+  it("turns a pick into cents and checks it against the limit", async () => {
+    const { tipMinorOf, tipOk } = await import("./bookTimeRules");
+    expect(tipMinorOf({ kind: "percent", percent: 18 }, 12500)).toBe(2250);
+    expect(tipMinorOf({ kind: "none" }, 12500)).toBe(0);
+    expect([tipMinorOf({ kind: "other", text: "12.5" }, 0), tipMinorOf({ kind: "other", text: "" }, 0), tipMinorOf({ kind: "other", text: "$7" }, 0)]).toEqual([1250, 0, 700]);
+    expect([tipOk(0, 10000), tipOk(0, 10000, true), tipOk(49, 10000), tipOk(10000, 10000), tipOk(10001, 10000)]).toEqual([true, false, false, true, false]);
+  });
+});

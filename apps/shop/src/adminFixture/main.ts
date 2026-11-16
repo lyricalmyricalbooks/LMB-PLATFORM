@@ -90,7 +90,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     service("binding", "Bookbinding class", 90, 3000, 2, { active: false, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25 }),
   ];
-  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new" };
+  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on" };
   const at = (days: number, hour: number, minute = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, minute, 0, 0); return d.toISOString(); };
   const plus = (iso: string, minutes: number) => new Date(Date.parse(iso) + minutes * 60_000).toISOString();
   const booking = (id: string, s: BookingService, start: string, customer: string, extra: Partial<Booking> = {}): Booking => ({
@@ -100,7 +100,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   });
   let rows: Booking[] = mode === "on" ? [
     booking("bk-1", services[0], at(0, 11), "Ada Example"),
-    booking("bk-2", services[1], at(0, 14, 30), "Ben Example", { note: "First time on a riso.", answers: [{ label: "What are you printing?", answer: "A two-colour zine, 16 pages, A5." }, { label: "How many copies?", answer: "60" }] }),
+    booking("bk-2", services[1], at(0, 14, 30), "Ben Example", { tip: { amountMinor: 800, at: at(0, 15, 40) }, note: "First time on a riso.", answers: [{ label: "What are you printing?", answer: "A two-colour zine, 16 pages, A5." }, { label: "How many copies?", answer: "60" }] }),
     booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin" }),
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
