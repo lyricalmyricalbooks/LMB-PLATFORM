@@ -20,7 +20,7 @@ import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/booking
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
   withCode, type BookingCode,
-  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText,
+  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
 } from "./bookTimeRules";
 
@@ -553,6 +553,38 @@ function WaitForm({ serviceId, wait, zone, c, onClose, onOpen }: {
   );
 }
 
+// ── Tips ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The tip choices: each share of the price with its amount, no tip (when paying what's left too), or a typed amount. */
+function TipPicker({ pick, onPick, percents, priceMinor, currency, limitMinor, optional, tipMinor, c }: {
+  pick: TipPick; onPick: (p: TipPick) => void; percents: number[]; priceMinor: number; currency: string; limitMinor: number; optional: boolean; tipMinor: number; c: Copy;
+}) {
+  const other = pick.kind === "other";
+  const bad = other && pick.text.trim() !== "" && !tipOk(tipMinor, limitMinor, true);
+  return (
+    <fieldset {...regionProps("bookingsTip")} className="space-y-3">
+      <legend className="fm-track-mono mb-3">{c("bookTimeTipTitle")}</legend>
+      <div className="fm-book-times fm-book-tips" translate="no">
+        {percents.map((percent) => (
+          <button key={percent} type="button" className="fm-book-time" aria-pressed={pick.kind === "percent" && pick.percent === percent} onClick={() => onPick({ kind: "percent", percent })}>
+            {percent}%<small>{moneyText(Math.round((priceMinor * percent) / 100), currency)}</small>
+          </button>
+        ))}
+        {optional && <button type="button" className="fm-book-time" aria-pressed={pick.kind === "none"} onClick={() => onPick({ kind: "none" })}>{c("bookTimeTipNone")}</button>}
+        <button type="button" className="fm-book-time" aria-pressed={other} onClick={() => onPick({ kind: "other", text: other ? pick.text : "" })}>{c("bookTimeTipOther")}</button>
+      </div>
+      {other && (
+        <label className="block">
+          <span className="fm-track-mono mb-2 block">{c("bookTimeTipAmount")}</span>
+          <input className="fm-track-input" inputMode="decimal" autoFocus value={pick.text} aria-invalid={bad || undefined} aria-describedby={bad ? "bt-tip-limit" : undefined}
+            onChange={(e) => onPick({ kind: "other", text: e.target.value.replace(/[^\d.]/g, "") })} />
+          {bad && <span id="bt-tip-limit" className="mt-2 block text-sm" role="alert">{c("bookTimeTipLimit", { min: moneyText(50, currency), max: moneyText(limitMinor, currency) })}</span>}
+        </label>
+      )}
+    </fieldset>
+  );
+}
+
 // ── An existing booking (the emailed link) ─────────────────────────────────────────────────────────────────────────
 
 function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c: Copy }) {
@@ -564,6 +596,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [tipPick, setTipPick] = useState<TipPick>({ kind: "none" });
   const polls = useRef(0);
 
   const load = (quiet = false) => {
@@ -573,6 +606,11 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       setState(answer.booking ? "ready" : "missing");
     }).catch((err: any) => setState(err?.status === 404 ? "missing" : "failed"));
   };
+  // A tip on its own starts on the middle choice; with what's left to pay it starts on no tip.
+  useEffect(() => {
+    const percents = booking?.tipPercents || [];
+    if (booking?.canTip && percents.length) setTipPick({ kind: "percent", percent: percents[Math.floor((percents.length - 1) / 2)] });
+  }, [booking?.canTip, (booking?.tipPercents || []).join(",")]);
   useEffect(() => { void load(); ask("bookingInfo").then((a) => setInfo(a as BookingInfo)).catch(() => setInfo({ on: false })); }, [id, manageKey]);
   // Back from the card page: the payment usually lands within seconds, so look again a few times.
   useEffect(() => {
@@ -608,12 +646,17 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   const stamp = booking.status === "cancelled" ? "ended" : booking.status === "held" ? "unpaid" : "paid";
 
   const fullyPaid = booking.paid || (!!booking.restPaidMinor && !booking.dueMinor);
-  // Pay what is left: the shop's own card page, which comes back here.
-  const payRest = async () => {
+  const tipPercents = booking.tipPercents || [];
+  const asksTip = (booking.canPayRest || booking.canTip) && tipPercents.length > 0 && !booking.tipMinor;
+  const tipMinor = asksTip ? tipMinorOf(tipPick, booking.priceMinor) : 0;
+  const tipLimit = booking.tipLimitMinor || 10_000;
+  const tipFine = tipOk(tipMinor, tipLimit, !booking.canPayRest);
+  // Pay what is left (with a tip, if one is picked) or a tip on its own: the shop's own card page, which comes back here.
+  const payRest = async (action: "bookingPayRest" | "bookingTip" = "bookingPayRest") => {
     setBusy(true);
     setError("");
     try {
-      const answer = await ask("bookingPayRest", { id, key: manageKey });
+      const answer = await ask(action, { id, key: manageKey, ...(tipMinor ? { tipMinor } : {}) });
       if (answer?.url) window.location.assign(answer.url);
       else { if (answer?.booking) setBooking(answer.booking); setBusy(false); }
     } catch (err: any) {
@@ -684,6 +727,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
           <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositPaid", { deposit: moneyText(booking.depositMinor || 0, booking.currency), rest: moneyText(booking.dueMinor || 0, booking.currency) })}</p>
         )}
         {booking.status !== "cancelled" && !booking.paid && !!booking.restPaidMinor && !booking.dueMinor && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimeRestPaid")}</p>}
+        {!!booking.tipMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeTipPaid", { amount: moneyText(booking.tipMinor, booking.currency) })}</p>}
         {booking.status === "confirmed" && booking.payment === "atShop" && !fullyPaid && booking.priceMinor > 0 && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
         {booking.status === "confirmed" && booking.cardLast4 && !booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardOnFile", { last4: booking.cardLast4, fee: moneyText(booking.lateFeeMinor || 0, booking.currency) })}</p>}
         {!!booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeFeeCharged", { fee: moneyText(booking.feeMinor, booking.currency) })}</p>}
@@ -695,13 +739,22 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
 
       {booking.status === "confirmed" && mode === "view" && (
         <div {...regionProps("bookingsActions")} className="space-y-5">
+          {asksTip && (
+            <TipPicker pick={tipPick} onPick={setTipPick} percents={tipPercents} priceMinor={booking.priceMinor} currency={booking.currency}
+              limitMinor={tipLimit} optional={!!booking.canPayRest} tipMinor={tipMinor} c={c} />
+          )}
           {booking.canPayRest && (
             <div className="space-y-2">
-              <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void payRest()} translate="no">
-                {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimePayRest", { amount: moneyText(booking.dueMinor || 0, booking.currency) })}
+              <button type="button" className="fm-track-btn" disabled={busy || !tipFine} onClick={() => void payRest()} translate="no">
+                {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimePayRest", { amount: moneyText((booking.dueMinor || 0) + tipMinor, booking.currency) })}
               </button>
               <p className="text-sm leading-6 fm-muted">{c("bookTimePayRestNote")}</p>
             </div>
+          )}
+          {!booking.canPayRest && asksTip && booking.canTip && (
+            <button type="button" className="fm-track-btn" disabled={busy || !tipFine} onClick={() => void payRest("bookingTip")} translate="no">
+              {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeTipAdd", { amount: moneyText(tipMinor, booking.currency) })}
+            </button>
           )}
           <div className="fm-book-actions">
             <button type="button" className="fm-track-btn" onClick={download}><CalendarPlus size={16} aria-hidden="true" /> {c("bookTimeAddCalendar")}</button>

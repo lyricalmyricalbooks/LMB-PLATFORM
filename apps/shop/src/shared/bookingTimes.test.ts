@@ -196,6 +196,29 @@ describe("deposits", () => {
   });
 });
 
+describe("tips", () => {
+  it("keeps one to four tip choices from 1 to 50, and works them out from the price", async () => {
+    const { cleanBookingSettings, cleanTipPercents, tipChoices, tipFits, tipLimitMinor, tipTaken } = await import("./bookingTimes");
+    expect(cleanBookingSettings({}).tips).toBe(false);
+    expect(cleanBookingSettings({ tips: true, tipPercents: [20, 10, 10, 0, 99, "15"] })).toMatchObject({ tips: true, tipPercents: [10, 15, 20] });
+    expect([cleanTipPercents([]), cleanTipPercents("x"), cleanTipPercents([5, 10, 15, 20, 25])]).toEqual([[15, 18, 20], [15, 18, 20], [5, 10, 15, 20]]);
+    expect(tipChoices(12500, [15, 18])).toEqual([{ percent: 15, amountMinor: 1875 }, { percent: 18, amountMinor: 2250 }]);
+    expect([tipLimitMinor(3000), tipLimitMinor(25000)]).toEqual([10000, 25000]);
+    expect([tipFits(50, 3000), tipFits(49, 3000), tipFits(10001, 3000), tipFits(1.5, 3000), tipFits("900", 3000)]).toEqual([true, false, false, false, false]);
+    expect([tipTaken({}), tipTaken({ tip: { amountMinor: 900 } })]).toEqual([0, 900]);
+  });
+  it("opens a tip on its own only for a kept, priced visit that has started, for two weeks", async () => {
+    const { tipOpen } = await import("./bookingTimes");
+    const visit = { status: "confirmed", priceMinor: 6000, start: "2026-11-18T20:00:00.000Z", end: "2026-11-18T20:30:00.000Z" };
+    const at = (iso: string) => Date.parse(iso);
+    expect(tipOpen(visit, true, at("2026-11-18T19:59:00Z"))).toBe(false);
+    expect(tipOpen(visit, true, at("2026-11-18T22:00:00Z"))).toBe(true);
+    expect(tipOpen(visit, true, at("2026-12-03T00:00:00Z"))).toBe(false);
+    expect([tipOpen(visit, false, at("2026-11-18T22:00:00Z")), tipOpen({ ...visit, noShow: true }, true, at("2026-11-18T22:00:00Z")), tipOpen({ ...visit, tip: { amountMinor: 1 } }, true, at("2026-11-18T22:00:00Z")),
+      tipOpen({ ...visit, priceMinor: 0 }, true, at("2026-11-18T22:00:00Z")), tipOpen({ ...visit, status: "cancelled" }, true, at("2026-11-18T22:00:00Z"))]).toEqual([false, false, false, false, false]);
+  });
+});
+
 describe("card on file and the missed-booking fee", () => {
   it("keeps a card only where something is left to charge, with a fee no higher than the price", async () => {
     const { cleanService } = await import("./bookingTimes");

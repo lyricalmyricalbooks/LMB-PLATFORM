@@ -49,6 +49,7 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-wait-fields{display:grid;gap:16px;}`,
   `@media (min-width:641px){${S} .fm-book-wait-fields{grid-template-columns:1fr 1fr;}}`,
   `${S} .fm-book-time:hover{background:rgba(var(--fg-rgb),0.06);}`,
+  `${S} .fm-book-tips{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));margin-bottom:0;}`,
   `${S} .fm-book-time[aria-pressed="true"]{background:rgb(var(--fg-rgb));color:var(--bg-color, var(--surface, transparent));}`,
   `${S} .fm-book-day:focus-visible,${S} .fm-book-time:focus-visible,${S} .fm-book-service:focus-visible,${S} .fm-book-arrow:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:3px;}`,
   `${S} .fm-book-summary{display:grid;gap:0;}`,

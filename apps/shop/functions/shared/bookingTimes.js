@@ -9,8 +9,10 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
+exports.cleanTipPercents = cleanTipPercents;
+exports.tipOpen = tipOpen;
 exports.feeChargeable = feeChargeable;
 exports.cleanService = cleanService;
 exports.cleanClassTimes = cleanClassTimes;
@@ -53,6 +55,8 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     cancelHours: 24,
     step: 30,
     reminderHours: 24,
+    tips: false,
+    tipPercents: [15, 18, 20],
     waitHoldMinutes: 60,
     secondReminderHours: 0,
     dailySummary: false,
@@ -115,6 +119,33 @@ exports.MIN_CARD_MINOR = 50;
 /** Can the client pay what is left by card from their booking page? A confirmed booking with at least 0.50 still due. */
 const restPayable = (b) => b.status === "confirmed" && (0, exports.balanceDue)(b) >= exports.MIN_CARD_MINOR;
 exports.restPayable = restPayable;
+// ── Tips (16 November 2026) ─────────────────────────────────────────────────────────────────────────────────────
+/** The owner's tip choices: 1 to 4 whole percents from 1 to 50, smallest first; anything else is the defaults. */
+function cleanTipPercents(raw) {
+    const list = [...new Set((Array.isArray(raw) ? raw : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 50))].sort((a, b) => a - b).slice(0, 4);
+    return list.length ? list : [...exports.DEFAULT_BOOKING_SETTINGS.tipPercents];
+}
+/** The tip given, by card. Never part of the price, a refund or the shop's takings. */
+const tipTaken = (b) => Math.max(0, b.tip?.amountMinor || 0);
+exports.tipTaken = tipTaken;
+/** Each tip choice in money, from the price. */
+const tipChoices = (priceMinor, percents) => percents.map((percent) => ({ percent, amountMinor: Math.round((Math.max(0, priceMinor) * percent) / 100) }));
+exports.tipChoices = tipChoices;
+/** The biggest tip a client may type: the price itself, and never under 100.00 for a cheap service. */
+const tipLimitMinor = (priceMinor) => Math.max(10_000, Math.max(0, priceMinor));
+exports.tipLimitMinor = tipLimitMinor;
+/** A tip amount the server takes: whole cents, at least the card minimum, at most the limit. */
+const tipFits = (tipMinor, priceMinor) => Number.isInteger(tipMinor) && tipMinor >= exports.MIN_CARD_MINOR && tipMinor <= (0, exports.tipLimitMinor)(priceMinor);
+exports.tipFits = tipFits;
+/**
+ * Can the client add a tip on its own (nothing else left to pay)? The shop asks for tips, the visit has started and
+ * was kept (not a no-show), it had a price, no tip yet, and at most 14 days have passed since it ended.
+ */
+function tipOpen(b, tipsOn, nowMs) {
+    if (!tipsOn || b.status !== "confirmed" || b.noShow || b.tip || !((b.priceMinor || 0) > 0))
+        return false;
+    return Date.parse(b.start || "") <= nowMs && nowMs <= Date.parse(b.end || "") + 14 * 24 * 3_600_000;
+}
 /** The most a missed-booking fee may be: the price for a priced service, else this. */
 exports.MAX_FREE_LATE_FEE = 50_000;
 /**
@@ -270,6 +301,8 @@ function cleanBookingSettings(raw) {
         cancelHours: whole(s.cancelHours, 0, 24 * 14, exports.DEFAULT_BOOKING_SETTINGS.cancelHours),
         step,
         reminderHours,
+        tips: s.tips === true,
+        tipPercents: cleanTipPercents(s.tipPercents),
         waitHoldMinutes: exports.WAIT_HOLD_MINUTES.includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : exports.DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
         secondReminderHours: secondReminder(s.secondReminderHours, reminderHours),
         dailySummary: s.dailySummary === true,

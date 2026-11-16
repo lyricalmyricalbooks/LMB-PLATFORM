@@ -46,7 +46,7 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
     id: SAMPLE_BOOKING_ID, serviceId: service.id, serviceName: service.name, minutes: service.minutes, location: service.location,
     start: new Date(startMs).toISOString(), end: new Date(startMs + service.minutes * 60_000).toISOString(),
     status: "confirmed", payment: deposit ? "deposit" : service.priceMinor > 0 ? "card" : "free", paid: !deposit && service.priceMinor > 0, priceMinor: service.priceMinor, currency,
-    ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service), canPayRest: true, restPaidMinor: 0 } : {}),
+    ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service), canPayRest: true, restPaidMinor: 0, tipPercents: [15, 18, 20], tipLimitMinor: 10_000 } : {}),
     name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24,
     ...(service.holdCard ? { cardHold: true, cardLast4: "4242", lateFeeMinor: service.lateFeeMinor } : {}),
     ...(applied ? { discountCode: applied.code, discountMinor: applied.discountMinor } : {}),
@@ -91,7 +91,7 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   sample ||= sampleBooking(zone, currency, nowMs);
   if (action === "bookingMove" && typeof body.start === "string") sample = sampleBooking(zone, currency, nowMs, sample.serviceId, body.start, sample.discountCode);
   // Paying what is left: no card page in the preview, it just shows as paid in full.
-  if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0 };
+  if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0, tipMinor: Number(body.tipMinor) || 0 };
   if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
   return { booking: sample };
 }

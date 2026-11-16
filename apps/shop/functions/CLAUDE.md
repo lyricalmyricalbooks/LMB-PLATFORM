@@ -1291,3 +1291,12 @@ to `usageCount` in the same transaction (409 `code` at the limit); `freeTime` gi
 running out included (`discount.returned`). `bookingInfo.codes` says whether any code works on bookings. Emails show
 "Discount (CODE)". Tests: `bookingDiscount.test.js`, bookings.test.js › discount codes on bookings.
 
+**Tips (16 November 2026, `tasks/todo/2026-11-16-booking-tips.md`):** settings `tips` / `tipPercents` (shared
+`cleanTipPercents`). `bookingPayRest` takes `tipMinor` (`tipFits`: whole cents, ≥ 50, ≤ `tipLimitMinor` = the price or
+100.00) and the new public `bookingTip` a tip on its own (`tipOpen`: kept, priced, started visit, no tip yet, within 14
+days of its end, and nothing left to pay). Both go through `payPage`: one `restPages` list whose entries carry
+`amountMinor` (the rest) and `tipMinor`; `refreshRest` stores `rest` and/or `tip` `{ amountMinor, paymentIntent, session,
+at }` from the same paid page and sends `restPaid` (naming the tip) or `tipPaid`. `sweepTips` (in `bookingSweep`) emails
+kind `tip` once, `TIP_ASK_HOURS` (2) after a visit ends, with its own key (`tipKeyHash` in `keyFits`); it queries only the
+`end` range (no extra index) and checks the rest in code. `tipTaken` is never in `cardTaken`/`moneyTaken`, so refunds
+leave a tip alone (the rest's refund is capped at `restTaken` even when the same payment carried the tip).

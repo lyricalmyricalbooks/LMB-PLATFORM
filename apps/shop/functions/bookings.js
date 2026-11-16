@@ -44,7 +44,7 @@
 const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
-  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable,
+  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, zonedTime,
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -113,6 +113,9 @@ function publicBooking(id, b, settings, nowMs) {
     cardHold: !!b.cardHold, lateFeeMinor: b.cardHold ? b.lateFeeMinor || 0 : 0, cardLast4: b.card?.last4 || "", feeMinor: b.fee?.amountMinor || 0,
     // Pay the rest: whether what is left can be paid by card here, and what was.
     canPayRest: restPayable(b), restPaidMinor: restTaken(b),
+    // Tips: the choices (when the shop asks for them), whether a tip can be added on its own, and the tip given.
+    tipPercents: settings.tips && (b.priceMinor || 0) > 0 ? settings.tipPercents : [], canTip: tipOpen(b, settings.tips, nowMs) && !restPayable(b),
+    tipMinor: tipTaken(b), tipLimitMinor: tipLimitMinor(b.priceMinor || 0),
   };
 }
 
@@ -250,11 +253,14 @@ function bookingActions({
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
       const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>Video call:</strong> <a href="${escapeHtml(b.meetUrl)}">Join with Google Meet</a></p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
-      const subject = { payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const tipText = moneyWords(tipTaken(b), b.currency);
+      const subject = { tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
       const lead = {
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
-        restPaid: `Thank you. You paid ${escapeHtml(moneyWords(restTaken(b), b.currency))} by card, so your booking with ${escapeHtml(shop)} is paid in full.`,
+        restPaid: `Thank you. You paid ${escapeHtml(moneyWords(restTaken(b), b.currency))} by card${tipTaken(b) ? `, with a ${escapeHtml(tipText)} tip` : ""}, so your booking with ${escapeHtml(shop)} is paid in full.`,
+        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.`,
+        tipPaid: `Thank you! Your ${escapeHtml(tipText)} tip for your visit to ${escapeHtml(shop)} has gone through.`,
         reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
         soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
         notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
@@ -262,7 +268,7 @@ function bookingActions({
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
-      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee";
+      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid";
       // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
       const due = balanceDue(b);
       const taken = bookedCardTaken(b);
@@ -275,9 +281,9 @@ function bookingActions({
       const cancelHours = ended || !b.card ? 0 : (await readSettings().catch(() => null))?.cancelHours || 0;
       const held = ended || !b.card ? "" : `<p style="margin:0 0 4px;"><strong>Card on file:</strong> ${escapeHtml(cardWords(b.card))}. Missing this booking${cancelHours ? `, or cancelling less than ${cancelHours} hours before,` : ""} may cost ${escapeHtml(moneyWords(b.lateFeeMinor || 0, b.currency))}.</p>`;
       const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
-      const manage = !ended && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
+      const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? "Add a tip" : kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
@@ -294,7 +300,7 @@ function bookingActions({
       if (owner && toOwner) {
         await sendEmail({
           to: owner,
-          subject: `[BOOKING] ${{ booked: "New", moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full" }[kind] || "Cancelled"}: ${b.serviceName}, ${when}`,
+          subject: `[BOOKING] ${{ booked: "New", moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${b.serviceName}, ${when}`,
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(b.serviceName)}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
@@ -631,27 +637,37 @@ function bookingActions({
    * sends the receipt. Returns the booking as it now stands.
    */
   async function refreshRest(id, b, checkout) {
-    if (!b.restOpen || b.rest || !checkout) return b;
+    if (!b.restOpen || !checkout) return b;
     for (const page of (b.restPages || []).slice(-10)) {
       if (!SESSION_ID.test(String(page?.id || ""))) continue;
+      const restPart = Math.max(0, page.amountMinor || 0);
+      const tipPart = Math.max(0, page.tipMinor || 0);
+      // A page for what is left that was already paid another way, or a tip already given, is skipped.
+      if ((restPart && b.rest) || (tipPart && b.tip)) continue;
       const session = await checkout.read(page.id).catch(() => null);
       if (!session || session.payment_status !== "paid" || (session.metadata?.booking && session.metadata.booking !== id)) continue;
-      const amount = Number.isFinite(session.amount_total) ? session.amount_total : page.amountMinor;
-      if (amount !== page.amountMinor) continue;
+      const amount = Number.isFinite(session.amount_total) ? session.amount_total : restPart + tipPart;
+      if (amount !== restPart + tipPart) continue;
       const at = now().toISOString();
-      const rest = { amountMinor: amount, paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null, session: page.id, at };
+      const paid = { paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null, session: page.id, at };
       const kept = await db.runTransaction(async (tx) => {
         const fresh = (await tx.get(bookings().doc(id))).data() || {};
-        if (fresh.rest) return null;
+        if ((restPart && fresh.rest) || (tipPart && fresh.tip)) return null;
         // Already marked paid at the shop as well: kept all the same (the money was taken), and said so for the owner.
-        const what = fresh.paid ? "rest paid by card (it was also marked paid at the shop)" : "rest paid by card";
-        const changes = { rest, restOpen: false, updatedAt: at, history: [...(fresh.history || []), { at, what, by: "customer" }].slice(-20) };
+        const what = [
+          restPart ? (fresh.paid ? "rest paid by card (it was also marked paid at the shop)" : "rest paid by card") : "",
+          tipPart ? `${moneyWords(tipPart, fresh.currency)} tip added` : "",
+        ].filter(Boolean).join(", ");
+        const changes = {
+          ...(restPart ? { rest: { amountMinor: restPart, ...paid } } : {}), ...(tipPart ? { tip: { amountMinor: tipPart, ...paid } } : {}),
+          restOpen: false, updatedAt: at, history: [...(fresh.history || []), { at, what, by: "customer" }].slice(-20),
+        };
         tx.set(bookings().doc(id), changes, { merge: true });
         return { ...fresh, ...changes };
       });
       if (!kept) return { ...b, ...((await bookings().doc(id).get()).data() || {}) };
       for (const other of b.restPages || []) if (other.id !== page.id && SESSION_ID.test(String(other?.id || ""))) await checkout.close(other.id).catch(() => {});
-      await tellCustomer(id, kept, "restPaid", { byShop: true, toOwner: true });
+      await tellCustomer(id, kept, restPart ? "restPaid" : "tipPaid", { byShop: true, toOwner: true });
       return kept;
     }
     return b;
@@ -942,6 +958,33 @@ function bookingActions({
       const key = String(req.body?.key || "");
       let b = await loadBooking(id, key);
       if (!b) return fail(res, 404, "We couldn't find this booking. Check the link in your email.");
+      /** A card page for what is left and/or a tip, listed on the booking so the view and the sweep can read it. */
+      const payPage = async (res, b, { amountMinor, tipMinor, label }) => {
+        const { checkout } = await standalone();
+        const total = amountMinor + tipMinor;
+        const pages = (b.restPages || []).filter((p) => p && SESSION_ID.test(String(p.id || "")));
+        // The same page again while it has a while left, so tapping twice never opens two.
+        const open = pages.find((p) => (p.amountMinor || 0) === amountMinor && (p.tipMinor || 0) === tipMinor && p.url && Date.parse(p.until || "") - nowMs > REST_REUSE_MINUTES * MINUTE);
+        if (open) return res.status(200).json({ url: open.url });
+        const description = `${shopName() ? `${shopName()}: ` : ""}${b.serviceName} (${label})`.slice(0, 250);
+        const metadata = { booking: id, rest: "1", ...(tipMinor ? { tip: String(tipMinor) } : {}) };
+        const until = nowMs + REST_PAGE_MINUTES * MINUTE;
+        let session;
+        try {
+          session = await checkout.open({
+            customer_email: b.customer?.email || undefined, metadata, mode: "payment",
+            expires_at: Math.floor(until / 1000), success_url: manageUrl(id, key),
+            line_items: [{ quantity: 1, price_data: { currency: String(b.currency || currency()).toLowerCase(), unit_amount: total, product_data: { name: description } } }],
+            payment_intent_data: { description, metadata },
+          }, `booking-rest-${id}-${amountMinor}-${tipMinor}-${pages.length}`);
+        } catch (err) {
+          if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+          if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments online yet. Please pay at your visit.", "not_available");
+          throw err;
+        }
+        await bookings().doc(id).set({ restOpen: true, restPages: [...pages, { id: session.id, amountMinor, tipMinor, until: new Date(until).toISOString(), url: session.url }].slice(-10) }, { merge: true });
+        return res.status(200).json({ url: session.url });
+      };
       if (action === "bookingView") {
         if (b.status === "held") b = await refreshHeld(id, b, (await standalone()).checkout);
         if (b.restOpen) b = await refreshRest(id, b, (await standalone()).checkout);
@@ -953,28 +996,20 @@ function bookingActions({
         if (b.restOpen) b = await refreshRest(id, b, checkout);
         if (!restPayable(b)) return fail(res, 409, b.rest || b.paid ? "This booking is already paid in full." : "There is nothing to pay online for this booking.", "nothing_due");
         const amount = balanceDue(b);
-        const pages = (b.restPages || []).filter((p) => p && SESSION_ID.test(String(p.id || "")));
-        // The same page again while it has a while left, so tapping twice never opens two.
-        const open = pages.find((p) => p.amountMinor === amount && p.url && Date.parse(p.until || "") - nowMs > REST_REUSE_MINUTES * MINUTE);
-        if (open) return res.status(200).json({ url: open.url });
-        const description = `${shopName() ? `${shopName()}: ` : ""}${b.serviceName} (the rest)`.slice(0, 250);
-        const metadata = { booking: id, rest: "1" };
-        const until = nowMs + REST_PAGE_MINUTES * MINUTE;
-        let session;
-        try {
-          session = await checkout.open({
-            customer_email: b.customer?.email || undefined, metadata, mode: "payment",
-            expires_at: Math.floor(until / 1000), success_url: manageUrl(id, key),
-            line_items: [{ quantity: 1, price_data: { currency: String(b.currency || currency()).toLowerCase(), unit_amount: amount, product_data: { name: description } } }],
-            payment_intent_data: { description, metadata },
-          }, `booking-rest-${id}-${amount}-${pages.length}`);
-        } catch (err) {
-          if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
-          if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments online yet. Please pay at your visit.", "not_available");
-          throw err;
-        }
-        await bookings().doc(id).set({ restOpen: true, restPages: [...pages, { id: session.id, amountMinor: amount, until: new Date(until).toISOString(), url: session.url }].slice(-10) }, { merge: true });
-        return res.status(200).json({ url: session.url });
+        // An optional tip on top, when the shop asks for tips.
+        const tip = req.body?.tipMinor === undefined || req.body?.tipMinor === 0 ? 0 : Number(req.body.tipMinor);
+        if (tip && (!settings.tips || b.tip || !tipFits(tip, b.priceMinor || 0))) return fail(res, 400, "That tip can't be added. Please choose another amount.", "bad_tip");
+        return payPage(res, b, { amountMinor: amount, tipMinor: tip, label: tip ? "the rest and a tip" : "the rest" });
+      }
+      if (action === "bookingTip") {
+        // A tip on its own, after the visit (the "Add a tip" email); what is still due is paid with Pay the rest instead.
+        const { checkout } = await standalone();
+        if (b.restOpen) b = await refreshRest(id, b, checkout);
+        if (b.tip) return fail(res, 409, "You already added a tip. Thank you!", "tipped");
+        if (!tipOpen(b, settings.tips, nowMs) || restPayable(b)) return fail(res, 409, "A tip can't be added to this booking.", "no_tip");
+        const tip = Number(req.body?.tipMinor);
+        if (!tipFits(tip, b.priceMinor || 0)) return fail(res, 400, "That tip can't be added. Please choose another amount.", "bad_tip");
+        return payPage(res, b, { amountMinor: 0, tipMinor: tip, label: "a tip" });
       }
       if (action === "bookingCancel") {
         if (b.status === "cancelled") return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs) });
@@ -1392,7 +1427,32 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, featureOn };
+  /**
+   * The "Add a tip" email, once per visit, TIP_ASK_HOURS after it ended (within a day of that), for a shop that asks for
+   * tips. Only kept, priced visits with no tip yet; marked before sending, so a second sweep never sends twice.
+   */
+  async function sweepTips() {
+    if (!(await featureOn())) return { asked: 0 };
+    const settings = await readSettings();
+    if (!settings.tips) return { asked: 0 };
+    const nowMs = now().getTime();
+    const from = new Date(nowMs - (TIP_ASK_HOURS + 24) * HOUR).toISOString();
+    const to = new Date(nowMs - TIP_ASK_HOURS * HOUR).toISOString();
+    // One range on the end time needs no extra index; the status is checked below.
+    const snap = await bookings().where("end", ">=", from).where("end", "<=", to).limit(500).get();
+    let asked = 0;
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      if (b.tipAskedAt || !tipOpen(b, true, nowMs)) continue;
+      const key = randomKey();
+      await bookings().doc(doc.id).set({ tipAskedAt: new Date(nowMs).toISOString(), tipKeyHash: hash(key) }, { merge: true });
+      await tellCustomer(doc.id, b, "tip", { byShop: true, toOwner: false, key });
+      asked += 1;
+    }
+    return { asked };
+  }
+
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, sweepTips, featureOn };
 }
 
 /**
@@ -1428,16 +1488,18 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
 }
 
 const HOUR = 60 * 60 * 1000;
-/** The booking's own link, the reminder's or the owner's pay link: each opens the customer's booking page. */
-const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
+/** The booking's own link, the reminder's, the tip email's or the owner's pay link: each opens the customer's booking page. */
+const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
 /** How long a page to pay the rest stays open, and how long before its end a fresh one is opened instead. */
 const REST_PAGE_MINUTES = 60;
 const REST_REUSE_MINUTES = 15;
+/** The "Add a tip" email goes this many hours after a visit ends. */
+const TIP_ASK_HOURS = 2;
 /** "Visa ending 4242", or "Your card" when its brand and number weren't read. */
 const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : "Card"} ending ${card.last4}` : "Your card");
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip"]);
 
 module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
