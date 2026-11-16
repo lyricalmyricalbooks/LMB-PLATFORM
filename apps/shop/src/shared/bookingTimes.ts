@@ -126,13 +126,18 @@ export function depositOf(s: { payment?: string; priceMinor?: number; depositMin
 /**
  * The money side of one booking, in cents. `payment` on a booking: "free", "card" (all by card when booked), "deposit"
  * (part by card when booked, the rest at the visit) or "atShop". `paid` means all of it is paid; `depositPaid` that the
- * deposit is. Every screen, email and the server read a booking's money through these.
+ * deposit is. `rest` is what was left, paid later by card from the client's own booking page. Every screen, email and
+ * the server read a booking's money through these.
  */
-export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string; fee?: { amountMinor?: number } | null };
+export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string; fee?: { amountMinor?: number } | null; rest?: { amountMinor?: number } | null };
 /** What the card page asks for when this booking is made. */
 export const cardAsk = (b: BookingMoney): number => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
 /** What was taken by card for this booking (the most that can go back to the card). */
-export const cardTaken = (b: BookingMoney): number => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
+export const cardTaken = (b: BookingMoney): number => bookedCardTaken(b) + restTaken(b);
+/** What the card page took when the booking was made (the deposit, or the whole price). */
+export const bookedCardTaken = (b: BookingMoney): number => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
+/** What was left and later paid by card from the booking page. */
+export const restTaken = (b: BookingMoney): number => Math.max(0, b.rest?.amountMinor || 0);
 /** A missed-booking or late-cancellation fee charged to the saved card. */
 export const feeTaken = (b: BookingMoney): number => Math.max(0, b.fee?.amountMinor || 0);
 /** What was received towards the price itself (not counting a fee). */
@@ -143,6 +148,10 @@ export const moneyTaken = (b: BookingMoney): number => priceTaken(b) + feeTaken(
 export const moneyKept = (b: BookingMoney): number => Math.max(0, moneyTaken(b) - (b.refund?.amountMinor || 0));
 /** What is still to pay at the visit. Nothing for a cancelled booking. */
 export const balanceDue = (b: BookingMoney): number => (b.status === "cancelled" ? 0 : Math.max(0, (b.priceMinor || 0) - priceTaken(b)));
+/** The smallest amount a card page takes. */
+export const MIN_CARD_MINOR = 50;
+/** Can the client pay what is left by card from their booking page? A confirmed booking with at least 0.50 still due. */
+export const restPayable = (b: BookingMoney): boolean => b.status === "confirmed" && balanceDue(b) >= MIN_CARD_MINOR;
 
 /** The most a missed-booking fee may be: the price for a priced service, else this. */
 export const MAX_FREE_LATE_FEE = 50_000;
