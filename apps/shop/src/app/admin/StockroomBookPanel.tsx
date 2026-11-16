@@ -2,9 +2,9 @@
 // one book's copies on hand, where they are, and its sales on every channel, as the stockroom counts them. The
 // stockroom stays the master count, so the figures are asked of it (stockroomBridge.ts) and changed there.
 import { useEffect, useState } from "react";
-import { DataTable, EmptyState, ErrorState, LoadingState, MetricCard, PrimaryButton, SecondaryButton, SectionCard } from "./riso/components";
+import { DataTable, EmptyState, ErrorState, LoadingState, MetricCard, PrimaryButton, SecondaryButton, SectionCard, SelectField } from "./riso/components";
 import { inventoryLinkApi } from "./inventoryLinkApi";
-import type { InventoryLinks } from "./inventoryLink";
+import { linkedTo, type InventoryAppBook, type InventoryLinks } from "./inventoryLink";
 import { stockroomBridge, type StockroomBook, type StockroomMatch } from "./stockroomBridge";
 
 
@@ -112,12 +112,130 @@ function BookFigures({ edition, id, words, onOpen }: { edition: string | null; i
   );
 }
 
+type Edition = { id?: string; name?: string; isbn?: string; format?: string; digital?: boolean };
+type PanelBook = { id: string; title?: string; isbn?: string; format?: string; digital?: boolean; variants?: Edition[] };
+
+// Same test as the server's isDigitalEdition (functions/inventoryLink.js): e-books aren't counted in the stockroom.
+const DIGITAL_RE = /e-?book|epub|pdf|audiobook|digital/i;
+const isDigital = (book: PanelBook, v: Edition) => v.digital === true
+  || (v.format ? DIGITAL_RE.test(String(v.format)) : book.digital === true || DIGITAL_RE.test(String(book.format || "")));
+
+/** The editions the stockroom can count: every edition with an id that isn't an e-book. */
+export function printedEditions(book: PanelBook): (Edition & { id: string })[] {
+  return (book.variants || []).filter((v): v is Edition & { id: string } => !!v?.id && !isDigital(book, v));
+}
+
+const digits = (v: unknown) => String(v || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+const plain = (v: unknown) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * The stockroom book an edition most likely is: the one with its ISBN, else the one called "Title Edition",
+ * else the only one with the book's title. `taken` holds stockroom books other products already use.
+ */
+export function guessEdition(edition: Edition, title: string, catalog: InventoryAppBook[], taken: Set<string>): string {
+  const free = catalog.filter((b) => !taken.has(b.id));
+  const isbn = digits(edition.isbn);
+  if (isbn.length >= 10) {
+    const hits = free.filter((b) => digits(b.isbn) === isbn);
+    if (hits.length === 1) return hits[0].id;
+  }
+  const full = plain(`${title} ${edition.name || ""}`);
+  const named = free.filter((b) => plain(b.title) === full);
+  if (named.length === 1) return named[0].id;
+  const same = free.filter((b) => plain(b.title) === plain(title));
+  return same.length === 1 ? same[0].id : "";
+}
+
+/** Stockroom books matched to other products (editions of this one may share a pile, other products may not). */
+export function takenElsewhere(links: InventoryLinks, bookId: string): Set<string> {
+  const out = new Set<string>();
+  for (const [id, entry] of Object.entries(links || {})) {
+    if (id === bookId) continue;
+    for (const inv of Object.values(entry || {})) if (typeof inv === "string" && inv) out.add(inv);
+  }
+  return out;
+}
+
+/** The unmatched printed editions of one product, each with a stockroom book to pick and a Match button. */
+function EditionMatches({ book, editions, links, onLinks, words }: {
+  book: PanelBook; editions: (Edition & { id: string })[]; links: InventoryLinks;
+  onLinks: (links: InventoryLinks) => void; words: (t: string) => string;
+}) {
+  const [catalog, setCatalog] = useState<InventoryAppBook[] | null | "failed">(null);
+  const [tries, setTries] = useState(0);
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    setCatalog(null);
+    inventoryLinkApi.catalog().then((r) => { if (alive) setCatalog(r.books || []); }, () => { if (alive) setCatalog("failed"); });
+    return () => { alive = false; };
+  }, [tries]);
+
+  const title = words("Match each edition with the stockroom");
+  const description = words("Each edition is counted on its own in the stockroom. Editions may share one pile of copies.");
+  if (catalog === null) return <SectionCard title={title}><LoadingState label="Looking in the stockroom…" /></SectionCard>;
+  if (catalog === "failed") {
+    return (
+      <SectionCard title={title}>
+        <ErrorState title="The stockroom didn't answer" description="It may still be opening, or this device is offline." onRetry={() => setTries((n) => n + 1)} />
+      </SectionCard>
+    );
+  }
+  const taken = takenElsewhere(links, book.id);
+  const choices = catalog.filter((b) => !taken.has(b.id)).sort((a, b) => a.title.localeCompare(b.title));
+  if (!choices.length) {
+    return (
+      <SectionCard title={title}>
+        <EmptyState inline title={words("No free books in the stockroom")} description={words("Add this book in the stockroom, then match its editions here.")} />
+      </SectionCard>
+    );
+  }
+  const chosen = (e: Edition & { id: string }) => picked[e.id] ?? guessEdition(e, book.title || "", catalog, taken);
+  const match = async (e: Edition & { id: string }) => {
+    const inv = chosen(e);
+    if (!inv) return;
+    setBusy(e.id); setError("");
+    try {
+      const result = await inventoryLinkApi.linkNewBook(book.id, inv, e.id);
+      onLinks(result.links);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't match them. Try again in a minute.");
+    } finally {
+      setBusy("");
+    }
+  };
+  const label = (b: InventoryAppBook) => `${b.title}${b.isbn ? ` · ${b.isbn}` : ""}${b.onHand != null ? ` · ${words(copies(b.onHand))}` : ""}`;
+  return (
+    <SectionCard title={title} description={description}>
+      <div className="be-edition-matches">
+      <DataTable caption={words("Editions to match")} rowKey={(e) => e.id} rows={editions} stackOnPhone
+        columns={[
+          { key: "edition", header: words("Edition"), lead: true, render: (e: Edition & { id: string }) => e.name || words("Edition") },
+          { key: "book", header: words("Stockroom book"), render: (e: Edition & { id: string }) => (
+            <div className="be-edition-pick">
+              <SelectField label={`${words("Stockroom book")}: ${e.name || words("this edition")}`} hideLabel value={chosen(e)}
+                onChange={(ev) => setPicked((p) => ({ ...p, [e.id]: ev.target.value }))}>
+                <option value="">Choose…</option>
+                {choices.map((b) => <option key={b.id} value={b.id}>{label(b)}</option>)}
+              </SelectField>
+              <PrimaryButton onClick={() => match(e)} disabled={!!busy || !chosen(e)}>{busy === e.id ? "Matching…" : "Match"}</PrimaryButton>
+            </div>
+          ) },
+        ]} />
+      </div>
+      {error && <p className="be-note" role="alert">{error}</p>}
+    </SectionCard>
+  );
+}
+
 /**
  * The tab itself. `links` are the matches between website books and stockroom books (kept by the server);
  * an unmatched book gets the stockroom's best guess and one button to match it.
  */
 export function StockroomBookPanel({ book, links, linksFailed, onLinks, words, onOpen }: {
-  book: { id: string; title?: string; isbn?: string; variants?: { id?: string; name?: string }[] };
+  book: PanelBook;
   links: InventoryLinks;
   linksFailed: boolean;
   onLinks: (links: InventoryLinks) => void;
@@ -127,8 +245,10 @@ export function StockroomBookPanel({ book, links, linksFailed, onLinks, words, o
   const linked = linkedStockroomBooks(links, book.id, book.variants);
   const [guess, setGuess] = useState<StockroomMatch | null | undefined | "refused" | "failed">(undefined);
   const [tries, setTries] = useState(0);
-  // A book with editions is matched edition by edition, which this tab doesn't do yet.
+  // A book with editions is matched edition by edition (EditionMatches), not as a whole.
   const editions = (book.variants || []).length > 0;
+  const printed = editions ? printedEditions(book) : [];
+  const unmatched = printed.filter((e) => !linkedTo(links, book.id, e.id));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -145,16 +265,21 @@ export function StockroomBookPanel({ book, links, linksFailed, onLinks, words, o
   if (linksFailed) {
     return <SectionCard title="In the stockroom"><ErrorState title="Couldn't check the match with the stockroom" description={words("Close this book and open it again.")} /></SectionCard>;
   }
-  if (linked.length) {
-    return <>{linked.map((l) => <BookFigures key={l.id} edition={l.edition} id={l.id} words={words} onOpen={onOpen} />)}</>;
-  }
   if (editions) {
     return (
-      <SectionCard title="In the stockroom">
-        <EmptyState inline title={words("Match each edition with the stockroom")}
-          description={words("This book has editions, and each one is counted on its own in the stockroom.")} />
-      </SectionCard>
+      <>
+        {unmatched.length > 0 && <EditionMatches book={book} editions={unmatched} links={links} onLinks={onLinks} words={words} />}
+        {linked.map((l) => <BookFigures key={`${l.edition}:${l.id}`} edition={l.edition} id={l.id} words={words} onOpen={onOpen} />)}
+        {!printed.length && (
+          <SectionCard title="In the stockroom">
+            <EmptyState inline title={words("Nothing to count")} description={words("E-books aren't counted in the stockroom.")} />
+          </SectionCard>
+        )}
+      </>
     );
+  }
+  if (linked.length) {
+    return <>{linked.map((l) => <BookFigures key={l.id} edition={l.edition} id={l.id} words={words} onOpen={onOpen} />)}</>;
   }
   const match = async () => {
     if (!guess || typeof guess === "string") return;
