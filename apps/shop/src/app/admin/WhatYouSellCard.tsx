@@ -9,7 +9,8 @@ import { currentSells } from "./sells";
 import { sellsServices } from "../../shared/shopSells";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT } from "./shopWords";
-import { SectionCard, SelectField, PrimaryButton } from "./riso/components";
+import { SectionCard, SelectField, PrimaryButton, useConfirm } from "./riso/components";
+import { useBookingsOn } from "./bookingsApi";
 import { FormField } from "./riso/FormKit";
 
 export const SELLS_CHOICES: { id: string; label: string }[] = [
@@ -40,6 +41,24 @@ export function sellsChoicesFor(servicesShop: boolean): { id: string; label: str
   return servicesShop ? SERVICE_CHOICES : SELLS_CHOICES;
 }
 
+/**
+ * The choices in groups. A shop may change kind (products ⇄ services) only when it is a services shop already or the
+ * platform has turned Bookings on for it (the rules check the same), so only then are both groups offered.
+ */
+export function sellsGroupsFor(servicesShop: boolean, canSwitch: boolean): { label: string; choices: { id: string; label: string }[] }[] {
+  if (!canSwitch) return [{ label: "", choices: sellsChoicesFor(servicesShop) }];
+  return [{ label: "Services", choices: SERVICE_CHOICES }, { label: "Products", choices: SELLS_CHOICES }];
+}
+
+/** The question a switch of kind asks first, or null when the kind stays the same. */
+export function kindSwitchQuestion(from: string | null | undefined, to: string): { title: string; message: string; confirmLabel: string } | null {
+  const was = sellsServices(from || null), now = sellsServices(to);
+  if (was === now) return null;
+  return now
+    ? { title: "Switch to a services shop?", message: "Your menu changes to Calendar, Clients and Money. Your products and orders stay, and come back with Sell products too.", confirmLabel: "Switch to services" }
+    : { title: "Switch to a product shop?", message: "Your menu changes to Orders, Products and Settings. Your bookings, services and clients stay.", confirmLabel: "Switch to products" };
+}
+
 /** What Settings says about the stockroom's words: it is using the saved answer, or it will switch when next opened. */
 export function stockroomWordsNote(saved: string | null | undefined, heardFromStockroom: string | null | undefined, justSaved = false): string {
   // Nothing to say for a shop whose answer was never changed here: the stockroom already has the sign-up words.
@@ -59,6 +78,8 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
   const [servicesShop, setServicesShop] = useState(false);
   const [products, setProducts] = useState(false);
   const [productsBusy, setProductsBusy] = useState(false);
+  const bookingsOn = useBookingsOn(true);
+  const [ask, confirmNode] = useConfirm();
   useEffect(() => {
     let live = true;
     Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => {
@@ -80,19 +101,25 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
   if (saved === undefined) return null;
   const changed = value !== (saved === "mix" ? "books" : saved || "books");
   const save = async () => {
+    const question = kindSwitchQuestion(saved, value);
+    if (question && !(await ask(question))) return;
     setBusy(true);
     try {
       await adminApi.updateFirstWeek({ sells: value });
       setSaved(value);
+      setServicesShop(sellsServices(value));
       setJustSaved(true);
       window.dispatchEvent(new CustomEvent(SELLS_CHANGED_EVENT, { detail: value }));
-      toast.success("Saved. The admin now uses the words for what you sell.");
+      toast.success(question ? (sellsServices(value) ? "You're a services shop now." : "You're a product shop now.") : "Saved. The admin now uses the words for what you sell.");
     } catch {
       toast.error("Couldn't save that. Check your connection and try again.");
     } finally { setBusy(false); }
   };
-  const choices = sellsChoicesFor(servicesShop);
-  const question = servicesShop ? "What do you do?" : "What do you sell?";
+  const groups = sellsGroupsFor(servicesShop, servicesShop || bookingsOn);
+  const options = groups.map((g) => g.label
+    ? <optgroup key={g.label} label={g.label}>{g.choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
+    : g.choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>));
+  const question = sellsServices(value) ? "What do you do?" : "What do you sell?";
   const setSellsProducts = async (on: boolean) => {
     setProductsBusy(true);
     try {
@@ -113,25 +140,23 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
   ) : null;
   const body = (<>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>
-        <SelectField label={question} value={value} onChange={(e) => setValue(e.target.value)}>
-          {choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-        </SelectField>
+        <SelectField label={question} value={value} onChange={(e) => setValue(e.target.value)}>{options}</SelectField>
         <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
       </div>
       <p className="rp-hint" role="status" style={{ margin: "12px 0 0" }}>{stockroomWordsNote(saved, heard, justSaved)}</p>
       {productsSwitch}
+      {confirmNode}
   </>);
   return (
     bare ? (<>
-      <FormField label={servicesShop ? "What you do" : "What you sell"} hint={stockroomWordsNote(saved, heard, justSaved)}>
+      <FormField label={sellsServices(value) ? "What you do" : "What you sell"} hint={stockroomWordsNote(saved, heard, justSaved)}>
         {(a) => <span style={{ display: "flex", gap: 10, width: "100%" }}>
-          <select {...a} style={{ flex: 1, minWidth: 0 }} value={value} onChange={(e) => setValue(e.target.value)}>
-            {choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
+          <select {...a} style={{ flex: 1, minWidth: 0 }} value={value} onChange={(e) => setValue(e.target.value)}>{options}</select>
           <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
         </span>}
       </FormField>
       {productsSwitch}
+      {confirmNode}
     </>) : <SectionCard title="What you sell" description="Sets the words in your admin and emails. Products you already have stay as they are.">{body}</SectionCard>
   );
 }

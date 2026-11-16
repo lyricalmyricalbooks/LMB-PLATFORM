@@ -311,6 +311,7 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("welcome with an unknown admin look refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "press-zine", at: "now", adminLook: "neon" } }, { merge: true })));
   await check("welcome with an extra key refused", assertFails(setDoc(doc(admin, "firstWeek/start"), { welcome: { theme: "x", at: "now", junk: 1 } }, { merge: true })));
   await check("admin changes what the shop sells", assertSucceeds(setDoc(doc(admin, "firstWeek/start"), { sells: "mixed" }, { merge: true })));
+  await check("a product shop can't switch to services before Bookings is on", assertFails(setDoc(doc(admin, "firstWeek/start"), { sells: "hair" }, { merge: true })));
   await check("what the shop sells must be a known answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sells: "weapons" }, { merge: true })));
   await check("admin can't change the sign-up answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "fairs" }, { merge: true })));
   await check("admin can't change the plan", assertFails(setDoc(doc(admin, "firstWeek/start"), { plan: "both" }, { merge: true })));
@@ -588,6 +589,11 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("a customer can't read platform/features", assertFails(getDoc(doc(reader, "platform/features"))));
   await check("another shop's owner can't read this shop's platform/features", assertFails(getDoc(doc(ownerThereInS1, "platform/features"))));
   await check("owner can't turn bookings on", assertFails(setDoc(doc(owner, "platform/features"), { bookings: true })));
+  // Settings › General › What you do: with Bookings on, a product shop may become a services shop and back.
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(folder(ctx.firestore()), "firstWeek/start"), { sellingToday: "online", publishes: "books" }));
+  await check("with Bookings on, a product shop switches to services", assertSucceeds(setDoc(doc(owner, "firstWeek/start"), { sells: "hair" }, { merge: true })));
+  await check("and switches back to products", assertSucceeds(setDoc(doc(owner, "firstWeek/start"), { sells: "books" }, { merge: true })));
+  await check("a shop without Bookings stays shut, whatever another shop has", assertFails(setDoc(doc(ownerS2, "firstWeek/start"), { sells: "hair" }, { merge: true })));
   await check("owner can't read another shop's bookings", assertFails(getDoc(doc(ownerS2, "bookings/b2"))));
   await check("owner can't read another shop's booking services", assertFails(getDoc(doc(ownerS2, "bookingServices/visit2"))));
   await check("another shop's owner can't read this shop's bookings", assertFails(getDoc(doc(ownerThereInS1, "bookings/b1"))));
