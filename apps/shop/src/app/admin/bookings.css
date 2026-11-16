@@ -42,7 +42,10 @@
 .rp .bkg-day { display: flex; flex-direction: column; gap: 8px; min-height: 220px; padding: 14px 12px; border-radius: 22px; background: var(--rp-surface); }
 .rp .bkg-day[data-past] { opacity: 0.7; }
 .rp .bkg-day[data-today] { box-shadow: inset 0 0 0 2px var(--rp-text); }
-.rp .bkg-day-head { display: grid; gap: 2px; padding: 0 4px 6px; border-bottom: 1px solid var(--rp-divider); }
+.rp .bkg-day-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 4px; align-items: center; padding: 0 4px 6px; border-bottom: 1px solid var(--rp-divider); }
+.rp .bkg-day-head > .bkg-day-name { grid-column: 1; }
+.rp .bkg-day-head > .bkg-day-hours { grid-column: 1 / -1; }
+.rp .bkg-day-head > button { grid-column: 2; grid-row: 1; margin: -6px -6px -6px 0; }
 .rp .bkg-day-name { font: 600 15px/1.3 var(--rp-font-body); }
 .rp .bkg-day-hours { font: 500 11px/1.4 var(--rp-font-mono); color: var(--rp-text-muted); letter-spacing: 0.02em; }
 .rp .bkg-day-empty { margin: 4px; font-size: 13px; color: var(--rp-text-faint); }
@@ -245,3 +248,20 @@
   .rp .bkg-figs .bkg-big.bkg-big-money { font-size: clamp(17px, 5.6vw, 28px); }
 }
 .rp .bkg-tile-mint .bkg-bars-track i { background: currentColor; }
+
+/* Who's coming: one day's people, start by start (the list that prints) */
+.rp .bkg-daylist { display: grid; gap: 20px; }
+.rp .bkg-daylist h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--rp-border); font: 600 16px/1.3 var(--rp-font-body); }
+.rp .bkg-daylist h3 span { font: 500 13px/1.3 var(--rp-font-mono); color: var(--rp-text-muted); font-variant-numeric: tabular-nums; }
+.rp .bkg-daylist h3 em { font: 500 12px/1.3 var(--rp-font-mono); font-style: normal; color: var(--rp-text-faint); }
+.rp .bkg-daylist ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp .bkg-daylist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--rp-divider); }
+.rp .bkg-daylist li:first-child { border-top: 0; }
+.rp .bkg-daylist-name { justify-self: start; padding: 0; border: 0; background: none; color: inherit; font: 600 15px/1.3 var(--rp-font-body); text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rp-border); text-underline-offset: 3px; }
+.rp .bkg-daylist-name:hover { text-decoration-color: currentColor; }
+.rp .bkg-daylist-name:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); border-radius: 4px; }
+.rp .bkg-daylist-contact, .rp .bkg-daylist-pay, .rp .bkg-daylist li p { grid-column: 1 / -1; margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.rp .bkg-daylist-contact { color: var(--rp-text-muted); }
+.rp .bkg-daylist-pay { font: 500 12px/1.4 var(--rp-font-mono); color: var(--rp-text-faint); }
+.rp .bkg-daylist li p strong { font-weight: 600; }
+@media (pointer: coarse) { .rp .bkg-daylist-name { min-height: var(--rp-touch); } }

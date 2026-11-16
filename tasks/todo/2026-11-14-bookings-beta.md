@@ -106,3 +106,12 @@ shop ever gets near that. Not yet tried on a live test shop.
 
 Review: the time of an erased upcoming booking is kept on purpose (cancelling could trigger a refund the owner didn't
 choose). Not tried on a live test shop.
+
+## Who's coming list and adding to a class (16 November 2026)
+
+- [x] Next move 2: "Add a person" on a class card (no new server work: the owner's `create` already fills a class and
+      refuses when full).
+- [x] Next move 3: per-day "Who's coming" list in the admin, printable with tick boxes, and as a spreadsheet.
+- [x] Proof: `bookingsDayList.test.ts`, full tests, typecheck, lint, screenshots desktop and phone.
+
+Review: the list covers one day; a whole-week print can come later if owners ask. Not tried on a live test shop.

@@ -1120,3 +1120,11 @@ Fixture: `?sells=hair&bookings=new` (nothing set up), `&start=1` (the services s
 `overview/servicesHome.ts`; `HomePage` prop `services` from Dashboard's menu kind): To do is appointments to mark paid,
 messages, privacy requests and the Money side's payments; Today is the day's appointments, who is next, the next seven
 days as bars and Coming up, followed live from Bookings.
+
+## Bookings: who's coming and adding to a class (16 November 2026)
+
+- Each calendar day with bookings has a clipboard button (`DayListDialog` in `Bookings.tsx`): the day by start
+  (`dayList` / `dayListRows` in `bookingsView.ts`), names open the booking. **Print** uses `bookingsDaySheet.ts` (plain
+  black on white, a box to tick per person, everything escaped); **Spreadsheet** saves a CSV with one column per question.
+- A class card with places left and a start still to come shows **Add a person** (`AddToClassDialog`): the server's
+  existing `create` op, so places are still enforced there. Tests: `bookingsDayList.test.ts`.
