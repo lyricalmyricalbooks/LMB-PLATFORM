@@ -3,7 +3,7 @@
 import { addDays, depositOf } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
-export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number };
+export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[] };
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; start: string; end: string;
@@ -11,6 +11,8 @@ export type BookingView = {
   /** With payment "deposit": what was asked by card when booking, whether it is paid, and what is left for the visit. */
   depositMinor?: number; depositPaid?: boolean; dueMinor?: number;
   name: string; email: string; refunded: boolean; canChange: boolean; cancelHours: number;
+  /** Card on file: whether one is kept, its last four numbers, the fee for missing it, and a fee once charged. */
+  cardHold?: boolean; cardLast4?: string; lateFeeMinor?: number; feeMinor?: number;
 };
 
 /** How many days the picker shows at once. */

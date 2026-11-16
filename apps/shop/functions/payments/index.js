@@ -32,7 +32,8 @@
 //   forCheckout(settings)                           { settlePreviousIntent, createCardIntent, createCheckoutSession }
 //
 //   A payment with no shop order (a fair helper's card payment by QR, fairHelperPay.js)
-//   standaloneCheckout(mode)                        { open(params, idempotencyKey), read(id), close(id) }, or null when
+//   standaloneCheckout(mode)                        { open(params, idempotencyKey), read(id), close(id) } (Stripe also
+//                                                   savedCard(id), chargeSaved(card, key): card on file), or null when
 //                                                   the provider has none (the caller then offers another way to pay)
 //
 //   Admin (Settings › Payments)

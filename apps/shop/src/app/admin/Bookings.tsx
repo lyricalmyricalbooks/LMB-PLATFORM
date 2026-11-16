@@ -10,10 +10,11 @@ import {
   SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
-import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, cardTaken, dayOf, depositOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, MAX_FREE_LATE_FEE, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
+import { paysOnSquare } from "../../lib/shopProfile";
 import { copyText } from "./clipboard";
 import "./bookings.css";
 
@@ -394,6 +395,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
   };
   const paidByCard = cardTaken(b) > 0 && !b.refund;
   const [cancelling, setCancelling] = useState(false);
+  const [charging, setCharging] = useState(false);
   const cancel = async () => {
     if (paidByCard) { setCancelling(true); return; }
     if (!(await ask({ title: "Cancel this booking?", message: `${b.customer.name} gets an email saying it's cancelled. The time opens up for others.`, confirmLabel: "Cancel booking" }))) return;
@@ -412,7 +414,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
             <span>{b.minutes} minutes</span>
           </div>
           <StatusBadge tone={b.status === "confirmed" ? "success" : b.status === "held" ? "warning" : "neutral"}>
-            {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : "Paying now") : "Cancelled"}
+            {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : "Cancelled"}
           </StatusBadge>
         </div>
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
@@ -420,6 +422,8 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           <div><dt>Email</dt><dd><a href={`mailto:${b.customer.email}`}>{b.customer.email}</a></dd></div>
           {b.customer.phone && <div><dt>Phone</dt><dd><a href={`tel:${b.customer.phone}`}>{b.customer.phone}</a></dd></div>}
           <div><dt>Payment</dt><dd>{paymentText(b)}</dd></div>
+          {b.cardHold && <div><dt>Card on file</dt><dd>{b.card ? `${cardText(b.card)}, ${moneyText(b.lateFeeMinor || 0, b.currency)} if missed` : b.status === "held" ? "Being saved" : "Not saved"}</dd></div>}
+          {b.fee && <div><dt>Fee</dt><dd>{moneyText(b.fee.amountMinor, b.currency)} charged{b.fee.reason ? ` for a ${b.fee.reason}` : ""}, {new Date(b.fee.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</dd></div>}
           <div><dt>Booked</dt><dd>{b.source === "admin" ? "By you" : "On your website"}{b.createdAt ? `, ${new Date(b.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</dd></div>
         </dl>
         {b.note && <blockquote className="bkg-note">“{b.note}”</blockquote>}
@@ -432,6 +436,12 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           <div className="bkg-detail-toggles">
             <Toggle label="Didn't turn up" checked={!!b.noShow} disabled={!!busy} onChange={(v) => void run("noshow", "noShow", { value: v }, v ? "Marked as a no-show" : "No-show taken off")} />
             {(b.payment === "atShop" || (b.payment === "deposit" && b.depositPaid)) && <Toggle label={b.payment === "deposit" ? `Rest paid at the shop (${moneyText(Math.max(0, b.priceMinor - (b.depositMinor || 0)), b.currency)})` : "Paid at the shop"} checked={b.paid} disabled={!!busy} onChange={(v) => void run("paid", "paidAtShop", { value: v }, v ? "Marked paid" : "Paid mark taken off")} />}
+          </div>
+        )}
+        {feeChargeable(b, Date.now()) && (
+          <div className="bkg-fee">
+            <p>{b.status === "cancelled" ? "You cancelled this late." : b.noShow ? "They didn't turn up." : "If they didn't turn up,"} You can charge the {moneyText(b.lateFeeMinor || 0, b.currency)} fee they agreed to.</p>
+            <SecondaryButton onClick={() => setCharging(true)} disabled={!!busy}>Charge fee</SecondaryButton>
           </div>
         )}
         {!!b.history?.length && (
@@ -448,6 +458,14 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
             toast.success(refundMinor === 0 ? "Booking cancelled" : refundMinor < cardTaken(b) ? `Cancelled, ${moneyText(refundMinor, b.currency)} refunded` : "Cancelled and refunded");
             setCancelling(false);
             onClose();
+          }} />
+      )}
+      {charging && b.card && (
+        <FeeDialog booking={b} onClose={() => setCharging(false)}
+          onCharge={async (amountMinor) => {
+            await bookingsAdmin("chargeFee", { id: b.id, amountMinor });
+            toast.success(`${moneyText(amountMinor, b.currency)} charged. ${b.customer.name.split(" ")[0]} gets a receipt.`);
+            setCharging(false);
           }} />
       )}
       {moving && service && (
@@ -504,6 +522,30 @@ function CalendarTile() {
       )}
       {confirmNode}
     </section>
+  );
+}
+
+/** Charges the missed-booking fee to the saved card: the agreed fee, or less. `onCharge` throws to keep it open. */
+function FeeDialog({ booking: b, onClose, onCharge }: { booking: Booking; onClose: () => void; onCharge: (amountMinor: number) => Promise<void> }) {
+  const most = b.lateFeeMinor || 0;
+  const [amount, setAmount] = useState((most / 100).toFixed(2));
+  const [problem, setProblem] = useState("");
+  const [saving, setSaving] = useState(false);
+  const minor = Math.round(Number(amount) * 100);
+  const amountProblem = !amount || !Number.isFinite(minor) || minor < 50 ? `Type an amount of at least ${moneyText(50, b.currency)}.` : minor > most ? `Up to ${moneyText(most, b.currency)}, the fee they agreed to.` : "";
+  const save = async () => {
+    setSaving(true); setProblem("");
+    try { await onCharge(minor); } catch (e: any) { setProblem(e?.message || "That didn't go through. Please try again."); } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title="Charge the missed-booking fee?" description={`${b.customer.name} agreed to a ${moneyText(most, b.currency)} fee when they booked. It goes on their ${cardText(b.card)}, and they get an email receipt.`}
+      footer={<><SecondaryButton onClick={onClose}>Not now</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving} disabled={!!amountProblem}>{amountProblem ? "Charge fee" : `Charge ${moneyText(minor, b.currency)}`}</PrimaryButton></>}>
+      <div className="bkg-form">
+        <TextField label={`Amount (${b.currency})`} hint="You can charge less than the full fee." inputMode="decimal" placeholder="0.00"
+          value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} error={amount ? amountProblem || undefined : undefined} />
+        {problem && <p className="bkg-error" role="alert">{problem}</p>}
+      </div>
+    </Dialog>
   );
 }
 
@@ -623,7 +665,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [] };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0 };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -643,7 +685,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
             <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}</p>
-            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}</p>
+            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
               <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -677,7 +719,11 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
     pay: (service.payment === "deposit" || service.payment === "atShop" ? service.payment : "full") as "full" | "deposit" | "atShop",
     depositUnit: (service.depositPercent ? "percent" : "amount") as "amount" | "percent",
     deposit: service.depositPercent ? String(service.depositPercent) : service.depositMinor ? (service.depositMinor / 100).toFixed(2) : "",
+    lateFee: service.lateFeeMinor ? (service.lateFeeMinor / 100).toFixed(2) : "",
   });
+  // Card on file: only where something is left to charge (not paid in full), and only on Stripe.
+  const paidInFull = Number(form.price) > 0 && form.pay === "full";
+  const square = paysOnSquare();
   const [problem, setProblem] = useState("");
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -690,12 +736,14 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
     setSaving(true); setProblem("");
     try {
       const priceMinor = Math.round(Number(form.price || 0) * 100);
-      const { pay, depositUnit, deposit, price: _price, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, price: _price, ...rest } = form;
+      const holdCard = form.holdCard && !paidInFull && !square;
       const share = pay === "deposit" && priceMinor > 0;
       await bookingsAdmin("saveService", { service: {
         ...rest, priceMinor, payment: priceMinor > 0 ? pay : "free",
         depositMinor: share && depositUnit === "amount" ? Math.round(Number(deposit || 0) * 100) : 0,
         depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
+        holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
       } });
       toast.success(service.id ? "Service saved" : "Service added");
       onSaved();
@@ -735,6 +783,26 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
                   <option value="percent">A share of the price</option>
                 </SelectField>
               </div>
+            )}
+          </fieldset>
+        )}
+        {!paidInFull && (
+          <fieldset className="bkg-questions">
+            <legend>Missed bookings</legend>
+            {square ? (
+              <p className="bkg-questions-hint">Keeping a card on file for a missed-booking fee needs Stripe. Your shop takes cards through Square.</p>
+            ) : (
+              <>
+                <Toggle label="Keep a card on file" checked={!!form.holdCard} onChange={(v) => set("holdCard", v)} />
+                <p className="bkg-questions-hint">{form.holdCard
+                  ? "Customers save a card when they book. Nothing is taken unless they don't turn up, or you cancel for them late. Then you can charge the fee once, from the booking."
+                  : "Customers book without a card. Turn this on to charge a fee when someone doesn't turn up."}</p>
+                {form.holdCard && (
+                  <TextField label={`Fee for a missed booking (${SHOP_CURRENCY})`} inputMode="decimal" placeholder="0.00" value={form.lateFee}
+                    hint={Number(form.price) > 0 ? `Up to the price, ${moneyText(Math.round(Number(form.price) * 100), SHOP_CURRENCY)}. Customers see it before they book.` : `Up to ${moneyText(MAX_FREE_LATE_FEE, SHOP_CURRENCY)}. Customers see it before they book.`}
+                    onChange={(e) => set("lateFee", e.target.value.replace(/[^\d.]/g, ""))} />
+                )}
+              </>
             )}
           </fieldset>
         )}

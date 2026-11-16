@@ -82,10 +82,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
 {
   const mode = new URLSearchParams(window.location.search).get("bookings") || "on";
   const service = (id: string, name: string, minutes: number, priceMinor: number, order: number, extra: Partial<BookingService> = {}): BookingService => ({
-    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], ...extra,
+    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, ...extra,
   });
   let services: BookingService[] = mode === "new" ? [] : [
-    service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes." }),
+    service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000 }),
     service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
     service("binding", "Bookbinding class", 90, 3000, 2, { active: false, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25 }),
@@ -108,7 +108,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-8", services[2], at(1, 13), "Hal Example"),
     booking("bk-9", services[2], at(1, 13), "Ivy Example", { status: "held", paid: false }),
     booking("bk-10", services[2], at(1, 13), "Jo Example"),
-    booking("bk-6", services[0], at(-1, 16), "Fay Example", { noShow: true }),
+    // Started two hours ago, so Charge fee shows whatever the time of day.
+    booking("bk-11", services[0], new Date(Date.now() - 2 * 3_600_000).toISOString(), "Fay Example", { noShow: true, cardHold: true, lateFeeMinor: 2000, card: { customer: "cus_example", paymentMethod: "pm_example", brand: "visa", last4: "4242" } }),
     booking("bk-7", services[1], at(1, 15), "Gus Example", { status: "held", paid: false, clearing: true }),
   ] : [];
   // Three people waiting for tomorrow's full class and one for a booked-up day.
@@ -148,6 +149,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
     if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));
+    if (op === "chargeFee") rows = rows.map((b) => (b.id === id ? { ...b, fee: { amountMinor: Number(body.amountMinor ?? b.lateFeeMinor), at: new Date().toISOString(), reason: "missed booking" } } : b));
     if (op === "paidAtShop") rows = rows.map((b) => (b.id === id ? { ...b, paid: true } : b));
     if (op === "move") rows = rows.map((b) => (b.id === id ? { ...b, start: String(body.start), end: plus(String(body.start), b.minutes) } : b));
     if (op === "times") {

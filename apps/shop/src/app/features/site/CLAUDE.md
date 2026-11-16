@@ -805,7 +805,10 @@ places are left (`bookTimePlacesLeft`, `bookTimeLastPlace`; from the server's `l
 (`bookTimeFull`) and a booked-up day offers `bookTimeWaitDay`; either opens `WaitForm` (name and email, words
 `bookTimeWait*`, styles `fm-book-wait` in `bookTimeStyle.ts`). A 409 `open` reloads the times. The email's link
 (`/book?service=&day=`, `wantedFromSearch`) opens that service on that day. The preview's sample class has one full time a day.
-**Book a time section (`BookTimeSection`, Add section › Engagement):** the shop's services as cards on any page, each
+**Book a time section (`BookTimeSection`**Card on file (16 November 2026):** a `holdCard` service shows `bookTimeCardNote` on its card, the agreement
+`bookTimeCardAgree` ({fee}, {hours}) under the form and the button `bookTimeSaveCard`; the confirmation shows
+`bookTimeCardOnFile` and, once charged, `bookTimeFeeCharged` (Text & labels › Bookings page › Deposits & card on file).
+, Add section › Engagement):** the shop's services as cards on any page, each
 button opening `/book?service=<id>` on that service. It renders nothing unless the shop takes bookings
 (`useBookingsLive`; Studio's preview shows the samples), asks `bookingInfo` once per visit (`bookingInfoOnce` in
 `bookTimeAsk.ts`, which the page shares) and picks the cards with `sectionServices`. Words that aren't section fields

@@ -68,7 +68,7 @@ function platformStripeClient(call, mode) {
     checkout: {
       sessions: {
         create: (p, options) => call("checkout.sessions.create", mode, { params: p, ...key(options) }),
-        retrieve: (id) => call("checkout.sessions.retrieve", mode, { id }),
+        retrieve: (id, p) => call("checkout.sessions.retrieve", mode, { id, ...params(p) }),
         expire: (id) => call("checkout.sessions.expire", mode, { id }),
       },
     },

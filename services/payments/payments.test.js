@@ -397,7 +397,9 @@ test("a shop reads its payments' fees and what each payout paid in, on its own a
   assert.equal((await call("paymentIntents.retrieve", { id: "pi_x", params: { expand: ["latest_charge.balance_transaction"] } })).status, 404, "allowed, and Stripe answers");
   assert.equal((await call("refunds.list", { params: { payment_intent: "pi_x", limit: 100, expand: ["data.balance_transaction"] } })).status, 200);
   assert.equal((await call("refunds.list", { params: { payment_intent: "pi_x", expand: ["data.charge"] } })).status, 400);
-  assert.equal((await call("disputes.list", { params: { payment_intent: "pi_x", expand: ["data.balance_transaction"] } })).status, 400);
+  assert.equal((await call("disputes.list", { params: { payment_intent: "pi_x", expand: ["data.balance_transaction"] } })).status, 400);  // A booking's saved card (card on file): only the card behind the session's setup or payment intent.
+  assert.equal((await call("checkout.sessions.retrieve", { id: "cs_x", params: { expand: ["setup_intent.payment_method"] } })).status, 404, "allowed, and Stripe answers");
+  assert.equal((await call("checkout.sessions.retrieve", { id: "cs_x", params: { expand: ["customer"] } })).status, 400);
 });
 
 test("every call a shop can make is listed", () => {

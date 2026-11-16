@@ -245,3 +245,8 @@
   .rp .bkg-figs .bkg-big.bkg-big-money { font-size: clamp(17px, 5.6vw, 28px); }
 }
 .rp .bkg-tile-mint .bkg-bars-track i { background: currentColor; }
+
+/* Card on file: the missed-booking fee, offered once a booking has started or the shop cancelled it late. */
+.rp .bkg-fee { display: grid; gap: 10px; padding: 14px 16px; border-radius: 16px; background: var(--rp-surface-2); }
+.rp .bkg-fee p { margin: 0; }
+.rp .bkg-fee > button { justify-self: start; }
