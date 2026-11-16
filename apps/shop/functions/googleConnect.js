@@ -127,4 +127,34 @@ function googleConnectActions({ url, shopId, serviceKey, requireAdmin, requireOw
   return { handleGoogleConnect };
 }
 
-module.exports = { googleConnectActions, stockSheetRows, salesSheetRows, expensesSheetRows, STEPS, EXTRAS };
+/**
+ * Bookings into Google Calendar (bookings.js): the server's own calls to the platform's Google link, never the browser's.
+ * `put(id, event)` answers `{ available, meetUrl }`, `remove(id)` answers `{ available }`; both answer null when the
+ * link is down or refuses, so a booking never waits on Google. Short timeout: a customer is waiting for the answer.
+ */
+function googleCalendarSync({ url, shopId, serviceKey, fetch = globalThis.fetch, timeoutMs = 8000 }) {
+  async function call(op, args) {
+    const key = typeof serviceKey === "function" ? serviceKey() : "";
+    if (!url || !key) return null;
+    try {
+      const response = await fetch(`${url}/shop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Shop-Id": typeof shopId === "function" ? shopId() : shopId, Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ op, args }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) { console.warn("Google Calendar refused a booking:", body?.error?.message || response.status); return null; }
+      return body;
+    } catch (err) {
+      console.warn("Google Calendar unreachable:", err?.message || err);
+      return null;
+    }
+  }
+  return {
+    put: (id, event) => call("google.bookingEvent", { id, ...event }),
+    remove: (id) => call("google.bookingEventRemove", { id }),
+  };
+}
+
+module.exports = { googleConnectActions, googleCalendarSync, stockSheetRows, salesSheetRows, expensesSheetRows, STEPS, EXTRAS };

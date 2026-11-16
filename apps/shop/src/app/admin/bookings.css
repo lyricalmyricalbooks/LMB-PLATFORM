@@ -318,3 +318,8 @@
   .rp .bkg-list-row > :last-child { grid-column: 3; grid-row: 1; }
   .rp .bkg-list-what { font-size: 13px; }
 }
+
+/* Google Calendar and Meet (16 November 2026) */
+.bkg-gcal { display: grid; gap: 6px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rp-border); }
+.bkg-meet { display: grid; gap: 6px; }
+.bkg-detail-line a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

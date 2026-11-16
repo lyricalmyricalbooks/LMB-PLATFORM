@@ -43,6 +43,8 @@ export type BookingService = {
   holdCard: boolean;
   /** With `holdCard`: the most the owner may charge for a missed booking or a late cancellation, in cents. */
   lateFeeMinor: number;
+  /** A video call: with bookings going into Google Calendar, each booking gets its own Google Meet link. */
+  meet: boolean;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -83,6 +85,8 @@ export type BookingSettings = {
   secondReminderHours: number;
   /** The owner gets one email each morning (DAILY_SUMMARY_HOUR, the shop's time) listing the day's bookings. */
   dailySummary: boolean;
+  /** Each confirmed booking goes into the shop's Colophon calendar in the owner's Google account (Connect Google's Calendar box). */
+  googleCalendar: boolean;
 };
 
 /** A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. */
@@ -110,6 +114,7 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   waitHoldMinutes: 60,
   secondReminderHours: 0,
   dailySummary: false,
+  googleCalendar: false,
 };
 
 /** How long a freed place may be held for the first person on the waiting list. */
@@ -234,6 +239,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     classTimes: cleanClassTimes(s.classTimes),
     holdCard,
     lateFeeMinor,
+    meet: s.meet === true,
   };
 }
 
@@ -313,6 +319,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     waitHoldMinutes: (WAIT_HOLD_MINUTES as readonly number[]).includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
     secondReminderHours: secondReminder(s.secondReminderHours, reminderHours),
     dailySummary: s.dailySummary === true,
+    googleCalendar: s.googleCalendar === true,
   };
 }
 
