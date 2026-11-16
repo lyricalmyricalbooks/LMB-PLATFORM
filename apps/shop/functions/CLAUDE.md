@@ -1234,8 +1234,19 @@ browser read. Public `bookingWait` takes a class's full start (in `bookingTimes`
 `fullDays`: free with nothing booked, none now); it answers 409 `open` when there is room and `wait_full` at 30 a day
 per service. `tellWaitlist(days)` runs after every freed time (`freeTime`, and `moveTime` for the days left): each
 waiting person whose time or day has room gets one email (the `bookingEmail` budget) linking `/book?service=&day=`,
-and the entry is deleted. Nothing is held. `bookingSweep` forgets past days (`sweepWaitlist`). Admin ops: `waitlist`
+and the entry is deleted. `bookingSweep` forgets past days (`sweepWaitlist`). Admin ops: `waitlist`
 (`{ from, to }`) and `removeWaiting`.
+**Held places (16 November 2026):** a freed place is no longer a race. `tellWaitlist` walks the day's entries oldest
+first (`createdAt`, then id) and gives each one whose time has room a hold (`holdForWaiting`, one transaction): an
+`offer_<wid>` item on `bookingDays` (`held: true`, so `busyFrom` hides it from everyone and drops it after
+`STALE_HOLD_MS` if the sweep fails) plus `offerStart`/`offerUntil`/`offerKeyHash` on the entry, for `OFFER_MINUTES`
+(60, never past the start; a day waiter is held the first free time). The email links
+`/book?service=&day=&offer=<wid>&offerKey=<key>`; `offerFor` checks the key, service and end, `bookingTimes` then leaves
+the hold out of busy (and answers `held`) and `bookingStart` passes it to `takeTime`, which ignores and removes the
+item and deletes the entry in the same transaction. An entry with `offerUntil` is never offered again: the sweep
+(`offerUntil <=` now) drops the item, deletes the entry and calls `tellWaitlist` for its day, so the next person gets
+it; `removeWaiting` does the same. Asking `bookingWait` again while holding keeps the hold. Op `waitlist` answers
+`heldUntil`.
 **Deposits and paying at the visit (15 November 2026):** a service's `payment` is `free`, `full`, `deposit`
 (`depositMinor`, or `depositPercent` 1 to 99; an amount wins) or `atShop`; a booking's is `free`, `card`, `deposit` or
 `atShop`, with `priceMinor` always the whole price. Money questions go through the shared helpers in `bookingTimes`

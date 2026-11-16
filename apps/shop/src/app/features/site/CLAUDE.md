@@ -804,7 +804,9 @@ places are left (`bookTimePlacesLeft`, `bookTimeLastPlace`; from the server's `l
 **Waiting list:** in the new-booking flow only (`TimePicker`'s `waitlist`), a class's full times show as dashed chips
 (`bookTimeFull`) and a booked-up day offers `bookTimeWaitDay`; either opens `WaitForm` (name and email, words
 `bookTimeWait*`, styles `fm-book-wait` in `bookTimeStyle.ts`). A 409 `open` reloads the times. The email's link
-(`/book?service=&day=`, `wantedFromSearch`) opens that service on that day. The preview's sample class has one full time a day.
+(`/book?service=&day=`, `wantedFromSearch`) opens that service on that day. A held place (16 November 2026): the link
+adds `offer` and `offerKey`, which `TimePicker` and `bookingStart` send; the server's `held` answer pre-picks it and shows
+`bookTimeHeldNote` ({time}, {until}). The preview's sample class has one full time a day.
 **Book a time section (`BookTimeSection`, Add section › Engagement):** the shop's services as cards on any page, each
 button opening `/book?service=<id>` on that service. It renders nothing unless the shop takes bookings
 (`useBookingsLive`; Studio's preview shows the samples), asks `bookingInfo` once per visit (`bookingInfoOnce` in

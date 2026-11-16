@@ -306,7 +306,7 @@ function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: W
     finally { setRemoving(""); }
   };
   return (
-    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="Each person gets one email the moment a place opens. Nothing is held: the first to book gets it."
+    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="When a place opens, it is held for an hour for the first person in line and emailed to them. If they don't book it, it goes to the next."
       footer={<SecondaryButton onClick={onClose}>Done</SecondaryButton>}>
       {list.length === 0 ? <p className="bkg-day-empty">Nobody is waiting now.</p> : (
         <ul className="bkg-waitlist">
@@ -316,6 +316,7 @@ function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: W
                 <strong>{w.name}</strong>
                 <a href={`mailto:${w.email}`}>{w.email}</a>
                 <span>{w.serviceName} · {w.start ? timeText(w.start, ZONE) : "any time"}</span>
+                {w.heldUntil && <StatusBadge tone="warning">Place held until {timeText(w.heldUntil, ZONE)}</StatusBadge>}
               </div>
               <IconButton label={`Remove ${w.name}`} disabled={removing === w.id} onClick={() => void remove(w)}><X size={16} aria-hidden /></IconButton>
             </li>
