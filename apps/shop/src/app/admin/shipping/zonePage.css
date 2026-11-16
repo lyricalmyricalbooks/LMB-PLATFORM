@@ -1,0 +1,83 @@
+/* The shipping zone page (ZonePage.tsx): quick picks, the picked tray, search and the place list. Tokens only. */
+.zp-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.zp-pill {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 999px;
+  border: 1.5px solid var(--rp-border-strong); background: transparent; color: var(--rp-text);
+  font: 600 13px/1 var(--rp-font-body); cursor: pointer; white-space: nowrap;
+}
+.zp-pill:hover:not(:disabled):not([data-state="all"]) { background: var(--rp-surface-2); }
+.zp-pill:focus-visible, .zp-more:focus-visible, .zp-hit:focus-visible, .zp-chip button:focus-visible, .zp-search-input:focus-visible {
+  outline: 2px solid var(--rp-focus); outline-offset: 2px;
+}
+.zp-pill[data-state="some"] { border-style: dashed; }
+.zp-pill[data-state="all"] { background: var(--rp-inverse); border-color: var(--rp-inverse); color: var(--rp-on-inverse); }
+.zp-pill:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.zp-tray { min-height: 56px; padding: 12px; border-radius: var(--rp-radius-lg); background: var(--rp-tile-mint, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); }
+.zp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.zp-chip {
+  display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: 0 4px 0 12px; border-radius: 999px;
+  background: var(--rp-surface); color: var(--rp-text); font: 500 13px/1 var(--rp-font-body);
+}
+.zp-chip button {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--rp-text-muted); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.zp-chip button:hover { background: var(--rp-surface-2); color: var(--rp-text); }
+.zp-empty { margin: 0; font-size: 13px; line-height: 1.45; color: inherit; opacity: 0.8; }
+
+.zp-search { display: grid; gap: 6px; }
+.zp-search-input {
+  width: 100%; min-height: 44px; padding: 0 14px; border-radius: var(--rp-radius); border: 1.5px solid var(--rp-border);
+  background: var(--rp-surface); color: var(--rp-text); font: 400 14px/1.2 var(--rp-font-body);
+}
+.zp-search-input:hover { border-color: var(--rp-border-strong); }
+.zp-hits { display: grid; gap: 2px; margin: 0; padding: 4px; list-style: none; border-radius: var(--rp-radius); background: var(--rp-surface-2); max-height: 280px; overflow-y: auto; }
+.zp-hit {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 10px; border: 0;
+  border-radius: var(--rp-radius); background: transparent; color: var(--rp-text); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.zp-hit:hover:not(:disabled) { background: var(--rp-surface); }
+.zp-hit[aria-pressed="true"] { background: var(--rp-surface); font-weight: 600; }
+.zp-hit:disabled { opacity: 0.5; cursor: not-allowed; }
+.zp-hit-tick { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; border: 1.5px solid var(--rp-border-strong); font-size: 12px; flex: none; }
+.zp-hit[aria-pressed="true"] .zp-hit-tick { background: var(--rp-inverse); border-color: var(--rp-inverse); color: var(--rp-on-inverse); }
+
+.zp-tree, .zp-countries, .zp-states { margin: 0; padding: 0; list-style: none; }
+.zp-tree { display: grid; gap: 6px; }
+.zp-cont { border-radius: var(--rp-radius-lg); border: 1px solid var(--rp-border); background: var(--rp-surface); overflow: hidden; }
+.zp-cont-head { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 8px 0 14px; }
+.zp-cont[data-open] .zp-cont-head { background: var(--rp-surface-2); }
+.zp-cont-name { font: 600 14px/1.2 var(--rp-font-body); color: var(--rp-text); }
+.zp-countries { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 12px; padding: 8px 14px 12px; max-height: 420px; overflow-y: auto; }
+.zp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 36px; }
+.zp-row:has(.zp-states) { grid-column: 1 / -1; }
+.zp-row-main { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.zp-row-name { min-width: 0; font-size: 14px; line-height: 1.3; color: var(--rp-text); overflow-wrap: anywhere; }
+.zp-row[data-on] .zp-row-name { font-weight: 600; }
+.zp-held { font-size: 12px; color: var(--rp-text-muted); white-space: nowrap; }
+.zp-count { margin-left: auto; font-size: 12px; color: var(--rp-text-muted); white-space: nowrap; }
+.zp-more {
+  min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--rp-border); background: transparent;
+  color: var(--rp-text); font: 500 12px/1 var(--rp-font-body); cursor: pointer;
+}
+.zp-more:hover:not([aria-expanded="true"]) { border-color: var(--rp-border-strong); }
+.zp-more[aria-expanded="true"] { background: var(--rp-inverse); border-color: var(--rp-inverse); color: var(--rp-on-inverse); }
+.zp-states {
+  flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 10px;
+  margin: 4px 0 8px; padding: 10px 12px; border-radius: var(--rp-radius); background: var(--rp-surface-2);
+}
+.zp-states label { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 13px; color: var(--rp-text); cursor: pointer; }
+.zp-states li[data-on] label { font-weight: 600; }
+.zp-box { width: 18px; height: 18px; flex: none; margin: 0; accent-color: var(--rp-inverse); cursor: pointer; }
+.zp-box:disabled { cursor: not-allowed; }
+
+.zp-nudge { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--rp-radius-lg); background: var(--rp-tile-apricot, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); }
+.zp-nudge p { flex: 1 1 220px; margin: 0; font-size: 13px; line-height: 1.45; }
+
+@media (pointer: coarse) {
+  .zp-pill, .zp-hit { min-height: 44px; }
+  .zp-row, .zp-states label { min-height: 44px; }
+  .zp-more { min-height: 40px; }
+}
+.zp-note { margin: -10px 0 0; font-size: 12px; line-height: 1.4; color: var(--rp-text-muted); }
