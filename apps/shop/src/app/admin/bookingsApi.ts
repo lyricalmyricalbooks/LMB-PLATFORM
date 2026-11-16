@@ -79,7 +79,9 @@ export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLiv
 /** Someone who asked to hear when a full class time (start) or a booked-up day (no start) has room again. */
 export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string;
   /** A freed place held for them until then (the waiting list offers it first come, first served), else null. */
-  heldUntil?: string | null };
+  heldUntil?: string | null;
+  /** The start of the place held for them (a booked-up day's waiter is held the first free time). */
+  heldStart?: string | null };
 
 async function adminFromServer(op: AdminOp, body: Record<string, unknown> = {}): Promise<unknown> {
   const idToken = await auth.currentUser?.getIdToken();

@@ -77,6 +77,8 @@ export type BookingSettings = {
   step: number;
   /** Customers are emailed a reminder this many hours before; 0 sends none. */
   reminderHours: number;
+  /** A place freed for the waiting list is held this many minutes for the first person in line (WAIT_HOLD_MINUTES). */
+  waitHoldMinutes: number;
 };
 
 /** A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. */
@@ -101,7 +103,11 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   cancelHours: 24,
   step: 30,
   reminderHours: 24,
+  waitHoldMinutes: 60,
 };
+
+/** How long a freed place may be held for the first person on the waiting list. */
+export const WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720] as const;
 
 /** The reminder choices the owner picks from: none, or this many hours before. */
 export const REMINDER_HOURS = [0, 2, 12, 24, 48, 72] as const;
@@ -293,6 +299,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     cancelHours: whole(s.cancelHours, 0, 24 * 14, DEFAULT_BOOKING_SETTINGS.cancelHours),
     step,
     reminderHours: (REMINDER_HOURS as readonly number[]).includes(Number(s.reminderHours)) ? Number(s.reminderHours) : DEFAULT_BOOKING_SETTINGS.reminderHours,
+    waitHoldMinutes: (WAIT_HOLD_MINUTES as readonly number[]).includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
   };
 }
 

@@ -112,12 +112,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-11", services[0], new Date(Date.now() - 2 * 3_600_000).toISOString(), "Fay Example", { noShow: true, cardHold: true, lateFeeMinor: 2000, card: { customer: "cus_example", paymentMethod: "pm_example", brand: "visa", last4: "4242" } }),
     booking("bk-7", services[1], at(1, 15), "Gus Example", { status: "held", paid: false, clearing: true }),
   ] : [];
-  // Two people waiting for tomorrow's full class (the first holding a freed place) and one for a booked-up day.
+  // Two people waiting for tomorrow's full class (the first holding a freed place) and one for a booked-up day (held its first free time).
   const dayAhead = (days: number) => { const d = new Date(); d.setDate(d.getDate() + days); return d.toLocaleDateString("en-CA"); };
   let waiting = mode === "on" ? [
-    { id: "a".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Kit Example", email: "kit@example.com", createdAt: at(-1, 9), heldUntil: new Date(Date.now() + 42 * 60_000).toISOString() },
+    { id: "a".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Kit Example", email: "kit@example.com", createdAt: at(-1, 9), heldUntil: new Date(Date.now() + 42 * 60_000).toISOString(), heldStart: at(1, 13) },
     { id: "b".repeat(32), serviceId: "binding", serviceName: "Bookbinding class", day: dayAhead(1), start: at(1, 13), name: "Lou Example", email: "lou@example.com", createdAt: at(-1, 12) },
-    { id: "c".repeat(32), serviceId: "review", serviceName: "Portfolio review", day: dayAhead(1), start: null, name: "Max Example-Longername", email: "max.longername@example.com", createdAt: at(0, 8) },
+    { id: "c".repeat(32), serviceId: "review", serviceName: "Portfolio review", day: dayAhead(1), start: null, name: "Max Example-Longername", email: "max.longername@example.com", createdAt: at(0, 8), heldUntil: new Date(Date.now() + 100 * 60_000).toISOString(), heldStart: at(1, 16) },
   ] : [];
   // Six months of older bookings for the Figures tab: busier each month, Saturdays busiest, a few no-shows and one kept deposit.
   const history: Booking[] = mode === "on" ? Array.from({ length: 64 }, (_, i) => {

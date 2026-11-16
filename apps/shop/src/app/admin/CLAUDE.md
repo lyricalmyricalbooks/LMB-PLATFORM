@@ -1091,7 +1091,10 @@ name opens that person's booking.
 **Waiting list:** the week reads op `waitlist` for its seven days (again whenever the bookings change) and shows a
 dashed "N waiting" pill under a day's cards (`waitingByDay`, `waitingText`); it opens `WaitingDialog` (name, email,
 what they wait for, Remove = op `removeWaiting`). The server emails them; the owner never has to. Someone holding a
-freed place (16 November 2026) shows "Place held until <time>" (`heldUntil`); removing them passes it on.
+freed place (16 November 2026) shows "Place held until <time>" (`heldUntil`); removing them passes it on. The calendar
+shows each hold too (`heldPlaces` / `placeHolds` in `bookingsView.ts`, op `waitlist`'s `heldStart`): inside its class card
+as a dashed person (counted against Add a person), any other as a dashed row of its own; both open the waiting list.
+Hours & rules › **Hold a freed place for** sets `waitHoldMinutes`.
 **Figures tab:** the last six months (`FiguresPanel`): one read of the bookings (`readBookingsBetween`, admin read of
 the shop's own folder, no server call) into `bookingFigures` (`bookingsView.ts`): a confirmed booking counts (no-shows
 too), a held one doesn't, money is what was paid less refunds (a kept deposit counts), each booking sits on its own

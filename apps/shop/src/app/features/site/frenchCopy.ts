@@ -996,7 +996,7 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeDayFull: "Cette journée est complète.",
   bookTimeWaitDay: "M'avertir si un moment se libère",
   bookTimeWaitTitle: "M'avertir si une place se libère",
-  bookTimeWaitNote: "Nous vous écrirons si une place se libère le {when}. Elle est réservée une heure pour la première personne de la liste, puis offerte à la suivante.",
+  bookTimeWaitNote: "Nous vous écrirons si une place se libère le {when}. Elle est réservée un court moment pour la première personne de la liste, puis offerte à la suivante.",
   bookTimeHeldNote: "Votre place à {time} vous est réservée jusqu'à {until}. Réservez-la d'ici là et elle est à vous.",
   bookTimeWaitNeedEmail: "Veuillez indiquer une adresse courriel où vous joindre.",
   bookTimeWaitSend: "M'avertir",

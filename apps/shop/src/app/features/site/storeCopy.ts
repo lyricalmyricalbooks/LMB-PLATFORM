@@ -595,7 +595,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookTimeDayFull", label: "A day that is booked up", default: "This day is fully booked." },
       { key: "bookTimeWaitDay", label: "Waiting list button on a booked-up day", default: "Tell me if a time opens" },
       { key: "bookTimeWaitTitle", label: "Waiting list heading", default: "Tell me if a place opens" },
-      { key: "bookTimeWaitNote", label: "Waiting list note ({when} is the day or time)", default: "We'll email you if a place opens on {when}. It's held for the first person on the list for an hour, then offered to the next." },
+      { key: "bookTimeWaitNote", label: "Waiting list note ({when} is the day or time)", default: "We'll email you if a place opens on {when}. It's held for the first person on the list for a short time, then offered to the next." },
       { key: "bookTimeHeldNote", label: "A place held from the waiting list ({time} is the place, {until} when the hold ends)", default: "Your place at {time} is held for you until {until}. Book it before then and it's yours." },
       { key: "bookTimeWaitNeedEmail", label: "Waiting list: missing or wrong email", default: "Please add an email address we can reach you at." },
       { key: "bookTimeWaitSend", label: "Waiting list button", default: "Tell me" },

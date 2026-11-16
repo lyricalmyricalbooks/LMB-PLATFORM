@@ -10,8 +10,8 @@ import {
   SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
-import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, WAIT_HOLD_MINUTES, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -206,6 +206,9 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
           const list = groups.get(d) || [];
           const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
           const closed = settings.daysOff.includes(d) || settings.hours[wd].length === 0;
+          const slots = daySlots(list, placesOf);
+          // Places held for the waiting list: inside their class card, or a row of their own.
+          const holds = placeHolds(heldPlaces(waitingDays.get(d) || []), slots.flatMap((s) => (s.kind === "class" ? [{ serviceId: s.serviceId, start: s.start }] : [])));
           return (
             <section key={d} className="bkg-day" data-phone-shown={phoneDay === d || undefined} data-today={d === now || undefined} data-past={d < now || undefined} aria-label={dayText(d, "long")}>
               <header className="bkg-day-head">
@@ -214,9 +217,9 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                 {list.length > 0 && <IconButton label={`Who's coming on ${dayText(d, "long")}`} onClick={() => setListDay(d)}><ClipboardList size={16} aria-hidden /></IconButton>}
               </header>
               {rows === null ? <div className="bkg-skeleton" aria-hidden /> : list.length === 0 ? (
-                <p className="bkg-day-empty">{closed ? "Closed" : "Nothing booked"}</p>
-              ) : daySlots(list, placesOf).map((slot) => slot.kind === "class" ? (
-                <div key={slot.key} className="bkg-class" data-full={slot.people.length >= slot.places || undefined}>
+                !holds.loose.length && <p className="bkg-day-empty">{closed ? "Closed" : "Nothing booked"}</p>
+              ) : slots.map((slot) => { const held = slot.kind === "class" ? holds.inClass(slot.serviceId, slot.start) : []; return slot.kind === "class" ? (
+                <div key={slot.key} className="bkg-class" data-full={slot.people.length + held.length >= slot.places || undefined}>
                   <span className="bkg-slot-time">{timeText(slot.start, ZONE)}</span>
                   <span className="bkg-slot-who">{slot.serviceName}</span>
                   <span className="bkg-class-count"><Users size={13} aria-hidden /> {classCount(slot.people.length, slot.places)}</span>
@@ -229,9 +232,16 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                         </button>
                       </li>
                     ))}
+                    {held.map((h) => (
+                      <li key={h.id}>
+                        <button type="button" data-status="offer" aria-label={`${h.name}, place held from the waiting list until ${timeText(h.heldUntil, ZONE)}`} onClick={() => setWaitingDay(d)}>
+                          {h.name}<em>held until {timeText(h.heldUntil, ZONE)}</em>
+                        </button>
+                      </li>
+                    ))}
                   </ul>
-                  {slot.people.length < slot.places && Date.parse(slot.start) > Date.now() && serviceOf(slot.serviceId) && (
-                    <GhostButton size="sm" icon={<UserPlus size={14} aria-hidden />} onClick={() => setJoining({ service: serviceOf(slot.serviceId)!, start: slot.start, left: slot.places - slot.people.length })}>Add a person</GhostButton>
+                  {slot.people.length + held.length < slot.places && Date.parse(slot.start) > Date.now() && serviceOf(slot.serviceId) && (
+                    <GhostButton size="sm" icon={<UserPlus size={14} aria-hidden />} onClick={() => setJoining({ service: serviceOf(slot.serviceId)!, start: slot.start, left: slot.places - slot.people.length - held.length })}>Add a person</GhostButton>
                   )}
                 </div>
               ) : (
@@ -241,6 +251,14 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                   <span className="bkg-slot-what">{slot.booking.serviceName}</span>
                   {slot.booking.status === "held" && <span className="bkg-slot-tag">{slot.booking.clearing ? "Payment clearing" : "Paying now"}</span>}
                   {slot.booking.noShow && <span className="bkg-slot-tag">No-show</span>}
+                </button>
+              ); })}
+              {rows !== null && holds.loose.map((h) => (
+                <button key={h.id} type="button" className="bkg-slot" data-status="offer" onClick={() => setWaitingDay(d)}>
+                  <span className="bkg-slot-time">{timeText(h.heldStart, ZONE)}</span>
+                  <span className="bkg-slot-who">{h.name}</span>
+                  <span className="bkg-slot-what">{h.serviceName}</span>
+                  <span className="bkg-slot-tag">Held from the waiting list until {timeText(h.heldUntil, ZONE)}</span>
                 </button>
               ))}
               {(waitingDays.get(d)?.length || 0) > 0 && (
@@ -308,7 +326,7 @@ function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: W
     finally { setRemoving(""); }
   };
   return (
-    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="When a place opens, it is held for an hour for the first person in line and emailed to them. If they don't book it, it goes to the next."
+    <Dialog open onClose={onClose} title={`Waiting list · ${dayText(day, "long")}`} description="When a place opens, it is held for the first person in line and emailed to them. If they don't book it in time, it goes to the next. Set how long under Hours & rules."
       footer={<SecondaryButton onClick={onClose}>Done</SecondaryButton>}>
       {list.length === 0 ? <p className="bkg-day-empty">Nobody is waiting now.</p> : (
         <ul className="bkg-waitlist">
@@ -1051,6 +1069,9 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             </SelectField>
             <SelectField label="Reminder email" hint="Sent to customers before their booking, with a link to cancel or move it." value={String(form.reminderHours)} onChange={(e) => setForm({ ...form, reminderHours: Number(e.target.value) })}>
               {REMINDER_HOURS.map((h) => <option key={h} value={h}>{h === 0 ? "Don't send" : h < 24 ? `${h} hours before` : `${h / 24} day${h === 24 ? "" : "s"} before`}</option>)}
+            </SelectField>
+            <SelectField label="Hold a freed place for" hint="When a place opens, the first person on the waiting list has this long to book it before it goes to the next." value={String(form.waitHoldMinutes)} onChange={(e) => setForm({ ...form, waitHoldMinutes: Number(e.target.value) })}>
+              {WAIT_HOLD_MINUTES.map((m) => <option key={m} value={m}>{m < 60 ? `${m} minutes` : m === 60 ? "1 hour" : `${m / 60} hours`}</option>)}
             </SelectField>
             <SelectField label="Start times every" value={String(form.step)} onChange={(e) => setForm({ ...form, step: Number(e.target.value) })}>
               {BOOKING_STEPS.map((m) => <option key={m} value={m}>{m === 60 ? "hour" : `${m} minutes`}</option>)}
