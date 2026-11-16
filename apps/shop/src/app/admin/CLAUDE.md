@@ -1131,8 +1131,11 @@ studio, services) gets `MenuKind` "services" (`riso/nav.ts` `adminMenu` / `sideM
 Marketing, Analytics, Online store, Settings; second side "Money" = invoices, tax, bookkeeping), client words
 (`servicesWords`), no Shipping settings and no fair mode. `firstWeek/start.sellsProducts` (Settings › General › What you
 do › **Sell products too**, event `SELLS_PRODUCTS_CHANGED_EVENT`) gives it the normal shop menu back. Setup turns Bookings
-on for it. The rules let only a shop that is already a services one save a service answer; the kind is picked at sign-up
-while the control room's "Services shops can sign up" is on. Fixture: `admin-fixture.html?sells=hair` (`&products=1`).
+on for it. The rules let a shop save a service answer only when it is a services one already or the control room has turned
+Bookings on for it (`platform/features.bookings`); the kind is picked at sign-up while the control room's "Services
+shops can sign up" is on. **Switching kind (16 November 2026):** in such a shop, What you sell / What you do offers both
+groups (`sellsGroupsFor`), and a change of kind asks first (`kindSwitchQuestion`) and fires `SELLS_CHANGED_EVENT`, so the
+menu and Home follow at once. Nothing is moved or removed either way. Fixture: `admin-fixture.html?sells=hair` (`&products=1`).
 Tests: `servicesShop.test.ts`.
 
 **Setting up (`servicesSetup.ts`, `servicesOnly(doc)` = services answer without Sell products too).** Get started walks

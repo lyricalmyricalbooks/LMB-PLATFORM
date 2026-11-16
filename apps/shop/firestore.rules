@@ -389,12 +389,14 @@ service cloud.firestore {
             && request.resource.data.get("country", null) == resource.data.get("country", null)
             && request.resource.data.get("plan", null) == resource.data.get("plan", null)))
           // A services answer (a salon, a studio, a tutor) is kept or changed only in a shop that is already a
-          // services shop: sign-up makes one, and the platform decides when that kind is open. `sellsProducts` is such
-          // a shop also selling a few products.
+          // services shop, or one the platform has turned Bookings on for (Settings › General › What you do switches
+          // a product shop over then): sign-up makes one, and the platform decides when that kind is open.
+          // `sellsProducts` is such a shop also selling a few products.
           && (!("sells" in request.resource.data) || request.resource.data.sells in ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other"]
             || (request.resource.data.sells in ["hair", "wellness", "lessons", "fitness", "studio", "services"] && resource != null
               && (resource.data.get("publishes", "") in ["hair", "wellness", "lessons", "fitness", "studio", "services"]
-                || resource.data.get("sells", "") in ["hair", "wellness", "lessons", "fitness", "studio", "services"])))
+                || resource.data.get("sells", "") in ["hair", "wellness", "lessons", "fitness", "studio", "services"]
+                || get(/databases/$(database)/documents/shops/$(shopId)/platform/features).data.get("bookings", false) == true)))
           && (!("sellsProducts" in request.resource.data) || request.resource.data.sellsProducts is bool)
           && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
           && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string)
