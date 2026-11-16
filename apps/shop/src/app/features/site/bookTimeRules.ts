@@ -13,6 +13,8 @@ export type BookingView = {
   name: string; email: string; refunded: boolean; canChange: boolean; cancelHours: number;
   /** Card on file: whether one is kept, its last four numbers, the fee for missing it, and a fee once charged. */
   cardHold?: boolean; cardLast4?: string; lateFeeMinor?: number; feeMinor?: number;
+  /** Pay the rest: whether what is left can be paid by card from this page, and what was paid that way. */
+  canPayRest?: boolean; restPaidMinor?: number;
 };
 
 /** How many days the picker shows at once. */

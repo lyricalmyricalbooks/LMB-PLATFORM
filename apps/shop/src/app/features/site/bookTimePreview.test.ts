@@ -39,6 +39,14 @@ describe("the Book a time page in Studio's preview", () => {
     expect(ask("bookingMove", { start: "2026-11-19T15:00:00.000Z" }).booking.start).toBe("2026-11-19T15:00:00.000Z");
     expect(ask("bookingCancel").booking).toMatchObject({ status: "cancelled", refunded: true, canChange: false });
   });
+
+  it("shows paying what is left after a deposit, with no card page", () => {
+    ask("bookingStart", { serviceId: "sample-class", start: "2026-11-21T19:00:00.000Z" });
+    expect(ask("bookingView").booking).toMatchObject({ canPayRest: true, dueMinor: 4000, restPaidMinor: 0 });
+    const paid = ask("bookingPayRest").booking;
+    expect(paid).toMatchObject({ canPayRest: false, dueMinor: 0, restPaidMinor: 4000 });
+    expect(paid.url).toBeUndefined();
+  });
 });
 
 describe("the header's Book a time link", () => {

@@ -15,6 +15,8 @@ export type Booking = {
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
   /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */
   cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
+  /** What was left, paid later by card from the client's booking page; `restOpen` while a page to pay it is open. */
+  rest?: { amountMinor: number; at: string } | null; restOpen?: boolean;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
 };
 
@@ -72,7 +74,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "calendarFeed" | "waitlist" | "removeWaiting";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting";
 
 /** Someone who asked to hear when a full class time (start) or a booked-up day (no start) has room again. */
 export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string;

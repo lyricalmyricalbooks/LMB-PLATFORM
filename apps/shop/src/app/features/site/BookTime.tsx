@@ -552,6 +552,22 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   const title = booking.status === "cancelled" ? c("bookTimeCancelledTitle") : booking.status === "held" ? c("bookTimeHeldTitle") : c("bookTimeConfirmedTitle");
   const stamp = booking.status === "cancelled" ? "ended" : booking.status === "held" ? "unpaid" : "paid";
 
+  const fullyPaid = booking.paid || (!!booking.restPaidMinor && !booking.dueMinor);
+  // Pay what is left: the shop's own card page, which comes back here.
+  const payRest = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const answer = await ask("bookingPayRest", { id, key: manageKey });
+      if (answer?.url) window.location.assign(answer.url);
+      else { if (answer?.booking) setBooking(answer.booking); setBusy(false); }
+    } catch (err: any) {
+      setBusy(false);
+      if (err?.code === "nothing_due") void load(true);
+      else setError(c("bookTimeError"));
+    }
+  };
+
   const act = async (action: "bookingMove" | "bookingCancel", body: Record<string, unknown> = {}) => {
     setBusy(true);
     setError("");
@@ -603,12 +619,13 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         {booking.location && <Row label={c("bookTimeWhere")} value={booking.location} />}
         <div className="fm-track-total">
           <span className="fm-track-mono">{c("bookTimePaid")}</span>
-          <strong translate="no">{booking.priceMinor > 0 ? (booking.paid ? c("bookTimePaidAmount", { amount: moneyText(booking.priceMinor, booking.currency) }) : moneyText(booking.priceMinor, booking.currency)) : c("bookTimeFree")}</strong>
+          <strong translate="no">{booking.priceMinor > 0 ? (fullyPaid ? c("bookTimePaidAmount", { amount: moneyText(booking.priceMinor, booking.currency) }) : moneyText(booking.priceMinor, booking.currency)) : c("bookTimeFree")}</strong>
         </div>
-        {booking.status !== "cancelled" && !booking.paid && booking.depositPaid && (
+        {booking.status !== "cancelled" && !fullyPaid && booking.depositPaid && (
           <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositPaid", { deposit: moneyText(booking.depositMinor || 0, booking.currency), rest: moneyText(booking.dueMinor || 0, booking.currency) })}</p>
         )}
-        {booking.status === "confirmed" && booking.payment === "atShop" && !booking.paid && booking.priceMinor > 0 && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
+        {booking.status !== "cancelled" && !booking.paid && !!booking.restPaidMinor && !booking.dueMinor && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimeRestPaid")}</p>}
+        {booking.status === "confirmed" && booking.payment === "atShop" && !fullyPaid && booking.priceMinor > 0 && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
         {booking.status === "confirmed" && booking.cardLast4 && !booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardOnFile", { last4: booking.cardLast4, fee: moneyText(booking.lateFeeMinor || 0, booking.currency) })}</p>}
         {!!booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeFeeCharged", { fee: moneyText(booking.feeMinor, booking.currency) })}</p>}
       </div>
@@ -619,6 +636,14 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
 
       {booking.status === "confirmed" && mode === "view" && (
         <div {...regionProps("bookingsActions")} className="space-y-5">
+          {booking.canPayRest && (
+            <div className="space-y-2">
+              <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void payRest()} translate="no">
+                {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimePayRest", { amount: moneyText(booking.dueMinor || 0, booking.currency) })}
+              </button>
+              <p className="text-sm leading-6 fm-muted">{c("bookTimePayRestNote")}</p>
+            </div>
+          )}
           <div className="fm-book-actions">
             <button type="button" className="fm-track-btn" onClick={download}><CalendarPlus size={16} aria-hidden="true" /> {c("bookTimeAddCalendar")}</button>
             <a className="fm-track-btn fm-track-btn-ghost" href={googleCalendarLink({ title: booking.serviceName, start: startMs, end: endMs, location: booking.location })} target="_blank" rel="noopener noreferrer">{c("bookTimeGoogle")}</a>

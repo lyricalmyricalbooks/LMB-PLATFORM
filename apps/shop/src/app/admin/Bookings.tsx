@@ -3,7 +3,7 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, CalendarPlus, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, MapPin, Plus, Printer, Trash2, Users, X } from "lucide-react";
+import { BellRing, CalendarPlus, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Users, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
@@ -11,13 +11,14 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
 import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, MAX_FREE_LATE_FEE, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
 import { copyText } from "./clipboard";
 import { daySheetHtml, printDaySheet } from "./bookingsDaySheet";
 import { toCsv } from "./spreadsheetFile";
+import { qrPicture } from "./stockroom/qrCodesStore";
 import { saveFile } from "./xlsxWriter";
 import "./bookings.css";
 
@@ -487,6 +488,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
             {(b.payment === "atShop" || (b.payment === "deposit" && b.depositPaid)) && <Toggle label={b.payment === "deposit" ? `Rest paid at the shop (${moneyText(Math.max(0, b.priceMinor - (b.depositMinor || 0)), b.currency)})` : "Paid at the shop"} checked={b.paid} disabled={!!busy} onChange={(v) => void run("paid", "paidAtShop", { value: v }, v ? "Marked paid" : "Paid mark taken off")} />}
           </div>
         )}
+        {restPayable(b) && <PayRestPanel booking={b} />}
         {feeChargeable(b, Date.now()) && (
           <div className="bkg-fee">
             <p>{b.status === "cancelled" ? "You cancelled this late." : b.noShow ? "They didn't turn up." : "If they didn't turn up,"} You can charge the {moneyText(b.lateFeeMinor || 0, b.currency)} fee they agreed to.</p>
@@ -524,6 +526,49 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
       )}
       {confirmNode}
     </Drawer>
+  );
+}
+
+/**
+ * What is left to pay on a booking, and three ways to take it by card: copy the client's pay link, email it to them, or
+ * show it as a QR code at the desk. The link is the same every time (the server keeps it), so a printed code keeps working.
+ */
+function PayRestPanel({ booking: b }: { booking: Booking }) {
+  const [busy, setBusy] = useState("");
+  const [qr, setQr] = useState<{ url: string; picture: string } | null>(null);
+  const due = moneyText(balanceDue(b), b.currency);
+  const first = b.customer.name.split(" ")[0] || "them";
+  const link = async (what: "copy" | "send" | "qr") => {
+    setBusy(what);
+    try {
+      const r = await bookingsAdmin<{ url: string }>("payLink", { id: b.id, send: what === "send" });
+      if (what === "copy") await copyText(r.url, "Pay link");
+      else if (what === "send") toast.success(`Sent to ${b.customer.email}`);
+      else setQr({ url: r.url, picture: await qrPicture(r.url, 8) });
+    } catch (e: any) {
+      toast.error(e?.message || "The pay link couldn't be made. Please try again.");
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <div className="bkg-fee bkg-due">
+      <p><strong>{due} left to pay.</strong> {first} can pay it by card from a link, before or at the visit.</p>
+      <div className="bkg-due-actions">
+        <SecondaryButton size="sm" onClick={() => void link("copy")} busy={busy === "copy"} disabled={!!busy}><Copy size={15} aria-hidden /> Copy pay link</SecondaryButton>
+        <SecondaryButton size="sm" onClick={() => void link("send")} busy={busy === "send"} disabled={!!busy}><Mail size={15} aria-hidden /> Email it</SecondaryButton>
+        <SecondaryButton size="sm" onClick={() => void link("qr")} busy={busy === "qr"} disabled={!!busy}><QrCode size={15} aria-hidden /> Show QR code</SecondaryButton>
+      </div>
+      {qr && (
+        <Dialog open onClose={() => setQr(null)} title={`Pay ${due}`} description={`${first} points their phone camera at the code and pays by card. The booking shows as paid in full straight after.`}
+          footer={<PrimaryButton onClick={() => setQr(null)}>Done</PrimaryButton>}>
+          <div className="bkg-qr">
+            <img src={qr.picture} alt={`QR code to pay ${due} for ${b.serviceName}`} width={264} height={264} />
+            <p>{b.serviceName} · {b.customer.name}</p>
+          </div>
+        </Dialog>
+      )}
+    </div>
   );
 }
 
