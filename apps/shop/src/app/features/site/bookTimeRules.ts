@@ -1,21 +1,27 @@
 // Book a time page (features/site/BookTime.tsx): the pure rules. Days and times are the shop's own (the server sends its
 // time zone), so a shopper abroad sees the times the shop keeps, with the zone named under the picker.
-import { addDays } from "../../../shared/bookingTimes";
+import { addDays, depositOf } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
-export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full"; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number };
+export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[] };
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; start: string; end: string;
-  status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "atShop"; paid: boolean; priceMinor: number; currency: string;
+  status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop"; paid: boolean; priceMinor: number; currency: string;
+  /** With payment "deposit": what was asked by card when booking, whether it is paid, and what is left for the visit. */
+  depositMinor?: number; depositPaid?: boolean; dueMinor?: number;
   name: string; email: string; refunded: boolean; canChange: boolean; cancelHours: number;
 };
 
 /** How many days the picker shows at once. */
 export const DAYS_SHOWN = 7;
 
-/** A service is paid up front only when it costs something and the owner asked for payment. */
-export const paysUpFront = (s: Pick<BookingServiceView, "payment" | "priceMinor">) => s.payment === "full" && s.priceMinor > 0;
+/** What the card page takes when this service is booked: the whole price, its deposit, or nothing. */
+export const upFrontMinor = (s: Pick<BookingServiceView, "payment" | "priceMinor" | "depositMinor" | "depositPercent">) => depositOf(s);
+/** A service is paid up front (all of it, or a deposit) only when the owner asked for payment when booking. */
+export const paysUpFront = (s: Pick<BookingServiceView, "payment" | "priceMinor" | "depositMinor" | "depositPercent">) => upFrontMinor(s) > 0;
+/** A service that takes only a deposit when booked, the rest at the visit. */
+export const takesDeposit = (s: Pick<BookingServiceView, "payment" | "priceMinor" | "depositMinor" | "depositPercent">) => s.payment === "deposit" && upFrontMinor(s) > 0 && upFrontMinor(s) < s.priceMinor;
 
 export function moneyText(minor: number, currency: string): string {
   try {

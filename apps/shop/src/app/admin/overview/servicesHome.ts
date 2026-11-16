@@ -1,6 +1,6 @@
 // Home for a services shop (services plan, phase 1): the day is its appointments, not parcels and stock. Pure rules for
 // HomeServices.tsx, over the bookings Home follows (two weeks back, to catch what was never marked paid, and a week on).
-import { addDays, dayOf } from "../../../shared/bookingTimes";
+import { addDays, balanceDue, dayOf, moneyTaken } from "../../../shared/bookingTimes";
 import type { Booking } from "../bookingsApi";
 
 /** How far back and ahead Home reads bookings. */
@@ -41,9 +41,9 @@ export function servicesDay(rows: readonly Booking[], nowMs: number, zone: strin
     week: {
       count: inWeek.length,
       hours: Math.round(inWeek.reduce((n, b) => n + b.minutes, 0) / 6) / 10,
-      takenMinor: inWeek.reduce((n, b) => n + (b.paid ? b.priceMinor : 0), 0),
+      takenMinor: inWeek.reduce((n, b) => n + moneyTaken(b), 0),
     },
-    unpaid: live.filter((b) => b.payment === "atShop" && !b.paid && !b.noShow && b.priceMinor > 0 && Date.parse(b.end) <= nowMs),
+    unpaid: live.filter((b) => (b.payment === "atShop" || b.payment === "deposit") && !b.noShow && balanceDue(b) > 0 && Date.parse(b.end) <= nowMs),
   };
 }
 

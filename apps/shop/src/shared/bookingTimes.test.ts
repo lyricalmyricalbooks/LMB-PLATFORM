@@ -162,3 +162,24 @@ describe("group classes", () => {
     expect(cleanService({ name: "Big", minutes: 30, places: 5000 })).toMatchObject({ places: 100 });
   });
 });
+
+describe("deposits", () => {
+  it("works out what a service takes by card when booked", async () => {
+    const { depositOf } = await import("./bookingTimes");
+    expect(depositOf({ payment: "full", priceMinor: 6000 })).toBe(6000);
+    expect(depositOf({ payment: "deposit", priceMinor: 14000, depositPercent: 25 })).toBe(3500);
+    expect(depositOf({ payment: "deposit", priceMinor: 14000, depositMinor: 2000, depositPercent: 25 })).toBe(2000);
+    expect(depositOf({ payment: "atShop", priceMinor: 6000 })).toBe(0);
+    expect(depositOf({ payment: "free", priceMinor: 0 })).toBe(0);
+  });
+  it("reads a booking's money the same way everywhere", async () => {
+    const { balanceDue, cardAsk, cardTaken, moneyKept, moneyTaken } = await import("./bookingTimes");
+    const dep = { payment: "deposit", priceMinor: 14000, depositMinor: 3500, depositPaid: true };
+    expect([cardAsk(dep), cardTaken(dep), moneyTaken(dep), balanceDue(dep)]).toEqual([3500, 3500, 3500, 10500]);
+    expect([cardTaken({ ...dep, paid: true }), moneyTaken({ ...dep, paid: true }), balanceDue({ ...dep, paid: true })]).toEqual([3500, 14000, 0]);
+    expect(balanceDue({ ...dep, status: "cancelled" })).toBe(0);
+    expect(moneyKept({ ...dep, refund: { amountMinor: 1000 } })).toBe(2500);
+    expect([cardAsk({ payment: "card", priceMinor: 4000 }), cardTaken({ payment: "card", priceMinor: 4000 }), cardTaken({ payment: "card", priceMinor: 4000, paid: true })]).toEqual([4000, 0, 4000]);
+    expect([cardTaken({ payment: "atShop", priceMinor: 6000, paid: true }), balanceDue({ payment: "atShop", priceMinor: 6000 })]).toEqual([0, 6000]);
+  });
+});

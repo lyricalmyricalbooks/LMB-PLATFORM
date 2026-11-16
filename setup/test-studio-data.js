@@ -7,7 +7,7 @@ const HOURS = Object.freeze({ start: "10:00", end: "18:00" });
 
 const service = (id, order, name, minutes, priceMinor, extra = {}) => ({
   path: `bookingServices/${id}`,
-  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", location: "Test Studio, 1 Test Street", active: true, order, questions: [], places: 1, classTimes: [], ...extra },
+  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "Test Studio, 1 Test Street", active: true, order, questions: [], places: 1, classTimes: [], ...extra },
 });
 
 /** The Test Studio's services and hours: [{ path, data }]. */
@@ -15,7 +15,8 @@ export function testStudioDocs() {
   return [
     service("test-consultation", 0, "Test Consultation", 15, 0, { description: "A free chat about what you'd like.", gapAfter: 0 }),
     service("test-cut", 1, "Test Cut and Style", 45, 6000, { description: "Wash, cut and blow-dry.", questions: [{ id: "q1", label: "Anything we should know?", long: true, required: false }] }),
-    service("test-colour", 2, "Test Colour", 120, 14000, { description: "Full colour with a toner.", gapAfter: 30 }),
+    // A deposit when booking, the rest at the visit: what most salons do for a long appointment.
+    service("test-colour", 2, "Test Colour", 120, 14000, { description: "Full colour with a toner.", gapAfter: 30, payment: "deposit", depositPercent: 25 }),
     {
       path: "bookingSettings/main",
       // Tuesday to Saturday, ten to six. Live, so the Book a time page answers.

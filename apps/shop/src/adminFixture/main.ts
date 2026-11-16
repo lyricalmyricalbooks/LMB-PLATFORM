@@ -82,12 +82,13 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
 {
   const mode = new URLSearchParams(window.location.search).get("bookings") || "on";
   const service = (id: string, name: string, minutes: number, priceMinor: number, order: number, extra: Partial<BookingService> = {}): BookingService => ({
-    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], ...extra,
+    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], ...extra,
   });
   let services: BookingService[] = mode === "new" ? [] : [
     service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes." }),
     service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
     service("binding", "Bookbinding class", 90, 3000, 2, { active: false, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
+    service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25 }),
   ];
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new" };
   const at = (days: number, hour: number, minute = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, minute, 0, 0); return d.toISOString(); };
@@ -103,6 +104,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin" }),
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
+    booking("bk-6", services[3], at(0, 9), "Flo Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false }),
     booking("bk-8", services[2], at(1, 13), "Hal Example"),
     booking("bk-9", services[2], at(1, 13), "Ivy Example", { status: "held", paid: false }),
     booking("bk-10", services[2], at(1, 13), "Jo Example"),

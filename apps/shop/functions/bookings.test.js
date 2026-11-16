@@ -125,7 +125,7 @@ describe("customers book", () => {
     const { body } = await t.pub({ action: "bookingInfo" });
     expect(body.on).toBe(true);
     expect(body.services.map((s) => s.id).sort()).toEqual(["review", "visit"]);
-    expect(Object.keys(body.services[0]).sort()).toEqual(["description", "id", "location", "minutes", "name", "payment", "places", "priceMinor", "questions"]);
+    expect(Object.keys(body.services[0]).sort()).toEqual(["depositMinor", "depositPercent", "description", "id", "location", "minutes", "name", "payment", "places", "priceMinor", "questions"]);
   });
 
   test("a free booking is confirmed at once, emailed, and its time is gone for the next customer", async () => {
@@ -614,5 +614,103 @@ describe("the waiting list", () => {
     expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 0 });
     t.clock.now = new Date("2026-11-22T13:00:00Z");
     expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 1 });
+  });
+});
+
+describe("deposits and paying at the visit", () => {
+  const seedMore = async (t) => {
+    await t.seed();
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 14000, depositPercent: 25 });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const bookColour = async (t) => {
+    const r = await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_dep" });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    return { r, view };
+  };
+
+  test("a service keeps a deposit only when it is less than its price", async () => {
+    const t = setup();
+    await t.seed();
+    const base = { name: "Colour", minutes: 60, priceMinor: 14000, payment: "deposit" };
+    expect((await t.adm({ op: "saveService", service: base })).statusCode).toBe(400);
+    expect((await t.adm({ op: "saveService", service: { ...base, depositMinor: 14000 } })).statusCode).toBe(400);
+    expect((await t.adm({ op: "saveService", service: { ...base, depositMinor: 20 } })).statusCode).toBe(400);
+    expect((await t.adm({ op: "saveService", service: { ...base, depositPercent: 100 } })).statusCode).toBe(400);
+    const saved = await t.adm({ op: "saveService", service: { ...base, depositMinor: 3000, depositPercent: 50 } });
+    expect(saved.body.service).toMatchObject({ payment: "deposit", depositMinor: 3000, depositPercent: 0 });
+  });
+
+  test("the card page takes only the deposit, and the rest stays due at the visit", async () => {
+    const t = setup();
+    await seedMore(t);
+    const { r, view } = await bookColour(t);
+    expect(r.body.status).toBe("held");
+    expect(t.opened[0].params.line_items[0].price_data).toMatchObject({ unit_amount: 3500, product_data: { name: "Moth Press: Colour (deposit)" } });
+    expect(view.body.booking).toMatchObject({ status: "confirmed", payment: "deposit", paid: false, depositPaid: true, depositMinor: 3500, priceMinor: 14000, dueMinor: 10500 });
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ paid: false, depositPaid: true, paymentIntent: "pi_dep" });
+    const email = t.emails.find((e) => e.to === "ada@example.com").html;
+    expect(email).toMatch(/Deposit paid:<\/strong> \$35\.00/);
+    expect(email).toMatch(/To pay at your visit:<\/strong> \$105\.00/);
+  });
+
+  test("a card page paid for another amount never confirms a deposit booking", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_x", amount_total: 100 });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking).toMatchObject({ status: "held", depositPaid: false });
+  });
+
+  test("the owner marks the rest paid at the shop, and only once a deposit is in", async () => {
+    const t = setup();
+    await seedMore(t);
+    const { r } = await bookColour(t);
+    expect((await t.adm({ op: "paidAtShop", id: r.body.id })).statusCode).toBe(200);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ paid: true, depositPaid: true });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking).toMatchObject({ paid: true, dueMinor: 0 });
+    // A booking paid in full by card has nothing due at the shop.
+    const full = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-19", "13:00"), ...CUSTOMER });
+    expect((await t.adm({ op: "paidAtShop", id: full.body.id })).statusCode).toBe(409);
+  });
+
+  test("the customer's own cancel refunds the deposit, never the whole price", async () => {
+    const t = setup();
+    await seedMore(t);
+    const { r } = await bookColour(t);
+    const c = await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect(c.body.booking).toMatchObject({ status: "cancelled", refunded: true, dueMinor: 0 });
+    expect(t.refunds).toEqual([expect.objectContaining({ amountMinor: 3500, paymentIntentId: "pi_dep", idempotencyKey: "booking-refund-booking001" })]);
+    expect(t.emails.at(-2).html + t.emails.at(-1).html).toMatch(/Your deposit is being refunded/);
+  });
+
+  test("the owner can keep the deposit, give part back, and never more than the deposit", async () => {
+    const t = setup();
+    await seedMore(t);
+    const { r } = await bookColour(t);
+    expect((await t.adm({ op: "cancel", id: r.body.id, refundMinor: 14000 })).statusCode).toBe(400);
+    const c = await t.adm({ op: "cancel", id: r.body.id, refundMinor: 1000 });
+    expect(c.body).toEqual({ ok: true, refunded: true, refundMinor: 1000 });
+    expect(t.emails.at(-1).html).toMatch(/\$10\.00 of your deposit is being refunded/);
+  });
+
+  test("a service paid at the visit is booked at once with its price due, and the owner marks it paid", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    expect(r.body.status).toBe("confirmed");
+    expect(t.opened).toHaveLength(0);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ payment: "atShop", priceMinor: 6000, paid: false });
+    expect(t.emails[0].html).toMatch(/To pay at your visit:<\/strong> \$60\.00/);
+    expect((await t.adm({ op: "paidAtShop", id: r.body.id })).statusCode).toBe(200);
+    expect(t.db.store.get("bookings/booking001").paid).toBe(true);
+  });
+
+  test("the owner booking someone into a deposit service takes nothing by card: all of it is due at the visit", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await t.adm({ op: "create", serviceId: "colour", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ payment: "atShop", priceMinor: 14000, paid: false });
   });
 });

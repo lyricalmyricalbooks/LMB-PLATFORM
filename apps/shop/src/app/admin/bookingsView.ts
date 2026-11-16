@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, dayOf, weekdayOf } from "../../shared/bookingTimes";
+import { addDays, balanceDue, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf } from "../../shared/bookingTimes";
 import type { Booking, Waiting } from "./bookingsApi";
 
 /** One card in a day's column: a single booking, or a group class with everyone booked into it. */
@@ -112,10 +112,16 @@ export function whenFromNow(b: Booking, nowMs: number, zone: string): string {
 }
 
 /** How a booking is paid, in plain words. */
-export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "currency" | "refund" | "status" | "clearing">): string {
-  if (b.refund?.amountMinor) return b.refund.amountMinor < b.priceMinor ? `Refunded ${moneyText(b.refund.amountMinor, b.currency)} of ${moneyText(b.priceMinor, b.currency)}` : `Refunded ${moneyText(b.refund.amountMinor, b.currency)}`;
-  if (b.payment === "card" && !b.paid && b.status === "held" && b.clearing) return "Bank payment clearing";
+export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing">): string {
+  const onCard = cardTaken(b);
+  if (b.refund?.amountMinor) return b.refund.amountMinor < onCard ? `Refunded ${moneyText(b.refund.amountMinor, b.currency)} of ${moneyText(onCard, b.currency)}` : `Refunded ${moneyText(b.refund.amountMinor, b.currency)}`;
+  if ((b.payment === "card" || b.payment === "deposit") && !onCard && b.status === "held" && b.clearing) return "Bank payment clearing";
   if (b.payment === "free") return "Free";
+  if (b.payment === "deposit") {
+    if (b.paid) return `Paid ${moneyText(b.priceMinor, b.currency)} (${moneyText(b.depositMinor || 0, b.currency)} deposit by card, the rest at the shop)`;
+    if (b.depositPaid) return `${moneyText(b.depositMinor || 0, b.currency)} deposit paid by card, ${moneyText(balanceDue(b), b.currency)} to pay at the shop`;
+    return b.status === "held" ? "Paying the deposit now" : "Deposit not paid";
+  }
   if (b.payment === "card") return b.paid ? `Paid ${moneyText(b.priceMinor, b.currency)} by card` : b.status === "held" ? "Paying now" : "Not paid";
   return b.paid ? `Paid ${moneyText(b.priceMinor, b.currency)} at the shop` : `${moneyText(b.priceMinor, b.currency)} to pay at the shop`;
 }
@@ -126,7 +132,7 @@ export function weekFigures(rows: readonly Booking[]): { count: number; hours: n
   return {
     count: live.length,
     hours: Math.round(live.reduce((n, b) => n + b.minutes, 0) / 6) / 10,
-    takenMinor: live.reduce((n, b) => n + (b.paid ? b.priceMinor : 0), 0),
+    takenMinor: live.reduce((n, b) => n + moneyTaken(b), 0),
   };
 }
 
@@ -186,7 +192,7 @@ export function bookingFigures(rows: readonly Booking[], zone: string, months: r
     const day = dayOf(startMs, zone);
     const m = byMonth.get(day.slice(0, 7));
     if (!m || b.status === "held") continue;
-    if (b.paid) m.takenMinor += Math.max(0, b.priceMinor - (b.refund?.amountMinor || 0));
+    m.takenMinor += moneyKept(b);
     if (b.status === "cancelled") { m.cancelled += 1; continue; }
     m.count += 1;
     if (b.noShow) m.noShows += 1;

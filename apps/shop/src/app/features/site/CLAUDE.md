@@ -810,3 +810,7 @@ button opening `/book?service=<id>` on that service. It renders nothing unless t
 (`useBookingsLive`; Studio's preview shows the samples), asks `bookingInfo` once per visit (`bookingInfoOnce` in
 `bookTimeAsk.ts`, which the page shares) and picks the cards with `sectionServices`. Words that aren't section fields
 (Free, class size) come from Text & labels › Bookings page.
+**Deposits (15 November 2026):** `bookTimeRules.ts` `upFrontMinor` / `paysUpFront` / `takesDeposit` (from the shared
+`depositOf`). A deposit service shows Text & labels › `bookTimeDepositNote` on its card and summary, the button is
+`bookTimePayDeposit`, the confirmation shows `bookTimeDepositPaid` and what is left, and cancelling says
+`bookTimeCancelDepositRefund`. All four have French twins in `frenchCopy.ts`.

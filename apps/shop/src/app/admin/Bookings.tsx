@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
 import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, classCount, daySlots, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, BOOKING_STEPS, dayOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, BOOKING_STEPS, cardTaken, dayOf, depositOf, REMINDER_HOURS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { copyText } from "./clipboard";
@@ -392,7 +392,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
       setBusy("");
     }
   };
-  const paidByCard = b.payment === "card" && b.paid && !b.refund;
+  const paidByCard = cardTaken(b) > 0 && !b.refund;
   const [cancelling, setCancelling] = useState(false);
   const cancel = async () => {
     if (paidByCard) { setCancelling(true); return; }
@@ -431,7 +431,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
         {b.status === "confirmed" && (
           <div className="bkg-detail-toggles">
             <Toggle label="Didn't turn up" checked={!!b.noShow} disabled={!!busy} onChange={(v) => void run("noshow", "noShow", { value: v }, v ? "Marked as a no-show" : "No-show taken off")} />
-            {b.payment === "atShop" && <Toggle label="Paid at the shop" checked={b.paid} disabled={!!busy} onChange={(v) => void run("paid", "paidAtShop", { value: v }, v ? "Marked paid" : "Paid mark taken off")} />}
+            {(b.payment === "atShop" || (b.payment === "deposit" && b.depositPaid)) && <Toggle label={b.payment === "deposit" ? `Rest paid at the shop (${moneyText(Math.max(0, b.priceMinor - (b.depositMinor || 0)), b.currency)})` : "Paid at the shop"} checked={b.paid} disabled={!!busy} onChange={(v) => void run("paid", "paidAtShop", { value: v }, v ? "Marked paid" : "Paid mark taken off")} />}
           </div>
         )}
         {!!b.history?.length && (
@@ -445,7 +445,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
         <CancelDialog booking={b} onClose={() => setCancelling(false)}
           onCancel={async (refundMinor) => {
             await bookingsAdmin("cancel", { id: b.id, refundMinor });
-            toast.success(refundMinor === 0 ? "Booking cancelled" : refundMinor < b.priceMinor ? `Cancelled, ${moneyText(refundMinor, b.currency)} refunded` : "Cancelled and refunded");
+            toast.success(refundMinor === 0 ? "Booking cancelled" : refundMinor < cardTaken(b) ? `Cancelled, ${moneyText(refundMinor, b.currency)} refunded` : "Cancelled and refunded");
             setCancelling(false);
             onClose();
           }} />
@@ -507,27 +507,29 @@ function CalendarTile() {
   );
 }
 
-/** Cancels a booking paid by card, refunding all of it, part of it (a shop keeping a deposit) or none. */
+/** Cancels a booking with money taken by card (all of it or a deposit), refunding all of that, part of it or none. */
 function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number) => Promise<void> }) {
   const [choice, setChoice] = useState<"all" | "part" | "none">("all");
   const [part, setPart] = useState("");
   const [problem, setProblem] = useState("");
   const [saving, setSaving] = useState(false);
-  const paid = moneyText(b.priceMinor, b.currency);
+  const onCard = cardTaken(b);
+  const deposit = b.payment === "deposit";
+  const paid = moneyText(onCard, b.currency);
   const partMinor = Math.round(Number(part) * 100);
-  const partProblem = choice !== "part" ? "" : !part || !Number.isFinite(partMinor) || partMinor <= 0 ? "Type how much to refund." : partMinor >= b.priceMinor ? `For ${paid} or more, choose Refund all.` : "";
-  const refundMinor = choice === "all" ? b.priceMinor : choice === "none" ? 0 : partMinor;
+  const partProblem = choice !== "part" ? "" : !part || !Number.isFinite(partMinor) || partMinor <= 0 ? "Type how much to refund." : partMinor >= onCard ? `For ${paid} or more, choose Refund all.` : "";
+  const refundMinor = choice === "all" ? onCard : choice === "none" ? 0 : partMinor;
   const save = async () => {
     setSaving(true); setProblem("");
     try { await onCancel(refundMinor); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
   };
   const options = [
     { id: "all", label: "Refund all", note: paid },
-    { id: "part", label: "Refund part", note: "Keep a deposit" },
-    { id: "none", label: "No refund", note: "Keep the payment" },
+    { id: "part", label: "Refund part", note: deposit ? "Keep some of it" : "Keep a deposit" },
+    { id: "none", label: "No refund", note: deposit ? "Keep the deposit" : "Keep the payment" },
   ] as const;
   return (
-    <Dialog open onClose={onClose} title="Cancel this booking?" description={`${b.customer.name} paid ${paid} by card. They get an email saying it's cancelled, and the time opens up for others.`}
+    <Dialog open onClose={onClose} title="Cancel this booking?" description={`${b.customer.name} paid ${deposit ? `a ${paid} deposit` : paid} by card. They get an email saying it's cancelled, and the time opens up for others.`}
       footer={<><SecondaryButton onClick={onClose}>Keep booking</SecondaryButton><DestructiveButton onClick={() => void save()} busy={saving} disabled={!!partProblem}>{refundMinor > 0 ? `Cancel and refund ${moneyText(refundMinor, b.currency)}` : "Cancel booking"}</DestructiveButton></>}>
       <div className="bkg-form">
         <fieldset className="bkg-refund">
@@ -621,7 +623,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", location: "", active: true, order: 0, questions: [], places: 1, classTimes: [] };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [] };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -641,7 +643,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
             <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}</p>
-            <p className="bkg-service-price">{s.payment === "full" ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}</p>
+            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
               <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -660,8 +662,22 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
   );
 }
 
+/** Under the deposit box: what the customer pays now and what is left for the visit. */
+function depositHint(price: string, deposit: string, unit: "amount" | "percent"): string {
+  const priceMinor = Math.round(Number(price || 0) * 100);
+  const now = depositOf({ payment: "deposit", priceMinor, depositMinor: unit === "amount" ? Math.round(Number(deposit || 0) * 100) : 0, depositPercent: unit === "percent" ? Math.round(Number(deposit || 0)) : 0 });
+  if (!now || now >= priceMinor) return "Less than the price.";
+  return `${moneyText(now, SHOP_CURRENCY)} when they book, ${moneyText(priceMinor - now, SHOP_CURRENCY)} at the visit.`;
+}
+
 function ServiceDialog({ service, onClose, onSaved }: { service: BookingService; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ ...service, price: service.priceMinor ? (service.priceMinor / 100).toFixed(2) : "" });
+  const [form, setForm] = useState({
+    ...service, price: service.priceMinor ? (service.priceMinor / 100).toFixed(2) : "",
+    // When they pay (only asked once there is a price), and the deposit as the owner types it: an amount or a percent.
+    pay: (service.payment === "deposit" || service.payment === "atShop" ? service.payment : "full") as "full" | "deposit" | "atShop",
+    depositUnit: (service.depositPercent ? "percent" : "amount") as "amount" | "percent",
+    deposit: service.depositPercent ? String(service.depositPercent) : service.depositMinor ? (service.depositMinor / 100).toFixed(2) : "",
+  });
   const [problem, setProblem] = useState("");
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -674,7 +690,13 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
     setSaving(true); setProblem("");
     try {
       const priceMinor = Math.round(Number(form.price || 0) * 100);
-      await bookingsAdmin("saveService", { service: { ...form, priceMinor, payment: priceMinor > 0 ? "full" : "free" } });
+      const { pay, depositUnit, deposit, price: _price, ...rest } = form;
+      const share = pay === "deposit" && priceMinor > 0;
+      await bookingsAdmin("saveService", { service: {
+        ...rest, priceMinor, payment: priceMinor > 0 ? pay : "free",
+        depositMinor: share && depositUnit === "amount" ? Math.round(Number(deposit || 0) * 100) : 0,
+        depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
+      } });
       toast.success(service.id ? "Service saved" : "Service added");
       onSaved();
     } catch (e: any) { setProblem(e.message); } finally { setSaving(false); }
@@ -693,7 +715,29 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
             {[0, 5, 10, 15, 30, 45, 60].map((m) => <option key={m} value={m}>{m ? `${m} minutes` : "None"}</option>)}
           </SelectField>
         </div>
-        <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free. Paid bookings are paid by card when booked." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
+        <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
+        {Number(form.price) > 0 && (
+          <fieldset className="bkg-questions">
+            <legend>When they pay</legend>
+            <div className="bkg-seg bkg-seg-3" role="radiogroup" aria-label="When they pay">
+              <button type="button" role="radio" aria-checked={form.pay === "full"} onClick={() => set("pay", "full")}>When they book</button>
+              <button type="button" role="radio" aria-checked={form.pay === "deposit"} onClick={() => set("pay", "deposit")}>A deposit now</button>
+              <button type="button" role="radio" aria-checked={form.pay === "atShop"} onClick={() => set("pay", "atShop")}>At the visit</button>
+            </div>
+            <p className="bkg-questions-hint">{form.pay === "full" ? "The whole price is paid by card when they book." : form.pay === "deposit" ? "A deposit is paid by card when they book. The rest is paid at the visit." : "Nothing is paid online. You take payment at the visit and mark it paid."}</p>
+            {form.pay === "deposit" && (
+              <div className="bkg-two">
+                <TextField label={form.depositUnit === "percent" ? "Deposit (% of the price)" : `Deposit (${SHOP_CURRENCY})`} inputMode="decimal" placeholder={form.depositUnit === "percent" ? "25" : "0.00"} value={form.deposit}
+                  hint={depositHint(form.price, form.deposit, form.depositUnit)}
+                  onChange={(e) => set("deposit", e.target.value.replace(form.depositUnit === "percent" ? /\D/g : /[^\d.]/g, ""))} />
+                <SelectField label="Deposit is" value={form.depositUnit} onChange={(e) => { set("depositUnit", e.target.value as "amount" | "percent"); set("deposit", ""); }}>
+                  <option value="amount">An amount</option>
+                  <option value="percent">A share of the price</option>
+                </SelectField>
+              </div>
+            )}
+          </fieldset>
+        )}
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
         <fieldset className="bkg-questions">
           <legend>Who can book a time</legend>
