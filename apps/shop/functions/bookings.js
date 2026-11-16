@@ -14,7 +14,9 @@
 //                            cardHold? and lateFeeMinor? (the service keeps a card on file), card? { customer, paymentMethod, brand,
 //                            last4, mode } once saved, fee? { intent, amountMinor, at, by } once a missed-booking fee is charged,
 //                            discount? { id, code, amountMinor, returned? } and listPriceMinor (a discount code typed when booking:
-//                            priceMinor is after it, listPriceMinor before; its use is counted when the time is taken and given back on cancel) }
+//                            priceMinor is after it, listPriceMinor before; its use is counted when the time is taken and given back on cancel),
+//                            giftCard? { id, last4, amountMinor, returned? } (a gift card paying part or all of what is paid when booked:
+//                            debited when the time is taken, put back once on cancel unless the shop keeps it) }
 //   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
 //                          written in the same transaction as the booking, so two customers can never take one time.
 //   bookingWaitlist/{id}   { serviceId, serviceName, day, start | null, name, email, createdAt, offerStart?, offerUntil?,
@@ -44,11 +46,12 @@
 const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
-  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
+  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, zonedTime,
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
+const { giftCardId, last4, giftCardProblem, availableMinor, withHistory, GIFT_CARD_MESSAGES } = require("./giftCards");
 
 const HOLD_MINUTES = 10;
 const MINUTE = 60_000;
@@ -105,6 +108,8 @@ function publicBooking(id, b, settings, nowMs) {
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
     // A discount code: what it took off the service's price (priceMinor is already after it).
     discountCode: b.discount?.code || "", discountMinor: b.discount?.amountMinor || 0,
+    // A gift card: its last four and what it paid (never its id), and whether that went back onto it.
+    giftCardLast4: b.giftCard?.last4 || "", giftMinor: b.giftCard?.amountMinor || 0, giftReturned: !!b.giftCard?.returned,
     depositMinor: b.payment === "deposit" ? b.depositMinor || 0 : 0, depositPaid: !!b.depositPaid, dueMinor: balanceDue(b),
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
@@ -274,6 +279,7 @@ function bookingActions({
       const taken = bookedCardTaken(b);
       const money = ended || !(b.priceMinor > 0) ? "" : [
         b.discount?.amountMinor ? `<p style="margin:0 0 4px;"><strong>Discount (${escapeHtml(b.discount.code)}):</strong> ${escapeHtml(moneyWords(b.discount.amountMinor, b.currency))} off</p>` : "",
+        giftTaken(b) ? `<p style="margin:0 0 4px;"><strong>Gift card ••••${escapeHtml(b.giftCard.last4 || "")}:</strong> ${escapeHtml(moneyWords(giftTaken(b), b.currency))}</p>` : "",
         b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
         due ? `<p style="margin:0 0 4px;"><strong>${kind === "payRest" ? "Left to pay" : "To pay at your visit"}:</strong> ${escapeHtml(moneyWords(due, b.currency))}</p>` : `<p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(b.priceMinor, b.currency))}</p>`,
       ].join("");
@@ -493,6 +499,9 @@ function bookingActions({
   async function takeTime({ id, service, settings, start, record, check = true, offer = null }) {
     // A discount code's use is counted with the time, so its usage limit holds even when many book at once.
     const code = record.discount?.id ? db.collection("discounts").doc(record.discount.id) : null;
+    // A gift card is debited with the time too, so one balance can never pay for two bookings.
+    const gift = record.giftCard?.id ? db.collection("giftCards").doc(record.giftCard.id) : null;
+    const testMode = gift ? await shopTestMode() : false;
     const end = start + service.minutes * MINUTE;
     const blockEnd = end + service.gapAfter * MINUTE;
     const days = daysTouched(start, blockEnd, zone());
@@ -501,13 +510,21 @@ function bookingActions({
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
       const codeSnap = code ? await tx.get(code) : null;
+      const giftSnap = gift ? await tx.get(gift) : null;
       const nearby = snaps.filter((_, i) => days.includes(all[i]));
       if (check && !isFreeTime({ service, settings, busy: busyFrom(nearby, nowMs, offer?.item || ""), start, zone: zone(), nowMs })) return false;
+      const card = giftSnap?.exists ? giftSnap.data() : null;
+      const giftMinor = record.giftCard?.amountMinor || 0;
+      if (giftSnap && (giftCardProblem(card, { now: new Date(nowMs), testMode }) || availableMinor(card, "", nowMs) < giftMinor)) return "gift_short";
       if (codeSnap) {
         const used = Number(codeSnap.data()?.usageCount) || 0;
         const limit = Number(codeSnap.data()?.usageLimit) || 0;
         if (!codeSnap.exists || (limit > 0 && used >= limit)) return "code_used";
         tx.set(code, { usageCount: used + 1 }, { merge: true });
+      }
+      if (giftSnap) {
+        const at = new Date(nowMs).toISOString();
+        tx.set(gift, { balanceMinor: Math.floor(Number(card.balanceMinor) || 0) - giftMinor, history: withHistory(card, { type: "redeemed", minor: giftMinor, bookingId: id, at }), updatedAt: at }, { merge: true });
       }
       const held = record.status === "held";
       all.forEach((d, i) => {
@@ -522,25 +539,43 @@ function bookingActions({
     });
   }
 
-  /** Frees a booking's time (cancelled, or a hold that ran out), and writes `changes` on the booking. */
-  async function freeTime(id, b, changes) {
+  /**
+   * Frees a booking's time (cancelled, or a hold that ran out), and writes `changes` on the booking. A cancelled booking
+   * puts its gift card's part back onto the card, once, unless the shop keeps it (`giftBack: false`). Returns what it wrote.
+   */
+  async function freeTime(id, b, changes, { giftBack = true } = {}) {
     const days = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
     // A cancelled booking gives its discount code's use back, once.
     const giveBack = changes?.status === "cancelled" && b.discount?.id && !b.discount.returned;
     const code = giveBack ? db.collection("discounts").doc(b.discount.id) : null;
-    await db.runTransaction(async (tx) => {
+    const giftMinor = b.giftCard?.amountMinor || 0;
+    const returnGift = giftBack && changes?.status === "cancelled" && b.giftCard?.id && !b.giftCard.returned && giftMinor > 0;
+    const gift = returnGift ? db.collection("giftCards").doc(b.giftCard.id) : null;
+    const written = await db.runTransaction(async (tx) => {
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
       const codeSnap = code ? await tx.get(code) : null;
+      const giftSnap = gift ? await tx.get(gift) : null;
+      // Only the booking's own copy decides, so two cancels at once never put the money back twice.
+      const fresh = gift ? (await tx.get(bookings().doc(id))).data() : null;
+      const putBack = !!giftSnap?.exists && !fresh?.giftCard?.returned;
       if (codeSnap?.exists) tx.set(code, { usageCount: Math.max(0, (Number(codeSnap.data()?.usageCount) || 0) - 1) }, { merge: true });
+      if (putBack) {
+        const card = giftSnap.data();
+        const at = now().toISOString();
+        tx.set(gift, { balanceMinor: Math.floor(Number(card.balanceMinor) || 0) + giftMinor, history: withHistory(card, { type: "refunded", minor: giftMinor, bookingId: id, at }), updatedAt: at }, { merge: true });
+      }
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         if (!(id in items)) return;
         delete items[id];
         tx.set(dayRef(d), { items });
       });
-      tx.set(bookings().doc(id), giveBack ? { ...changes, discount: { ...b.discount, returned: true } } : changes, { merge: true });
+      const all = { ...changes, ...(giveBack ? { discount: { ...b.discount, returned: true } } : {}), ...(putBack ? { giftCard: { ...b.giftCard, returned: true } } : {}) };
+      tx.set(bookings().doc(id), all, { merge: true });
+      return all;
     });
     await tellWaitlist(days);
+    return written;
   }
 
   /** Moves a booking to `start` if free (its own old time doesn't count against it). */
@@ -606,8 +641,10 @@ function bookingActions({
     // took nothing.
     const deposit = b.payment === "deposit";
     const tookMoney = cardAsk(b) > 0;
-    const money = !tookMoney ? {} : { ...(deposit ? { depositPaid: true, paid: false } : { paid: true }), paymentIntent: typeof intent === "string" ? intent : intent?.id || null };
-    const what = [tookMoney ? (deposit ? "deposit paid" : "paid") : "", card ? "card saved" : ""].filter(Boolean).join(", ") || "confirmed";
+    // A gift card paid its part when the time was taken, so the booking is paid even when the card page took nothing.
+    const gifted = (b.giftCard?.amountMinor || 0) > 0;
+    const money = !tookMoney && !gifted ? {} : { ...(deposit ? { depositPaid: true, paid: false } : { paid: true }), ...(tookMoney ? { paymentIntent: typeof intent === "string" ? intent : intent?.id || null } : {}) };
+    const what = [tookMoney || gifted ? (deposit ? "deposit paid" : "paid") : "", card ? "card saved" : ""].filter(Boolean).join(", ") || "confirmed";
     const changes = {
       status: "confirmed", ...money, paidSession: sid, ...(card ? { card } : {}),
       holdUntil: null, updatedAt: at, history: [...(b.history || []), { at, what, by: "customer" }].slice(-20),
@@ -761,6 +798,36 @@ function bookingActions({
     return { discount: { id: found.id, code: typed, amountMinor }, priceMinor, upFront };
   }
 
+  // ── Gift cards ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Does the shop have any gift card? The booking form shows its gift card box only then (and only for a paid service). */
+  async function giftCardsOffered() {
+    const snap = await db.collection("giftCards").limit(1).get().catch(() => null);
+    return !!snap && !snap.empty;
+  }
+
+  /**
+   * A gift card typed on the booking form, for `upFront` (what is paid when booked): { id, last4, amountMinor } with
+   * what it pays now. Checked again (and debited) when the time is taken. Throws BookingCodeProblem in the customer's words.
+   */
+  async function giftFor(raw, upFront) {
+    const id = giftCardId(raw);
+    if (!id) throw new BookingCodeProblem(GIFT_CARD_MESSAGES.not_found);
+    if (!(upFront > 0)) throw new BookingCodeProblem("A gift card can only pay for a booking that's paid when you book.");
+    const snap = await db.collection("giftCards").doc(id).get();
+    const card = snap.exists ? snap.data() : null;
+    const problem = giftCardProblem(card, { now: now(), testMode: await shopTestMode() });
+    if (problem) throw new BookingCodeProblem(GIFT_CARD_MESSAGES[problem]);
+    const available = availableMinor(card, "", now().getTime());
+    if (!available) throw new BookingCodeProblem(GIFT_CARD_MESSAGES.held);
+    const amountMinor = giftCardPart(upFront, available);
+    if (!amountMinor) throw new BookingCodeProblem("This gift card can't be used on this booking.");
+    return { id, last4: card.last4 || last4(raw), amountMinor };
+  }
+
+  /** What the cancel email says about the gift card's part. */
+  const giftBackWords = (b) => (b.giftCard?.amountMinor ? ` The ${moneyWords(b.giftCard.amountMinor, b.currency)} from your gift card is back on it.` : "");
+
   // ── Customers (validateDiscountCode actions; no sign-in) ───────────────────────────────────────────────────────
 
   async function handlePublic(req, res) {
@@ -776,7 +843,7 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active);
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
-          codes: await codesOffered(),
+          codes: await codesOffered(), giftCards: await giftCardsOffered(),
           services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor }) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
@@ -829,6 +896,27 @@ function bookingActions({
           throw err;
         }
       }
+      if (action === "bookingGiftCard") {
+        // Try a gift card before booking: what it pays now and what is left for the card page. Booking checks it again.
+        if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
+        let upFront = depositOf(service);
+        if (String(req.body?.code || "").trim()) {
+          try { upFront = (await codeFor(service, req.body.code, email)).upFront; } catch (err) {
+            if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
+            throw err;
+          }
+        }
+        try {
+          const gift = await giftFor(req.body?.giftCard, upFront);
+          return res.status(200).json({ last4: gift.last4, giftMinor: gift.amountMinor, payNowMinor: upFront - gift.amountMinor });
+        } catch (err) {
+          if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "gift");
+          throw err;
+        }
+      }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
         const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
@@ -854,16 +942,27 @@ function bookingActions({
         // What the card page takes now: the whole price, the deposit, or nothing (free, or all paid at the visit).
         const upFront = priced ? priced.upFront : depositOf(service);
         const deposit = upFront > 0 && service.payment === "deposit" && upFront < price;
+        // A gift card pays part or all of what is paid now; the card page takes the rest.
+        let gift = null;
+        if (String(req.body?.giftCard || "").trim()) {
+          try { gift = await giftFor(req.body.giftCard, upFront); } catch (err) {
+            if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "gift");
+            throw err;
+          }
+        }
+        const cardDue = upFront - (gift?.amountMinor || 0);
         let checkout = null;
         let mode = "live";
         let holdCard = service.holdCard && canHoldCard();
-        if (upFront > 0 || holdCard) {
+        if (cardDue > 0 || holdCard) {
           ({ checkout, mode } = await standalone());
           if (!checkout?.savedCard) holdCard = false;
-          if (!checkout && upFront > 0) return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
+          if (!checkout && cardDue > 0) return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
         }
         // The customer goes to a card page to pay now, to save a card for the missed-booking fee, or both.
-        const paid = upFront > 0 || holdCard;
+        const paid = cardDue > 0 || holdCard;
+        // Paid in full by the gift card with no page to visit: the booking's payment is done now.
+        const giftPaid = gift && !paid ? (deposit ? { depositPaid: true } : { paid: true }) : {};
         const id = randomId();
         const key = randomKey();
         const at = new Date(nowMs).toISOString();
@@ -873,7 +972,8 @@ function bookingActions({
           status: paid ? "held" : "confirmed", payment: deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
-          paid: false, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
+          ...(gift ? { giftCard: gift } : {}),
+          paid: false, ...giftPaid, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
           pendingKey: paid ? key : null,
@@ -881,6 +981,7 @@ function bookingActions({
         };
         const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs) });
         if (took === "code_used") return fail(res, 409, "This code has reached its usage limit.", "code");
+        if (took === "gift_short") return fail(res, 409, "This gift card's balance just changed. Please check it and try again.", "gift");
         if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
           const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
@@ -899,10 +1000,10 @@ function bookingActions({
           };
           // Nothing to pay now: a page that only saves the card. Paying now with a card kept: the same payment page,
           // which also saves the card for later (a customer of the shop's own Stripe account holds it).
-          const session = await checkout.open(upFront > 0 ? {
+          const session = await checkout.open(cardDue > 0 ? {
             ...page,
             mode: "payment",
-            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: upFront, product_data: { name: description } } }],
+            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: cardDue, product_data: { name: description } } }],
             payment_intent_data: { description, metadata, ...(holdCard ? { setup_future_usage: "off_session" } : {}) },
             ...(holdCard ? { customer_creation: "always" } : {}),
           } : {
@@ -1025,9 +1126,9 @@ function bookingActions({
         const at = now().toISOString();
         const changes = { status: "cancelled", cancelledAt: at, cancelledBy: "customer", updatedAt: at, ...(refund ? { refund } : {}),
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by: "customer" }].slice(-20) };
-        await freeTime(id, b, changes);
-        const next = await syncCalendar(id, { ...b, ...changes });
-        await tellCustomer(id, next, "cancelled", { refundText: !refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card." });
+        const written = await freeTime(id, b, changes);
+        const next = await syncCalendar(id, { ...b, ...written });
+        await tellCustomer(id, next, "cancelled", { refundText: `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}`.trim() });
         return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
       }
       if (action === "bookingMove") {
@@ -1198,12 +1299,16 @@ function bookingActions({
           }
         }
         const at = now().toISOString();
+        // The gift card's part goes back onto it unless the shop keeps it (giftBack: false).
+        const giftBack = req.body?.giftBack !== false && !!b.giftCard?.amountMinor && !b.giftCard.returned;
+        const what = [refund ? "refunded" : "", giftBack ? "gift card put back" : ""].filter(Boolean).join(" and ");
         const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, holdUntil: null, updatedAt: at, ...(refund ? { refund } : {}),
-          history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by }].slice(-20) };
-        await freeTime(id, b, changes);
+          history: [...(b.history || []), { at, what: what ? `cancelled and ${what}` : "cancelled", by }].slice(-20) };
+        await freeTime(id, b, changes, { giftBack });
         await syncCalendar(id, { ...b, ...changes });
-        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.` : `Your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.` });
-        return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0 });
+        const cardWordsBack = !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.` : `Your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.`;
+        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}`.trim() });
+        return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}) });
       }
       if (op === "move") {
         if (b.status !== "confirmed") return fail(res, 409, "Only a confirmed booking can be moved.");
@@ -1500,6 +1605,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip"]);
 
 module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

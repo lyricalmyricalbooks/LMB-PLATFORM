@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, balanceDue, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf } from "../../shared/bookingTimes";
+import { addDays, balanceDue, cardAsk, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf } from "../../shared/bookingTimes";
 import type { Booking, Waiting } from "./bookingsApi";
 
 /** One card in a day's column: a single booking, or a group class with everyone booked into it. */
@@ -170,19 +170,21 @@ export function cardText(card: { brand?: string; last4?: string } | null | undef
 }
 
 /** How a booking is paid, in plain words. */
-export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing" | "rest">): string {
+export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing" | "rest" | "giftCard">): string {
   const onCard = cardTaken(b);
+  // How what was paid when booked came in: by card, a gift card, or both.
+  const by = !b.giftCard?.amountMinor ? "by card" : cardAsk(b) > 0 ? "by card and gift card" : "by gift card";
   // The rest paid later from the booking page: all of it by card in the end.
   if (b.rest?.amountMinor && !b.refund?.amountMinor) return `Paid ${moneyText(onCard, b.currency)} by card${b.payment === "deposit" ? " (deposit, then the rest online)" : " online"}`;
   if (b.refund?.amountMinor) return b.refund.amountMinor < onCard ? `Refunded ${moneyText(b.refund.amountMinor, b.currency)} of ${moneyText(onCard, b.currency)}` : `Refunded ${moneyText(b.refund.amountMinor, b.currency)}`;
   if ((b.payment === "card" || b.payment === "deposit") && !onCard && b.status === "held" && b.clearing) return "Bank payment clearing";
   if (b.payment === "free") return "Free";
   if (b.payment === "deposit") {
-    if (b.paid) return `Paid ${moneyText(b.priceMinor, b.currency)} (${moneyText(b.depositMinor || 0, b.currency)} deposit by card, the rest at the shop)`;
-    if (b.depositPaid) return `${moneyText(b.depositMinor || 0, b.currency)} deposit paid by card, ${moneyText(balanceDue(b), b.currency)} to pay at the shop`;
+    if (b.paid) return `Paid ${moneyText(b.priceMinor, b.currency)} (${moneyText(b.depositMinor || 0, b.currency)} deposit ${by}, the rest at the shop)`;
+    if (b.depositPaid) return `${moneyText(b.depositMinor || 0, b.currency)} deposit paid ${by}, ${moneyText(balanceDue(b), b.currency)} to pay at the shop`;
     return b.status === "held" ? "Paying the deposit now" : "Deposit not paid";
   }
-  if (b.payment === "card") return b.paid ? `Paid ${moneyText(b.priceMinor, b.currency)} by card` : b.status === "held" ? "Paying now" : "Not paid";
+  if (b.payment === "card") return b.paid ? `Paid ${moneyText(b.priceMinor, b.currency)} ${by}` : b.status === "held" ? "Paying now" : "Not paid";
   return b.paid ? `Paid ${moneyText(b.priceMinor, b.currency)} at the shop` : `${moneyText(b.priceMinor, b.currency)} to pay at the shop`;
 }
 

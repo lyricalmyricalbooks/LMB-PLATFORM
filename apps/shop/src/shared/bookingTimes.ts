@@ -154,25 +154,46 @@ export function depositOf(s: { payment?: string; priceMinor?: number; depositMin
  * The money side of one booking, in cents. `payment` on a booking: "free", "card" (all by card when booked), "deposit"
  * (part by card when booked, the rest at the visit) or "atShop". `paid` means all of it is paid; `depositPaid` that the
  * deposit is. `rest` is what was left, paid later by card from the client's own booking page. Every screen, email and
- * the server read a booking's money through these.
+ * the server read a booking's money through these. `giftCard` is a gift card's part of what is paid when booked: it is
+ * taken off the card page (`cardAsk`) and counts as received once the booking is paid (`giftTaken`).
  */
-export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string; fee?: { amountMinor?: number } | null; rest?: { amountMinor?: number } | null };
+export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string; fee?: { amountMinor?: number } | null; rest?: { amountMinor?: number } | null; giftCard?: { amountMinor?: number; returned?: boolean } | null };
 /** What the card page asks for when this booking is made. */
-export const cardAsk = (b: BookingMoney): number => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
+export const cardAsk = (b: BookingMoney): number => Math.max(0, bookedAsk(b) - giftMinor(b));
+/** What is paid when booked, card and gift card together: the whole price, the deposit or nothing. */
+const bookedAsk = (b: BookingMoney): number => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
+/** Did the booking's own payment (card page, gift card or both) go through? */
+const bookedPaid = (b: BookingMoney): boolean => (b.payment === "card" ? !!b.paid : b.payment === "deposit" ? !!b.depositPaid : false);
+/** The gift card's part of what is paid when booked. */
+const giftMinor = (b: BookingMoney): number => Math.max(0, Math.min(b.giftCard?.amountMinor || 0, bookedAsk(b)));
+/** What a gift card paid towards this booking (counted once the booking's payment went through). */
+export const giftTaken = (b: BookingMoney): number => (bookedPaid(b) ? giftMinor(b) : 0);
+/** What went back onto the gift card when the booking was cancelled. */
+export const giftReturned = (b: BookingMoney): number => (b.giftCard?.returned ? giftTaken(b) : 0);
+/**
+ * How much of `available` on a gift card goes towards `upFront` (what is paid when booked). What is left for the card
+ * page is never between nothing and the smallest card payment, so the gift card then covers a little less.
+ */
+export function giftCardPart(upFront: number, available: number): number {
+  const due = Math.max(0, Math.round(upFront) || 0);
+  const part = Math.min(due, Math.max(0, Math.floor(available) || 0));
+  const left = due - part;
+  return left > 0 && left < MIN_CARD_MINOR ? Math.max(0, due - MIN_CARD_MINOR) : part;
+}
 /** What was taken by card for this booking (the most that can go back to the card). */
 export const cardTaken = (b: BookingMoney): number => bookedCardTaken(b) + restTaken(b);
 /** What the card page took when the booking was made (the deposit, or the whole price). */
-export const bookedCardTaken = (b: BookingMoney): number => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
+export const bookedCardTaken = (b: BookingMoney): number => (bookedPaid(b) ? cardAsk(b) : 0);
 /** What was left and later paid by card from the booking page. */
 export const restTaken = (b: BookingMoney): number => Math.max(0, b.rest?.amountMinor || 0);
 /** A missed-booking or late-cancellation fee charged to the saved card. */
 export const feeTaken = (b: BookingMoney): number => Math.max(0, b.fee?.amountMinor || 0);
 /** What was received towards the price itself (not counting a fee). */
-const priceTaken = (b: BookingMoney): number => (b.paid ? b.priceMinor || 0 : cardTaken(b));
+const priceTaken = (b: BookingMoney): number => (b.paid ? b.priceMinor || 0 : cardTaken(b) + giftTaken(b));
 /** Everything the shop has received for this booking, a fee included, before refunds. */
 export const moneyTaken = (b: BookingMoney): number => priceTaken(b) + feeTaken(b);
-/** What the shop keeps: received less refunded. */
-export const moneyKept = (b: BookingMoney): number => Math.max(0, moneyTaken(b) - (b.refund?.amountMinor || 0));
+/** What the shop keeps: received less refunded (to the card, or back onto the gift card). */
+export const moneyKept = (b: BookingMoney): number => Math.max(0, moneyTaken(b) - (b.refund?.amountMinor || 0) - giftReturned(b));
 /** What is still to pay at the visit. Nothing for a cancelled booking. */
 export const balanceDue = (b: BookingMoney): number => (b.status === "cancelled" ? 0 : Math.max(0, (b.priceMinor || 0) - priceTaken(b)));
 /** The smallest amount a card page takes. */

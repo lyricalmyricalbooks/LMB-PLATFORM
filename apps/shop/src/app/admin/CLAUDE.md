@@ -1120,6 +1120,11 @@ card" (`tipTaken`). Fixture: tips on; "Ben Example" has an $8 tip.
 `useBookingsOn` and for a manual percentage or amount code on the whole order; saved false otherwise). The booking drawer
 shows the code and what it took off ("use given back" once cancelled). Server rules: functions/CLAUDE.md › Bookings.
 
+**Gift cards on bookings (16 November 2026):** the drawer has a Gift card row (last four, amount, "put back on the card"),
+`paymentText` says "by gift card" or "by card and gift card", and Cancel opens `CancelDialog` for a gift-paid booking too,
+with **Put $x back on their gift card** (on by default; off sends `giftBack: false`). Gift cards › a card › History names
+booking lines (`historyLabelOf`) and links to Bookings.
+
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,
 studio, services) gets `MenuKind` "services" (`riso/nav.ts` `adminMenu` / `sideMenu`: Calendar, Clients, Messages, Sales,

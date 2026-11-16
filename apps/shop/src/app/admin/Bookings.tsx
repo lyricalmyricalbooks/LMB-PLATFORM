@@ -541,10 +541,12 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
     }
   };
   const paidByCard = cardTaken(b) > 0 && !b.refund;
+  // A gift card's part not put back yet: the cancel dialog asks whether it goes back on the card.
+  const giftHeld = b.giftCard && !b.giftCard.returned ? b.giftCard.amountMinor : 0;
   const [cancelling, setCancelling] = useState(false);
   const [charging, setCharging] = useState(false);
   const cancel = async () => {
-    if (paidByCard) { setCancelling(true); return; }
+    if (paidByCard || giftHeld) { setCancelling(true); return; }
     if (!(await ask({ title: "Cancel this booking?", message: `${b.customer.name} gets an email saying it's cancelled. The time opens up for others.`, confirmLabel: "Cancel booking" }))) return;
     await run("cancel", "cancel", { refundMinor: 0 }, "Booking cancelled");
   };
@@ -570,6 +572,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           <div><dt>Email</dt><dd><a href={`mailto:${b.customer.email}`}>{b.customer.email}</a></dd></div>
           {b.customer.phone && <div><dt>Phone</dt><dd><a href={`tel:${b.customer.phone}`}>{b.customer.phone}</a></dd></div>}
           <div><dt>Payment</dt><dd>{paymentText(b)}</dd></div>
+          {b.giftCard && <div><dt>Gift card</dt><dd>Ending {b.giftCard.last4}, {moneyText(b.giftCard.amountMinor, b.currency)}{b.giftCard.returned ? " (put back on the card)" : ""}</dd></div>}
           {b.discount && <div><dt>Discount</dt><dd>{b.discount.code}, {moneyText(b.discount.amountMinor, b.currency)} off{b.discount.returned ? " (use given back)" : ""}</dd></div>}
           {b.cardHold && <div><dt>Card on file</dt><dd>{b.card ? `${cardText(b.card)}, ${moneyText(b.lateFeeMinor || 0, b.currency)} if missed` : b.status === "held" ? "Being saved" : "Not saved"}</dd></div>}
           {!!tipTaken(b) && <div><dt>Tip</dt><dd>{moneyText(tipTaken(b), b.currency)} by card</dd></div>}
@@ -604,9 +607,11 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
       </div>
       {cancelling && (
         <CancelDialog booking={b} onClose={() => setCancelling(false)}
-          onCancel={async (refundMinor) => {
-            await bookingsAdmin("cancel", { id: b.id, refundMinor });
-            toast.success(refundMinor === 0 ? "Booking cancelled" : refundMinor < cardTaken(b) ? `Cancelled, ${moneyText(refundMinor, b.currency)} refunded` : "Cancelled and refunded");
+          onCancel={async (refundMinor, giftBack) => {
+            await bookingsAdmin("cancel", { id: b.id, refundMinor, giftBack });
+            const gift = giftBack && giftHeld ? `${moneyText(giftHeld, b.currency)} back on their gift card` : "";
+            const card = refundMinor === 0 ? "" : refundMinor < cardTaken(b) ? `${moneyText(refundMinor, b.currency)} refunded` : "refunded";
+            toast.success([card, gift].filter(Boolean).length ? `Cancelled, ${[card, gift].filter(Boolean).join(" and ")}` : "Booking cancelled");
             setCancelling(false);
             onClose();
           }} />
@@ -774,13 +779,18 @@ function FeeDialog({ booking: b, onClose, onCharge }: { booking: Booking; onClos
   );
 }
 
-/** Cancels a booking with money taken by card (all of it or a deposit), refunding all of that, part of it or none. */
-function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number) => Promise<void> }) {
+/**
+ * Cancels a booking with money taken by card (all of it or a deposit), refunding all of that, part of it or none, and/or
+ * paid with a gift card, whose part goes back on the card unless the owner keeps it.
+ */
+function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number, giftBack: boolean) => Promise<void> }) {
   const [choice, setChoice] = useState<"all" | "part" | "none">("all");
   const [part, setPart] = useState("");
   const [problem, setProblem] = useState("");
   const [saving, setSaving] = useState(false);
-  const onCard = cardTaken(b);
+  const onCard = b.refund ? 0 : cardTaken(b);
+  const gift = b.giftCard && !b.giftCard.returned ? b.giftCard.amountMinor : 0;
+  const [giftBack, setGiftBack] = useState(true);
   const deposit = b.payment === "deposit";
   const paid = moneyText(onCard, b.currency);
   const partMinor = Math.round(Number(part) * 100);
@@ -788,7 +798,7 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
   const refundMinor = choice === "all" ? onCard : choice === "none" ? 0 : partMinor;
   const save = async () => {
     setSaving(true); setProblem("");
-    try { await onCancel(refundMinor); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
+    try { await onCancel(refundMinor, gift > 0 && giftBack); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
   };
   const options = [
     { id: "all", label: "Refund all", note: paid },
@@ -796,18 +806,19 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
     { id: "none", label: "No refund", note: deposit ? "Keep the deposit" : "Keep the payment" },
   ] as const;
   return (
-    <Dialog open onClose={onClose} title="Cancel this booking?" description={`${b.customer.name} paid ${deposit ? `a ${paid} deposit` : paid} by card. They get an email saying it's cancelled, and the time opens up for others.`}
+    <Dialog open onClose={onClose} title="Cancel this booking?" description={`${b.customer.name} paid ${[onCard ? `${deposit ? `a ${paid} deposit` : paid} by card` : "", gift ? `${moneyText(gift, b.currency)} with a gift card` : ""].filter(Boolean).join(" and ")}. They get an email saying it's cancelled, and the time opens up for others.`}
       footer={<><SecondaryButton onClick={onClose}>Keep booking</SecondaryButton><DestructiveButton onClick={() => void save()} busy={saving} disabled={!!partProblem}>{refundMinor > 0 ? `Cancel and refund ${moneyText(refundMinor, b.currency)}` : "Cancel booking"}</DestructiveButton></>}>
       <div className="bkg-form">
-        <fieldset className="bkg-refund">
+        {onCard > 0 && <fieldset className="bkg-refund">
           <legend>Refund</legend>
           {options.map((o) => (
             <button key={o.id} type="button" className="bkg-refund-choice" aria-pressed={choice === o.id} onClick={() => setChoice(o.id)}>
               <strong>{o.label}</strong><span>{o.note}</span>
             </button>
           ))}
-        </fieldset>
-        {choice === "part" && (
+        </fieldset>}
+        {gift > 0 && <Toggle label={`Put ${moneyText(gift, b.currency)} back on their gift card (ending ${b.giftCard?.last4 || ""})`} checked={giftBack} onChange={setGiftBack} />}
+        {choice === "part" && onCard > 0 && (
           <TextField label={`Amount to refund (${b.currency})`} hint={`Up to ${paid}. The rest stays with you.`} inputMode="decimal" placeholder="0.00" autoFocus
             value={part} onChange={(e) => setPart(e.target.value.replace(/[^\d.]/g, ""))} error={part ? partProblem || undefined : undefined} />
         )}

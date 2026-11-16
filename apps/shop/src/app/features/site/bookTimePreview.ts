@@ -36,11 +36,21 @@ function sampleCode(service: BookingServiceView, code: unknown): BookingCode | n
   return { code: typed, discountMinor, priceMinor, payNowMinor: upFrontMinor({ ...service, priceMinor }) };
 }
 
-function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?: string, start?: string, code?: unknown): BookingView {
+/** Any gift card typed in the preview pays up to 25.00 of what is paid now, so the gift card box and its row can be designed. */
+function sampleGift(service: BookingServiceView, giftCard: unknown): { last4: string; giftMinor: number; payNowMinor: number } | null {
+  const typed = typeof giftCard === "string" ? giftCard.toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
+  const upFront = upFrontMinor(service);
+  if (typed.length < 4 || upFront <= 0) return null;
+  const giftMinor = Math.min(upFront, 2500);
+  return { last4: typed.slice(-4), giftMinor, payNowMinor: upFront - giftMinor };
+}
+
+function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?: string, start?: string, code?: unknown, giftCard?: unknown): BookingView {
   const listed = SERVICES.find((s) => s.id === serviceId) || SERVICES[1];
   const applied = sampleCode(listed, code);
   const service = withCode(listed, applied);
   const deposit = takesDeposit(service);
+  const gift = sampleGift(service, giftCard);
   const startMs = start ? Date.parse(start) : zonedTime(addDays(dayOf(nowMs, zone), 3), "11:00", zone);
   return {
     id: SAMPLE_BOOKING_ID, serviceId: service.id, serviceName: service.name, minutes: service.minutes, location: service.location,
@@ -50,6 +60,7 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
     name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24,
     ...(service.holdCard ? { cardHold: true, cardLast4: "4242", lateFeeMinor: service.lateFeeMinor } : {}),
     ...(applied ? { discountCode: applied.code, discountMinor: applied.discountMinor } : {}),
+    ...(gift ? { giftCardLast4: gift.last4, giftMinor: gift.giftMinor } : {}),
   };
 }
 
@@ -57,7 +68,7 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
   if (action === "bookingInfo") {
-    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true } satisfies BookingInfo;
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true } satisfies BookingInfo;
   }
   if (action === "bookingTimes") {
     const from = typeof body.from === "string" ? body.from : today;
@@ -84,12 +95,18 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     if (!applied) throw Object.assign(new Error(), { code: "code" });
     return applied;
   }
+  if (action === "bookingGiftCard") {
+    const listed = SERVICES.find((s) => s.id === body.serviceId) || SERVICES[1];
+    const gift = sampleGift(withCode(listed, sampleCode(listed, body.code)), body.giftCard);
+    if (!gift) throw Object.assign(new Error(), { code: "gift" });
+    return gift;
+  }
   if (action === "bookingStart") {
-    sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start, body.code);
+    sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start, body.code, body.giftCard);
     return { id: SAMPLE_BOOKING_ID, key: SAMPLE_BOOKING_KEY };
   }
   sample ||= sampleBooking(zone, currency, nowMs);
-  if (action === "bookingMove" && typeof body.start === "string") sample = sampleBooking(zone, currency, nowMs, sample.serviceId, body.start, sample.discountCode);
+  if (action === "bookingMove" && typeof body.start === "string") sample = { ...sampleBooking(zone, currency, nowMs, sample.serviceId, body.start, sample.discountCode), giftCardLast4: sample.giftCardLast4, giftMinor: sample.giftMinor };
   // Paying what is left: no card page in the preview, it just shows as paid in full.
   if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0, tipMinor: Number(body.tipMinor) || 0 };
   if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };

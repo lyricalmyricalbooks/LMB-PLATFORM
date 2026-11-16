@@ -70,6 +70,9 @@ const HISTORY_LABEL: Record<string, string> = {
   disabled: "Disabled", enabled: "Enabled again", emailed: "Code emailed", expiry: "Expiry changed", imported: "Brought over from your old shop",
 };
 export const historyLabel = (type: string) => HISTORY_LABEL[type] || type;
+/** A history line's label: a booking's use and its put-back read as such (they share the order lines' types). */
+export const historyLabelOf = (entry: { type: string; bookingId?: string }) =>
+  entry.bookingId ? (entry.type === "redeemed" ? "Used on a booking" : entry.type === "refunded" ? "Put back (booking cancelled)" : historyLabel(entry.type)) : historyLabel(entry.type);
 
 /** "+CA$10.00" / "−CA$5.00" for a history line; "" when no money moved. Removals keep their minus sign. */
 export function historyAmount(entry: any): string {

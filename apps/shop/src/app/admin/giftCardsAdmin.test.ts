@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dollarsToMinor, formatMinor, giftCardStatus, issuePayload, maskedCode, matchesGiftCard } from "./giftCardsAdmin";
+import { dollarsToMinor, formatMinor, giftCardStatus, historyLabelOf, issuePayload, maskedCode, matchesGiftCard } from "./giftCardsAdmin";
 
 const form = { amount: "25", recipientEmail: "", recipientName: "", message: "", expiresOn: "", note: "", sendEmail: false };
 
@@ -62,5 +62,13 @@ describe("gift card CSV", () => {
     expect(masked).toContain('"••••PQRS","12.50","25.00","Active","\'=HYPERLINK(1)"');
     expect(masked).not.toContain("ABCD-EFGH");
     expect(giftCardsCsv(cards, { fullCodes: true, today: "2026-10-09" })).toContain('"ABCD-EFGH-JKMN-PQRS"');
+  });
+});
+
+describe("gift card history from bookings", () => {
+  it("names a booking's use and its put-back", () => {
+    expect(historyLabelOf({ type: "redeemed", bookingId: "b1" })).toBe("Used on a booking");
+    expect(historyLabelOf({ type: "refunded", bookingId: "b1" })).toBe("Put back (booking cancelled)");
+    expect(historyLabelOf({ type: "redeemed" })).toBe("Used at checkout");
   });
 });
