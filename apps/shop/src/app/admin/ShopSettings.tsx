@@ -11,10 +11,10 @@ import { ActionMenu, Checkbox, PageHead, ConfirmDialog, LoadingState, MetricCard
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
-import { COUNTRIES, CONTINENTS, findCountry, regionList } from "../features/site/shippingZones";
-import ZoneRegionPicker from "./shipping/ZoneRegionPicker";
+import { COUNTRIES, findCountry, regionList } from "../features/site/shippingZones";
+import { ZonePage, type FirstRate } from "./shipping/ZonePage";
+import { lacksEverywhereElse, zoneSummary } from "./shipping/zonePlaces";
 import { ShippoConnectCard } from "./shipping/ShippoConnectCard";
-import { cleanRegions, regionsSummary } from "./shipping/zoneRegions";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
 import { ReturnSettings } from "./ReturnSettings";
@@ -38,7 +38,6 @@ import { ClarityCard } from "./ClarityCard";
 import { AdPixelsCard } from "./AdPixelsCard";
 import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
-import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
 import { SocialAccountsFields } from "./SocialAccountsFields";
 import { NewShippingProfileDialog } from "./NewShippingProfileDialog";
@@ -553,10 +552,11 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
 
   // Search/Filters
   const [productSearch, setProductSearch] = useState("");
-  const [countrySearch, setCountrySearch] = useState("");
 
   // Sub-items active editing states
   const [activeZone, setActiveZone] = useState<any | null>(null);
+  // The zone page opens for a new zone, or from "Add Everywhere else" with that already picked.
+  const [zoneOpening, setZoneOpening] = useState<{ isNew: boolean; everywhereElse: boolean }>({ isNew: false, everywhereElse: false });
   const [activeRate, setActiveRate] = useState<any | null>(null);
   const [parentZoneIdForRate, setParentZoneIdForRate] = useState<string | null>(null);
 
@@ -734,49 +734,19 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     }
   };
 
-  // Zones helper
-  const openZoneModal = (zone: any = null) => {
-    if (zone) {
-      const copy = JSON.parse(JSON.stringify(zone));
-      copy.countries = (copy.countries || []).map(countryName);
-      copy.regions = cleanRegions(copy.regions);
-      setActiveZone(copy);
-    } else {
-      setActiveZone({
-        id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
-        name: "",
-        countries: [],
-        regions: [],
-        rates: []
-      });
-    }
-    setCountrySearch("");
+  // Zones helper: a zone is its own form page (shipping/ZonePage.tsx); saving returns to the profile.
+  const openZoneModal = (zone: any = null, everywhereElse = false) => {
+    setActiveZone(zone ? JSON.parse(JSON.stringify(zone)) : { id: newId(), name: "", countries: [], regions: [], rates: [] });
+    setZoneOpening({ isNew: !zone, everywhereElse });
     setIsZoneModalOpen(true);
   };
 
-  const handleSaveZone = () => {
-    // Older zones may be defined only by their region text (e.g. "Canada") — still valid.
-    const hasGeography = activeZone.restOfWorld === true || activeZone.countries.length > 0 || (activeZone.regions || []).length > 0 || (activeZone.continents || []).length > 0 || !!String(activeZone.region || "").trim();
-    if (!activeZone.name.trim() || !hasGeography) {
-      toast.error("Please enter a zone name and pick at least one country, state or province (or make it the rest-of-world zone).");
-      return;
-    }
-    // Checkout matches zones by ISO code: store codes, never display names.
-    const saved = {
-      ...activeZone,
-      countries: activeZone.restOfWorld ? [] : toCountryCodes(activeZone.countries),
-      continents: activeZone.restOfWorld ? [] : (activeZone.continents || []),
-      regions: activeZone.restOfWorld ? [] : cleanRegions(activeZone.regions),
-    };
-
+  const handleSaveZone = (saved: any, firstRate: FirstRate | null) => {
+    const withRate = firstRate ? { ...saved, rates: [...(saved.rates || []), normalizeRate({ id: newId(), deliveryDays: "", minPrice: null, maxPrice: null, ...firstRate })] } : saved;
     setEditingProfile((prev: any) => {
       const zones = [...(prev.zones || [])];
-      const idx = zones.findIndex(z => z.id === saved.id);
-      if (idx > -1) {
-        zones[idx] = saved;
-      } else {
-        zones.push(saved);
-      }
+      const idx = zones.findIndex(z => z.id === withRate.id);
+      if (idx > -1) zones[idx] = withRate; else zones.push(withRate);
       return { ...prev, zones };
     });
     setIsZoneModalOpen(false);
@@ -974,13 +944,6 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
       {renderShippingProblems(issues, { showTab: false })}
     </SectionCard>
   );
-  const countriesAssignedElsewhere = activeZone
-    ? assignedCountryNames(editingProfile?.zones || [], activeZone.id)
-    : new Set<string>();
-  const remainingCountries = activeZone
-    ? remainingCountryNames(editingProfile?.zones || [], activeZone.id)
-    : [];
-  const countryGroups = groupedCountries(countrySearch);
 
   // Dialogs shared by the list and editor views
   const dialogs = editingProfile ? (
@@ -1008,74 +971,6 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
         </ul>
       </Dialog>
 
-      <Dialog open={isZoneModalOpen && !!activeZone} onClose={() => setIsZoneModalOpen(false)} size="lg" title="Shipping zone"
-        description="Group countries and regions that share the same shipping rules."
-        footer={<>
-          <SecondaryButton onClick={() => setIsZoneModalOpen(false)}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleSaveZone}>Save zone</PrimaryButton>
-        </>}>
-        {activeZone && (
-          <div className="rp-stack" style={{ gap: 16 }}>
-            <TextField label="Zone name" value={activeZone.name} placeholder="e.g. North America, Europe, Domestic…" data-autofocus
-              onChange={(e) => setActiveZone({ ...activeZone, name: e.target.value })} />
-            <Toggle label="Rest of world — everywhere not covered by another zone" checked={activeZone.restOfWorld === true}
-              onChange={(on) => setActiveZone((prev: any) => ({ ...prev, restOfWorld: on, ...(on ? { countries: [], continents: [], regions: [] } : {}) }))} />
-            {!activeZone.restOfWorld && (<>
-            <div>
-              <div className="rp-sect">Regional presets</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {CONTINENTS.map((continent) => (
-                  <SecondaryButton key={continent} size="sm"
-                    onClick={() => setActiveZone((prev: any) => ({
-                      ...prev,
-                      countries: Array.from(new Set([
-                        ...prev.countries,
-                        ...COUNTRIES.filter((country) => country.continent === continent && !countriesAssignedElsewhere.has(country.name)).map((country) => country.name),
-                      ])),
-                    }))}>
-                    + {continent}
-                  </SecondaryButton>
-                ))}
-                <PrimaryButton size="sm" disabled={remainingCountries.length === 0}
-                  onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: remainingCountries }))}>
-                  Select all remaining worldwide ({remainingCountries.length})
-                </PrimaryButton>
-                <DestructiveButton size="sm" onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: [] }))}>Clear selection</DestructiveButton>
-              </div>
-            </div>
-            <SearchField label="Search countries" placeholder="Search countries…" value={countrySearch} onChange={(e) => setCountrySearch(e.target.value)} />
-            <p className="rp-hint" role="status" style={{ margin: 0 }}>{activeZone.countries.length} countr{activeZone.countries.length === 1 ? "y" : "ies"} selected</p>
-            <div style={{ maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
-              {countryGroups.map(({ continent, countries }) => (
-                <section key={continent} aria-labelledby={`shipping-continent-${continent.replace(/\s/g, "-")}`} style={{ padding: "10px 0" }}>
-                  <div className="rp-sect" id={`shipping-continent-${continent.replace(/\s/g, "-")}`} style={{ marginBottom: 6 }}>{continent}</div>
-                  <div style={{ display: "grid", gap: 0, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-                    {countries.map((country) => {
-                      const unavailable = countriesAssignedElsewhere.has(country.name);
-                      return (
-                        <Checkbox key={country.code}
-                          label={`${country.name}${unavailable ? " — in another zone" : ""}`}
-                          checked={activeZone.countries.includes(country.name)} disabled={unavailable}
-                          onChange={() => setActiveZone((prev: any) => ({
-                            ...prev,
-                            countries: prev.countries.includes(country.name)
-                              ? prev.countries.filter((name: string) => name !== country.name)
-                              : [...prev.countries, country.name],
-                          }))} />
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
-            <ZoneRegionPicker regions={activeZone.regions || []}
-              onChange={(regions) => setActiveZone((prev: any) => ({ ...prev, regions }))}
-              otherZones={(editingProfile?.zones || []).filter((z: any) => z.id !== activeZone.id)}
-              homeCountry={findCountry(homeCountryName())?.code} />
-            </>)}
-          </div>
-        )}
-      </Dialog>
 
     </>
   ) : null;
@@ -1230,6 +1125,18 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     setSelectedProfileId(null); setEditingProfile(null);
   };
 
+  if (isZoneModalOpen && activeZone) {
+    const home = findCountry(homeCountryName())?.code === "US" ? "US" : "CA";
+    return (
+      <>
+        <ZonePage key={activeZone.id} zone={activeZone} otherZones={zones.filter((z: any) => z.id !== activeZone.id)} home={home}
+          isNew={zoneOpening.isNew} presetEverywhereElse={zoneOpening.everywhereElse} profileName={editingProfile.name || "Profile"}
+          onSave={handleSaveZone} onCancel={() => setIsZoneModalOpen(false)} />
+        {confirmNode}
+      </>
+    );
+  }
+
   // A shipping rate is its own form page (v4 form kit), opened from a zone; Save rate returns to the profile.
   if (isRateModalOpen && activeRate) {
     const t = activeRate.type || "flat";
@@ -1326,7 +1233,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                     <span style={{ minWidth: 0 }}>
                       <button type="button" className="rp-fk-zone-name" onClick={() => openZoneModal(z)} aria-label={`Edit zone ${z.name}`}>{z.name}</button>
                       <span className="rp-fk-hint" style={{ display: "block", overflowWrap: "anywhere" }}>
-                        {z.restOfWorld ? "Everywhere else" : [(z.countries || []).map((c: string) => countryName(c)).join(", "), regionsSummary(z.regions)].filter(Boolean).join(" · ")}
+                        {zoneSummary(z)}
                       </span>
                     </span>
                     <ActionMenu label={`More for zone ${z.name}`} actions={[
@@ -1359,6 +1266,12 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                 </li>
               ))}
             </ul>
+          )}
+          {lacksEverywhereElse(zones) && (
+            <div className="zp-nudge" role="note">
+              <p>Shoppers outside these zones can't check out.</p>
+              <button type="button" className="rp-fk-pill" onClick={() => openZoneModal(null, true)}>Add Everywhere else</button>
+            </div>
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <button type="button" className="rp-fk-pill" onClick={() => openZoneModal()}>Add a zone</button>
