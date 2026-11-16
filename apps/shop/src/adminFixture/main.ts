@@ -602,10 +602,16 @@ for (const key of Object.keys(adminApi as any)) {
 const links = () => ((window as any).__fixtureLinks ||= {});
 inventoryLinkApi.links = async () => links();
 inventoryLinkApi.state = async () => ({ links: links() });
-inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string) => {
-  links()[bookId] = { _: inventoryBookId };
-  return { links: links(), already: false };
+inventoryLinkApi.linkNewBook = async (bookId: string, inventoryBookId: string, variantId: string | null = null) => {
+  links()[bookId] = variantId ? { ...links()[bookId], [variantId]: inventoryBookId } : { _: inventoryBookId };
+  return { links: { ...links() }, already: false };
 };
+// The stockroom's books, for matching a product's editions on its Stock and sales tab.
+inventoryLinkApi.catalog = async () => ({ books: [
+  { id: "inv-tee-s", title: "Tee small", author: "", isbn: "", currency: "CAD", maxPrint: null, onHand: 12, feedAt: null },
+  { id: "inv-tee", title: "Tee", author: "", isbn: "", currency: "CAD", maxPrint: null, onHand: 40, feedAt: null },
+  { id: "inv-salt", title: "Salt Almanac", author: "", isbn: "9780000000001", currency: "CAD", maxPrint: null, onHand: 7, feedAt: null },
+] });
 (window as any).__adminFixture = { orders: ORDERS };
 
 // Settings › General › Web address: ?domain=waiting (a domain brought over, with its steps), ?domain=securing,

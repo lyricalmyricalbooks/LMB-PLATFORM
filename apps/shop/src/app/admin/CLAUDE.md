@@ -13,7 +13,9 @@ another admin call takes it from its own small file the same way. `adminApiImpor
 (`InventoryLinkPanel`), its sub tab (`#inventory/link` now opens Inventory) and every alert that sent the owner there are
 gone; `inventoryLinkAlerts` keeps only the refused-label alerts (action `order`). The server side below still runs
 (sign-up starts it, `signup/shopMaker.js`), the admin still reads `links` for the read-only stock guards, and a single
-book is matched from its Stock and sales tab (`linkNewBook`). The notes below describe the server and the old page.
+book is matched from its Stock and sales tab (`linkNewBook`); a product with editions is matched edition by edition there
+(16 November 2026: `EditionMatches`, `printedEditions`, `guessEdition` in `StockroomBookPanel.tsx`; editions of one product
+may share a stockroom book, other products may not, same rule as `validateLinks`). The notes below describe the server and the old page.
 
 The shop and the inventory app (`lyricalmyricalbooks/LMB-PLATFORM (apps/stockroom)`, Firebase project `lmb-test-stockroom`) share sales
 and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory repo's `docs/website-link.md` — change both).

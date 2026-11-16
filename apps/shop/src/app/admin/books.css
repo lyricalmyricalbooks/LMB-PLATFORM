@@ -171,3 +171,10 @@
 .bk-sale-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 640px) { .bk-sale-grid { grid-template-columns: 1fr; } }
 .bk-sale-problem { margin: 8px 0 0; color: var(--rp-danger); font-size: var(--rp-text-sm); }
+
+/* Stock and sales › Match each edition with the stockroom: the edition's name on one line, the picker takes the rest. */
+.be-edition-matches td:first-child { white-space: nowrap; }
+.be-edition-pick { display: flex; align-items: center; gap: 8px; }
+.be-edition-pick .rp-field { margin: 0; flex: 1 1 0; min-width: 0; }
+.be-edition-pick .rp-select { width: 100%; min-width: 0; }
+.be-edition-pick > button { flex: none; }
