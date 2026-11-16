@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.cardTaken = exports.cardAsk = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.cardAsk = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.feeChargeable = feeChargeable;
 exports.cleanService = cleanService;
@@ -79,8 +79,14 @@ function depositOf(s) {
 const cardAsk = (b) => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
 exports.cardAsk = cardAsk;
 /** What was taken by card for this booking (the most that can go back to the card). */
-const cardTaken = (b) => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
+const cardTaken = (b) => (0, exports.bookedCardTaken)(b) + (0, exports.restTaken)(b);
 exports.cardTaken = cardTaken;
+/** What the card page took when the booking was made (the deposit, or the whole price). */
+const bookedCardTaken = (b) => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
+exports.bookedCardTaken = bookedCardTaken;
+/** What was left and later paid by card from the booking page. */
+const restTaken = (b) => Math.max(0, b.rest?.amountMinor || 0);
+exports.restTaken = restTaken;
 /** A missed-booking or late-cancellation fee charged to the saved card. */
 const feeTaken = (b) => Math.max(0, b.fee?.amountMinor || 0);
 exports.feeTaken = feeTaken;
@@ -95,6 +101,11 @@ exports.moneyKept = moneyKept;
 /** What is still to pay at the visit. Nothing for a cancelled booking. */
 const balanceDue = (b) => (b.status === "cancelled" ? 0 : Math.max(0, (b.priceMinor || 0) - priceTaken(b)));
 exports.balanceDue = balanceDue;
+/** The smallest amount a card page takes. */
+exports.MIN_CARD_MINOR = 50;
+/** Can the client pay what is left by card from their booking page? A confirmed booking with at least 0.50 still due. */
+const restPayable = (b) => b.status === "confirmed" && (0, exports.balanceDue)(b) >= exports.MIN_CARD_MINOR;
+exports.restPayable = restPayable;
 /** The most a missed-booking fee may be: the price for a priced service, else this. */
 exports.MAX_FREE_LATE_FEE = 50_000;
 /**

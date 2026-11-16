@@ -1108,6 +1108,10 @@ with a balance as one to mark paid. Fixture: service "Half-day workshop", bookin
 Square shops) switches on **Keep a card on file** and sets the fee. The drawer shows "Card on file: Visa ending 4242",
 and once `feeChargeable` a `.bkg-fee` panel with **Charge fee** opens `FeeDialog` (any amount up to the fee). Fixture:
 service "review" holds a card with a $20 fee; booking "Fay Example" is a no-show with a card.
+**Pay the rest (16 November 2026):** a booking with `restPayable` shows `PayRestPanel` in the drawer ("$90.00 left to pay"):
+**Copy pay link**, **Email it** and **Show QR code** all call op `payLink` (the same link each time); the code is a dialog
+with `qrPicture` (`stockroom/qrCodesStore`). `paymentText` says "Paid … by card (deposit, then the rest online)" once `rest`
+is in. Fixture: "Flo Example" (deposit) and "Eve Example" (at the shop) show the panel; op `payLink` answers a sample link.
 
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,

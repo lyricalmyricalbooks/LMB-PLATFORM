@@ -182,6 +182,17 @@ describe("deposits", () => {
     expect([cardAsk({ payment: "card", priceMinor: 4000 }), cardTaken({ payment: "card", priceMinor: 4000 }), cardTaken({ payment: "card", priceMinor: 4000, paid: true })]).toEqual([4000, 0, 4000]);
     expect([cardTaken({ payment: "atShop", priceMinor: 6000, paid: true }), balanceDue({ payment: "atShop", priceMinor: 6000 })]).toEqual([0, 6000]);
   });
+  it("counts what is left once it is paid later by card from the booking page", async () => {
+    const { balanceDue, bookedCardTaken, cardTaken, moneyTaken, restPayable, restTaken } = await import("./bookingTimes");
+    const dep = { payment: "deposit", priceMinor: 14000, depositMinor: 3500, depositPaid: true, status: "confirmed" };
+    expect(restPayable(dep)).toBe(true);
+    const done = { ...dep, rest: { amountMinor: 10500 } };
+    expect([bookedCardTaken(done), restTaken(done), cardTaken(done), moneyTaken(done), balanceDue(done), restPayable(done)]).toEqual([3500, 10500, 14000, 14000, 0, false]);
+    const shop = { payment: "atShop", priceMinor: 6000, status: "confirmed" };
+    expect([restPayable(shop), cardTaken({ ...shop, rest: { amountMinor: 6000 } }), balanceDue({ ...shop, rest: { amountMinor: 6000 } })]).toEqual([true, 6000, 0]);
+    // Below the card minimum, a held booking or a cancelled one: no pay button.
+    expect([restPayable({ ...shop, priceMinor: 40 }), restPayable({ ...shop, status: "held" }), restPayable({ ...shop, status: "cancelled" }), restPayable({ ...shop, paid: true })]).toEqual([false, false, false, false]);
+  });
 });
 
 describe("card on file and the missed-booking fee", () => {

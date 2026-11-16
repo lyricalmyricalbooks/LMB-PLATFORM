@@ -170,8 +170,10 @@ export function cardText(card: { brand?: string; last4?: string } | null | undef
 }
 
 /** How a booking is paid, in plain words. */
-export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing">): string {
+export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing" | "rest">): string {
   const onCard = cardTaken(b);
+  // The rest paid later from the booking page: all of it by card in the end.
+  if (b.rest?.amountMinor && !b.refund?.amountMinor) return `Paid ${moneyText(onCard, b.currency)} by card${b.payment === "deposit" ? " (deposit, then the rest online)" : " online"}`;
   if (b.refund?.amountMinor) return b.refund.amountMinor < onCard ? `Refunded ${moneyText(b.refund.amountMinor, b.currency)} of ${moneyText(onCard, b.currency)}` : `Refunded ${moneyText(b.refund.amountMinor, b.currency)}`;
   if ((b.payment === "card" || b.payment === "deposit") && !onCard && b.status === "held" && b.clearing) return "Bank payment clearing";
   if (b.payment === "free") return "Free";

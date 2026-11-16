@@ -891,3 +891,110 @@ describe("card on file and the missed-booking fee", () => {
     expect(t.opened).toHaveLength(0);
   });
 });
+
+describe("paying the rest by link", () => {
+  const seedMore = async (t) => {
+    await t.seed();
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 14000, depositPercent: 25 });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const bookColour = async (t) => {
+    const r = await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_dep" });
+    await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    return r;
+  };
+  const payRestPage = (t, id, intent = "pi_rest") => Object.assign(t.sessions.get(id), { payment_status: "paid", status: "complete", payment_intent: intent });
+
+  test("the customer pays what is left after a deposit and the booking is paid in full", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await bookColour(t);
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking).toMatchObject({ canPayRest: true, restPaidMinor: 0, dueMinor: 10500 });
+    const pay = await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key });
+    expect(pay.body.url).toBe("https://pay.example/cs_test_00000001");
+    expect(t.opened[1].params).toMatchObject({ mode: "payment", metadata: { booking: "booking001", rest: "1" }, success_url: `https://press.example/book?booking=booking001&key=${r.body.key}` });
+    expect(t.opened[1].params.line_items[0].price_data).toMatchObject({ unit_amount: 10500, product_data: { name: "Moth Press: Colour (the rest)" } });
+    // Tapping again while the page is open opens no second one.
+    expect((await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key })).body.url).toBe(pay.body.url);
+    expect(t.opened).toHaveLength(2);
+    payRestPage(t, "cs_test_00000001");
+    const after = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(after.body.booking).toMatchObject({ dueMinor: 0, canPayRest: false, restPaidMinor: 10500 });
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ restOpen: false, rest: { amountMinor: 10500, paymentIntent: "pi_rest", session: "cs_test_00000001" } });
+    const receipt = t.emails.find((e) => e.subject.startsWith("Paid in full"));
+    expect(receipt.to).toBe("ada@example.com");
+    expect(receipt.html).toMatch(/You paid \$105\.00 by card/);
+    expect(t.emails.some((e) => e.to === "owner@example.com" && /Paid in full/.test(e.subject))).toBe(true);
+    // Paid in full: nothing more to pay, and no second receipt.
+    expect((await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key })).statusCode).toBe(409);
+    await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(t.emails.filter((e) => e.subject.startsWith("Paid in full"))).toHaveLength(1);
+  });
+
+  test("the owner's pay link works every time, emails the client and opens only this booking", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    const link = await t.adm({ op: "payLink", id: r.body.id });
+    expect(link.body).toMatchObject({ ok: true, dueMinor: 6000, sent: false });
+    const key = new URL(link.body.url).searchParams.get("key");
+    expect((await t.adm({ op: "payLink", id: r.body.id, send: true })).body.url).toBe(link.body.url);
+    const mail = t.emails.at(-1);
+    expect(mail).toMatchObject({ to: "ada@example.com", subject: expect.stringMatching(/^Left to pay: Cut/) });
+    expect(mail.html).toMatch(/Pay \$60\.00/);
+    expect(mail.html).toContain(link.body.url.replace(/&/g, "&#38;"));
+    // The link opens the booking page and pays.
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key })).body.booking).toMatchObject({ canPayRest: true, dueMinor: 6000 });
+    expect((await t.pub({ action: "bookingView", id: "booking999", key })).statusCode).toBe(404);
+    await t.pub({ action: "bookingPayRest", id: r.body.id, key });
+    payRestPage(t, "cs_test_00000000");
+    // The five-minute sweep keeps it even if the client never comes back to the page.
+    await t.desk.sweepHolds();
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ restOpen: false, rest: { amountMinor: 6000 } });
+    expect((await t.adm({ op: "payLink", id: r.body.id })).statusCode).toBe(409);
+    expect((await t.adm({ op: "paidAtShop", id: r.body.id })).body).toMatchObject({ code: "paid_by_card" });
+  });
+
+  test("marking it paid at the shop closes the open pay page", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key });
+    expect((await t.adm({ op: "paidAtShop", id: r.body.id })).statusCode).toBe(200);
+    expect(t.closed).toContain("cs_test_00000000");
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ paid: true, restOpen: false });
+  });
+
+  test("a cancel refunds the rest's payment first, then the deposit", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await bookColour(t);
+    await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key });
+    payRestPage(t, "cs_test_00000001");
+    await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    const c = await t.adm({ op: "cancel", id: r.body.id, refundMinor: 12000 });
+    expect(c.body).toEqual({ ok: true, refunded: true, refundMinor: 12000 });
+    expect(t.refunds).toEqual([
+      expect.objectContaining({ paymentIntentId: "pi_rest", amountMinor: 10500, idempotencyKey: "booking-refund-booking001-rest-12000" }),
+      expect.objectContaining({ paymentIntentId: "pi_dep", amountMinor: 1500, idempotencyKey: "booking-refund-booking001-12000" }),
+    ]);
+    expect(t.db.store.get("bookings/booking001").refund).toMatchObject({ amountMinor: 12000, refundIds: ["re_1", "re_2"] });
+    expect(t.emails.at(-1).html).toMatch(/\$120\.00 of your payment is being refunded/);
+  });
+
+  test("an unpaid page that runs out stops being checked", async () => {
+    const t = setup();
+    await seedMore(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    await t.pub({ action: "bookingPayRest", id: r.body.id, key: r.body.key });
+    t.clock.now = new Date(t.clock.now.getTime() + 61 * 60_000);
+    await t.desk.sweepHolds();
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ restOpen: false, paid: false });
+    expect(t.closed).toContain("cs_test_00000000");
+    // A booking with nothing left to pay has no button.
+    const free = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "10:00"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingPayRest", id: free.body.id, key: free.body.key })).body.code).toBe("nothing_due");
+  });
+});

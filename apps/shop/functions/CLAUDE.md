@@ -1265,3 +1265,15 @@ paymentMethod, brand, last4, mode}`. Admin op `chargeFee` charges up to `lateFee
 hold that ran out) through `chargeSaved` (off-session PaymentIntent, idempotency key `booking-fee-<id>-<amount>`), with
 a `feeCharging` claim against double taps. A decline returns 402 in plain words; success stores `fee` and emails a
 receipt (`tellCustomer` kind `fee`). `moneyTaken` includes `feeTaken`. Deploy the payment service before shops.
+**Pay the rest (16 November 2026, `tasks/todo/2026-11-16-booking-pay-rest.md`):** `restPayable` (shared: confirmed and
+`balanceDue` ≥ `MIN_CARD_MINOR` 50) lets the customer pay what is left. Public action `bookingPayRest` opens a 60-minute
+standalone `mode: "payment"` page (`metadata { booking, rest: "1" }`, key `booking-rest-<id>-<amount>-<n>`), reuses an open
+one with 15+ minutes left, and lists it in `restPages` with `restOpen: true`. `refreshRest` (from `bookingView`, `payLink`
+and the five-minute `sweepHolds`) keeps the first page paid for its exact amount as `rest { amountMinor, paymentIntent,
+session, at }` in a transaction, closes the others and emails kind `restPaid` (owner too). `settleRest` (close, then read
+once more) runs before a cancel and before `paidAtShop`, which refuses `paid_by_card` once the rest came in; the sweep
+settles a booking whose pages all ran out. `cardTaken` = `bookedCardTaken` + `restTaken`, so caps include it;
+`refundBooking` refunds the rest's intent first (`booking-refund-<id>-rest[-<amount>]`), then the booking's own, and stores
+`refundIds` when both. Admin op `payLink` returns `/book?booking=<id>&key=<payKey>` (`payKey` kept in the booking, admin-only
+readable, so a printed QR code keeps working; `keyFits` accepts it beside the manage and reminder keys, also in
+`customerBookingIcs`) and with `send: true` emails kind `payRest`.

@@ -105,6 +105,8 @@ describe("deposits", () => {
     expect(paymentText(dep())).toMatch(/35\.00 deposit paid by card, .*105\.00 to pay at the shop$/);
     expect(paymentText(dep({ paid: true }))).toMatch(/^Paid .*140\.00 \(.*35\.00 deposit by card, the rest at the shop\)$/);
     expect(paymentText(dep({ depositPaid: false, status: "held" }))).toBe("Paying the deposit now");
+    expect(paymentText(dep({ rest: { amountMinor: 10500, at: "" } }))).toMatch(/^Paid .*140\.00 by card \(deposit, then the rest online\)$/);
+    expect(paymentText(b({ payment: "atShop", priceMinor: 6000, paid: false, rest: { amountMinor: 6000, at: "" } }))).toMatch(/^Paid .*60\.00 by card online$/);
     expect(paymentText(dep({ status: "cancelled", refund: { amountMinor: 1000, at: "" } }))).toMatch(/^Refunded .*10\.00 of .*35\.00$/);
   });
   it("counts only money really taken: the deposit, then the whole price once the rest is paid", () => {
