@@ -6,7 +6,7 @@ import { FormField, FormPage, FormRow, FormSection, StatusBar, SummaryRail } fro
 import { CONTINENTS, type Continent } from "../../features/site/shippingZones";
 import {
   applyQuickPick, continentState, countriesOf, countryState, findPlaces, hasStates, isEmpty, pickedChips, picksOf,
-  placeCount, quickPicks, regionCount, regionState, statesOf, suggestName, takenBy, toggleContinent, toggleCountry,
+  placeCount, quickPicks, regionCount, regionState, setAllRegions, statesOf, suggestName, takenBy, toggleContinent, toggleCountry,
   toggleRegion, everywhereElse, zoneFromPicks, type Picks, type Tri, type ZoneIn,
 } from "./zonePlaces";
 import type { RegionCountry } from "./zoneRegions";
@@ -25,6 +25,10 @@ function TriBox({ state, label, disabled, onChange }: { state: Tri; label: strin
       aria-checked={state === "some" ? "mixed" : state === "all"} onChange={onChange} />
   );
 }
+
+/** Canada and the United States sit above the continents, each opening to its provinces or states. */
+const TOP = [{ code: "CA", name: "Canada" }, { code: "US", name: "United States" }];
+const TOP_CODES = new Set(TOP.map((c) => c.code));
 
 const money = (v: string) => { const n = Number(v); return v.trim() !== "" && Number.isFinite(n) && n >= 0 ? n : null; };
 
@@ -49,7 +53,7 @@ export function ZonePage({ zone, otherZones, home, isNew, profileName, presetEve
   const [extra, setExtra] = useState("");
   const homeContinent: Continent = "North America";
   const [open, setOpen] = useState<Set<string>>(() => {
-    const s = new Set<string>([homeContinent]);
+    const s = new Set<string>([homeContinent, "states-CA", "states-US"]);
     const p = presetEverywhereElse ? everywhereElse(true) : picksOf(zone);
     for (const c of CONTINENTS) if (continentState(p, c, taken).state !== "none") s.add(c);
     for (const r of p.regions) s.add(`states-${r.split("-")[0]}`);
@@ -92,7 +96,13 @@ export function ZonePage({ zone, otherZones, home, isNew, profileName, presetEve
             {code === "CA" ? "Provinces" : "States"}
           </button>
         )}
-        {states && statesOpen && (
+        {states && statesOpen && (<>
+          <div className="zp-states-bar">
+            <button type="button" className="zp-more" disabled={state === "all" || (!!count && count.on === count.of)}
+              onClick={() => setPicks((p) => setAllRegions(p, code, true, taken))}>Select all</button>
+            <button type="button" className="zp-more" disabled={state === "none"}
+              onClick={() => setPicks((p) => setAllRegions(p, code, false, taken))}>Clear</button>
+          </div>
           <ul className="zp-states" aria-label={`${code === "CA" ? "Provinces" : "States"} in ${label}`}>
             {statesOf(code).map((s) => {
               const held = taken.regions.get(s.code);
@@ -109,7 +119,7 @@ export function ZonePage({ zone, otherZones, home, isNew, profileName, presetEve
               );
             })}
           </ul>
-        )}
+        </>)}
       </li>
     );
   };
@@ -181,6 +191,10 @@ export function ZonePage({ zone, otherZones, home, isNew, profileName, presetEve
               )}
             </div>
 
+            <ul className="zp-countries zp-top" aria-label="Canada and the United States">
+              {TOP.map((c) => countryRow(c.code, c.name))}
+            </ul>
+
             <ul className="zp-tree" aria-label="All places">
               {CONTINENTS.map((cont) => {
                 const s = continentState(picks, cont, taken);
@@ -197,7 +211,7 @@ export function ZonePage({ zone, otherZones, home, isNew, profileName, presetEve
                         {isOpen ? "Hide" : "Show"}
                       </button>
                     </div>
-                    {isOpen && <ul className="zp-countries">{countriesOf(cont).map((c) => countryRow(c.code, c.name))}</ul>}
+                    {isOpen && <ul className="zp-countries">{countriesOf(cont).filter((c) => !TOP_CODES.has(c.code)).map((c) => countryRow(c.code, c.name))}</ul>}
                   </li>
                 );
               })}

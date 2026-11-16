@@ -13,7 +13,7 @@ import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, findCountry, regionList } from "../features/site/shippingZones";
 import { ZonePage, type FirstRate } from "./shipping/ZonePage";
-import { lacksEverywhereElse, zoneSummary } from "./shipping/zonePlaces";
+import { lacksEverywhereElse, uncoveredLine, uncoveredRegions, zoneSummary } from "./shipping/zonePlaces";
 import { ShippoConnectCard } from "./shipping/ShippoConnectCard";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
@@ -1267,6 +1267,12 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
               ))}
             </ul>
           )}
+          {uncoveredRegions(zones).map((u) => (
+            <div key={u.country} className="zp-nudge" role="note">
+              <p>{uncoveredLine(u)} {u.names.length === 1 ? "isn't" : "aren't"} in any zone, so shoppers there can't check out.</p>
+              <button type="button" className="rp-fk-pill" onClick={() => openZoneModal()}>Add a zone</button>
+            </div>
+          ))}
           {lacksEverywhereElse(zones) && (
             <div className="zp-nudge" role="note">
               <p>Shoppers outside these zones can't check out.</p>

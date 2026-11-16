@@ -71,3 +71,22 @@ it("opened for Everywhere else, it is already picked", () => {
   click(button("Add zone"));
   expect(onSave.mock.calls[0][0]).toMatchObject({ name: "Everywhere else", restOfWorld: true, countries: [] });
 });
+
+it("puts Canada and the United States first, open to their provinces and states", () => {
+  render();
+  const top = container.querySelector("[aria-label='Canada and the United States']")!;
+  expect([...top.querySelectorAll(":scope > li .zp-row-name")].map((n) => n.textContent)).toEqual(["Canada", "United States"]);
+  expect(container.querySelector("[aria-label='Provinces in Canada']")?.textContent).toContain("Ontario");
+  expect(container.querySelector("[aria-label='States in United States']")?.textContent).toContain("Texas");
+  expect(container.querySelectorAll("[aria-label='Provinces in Canada']")).toHaveLength(1);
+});
+
+it("select all and clear fill and empty a country's provinces", () => {
+  const { onSave } = render();
+  const bar = container.querySelector("[aria-label='Provinces in Canada']")!.previousElementSibling!;
+  click([...bar.querySelectorAll("button")].find((b) => b.textContent === "Select all")!);
+  expect(container.querySelector("[aria-label='Provinces in Canada'] input:not(:checked)")).toBeNull();
+  click([...bar.querySelectorAll("button")].find((b) => b.textContent === "Clear")!);
+  expect(container.querySelector("[aria-label='Provinces in Canada'] input:checked")).toBeNull();
+  expect(onSave).not.toHaveBeenCalled();
+});

@@ -286,3 +286,29 @@ export function zoneSummary(zone: ZoneIn): string {
 
 /** True when no zone of the profile catches shoppers from places the others leave out. */
 export const lacksEverywhereElse = (zones: ZoneIn[]) => zones.length > 0 && !zones.some((z) => isCatchAllZone({ region: z.region || "", base: 0, additional: 0, restOfWorld: z.restOfWorld }));
+
+/** Ticks every open state or province of a country (a free country is picked whole), or takes them all off. */
+export function setAllRegions(p: Picks, code: string, on: boolean, taken: Taken = EMPTY_TAKEN): Picks {
+  const off = { ...p, countries: p.countries.filter((c) => c !== code), regions: p.regions.filter((r) => countryOfRegion(r) !== code) };
+  if (!on) return off;
+  if (!taken.countries.has(code)) return { ...off, countries: [...off.countries, code], restOfWorld: false };
+  return { ...off, regions: [...off.regions, ...regionsOfCountry(code).filter((r) => !taken.regions.has(r))] };
+}
+
+/** States and provinces no zone covers, for a country the zones cover only in part (nothing when a zone catches the rest). */
+export function uncoveredRegions(zones: ZoneIn[]): { country: string; names: string[] }[] {
+  if (zones.length === 0 || zones.some((z) => isCatchAllZone({ region: z.region || "", base: 0, additional: 0, restOfWorld: z.restOfWorld }))) return [];
+  const out: { country: string; names: string[] }[] = [];
+  for (const code of ["CA", "US"]) {
+    if (zones.some((z) => picksOf(z).countries.includes(code))) continue;
+    const covered = new Set(zones.flatMap((z) => cleanRegions(z.regions)).filter((r) => countryOfRegion(r) === code));
+    if (covered.size === 0) continue;
+    const names = regionsOfCountry(code).filter((r) => !covered.has(r)).map(regionNameOf);
+    if (names.length) out.push({ country: nameOf(code), names });
+  }
+  return out;
+}
+
+/** "Ontario, Quebec and 3 more in Canada". */
+export const uncoveredLine = (u: { country: string; names: string[] }) =>
+  `${u.names.length > 3 ? `${u.names.slice(0, 2).join(", ")} and ${u.names.length - 2} more` : u.names.join(", ").replace(/, ([^,]*)$/, " and $1")} in ${u.country}`;
