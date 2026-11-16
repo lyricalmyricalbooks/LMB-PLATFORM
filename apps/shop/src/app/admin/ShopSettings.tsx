@@ -534,6 +534,8 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
+  // The rate as it was when opened (null for a new rate), so "Unsaved changes" shows only after an edit.
+  const [rateBaseline, setRateBaseline] = useState<string | null>(null);
   
   // Create profile dialog
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
@@ -793,7 +795,9 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     setParentZoneIdForRate(zoneId);
     if (rate) {
       setActiveRate(JSON.parse(JSON.stringify(rate)));
+      setRateBaseline(JSON.stringify(rate));
     } else {
+      setRateBaseline(null);
       setActiveRate({
         id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
         name: "Standard Shipping",
@@ -1233,6 +1237,13 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     const priced = t !== "free" && t !== "pickup";
     const zoneName = zones.find((z: any) => z.id === parentZoneIdForRate)?.name;
     const rateNameMissing = !String(activeRate.name || "").trim();
+    const rateDirty = rateBaseline === null || rateBaseline !== JSON.stringify(activeRate);
+    // A delivery estimate only means something from a connected carrier; an old value stays editable.
+    const showTransit = t === "pickup" || (!colophon && shippoConnected) || !!String(activeRate.deliveryDays || "").trim();
+    const leaveRate = async () => {
+      if (rateDirty && rateBaseline !== null && !(await askConfirm({ title: "Leave without saving?", message: "Your changes to this rate haven't been saved.", confirmLabel: "Discard changes" }))) return;
+      setIsRateModalOpen(false);
+    };
     const num = (k: string, label: string, opts: { prefix?: string; suffix?: string; hint?: string; placeholder?: string; step?: string } = {}) => (
       <FormField label={label} prefix={opts.prefix} suffix={opts.suffix} hint={opts.hint}>
         {(a) => <input {...a} type="number" min={0} step={opts.step ?? "0.01"} placeholder={opts.placeholder} value={activeRate[k] ?? ""} onChange={(e) => set(k, e.target.value)} />}
@@ -1241,7 +1252,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     return (
       <div className="rp-stack">
         <PageHead title={activeRate.name?.trim() || "New rate"} description={zoneName ? `Shipping rate · ${zoneName}` : "Shipping rate"}
-          back={{ label: editingProfile.name || "Profile", onClick: () => setIsRateModalOpen(false) }} />
+          back={{ label: editingProfile.name || "Profile", onClick: () => { void leaveRate(); } }} />
         <FormPage>
           <FormSection title="The rate" description="What shoppers see and pay.">
             <FormField label="Name" required empty={rateNameMissing} hint="Shown at checkout.">
@@ -1259,12 +1270,12 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
                 {num("handlingFee", "Handling fee", { prefix: "$", placeholder: "0.00", hint: "Once per order." })}
               </FormRow>
             )}
-            <FormRow>
-              <FormField label={t === "pickup" ? "Ready in" : "Days in transit"} suffix="days" hint={t === "pickup" ? undefined : "Only a carrier's own estimate."}>
+            {(showTransit || priced) && <FormRow>
+              {showTransit && <FormField label={t === "pickup" ? "Ready in" : "Days in transit"} suffix="days" hint={t === "pickup" ? undefined : "Only a carrier's own estimate."}>
                 {(a) => <input {...a} value={activeRate.deliveryDays || ""} placeholder="e.g. 2-5" onChange={(e) => set("deliveryDays", e.target.value)} />}
-              </FormField>
+              </FormField>}
               {priced && num("freeOver", "Free over", { prefix: "$", placeholder: "None" })}
-            </FormRow>
+            </FormRow>}
           </FormSection>
           <FormSection title="When to offer it" description="Leave empty to always offer it.">
             <FormRow>{num("minPrice", "Order total at least", { prefix: "$" })}{num("maxPrice", "Order total at most", { prefix: "$" })}</FormRow>
@@ -1275,9 +1286,9 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
             <FormToggle label="Offer this rate" hint="Off hides it at checkout." checked={activeRate.enabled !== false} onChange={(v) => set("enabled", v)} />
           </FormSection>
         </FormPage>
-        <StatusBar status={formStatus({ missing: rateNameMissing ? 1 : 0, dirty: true })} primaryLabel="Save rate"
+        <StatusBar status={formStatus({ missing: rateNameMissing ? 1 : 0, create: rateBaseline === null, verb: "add", dirty: rateDirty })} primaryLabel="Save rate"
           blocked={rateNameMissing} onBlocked={() => toast.error("Give the rate a name first.")}
-          onPrimary={handleSaveRate} onCancel={() => setIsRateModalOpen(false)} />
+          onPrimary={handleSaveRate} onCancel={() => { void leaveRate(); }} />
         {confirmNode}
       </div>
     );
