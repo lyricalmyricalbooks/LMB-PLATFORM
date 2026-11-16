@@ -6,7 +6,7 @@ import { FormField, FormPage, FormRow, FormSection, StatusBar, SummaryRail } fro
 import { CONTINENTS, type Continent } from "../../features/site/shippingZones";
 import {
   applyQuickPick, continentState, countriesOf, countryState, findPlaces, hasStates, isEmpty, pickedChips, picksOf,
-  placeCount, quickPicks, regionCount, regionState, statesOf, suggestName, takenBy, toggleContinent, toggleCountry,
+  placeCount, quickPicks, regionCount, regionState, setAllRegions, statesOf, suggestName, takenBy, toggleContinent, toggleCountry,
   toggleRegion, everywhereElse, zoneFromPicks, type Picks, type Tri, type ZoneIn,
 } from "./zonePlaces";
 import type { RegionCountry } from "./zoneRegions";
@@ -96,7 +96,13 @@ export function ZonePage({ zone, otherZones, home, isNew, profileName, presetEve
             {code === "CA" ? "Provinces" : "States"}
           </button>
         )}
-        {states && statesOpen && (
+        {states && statesOpen && (<>
+          <div className="zp-states-bar">
+            <button type="button" className="zp-more" disabled={state === "all" || (!!count && count.on === count.of)}
+              onClick={() => setPicks((p) => setAllRegions(p, code, true, taken))}>Select all</button>
+            <button type="button" className="zp-more" disabled={state === "none"}
+              onClick={() => setPicks((p) => setAllRegions(p, code, false, taken))}>Clear</button>
+          </div>
           <ul className="zp-states" aria-label={`${code === "CA" ? "Provinces" : "States"} in ${label}`}>
             {statesOf(code).map((s) => {
               const held = taken.regions.get(s.code);
@@ -113,7 +119,7 @@ export function ZonePage({ zone, otherZones, home, isNew, profileName, presetEve
               );
             })}
           </ul>
-        )}
+        </>)}
       </li>
     );
   };

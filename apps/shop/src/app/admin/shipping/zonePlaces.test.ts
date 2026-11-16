@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { matchShippingZone } from "../../features/site/shippingZones";
 import {
   applyQuickPick, continentState, countriesOf, countryState, findPlaces, lacksEverywhereElse, pickedChips, picksOf,
-  quickPicks, regionCount, regionState, suggestName, takenBy, toggleContinent, toggleCountry, toggleRegion,
+  quickPicks, regionCount, regionState, setAllRegions, suggestName, uncoveredLine, uncoveredRegions, takenBy, toggleContinent, toggleCountry, toggleRegion,
   zoneFromPicks, zoneSummary, type Picks,
 } from "./zonePlaces";
 
@@ -112,5 +112,27 @@ describe("words", () => {
     expect(lacksEverywhereElse([z])).toBe(true);
     expect(lacksEverywhereElse([z, { restOfWorld: true }])).toBe(false);
     expect(lacksEverywhereElse([])).toBe(false);
+  });
+});
+
+describe("select all, clear and places left out", () => {
+  it("select all picks the whole country, or only the open states when another zone holds it; clear takes them off", () => {
+    expect(setAllRegions(toggleRegion(none, "CA-ON"), "CA", true)).toMatchObject({ countries: ["CA"], regions: [] });
+    const taken = takenBy([{ name: "Canada", countries: ["CA"] }, { name: "North", regions: ["CA-NU"] }]);
+    const p = setAllRegions(none, "CA", true, taken);
+    expect(p.countries).toEqual([]);
+    expect(p.regions).toHaveLength(12);
+    expect(setAllRegions(p, "CA", false, taken).regions).toEqual([]);
+  });
+
+  it("names states no zone covers, unless a country or Everywhere else covers them", () => {
+    const lower = applyQuickPick(toggleCountry(none, "US"), "far", "US");
+    const zones = [{ name: "Lower", regions: lower.regions.filter((r) => r !== "US-TX") }];
+    expect(uncoveredRegions(zones)).toEqual([{ country: "United States", names: expect.arrayContaining(["Texas", "Alaska"]) }]);
+    expect(uncoveredLine({ country: "Canada", names: ["Ontario"] })).toBe("Ontario in Canada");
+    expect(uncoveredLine({ country: "Canada", names: ["A", "B", "C", "D"] })).toBe("A, B and 2 more in Canada");
+    expect(uncoveredRegions([...zones, { restOfWorld: true }])).toEqual([]);
+    expect(uncoveredRegions([{ countries: ["US"] }, { regions: ["US-AK"] }])).toEqual([]);
+    expect(uncoveredRegions([{ countries: ["GB"] }])).toEqual([]);
   });
 });

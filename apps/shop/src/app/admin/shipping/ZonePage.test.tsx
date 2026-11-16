@@ -80,3 +80,13 @@ it("puts Canada and the United States first, open to their provinces and states"
   expect(container.querySelector("[aria-label='States in United States']")?.textContent).toContain("Texas");
   expect(container.querySelectorAll("[aria-label='Provinces in Canada']")).toHaveLength(1);
 });
+
+it("select all and clear fill and empty a country's provinces", () => {
+  const { onSave } = render();
+  const bar = container.querySelector("[aria-label='Provinces in Canada']")!.previousElementSibling!;
+  click([...bar.querySelectorAll("button")].find((b) => b.textContent === "Select all")!);
+  expect(container.querySelector("[aria-label='Provinces in Canada'] input:not(:checked)")).toBeNull();
+  click([...bar.querySelectorAll("button")].find((b) => b.textContent === "Clear")!);
+  expect(container.querySelector("[aria-label='Provinces in Canada'] input:checked")).toBeNull();
+  expect(onSave).not.toHaveBeenCalled();
+});
