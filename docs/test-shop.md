@@ -32,8 +32,9 @@ that sells books and on one that doesn't before any press gets it:
 - **A fourth, a services shop (14 November 2026):** `test-studio` ("Test Studio", lmb-test-studio.web.app, a fourth
   Hosting site) is a hair studio: sign-up's Services, "Hair & beauty". Its admin has the services menu (Calendar,
   Clients, Money) and Bookings is on from the start, with three sample services and opening hours Tuesday to Saturday
-  (`setup/test-studio-data.js`), so its Book a time page answers. It has no sample appointments: book one on the shop
-  itself. It also holds the general shop's starter products, out of its menu, so the release check buys from it like
+  (`setup/test-studio-data.js`), so its Book a time page answers, and five sample clients brought over from an "old
+  system" (16 November 2026), listed under Clients. It has no sample appointments or staff yet: book one on the shop
+  itself; staff come with staff calendars. It also holds the general shop's starter products, out of its menu, so the release check buys from it like
   the others. "Make the test shop" makes it with the other three.
 
 ### Sample records
