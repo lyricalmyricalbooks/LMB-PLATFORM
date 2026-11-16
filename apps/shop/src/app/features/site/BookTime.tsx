@@ -183,6 +183,7 @@ function NewBooking({ c }: { c: Copy }) {
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(s), currency), rest: moneyText(s.priceMinor - upFrontMinor(s), currency) })}</span>}
+                {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
               </span>
             </button>
           ))}
@@ -244,10 +245,12 @@ function NewBooking({ c }: { c: Copy }) {
                 onChange={(e) => setForm({ ...form, note: e.target.value })} />
             </Field>
             {paysUpFront(service) && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
+            {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
             <button type="submit" className="fm-track-btn w-full" disabled={busy}>
               {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("bookTimeBooking")}</>
                 : takesDeposit(service) ? c("bookTimePayDeposit", { amount: moneyText(upFrontMinor(service), currency) })
-                : paysUpFront(service) ? c("bookTimePay", { amount: moneyText(service.priceMinor, currency) }) : c("bookTimeBook")}
+                : paysUpFront(service) ? c("bookTimePay", { amount: moneyText(service.priceMinor, currency) })
+                : service.holdCard ? c("bookTimeSaveCard") : c("bookTimeBook")}
             </button>
           </form>
           <aside {...regionProps("bookingsSummary")} className="fm-track-card p-6 fm-track-ledger">
@@ -606,6 +609,8 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
           <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositPaid", { deposit: moneyText(booking.depositMinor || 0, booking.currency), rest: moneyText(booking.dueMinor || 0, booking.currency) })}</p>
         )}
         {booking.status === "confirmed" && booking.payment === "atShop" && !booking.paid && booking.priceMinor > 0 && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
+        {booking.status === "confirmed" && booking.cardLast4 && !booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardOnFile", { last4: booking.cardLast4, fee: moneyText(booking.lateFeeMinor || 0, booking.currency) })}</p>}
+        {!!booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeFeeCharged", { fee: moneyText(booking.feeMinor, booking.currency) })}</p>}
       </div>
 
       {booking.status === "held" && (

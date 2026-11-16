@@ -180,7 +180,8 @@ const SHOP_OPS = Object.freeze({
   "paymentIntents.retrieve": { method: "GET", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}`, params: (p) => expandOnly(p, ["latest_charge", "latest_charge.balance_transaction"]) },
   "paymentIntents.cancel": { method: "POST", path: (a) => `/v1/payment_intents/${idFor("pi", a.id)}/cancel`, params: (p) => only(p, []) },
   "checkout.sessions.create": { method: "POST", path: () => "/v1/checkout/sessions", create: "payment_intent_data" },
-  "checkout.sessions.retrieve": { method: "GET", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}`, params: (p) => expandOnly(p, []) },
+  // The card a booking page saved (card on file): its setup or payment intent, with the card's brand and last four.
+  "checkout.sessions.retrieve": { method: "GET", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}`, params: (p) => expandOnly(p, ["setup_intent.payment_method", "payment_intent.payment_method"]) },
   "checkout.sessions.expire": { method: "POST", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}/expire`, params: (p) => only(p, []) },
   "refunds.create": { method: "POST", path: () => "/v1/refunds", refund: true },
   "refunds.list": { method: "GET", path: () => "/v1/refunds", params: refundListParams },

@@ -473,6 +473,21 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
       open: (params, idempotencyKey) => stripe.checkout.sessions.create(params, { ...requestOptions, idempotencyKey }),
       read: (id) => stripe.checkout.sessions.retrieve(id, {}, requestOptions),
       close: (id) => stripe.checkout.sessions.expire(id, {}, requestOptions),
+      // Card on file (bookings): the card a finished page saved for later, with its brand and last four, or null.
+      // A setup page saves it through its setup intent, a payment page (setup_future_usage) through its payment intent.
+      async savedCard(id) {
+        const session = await stripe.checkout.sessions.retrieve(id, { expand: ["setup_intent.payment_method", "payment_intent.payment_method"] }, requestOptions);
+        const holder = [session?.setup_intent, session?.payment_intent].find((v) => v && typeof v === "object" && v.payment_method) || null;
+        const method = holder?.payment_method;
+        const customer = typeof session?.customer === "string" ? session.customer : session?.customer?.id;
+        const paymentMethod = typeof method === "string" ? method : method?.id;
+        if (!customer || !paymentMethod) return null;
+        return { customer, paymentMethod, brand: String(method?.card?.brand || ""), last4: String(method?.card?.last4 || "") };
+      },
+      // Charges a saved card with nobody at the page (a missed-booking fee). A declined card throws Stripe's error.
+      chargeSaved: ({ customer, paymentMethod, amountMinor, currency, description, metadata }, idempotencyKey) => stripe.paymentIntents.create({
+        amount: amountMinor, currency, customer, payment_method: paymentMethod, off_session: true, confirm: true, description, metadata,
+      }, { ...requestOptions, idempotencyKey }),
     });
   }
 

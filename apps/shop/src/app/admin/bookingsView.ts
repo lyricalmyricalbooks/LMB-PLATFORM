@@ -144,6 +144,13 @@ export function whenFromNow(b: Booking, nowMs: number, zone: string): string {
   return `on ${dayText(day, "long")}`;
 }
 
+/** A saved card as the owner sees it: "Visa ending 4242". */
+export function cardText(card: { brand?: string; last4?: string } | null | undefined): string {
+  if (!card) return "";
+  const brand = card.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : "Card";
+  return card.last4 ? `${brand} ending ${card.last4}` : "A card";
+}
+
 /** How a booking is paid, in plain words. */
 export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing">): string {
   const onCard = cardTaken(b);

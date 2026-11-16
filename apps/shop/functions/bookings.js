@@ -10,7 +10,9 @@
 //                            note, answers: [{ label, answer }] (the service's own questions), status: "held" | "confirmed" | "cancelled",
 //                            payment: "free" | "card" | "deposit" | "atShop", priceMinor (the whole price), depositMinor and depositPaid (payment "deposit":
 //                            the part taken by card when booked; the rest is paid at the visit), currency, paid (all of it), sessions, paidSession?, paymentIntent?, refund?, holdUntil?, manageKeyHash,
-//                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt }
+//                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt,
+//                            cardHold? and lateFeeMinor? (the service keeps a card on file), card? { customer, paymentMethod, brand,
+//                            last4, mode } once saved, fee? { intent, amountMinor, at, by } once a missed-booking fee is charged }
 //   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
 //                          written in the same transaction as the booking, so two customers can never take one time.
 //   bookingWaitlist/{id}   { serviceId, serviceName, day, start | null, name, email, createdAt, offerStart?, offerUntil?,
@@ -25,11 +27,15 @@
 // the page; the Book a time page asks "view" when the customer comes back, and the five-minute sweep confirms a paid
 // hold or, after HOLD_MINUTES, closes the page and frees the time.
 //
+// Card on file (Stripe shops only, 16 November 2026): a service with `holdCard` saves the customer's card on the same page
+// (a setup page when nothing is taken now, or the deposit page with setup_future_usage). After a no-show or the shop's own
+// cancel, the owner charges the service's fee to it once (op chargeFee) and the customer gets a receipt.
+//
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
-  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, balanceDue,
+  googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, balanceDue, feeChargeable,
 } = require("./shared/bookingTimes");
 
 const HOLD_MINUTES = 10;
@@ -45,6 +51,8 @@ const WAIT_ID = /^[a-f0-9]{32}$/;
 const offerItem = (wid) => `offer_${wid}`;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
+/** A fee being charged stops a second tap for this long, in case the first one never finished. */
+const FEE_CLAIM_MS = 2 * MINUTE;
 const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -85,6 +93,8 @@ function publicBooking(id, b, settings, nowMs) {
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
     cancelHours: settings.cancelHours,
+    // Card on file: only whether one is kept, its last four and the fee (never its ids).
+    cardHold: !!b.cardHold, lateFeeMinor: b.cardHold ? b.lateFeeMinor || 0 : 0, cardLast4: b.card?.last4 || "", feeMinor: b.fee?.amountMinor || 0,
   };
 }
 
@@ -125,6 +135,8 @@ function bookingActions({
     const snap = await services().limit(MAX_SERVICES).get();
     return snap.docs.map((d) => cleanService(d.data(), d.id)).filter((s) => !s.problem).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   }
+  /** Only Stripe can keep a card for later; a Square shop's services book without one. */
+  const canHoldCard = () => payments?.provider === "stripe";
   async function standalone() {
     const mode = (await shopTestMode()) ? "test" : "live";
     return { mode, checkout: await payments.standaloneCheckout(mode) };
@@ -151,15 +163,16 @@ function bookingActions({
       const shop = brand.shopName || shopName() || "the shop";
       const when = whenWords(b);
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
-      const subject = { notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const subject = { fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
       const lead = {
+        fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
         notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
         booked: `You're booked in with ${escapeHtml(shop)}.`,
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
-      const ended = kind === "cancelled" || kind === "notCleared";
+      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee";
       // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
       const due = balanceDue(b);
       const taken = cardTaken(b);
@@ -167,16 +180,20 @@ function bookingActions({
         b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
         due ? `<p style="margin:0 0 4px;"><strong>To pay at your visit:</strong> ${escapeHtml(moneyWords(due, b.currency))}</p>` : `<p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(b.priceMinor, b.currency))}</p>`,
       ].join("");
+      // The card kept on file, and what missing the booking costs, on every email about a booking that is still on.
+      const cancelHours = ended || !b.card ? 0 : (await readSettings().catch(() => null))?.cancelHours || 0;
+      const held = ended || !b.card ? "" : `<p style="margin:0 0 4px;"><strong>Card on file:</strong> ${escapeHtml(cardWords(b.card))}. Missing this booking${cancelHours ? `, or cancelling less than ${cancelHours} hours before,` : ""} may cost ${escapeHtml(moneyWords(b.lateFeeMinor || 0, b.currency))}.</p>`;
       const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = !ended && key ? risoButton(escapeHtml(manageUrl(id, key)), "See or change your booking", brand.accent, brand.theme) : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ notCleared: "Payment didn't clear", reminder: "See you soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
         <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
         ${where}
         ${money}
+        ${held}
         ${manage}
         ${calendar}
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
@@ -190,6 +207,7 @@ function bookingActions({
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
             ${money}
+            ${held}
             ${kind === "notCleared" ? `<p style="margin:12px 0 0;">Their bank payment was still clearing when the booking was due, so the time was released and nothing was taken. You may want to get in touch with them.</p>` : ""}
             ${b.note ? `<p style="margin:12px 0 0;">“${escapeHtml(b.note)}”</p>` : ""}
             ${(b.answers || []).map((a) => `<p style="margin:12px 0 0;"><strong>${escapeHtml(a.label)}</strong><br>${escapeHtml(a.answer)}</p>`).join("")}
@@ -425,10 +443,13 @@ function bookingActions({
     for (const sid of (b.sessions || []).slice(-10)) {
       if (!SESSION_ID.test(sid)) continue;
       const session = await checkout.read(sid).catch(() => null);
-      if (!session || session.payment_status !== "paid") continue;
-      if (session.metadata?.booking && session.metadata.booking !== id) continue;
-      if (Number.isFinite(session.amount_total) && session.amount_total !== cardAsk(b)) continue;
-      return confirmPaid(id, b, sid, session.payment_intent);
+      if (!session || (session.metadata?.booking && session.metadata.booking !== id)) continue;
+      if (cardAsk(b) > 0) {
+        if (session.payment_status !== "paid") continue;
+        if (Number.isFinite(session.amount_total) && session.amount_total !== cardAsk(b)) continue;
+      } else if (!(session.mode === "setup" && session.status === "complete")) continue; // only a card to save
+      const card = b.cardHold && checkout.savedCard ? await checkout.savedCard(sid).catch((err) => { console.warn(`Booking ${id}: the saved card couldn't be read:`, err?.message || err); return null; }) : null;
+      return confirmPaid(id, b, sid, session.payment_intent, card ? { ...card, mode: b.cardMode || "live" } : null);
     }
     return b;
   }
@@ -444,13 +465,17 @@ function bookingActions({
     return false;
   }
 
-  async function confirmPaid(id, b, sid, intent) {
+  async function confirmPaid(id, b, sid, intent, card = null) {
     const at = now().toISOString();
-    // A deposit leaves the rest to pay at the visit, so only the deposit is marked paid.
+    // A deposit leaves the rest to pay at the visit, so only the deposit is marked paid. A page that only saved a card
+    // took nothing.
     const deposit = b.payment === "deposit";
+    const tookMoney = cardAsk(b) > 0;
+    const money = !tookMoney ? {} : { ...(deposit ? { depositPaid: true, paid: false } : { paid: true }), paymentIntent: typeof intent === "string" ? intent : intent?.id || null };
+    const what = [tookMoney ? (deposit ? "deposit paid" : "paid") : "", card ? "card saved" : ""].filter(Boolean).join(", ") || "confirmed";
     const changes = {
-      status: "confirmed", ...(deposit ? { depositPaid: true, paid: false } : { paid: true }), paidSession: sid, paymentIntent: typeof intent === "string" ? intent : intent?.id || null,
-      holdUntil: null, updatedAt: at, history: [...(b.history || []), { at, what: deposit ? "deposit paid" : "paid", by: "customer" }].slice(-20),
+      status: "confirmed", ...money, paidSession: sid, ...(card ? { card } : {}),
+      holdUntil: null, updatedAt: at, history: [...(b.history || []), { at, what, by: "customer" }].slice(-20),
     };
     // The days stop calling it a hold.
     const days = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
@@ -506,7 +531,10 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active);
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places }) => ({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places })),
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor }) => ({
+            id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
+            ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
+          })),
         });
       }
       if (action === "bookingTimes") {
@@ -554,22 +582,27 @@ function bookingActions({
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
         // What the card page takes now: the whole price, the deposit, or nothing (free, or all paid at the visit).
         const upFront = depositOf(service);
-        const paid = upFront > 0;
-        const deposit = paid && service.payment === "deposit";
+        const deposit = upFront > 0 && service.payment === "deposit";
         let checkout = null;
-        if (paid) {
-          ({ checkout } = await standalone());
-          if (!checkout) return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
+        let mode = "live";
+        let holdCard = service.holdCard && canHoldCard();
+        if (upFront > 0 || holdCard) {
+          ({ checkout, mode } = await standalone());
+          if (!checkout?.savedCard) holdCard = false;
+          if (!checkout && upFront > 0) return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
         }
+        // The customer goes to a card page to pay now, to save a card for the missed-booking fee, or both.
+        const paid = upFront > 0 || holdCard;
         const id = randomId();
         const key = randomKey();
         const at = new Date(nowMs).toISOString();
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
-          status: paid ? "held" : "confirmed", payment: deposit ? "deposit" : paid ? "card" : service.payment === "atShop" && service.priceMinor > 0 ? "atShop" : "free",
+          status: paid ? "held" : "confirmed", payment: deposit ? "deposit" : upFront > 0 ? "card" : service.payment === "atShop" && service.priceMinor > 0 ? "atShop" : "free",
           priceMinor: service.payment === "free" ? 0 : service.priceMinor, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           paid: false, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
+          ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
           pendingKey: paid ? key : null,
           source: "website", history: [{ at, what: "booked", by: "customer" }], createdAt: at, updatedAt: at,
@@ -583,15 +616,27 @@ function bookingActions({
         try {
           const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}${deposit ? " (deposit)" : ""}`.slice(0, 250);
           const metadata = { booking: id };
-          const session = await checkout.open({
-            mode: "payment",
-            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: upFront, product_data: { name: description } } }],
+          const page = {
             customer_email: customer.email,
             metadata,
-            payment_intent_data: { description, metadata },
             // Stripe's shortest page life is 30 minutes; the sweep closes it once the hold runs out.
             expires_at: Math.floor(nowMs / 1000) + 31 * 60,
             success_url: manageUrl(id, key),
+          };
+          // Nothing to pay now: a page that only saves the card. Paying now with a card kept: the same payment page,
+          // which also saves the card for later (a customer of the shop's own Stripe account holds it).
+          const session = await checkout.open(upFront > 0 ? {
+            ...page,
+            mode: "payment",
+            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: upFront, product_data: { name: description } } }],
+            payment_intent_data: { description, metadata, ...(holdCard ? { setup_future_usage: "off_session" } : {}) },
+            ...(holdCard ? { customer_creation: "always" } : {}),
+          } : {
+            ...page,
+            mode: "setup",
+            currency: currency().toLowerCase(),
+            customer_creation: "always",
+            setup_intent_data: { description: `${description} (card kept for the missed-booking fee)`.slice(0, 250), metadata },
           }, `booking-${id}`);
           await bookings().doc(id).set({ sessions: [session.id] }, { merge: true });
           return res.status(200).json({ id, key, status: "held", url: session.url, holdMinutes: HOLD_MINUTES });
@@ -825,6 +870,50 @@ function bookingActions({
         if (req.body?.notify !== false) await tellCustomer(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() }, "moved", { byShop: true });
         return res.status(200).json({ ok: true });
       }
+      if (op === "chargeFee") {
+        // The missed-booking fee, on the card the customer saved when booking: once, at most the fee they agreed to.
+        const nowMs = now().getTime();
+        if (!feeChargeable(b, nowMs)) {
+          if (b.fee) return fail(res, 409, "The fee for this booking is already charged.", "charged");
+          if (!b.card) return fail(res, 409, "No card is kept for this booking.", "no_card");
+          return fail(res, 409, b.status === "cancelled" ? "The customer cancelled in time, so there is no fee." : "The fee can be charged once the booking has started.", "too_soon");
+        }
+        const amount = req.body?.amountMinor === undefined ? b.lateFeeMinor : Number(req.body.amountMinor);
+        if (!Number.isInteger(amount) || amount < 50 || amount > b.lateFeeMinor) return fail(res, 400, `The fee is between ${moneyWords(50, b.currency)} and ${moneyWords(b.lateFeeMinor, b.currency)}, the amount they agreed to.`);
+        // A second tap while the first is still with the card company waits rather than charging twice.
+        const claimed = await db.runTransaction(async (tx) => {
+          const fresh = (await tx.get(bookings().doc(id))).data() || {};
+          if (fresh.fee || Date.parse(fresh.feeCharging || "") > nowMs - FEE_CLAIM_MS) return false;
+          tx.set(bookings().doc(id), { feeCharging: new Date(nowMs).toISOString() }, { merge: true });
+          return true;
+        });
+        if (!claimed) return fail(res, 409, "This fee is already being charged. Give it a moment.", "charging");
+        const reason = b.status === "cancelled" ? "late cancellation" : "missed booking";
+        let intent;
+        try {
+          const checkout = await payments.standaloneCheckout(b.card.mode === "test" ? "test" : "live");
+          if (!checkout?.chargeSaved) throw Object.assign(new Error("This shop's card provider can't charge a saved card."), { code: "not_available" });
+          intent = await checkout.chargeSaved({
+            customer: b.card.customer, paymentMethod: b.card.paymentMethod, amountMinor: amount, currency: String(b.currency || currency()).toLowerCase(),
+            description: `${shopName() ? `${shopName()}: ` : ""}${b.serviceName}, ${reason} fee`.slice(0, 250), metadata: { booking: id, fee: reason },
+          }, `booking-fee-${id}-${amount}`);
+        } catch (err) {
+          const at = now().toISOString();
+          const declined = err?.statusCode === 402 || err?.type === "StripeCardError" || /card_declined|authentication_required|expired_card|insufficient_funds|incorrect_cvc/.test(String(err?.code || err?.decline_code || ""));
+          await bookings().doc(id).set({ feeCharging: null, ...(declined ? { history: [...(b.history || []), { at, what: "fee declined by the card", by }].slice(-20) } : {}) }, { merge: true });
+          console.error(`Booking ${id} fee failed:`, err?.type || "", err?.code || "", err?.message || err);
+          if (declined) return fail(res, 402, err?.code === "authentication_required"
+            ? "Their bank wants them to approve this charge themselves, so nothing was taken. Ask them to pay another way."
+            : "Their card was declined, so nothing was taken. Ask them to pay another way.", "declined");
+          return fail(res, 502, "The fee couldn't be charged just now, and nothing was taken. Try again in a minute.");
+        }
+        const at = now().toISOString();
+        const fee = { intent: intent?.id || null, amountMinor: amount, reason, at, by };
+        const changes = { fee, feeCharging: null, updatedAt: at, history: [...(b.history || []), { at, what: `${reason} fee charged`, by }].slice(-20) };
+        await bookings().doc(id).set(changes, { merge: true });
+        if (req.body?.notify !== false) await tellCustomer(id, { ...b, ...changes }, "fee", { byShop: true, toOwner: false });
+        return res.status(200).json({ ok: true, fee });
+      }
       if (op === "noShow" || op === "paidAtShop") {
         const at = now().toISOString();
         const changes = op === "noShow"
@@ -939,6 +1028,8 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
 }
 
 const HOUR = 60 * 60 * 1000;
+/** "Visa ending 4242", or "Your card" when its brand and number weren't read. */
+const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : "Card"} ending ${card.last4}` : "Your card");
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 

@@ -36,6 +36,13 @@ export type BookingService = {
   places: number;
   /** A class's own weekly start times ("Saturdays at 14:00"). Empty: every free time in the opening hours. */
   classTimes: ClassTime[];
+  /**
+   * Card on file: the customer saves a card when booking (nothing is taken for it), so the owner can charge `lateFeeMinor`
+   * after a missed booking or a late cancellation. Not with payment "full" (all of it is already paid).
+   */
+  holdCard: boolean;
+  /** With `holdCard`: the most the owner may charge for a missed booking or a late cancellation, in cents. */
+  lateFeeMinor: number;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -121,17 +128,36 @@ export function depositOf(s: { payment?: string; priceMinor?: number; depositMin
  * (part by card when booked, the rest at the visit) or "atShop". `paid` means all of it is paid; `depositPaid` that the
  * deposit is. Every screen, email and the server read a booking's money through these.
  */
-export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string };
+export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string; fee?: { amountMinor?: number } | null };
 /** What the card page asks for when this booking is made. */
 export const cardAsk = (b: BookingMoney): number => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
 /** What was taken by card for this booking (the most that can go back to the card). */
 export const cardTaken = (b: BookingMoney): number => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
-/** Everything the shop has received for this booking, before refunds. */
-export const moneyTaken = (b: BookingMoney): number => (b.paid ? b.priceMinor || 0 : cardTaken(b));
+/** A missed-booking or late-cancellation fee charged to the saved card. */
+export const feeTaken = (b: BookingMoney): number => Math.max(0, b.fee?.amountMinor || 0);
+/** What was received towards the price itself (not counting a fee). */
+const priceTaken = (b: BookingMoney): number => (b.paid ? b.priceMinor || 0 : cardTaken(b));
+/** Everything the shop has received for this booking, a fee included, before refunds. */
+export const moneyTaken = (b: BookingMoney): number => priceTaken(b) + feeTaken(b);
 /** What the shop keeps: received less refunded. */
 export const moneyKept = (b: BookingMoney): number => Math.max(0, moneyTaken(b) - (b.refund?.amountMinor || 0));
 /** What is still to pay at the visit. Nothing for a cancelled booking. */
-export const balanceDue = (b: BookingMoney): number => (b.status === "cancelled" ? 0 : Math.max(0, (b.priceMinor || 0) - moneyTaken(b)));
+export const balanceDue = (b: BookingMoney): number => (b.status === "cancelled" ? 0 : Math.max(0, (b.priceMinor || 0) - priceTaken(b)));
+
+/** The most a missed-booking fee may be: the price for a priced service, else this. */
+export const MAX_FREE_LATE_FEE = 50_000;
+
+/** A booking's saved card (server-side ids; the admin shows only the brand and last four). */
+export type SavedCard = { customer: string; paymentMethod: string; brand?: string; last4?: string };
+/**
+ * Can the owner charge the missed-booking fee now? Only with a saved card and no fee yet, once the booking has started
+ * (a no-show) or after the shop cancelled it. A customer who cancelled online did so in time, so they are never charged.
+ */
+export function feeChargeable(b: { card?: SavedCard | null; fee?: unknown; lateFeeMinor?: number; status?: string; cancelledBy?: string; start?: string }, nowMs: number): boolean {
+  if (!b.card?.paymentMethod || b.fee || !((b.lateFeeMinor || 0) >= 50)) return false;
+  if (b.status === "cancelled") return b.cancelledBy !== "customer" && b.cancelledBy !== "hold ran out";
+  return b.status === "confirmed" && Date.parse(b.start || "") <= nowMs;
+}
 
 /** A service as the owner typed it, cleaned, or { problem } in plain words. */
 export function cleanService(raw: unknown, id = ""): BookingService | { problem: string } {
@@ -157,6 +183,14 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     if (due < 50) return { problem: "A deposit is at least 0.50." };
     if (due >= priceMinor) return { problem: "A deposit is less than the price. To take it all when they book, choose paying in full." };
   }
+  // Card on file, for a fee after a missed booking. Paid in full has nothing left to charge, so it never holds a card.
+  const holdCard = s.holdCard === true && payment !== "full";
+  let lateFeeMinor = 0;
+  if (holdCard) {
+    lateFeeMinor = Math.round(Number(s.lateFeeMinor));
+    if (!Number.isFinite(lateFeeMinor) || lateFeeMinor < 50) return { problem: "Say what a missed booking costs: at least 0.50." };
+    if (lateFeeMinor > (priceMinor || MAX_FREE_LATE_FEE)) return { problem: priceMinor ? "A missed-booking fee can't be more than the price." : "That missed-booking fee is too high." };
+  }
   return {
     id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     name,
@@ -173,6 +207,8 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     questions: cleanQuestions(s.questions),
     places: whole(s.places, 1, MAX_PLACES, 1),
     classTimes: cleanClassTimes(s.classTimes),
+    holdCard,
+    lateFeeMinor,
   };
 }
 

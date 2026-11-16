@@ -807,6 +807,9 @@ places are left (`bookTimePlacesLeft`, `bookTimeLastPlace`; from the server's `l
 (`/book?service=&day=`, `wantedFromSearch`) opens that service on that day. A held place (16 November 2026): the link
 adds `offer` and `offerKey`, which `TimePicker` and `bookingStart` send; the server's `held` answer pre-picks it and shows
 `bookTimeHeldNote` ({time}, {until}). The preview's sample class has one full time a day.
+**Card on file (16 November 2026):** a `holdCard` service shows `bookTimeCardNote` on its card, the agreement
+`bookTimeCardAgree` ({fee}, {hours}) under the form and the button `bookTimeSaveCard`; the confirmation shows
+`bookTimeCardOnFile` and, once charged, `bookTimeFeeCharged` (Text & labels › Bookings page › Deposits & card on file).
 **Book a time section (`BookTimeSection`, Add section › Engagement):** the shop's services as cards on any page, each
 button opening `/book?service=<id>` on that service. It renders nothing unless the shop takes bookings
 (`useBookingsLive`; Studio's preview shows the samples), asks `bookingInfo` once per visit (`bookingInfoOnce` in

@@ -1254,3 +1254,13 @@ it; `removeWaiting` does the same. Asking `bookingWait` again while holding keep
 asks for `depositOf(service)`; `confirmPaid` sets `depositPaid` (and leaves `paid` false) for a deposit; refunds and the
 owner's keep amount are capped at `cardTaken`; `paidAtShop` is refused unless the booking is `atShop` or a deposit whose
 deposit is paid. The rest of a deposit booking is never charged by card yet.
+**Card on file and the missed-booking fee (16 November 2026):** a service with `holdCard` (Stripe shops only,
+`canHoldCard()`; never for paid-in-full) keeps the client's card. Free and at-the-visit services open a Stripe `mode:
+"setup"` page; deposit services add `setup_future_usage: "off_session"`. `refreshHeld` confirms a setup page on
+`status === "complete"`, reads the card with `checkout.savedCard` (the platform payment service lets
+`checkout.sessions.retrieve` expand only the two payment-method paths) and `confirmPaid` stores `card {customer,
+paymentMethod, brand, last4, mode}`. Admin op `chargeFee` charges up to `lateFeeMinor` once (`feeChargeable` in
+`bookingTimes`: no-show after the start, or a shop/owner cancel; never a customer's own cancel inside the rule or a
+hold that ran out) through `chargeSaved` (off-session PaymentIntent, idempotency key `booking-fee-<id>-<amount>`), with
+a `feeCharging` claim against double taps. A decline returns 402 in plain words; success stores `fee` and emails a
+receipt (`tellCustomer` kind `fee`). `moneyTaken` includes `feeTaken`. Deploy the payment service before shops.
