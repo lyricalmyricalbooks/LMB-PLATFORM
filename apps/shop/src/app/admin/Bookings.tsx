@@ -3,7 +3,7 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, CalendarPlus, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Users, X } from "lucide-react";
+import { BellRing, CalendarPlus, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Users, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
@@ -565,6 +565,7 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
           </StatusBadge>
         </div>
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
+        {b.meetUrl && b.status === "confirmed" && <p className="bkg-detail-line"><Video size={16} aria-hidden /> <a href={b.meetUrl} target="_blank" rel="noopener noreferrer">Join the Google Meet call</a></p>}
         <dl className="bkg-facts">
           <div><dt>Email</dt><dd><a href={`mailto:${b.customer.email}`}>{b.customer.email}</a></dd></div>
           {b.customer.phone && <div><dt>Phone</dt><dd><a href={`tel:${b.customer.phone}`}>{b.customer.phone}</a></dd></div>}
@@ -670,7 +671,7 @@ function PayRestPanel({ booking: b }: { booking: Booking }) {
 }
 
 /** The owner's private calendar link: Google or Apple Calendar subscribes to it and shows every booking. */
-function CalendarTile() {
+function CalendarTile({ google, onGoogle }: { google: boolean; onGoogle: (on: boolean) => void }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState("");
   const [ask, confirmNode] = useConfirm();
@@ -711,6 +712,12 @@ function CalendarTile() {
           <GhostButton size="sm" onClick={() => void renew()} busy={busy === "renew"}>Make a new link</GhostButton>
         </div>
       )}
+      <div className="bkg-gcal">
+        <Toggle label="Put bookings straight into Google Calendar" checked={google} onChange={onGoogle} />
+        <p className="bkg-cal-note">{google
+          ? "Each booking appears at once in your shop's calendar in Google, with a Meet link for video-call services. Save to start."
+          : "Uses the calendar Connect Google made for your shop, so tick Calendar there first. Needed for Google Meet links."}</p>
+      </div>
       {confirmNode}
     </section>
   );
@@ -891,7 +898,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0 };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -911,7 +918,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
             <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}</p>
-            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}</p>
+            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
               <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -970,6 +977,7 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
         depositMinor: share && depositUnit === "amount" ? Math.round(Number(deposit || 0) * 100) : 0,
         depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
         holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
+        meet: !!rest.meet && rest.places <= 1,
       } });
       toast.success(service.id ? "Service saved" : "Service added");
       onSaved();
@@ -1033,6 +1041,14 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
           </fieldset>
         )}
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
+        {!group && (
+          <div className="bkg-meet">
+            <Toggle label="Video call with Google Meet" checked={!!form.meet} onChange={(v) => set("meet", v)} />
+            <p className="bkg-questions-hint">{form.meet
+              ? "Each booking gets its own Meet link, in the customer's emails and on their booking page. It needs Google Calendar turned on under Hours & rules."
+              : "For times held online: each booking gets its own Google Meet link."}</p>
+          </div>
+        )}
         <fieldset className="bkg-questions">
           <legend>Who can book a time</legend>
           <div className="bkg-seg" role="radiogroup" aria-label="Who can book a time">
@@ -1100,7 +1116,13 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
   const setDay = (wd: number, windows: { start: string; end: string }[]) => setForm((f) => ({ ...f, hours: f.hours.map((h, i) => (i === wd ? windows : h)) }));
   const save = async () => {
     setSaving(true);
-    try { await bookingsAdmin("saveSettings", { settings: { ...form, live: settings.live } }); toast.success("Hours saved"); onSaved(); }
+    try {
+      const r = await bookingsAdmin<{ googleCalendar?: { available: boolean; filled: number } }>("saveSettings", { settings: { ...form, live: settings.live } });
+      const g = r?.googleCalendar;
+      if (g && !g.available) toast.error("Saved, but Google Calendar isn't linked yet. Tick Calendar in Settings › Google, then save again.");
+      else toast.success(g?.filled ? `Saved. ${g.filled} coming ${g.filled === 1 ? "booking is" : "bookings are"} now in Google Calendar.` : "Hours saved");
+      onSaved();
+    }
     catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   };
   return (
@@ -1178,7 +1200,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             </ul>
           )}
         </section>
-        <CalendarTile />
+        <CalendarTile google={form.googleCalendar} onGoogle={(on) => setForm({ ...form, googleCalendar: on })} />
       </div>
       {active && <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={() => setForm(saved ? settings : DEFAULT_BOOKING_SETTINGS)} message={saved ? undefined : "Save your hours to start taking bookings."} />}
     </div>

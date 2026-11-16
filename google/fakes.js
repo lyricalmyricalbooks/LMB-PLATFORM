@@ -31,6 +31,7 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
     folders: new Map(),
     channel: { id: "UCmothpress", snippet: { title: "Moth Press" } },
     calendars: new Map(),
+    events: new Map(), // "calendarId/eventId" -> event
     businessAccounts: [{ name: "accounts/555" }],
     adsCustomers: ["1234567890"],
     productLinks: new Map(),
@@ -242,6 +243,25 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
     channelVideos: async (token) => (who(token, "youtube"), [{ id: { videoId: "trailer1" }, snippet: { title: "Trailer" } }]),
     async getCalendar(token, id) { who(token, "calendar"); if (!world.calendars.has(id)) throw new GoogleError(404, "not found"); return { id }; },
     async createCalendar(token, { summary }) { who(token, "calendar"); change("createCalendar", summary); const id = `cal-${next()}@group.calendar.google.com`; world.calendars.set(id, summary); return { id, summary }; },
+    async putEvent(token, calendarId, eventId, event, { meet = false } = {}) {
+      who(token, "calendar");
+      if (!world.calendars.has(calendarId)) throw new GoogleError(404, "not found");
+      const key = `${calendarId}/${eventId}`;
+      const had = world.events.get(key);
+      change(had ? "updateEvent" : "createEvent", eventId);
+      const hangoutLink = meet ? had?.hangoutLink ?? `https://meet.google.com/${eventId.slice(0, 3)}-${eventId.slice(3, 7)}-${eventId.slice(7, 10)}` : undefined;
+      const saved = { ...structuredClone(event), id: eventId, ...(hangoutLink ? { hangoutLink } : {}) };
+      world.events.set(key, saved);
+      return structuredClone(saved);
+    },
+    async deleteEvent(token, calendarId, eventId) {
+      who(token, "calendar");
+      const key = `${calendarId}/${eventId}`;
+      if (!world.events.has(key)) throw new GoogleError(410, "deleted");
+      change("deleteEvent", eventId);
+      world.events.delete(key);
+      return {};
+    },
     listBusinessAccounts: async (token) => (who(token, "businessProfile"), [...world.businessAccounts]),
     listAdsCustomers: async (token) => (who(token, "ads"), [...world.adsCustomers]),
     async createProductLink(token, customerId, merchantId) {

@@ -1150,6 +1150,11 @@ days as bars and Coming up, followed live from Bookings.
   `readBookingsBetween`) and merges them with `withBookings` (`customerInsights.ts`): each row gets `bookings` by email,
   people who only booked are segment `booked` (no money figure counts them). `CustomerDetail` takes `showBookings` for
   its Bookings tab. Dialog page tabs scroll sideways on phones and phone dialogs have `min-width: 0` (`riso.css`).
+- Hours & rules › **Second reminder** (`secondReminderHours`, only choices under the first) and **Your morning list**
+  (`dailySummary`). **Your calendar** › **Put bookings straight into Google Calendar** (`googleCalendar`, saved with the
+  form; the save toast says whether Google is linked and how many bookings went in). The service dialog's **Video call with
+  Google Meet** (`meet`, one-customer services only; a "Video call" tag on the card); the drawer links `meetUrl`. Fixture:
+  "Portfolio review" is a video call and "Ada Example" has a link.
 
 ## Shipping zones as a page (16 November 2026)
 Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,

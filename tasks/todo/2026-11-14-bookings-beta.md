@@ -170,3 +170,20 @@ Services plan's client records work (phase 5).
 
 Review: the sweep runs every five minutes, so the second reminder lands within five minutes of its hour. Not yet tried on
 a live test shop.
+
+## Google Calendar and Meet links (16 November 2026, plan phase 2)
+
+- [x] Platform: `google.bookingEvent` / `google.bookingEventRemove` put a booking in the shop's Colophon calendar (the
+      Calendar box of Connect Google) under an id made from the shop and the booking, with a Google Meet call when asked;
+      no guests, no Google invitations.
+- [x] Shop: Hours & rules › Your calendar › Put bookings straight into Google Calendar; every confirm, move and cancel
+      keeps the event in step, switching on fills the coming bookings, and Google failing never stops a booking.
+- [x] A one-to-one service can be a video call: the Meet link goes in the customer's emails, their booking page (EN and
+      FR words in Text & labels), the owner's drawer and calendar feed. A move keeps the link.
+- [x] Proof: platform test (not linked, no Calendar box, made, replaced on a move, link kept, removed, turned off), shop
+      tests (off by default, fill, move, cancel, owner changes, Meet link in email and page, paid bookings only once paid,
+      Google not linked or down), typecheck, lint, screenshots desktop and phone.
+
+Review: Google's second review must approve the calendar permission before real shops can tick Calendar; until then
+this works only on the platform's test shop. Classes get no Meet link on purpose (one call per person would split the
+class). Not yet tried against real Google.

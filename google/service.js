@@ -17,9 +17,14 @@
 //                                        reads one tab of a Google Sheet the press names by its link (plan 23.42): the
 //                                        tab asked for, else the one the link points at, else the first visible tab with
 //                                        anything in it; answers its title, the visible tabs and the cells as text
+//   google.bookingEvent { id, title, start, end, location?, details?, meet? }
+//                                        one booking in the shop's Colophon calendar (the Calendar box): made or
+//                                        replaced under an id from the booking's, with a Google Meet call when `meet`;
+//                                        answers the call's link. `available: false` until that calendar is linked
+//   google.bookingEventRemove { id }     takes that booking's event away (gone already is fine)
 //   google.tryAgain { step }             one connect step again (the shop's Try again)
 //   google.disconnect                    the closing steps of the teardown job: the shop stays open
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { serviceKeyMatches } from "../services/email/http.js";
 import { shopHosts } from "../services/payments/service.js";
 import { offeredExtras } from "./config.js";
@@ -62,6 +67,25 @@ const bad = (message) => new GoogleLinkError(400, "bad_request", message);
 const MAX_READ_ROWS = 10000;
 const MAX_READ_COLUMNS = 100;
 /** A sheet named by its link: Google's id, and a tab by name or by the link's `gid` number. */
+/** A booking's event, checked: the shop sends plain words and two times, nothing else reaches Google. */
+const BOOKING_ID = /^[A-Za-z0-9_-]{6,64}$/;
+const eventIdFor = (shopId, id) => `cb${createHash("sha256").update(`${shopId}/${id}`).digest("hex").slice(0, 40)}`;
+function bookingEventAsked({ id, title, start, end, location, details, meet } = {}) {
+  if (typeof id !== "string" || !BOOKING_ID.test(id)) throw bad("id must be a booking's id");
+  const text = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+  const startMs = Date.parse(start), endMs = Date.parse(end);
+  if (!text(title, 300).trim()) throw bad("title is needed");
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || endMs - startMs > 24 * 3600 * 1000) throw bad("start and end must be a time of up to a day");
+  return {
+    id, meet: meet === true,
+    event: {
+      summary: text(title, 300).trim(), location: text(location, 300), description: text(details, 4000),
+      start: { dateTime: new Date(startMs).toISOString() }, end: { dateTime: new Date(endMs).toISOString() },
+    },
+  };
+}
+const meetLink = (event) => event?.hangoutLink || event?.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video")?.uri || "";
+
 function sheetAsked({ spreadsheetId, sheet, gid } = {}) {
   if (typeof spreadsheetId !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(spreadsheetId)) throw bad("spreadsheetId must be a Google Sheet's id");
   if (sheet !== undefined && (typeof sheet !== "string" || !sheet || sheet.length > 100)) throw bad("sheet must be a tab's name");
@@ -107,6 +131,15 @@ export function createGoogleService({ config, google, tokens, states, registry, 
     const steps = (g.steps ?? []).filter((s) => !dropped.includes(s.step));
     await registry.updateShop(shopId, { google: { ...g, ...stopped, steps } });
     return dropped;
+  }
+
+  /** The shop's Colophon calendar and a fresh token for it, only while the Calendar box is ticked and allowed. */
+  async function calendarTarget(row) {
+    const cal = row.google?.calendar;
+    if (!cal?.calendarId || cal.stoppedAt) return null;
+    const grant = await tokens.fresh(row.shopId);
+    if (!grant || !(grant.extras ?? []).includes("calendar") || !SCOPES.calendar.every((scope) => grant.scopes.includes(scope))) return null;
+    return { token: grant.token, calendarId: cal.calendarId };
   }
 
   async function status(row) {
@@ -208,6 +241,24 @@ export function createGoogleService({ config, google, tokens, states, registry, 
         if (rows.length) break;
       }
       return { available: true, title: book.title, sheet: pick?.title ?? "", sheets: tabs.map((t) => t.title), rows: sheetCells(rows) };
+    },
+    async "google.bookingEvent"(row, args = {}) {
+      const { id, event, meet } = bookingEventAsked(args);
+      const target = await calendarTarget(row);
+      if (!target) return { available: false };
+      const saved = await google.putEvent(target.token, target.calendarId, eventIdFor(row.shopId, id), event, { meet });
+      return { available: true, meetUrl: meet ? meetLink(saved) : "" };
+    },
+    async "google.bookingEventRemove"(row, { id } = {}) {
+      if (typeof id !== "string" || !BOOKING_ID.test(id)) throw bad("id must be a booking's id");
+      const target = await calendarTarget(row);
+      if (!target) return { available: false };
+      try {
+        await google.deleteEvent(target.token, target.calendarId, eventIdFor(row.shopId, id));
+      } catch (err) {
+        if (err?.status !== 404 && err?.status !== 410) throw err;
+      }
+      return { available: true };
     },
     async "google.productProblems"(row) {
       const account = row.google?.merchantCenter?.account;

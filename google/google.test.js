@@ -3,6 +3,7 @@
 // the teardown follows the closing timeline, and the press's own Google accounts are never deleted.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readGoogleConfig, offeredExtras } from "./config.js";
 import { createGoogleLink } from "./index.js";
 import { createGoogleApi, GoogleError } from "./googleApi.js";
@@ -959,4 +960,39 @@ test("one Google account runs the whole shop: a sign-in with another account cha
   await t.signIn({ extras: ["drive"] });
   assert.equal((await t.shopRow()).google.refusedSignIn, undefined);
   assert.equal((await t.link.status.googleStatus(SHOP)).refusedSignIn, null);
+});
+
+test("a booking goes into the shop's Colophon calendar, with a Meet call when asked, only with the Calendar box ticked", async () => {
+  const t = await setup();
+  const EVENT = { id: "booking001", title: "Ada Reader: Studio visit", start: "2026-11-18T15:00:00.000Z", end: "2026-11-18T16:00:00.000Z", location: "12 Ink Lane", details: "ada@example.com" };
+  assert.deepEqual((await t.call("google.bookingEvent", EVENT)).body, { available: false }, "not connected yet");
+  await t.signIn({ extras: ["drive"] });
+  assert.deepEqual((await t.call("google.bookingEvent", EVENT)).body, { available: false }, "no Calendar box");
+  await t.signIn({ extras: ["calendar"] });
+  const calendarId = (await t.shopRow()).google.calendar.calendarId;
+  const plain = await t.call("google.bookingEvent", EVENT);
+  assert.equal(plain.status, 200, JSON.stringify(plain.body));
+  assert.deepEqual(plain.body, { available: true, meetUrl: "" });
+  const events = () => [...t.google.world.events].filter(([key]) => key.startsWith(`${calendarId}/`)).map(([, e]) => e);
+  assert.equal(events().length, 1);
+  const [first] = events();
+  assert.match(first.id, /^cb[0-9a-f]{40}$/, "Google's event ids take only 0-9 and a-v");
+  assert.equal(first.summary, EVENT.title);
+  assert.deepEqual(first.start, { dateTime: EVENT.start });
+  // Moved, now with a call: the same event is replaced, never a second one.
+  const moved = await t.call("google.bookingEvent", { ...EVENT, start: "2026-11-19T15:00:00.000Z", end: "2026-11-19T16:00:00.000Z", meet: true });
+  assert.match(moved.body.meetUrl, /^https:\/\/meet\.google\.com\//);
+  assert.equal(events().length, 1);
+  assert.deepEqual(events()[0].start, { dateTime: "2026-11-19T15:00:00.000Z" });
+  assert.equal((await t.call("google.bookingEvent", { ...EVENT, meet: true })).body.meetUrl, moved.body.meetUrl, "a move keeps the link");
+  assert.equal((await t.call("google.bookingEvent", { ...EVENT, id: "../x" })).status, 400);
+  assert.equal((await t.call("google.bookingEvent", { ...EVENT, end: EVENT.start })).status, 400);
+  assert.deepEqual((await t.call("google.bookingEventRemove", { id: "booking001" })).body, { available: true });
+  assert.equal(events().length, 0);
+  assert.deepEqual((await t.call("google.bookingEventRemove", { id: "booking001" })).body, { available: true }, "gone already is fine");
+  // Another shop's booking with the same id never lands on this event.
+  assert.notEqual(first.id, `cb${createHash("sha256").update("other-shop/booking001").digest("hex").slice(0, 40)}`);
+  // The press switches the Calendar box off: nothing more is written.
+  await t.call("google.turnOff", { extras: ["calendar"] });
+  assert.deepEqual((await t.call("google.bookingEvent", EVENT)).body, { available: false });
 });
