@@ -79,6 +79,10 @@ export type BookingSettings = {
   reminderHours: number;
   /** A place freed for the waiting list is held this many minutes for the first person in line (WAIT_HOLD_MINUTES). */
   waitHoldMinutes: number;
+  /** A second, shorter reminder this many hours before (SECOND_REMINDER_HOURS); 0 sends none. Always under `reminderHours`. */
+  secondReminderHours: number;
+  /** The owner gets one email each morning (DAILY_SUMMARY_HOUR, the shop's time) listing the day's bookings. */
+  dailySummary: boolean;
 };
 
 /** A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. */
@@ -104,6 +108,8 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   step: 30,
   reminderHours: 24,
   waitHoldMinutes: 60,
+  secondReminderHours: 0,
+  dailySummary: false,
 };
 
 /** How long a freed place may be held for the first person on the waiting list. */
@@ -111,6 +117,10 @@ export const WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720] as const;
 
 /** The reminder choices the owner picks from: none, or this many hours before. */
 export const REMINDER_HOURS = [0, 2, 12, 24, 48, 72] as const;
+/** The second reminder's choices: none, or this many hours before. */
+export const SECOND_REMINDER_HOURS = [0, 1, 2, 3] as const;
+/** The owner's day summary goes out from this hour of the shop's morning. */
+export const DAILY_SUMMARY_HOUR = 7;
 
 const text = (value: unknown, max: number): string => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const whole = (value: unknown, min: number, max: number, fallback: number): number => {
@@ -290,6 +300,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
   });
   const daysOff = [...new Set((Array.isArray(s.daysOff) ? s.daysOff : []).filter((d): d is string => typeof d === "string" && DAY.test(d)))].sort().slice(-200);
   const step = (BOOKING_STEPS as readonly number[]).includes(Number(s.step)) ? Number(s.step) : DEFAULT_BOOKING_SETTINGS.step;
+  const reminderHours = (REMINDER_HOURS as readonly number[]).includes(Number(s.reminderHours)) ? Number(s.reminderHours) : DEFAULT_BOOKING_SETTINGS.reminderHours;
   return {
     live: s.live === true,
     hours,
@@ -298,9 +309,18 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     maxDaysAhead: whole(s.maxDaysAhead, 1, 365, DEFAULT_BOOKING_SETTINGS.maxDaysAhead),
     cancelHours: whole(s.cancelHours, 0, 24 * 14, DEFAULT_BOOKING_SETTINGS.cancelHours),
     step,
-    reminderHours: (REMINDER_HOURS as readonly number[]).includes(Number(s.reminderHours)) ? Number(s.reminderHours) : DEFAULT_BOOKING_SETTINGS.reminderHours,
+    reminderHours,
     waitHoldMinutes: (WAIT_HOLD_MINUTES as readonly number[]).includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
+    secondReminderHours: secondReminder(s.secondReminderHours, reminderHours),
+    dailySummary: s.dailySummary === true,
   };
+}
+
+/** A second reminder only when it comes after the first one: one of the choices, and fewer hours before. */
+function secondReminder(value: unknown, first: number): number {
+  const hours = Number(value);
+  if (!(SECOND_REMINDER_HOURS as readonly number[]).includes(hours)) return 0;
+  return first && hours >= first ? 0 : hours;
 }
 
 // ── The shop's clock ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -342,6 +362,27 @@ export function addDays(day: string, n: number): string {
 }
 
 /** 0 = Sunday … 6 = Saturday, for a YYYY-MM-DD day (the calendar's own weekday, whatever the zone). */
+/**
+ * The shop day whose morning summary is due now, or "" when it isn't: from DAILY_SUMMARY_HOUR in the shop's time zone,
+ * once a day (`lastDay` is the day last sent).
+ */
+export function summaryDue(nowMs: number, zone: string, lastDay: string): string {
+  const day = dayOf(nowMs, zone);
+  if (day === lastDay) return "";
+  return nowMs >= zonedTime(day, `${String(DAILY_SUMMARY_HOUR).padStart(2, "0")}:00`, zone) ? day : "";
+}
+
+/** Whether the second reminder is due for a booking: inside its hours, at least 15 minutes ahead, not booked inside them. */
+export function secondReminderDue(b: { start: string; createdAt?: string; reminder2SentAt?: string | null }, hours: number, nowMs: number): boolean {
+  if (!hours || b.reminder2SentAt) return false;
+  const start = Date.parse(b.start);
+  if (!Number.isFinite(start)) return false;
+  const left = start - nowMs;
+  if (left > hours * 3_600_000 || left < 15 * MINUTE) return false;
+  const made = Date.parse(b.createdAt || "");
+  return !(Number.isFinite(made) && start - made <= hours * 3_600_000);
+}
+
 export const weekdayOf = (day: string): number => new Date(`${day}T12:00:00Z`).getUTCDay();
 
 export const isDay = (value: unknown): value is string => typeof value === "string" && DAY.test(value);

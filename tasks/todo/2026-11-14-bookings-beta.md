@@ -135,3 +135,38 @@ choose). Not tried on a live test shop.
 - [x] Proof: `bookingsDayList.test.ts`, full tests, typecheck, lint, screenshots desktop and phone.
 
 Review: the list covers one day; a whole-week print can come later if owners ask. Not tried on a live test shop.
+
+## The Calendar as a list (16 November 2026, plan phase 1)
+
+- [x] Calendar › Week | List switch, remembered on the computer.
+- [x] List: Coming up (90 days), Past (60 days), Cancelled; search by name, email, phone or service; one service pick.
+- [x] Grouped by the shop's day (Today, Tomorrow, Yesterday), each row opens the booking; tags for paying, clearing,
+      no-show and cancelled.
+- [x] Proof: `bookingsList.test.ts`, typecheck, lint, screenshots desktop and phone (coming up, past, no match, open).
+
+Review: the list reads up to 500 bookings per view, plenty for a small shop; a busier one would want paging.
+
+## Bookings on the Customers page (16 November 2026, plan phase 1)
+
+- [x] When the shop has Bookings, Customers reads a year back and six months ahead of bookings once (a failed read
+      leaves them out) and puts them on each customer by email.
+- [x] People who only booked appear as customers, segment "Booked, no order yet", counted in no money figure.
+- [x] A customer's window: a Bookings tab (when, service, status, payment) and a Bookings line in the summary.
+- [x] Phone: a dialog's own tabs scroll sideways instead of making the dialog wider than the screen (all dialogs).
+- [x] Proof: `customerInsights.test.ts`, typecheck, lint, screenshots desktop and phone.
+
+Review: matching is by email only, so someone who booked with a second address shows twice; merging people is the
+Services plan's client records work (phase 5).
+
+## A second reminder and the owner's morning list (16 November 2026, plan phase 2)
+
+- [x] Hours & rules › Second reminder: 1, 2 or 3 hours before (only choices under the first reminder), off by default.
+      Sent once, with its own link; never for a booking made inside those hours or under 15 minutes away.
+- [x] Hours & rules › Your morning list: the day's bookings emailed to the owner at 7 am shop time, in time order, with
+      phone numbers and anything left to pay; once a day even with two sweeps; nothing on an empty day.
+- [x] Proof: server tests (off by default, sent once, link opens the booking, made-inside and cancelled skipped, saved
+      clamp, morning list order, once a day, not before 7, empty day), shared rule tests, typecheck, lint, screenshots
+      of the settings on desktop and phone.
+
+Review: the sweep runs every five minutes, so the second reminder lands within five minutes of its hour. Not yet tried on
+a live test shop.
