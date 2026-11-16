@@ -68,6 +68,24 @@ export function waitingByDay(list: readonly Waiting[]): Map<string, Waiting[]> {
   return out;
 }
 
+/** A place held for someone on the waiting list, on the calendar: a class card shows it among its people, any other one as its own row. */
+export type HeldPlace = Waiting & { heldUntil: string; heldStart: string };
+
+/** The places held for the waiting list on one day, earliest first. */
+export function heldPlaces(list: readonly Waiting[]): HeldPlace[] {
+  return list.filter((w): w is HeldPlace => !!w.heldUntil && !!w.heldStart).sort((a, b) => a.heldStart.localeCompare(b.heldStart));
+}
+
+/** Splits a day's held places into those inside a class card (by service and start) and the rest. */
+export function placeHolds(held: readonly HeldPlace[], classes: readonly { serviceId: string; start: string }[]): { inClass: (serviceId: string, start: string) => HeldPlace[]; loose: HeldPlace[] } {
+  const key = (serviceId: string, start: string) => `${serviceId}|${Date.parse(start)}`;
+  const slots = new Set(classes.map((c) => key(c.serviceId, c.start)));
+  return {
+    inClass: (serviceId, start) => held.filter((h) => key(h.serviceId, h.heldStart) === key(serviceId, start)),
+    loose: held.filter((h) => !slots.has(key(h.serviceId, h.heldStart))),
+  };
+}
+
 /** "1 waiting", "3 waiting". */
 export const waitingText = (count: number): string => `${count} waiting`;
 

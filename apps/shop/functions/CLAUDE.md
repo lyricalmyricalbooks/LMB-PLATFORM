@@ -1238,14 +1238,15 @@ and the entry is deleted. `bookingSweep` forgets past days (`sweepWaitlist`). Ad
 (`{ from, to }`) and `removeWaiting`.
 **Held places (16 November 2026):** a freed place is no longer a race. `tellWaitlist` walks the day's entries oldest
 first (`createdAt`, then id) and gives each one whose time has room a hold (`holdForWaiting`, one transaction): an
-`offer_<wid>` item on `bookingDays` (`held: true`, so `busyFrom` hides it from everyone and drops it after
-`STALE_HOLD_MS` if the sweep fails) plus `offerStart`/`offerUntil`/`offerKeyHash` on the entry, for `OFFER_MINUTES`
-(60, never past the start; a day waiter is held the first free time). The email links
+`offer_<wid>` item on `bookingDays` (`held: true`, `offer: true`, `until`; `busyFrom` hides it from everyone and drops
+it `OFFER_GRACE_MS` after `until` if the sweep fails) plus `offerStart`/`offerUntil`/`offerKeyHash` on the entry, for
+the shop's `waitHoldMinutes` (Hours & rules › "Hold a freed place for", `WAIT_HOLD_MINUTES` 15 min to 12 h, default 60;
+never past the start; a day waiter is held the first free time). The email links
 `/book?service=&day=&offer=<wid>&offerKey=<key>`; `offerFor` checks the key, service and end, `bookingTimes` then leaves
 the hold out of busy (and answers `held`) and `bookingStart` passes it to `takeTime`, which ignores and removes the
 item and deletes the entry in the same transaction. An entry with `offerUntil` is never offered again: the sweep
 (`offerUntil <=` now) drops the item, deletes the entry and calls `tellWaitlist` for its day, so the next person gets
-it; `removeWaiting` does the same. Asking `bookingWait` again while holding keeps the hold. Op `waitlist` answers
+it, and emails the lapsed person once (`tellHoldEnded`, `bookingEmail` budget); `removeWaiting` does the same. Asking `bookingWait` again while holding keeps the hold. Op `waitlist` answers
 `heldUntil`.
 **Deposits and paying at the visit (15 November 2026):** a service's `payment` is `free`, `full`, `deposit`
 (`depositMinor`, or `depositPercent` 1 to 99; an amount wins) or `atShop`; a booking's is `free`, `card`, `deposit` or

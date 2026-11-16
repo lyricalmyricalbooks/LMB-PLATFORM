@@ -53,6 +53,11 @@
 .rp .bkg-slot:hover { filter: brightness(0.97); }
 .rp .bkg-slot:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
 .rp .bkg-slot[data-status="held"] { background: var(--rp-warning-tint); color: var(--rp-text); }
+/* A place held for someone on the waiting list: not a booking yet, so outlined rather than filled. */
+.rp .bkg-slot[data-status="offer"] { background: transparent; border: 1px dashed var(--rp-border-strong); color: var(--rp-text); }
+.rp .bkg-class-people button[data-status="offer"] { border: 1px dashed currentColor; }
+.rp .bkg-class { min-width: 0; }
+.rp .bkg-class-people button[data-status="offer"] em { white-space: normal; }
 .rp .bkg-slot[data-noshow] { background: var(--rp-surface-2); color: var(--rp-text-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
 .rp .bkg-slot-time { font: 500 12px/1.3 var(--rp-font-mono); letter-spacing: 0.02em; }
 .rp .bkg-slot-who { font: 600 14px/1.3 var(--rp-font-body); overflow-wrap: anywhere; }

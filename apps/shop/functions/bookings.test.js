@@ -611,6 +611,31 @@ describe("the waiting list", () => {
     expect((await t.pub({ action: "bookingStart", serviceId: id, start, ...person(4), ...offerIn(waitingEmails(t)[1]) })).statusCode).toBe(200);
   });
 
+  test("the owner picks how long a place is held, and the person whose hold ran out is told", async () => {
+    const { t, id, booked } = await fullClass();
+    await t.adm({ op: "saveSettings", settings: { ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, waitHoldMinutes: 30 } });
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    await t.adm({ op: "cancel", id: booked[0].id });
+    const { offer, offerKey } = offerIn(waitingEmails(t)[0]);
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1, offer, offerKey })).body.held.until).toBe("2026-11-16T13:30:00.000Z");
+    t.clock.now = new Date("2026-11-16T13:31:00Z");
+    expect(await t.desk.sweepWaitlist()).toEqual({ forgotten: 0, passedOn: 1 });
+    const ended = t.emails.filter((m) => /Your held place has gone/.test(m.subject));
+    expect(ended.map((m) => m.to)).toEqual(["p3@example.com"]);
+    expect(ended[0].html).toContain(`/book?service=${id}`);
+    // Nobody else waiting: the place is open to everyone again.
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body.days["2026-11-21"]).toEqual([start]);
+  });
+
+  test("a held place stops blocking after its own end even if the sweep never runs", async () => {
+    const { t, id, booked } = await fullClass();
+    await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
+    await t.adm({ op: "cancel", id: booked[0].id });
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body.days["2026-11-21"]).toEqual([]);
+    t.clock.now = new Date("2026-11-16T14:16:00Z");
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body.days["2026-11-21"]).toEqual([start]);
+  });
+
   test("removing the person holding a place passes it on, and asking again doesn't lose the hold", async () => {
     const { t, id, booked } = await fullClass();
     await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
@@ -620,6 +645,7 @@ describe("the waiting list", () => {
     await t.pub({ action: "bookingWait", serviceId: id, start, ...person(3) });
     const holder = (await t.adm({ op: "waitlist", from: "2026-11-21", to: "2026-11-21" })).body.waiting.find((w) => w.email === "p3@example.com");
     expect(holder.heldUntil).toBeTruthy();
+    expect(holder.heldStart).toBe(start);
     await t.adm({ op: "removeWaiting", id: holder.id });
     expect(waitingEmails(t).map((m) => m.to)).toEqual(["p3@example.com", "p4@example.com"]);
   });
