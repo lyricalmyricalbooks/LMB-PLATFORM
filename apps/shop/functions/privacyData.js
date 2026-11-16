@@ -96,10 +96,27 @@ async function giftCardsFor(db, email) {
 }
 
 /** Review action chosen by the admin when erasing: keep the text under "Anonymous", unpublish it, or blank it. */
+/**
+ * What an erase request writes onto one booking (bookings.js). A booking paid by card is a payment record, so it keeps
+ * the name and email (as a paid order does) and loses the phone number, the note and the answers. Any other booking
+ * loses every personal detail; its time stays on the calendar for the owner to keep or cancel. Either way the
+ * customer's own links stop working and no reminder email goes out.
+ */
+const BOOKING_NAME_REMOVED = "Details removed";
+function bookingPaid(booking) {
+  return !!(booking && (booking.paid || booking.refund));
+}
+function redactedBookingFields(booking, now) {
+  const base = { note: "", answers: [], pendingKey: null, manageKeyHash: "", reminderKeyHash: "", reminderSentAt: now, privacyRedactedAt: now, updatedAt: now };
+  return bookingPaid(booking)
+    ? { ...base, "customer.phone": "" }
+    : { ...base, customer: { name: BOOKING_NAME_REMOVED, email: "", phone: "" } };
+}
+
 function reviewErasure(mode) {
   if (mode === "unpublish") return { authorName: "Anonymous", status: "rejected" };
   if (mode === "remove-text") return { authorName: "Anonymous", title: "", body: "" };
   return { authorName: "Anonymous" };
 }
 
-module.exports = { findByEmail, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL, lower };
+module.exports = { findByEmail, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL, lower, bookingPaid, redactedBookingFields, BOOKING_NAME_REMOVED };
