@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.cardAsk = exports.REMINDER_HOURS = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.cardAsk = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.cleanTipPercents = cleanTipPercents;
 exports.tipOpen = tipOpen;
@@ -55,7 +55,10 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     reminderHours: 24,
     tips: false,
     tipPercents: [15, 18, 20],
+    waitHoldMinutes: 60,
 };
+/** How long a freed place may be held for the first person on the waiting list. */
+exports.WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720];
 /** The reminder choices the owner picks from: none, or this many hours before. */
 exports.REMINDER_HOURS = [0, 2, 12, 24, 48, 72];
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
@@ -289,6 +292,7 @@ function cleanBookingSettings(raw) {
         reminderHours: exports.REMINDER_HOURS.includes(Number(s.reminderHours)) ? Number(s.reminderHours) : exports.DEFAULT_BOOKING_SETTINGS.reminderHours,
         tips: s.tips === true,
         tipPercents: cleanTipPercents(s.tipPercents),
+        waitHoldMinutes: exports.WAIT_HOLD_MINUTES.includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : exports.DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
     };
 }
 // ── The shop's clock ────────────────────────────────────────────────────────────────────────────────────────────────

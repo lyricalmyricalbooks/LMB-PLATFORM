@@ -18,7 +18,7 @@
 //   bookingWaitlist/{id}   { serviceId, serviceName, day, start | null, name, email, createdAt, offerStart?, offerUntil?,
 //                          offerKeyHash? }: someone who asked to hear when a full class time (start) or a full day (start
 //                          null) has room again. Server-only (no rule opens it). A freed place goes to the first in line:
-//                          it is held for them for OFFER_MINUTES (an `offer_<id>` item in bookingDays) and emailed with a
+//                          it is held for them for the shop's waitHoldMinutes (an `offer_<id>` item in bookingDays) and emailed with a
 //                          link that books it; the entry goes once they book, once the hold runs out (the place then goes
 //                          to the next person) or once its day has passed.
 //
@@ -52,8 +52,8 @@ const STALE_HOLD_MS = 2 * 60 * 60 * 1000;
 const MAX_DAYS_ASKED = 14;
 /** How many people may wait for one day of one service. */
 const MAX_WAITING = 30;
-/** How long a freed place is held for the first person on the waiting list. Under STALE_HOLD_MS, so a missed sweep can't keep it. */
-const OFFER_MINUTES = 60;
+/** A waiting-list hold the sweep never got to stops blocking its place this long after its end. */
+const OFFER_GRACE_MS = 15 * 60 * 1000;
 const WAIT_ID = /^[a-f0-9]{32}$/;
 const offerItem = (wid) => `offer_${wid}`;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
@@ -74,7 +74,8 @@ function busyFrom(daySnaps, nowMs, except = "") {
     const items = (snap.exists ? snap.data()?.items : null) || {};
     for (const [id, item] of Object.entries(items)) {
       if (id === except || !item || !Number.isFinite(item.start) || !Number.isFinite(item.end)) continue;
-      if (item.held && Number.isFinite(item.at) && nowMs - item.at > STALE_HOLD_MS) continue;
+      // A place held for the waiting list lasts until its own end (the owner picks how long); other holds STALE_HOLD_MS.
+      if (item.offer && Number.isFinite(item.until) ? nowMs > item.until + OFFER_GRACE_MS : item.held && Number.isFinite(item.at) && nowMs - item.at > STALE_HOLD_MS) continue;
       busy.push({ start: item.start, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined });
     }
   }
@@ -266,7 +267,7 @@ function bookingActions({
       if (!isFreeTime({ service, settings, busy: busyFrom(snaps, nowMs), start, zone: zone(), nowMs })) return false;
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        items[offerItem(wid)] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, offer: true };
+        items[offerItem(wid)] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, offer: true, until };
         tx.set(dayRef(d), { items });
       });
       tx.set(waitlist().doc(wid), { offerStart: new Date(start).toISOString(), offerUntil: new Date(until).toISOString(), offerKeyHash: hash(key) }, { merge: true });
@@ -304,7 +305,7 @@ function bookingActions({
 
   /**
    * Offers the places that opened on these days to the people waiting for them, first come first served: each gets one
-   * place held for OFFER_MINUTES and an email with a link that books it. Someone already holding (or who let a hold run
+   * place held for the shop's waitHoldMinutes and an email with a link that books it. Someone already holding (or who let a hold run
    * out) is skipped; the sweep passes a lapsed hold to the next person. Never throws.
    */
   async function tellWaitlist(days) {
@@ -333,7 +334,7 @@ function bookingActions({
           if (!times.includes(start) || !EMAIL.test(String(w.email || ""))) continue;
           if (!(await claimEmailSend(db, "bookingEmail", w.email))) continue;
           const key = randomKey();
-          const until = Math.min(nowMs + OFFER_MINUTES * MINUTE, start);
+          const until = Math.min(nowMs + settings.waitHoldMinutes * MINUTE, start);
           const held = await holdForWaiting(doc.id, service, settings, start, until, key);
           busy = await busyAround(day, nowMs);
           if (!held) continue;
@@ -360,6 +361,28 @@ function bookingActions({
     }
   }
 
+  /** Tells someone whose held place wasn't booked in time that it went to the next person. Never throws. */
+  async function tellHoldEnded(w) {
+    try {
+      if (!EMAIL.test(String(w.email || "")) || !(await claimEmailSend(db, "bookingEmail", w.email))) return;
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const when = whenWords({ start: w.offerStart });
+      await sendEmail({
+        to: w.email,
+        subject: `Your held place has gone: ${w.serviceName}, ${when}`,
+        html: risoLayout(`
+          <h4 style="margin:0 0 8px;">Your hold has ended</h4>
+          <h2 style="margin:0 0 12px;">${escapeHtml(w.serviceName || "")}</h2>
+          <p style="margin:0 0 16px;">The place ${escapeHtml(shop)} held for you on ${escapeHtml(when)} wasn't booked in time, so it has gone to the next person waiting. You're welcome to book another time.</p>
+          ${risoButton(escapeHtml(siteLink(`/book?service=${encodeURIComponent(w.serviceId || "")}`)), "See other times", brand.accent, brand.theme)}
+        `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+      });
+    } catch (err) {
+      console.warn("bookings: the hold-ended email failed:", err?.message || err);
+    }
+  }
+
   /** Forgets the people who waited for days now past, and passes holds that ran out to the next person in line. */
   async function sweepWaitlist() {
     if (!(await featureOn())) return { forgotten: 0, passedOn: 0 };
@@ -376,6 +399,7 @@ function bookingActions({
       await dropOffer(doc.id, w);
       await doc.ref.delete();
       days.push(w.day);
+      await tellHoldEnded(w);
     }
     if (days.length) await tellWaitlist(days);
     return { forgotten: past.docs.length, passedOn: lapsed.docs.length };
@@ -931,7 +955,7 @@ function bookingActions({
         const from = isDay(req.body?.from) ? req.body.from : dayOf(now().getTime(), zone());
         const to = isDay(req.body?.to) ? req.body.to : addDays(from, 6);
         const snap = await waitlist().where("day", ">=", from).where("day", "<=", to).limit(500).get();
-        return res.status(200).json({ waiting: snap.docs.map((d) => { const w = d.data(); return { id: d.id, serviceId: w.serviceId, serviceName: w.serviceName, day: w.day, start: w.start || null, name: w.name, email: w.email, createdAt: w.createdAt, heldUntil: Date.parse(w.offerUntil || "") > now().getTime() ? w.offerUntil : null }; }) });
+        return res.status(200).json({ waiting: snap.docs.map((d) => { const w = d.data(); return { id: d.id, serviceId: w.serviceId, serviceName: w.serviceName, day: w.day, start: w.start || null, name: w.name, email: w.email, createdAt: w.createdAt, ...(Date.parse(w.offerUntil || "") > now().getTime() ? { heldUntil: w.offerUntil, heldStart: w.offerStart } : { heldUntil: null, heldStart: null }) }; }) });
       }
       if (op === "removeWaiting") {
         const wid = String(req.body?.id || "");
@@ -1237,4 +1261,4 @@ const REMINDER_SKIP_HOURS = 6;
 
 const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip"]);
 
-module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES, OFFER_MINUTES };
+module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

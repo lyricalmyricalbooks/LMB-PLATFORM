@@ -88,6 +88,15 @@ Not yet tried on a live test shop.
 
 Review: one person at a time, so a busy class may take a few hours to fill from the list. Not yet tried on a live test shop.
 
+## How long a place is held, the lapse email and holds on the calendar (16 November 2026, Julian 19:33Z "keep doing the plan")
+
+- [x] Hours & rules › Hold a freed place for: 15 minutes to 12 hours (default an hour). A hold stops blocking its place
+      15 minutes after its own end even if the sweep never runs.
+- [x] The person whose hold ran out gets one short email: the place went to the next person, with a link to other times.
+- [x] The calendar shows held places: a dashed name in the class card (Add a person counts it), a dashed row otherwise.
+- [x] Proof: server tests (30-minute hold, lapse email, hold ends without the sweep, heldStart), calendar rules test,
+      screenshots of the calendar and the setting on desktop and phone.
+
 ## A "Book a time" section for any page (14 November 2026)
 
 - [x] Studio › Add section › Book a time: services as cards with price, length, place and class size, a button each.

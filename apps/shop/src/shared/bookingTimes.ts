@@ -81,6 +81,8 @@ export type BookingSettings = {
   tips: boolean;
   /** The tip choices, as a share of the price (1 to 4 of them, each 1 to 50). */
   tipPercents: number[];
+  /** A place freed for the waiting list is held this many minutes for the first person in line (WAIT_HOLD_MINUTES). */
+  waitHoldMinutes: number;
 };
 
 /** A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. */
@@ -107,7 +109,11 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   reminderHours: 24,
   tips: false,
   tipPercents: [15, 18, 20],
+  waitHoldMinutes: 60,
 };
+
+/** How long a freed place may be held for the first person on the waiting list. */
+export const WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720] as const;
 
 /** The reminder choices the owner picks from: none, or this many hours before. */
 export const REMINDER_HOURS = [0, 2, 12, 24, 48, 72] as const;
@@ -327,6 +333,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     reminderHours: (REMINDER_HOURS as readonly number[]).includes(Number(s.reminderHours)) ? Number(s.reminderHours) : DEFAULT_BOOKING_SETTINGS.reminderHours,
     tips: s.tips === true,
     tipPercents: cleanTipPercents(s.tipPercents),
+    waitHoldMinutes: (WAIT_HOLD_MINUTES as readonly number[]).includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
   };
 }
 
