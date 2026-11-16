@@ -39,7 +39,11 @@ test("the general test shop has no books: goods with sizes, a download, low and 
 
 test("the services test shop gets the general catalogue plus services and opening hours the shop's own rules accept", async () => {
   const { testShopServices, testShopWords } = await import("./testShopPlace.js");
-  const { testStudioDocs } = await import("./test-studio-data.js");
+  const { testStudioDocs, testStudioClients, MOVED_MARK } = await import("./test-studio-data.js");
+  const { readFileSync } = await import("node:fs");
+  // The mark here is the one the admin looks for.
+  assert.ok(readFileSync(new URL("../apps/shop/src/app/admin/customerInsights.ts", import.meta.url), "utf8").includes(`MOVED_MARK = "${MOVED_MARK}"`));
+  assert.equal(testStudioClients().length, 5);
   const { createRequire } = await import("node:module");
   const { cleanService, cleanBookingSettings } = createRequire(import.meta.url)("../apps/shop/functions/shared/bookingTimes.js");
   const studio = TEST_SHOPS.find((shop) => shop.shopId === "test-studio");
@@ -50,7 +54,14 @@ test("the services test shop gets the general catalogue plus services and openin
   for (const { path, data } of testStudioDocs()) {
     assert.ok(paths.includes(path), `${path} is written with the catalogue`);
     if (path.startsWith("bookingServices/")) assert.deepEqual(cleanService(data, data.id), data, `${path} is a service as the shop keeps one`);
-    else assert.deepEqual(cleanBookingSettings(data), data);
+    else if (path.startsWith("customerNotes/")) {
+      // The id is the hash Clients reads by, and the note carries the mark that lists the person under Clients.
+      const { createHash } = await import("node:crypto");
+      assert.equal(path, `customerNotes/${createHash("sha256").update(data.email.toLowerCase()).digest("hex")}`);
+      assert.deepEqual(Object.keys(data).sort(), ["email", "name", "note", "place", "tags", "updatedAt"]);
+      assert.match(data.email, /@example\.com$/);
+      assert.ok(data.note.includes(MOVED_MARK));
+    } else assert.deepEqual(cleanBookingSettings(data), data);
   }
   assert.ok(paths.includes("books/test-tote-bag"), "the release check can still buy from it");
   assert.equal(testCatalogue({ ...TEST_SHOPS[1], currency: "CAD" }).shopDocs.some((doc) => doc.path.startsWith("booking")), false, "no other test shop gets bookings");
