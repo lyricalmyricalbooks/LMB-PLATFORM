@@ -183,3 +183,31 @@ describe("deposits", () => {
     expect([cardTaken({ payment: "atShop", priceMinor: 6000, paid: true }), balanceDue({ payment: "atShop", priceMinor: 6000 })]).toEqual([0, 6000]);
   });
 });
+
+describe("card on file and the missed-booking fee", () => {
+  it("keeps a card only where something is left to charge, with a fee no higher than the price", async () => {
+    const { cleanService } = await import("./bookingTimes");
+    expect(cleanService({ name: "Cut", minutes: 45, payment: "atShop", priceMinor: 6000, holdCard: true, lateFeeMinor: 3000 })).toMatchObject({ holdCard: true, lateFeeMinor: 3000 });
+    expect(cleanService({ name: "Cut", minutes: 45, payment: "full", priceMinor: 6000, holdCard: true, lateFeeMinor: 3000 })).toMatchObject({ holdCard: false, lateFeeMinor: 0 });
+    expect(cleanService({ name: "Cut", minutes: 45, payment: "atShop", priceMinor: 6000, holdCard: true, lateFeeMinor: 7000 })).toEqual({ problem: expect.stringMatching(/more than the price/) });
+    expect(cleanService({ name: "Chat", minutes: 20, payment: "free", holdCard: true, lateFeeMinor: 20 })).toEqual({ problem: expect.stringMatching(/0.50/) });
+    expect(cleanService({ name: "Chat", minutes: 20, payment: "free", holdCard: true, lateFeeMinor: 2500 })).toMatchObject({ holdCard: true, lateFeeMinor: 2500 });
+    expect(cleanService({ name: "Chat", minutes: 20 })).toMatchObject({ holdCard: false, lateFeeMinor: 0 });
+  });
+  it("counts a fee as money taken but never against the price still to pay", async () => {
+    const { balanceDue, feeTaken, moneyKept, moneyTaken } = await import("./bookingTimes");
+    const b = { payment: "atShop", priceMinor: 6000, fee: { amountMinor: 3000 } };
+    expect([feeTaken(b), moneyTaken(b), moneyKept(b), balanceDue(b)]).toEqual([3000, 3000, 3000, 6000]);
+  });
+  it("lets the owner charge the fee after a no-show or the shop's own cancel, never after the customer's", async () => {
+    const { feeChargeable } = await import("./bookingTimes");
+    const now = Date.parse("2026-11-20T15:00:00Z");
+    const b = { card: { customer: "cus_1", paymentMethod: "pm_1" }, lateFeeMinor: 3000, status: "confirmed", start: "2026-11-20T14:00:00Z" };
+    expect(feeChargeable(b, now)).toBe(true);
+    expect(feeChargeable({ ...b, start: "2026-11-20T16:00:00Z" }, now)).toBe(false);
+    expect(feeChargeable({ ...b, status: "cancelled", cancelledBy: "owner@example.com", start: "2026-11-20T16:00:00Z" }, now)).toBe(true);
+    expect(feeChargeable({ ...b, status: "cancelled", cancelledBy: "customer" }, now)).toBe(false);
+    expect(feeChargeable({ ...b, fee: { amountMinor: 3000 } }, now)).toBe(false);
+    expect(feeChargeable({ ...b, card: null }, now)).toBe(false);
+  });
+});

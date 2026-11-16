@@ -80,4 +80,8 @@
   .zp-row, .zp-states label { min-height: 44px; }
   .zp-more { min-height: 40px; }
 }
+.zp-top { max-height: none; overflow: visible; padding: 8px 14px; border-radius: var(--rp-radius-lg); border: 1px solid var(--rp-border); background: var(--rp-surface); }
+.zp-top > .zp-row { grid-column: 1 / -1; }
 .zp-note { margin: -10px 0 0; font-size: 12px; line-height: 1.4; color: var(--rp-text-muted); }
+.zp-states-bar { flex: 1 1 100%; display: flex; gap: 6px; margin-top: 4px; }
+.zp-more:disabled { opacity: 0.45; cursor: not-allowed; }

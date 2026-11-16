@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import { cleanBookingSettings, cleanService, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { cleanBookingSettings, cleanService, type BookingService, type BookingSettings, type SavedCard } from "../../shared/bookingTimes";
 
 export type BookingStatus = "held" | "confirmed" | "cancelled";
 export type Booking = {
@@ -13,6 +13,8 @@ export type Booking = {
   customer: { name: string; email: string; phone?: string }; note?: string; answers?: { label: string; answer: string }[]; status: BookingStatus;
   payment: "free" | "card" | "deposit" | "atShop"; priceMinor: number; /** With payment "deposit": the part taken by card when booked. */ depositMinor?: number; depositPaid?: boolean; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
+  /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */
+  cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
 };
 
@@ -70,7 +72,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "calendarFeed" | "waitlist" | "removeWaiting";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "calendarFeed" | "waitlist" | "removeWaiting";
 
 /** Someone who asked to hear when a full class time (start) or a booked-up day (no start) has room again. */
 export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string;

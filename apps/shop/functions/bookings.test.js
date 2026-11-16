@@ -51,7 +51,7 @@ function res() {
   return out;
 }
 
-function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true } = {}) {
+function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -59,21 +59,31 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   const closed = [];
   const refunds = [];
   const sessions = new Map();
+  const charges = [];
   const card = checkout === null ? null : {
     async open(params, idem) {
       const id = `cs_test_${String(opened.length).padStart(8, "0")}`;
       opened.push({ params, idem });
-      sessions.set(id, { id, payment_status: "unpaid", status: "open", amount_total: params.line_items[0].price_data.unit_amount, metadata: params.metadata, payment_intent: null });
+      const setupOnly = params.mode === "setup";
+      sessions.set(id, { id, mode: params.mode, payment_status: setupOnly ? "no_payment_required" : "unpaid", status: "open", amount_total: setupOnly ? null : params.line_items[0].price_data.unit_amount, metadata: params.metadata, payment_intent: null });
       return { id, url: `https://pay.example/${id}` };
     },
     async read(id) { return sessions.get(id) || null; },
     async close(id) { closed.push(id); const s = sessions.get(id); if (s && s.payment_status !== "paid") s.status = "expired"; },
+    ...(provider === "stripe" ? {
+      async savedCard(id) { return sessions.get(id)?.status === "complete" ? { customer: "cus_ada", paymentMethod: "pm_ada", brand: "visa", last4: "4242" } : null; },
+      async chargeSaved(args, idem) {
+        if (decline) throw Object.assign(new Error("Your card was declined."), { statusCode: 402, type: "card_error", code: decline });
+        charges.push({ args, idem });
+        return { id: `pi_fee_${charges.length}`, status: "succeeded" };
+      },
+    } : {}),
   };
   let n = 0;
   const desk = bookingActions({
     db,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
-    payments: { standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
+    payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
     hitLimit: async () => true,
     LIMITS: {},
@@ -98,7 +108,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   };
   const pub = async (body) => { const r = res(); await desk.handlePublic({ body }, r); return r; };
   const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
-  return { db, desk, clock, emails, opened, closed, refunds, sessions, seed, pub, adm };
+  return { db, desk, clock, emails, opened, closed, refunds, sessions, charges, seed, pub, adm };
 }
 
 const CUSTOMER = { name: "Ada Reader", email: "ada@example.com" };
@@ -784,5 +794,100 @@ describe("deposits and paying at the visit", () => {
     await seedMore(t);
     const r = await t.adm({ op: "create", serviceId: "colour", start: at("2026-11-18", "10:00"), ...CUSTOMER });
     expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ payment: "atShop", priceMinor: 14000, paid: false });
+  });
+});
+
+describe("card on file and the missed-booking fee", () => {
+  const seedCards = async (t) => {
+    await t.seed();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000, holdCard: true, lateFeeMinor: 3000 });
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 14000, depositPercent: 25, holdCard: true, lateFeeMinor: 5000 });
+  };
+  /** Books the cut at 15:00 on the 18th and finishes its card page. */
+  const bookCut = async (t) => {
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    Object.assign(t.sessions.get("cs_test_00000000"), { status: "complete" });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    return { r, view };
+  };
+
+  test("a service paid at the visit saves a card on a page that takes nothing, and the booking says so", async () => {
+    const t = setup();
+    await seedCards(t);
+    const info = await t.pub({ action: "bookingInfo" });
+    expect(info.body.services.find((s) => s.id === "cut")).toMatchObject({ holdCard: true, lateFeeMinor: 3000 });
+    const { r, view } = await bookCut(t);
+    expect(r.body.status).toBe("held");
+    expect(t.opened[0].params).toMatchObject({ mode: "setup", currency: "cad", customer_creation: "always", customer_email: "ada@example.com", metadata: { booking: "booking001" } });
+    expect(t.opened[0].params.line_items).toBeUndefined();
+    expect(view.body.booking).toMatchObject({ status: "confirmed", payment: "atShop", paid: false, dueMinor: 6000, cardHold: true, lateFeeMinor: 3000, cardLast4: "4242" });
+    expect(JSON.stringify(view.body.booking)).not.toMatch(/pm_ada|cus_ada/);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ card: { customer: "cus_ada", paymentMethod: "pm_ada", last4: "4242", mode: "test" } });
+    expect(t.db.store.get("bookings/booking001").paymentIntent).toBeUndefined();
+    const email = t.emails.find((e) => e.to === "ada@example.com").html;
+    expect(email).toMatch(/Card on file:<\/strong> Visa ending 4242\. Missing this booking, or cancelling less than 24 hours before, may cost \$30\.00/);
+  });
+
+  test("a card page left unfinished never confirms, and a deposit page also saves the card", async () => {
+    const t = setup();
+    await seedCards(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking.status).toBe("held");
+    await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-19", "13:00"), ...CUSTOMER });
+    expect(t.opened[1].params).toMatchObject({ mode: "payment", customer_creation: "always", payment_intent_data: { setup_future_usage: "off_session" } });
+  });
+
+  test("the owner charges the fee once after a no-show, never before it starts or above what was agreed", async () => {
+    const t = setup();
+    await seedCards(t);
+    const { r } = await bookCut(t);
+    expect((await t.adm({ op: "chargeFee", id: r.body.id })).body.code).toBe("too_soon");
+    t.clock.now = new Date("2026-11-18T21:00:00Z");
+    expect((await t.adm({ op: "chargeFee", id: r.body.id, amountMinor: 3100 })).statusCode).toBe(400);
+    const charged = await t.adm({ op: "chargeFee", id: r.body.id, amountMinor: 2000 });
+    expect(charged.statusCode).toBe(200);
+    expect(t.charges).toEqual([{ args: expect.objectContaining({ customer: "cus_ada", paymentMethod: "pm_ada", amountMinor: 2000, currency: "cad", metadata: { booking: "booking001", fee: "missed booking" } }), idem: "booking-fee-booking001-2000" }]);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ fee: { intent: "pi_fee_1", amountMinor: 2000, reason: "missed booking" }, feeCharging: null });
+    const receipt = t.emails.at(-1);
+    expect(receipt).toMatchObject({ to: "ada@example.com", subject: expect.stringMatching(/^Fee charged: Cut/) });
+    expect(receipt.html).toMatch(/charged \$20\.00 to your card ending 4242 for missing this booking/);
+    expect((await t.adm({ op: "chargeFee", id: r.body.id })).body.code).toBe("charged");
+    expect(t.charges).toHaveLength(1);
+  });
+
+  test("a late cancel by the shop can carry the fee; the customer's own cancel in time never does", async () => {
+    const t = setup();
+    await seedCards(t);
+    const { r } = await bookCut(t);
+    await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect((await t.adm({ op: "chargeFee", id: r.body.id })).statusCode).toBe(409);
+    const t2 = setup();
+    await seedCards(t2);
+    const second = await bookCut(t2);
+    await t2.adm({ op: "cancel", id: second.r.body.id });
+    expect((await t2.adm({ op: "chargeFee", id: second.r.body.id })).body.fee).toMatchObject({ amountMinor: 3000, reason: "late cancellation" });
+  });
+
+  test("a declined card takes nothing, says so plainly, and can be tried again", async () => {
+    const t = setup({ decline: "card_declined" });
+    await seedCards(t);
+    const { r } = await bookCut(t);
+    t.clock.now = new Date("2026-11-18T21:00:00Z");
+    const tried = await t.adm({ op: "chargeFee", id: r.body.id });
+    expect(tried.statusCode).toBe(402);
+    expect(tried.body.error).toMatch(/declined, so nothing was taken/);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ feeCharging: null });
+    expect(t.db.store.get("bookings/booking001").fee).toBeUndefined();
+    expect(t.db.store.get("bookings/booking001").history.at(-1).what).toBe("fee declined by the card");
+  });
+
+  test("a Square shop books the same service without keeping a card", async () => {
+    const t = setup({ provider: "square" });
+    await seedCards(t);
+    const info = await t.pub({ action: "bookingInfo" });
+    expect(info.body.services.find((s) => s.id === "cut").holdCard).toBeUndefined();
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    expect(r.body.status).toBe("confirmed");
+    expect(t.opened).toHaveLength(0);
   });
 });

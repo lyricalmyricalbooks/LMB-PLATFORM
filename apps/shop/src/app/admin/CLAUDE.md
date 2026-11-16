@@ -1104,6 +1104,10 @@ a deposit is an amount or a share of the price, `depositHint` says both parts). 
 card, … to pay at the shop" (`paymentText`) with the switch **Rest paid at the shop**; cancel offers to refund or keep
 only what the card took. Week and Figures money use `moneyTaken` / `moneyKept`; services Home counts a deposit booking
 with a balance as one to mark paid. Fixture: service "Half-day workshop", booking "Flo Example".
+**Card on file (16 November 2026):** the service dialog's *Missed bookings* (hidden when paid in full; a note on
+Square shops) switches on **Keep a card on file** and sets the fee. The drawer shows "Card on file: Visa ending 4242",
+and once `feeChargeable` a `.bkg-fee` panel with **Charge fee** opens `FeeDialog` (any amount up to the fee). Fixture:
+service "review" holds a card with a $20 fee; booking "Fay Example" is a no-show with a card.
 
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,

@@ -19,7 +19,7 @@ function fakeStripe(behaviour = {}) {
         const fn = behaviour[name];
         return fn ? fn(key, ...args) : fallback;
       };
-      this.paymentIntents = { retrieve: call("paymentIntents.retrieve", { id: "pi_x", metadata: {} }) };
+      this.paymentIntents = { retrieve: call("paymentIntents.retrieve", { id: "pi_x", metadata: {} }), create: call("paymentIntents.create", { id: "pi_fee", status: "succeeded" }) };
       this.checkout = { sessions: { retrieve: call("checkout.sessions.retrieve", { id: "cs_x" }) } };
       this.disputes = { list: call("disputes.list", { data: [] }) };
       this.refunds = { list: call("refunds.list", { data: [] }), create: call("refunds.create", { id: "re_1", status: "succeeded", amount: 1000, currency: "cad" }) };
@@ -492,5 +492,29 @@ describe("one door", () => {
   test("no other file uses the Stripe provider's own helper names", async () => {
     const STRIPE_HELPERS = /\b(getStripeClientForMode|readStripeKeys|withPrivateStripeKeys|stripeSecretFor|createStripeProvider|refundPayment)\b/;
     expect((await outside()).filter(({ text }) => STRIPE_HELPERS.test(text)).map(({ f }) => f)).toEqual([]);
+  });
+});
+
+describe("card on file (bookings)", () => {
+  const website = { payments: { stripe: { testSecretKey: "sk_test_saved" } } };
+  test("reads the card a finished page saved, from its setup or payment intent", async () => {
+    const card = { id: "pm_1", card: { brand: "visa", last4: "4242" } };
+    const { payments, calls } = make({ website, behaviour: { "checkout.sessions.retrieve": () => ({ id: "cs_1", customer: "cus_1", setup_intent: { id: "seti_1", payment_method: card }, payment_intent: null }) } });
+    const checkout = await payments.standaloneCheckout("test");
+    expect(await checkout.savedCard("cs_1")).toEqual({ customer: "cus_1", paymentMethod: "pm_1", brand: "visa", last4: "4242" });
+    expect(calls.at(-1).args[1]).toEqual({ expand: ["setup_intent.payment_method", "payment_intent.payment_method"] });
+    const paid = make({ website, behaviour: { "checkout.sessions.retrieve": () => ({ id: "cs_2", customer: { id: "cus_2" }, setup_intent: null, payment_intent: { id: "pi_2", payment_method: "pm_2" } }) } });
+    expect(await (await paid.payments.standaloneCheckout("test")).savedCard("cs_2")).toEqual({ customer: "cus_2", paymentMethod: "pm_2", brand: "", last4: "" });
+    const none = make({ website, behaviour: { "checkout.sessions.retrieve": () => ({ id: "cs_3", customer: null, setup_intent: null }) } });
+    expect(await (await none.payments.standaloneCheckout("test")).savedCard("cs_3")).toBeNull();
+  });
+  test("charges the saved card with nobody at the page, under the caller's key", async () => {
+    const { payments, calls } = make({ website });
+    const checkout = await payments.standaloneCheckout("test");
+    await checkout.chargeSaved({ customer: "cus_1", paymentMethod: "pm_1", amountMinor: 3000, currency: "cad", description: "Fee", metadata: { booking: "b1" } }, "booking-fee-b1-3000");
+    expect(calls.at(-1)).toMatchObject({ name: "paymentIntents.create", args: [
+      { amount: 3000, currency: "cad", customer: "cus_1", payment_method: "pm_1", off_session: true, confirm: true, description: "Fee", metadata: { booking: "b1" } },
+      expect.objectContaining({ idempotencyKey: "booking-fee-b1-3000" }),
+    ] });
   });
 });
