@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ADMIN_TABS } from "./adminRoute";
 import { COMBINED_MENU, MENU, NAV, SERVICES_COMBINED_MENU, SERVICES_MENU, SERVICES_MONEY_SIDE, SERVICES_WEBSITE_SIDE, adminMenu, navPages, sideMenu, sidebarItems } from "./riso/nav";
 import { SELLS, sellsBooks, sellsServices, shopKind, wordsFor } from "../../shared/shopSells";
-import { sellsChoicesFor } from "./WhatYouSellCard";
+import { kindSwitchQuestion, sellsChoicesFor, sellsGroupsFor } from "./WhatYouSellCard";
 import { startingKind } from "./sells";
 
 const SERVICE_IDS = ["hair", "wellness", "lessons", "fitness", "studio", "services"];
@@ -67,6 +67,19 @@ describe("services shops", () => {
     expect(sellsChoicesFor(true).map((c) => c.id)).toEqual(SERVICE_IDS);
     expect(sellsChoicesFor(false).some((c) => SERVICE_IDS.includes(c.id))).toBe(false);
     expect(startingKind("hair")).toBe("other");
+  });
+
+  it("offers both kinds only where the shop may switch, and asks before a switch of kind", () => {
+    expect(sellsGroupsFor(false, false)).toHaveLength(1);
+    expect(sellsGroupsFor(false, false)[0].choices.some((c) => SERVICE_IDS.includes(c.id))).toBe(false);
+    const both = sellsGroupsFor(false, true);
+    expect(both.map((g) => g.label)).toEqual(["Services", "Products"]);
+    expect(both[0].choices.map((c) => c.id)).toEqual(SERVICE_IDS);
+    expect(kindSwitchQuestion("books", "zines")).toBeNull();
+    expect(kindSwitchQuestion("hair", "fitness")).toBeNull();
+    expect(kindSwitchQuestion("books", "hair")?.confirmLabel).toBe("Switch to services");
+    expect(kindSwitchQuestion("hair", "books")?.confirmLabel).toBe("Switch to products");
+    expect(kindSwitchQuestion(null, "hair")?.title).toBe("Switch to a services shop?");
   });
 });
 
