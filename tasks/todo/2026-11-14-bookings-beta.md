@@ -213,3 +213,20 @@ back. Gift cards on bookings and packages of visits come next.
 Review: the balance comes off when the time is taken, even while the card page is open; a hold that runs out puts it
 back. Gift cards pay only what is paid when booked (not a pay-at-the-visit price, not the rest or a tip). Packages of
 visits come next.
+
+## Packs of visits (16 November 2026, plan phase 3)
+
+- [x] Shared rules: a service's pack (visits, price, days) checked in `cleanService`; what a pack has left and why it
+      can't book (`packProblem`).
+- [x] Server: buy a pack on a card page, start it once paid (page open or the sweep), email the code, try a pack, book
+      with it in the same transaction as the time, put the visit back once on cancel unless the owner keeps it, refuse a
+      move past its last day; owner list and Close with a refund; privacy export and erase.
+- [x] Book a time page: the offer under the times, the pack's own page, the pack box at checkout, Book a visit links;
+      EN and FR words; Studio preview sample.
+- [x] Next move 2: the service heading shows the price after a code (or "Paid with your pack").
+- [x] Owner: the service dialog's Pack of visits, the Packs tab with Close and refund, payment words, cancel toggle.
+- [x] Proof: shared, handler, privacy, preview and admin tests, typecheck, lint, screenshots desktop and phone.
+
+Review: the code is never stored once emailed (only its hash names the pack), so a lost code is found by the owner in
+the Packs list (last four) and the customer's email. A pack pays the whole visit; codes and gift cards don't mix with it.
+

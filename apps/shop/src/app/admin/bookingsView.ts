@@ -1,7 +1,7 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
 import { addDays, balanceDue, cardAsk, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf } from "../../shared/bookingTimes";
-import type { Booking, Waiting } from "./bookingsApi";
+import type { Booking, PackRow, Waiting } from "./bookingsApi";
 
 /** One card in a day's column: a single booking, or a group class with everyone booked into it. */
 export type DaySlot = { kind: "one"; booking: Booking } | { kind: "class"; key: string; serviceId: string; start: string; serviceName: string; places: number; people: Booking[] };
@@ -170,7 +170,11 @@ export function cardText(card: { brand?: string; last4?: string } | null | undef
 }
 
 /** How a booking is paid, in plain words. */
-export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing" | "rest" | "giftCard">): string {
+export function paymentText(b: Pick<Booking, "payment" | "paid" | "priceMinor" | "depositMinor" | "depositPaid" | "currency" | "refund" | "status" | "clearing" | "rest" | "giftCard"> & { pack?: Booking["pack"] }): string {
+  if (b.payment === "pack") {
+    const visit = b.pack?.visit && b.pack.visits ? `, visit ${b.pack.visit} of ${b.pack.visits}` : "";
+    return `With their pack${b.pack?.last4 ? ` ending ${b.pack.last4}` : ""}${visit}${b.pack?.returned ? " (visit put back)" : ""}`;
+  }
   const onCard = cardTaken(b);
   // How what was paid when booked came in: by card, a gift card, or both.
   const by = !b.giftCard?.amountMinor ? "by card" : cardAsk(b) > 0 ? "by card and gift card" : "by gift card";
@@ -328,4 +332,25 @@ export function listTag(b: Pick<Booking, "status" | "noShow" | "clearing">): str
   if (b.status === "cancelled") return "Cancelled";
   if (b.status === "held") return b.clearing ? "Payment clearing" : "Paying now";
   return b.noShow ? "No-show" : "";
+}
+
+/** Where a pack stands, for the Packs list: what the badge says and its tone. `today` is the shop's day (YYYY-MM-DD). */
+export function packState(p: Pick<PackRow, "status" | "left" | "expiresOn">, today: string): { label: string; tone: "success" | "neutral" | "warning" } {
+  if (p.status === "closed") return { label: "Closed", tone: "neutral" };
+  if (p.left <= 0) return { label: "Used up", tone: "neutral" };
+  if (p.expiresOn && p.expiresOn < today) return { label: "Ended", tone: "neutral" };
+  if (p.expiresOn && p.expiresOn <= addDays(today, 14)) return { label: "Ends soon", tone: "warning" };
+  return { label: "Active", tone: "success" };
+}
+
+/** "3 of 5 left", the pack's visits still to book. */
+export const packLeftText = (p: Pick<PackRow, "left" | "visits">): string => `${Math.max(0, p.left)} of ${p.visits} left`;
+
+/** The Packs list: open packs first (fewest visits left first, so the ones running out show), then the rest, newest first. */
+export function packList(rows: readonly PackRow[], { query = "", today }: { query?: string; today: string }): PackRow[] {
+  const q = plain(query.trim());
+  const open = (p: PackRow) => packState(p, today).tone !== "neutral";
+  return rows
+    .filter((p) => !q || [p.name, p.email, p.serviceName, p.last4].some((v) => plain(v || "").includes(q)))
+    .sort((a, b) => Number(open(b)) - Number(open(a)) || (open(a) ? a.left - b.left : String(b.paidAt || "").localeCompare(String(a.paidAt || ""))));
 }

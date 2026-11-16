@@ -1125,6 +1125,14 @@ shows the code and what it took off ("use given back" once cancelled). Server ru
 with **Put $x back on their gift card** (on by default; off sends `giftBack: false`). Gift cards › a card › History names
 booking lines (`historyLabelOf`) and links to Bookings.
 
+**Packs of visits (16 November 2026):** the service dialog's **Pack of visits** (paid services only): Sell a pack of visits,
+then visits, pack price and Use within (`packHint` says the saving). A **Packs** tab shows once any service has
+`packVisits` (`PacksPanel`, op `packs`, rules `packList` / `packState` / `packLeftText` in `bookingsView.ts`): open packs
+first, the ones running out at the top, a dot per visit, Book by, and **Close** (`ClosePackDialog`: refund the unused
+visits, an amount, or nothing; op `packClose`). A booking made with a pack says "With their pack ending K7QD, visit 2 of 5"
+(`paymentText`), and Cancel asks **Put the visit back on their pack** (off = `packBack: false`, a late cancel). Fixture:
+"Risograph printing session" sells a pack, "Kai Example" booked with one, six sample packs. Tests: `bookingsPacks.test.ts`.
+
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,
 studio, services) gets `MenuKind` "services" (`riso/nav.ts` `adminMenu` / `sideMenu`: Calendar, Clients, Messages, Sales,

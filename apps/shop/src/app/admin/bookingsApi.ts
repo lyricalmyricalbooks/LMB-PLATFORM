@@ -11,7 +11,7 @@ export type BookingStatus = "held" | "confirmed" | "cancelled";
 export type Booking = {
   id: string; serviceId: string; serviceName: string; minutes: number; location?: string; meetUrl?: string; start: string; end: string;
   customer: { name: string; email: string; phone?: string }; note?: string; answers?: { label: string; answer: string }[]; status: BookingStatus;
-  payment: "free" | "card" | "deposit" | "atShop"; priceMinor: number; /** With payment "deposit": the part taken by card when booked. */ depositMinor?: number; depositPaid?: boolean; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
+  payment: "free" | "card" | "deposit" | "atShop" | "pack"; priceMinor: number; /** With payment "deposit": the part taken by card when booked. */ depositMinor?: number; depositPaid?: boolean; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
   /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */
   cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
@@ -21,6 +21,8 @@ export type Booking = {
   discount?: { id: string; code: string; amountMinor: number; returned?: boolean } | null; listPriceMinor?: number;
   /** A gift card that paid part or all of what was paid when booked (`returned` once put back on the card). */
   giftCard?: { id: string; last4: string; amountMinor: number; returned?: boolean } | null;
+  /** A pack of visits that paid for it: which visit of the pack it is (`returned` once the visit went back on the pack). */
+  pack?: { id: string; last4: string; visit?: number; visits?: number; returned?: boolean } | null;
   /** A tip the client added by card (never part of the price or a refund). */
   tip?: { amountMinor: number; at: string } | null;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
@@ -80,7 +82,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose";
 
 /** Someone who asked to hear when a full class time (start) or a booked-up day (no start) has room again. */
 export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string;
@@ -101,3 +103,11 @@ async function adminFromServer(op: AdminOp, body: Record<string, unknown> = {}):
   if (!response.ok) throw new Error(result.error || "Bookings couldn't be saved just now. Please try again.");
   return result;
 }
+
+/** A pack of visits a customer bought (op `packs`; held packs that were never paid are left out). */
+export type PackRow = {
+  id: string; last4: string; serviceId: string; serviceName: string; name: string; email: string;
+  visits: number; left: number; status: "active" | "closed" | "used" | string; priceMinor: number; currency: string;
+  expiresOn: string | null; paidAt: string | null; refundMinor: number;
+  uses: { bookingId: string; start: string | null; returned: boolean }[];
+};

@@ -16,7 +16,15 @@
 //                            discount? { id, code, amountMinor, returned? } and listPriceMinor (a discount code typed when booking:
 //                            priceMinor is after it, listPriceMinor before; its use is counted when the time is taken and given back on cancel),
 //                            giftCard? { id, last4, amountMinor, returned? } (a gift card paying part or all of what is paid when booked:
-//                            debited when the time is taken, put back once on cancel unless the shop keeps it) }
+//                            debited when the time is taken, put back once on cancel unless the shop keeps it),
+//                            pack? { id, last4, visit, visits, returned? } with payment "pack" and priceMinor 0 (a visit booked with
+//                            a pack of visits: listPriceMinor is the service's price; the use is counted when the time is taken
+//                            and given back once on cancel unless the shop keeps it) }
+//   bookingPacks/{id}      a pack of visits bought on the Book a time page (id = hash of its code; only the last four are kept):
+//                          { last4, serviceId, serviceName, visits, priceMinor, currency, customer: { name, email },
+//                          status: "held" | "active" | "closed", sessions, paymentIntent?, paidAt?, expiresOn (last shop day,
+//                          or null), uses: [{ bookingId, start, at, returned? }], holdUntil, refund?, createdAt, updatedAt }.
+//                          Server-only (no rule opens it): the code is the customer's key, so it is never stored.
 //   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
 //                          written in the same transaction as the booking, so two customers can never take one time.
 //   bookingWaitlist/{id}   { serviceId, serviceName, day, start | null, name, email, createdAt, offerStart?, offerUntil?,
@@ -47,13 +55,29 @@ const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
-  secondReminderDue, summaryDue, zonedTime,
+  secondReminderDue, summaryDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES,
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
 const { giftCardId, last4, giftCardProblem, availableMinor, withHistory, GIFT_CARD_MESSAGES } = require("./giftCards");
 
 const HOLD_MINUTES = 10;
+/** How long a pack's card page stays open. An unpaid pack is forgotten once it closes. */
+const PACK_PAGE_MINUTES = 60;
+/** A pack's code: 12 letters and digits with nothing that reads two ways, as "ABCD-EFGH-JKLM". */
+const PACK_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function newPackCode() {
+  const bytes = crypto.randomBytes(12);
+  let raw = "";
+  for (let i = 0; i < 12; i++) raw += PACK_ALPHABET[bytes[i] % PACK_ALPHABET.length];
+  return raw.match(/.{4}/g).join("-");
+}
+/** "abcd efgh-jklm" → "ABCD-EFGH-JKLM"; "" when it can't be a pack code. */
+function normalizePackCode(value) {
+  const raw = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return raw.length === 12 ? raw.match(/.{4}/g).join("-") : "";
+}
+const packId = (code) => { const normal = normalizePackCode(code); return normal ? hash(`booking-pack:${normal}`).slice(0, 40) : ""; };
 const MINUTE = 60_000;
 /** A hold the sweep never got to (a failed run) stops blocking its time after this long. */
 const STALE_HOLD_MS = 2 * 60 * 60 * 1000;
@@ -63,6 +87,7 @@ const MAX_WAITING = 30;
 /** A waiting-list hold the sweep never got to stops blocking its place this long after its end. */
 const OFFER_GRACE_MS = 15 * 60 * 1000;
 const WAIT_ID = /^[a-f0-9]{32}$/;
+const PACK_ID = /^[a-f0-9]{40}$/;
 const offerItem = (wid) => `offer_${wid}`;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
@@ -110,6 +135,8 @@ function publicBooking(id, b, settings, nowMs) {
     discountCode: b.discount?.code || "", discountMinor: b.discount?.amountMinor || 0,
     // A gift card: its last four and what it paid (never its id), and whether that went back onto it.
     giftCardLast4: b.giftCard?.last4 || "", giftMinor: b.giftCard?.amountMinor || 0, giftReturned: !!b.giftCard?.returned,
+    // A pack of visits: its last four, and which visit of how many this is (never the pack's id).
+    packLast4: b.pack?.last4 || "", packVisit: b.pack?.visit || 0, packVisits: b.pack?.visits || 0, packReturned: !!b.pack?.returned,
     depositMinor: b.payment === "deposit" ? b.depositMinor || 0 : 0, depositPaid: !!b.depositPaid, dueMinor: balanceDue(b),
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
@@ -140,6 +167,7 @@ function bookingActions({
   const bookings = () => db.collection("bookings");
   const dayRef = (day) => db.collection("bookingDays").doc(day);
   const waitlist = () => db.collection("bookingWaitlist");
+  const packs = () => db.collection("bookingPacks");
 
   async function featureOn() {
     const snap = await db.collection("platform").doc("features").get().catch(() => null);
@@ -277,7 +305,8 @@ function bookingActions({
       // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
       const due = balanceDue(b);
       const taken = bookedCardTaken(b);
-      const money = ended || !(b.priceMinor > 0) ? "" : [
+      const packLine = ended || !b.pack ? "" : `<p style="margin:0 0 4px;"><strong>Paid with your pack ••••${escapeHtml(b.pack.last4 || "")}:</strong> visit ${b.pack.visit || 1} of ${b.pack.visits || 1}</p>`;
+      const money = ended || !(b.priceMinor > 0) ? packLine : [
         b.discount?.amountMinor ? `<p style="margin:0 0 4px;"><strong>Discount (${escapeHtml(b.discount.code)}):</strong> ${escapeHtml(moneyWords(b.discount.amountMinor, b.currency))} off</p>` : "",
         giftTaken(b) ? `<p style="margin:0 0 4px;"><strong>Gift card ••••${escapeHtml(b.giftCard.last4 || "")}:</strong> ${escapeHtml(moneyWords(giftTaken(b), b.currency))}</p>` : "",
         b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
@@ -502,6 +531,8 @@ function bookingActions({
     // A gift card is debited with the time too, so one balance can never pay for two bookings.
     const gift = record.giftCard?.id ? db.collection("giftCards").doc(record.giftCard.id) : null;
     const testMode = gift ? await shopTestMode() : false;
+    // A pack's visit is counted with the time too, so one pack can never book more visits than it holds.
+    const pack = record.pack?.id ? packs().doc(record.pack.id) : null;
     const end = start + service.minutes * MINUTE;
     const blockEnd = end + service.gapAfter * MINUTE;
     const days = daysTouched(start, blockEnd, zone());
@@ -511,11 +542,14 @@ function bookingActions({
       const nowMs = now().getTime();
       const codeSnap = code ? await tx.get(code) : null;
       const giftSnap = gift ? await tx.get(gift) : null;
+      const packSnap = pack ? await tx.get(pack) : null;
       const nearby = snaps.filter((_, i) => days.includes(all[i]));
       if (check && !isFreeTime({ service, settings, busy: busyFrom(nearby, nowMs, offer?.item || ""), start, zone: zone(), nowMs })) return false;
       const card = giftSnap?.exists ? giftSnap.data() : null;
       const giftMinor = record.giftCard?.amountMinor || 0;
       if (giftSnap && (giftCardProblem(card, { now: new Date(nowMs), testMode }) || availableMinor(card, "", nowMs) < giftMinor)) return "gift_short";
+      const packData = packSnap?.exists ? packSnap.data() : null;
+      if (packSnap && packProblem(packData, record.serviceId, dayOf(start, zone()))) return "pack_used";
       if (codeSnap) {
         const used = Number(codeSnap.data()?.usageCount) || 0;
         const limit = Number(codeSnap.data()?.usageLimit) || 0;
@@ -534,7 +568,14 @@ function bookingActions({
         tx.set(dayRef(d), { items });
       });
       if (offer) tx.delete(waitlist().doc(offer.wid));
-      tx.set(bookings().doc(id), { ...record, start: new Date(start).toISOString(), end: new Date(end).toISOString() });
+      let packed = {};
+      if (packSnap) {
+        const at = new Date(nowMs).toISOString();
+        const uses = [...(packData.uses || []), { bookingId: id, start: new Date(start).toISOString(), at }];
+        tx.set(pack, { uses, updatedAt: at }, { merge: true });
+        packed = { pack: { ...record.pack, visit: uses.length, visits: packData.visits } };
+      }
+      tx.set(bookings().doc(id), { ...record, ...packed, start: new Date(start).toISOString(), end: new Date(end).toISOString() });
       return true;
     });
   }
@@ -543,7 +584,7 @@ function bookingActions({
    * Frees a booking's time (cancelled, or a hold that ran out), and writes `changes` on the booking. A cancelled booking
    * puts its gift card's part back onto the card, once, unless the shop keeps it (`giftBack: false`). Returns what it wrote.
    */
-  async function freeTime(id, b, changes, { giftBack = true } = {}) {
+  async function freeTime(id, b, changes, { giftBack = true, packBack = true } = {}) {
     const days = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
     // A cancelled booking gives its discount code's use back, once.
     const giveBack = changes?.status === "cancelled" && b.discount?.id && !b.discount.returned;
@@ -551,18 +592,27 @@ function bookingActions({
     const giftMinor = b.giftCard?.amountMinor || 0;
     const returnGift = giftBack && changes?.status === "cancelled" && b.giftCard?.id && !b.giftCard.returned && giftMinor > 0;
     const gift = returnGift ? db.collection("giftCards").doc(b.giftCard.id) : null;
+    // A pack's visit goes back onto the pack, once, unless the shop keeps it (packBack: false).
+    const returnPack = packBack && changes?.status === "cancelled" && b.pack?.id && !b.pack.returned;
+    const pack = returnPack ? packs().doc(b.pack.id) : null;
     const written = await db.runTransaction(async (tx) => {
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
       const codeSnap = code ? await tx.get(code) : null;
       const giftSnap = gift ? await tx.get(gift) : null;
       // Only the booking's own copy decides, so two cancels at once never put the money back twice.
-      const fresh = gift ? (await tx.get(bookings().doc(id))).data() : null;
+      const packSnap = pack ? await tx.get(pack) : null;
+      const fresh = gift || pack ? (await tx.get(bookings().doc(id))).data() : null;
       const putBack = !!giftSnap?.exists && !fresh?.giftCard?.returned;
+      const visitBack = !!packSnap?.exists && !fresh?.pack?.returned && (packSnap.data()?.uses || []).some((u) => u.bookingId === id && !u.returned);
       if (codeSnap?.exists) tx.set(code, { usageCount: Math.max(0, (Number(codeSnap.data()?.usageCount) || 0) - 1) }, { merge: true });
       if (putBack) {
         const card = giftSnap.data();
         const at = now().toISOString();
         tx.set(gift, { balanceMinor: Math.floor(Number(card.balanceMinor) || 0) + giftMinor, history: withHistory(card, { type: "refunded", minor: giftMinor, bookingId: id, at }), updatedAt: at }, { merge: true });
+      }
+      if (visitBack) {
+        const at = now().toISOString();
+        tx.set(pack, { uses: (packSnap.data().uses || []).map((u) => (u.bookingId === id && !u.returned ? { ...u, returned: true, returnedAt: at } : u)), updatedAt: at }, { merge: true });
       }
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
@@ -570,7 +620,8 @@ function bookingActions({
         delete items[id];
         tx.set(dayRef(d), { items });
       });
-      const all = { ...changes, ...(giveBack ? { discount: { ...b.discount, returned: true } } : {}), ...(putBack ? { giftCard: { ...b.giftCard, returned: true } } : {}) };
+      const all = { ...changes, ...(giveBack ? { discount: { ...b.discount, returned: true } } : {}), ...(putBack ? { giftCard: { ...b.giftCard, returned: true } } : {}),
+        ...(visitBack ? { pack: { ...b.pack, returned: true } } : {}) };
       tx.set(bookings().doc(id), all, { merge: true });
       return all;
     });
@@ -825,6 +876,107 @@ function bookingActions({
     return { id, last4: card.last4 || last4(raw), amountMinor };
   }
 
+  // ── Packs of visits ───────────────────────────────────────────────────────────────────────────────────────────
+
+  /** What the customer's pages may see of a pack (never its id, the customer's details or payment ids). */
+  function publicPack(p, nowMs) {
+    return {
+      last4: p.last4 || "", serviceId: p.serviceId, serviceName: p.serviceName || "", visits: p.visits || 0, left: packLeft(p),
+      status: p.status, expiresOn: p.expiresOn || null, priceMinor: p.priceMinor || 0, currency: p.currency,
+      // The visits booked with it that are still to come.
+      coming: (p.uses || []).filter((u) => !u.returned && Date.parse(u.start || "") > nowMs).map((u) => u.start).sort(),
+    };
+  }
+  async function loadPack(code) {
+    const id = packId(code);
+    if (!id) return null;
+    const snap = await packs().doc(id).get();
+    return snap.exists ? { ...snap.data(), id } : null;
+  }
+
+  /** Emails a paid pack's code to the customer (and tells the owner). Never throws. */
+  async function tellPack(p, code) {
+    try {
+      const to = p.customer?.email;
+      if (!to || !EMAIL.test(to) || !code) return;
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const until = p.expiresOn ? new Date(`${p.expiresOn}T12:00:00Z`).toLocaleDateString("en-CA", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }) : "";
+      const layout = { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop };
+      await sendEmail({
+        to,
+        subject: `Your pack of ${p.visits} visits: ${p.serviceName}`,
+        html: risoLayout(`
+          <h4 style="margin:0 0 8px;">Your pack is ready</h4>
+          <h2 style="margin:0 0 12px;">${escapeHtml(p.serviceName)}</h2>
+          <p style="margin:0 0 16px;">Thank you. You have ${p.visits} visits with ${escapeHtml(shop)} to book whenever suits you. Use this code on the booking form for each visit. Keep it safe: anyone with the code can book with it.</p>
+          <p style="margin:0 0 16px;font-family:monospace;font-size:22px;letter-spacing:2px;"><strong>${escapeHtml(code)}</strong></p>
+          <p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(p.priceMinor || 0, p.currency))}</p>
+          ${until ? `<p style="margin:0 0 4px;"><strong>Book by:</strong> ${escapeHtml(until)}</p>` : ""}
+          ${risoButton(escapeHtml(siteLink(`/book?pack=${encodeURIComponent(code)}`)), "Book a visit", brand.accent, brand.theme)}
+        `, layout),
+      });
+      const owner = ownerEmail();
+      if (owner) {
+        await sendEmail({
+          to: owner,
+          subject: `[PACK] New: ${p.customer?.name || "A customer"}, ${p.visits} visits of ${p.serviceName}`,
+          html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(p.customer?.name || "")}: ${p.visits} visits of ${escapeHtml(p.serviceName)}</h2>
+            <p style="margin:0 0 4px;">${escapeHtml(p.customer?.email || "")} · ${escapeHtml(moneyWords(p.priceMinor || 0, p.currency))}${until ? ` · book by ${escapeHtml(until)}` : ""}</p>
+            ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}`, layout),
+        });
+      }
+    } catch (err) {
+      console.warn("bookings: the pack email failed:", err?.message || err);
+    }
+  }
+
+  /** Reads a held pack's card page; once it is paid for the pack's price the pack starts and its code is emailed, once. */
+  async function refreshPack(id, p, checkout) {
+    if (p.status !== "held" || !checkout) return p;
+    for (const sid of (p.sessions || []).slice(-5)) {
+      if (!SESSION_ID.test(sid)) continue;
+      const session = await checkout.read(sid).catch(() => null);
+      if (!session || (session.metadata?.pack && session.metadata.pack !== id) || session.payment_status !== "paid") continue;
+      if (Number.isFinite(session.amount_total) && session.amount_total !== p.priceMinor) continue;
+      const at = now().toISOString();
+      const changes = {
+        status: "active", paidAt: at, paidSession: sid, holdUntil: null, updatedAt: at, pendingCode: null,
+        paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null,
+        expiresOn: packEndsOn(dayOf(now().getTime(), zone()), p.days || 0),
+      };
+      const started = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(packs().doc(id));
+        if (fresh.data()?.status !== "held") return false;
+        tx.set(packs().doc(id), changes, { merge: true });
+        return true;
+      });
+      if (!started) return { ...p, ...(await packs().doc(id).get()).data() };
+      const next = { ...p, ...changes };
+      await tellPack(next, p.pendingCode);
+      return next;
+    }
+    return p;
+  }
+
+  /** Forgets packs whose card page closed unpaid, and starts the ones paid while nobody had the page open. */
+  async function sweepPacks() {
+    const snap = await packs().where("status", "==", "held").limit(100).get();
+    if (snap.empty) return;
+    const { checkout } = await standalone();
+    for (const doc of snap.docs) {
+      let p = await refreshPack(doc.id, doc.data(), checkout);
+      if (p.status !== "held" || Date.parse(p.holdUntil || "") > now().getTime()) continue;
+      // Close the page first, then read once more: a payment that landed just before the close still counts.
+      for (const sid of p.sessions || []) if (SESSION_ID.test(sid)) await checkout?.close(sid).catch(() => {});
+      p = await refreshPack(doc.id, p, checkout);
+      if (p.status === "held") await doc.ref.delete();
+    }
+  }
+
+  /** What the cancel email says about a pack's visit. */
+  const packBackWords = (b) => (b.pack ? " The visit is back on your pack, so you can book another time." : "");
+
   /** What the cancel email says about the gift card's part. */
   const giftBackWords = (b) => (b.giftCard?.amountMinor ? ` The ${moneyWords(b.giftCard.amountMinor, b.currency)} from your gift card is back on it.` : "");
 
@@ -844,9 +996,10 @@ function bookingActions({
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
           codes: await codesOffered(), giftCards: await giftCardsOffered(),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor }) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
+            ...(offersPack({ packVisits, packPriceMinor }) ? { packVisits, packPriceMinor, packDays } : {}),
           })),
         });
       }
@@ -917,6 +1070,63 @@ function bookingActions({
           throw err;
         }
       }
+      if (action === "bookingPackBuy") {
+        // Buy a pack of visits: a card page for the pack's price. The code is emailed once it is paid.
+        if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        if (!service || !offersPack(service)) return fail(res, 404, "This service doesn't sell packs right now.");
+        const customer = cleanCustomer(req.body);
+        if (customer.problem) return fail(res, 400, customer.problem.replace("send your booking to", "send your pack to"));
+        const { checkout, mode } = await standalone();
+        if (!checkout) return fail(res, 409, "This shop can't take card payments for packs yet. Please contact the shop.", "not_available");
+        const code = newPackCode();
+        const pid = packId(code);
+        const until = nowMs + PACK_PAGE_MINUTES * MINUTE;
+        const at = new Date(nowMs).toISOString();
+        await packs().doc(pid).set({
+          last4: code.slice(-4), serviceId: service.id, serviceName: service.name, visits: service.packVisits, days: service.packDays,
+          priceMinor: service.packPriceMinor, currency: currency(), mode, customer: { name: customer.name, email: customer.email },
+          status: "held", sessions: [], uses: [], holdUntil: new Date(until).toISOString(), createdAt: at, updatedAt: at,
+          // Kept only until it is paid, so the email can carry the code; afterwards only its hash (the id) is left.
+          pendingCode: code,
+        });
+        const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}, pack of ${service.packVisits} visits`.slice(0, 250);
+        const metadata = { pack: pid };
+        let session;
+        try {
+          session = await checkout.open({
+            customer_email: customer.email, metadata, mode: "payment", expires_at: Math.floor(until / 1000),
+            success_url: siteLink(`/book?pack=${encodeURIComponent(code)}`),
+            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: service.packPriceMinor, product_data: { name: description } } }],
+            payment_intent_data: { description, metadata },
+          }, `booking-pack-${pid}`);
+        } catch (err) {
+          await packs().doc(pid).delete();
+          if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+          if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments for packs yet. Please contact the shop.", "not_available");
+          throw err;
+        }
+        await packs().doc(pid).set({ sessions: [session.id] }, { merge: true });
+        return res.status(200).json({ url: session.url });
+      }
+      if (action === "bookingPackView") {
+        // The pack's own page (the link in its email): visits left, the last day, the visits coming up.
+        const p = await loadPack(req.body?.pack);
+        if (!p) return fail(res, 404, PACK_MESSAGES.not_found, "pack");
+        const next = p.status === "held" ? await refreshPack(p.id, p, (await standalone()).checkout) : p;
+        return res.status(200).json({ pack: publicPack(next, nowMs) });
+      }
+      if (action === "bookingPack") {
+        // Try a pack's code on the booking form; booking checks it again and counts the visit.
+        if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const p = await loadPack(req.body?.pack);
+        const when = Date.parse(String(req.body?.start || ""));
+        const problem = packProblem(p, service.id, dayOf(Number.isFinite(when) ? when : nowMs, zone()));
+        if (problem) return fail(res, 400, PACK_MESSAGES[problem], "pack");
+        return res.status(200).json({ last4: p.last4, left: packLeft(p), visits: p.visits, expiresOn: p.expiresOn || null });
+      }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
         const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
@@ -928,9 +1138,17 @@ function bookingActions({
         // The service's own questions: a required one left empty stops the booking, with the question named.
         const answered = cleanAnswers(service.questions, req.body?.answers);
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
+        // A pack of visits pays for the visit outright: no code, gift card or card payment with it.
+        let pack = null;
+        if (String(req.body?.pack || "").trim()) {
+          const p = await loadPack(req.body.pack);
+          const problem = packProblem(p, service.id, dayOf(start, zone()));
+          if (problem) return fail(res, 400, PACK_MESSAGES[problem], "pack");
+          pack = { id: p.id, last4: p.last4 };
+        }
         // A discount code comes off the price first; a deposit is then worked out on what is left.
         let priced = null;
-        if (String(req.body?.code || "").trim()) {
+        if (!pack && String(req.body?.code || "").trim()) {
           try {
             priced = await codeFor(service, req.body.code, customer.email);
           } catch (err) {
@@ -938,13 +1156,13 @@ function bookingActions({
             throw err;
           }
         }
-        const price = service.payment === "free" ? 0 : priced ? priced.priceMinor : service.priceMinor;
-        // What the card page takes now: the whole price, the deposit, or nothing (free, or all paid at the visit).
-        const upFront = priced ? priced.upFront : depositOf(service);
+        const price = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : service.priceMinor;
+        // What the card page takes now: the whole price, the deposit, or nothing (free, all paid at the visit, or a pack).
+        const upFront = pack ? 0 : priced ? priced.upFront : depositOf(service);
         const deposit = upFront > 0 && service.payment === "deposit" && upFront < price;
         // A gift card pays part or all of what is paid now; the card page takes the rest.
         let gift = null;
-        if (String(req.body?.giftCard || "").trim()) {
+        if (!pack && String(req.body?.giftCard || "").trim()) {
           try { gift = await giftFor(req.body.giftCard, upFront); } catch (err) {
             if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "gift");
             throw err;
@@ -969,10 +1187,11 @@ function bookingActions({
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
-          status: paid ? "held" : "confirmed", payment: deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
+          status: paid ? "held" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
           ...(gift ? { giftCard: gift } : {}),
+          ...(pack ? { pack, listPriceMinor: service.priceMinor } : {}),
           paid: false, ...giftPaid, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
@@ -982,9 +1201,11 @@ function bookingActions({
         const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs) });
         if (took === "code_used") return fail(res, 409, "This code has reached its usage limit.", "code");
         if (took === "gift_short") return fail(res, 409, "This gift card's balance just changed. Please check it and try again.", "gift");
+        if (took === "pack_used") return fail(res, 409, "This pack can't book another visit just now. Please check it and try again.", "pack");
         if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
-          const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
+          const written = pack ? (await bookings().doc(id).get()).data() : record;
+          const booked = await syncCalendar(id, { ...written, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
           await tellCustomer(id, booked, "booked", { key });
           return res.status(200).json({ id, key, status: "confirmed" });
         }
@@ -1128,7 +1349,7 @@ function bookingActions({
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by: "customer" }].slice(-20) };
         const written = await freeTime(id, b, changes);
         const next = await syncCalendar(id, { ...b, ...written });
-        await tellCustomer(id, next, "cancelled", { refundText: `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}`.trim() });
+        await tellCustomer(id, next, "cancelled", { refundText: `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}${packBackWords(b)}`.trim() });
         return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
       }
       if (action === "bookingMove") {
@@ -1138,6 +1359,11 @@ function bookingActions({
         const service = (await readServices()).find((s) => s.id === b.serviceId) || { minutes: b.minutes, gapAfter: b.gapAfter || 0 };
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time first.");
+        // A visit booked with a pack stays inside the pack's dates.
+        if (b.pack?.id) {
+          const p = (await packs().doc(b.pack.id).get()).data();
+          if (p?.expiresOn && dayOf(start, zone()) > p.expiresOn) return fail(res, 409, "Your pack runs out before that day. Please pick an earlier time.", "pack");
+        }
         const moved = await moveTime(id, b, { ...service, id: b.serviceId, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, settings, start);
         if (!moved) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         const next = await syncCalendar(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() });
@@ -1232,6 +1458,47 @@ function bookingActions({
         if (w?.offerStart) await tellWaitlist([w.day]);
         return res.status(200).json({ ok: true });
       }
+      if (op === "packs") {
+        // Every pack sold (newest first), read here because no browser may read them.
+        const snap = await packs().orderBy("createdAt", "desc").limit(300).get();
+        const list = snap.docs.map((d) => ({ id: d.id, p: d.data() })).filter(({ p }) => p.status !== "held")
+          .sort((a, b) => String(b.p.createdAt || "").localeCompare(String(a.p.createdAt || "")));
+        return res.status(200).json({
+          packs: list.map(({ id, p }) => ({
+            id, last4: p.last4 || "", serviceId: p.serviceId, serviceName: p.serviceName || "", name: p.customer?.name || "", email: p.customer?.email || "",
+            visits: p.visits || 0, left: packLeft(p), status: p.status, priceMinor: p.priceMinor || 0, currency: p.currency, expiresOn: p.expiresOn || null,
+            paidAt: p.paidAt || null, refundMinor: p.refund?.amountMinor || 0,
+            uses: (p.uses || []).map((u) => ({ bookingId: u.bookingId, start: u.start || null, returned: !!u.returned })),
+          })),
+        });
+      }
+      if (op === "packClose") {
+        // End a pack (no more visits can be booked with it), refunding some or all of it. Visits already booked stay.
+        const pid = String(req.body?.id || "");
+        if (!PACK_ID.test(pid)) return fail(res, 400, "Unknown pack.");
+        const ref = packs().doc(pid);
+        const snap = await ref.get();
+        if (!snap.exists) return fail(res, 404, "This pack is gone.");
+        const p = snap.data();
+        if (p.status !== "active") return fail(res, 409, "This pack is already closed.", "closed");
+        const amount = req.body?.refundMinor === undefined ? 0 : Number(req.body.refundMinor);
+        if (!Number.isInteger(amount) || amount < 0 || amount > (p.priceMinor || 0)) return fail(res, 400, "The refund can't be more than they paid.");
+        const at = now().toISOString();
+        let refund = null;
+        if (amount > 0) {
+          if (!p.paymentIntent) return fail(res, 409, "This pack has no card payment to refund.");
+          try {
+            const mode = p.mode || ((await shopTestMode()) ? "test" : "live");
+            const done = await payments.refund({ mode, paymentIntentId: p.paymentIntent, amountMinor: amount, metadata: { bookingPack: pid }, idempotencyKey: `pack-refund-${pid}-${amount}` });
+            refund = { refundId: done.refundId, amountMinor: done.amountMinor, at };
+          } catch (err) {
+            console.error(`Pack ${pid} refund failed:`, err?.message || err);
+            return fail(res, 502, "The refund couldn't be started, so the pack is still open. Try again in a minute.");
+          }
+        }
+        await ref.set({ status: "closed", closedAt: at, closedBy: by, updatedAt: at, ...(refund ? { refund } : {}) }, { merge: true });
+        return res.status(200).json({ ok: true, refundMinor: refund?.amountMinor || 0 });
+      }
       if (op === "create") {
         const service = (await readServices()).find((s) => s.id === req.body?.serviceId);
         if (!service) return fail(res, 404, "Choose a service.");
@@ -1301,14 +1568,16 @@ function bookingActions({
         const at = now().toISOString();
         // The gift card's part goes back onto it unless the shop keeps it (giftBack: false).
         const giftBack = req.body?.giftBack !== false && !!b.giftCard?.amountMinor && !b.giftCard.returned;
-        const what = [refund ? "refunded" : "", giftBack ? "gift card put back" : ""].filter(Boolean).join(" and ");
+        // The pack's visit goes back onto it unless the shop keeps it (packBack: false, a late cancel).
+        const packBack = req.body?.packBack !== false && !!b.pack?.id && !b.pack.returned;
+        const what = [refund ? "refunded" : "", giftBack ? "gift card put back" : "", packBack ? "visit put back on the pack" : ""].filter(Boolean).join(" and ");
         const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, holdUntil: null, updatedAt: at, ...(refund ? { refund } : {}),
           history: [...(b.history || []), { at, what: what ? `cancelled and ${what}` : "cancelled", by }].slice(-20) };
-        await freeTime(id, b, changes, { giftBack });
+        await freeTime(id, b, changes, { giftBack, packBack });
         await syncCalendar(id, { ...b, ...changes });
         const cardWordsBack = !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.` : `Your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.`;
-        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}`.trim() });
-        return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}) });
+        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}${packBack ? packBackWords(b) : ""}`.trim() });
+        return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}), ...(packBack ? { packBack: true } : {}) });
       }
       if (op === "move") {
         if (b.status !== "confirmed") return fail(res, 409, "Only a confirmed booking can be moved.");
@@ -1395,6 +1664,7 @@ function bookingActions({
   /** Confirms paid holds and frees the time of holds that ran out (their payment page closed first). */
   async function sweepHolds() {
     if (!(await featureOn())) return { confirmed: 0, freed: 0 };
+    await sweepPacks().catch((err) => console.warn("bookings: the packs sweep failed:", err?.message || err));
     const [snap, rests] = await Promise.all([bookings().where("status", "==", "held").limit(100).get(), bookings().where("restOpen", "==", true).limit(100).get()]);
     if (snap.empty && rests.empty) return { confirmed: 0, freed: 0 };
     const { checkout } = await standalone();
@@ -1605,6 +1875,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingPackBuy", "bookingPackView", "bookingPack"]);
 
 module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

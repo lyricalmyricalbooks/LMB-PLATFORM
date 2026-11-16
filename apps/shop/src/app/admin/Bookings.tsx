@@ -9,9 +9,9 @@ import {
   DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
-import { bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, cleanTipPercents, tipTaken, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -22,7 +22,7 @@ import { qrPicture } from "./stockroom/qrCodesStore";
 import { saveFile } from "./xlsxWriter";
 import "./bookings.css";
 
-type Tab = "calendar" | "services" | "hours" | "figures";
+type Tab = "calendar" | "services" | "packs" | "hours" | "figures";
 type CalendarView = "week" | "list";
 const VIEW_KEY = "colophon.bookings.view";
 const ZONE = shopTimeZone();
@@ -70,6 +70,8 @@ export function Bookings() {
   const next = nextUp(upcoming, Date.now());
   const noServices = setup.services.length === 0;
   const live = setup.settings.live;
+  // The Packs tab shows once any service sells a pack of visits (or did: a pack stays on the service until it is taken off).
+  const sellsPacks = setup.services.some((s) => (s.packVisits || 0) > 0);
   // The owner's on/off switch: one tap, saved at once, nothing else about the hours changes.
   const setLive = async (next: boolean) => {
     setSwitching(true);
@@ -135,7 +137,8 @@ export function Bookings() {
       </section>
 
       <Tabs<Tab> label="Bookings" variant="page" value={tab} onChange={setTab}
-        tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length }, { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" }]} />
+        tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length },
+          ...(sellsPacks ? [{ id: "packs" as const, label: "Packs" }] : []), { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" }]} />
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
@@ -153,6 +156,11 @@ export function Bookings() {
       <TabPanel tabId="services" active={tab === "services"}>
         <ServicesPanel services={setup.services} onChanged={reloadSetup} startAdding={adding} onStarted={() => setAdding(false)} />
       </TabPanel>
+      {sellsPacks && (
+        <TabPanel tabId="packs" active={tab === "packs"}>
+          {tab === "packs" && <PacksPanel />}
+        </TabPanel>
+      )}
       <TabPanel tabId="figures" active={tab === "figures"}>
         {tab === "figures" && <FiguresPanel />}
       </TabPanel>
@@ -428,6 +436,93 @@ function WaitingDialog({ day, list, onClose, onRemoved }: { day: string; list: W
 
 // ── Figures ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** Every pack of visits sold: who has visits left, which ones run out soon, and Close (with a refund) for one. */
+function PacksPanel() {
+  const [rows, setRows] = useState<PackRow[] | null>(null);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [closing, setClosing] = useState<PackRow | null>(null);
+  const load = () => bookingsAdmin<{ packs: PackRow[] }>("packs").then((a) => { setRows(a.packs || []); setError(""); }).catch((e) => setError(e?.message || "Packs couldn't be loaded."));
+  useEffect(() => { void load(); }, []);
+  const now = today();
+  const list = useMemo(() => packList(rows || [], { query, today: now }), [rows, query, now]);
+  const openCount = (rows || []).filter((p) => packState(p, now).tone !== "neutral").length;
+  const visitsLeft = (rows || []).filter((p) => packState(p, now).tone !== "neutral").reduce((n, p) => n + Math.max(0, p.left), 0);
+  if (error && !rows) return <ErrorState title="Packs couldn't be opened" description={error} onRetry={() => void load()} />;
+  if (!rows) return <div className="bkg-skeleton" aria-hidden />;
+  if (!rows.length) return <EmptyState title="No packs sold yet" description="Packs show here once a customer buys one from your bookings page." />;
+  return (
+    <div className="bkg-list bkg-packs">
+      <p className="bkg-list-count">{openCount} open {openCount === 1 ? "pack" : "packs"} · {visitsLeft} {visitsLeft === 1 ? "visit" : "visits"} still to book</p>
+      {rows.length > 6 && <FilterBar><div className="rp-grow"><SearchField label="Find a pack" placeholder="Name, email or the code's last four" value={query} onChange={(e) => setQuery(e.target.value)} /></div></FilterBar>}
+      {list.length === 0 ? <EmptyState inline title="No packs match" description="Try another name, or clear the search." /> : (
+        <ul className="bkg-list-day bkg-pack-rows">
+          {list.map((p) => { const state = packState(p, now); return (
+            <li key={p.id} className="bkg-pack-row" data-ended={state.tone === "neutral" || undefined}>
+              <span className="bkg-list-who">{p.name || p.email}<small>{p.email} · ending {p.last4}</small></span>
+              <span className="bkg-list-what">{p.serviceName}<small>{moneyText(p.priceMinor, p.currency)}{p.refundMinor ? `, ${moneyText(p.refundMinor, p.currency)} refunded` : ""}</small></span>
+              <span className="bkg-pack-left">
+                <strong>{packLeftText(p)}</strong>
+                <span className="bkg-pack-meter" aria-hidden>{Array.from({ length: p.visits }, (_, i) => <i key={i} data-used={i >= p.left || undefined} />)}</span>
+                <small>{p.expiresOn ? `Book by ${new Date(`${p.expiresOn}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" })}` : "No end date"}</small>
+              </span>
+              <StatusBadge tone={state.tone}>{state.label}</StatusBadge>
+              {p.status === "active" && p.left > 0 ? <GhostButton onClick={() => setClosing(p)}>Close</GhostButton> : <span aria-hidden />}
+            </li>
+          ); })}
+        </ul>
+      )}
+      {closing && <ClosePackDialog pack={closing} onClose={() => setClosing(null)} onClosed={() => { setClosing(null); void load(); }} />}
+    </div>
+  );
+}
+
+/** End a pack so no more visits can be booked with it, refunding all, part or none of it. Visits already booked stay. */
+function ClosePackDialog({ pack: p, onClose, onClosed }: { pack: PackRow; onClose: () => void; onClosed: () => void }) {
+  // A fair refund to suggest: the share of the visits not used yet.
+  const unused = Math.round((p.priceMinor * Math.max(0, p.left)) / Math.max(1, p.visits));
+  const [choice, setChoice] = useState<"unused" | "part" | "none">(unused > 0 ? "unused" : "none");
+  const [part, setPart] = useState("");
+  const [problem, setProblem] = useState("");
+  const [saving, setSaving] = useState(false);
+  const partMinor = Math.round(Number(part) * 100);
+  const partProblem = choice !== "part" ? "" : !part || !Number.isFinite(partMinor) || partMinor <= 0 ? "Type how much to refund." : partMinor > p.priceMinor ? `Up to ${moneyText(p.priceMinor, p.currency)}.` : "";
+  const refundMinor = choice === "unused" ? unused : choice === "none" ? 0 : partMinor;
+  const save = async () => {
+    setSaving(true); setProblem("");
+    try {
+      await bookingsAdmin("packClose", { id: p.id, refundMinor });
+      toast.success(refundMinor ? `Pack closed, ${moneyText(refundMinor, p.currency)} refunded` : "Pack closed");
+      onClosed();
+    } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
+  };
+  const options = [
+    ...(unused > 0 ? [{ id: "unused" as const, label: "Refund unused visits", note: moneyText(unused, p.currency) }] : []),
+    { id: "part" as const, label: "Refund an amount", note: `Up to ${moneyText(p.priceMinor, p.currency)}` },
+    { id: "none" as const, label: "No refund", note: "Close it only" },
+  ];
+  return (
+    <Dialog open onClose={onClose} title="Close this pack?" description={`${p.name || p.email} has ${packLeftText(p)}. Once closed, the code books nothing more. Visits already booked stay booked.`}
+      footer={<><SecondaryButton onClick={onClose}>Keep it open</SecondaryButton><DestructiveButton onClick={() => void save()} busy={saving} disabled={!!partProblem}>{refundMinor > 0 ? `Close and refund ${moneyText(refundMinor, p.currency)}` : "Close pack"}</DestructiveButton></>}>
+      <div className="bkg-form">
+        <fieldset className="bkg-refund">
+          <legend>Refund</legend>
+          {options.map((o) => (
+            <button key={o.id} type="button" className="bkg-refund-choice" aria-pressed={choice === o.id} onClick={() => setChoice(o.id)}>
+              <strong>{o.label}</strong><span>{o.note}</span>
+            </button>
+          ))}
+        </fieldset>
+        {choice === "part" && (
+          <TextField label={`Amount to refund (${p.currency})`} inputMode="decimal" placeholder="0.00" autoFocus
+            value={part} onChange={(e) => setPart(e.target.value.replace(/[^\d.]/g, ""))} error={part ? partProblem || undefined : undefined} />
+        )}
+        {problem && <p className="bkg-error" role="alert">{problem}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
 const FIGURE_MONTHS = 6;
 
 /** The last six months at a glance: bookings and money month by month, the busiest days, the most booked services. */
@@ -543,10 +638,12 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
   const paidByCard = cardTaken(b) > 0 && !b.refund;
   // A gift card's part not put back yet: the cancel dialog asks whether it goes back on the card.
   const giftHeld = b.giftCard && !b.giftCard.returned ? b.giftCard.amountMinor : 0;
+  // A visit taken from a pack and not put back yet: the cancel dialog asks whether it goes back on the pack.
+  const packHeld = !!b.pack?.id && !b.pack.returned && b.status !== "cancelled";
   const [cancelling, setCancelling] = useState(false);
   const [charging, setCharging] = useState(false);
   const cancel = async () => {
-    if (paidByCard || giftHeld) { setCancelling(true); return; }
+    if (paidByCard || giftHeld || packHeld) { setCancelling(true); return; }
     if (!(await ask({ title: "Cancel this booking?", message: `${b.customer.name} gets an email saying it's cancelled. The time opens up for others.`, confirmLabel: "Cancel booking" }))) return;
     await run("cancel", "cancel", { refundMinor: 0 }, "Booking cancelled");
   };
@@ -607,11 +704,13 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
       </div>
       {cancelling && (
         <CancelDialog booking={b} onClose={() => setCancelling(false)}
-          onCancel={async (refundMinor, giftBack) => {
-            await bookingsAdmin("cancel", { id: b.id, refundMinor, giftBack });
+          onCancel={async (refundMinor, giftBack, packBack) => {
+            await bookingsAdmin("cancel", { id: b.id, refundMinor, giftBack, packBack });
             const gift = giftBack && giftHeld ? `${moneyText(giftHeld, b.currency)} back on their gift card` : "";
             const card = refundMinor === 0 ? "" : refundMinor < cardTaken(b) ? `${moneyText(refundMinor, b.currency)} refunded` : "refunded";
-            toast.success([card, gift].filter(Boolean).length ? `Cancelled, ${[card, gift].filter(Boolean).join(" and ")}` : "Booking cancelled");
+            const visit = packBack && packHeld ? "the visit back on their pack" : "";
+            const done = [card, gift, visit].filter(Boolean);
+            toast.success(done.length ? `Cancelled, ${done.join(" and ")}` : "Booking cancelled");
             setCancelling(false);
             onClose();
           }} />
@@ -783,7 +882,7 @@ function FeeDialog({ booking: b, onClose, onCharge }: { booking: Booking; onClos
  * Cancels a booking with money taken by card (all of it or a deposit), refunding all of that, part of it or none, and/or
  * paid with a gift card, whose part goes back on the card unless the owner keeps it.
  */
-function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number, giftBack: boolean) => Promise<void> }) {
+function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number, giftBack: boolean, packBack: boolean) => Promise<void> }) {
   const [choice, setChoice] = useState<"all" | "part" | "none">("all");
   const [part, setPart] = useState("");
   const [problem, setProblem] = useState("");
@@ -791,6 +890,8 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
   const onCard = b.refund ? 0 : cardTaken(b);
   const gift = b.giftCard && !b.giftCard.returned ? b.giftCard.amountMinor : 0;
   const [giftBack, setGiftBack] = useState(true);
+  const packVisit = !!b.pack?.id && !b.pack.returned;
+  const [packBack, setPackBack] = useState(true);
   const deposit = b.payment === "deposit";
   const paid = moneyText(onCard, b.currency);
   const partMinor = Math.round(Number(part) * 100);
@@ -798,7 +899,7 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
   const refundMinor = choice === "all" ? onCard : choice === "none" ? 0 : partMinor;
   const save = async () => {
     setSaving(true); setProblem("");
-    try { await onCancel(refundMinor, gift > 0 && giftBack); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
+    try { await onCancel(refundMinor, gift > 0 && giftBack, packVisit && packBack); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
   };
   const options = [
     { id: "all", label: "Refund all", note: paid },
@@ -806,7 +907,7 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
     { id: "none", label: "No refund", note: deposit ? "Keep the deposit" : "Keep the payment" },
   ] as const;
   return (
-    <Dialog open onClose={onClose} title="Cancel this booking?" description={`${b.customer.name} paid ${[onCard ? `${deposit ? `a ${paid} deposit` : paid} by card` : "", gift ? `${moneyText(gift, b.currency)} with a gift card` : ""].filter(Boolean).join(" and ")}. They get an email saying it's cancelled, and the time opens up for others.`}
+    <Dialog open onClose={onClose} title="Cancel this booking?" description={`${b.customer.name} ${onCard || gift ? `paid ${[onCard ? `${deposit ? `a ${paid} deposit` : paid} by card` : "", gift ? `${moneyText(gift, b.currency)} with a gift card` : ""].filter(Boolean).join(" and ")}` : "booked it with their pack"}. They get an email saying it's cancelled, and the time opens up for others.`}
       footer={<><SecondaryButton onClick={onClose}>Keep booking</SecondaryButton><DestructiveButton onClick={() => void save()} busy={saving} disabled={!!partProblem}>{refundMinor > 0 ? `Cancel and refund ${moneyText(refundMinor, b.currency)}` : "Cancel booking"}</DestructiveButton></>}>
       <div className="bkg-form">
         {onCard > 0 && <fieldset className="bkg-refund">
@@ -817,6 +918,8 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
             </button>
           ))}
         </fieldset>}
+        {packVisit && <Toggle label={`Put the visit back on their pack (ending ${b.pack?.last4 || ""})`} checked={packBack} onChange={setPackBack} />}
+        {packVisit && !packBack && <p className="bkg-questions-hint">The visit counts as used, as for a late cancel.</p>}
         {gift > 0 && <Toggle label={`Put ${moneyText(gift, b.currency)} back on their gift card (ending ${b.giftCard?.last4 || ""})`} checked={giftBack} onChange={setGiftBack} />}
         {choice === "part" && onCard > 0 && (
           <TextField label={`Amount to refund (${b.currency})`} hint={`Up to ${paid}. The rest stays with you.`} inputMode="decimal" placeholder="0.00" autoFocus
@@ -936,7 +1039,7 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0 };
 
 function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -956,7 +1059,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
             <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}</p>
-            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}</p>
+            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
               <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -976,6 +1079,19 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
 }
 
 /** Under the deposit box: what the customer pays now and what is left for the visit. */
+const PACK_DAY_CHOICES = [0, 30, 60, 90, 180, 365, MAX_PACK_DAYS];
+const packDaysText = (d: number): string => (!d ? "No end date" : d % 365 === 0 ? `${d / 365} year${d === 365 ? "" : "s"}` : d % 30 === 0 && d < 365 ? `${d / 30} month${d === 30 ? "" : "s"}` : `${d} days`);
+
+/** What a pack saves on single visits ("5 visits for $180.00, saves $45.00"), or what's missing. */
+function packHint(price: string, count: string, packPrice: string): string {
+  const one = Math.round(Number(price || 0) * 100);
+  const visits = Number(count) || 0;
+  const pack = Math.round(Number(packPrice || 0) * 100);
+  if (!pack) return `Say what the pack costs. ${visits} single visits come to ${moneyText(one * visits, SHOP_CURRENCY)}.`;
+  const saves = one * visits - pack;
+  return saves > 0 ? `${visits} visits for ${moneyText(pack, SHOP_CURRENCY)}, a saving of ${moneyText(saves, SHOP_CURRENCY)} on single visits.` : `${visits} visits for ${moneyText(pack, SHOP_CURRENCY)}. That's no cheaper than ${visits} single visits.`;
+}
+
 function depositHint(price: string, deposit: string, unit: "amount" | "percent"): string {
   const priceMinor = Math.round(Number(price || 0) * 100);
   const now = depositOf({ payment: "deposit", priceMinor, depositMinor: unit === "amount" ? Math.round(Number(deposit || 0) * 100) : 0, depositPercent: unit === "percent" ? Math.round(Number(deposit || 0)) : 0 });
@@ -991,6 +1107,11 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
     depositUnit: (service.depositPercent ? "percent" : "amount") as "amount" | "percent",
     deposit: service.depositPercent ? String(service.depositPercent) : service.depositMinor ? (service.depositMinor / 100).toFixed(2) : "",
     lateFee: service.lateFeeMinor ? (service.lateFeeMinor / 100).toFixed(2) : "",
+    // A pack of visits: on with the number of visits, its price and how long it lasts (0 = no end).
+    pack: (service.packVisits || 0) >= 2,
+    packCount: String(service.packVisits || 5),
+    packPrice: service.packPriceMinor ? (service.packPriceMinor / 100).toFixed(2) : "",
+    packLasts: String(service.packDays || 0),
   });
   // Card on file: only where something is left to charge (not paid in full), and only on Stripe.
   const paidInFull = Number(form.price) > 0 && form.pay === "full";
@@ -1007,7 +1128,8 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
     setSaving(true); setProblem("");
     try {
       const priceMinor = Math.round(Number(form.price || 0) * 100);
-      const { pay, depositUnit, deposit, lateFee, price: _price, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, ...rest } = form;
+      const sellPack = pack && priceMinor > 0;
       const holdCard = form.holdCard && !paidInFull && !square;
       const share = pay === "deposit" && priceMinor > 0;
       await bookingsAdmin("saveService", { service: {
@@ -1016,6 +1138,9 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
         depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
         holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
         meet: !!rest.meet && rest.places <= 1,
+        packVisits: sellPack ? Number(packCount) || 0 : 0,
+        packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
+        packDays: sellPack ? Number(packLasts) || 0 : 0,
       } });
       toast.success(service.id ? "Service saved" : "Service added");
       onSaved();
@@ -1053,6 +1178,29 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
                 <SelectField label="Deposit is" value={form.depositUnit} onChange={(e) => { set("depositUnit", e.target.value as "amount" | "percent"); set("deposit", ""); }}>
                   <option value="amount">An amount</option>
                   <option value="percent">A share of the price</option>
+                </SelectField>
+              </div>
+            )}
+          </fieldset>
+        )}
+        {Number(form.price) > 0 && (
+          <fieldset className="bkg-questions">
+            <legend>Pack of visits</legend>
+            <Toggle label="Sell a pack of visits" checked={form.pack} onChange={(v) => set("pack", v)} />
+            <p className="bkg-questions-hint">{form.pack
+              ? packHint(form.price, form.packCount, form.packPrice)
+              : "Customers pay once for several visits, get a code by email and book each visit with it."}</p>
+            {form.pack && (
+              <div className="bkg-three">
+                <SelectField label="Visits" value={form.packCount} onChange={(e) => set("packCount", e.target.value)}>
+                  {Array.from({ length: MAX_PACK_VISITS - 1 }, (_, i) => i + 2).filter((n) => n <= 12 || n % 5 === 0 || String(n) === form.packCount)
+                    .map((n) => <option key={n} value={n}>{n} visits</option>)}
+                </SelectField>
+                <TextField label={`Pack price (${SHOP_CURRENCY})`} inputMode="decimal" placeholder="0.00" value={form.packPrice}
+                  onChange={(e) => set("packPrice", e.target.value.replace(/[^\d.]/g, ""))} />
+                <SelectField label="Use within" value={form.packLasts} onChange={(e) => set("packLasts", e.target.value)}>
+                  {[0, 30, 60, 90, 180, 365, MAX_PACK_DAYS].concat(PACK_DAY_CHOICES.includes(Number(form.packLasts)) ? [] : [Number(form.packLasts)])
+                    .map((d) => <option key={d} value={d}>{packDaysText(d)}</option>)}
                 </SelectField>
               </div>
             )}
