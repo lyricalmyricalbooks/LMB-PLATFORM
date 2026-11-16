@@ -78,7 +78,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "walkIn";
 
 /** Someone who asked to hear when a full class time (start) or a booked-up day (no start) has room again. */
 export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string;

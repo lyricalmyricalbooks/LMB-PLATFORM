@@ -1278,6 +1278,12 @@ settles a booking whose pages all ran out. `cardTaken` = `bookedCardTaken` + `re
 readable, so a printed QR code keeps working; `keyFits` accepts it beside the manage and reminder keys, also in
 `customerBookingIcs`) and with `send: true` emails kind `payRest`.
 
+**Payments at the desk (16 November 2026, Services plan phase 3):** admin op `walkIn` (service, name, optional email,
+`priceMinor` 0.50 to `WALK_IN_MAX_MINOR` 10,000, else the service's price) writes a confirmed `payment: "atShop"` booking
+starting now with `walkIn: true`, `source: "desk"`, `gapAfter: 0` and both reminders stamped, and answers its pay link
+(`payKey` kept). It takes no `bookingDays` time (the client is already there), sends no email and never holds a card;
+the client pays and tips from the usual pay-the-rest page.
+
 **Discount codes (16 November 2026, plan phase 3).** Pure `bookingDiscount.js`: a code works on bookings only with
 `forBookings: true` (Discounts › **Works on bookings too**, shown while Bookings is on), not automatic, type percentage or
 fixed, `appliesTo` all (`worksOnBookings`); `bookingDiscountMinor` never takes more than the price, applies

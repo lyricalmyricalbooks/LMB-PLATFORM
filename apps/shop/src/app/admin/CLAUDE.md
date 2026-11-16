@@ -1116,6 +1116,12 @@ is in. Fixture: "Flo Example" (deposit) and "Eve Example" (at the shop) show the
 "15, 18, 20", saved on blur through `cleanTipPercents`, then with the rest of the form). The drawer shows "Tip: $8.00 by
 card" (`tipTaken`). Fixture: tips on; "Ben Example" has an $8 tip.
 
+**Take a payment (16 November 2026, Services plan phase 3):** page `takePayment` (`#take-payment`, `TakePayment.tsx`,
+pure `deskPayment.ts`), its own menu item in the services menus and beside Bookings elsewhere, hidden with Bookings.
+*Someone at the desk* (service, name, optional email, amount) calls op `walkIn`; *Still to pay today* lists today's
+`restPayable` bookings and calls `payLink`. Both open one QR dialog that follows the booking live (`deskState`): Paid
+with the tip once `rest` lands, or **Paid another way** (`paidAtShop`). Fixture: `admin-fixture.html?page=takePayment`.
+
 **Discount codes on bookings (16 November 2026):** Discounts › edit › **Works on bookings too** (`forBookings`, only while
 `useBookingsOn` and for a manual percentage or amount code on the whole order; saved false otherwise). The booking drawer
 shows the code and what it took off ("use given back" once cancelled). Server rules: functions/CLAUDE.md › Bookings.

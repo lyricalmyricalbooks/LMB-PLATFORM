@@ -45,7 +45,7 @@ const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
-  secondReminderDue, summaryDue, zonedTime,
+  secondReminderDue, summaryDue, zonedTime, MIN_CARD_MINOR,
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
@@ -55,6 +55,8 @@ const MINUTE = 60_000;
 /** A hold the sweep never got to (a failed run) stops blocking its time after this long. */
 const STALE_HOLD_MS = 2 * 60 * 60 * 1000;
 const MAX_DAYS_ASKED = 14;
+/** The most one payment taken at the desk may be (a typo guard: $10,000). */
+const WALK_IN_MAX_MINOR = 1_000_000;
 /** How many people may wait for one day of one service. */
 const MAX_WAITING = 30;
 /** A waiting-list hold the sweep never got to stops blocking its place this long after its end. */
@@ -1157,6 +1159,39 @@ function bookingActions({
         const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
         if (req.body?.sendEmail !== false) await tellCustomer(id, booked, "booked", { key, byShop: true });
         return res.status(200).json({ ok: true, id });
+      }
+      if (op === "walkIn") {
+        // Take a payment at the desk for someone with no booking: a visit recorded as starting now, at the shop's price
+        // or one the owner typed, paid from the same pay link and QR code as the rest of a booking (tip and all). It
+        // takes no time on the calendar (they are already here), sends no booking email and never holds a card.
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId);
+        if (!service) return fail(res, 404, "Choose a service.");
+        const name = text(req.body?.name, 100);
+        const email = text(req.body?.email, 320).toLowerCase();
+        if (!name) return fail(res, 400, "Add the client's name.");
+        if (email && !EMAIL.test(email)) return fail(res, 400, "Check the client's email address, or leave it empty.");
+        const typed = req.body?.priceMinor;
+        const priceMinor = typed === undefined || typed === null ? service.priceMinor : Number(typed);
+        if (!Number.isInteger(priceMinor) || priceMinor < MIN_CARD_MINOR || priceMinor > WALK_IN_MAX_MINOR) {
+          return fail(res, 400, `Enter an amount from ${moneyWords(MIN_CARD_MINOR, currency())} to ${moneyWords(WALK_IN_MAX_MINOR, currency())}.`, "amount");
+        }
+        const id = randomId();
+        const payKey = randomKey();
+        const at = now().toISOString();
+        const start = now().getTime();
+        const record = {
+          serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: 0, location: service.location,
+          customer: { name, email, phone: "" }, note: "", answers: [],
+          status: "confirmed", payment: "atShop", priceMinor, currency: currency(),
+          ...(priceMinor !== service.priceMinor ? { listPriceMinor: service.priceMinor } : {}),
+          paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(randomKey()), pendingKey: null, payKey, source: "desk", walkIn: true,
+          // Reminders and the second reminder are for visits still to come.
+          reminderSentAt: at, reminder2SentAt: at,
+          start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString(),
+          history: [{ at, what: "taken at the desk", by }], createdAt: at, updatedAt: at,
+        };
+        await bookings().doc(id).set(record);
+        return res.status(200).json({ ok: true, id, url: manageUrl(id, payKey), dueMinor: priceMinor });
       }
       const id = String(req.body?.id || "");
       if (!ID.test(id)) return fail(res, 400, "Unknown booking.");

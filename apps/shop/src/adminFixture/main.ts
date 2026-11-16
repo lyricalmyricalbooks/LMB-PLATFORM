@@ -148,6 +148,13 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
+    if (op === "walkIn") {
+      const s = services.find((x) => x.id === body.serviceId) || services[0];
+      const walk = booking(`walk-${rows.length + 1}`, s, new Date().toISOString(), String(body.name), { payment: "atShop", paid: false, priceMinor: Number(body.priceMinor ?? s.priceMinor), source: "admin", customer: { name: String(body.name), email: String(body.email || "") } });
+      rows = [...rows, walk];
+      changed();
+      return { ok: true, id: walk.id, url: `https://press.example/book?booking=${walk.id}&key=${"e".repeat(48)}`, dueMinor: walk.priceMinor };
+    }
     if (op === "payLink") return { ok: true, url: `https://press.example/book?booking=${id}&key=${"d".repeat(48)}`, sent: body.send === true };
     if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));
     if (op === "chargeFee") rows = rows.map((b) => (b.id === id ? { ...b, fee: { amountMinor: Number(body.amountMinor ?? b.lateFeeMinor), at: new Date().toISOString(), reason: "missed booking" } } : b));

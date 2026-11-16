@@ -80,6 +80,7 @@ const StockroomCopyAuto = lazy(() => import("./stockroom/StockroomCopies.tsx").t
 const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
 const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
 const Bookings = lazy(() => import("./Bookings").then(m => ({ default: m.Bookings })));
+const TakePayment = lazy(() => import("./TakePayment").then(m => ({ default: m.TakePayment })));
 const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
 const SocialPosts = lazy(() => import("./SocialPosts").then(m => ({ default: m.SocialPosts })));
 const DesignHome = lazy(() => import("./DesignHome").then(m => ({ default: m.DesignHome })));
@@ -311,7 +312,7 @@ export function Dashboard() {
   // Bookings (beta): shown only once the platform's control room turned it on for this shop (platform/features).
   const bookingsOn = useBookingsOn(!!user);
   // Bookkeeping › Artist payouts is a book shop's (or a mixed one's); other shops never see the tab.
-  const hiddenPages = new Set([...(bookingsOn ? [] : ["bookings"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
+  const hiddenPages = new Set([...(bookingsOn ? [] : ["bookings", "takePayment"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
     ...(hasPublisherTools(sellsAnswer) ? [] : [STOCKROOM_ITEM_PREFIX + "artists"]),
     // A services shop ships nothing, so Settings has no Shipping page until it sells products too.
     ...(menuKind === "services" ? [SETTINGS_ITEM_PREFIX + "shipping"] : [])]);
@@ -805,7 +806,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "takePayment" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -839,6 +840,7 @@ export function Dashboard() {
         onRetry={() => refreshAlertsRef.current()} />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "bookings": return bookingsOn ? <Bookings /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
+      case "takePayment": return bookingsOn ? <TakePayment /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
       case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
       case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;
       case "design": return settings ? <DesignHome settings={settings} onViewSite={openSite}
