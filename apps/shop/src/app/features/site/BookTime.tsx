@@ -260,13 +260,13 @@ function NewBooking({ c }: { c: Copy }) {
                 onChange={(e) => setForm({ ...form, note: e.target.value })} />
             </Field>
             {info.codes && service.priceMinor > 0 && (
-              <ApplyBox region="bookingsCode" field="bt-code" c={c} words={{ open: "bookTimeCodeOpen", label: "bookTimeCodeLabel", problem: "bookTimeCodeProblem" }}
+              <ApplyBox region={regionProps("bookingsCode")} field="bt-code" c={c} words={{ open: "bookTimeCodeOpen", label: "bookTimeCodeLabel", problem: "bookTimeCodeProblem" }}
                 applied={applied ? `${c("bookTimeCodeApplied", { code: applied.code })} · −${moneyText(applied.discountMinor, currency)}` : ""}
                 onRemove={() => setApplied(null)} maxLength={40}
                 onTry={async (typed) => setApplied(await ask("bookingCode", { serviceId: service.id, code: typed, email: form.email.trim() }) as BookingCode)} />
             )}
             {info.giftCards && paysUpFront(priced) && (
-              <ApplyBox region="bookingsGiftCard" field="bt-gift" c={c} words={{ open: "bookTimeGiftOpen", label: "bookTimeGiftLabel", problem: "bookTimeGiftProblem" }}
+              <ApplyBox region={regionProps("bookingsGiftCard")} field="bt-gift" c={c} words={{ open: "bookTimeGiftOpen", label: "bookTimeGiftLabel", problem: "bookTimeGiftProblem" }}
                 applied={gift ? `${c("bookTimeGiftApplied", { last4: gift.last4 })} · −${moneyText(gift.giftMinor, currency)}` : ""}
                 onRemove={() => setGift(null)} maxLength={40}
                 onTry={async (typed) => setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed })} />
@@ -308,7 +308,7 @@ function NewBooking({ c }: { c: Copy }) {
  * throws when it can't be used) and checks it again on booking. Once applied it shows `applied` with a Remove button.
  */
 function ApplyBox({ region, field, words, applied, onTry, onRemove, maxLength, c }: {
-  region: string; field: string; words: { open: string; label: string; problem: string }; applied: string;
+  region: ReturnType<typeof regionProps>; field: string; words: { open: string; label: string; problem: string }; applied: string;
   onTry: (typed: string) => Promise<void>; onRemove: () => void; maxLength: number; c: Copy;
 }) {
   const [open, setOpen] = useState(false);
@@ -317,7 +317,7 @@ function ApplyBox({ region, field, words, applied, onTry, onRemove, maxLength, c
   const [checking, setChecking] = useState(false);
   if (applied) {
     return (
-      <div {...regionProps(region)} className="fm-book-code" role="status">
+      <div {...region} className="fm-book-code" role="status">
         <span translate="no">{applied}</span>
         <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer" onClick={() => { onRemove(); setTyped(""); }}>{c("bookTimeCodeRemove")}</button>
       </div>
@@ -339,7 +339,7 @@ function ApplyBox({ region, field, words, applied, onTry, onRemove, maxLength, c
     }
   };
   return (
-    <div {...regionProps(region)}>
+    <div {...region}>
       <Field id={field} label={c(words.label)} problem={problem}>
         <div className="fm-book-code-row">
           <input id={field} className="fm-track-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={typed} maxLength={maxLength}
