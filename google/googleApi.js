@@ -190,6 +190,21 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, no
       (await call("GET", `${YOUTUBE}/search`, token, { query: { part: "snippet", channelId, type: "video", order: "date", maxResults: 50 } })).items ?? [],
     getCalendar: (token, id) => call("GET", `${CALENDAR}/calendars/${enc(id)}`, token),
     createCalendar: (token, { summary, timeZone }) => call("POST", `${CALENDAR}/calendars`, token, { body: { summary, timeZone } }),
+    /**
+     * One event in a calendar Colophon made, under our own id: replaced when it is there, made when it isn't. With
+     * `meet`, Google adds a video call (the same request id answers the same call, so a move keeps the link).
+     */
+    async putEvent(token, calendarId, eventId, event, { meet = false } = {}) {
+      const body = { ...event, id: eventId, ...(meet ? { conferenceData: { createRequest: { requestId: eventId, conferenceSolutionKey: { type: "hangoutsMeet" } } } } : {}) };
+      const query = { conferenceDataVersion: 1, sendUpdates: "none" };
+      try {
+        return await call("PUT", `${CALENDAR}/calendars/${enc(calendarId)}/events/${enc(eventId)}`, token, { body, query });
+      } catch (err) {
+        if (!(err instanceof GoogleError) || err.status !== 404) throw err;
+        return call("POST", `${CALENDAR}/calendars/${enc(calendarId)}/events`, token, { body, query });
+      }
+    },
+    deleteEvent: (token, calendarId, eventId) => call("DELETE", `${CALENDAR}/calendars/${enc(calendarId)}/events/${enc(eventId)}`, token, { query: { sendUpdates: "none" } }),
     listBusinessAccounts: async (token) => (await call("GET", `${BUSINESS_ACCOUNTS}/accounts`, token)).accounts ?? [],
     async listAdsCustomers(token) {
       const answer = await call("GET", `${ADS}/customers:listAccessibleCustomers`, token);

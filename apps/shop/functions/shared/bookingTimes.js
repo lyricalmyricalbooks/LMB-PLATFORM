@@ -60,6 +60,7 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     waitHoldMinutes: 60,
     secondReminderHours: 0,
     dailySummary: false,
+    googleCalendar: false,
 };
 /** How long a freed place may be held for the first person on the waiting list. */
 exports.WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720];
@@ -219,6 +220,7 @@ function cleanService(raw, id = "") {
         classTimes: cleanClassTimes(s.classTimes),
         holdCard,
         lateFeeMinor,
+        meet: s.meet === true,
     };
 }
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
@@ -304,6 +306,7 @@ function cleanBookingSettings(raw) {
         waitHoldMinutes: exports.WAIT_HOLD_MINUTES.includes(Number(s.waitHoldMinutes)) ? Number(s.waitHoldMinutes) : exports.DEFAULT_BOOKING_SETTINGS.waitHoldMinutes,
         secondReminderHours: secondReminder(s.secondReminderHours, reminderHours),
         dailySummary: s.dailySummary === true,
+        googleCalendar: s.googleCalendar === true,
     };
 }
 /** A second reminder only when it comes after the first one: one of the choices, and fewer hours before. */

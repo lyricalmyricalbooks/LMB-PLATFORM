@@ -660,6 +660,9 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         <Row label={c("bookTimeWhat")} value={`${booking.serviceName} · ${lengthText(booking.minutes)}`} />
         <Row label={c("bookTimeWhen")} value={whenText(booking.start, booking.end, zone)} />
         {booking.location && <Row label={c("bookTimeWhere")} value={booking.location} />}
+        {booking.meetUrl && booking.status === "confirmed" && (
+          <div className="fm-track-row"><span className="fm-track-mono">{c("bookTimeVideo")}</span><a className="text-right underline underline-offset-2" href={booking.meetUrl} target="_blank" rel="noopener noreferrer">{c("bookTimeJoin")}</a></div>
+        )}
         <div className="fm-track-total">
           <span className="fm-track-mono">{c("bookTimePaid")}</span>
           <strong translate="no">{booking.priceMinor > 0 ? (fullyPaid ? c("bookTimePaidAmount", { amount: moneyText(booking.priceMinor, booking.currency) }) : moneyText(booking.priceMinor, booking.currency)) : c("bookTimeFree")}</strong>

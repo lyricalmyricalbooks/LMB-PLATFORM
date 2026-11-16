@@ -54,7 +54,7 @@ function res() {
   return out;
 }
 
-function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null } = {}) {
+function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -84,7 +84,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   };
   let n = 0;
   const desk = bookingActions({
-    db,
+    db, calendar,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
     payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
@@ -511,6 +511,100 @@ describe("the owner's morning list", () => {
     expect(await t.desk.sweepSummary()).toEqual({ sent: false, day: "2026-11-20" });
     expect(await t.desk.sweepSummary()).toEqual({ sent: false });
     expect(t.emails.length).toBe(before);
+  });
+});
+
+function fakeCalendar({ linked = true, down = false } = {}) {
+  const events = new Map();
+  const calls = [];
+  return {
+    events, calls,
+    async put(id, event) {
+      calls.push(["put", id]);
+      if (down) return null;
+      if (!linked) return { available: false };
+      const had = events.get(id);
+      events.set(id, { ...event, meetUrl: event.meet ? had?.meetUrl || `https://meet.google.com/abc-defg-${id.slice(-3)}` : "" });
+      return { available: true, meetUrl: events.get(id).meetUrl };
+    },
+    async remove(id) { calls.push(["remove", id]); if (down) return null; if (!linked) return { available: false }; events.delete(id); return { available: true }; },
+  };
+}
+
+describe("bookings straight into Google Calendar", () => {
+  test("off by default: nothing is sent to Google", async () => {
+    const calendar = fakeCalendar();
+    const t = setup({ calendar });
+    await t.seed();
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER })).statusCode).toBe(200);
+    expect(calendar.calls).toEqual([]);
+  });
+
+  test("switched on, the coming bookings go in; booking, moving and cancelling keep the event in step", async () => {
+    const calendar = fakeCalendar();
+    const t = setup({ calendar });
+    await t.seed();
+    const before = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    const saved = await t.adm({ op: "saveSettings", settings: { ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, googleCalendar: true } });
+    expect(saved.body.googleCalendar).toEqual({ available: true, filled: 1 });
+    expect(calendar.events.get(before.body.id)).toMatchObject({ title: "Ada Reader: Studio visit", location: "12 Ink Lane", start: at("2026-11-18", "10:00"), meet: false });
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "10:00"), name: "Bo", email: "bo@example.com", phone: "416 555 0100" });
+    expect(calendar.events.get(r.body.id).details).toContain("416 555 0100");
+    await t.pub({ action: "bookingMove", id: r.body.id, key: r.body.key, start: at("2026-11-19", "14:00") });
+    expect(calendar.events.get(r.body.id).start).toBe(at("2026-11-19", "14:00"));
+    await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect(calendar.events.has(r.body.id)).toBe(false);
+    expect(t.db.store.get(`bookings/${r.body.id}`).calendarAt).toBeNull();
+    // The owner's own changes too.
+    const own = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "Cy", email: "cy@example.com" });
+    expect(calendar.events.has(own.body.id)).toBe(true);
+    await t.adm({ op: "cancel", id: own.body.id });
+    expect(calendar.events.has(own.body.id)).toBe(false);
+  });
+
+  test("a video-call service gets a Meet link, in the email and on the customer's page, and a move keeps it", async () => {
+    const calendar = fakeCalendar();
+    const t = setup({ calendar });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ googleCalendar: true }, { merge: true });
+    await t.db.collection("bookingServices").doc("visit").set({ meet: true }, { merge: true });
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    const link = calendar.events.get(r.body.id).meetUrl;
+    expect(link).toMatch(/^https:\/\/meet\.google\.com\//);
+    const mail = t.emails.find((m) => String(m.subject).startsWith("Booked:"));
+    expect(mail.html).toContain(link);
+    expect(mail.html).toContain("Join with Google Meet");
+    await t.pub({ action: "bookingMove", id: r.body.id, key: r.body.key, start: at("2026-11-18", "14:00") });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking.meetUrl).toBe(link);
+    await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking.meetUrl).toBe("");
+  });
+
+  test("a paid booking goes in once it is paid, not while it is held", async () => {
+    const calendar = fakeCalendar();
+    const t = setup({ calendar });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ googleCalendar: true }, { merge: true });
+    const r = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect(calendar.events.has(r.body.id)).toBe(false);
+    const sid = t.opened[0] && [...t.sessions.keys()][0];
+    Object.assign(t.sessions.get(sid), { payment_status: "paid", status: "complete", payment_intent: "pi_1" });
+    await t.desk.sweepHolds();
+    expect(calendar.events.has(r.body.id)).toBe(true);
+  });
+
+  test("Google not linked or not answering never stops a booking, and the owner is told when switching on", async () => {
+    const t = setup({ calendar: fakeCalendar({ linked: false }) });
+    await t.seed();
+    const saved = await t.adm({ op: "saveSettings", settings: { ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, googleCalendar: true } });
+    expect(saved.body.googleCalendar).toEqual({ available: false, filled: 0 });
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER })).statusCode).toBe(200);
+    const d = setup({ calendar: fakeCalendar({ down: true }) });
+    await d.seed();
+    await d.db.collection("bookingSettings").doc("main").set({ googleCalendar: true }, { merge: true });
+    const r = await d.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect(r.statusCode).toBe(200);
+    expect(d.emails.some((m) => String(m.subject).startsWith("Booked:"))).toBe(true);
   });
 });
 

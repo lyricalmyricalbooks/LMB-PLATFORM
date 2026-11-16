@@ -1064,6 +1064,8 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeWhat: "Quoi",
   bookTimeWhen: "Quand",
   bookTimeWhere: "Où",
+  bookTimeVideo: "Appel vidéo",
+  bookTimeJoin: "Rejoindre avec Google Meet",
   bookTimePaid: "Paiement",
   bookTimePaidAmount: "{amount} payé",
   bookTimeAddCalendar: "Calendrier Apple",

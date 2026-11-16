@@ -97,6 +97,7 @@ function publicBooking(id, b, settings, nowMs) {
   const start = Date.parse(b.start);
   return {
     id, serviceId: b.serviceId, serviceName: b.serviceName, minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
+    meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
     depositMinor: b.payment === "deposit" ? b.depositMinor || 0 : 0, depositPaid: !!b.depositPaid, dueMinor: balanceDue(b),
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
@@ -117,6 +118,8 @@ function bookingActions({
   sendEmail = async () => {}, emailBrand = async () => ({}), claimEmailSend = async () => true, ownerEmail = () => "",
   escapeHtml, risoLayout, risoButton, now = () => new Date(), randomId = () => crypto.randomBytes(12).toString("base64url").replace(/[^A-Za-z0-9]/g, "").slice(0, 16).padEnd(8, "0"),
   randomKey = () => crypto.randomBytes(24).toString("hex"),
+  // Bookings straight into the owner's Google Calendar (googleConnect.js googleCalendarSync): { put, remove }, or none.
+  calendar = null,
 }) {
   const services = () => db.collection("bookingServices");
   const settingsRef = () => db.collection("bookingSettings").doc("main");
@@ -156,6 +159,68 @@ function bookingActions({
     return { mode, checkout: await payments.standaloneCheckout(mode) };
   }
 
+  // ── Google Calendar ───────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** What the owner's calendar event says: who, and everything they told the shop. */
+  function calendarEvent(id, b) {
+    const who = b.customer?.name || "Booking";
+    const details = [
+      b.customer?.email, b.customer?.phone, b.note ? `“${b.note}”` : "",
+      ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`),
+      balanceDue(b) ? `To pay at the visit: ${moneyWords(balanceDue(b), b.currency)}` : "",
+      siteLink("/admin#bookings"),
+    ].filter(Boolean).join("\n");
+    return { title: `${who}: ${b.serviceName || "Booking"}`, start: b.start, end: b.end, location: b.location || "", details };
+  }
+
+  /**
+   * Keeps a booking's event in the owner's Google Calendar (settings `googleCalendar`): a confirmed booking is put there,
+   * with a Google Meet call when its service is a video call (one-to-one services only); a cancelled one is taken away.
+   * Never throws and never holds up a booking: Google being slow or unlinked only leaves the calendar behind. Answers the
+   * booking with its call link, so the email about it can carry the link.
+   */
+  async function syncCalendar(id, b) {
+    if (!calendar) return b;
+    try {
+      const settings = await readSettings();
+      if (b.status !== "confirmed" || !settings.googleCalendar) {
+        if (b.calendarAt) {
+          const gone = await calendar.remove(id);
+          if (gone?.available) await bookings().doc(id).set({ calendarAt: null }, { merge: true });
+        }
+        return b;
+      }
+      const service = (await readServices()).find((x) => x.id === b.serviceId);
+      const meet = service?.meet === true && (service.places || 1) === 1;
+      const put = await calendar.put(id, { ...calendarEvent(id, b), meet });
+      if (!put?.available) return b;
+      const meetUrl = meet && /^https:\/\/meet\.google\.com\/[\w-]+$/.test(put.meetUrl || "") ? put.meetUrl : "";
+      await bookings().doc(id).set({ calendarAt: now().toISOString(), meetUrl }, { merge: true });
+      return { ...b, calendarAt: now().toISOString(), meetUrl };
+    } catch (err) {
+      console.warn(`Booking ${id} didn't reach Google Calendar:`, err?.message || err);
+      return b;
+    }
+  }
+
+  /** Turning the setting on: the coming confirmed bookings go in too (up to 200). Answers whether Google is linked. */
+  async function fillCalendar() {
+    if (!calendar) return { available: false, filled: 0 };
+    const snap = await bookings().where("start", ">=", now().toISOString()).limit(200).get();
+    let filled = 0;
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      if (b.status !== "confirmed") continue;
+      const after = await syncCalendar(doc.id, b);
+      if (!after.calendarAt) return { available: false, filled };
+      filled += 1;
+    }
+    if (filled) return { available: true, filled };
+    // Nothing booked yet: ask Google whether the calendar is linked, with an event put and taken away again.
+    const probe = await calendar.remove("linkcheck");
+    return { available: !!probe?.available, filled: 0 };
+  }
+
   // ── Emails ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   function whenWords(b) {
@@ -177,6 +242,7 @@ function bookingActions({
       const shop = brand.shopName || shopName() || "the shop";
       const when = whenWords(b);
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
+      const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>Video call:</strong> <a href="${escapeHtml(b.meetUrl)}">Join with Google Meet</a></p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
       const subject = { tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
@@ -213,6 +279,7 @@ function bookingActions({
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
         <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
         ${where}
+        ${video}
         ${money}
         ${held}
         ${manage}
@@ -535,7 +602,7 @@ function bookingActions({
       tx.set(bookings().doc(id), changes, { merge: true });
       return true;
     });
-    const next = { ...b, ...changes };
+    const next = confirmed ? await syncCalendar(id, { ...b, ...changes }) : { ...b, ...changes };
     if (confirmed) await tellCustomer(id, next, "booked", { key: b.pendingKey || "" });
     if (confirmed && b.pendingKey) await bookings().doc(id).set({ pendingKey: null }, { merge: true });
     return next;
@@ -725,7 +792,8 @@ function bookingActions({
         const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs) });
         if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
-          await tellCustomer(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() }, "booked", { key });
+          const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
+          await tellCustomer(id, booked, "booked", { key });
           return res.status(200).json({ id, key, status: "confirmed" });
         }
         try {
@@ -867,7 +935,7 @@ function bookingActions({
         const changes = { status: "cancelled", cancelledAt: at, cancelledBy: "customer", updatedAt: at, ...(refund ? { refund } : {}),
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by: "customer" }].slice(-20) };
         await freeTime(id, b, changes);
-        const next = { ...b, ...changes };
+        const next = await syncCalendar(id, { ...b, ...changes });
         await tellCustomer(id, next, "cancelled", { refundText: !refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card." });
         return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
       }
@@ -880,7 +948,7 @@ function bookingActions({
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time first.");
         const moved = await moveTime(id, b, { ...service, id: b.serviceId, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, settings, start);
         if (!moved) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
-        const next = { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() };
+        const next = await syncCalendar(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() });
         await tellCustomer(id, next, "moved", { key });
         return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
       }
@@ -931,7 +999,9 @@ function bookingActions({
         const next = cleanBookingSettings(req.body?.settings);
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
         await tellWebsite(next.live);
-        return res.status(200).json({ ok: true, settings: next });
+        // Just switched on: the coming bookings go in too, and the owner learns whether Google is linked.
+        const googleCalendar = next.googleCalendar && !settings.googleCalendar ? await fillCalendar() : undefined;
+        return res.status(200).json({ ok: true, settings: next, ...(googleCalendar ? { googleCalendar } : {}) });
       }
       if (op === "setLive") {
         // The owner's on/off switch (Orders › Bookings): one tap, nothing else about the hours changes. Off hides the
@@ -993,7 +1063,8 @@ function bookingActions({
         const own = { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]), daysOff: [], step: 5 };
         const took = await takeTime({ id, service: { ...service, classTimes: [] }, settings: own, start, record });
         if (!took) return fail(res, 409, isClass(service) ? "That class is full, or the time clashes with another booking." : "That time clashes with another booking.", "taken");
-        if (req.body?.sendEmail !== false) await tellCustomer(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() }, "booked", { key, byShop: true });
+        const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
+        if (req.body?.sendEmail !== false) await tellCustomer(id, booked, "booked", { key, byShop: true });
         return res.status(200).json({ ok: true, id });
       }
       const id = String(req.body?.id || "");
@@ -1039,6 +1110,7 @@ function bookingActions({
         const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, holdUntil: null, updatedAt: at, ...(refund ? { refund } : {}),
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by }].slice(-20) };
         await freeTime(id, b, changes);
+        await syncCalendar(id, { ...b, ...changes });
         if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.` : `Your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.` });
         return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0 });
       }
@@ -1052,7 +1124,8 @@ function bookingActions({
         const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, own, start, { by });
         if (!moved) return fail(res, 409, isClass(theirs) ? "That class is full, or the time clashes with another booking." : "That time clashes with another booking.", "taken");
         // A new link: the old one in the customer's first email still works, since the key is unchanged.
-        if (req.body?.notify !== false) await tellCustomer(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() }, "moved", { byShop: true });
+        const movedTo = await syncCalendar(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() });
+        if (req.body?.notify !== false) await tellCustomer(id, movedTo, "moved", { byShop: true });
         return res.status(200).json({ ok: true });
       }
       if (op === "chargeFee") {
@@ -1307,7 +1380,7 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "",
       title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.status === "held" ? " (not paid yet)" : ""}`,
-      details: [b.customer?.email, b.customer?.phone, b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
+      details: [b.customer?.email, b.customer?.phone, b.meetUrl ? `Video call: ${b.meetUrl}` : "", b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
     }));
   return bookingsFeedIcs(shopName ? `${shopName} bookings` : "Bookings", events, nowMs);
 }
