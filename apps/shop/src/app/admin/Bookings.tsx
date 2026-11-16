@@ -6,12 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import { BellRing, CalendarPlus, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Users, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
-  DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
-  SaveBar, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
+  DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
+  SaveBar, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type Waiting } from "./bookingsApi";
-import { bookingFigures, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, WAIT_HOLD_MINUTES, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -23,6 +23,8 @@ import { saveFile } from "./xlsxWriter";
 import "./bookings.css";
 
 type Tab = "calendar" | "services" | "hours" | "figures";
+type CalendarView = "week" | "list";
+const VIEW_KEY = "colophon.bookings.view";
 const ZONE = shopTimeZone();
 const today = () => dayOf(Date.now(), ZONE);
 const bookPageUrl = () => new URL(`${(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/")}book`, window.location.origin).toString();
@@ -40,6 +42,9 @@ export function Bookings() {
   const [open, setOpen] = useState<Booking | null>(null);
   const [creating, setCreating] = useState(false);
   const [switching, setSwitching] = useState(false);
+  // Week or list, remembered on this computer.
+  const [view, setView] = useState<CalendarView>(() => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "week"; } catch { return "week"; } });
+  const pickView = (v: CalendarView) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* private window: not remembered */ } };
 
   const reloadSetup = () => readBookingSetup().then((s) => { setSetup(s); setSetupError(""); }).catch((e) => setSetupError(e?.message || "Couldn't load your bookings."));
   useEffect(() => { void reloadSetup(); }, []);
@@ -136,9 +141,14 @@ export function Bookings() {
         {noServices ? (
           <EmptyState title="Add what customers can book" description="A studio visit, a class for one, a portfolio review: give it a length and a price, then turn on your bookings page."
             action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setAdding(true); setTab("services"); }}>Add a service</PrimaryButton>} />
-        ) : (
-          <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} />
-        )}
+        ) : (<>
+          <div className="bkg-view-switch">
+            <Tabs<CalendarView> label="Show bookings as" idPrefix="bkg-view-" value={view} onChange={pickView} tabs={[{ id: "week", label: "Week" }, { id: "list", label: "List" }]} />
+          </div>
+          {view === "week"
+            ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} />
+            : <ListView services={setup.services} onOpen={setOpen} />}
+        </>)}
       </TabPanel>
       <TabPanel tabId="services" active={tab === "services"}>
         <ServicesPanel services={setup.services} onChanged={reloadSetup} startAdding={adding} onStarted={() => setAdding(false)} />
@@ -275,6 +285,75 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
       {waitingDay && (
         <WaitingDialog day={waitingDay} list={waitingDays.get(waitingDay) || []} onClose={() => setWaitingDay("")}
           onRemoved={(id) => setWaiting((all) => all.filter((w) => w.id !== id))} />
+      )}
+    </div>
+  );
+}
+
+/** Every booking as one list: still to come, past or cancelled, with a search and a service filter. */
+function ListView({ services, onOpen }: { services: BookingService[]; onOpen: (b: Booking) => void }) {
+  const [mode, setMode] = useState<ListMode>("upcoming");
+  const [query, setQuery] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [rows, setRows] = useState<Booking[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setRows(null);
+    const { from, to } = listRange(mode, Date.now());
+    return followBookings(from, to, (r) => { setRows(r); setError(""); }, (e) => setError(e.message || "Couldn't load bookings."));
+  }, [mode]);
+  const days = useMemo(() => bookingList(rows || [], { mode, query, serviceId, nowMs: Date.now(), zone: ZONE }), [rows, mode, query, serviceId]);
+  const count = days.reduce((n, d) => n + d.rows.length, 0);
+  const now = today();
+  const filtered = !!query.trim() || !!serviceId;
+  const span = mode === "upcoming" ? `the next ${LIST_AHEAD_DAYS} days` : mode === "past" ? `the last ${LIST_BACK_DAYS} days` : `the last ${LIST_BACK_DAYS} days and the next ${LIST_AHEAD_DAYS}`;
+  return (
+    <div className="bkg-list">
+      <FilterBar>
+        <div className="rp-grow"><SearchField label="Find a booking" placeholder="Name, email, phone or service" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+        <SelectField label="Which bookings" hideLabel value={mode} onChange={(e) => setMode(e.target.value as ListMode)}>
+          <option value="upcoming">Coming up</option>
+          <option value="past">Past</option>
+          <option value="cancelled">Cancelled</option>
+        </SelectField>
+        {services.length > 1 && (
+          <SelectField label="Service" hideLabel value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+            <option value="">All services</option>
+            {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </SelectField>
+        )}
+        {filtered && <GhostButton onClick={() => { setQuery(""); setServiceId(""); }}>Clear</GhostButton>}
+      </FilterBar>
+      {error && <p className="bkg-error" role="alert">{error}</p>}
+      {rows === null ? <div className="bkg-skeleton" aria-hidden /> : (
+        <>
+          <p className="bkg-list-count" aria-live="polite">{count === 0 ? "" : `${count} ${count === 1 ? "booking" : "bookings"} in ${span}`}</p>
+          {days.length === 0 ? (
+            <EmptyState inline title={filtered ? "No bookings match" : mode === "upcoming" ? "Nothing coming up" : mode === "past" ? "No past bookings yet" : "Nothing cancelled"}
+              description={filtered ? "Try another name, or clear the search." : `This list covers ${span}.`}
+              action={filtered ? <SecondaryButton onClick={() => { setQuery(""); setServiceId(""); }}>Clear search</SecondaryButton> : undefined} />
+          ) : days.map((d) => (
+            <section key={d.day} className="bkg-list-day" aria-label={dayText(d.day, "long")}>
+              <h3 className="bkg-list-dayname" data-today={d.day === now || undefined}>
+                {d.day === now ? "Today" : d.day === addDays(now, 1) ? "Tomorrow" : d.day === addDays(now, -1) ? "Yesterday" : dayText(d.day, "long")}
+                <span>{d.rows.length}</span>
+              </h3>
+              <ul>
+                {d.rows.map((b) => { const tag = listTag(b); return (
+                  <li key={b.id}>
+                    <button type="button" className="bkg-list-row" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
+                      <span className="bkg-list-time">{timeText(b.start, ZONE)}</span>
+                      <span className="bkg-list-who">{b.customer.name}<small>{b.customer.email}</small></span>
+                      <span className="bkg-list-what">{b.serviceName}<small>{b.minutes} min</small></span>
+                      <span className="bkg-list-pay">{paymentText(b)}</span>
+                      {tag ? <StatusBadge tone={tag === "Cancelled" || tag === "No-show" ? "danger" : "warning"}>{tag}</StatusBadge> : <span aria-hidden />}
+                    </button>
+                  </li>
+                ); })}
+              </ul>
+            </section>
+          ))}
+        </>
       )}
     </div>
   );
@@ -1067,8 +1146,15 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             <SelectField label="Customers can cancel or move" hint="Paid bookings cancelled online in time are refunded in full. Later, they contact you." value={String(form.cancelHours)} onChange={(e) => setForm({ ...form, cancelHours: Number(e.target.value) })}>
               {[0, 2, 12, 24, 48, 72].map((h) => <option key={h} value={h}>{h === 0 ? "Until it starts" : `Up to ${h < 24 ? `${h} hours` : `${h / 24} day${h === 24 ? "" : "s"}`} before`}</option>)}
             </SelectField>
-            <SelectField label="Reminder email" hint="Sent to customers before their booking, with a link to cancel or move it." value={String(form.reminderHours)} onChange={(e) => setForm({ ...form, reminderHours: Number(e.target.value) })}>
+            <SelectField label="Reminder email" hint="Sent to customers before their booking, with a link to cancel or move it." value={String(form.reminderHours)} onChange={(e) => { const first = Number(e.target.value); setForm({ ...form, reminderHours: first, secondReminderHours: first && form.secondReminderHours >= first ? 0 : form.secondReminderHours }); }}>
               {REMINDER_HOURS.map((h) => <option key={h} value={h}>{h === 0 ? "Don't send" : h < 24 ? `${h} hours before` : `${h / 24} day${h === 24 ? "" : "s"} before`}</option>)}
+            </SelectField>
+            <SelectField label="Second reminder" hint="A short note on the day, for people who booked well ahead." value={String(form.secondReminderHours)} onChange={(e) => setForm({ ...form, secondReminderHours: Number(e.target.value) })}>
+              {SECOND_REMINDER_HOURS.filter((h) => !form.reminderHours || h < form.reminderHours).map((h) => <option key={h} value={h}>{h === 0 ? "Don't send" : `${h} hour${h === 1 ? "" : "s"} before`}</option>)}
+            </SelectField>
+            <SelectField label="Your morning list" hint="The day's bookings in one email to you, on days there are any." value={form.dailySummary ? "on" : "off"} onChange={(e) => setForm({ ...form, dailySummary: e.target.value === "on" })}>
+              <option value="off">Don't send</option>
+              <option value="on">Email me at 7 am</option>
             </SelectField>
             <SelectField label="Hold a freed place for" hint="When a place opens, the first person on the waiting list has this long to book it before it goes to the next." value={String(form.waitHoldMinutes)} onChange={(e) => setForm({ ...form, waitHoldMinutes: Number(e.target.value) })}>
               {WAIT_HOLD_MINUTES.map((m) => <option key={m} value={m}>{m < 60 ? `${m} minutes` : m === 60 ? "1 hour" : `${m / 60} hours`}</option>)}

@@ -280,3 +280,41 @@
 .rp .bkg-daylist-pay { font: 500 12px/1.4 var(--rp-font-mono); color: var(--rp-text-faint); }
 .rp .bkg-daylist li p strong { font-weight: 600; }
 @media (pointer: coarse) { .rp .bkg-daylist-name { min-height: var(--rp-touch); } }
+
+/* The Calendar as one list: day headings, then a row per booking (time · who · what · payment · tag) */
+.rp .bkg-view-switch { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.rp .bkg-list { display: grid; gap: 4px; }
+.rp .bkg-list .rp-filter-bar { margin-bottom: 8px; }
+.rp .bkg-list-count { margin: 0 0 4px; min-height: 1.4em; font: 500 12px/1.4 var(--rp-font-mono); letter-spacing: 0.04em; color: var(--rp-text-muted); }
+.rp .bkg-list-day { padding: 16px 18px; border-radius: 18px; background: var(--rp-surface); border: 1px solid var(--rp-border); }
+.rp .bkg-list-day + .bkg-list-day { margin-top: 8px; }
+.rp .bkg-list-dayname { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; font: 600 16px/1.3 var(--rp-font-body); letter-spacing: -0.01em; }
+.rp .bkg-list-dayname span { font: 500 12px/1.3 var(--rp-font-mono); color: var(--rp-text-faint); font-variant-numeric: tabular-nums; }
+.rp .bkg-list-dayname[data-today]::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--rp-success, var(--rp-inverse)); align-self: center; }
+.rp .bkg-list-day ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp .bkg-list-day li + li { border-top: 1px solid var(--rp-divider); }
+.rp .bkg-list-row {
+  display: grid; grid-template-columns: 76px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.2fr) 9.5rem; align-items: center; gap: 4px 16px;
+  width: 100%; min-height: var(--rp-touch, 44px); padding: 10px 8px; margin: 0 -8px; box-sizing: content-box;
+  border: 0; border-radius: 10px; background: none; color: var(--rp-text); text-align: left; cursor: pointer;
+}
+.rp .bkg-list-row:hover { background: var(--rp-surface-2); }
+.rp .bkg-list-row:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+.rp .bkg-list-time { font: 500 13px/1.3 var(--rp-font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp .bkg-list-row > :last-child { justify-self: end; }
+.rp .bkg-list-who, .rp .bkg-list-what { display: grid; min-width: 0; font: 600 14px/1.3 var(--rp-font-body); overflow-wrap: anywhere; }
+.rp .bkg-list-what { font-weight: 500; }
+.rp .bkg-list-who small, .rp .bkg-list-what small { font: 400 12px/1.35 var(--rp-font-body); color: var(--rp-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp .bkg-list-pay { font-size: 13px; line-height: 1.35; color: var(--rp-text-muted); }
+.rp .bkg-list-row[data-status="cancelled"] .bkg-list-who, .rp .bkg-list-row[data-noshow] .bkg-list-who { color: var(--rp-text-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+@media (max-width: 767px) {
+  .rp .bkg-view-switch { justify-content: stretch; }
+  .rp .bkg-view-switch .rp-tabs { flex: 1; }
+  .rp .bkg-list .rp-filter-bar > * { flex: 1 1 40%; }
+  .rp .bkg-list .rp-filter-bar > .rp-grow { flex-basis: 100%; }
+  .rp .bkg-list-day { padding: 12px 14px; }
+  .rp .bkg-list-row { grid-template-columns: 68px minmax(0, 1fr) auto; gap: 2px 10px; align-items: start; }
+  .rp .bkg-list-what, .rp .bkg-list-pay { grid-column: 2 / 4; }
+  .rp .bkg-list-row > :last-child { grid-column: 3; grid-row: 1; }
+  .rp .bkg-list-what { font-size: 13px; }
+}

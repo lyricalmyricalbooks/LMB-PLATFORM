@@ -985,6 +985,9 @@ div.rp-listcard-main { cursor: default; }
 .rp-wb-tabs .rp-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
 .rp-wb-tabs .rp-tabs .rp-tab { flex-shrink: 0; white-space: nowrap; }
 .rp-wb-tabs .rp-tabs[data-variant="page"] .rp-tab, .rp-wb-tabs .rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] { padding: 0 10px; }
+/* A dialog's own tabs scroll sideways on a narrow screen instead of making the dialog wider than the phone. */
+.rp-dialog .rp-tabs[data-variant="page"] { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.rp-dialog .rp-tabs[data-variant="page"] .rp-tab { flex-shrink: 0; white-space: nowrap; }
 .rp-wb-tabsrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .rp-wb-tabsrow > .rp-wb-toolbar-actions { flex: none; }
 .rp-wb-subtabs { padding-left: 12px; border-left: var(--rp-stroke) solid var(--rp-border-strong); min-width: 0; }
@@ -1331,7 +1334,7 @@ div.rp-listcard-main { cursor: default; }
 /* Dialogs on phones: a sheet from the bottom, full width, with thumb-sized footer buttons */
 @media (max-width: 767px) {
   .rp-dialog-root:not([data-variant="drawer"]) { place-items: end stretch; padding: 0; }
-  .rp-dialog-root:not([data-variant="drawer"]) > .rp-dialog { width: 100%; max-height: 92vh; max-height: 92dvh; border-radius: 0; border-width: var(--rp-stroke) 0 0; }
+  .rp-dialog-root:not([data-variant="drawer"]) > .rp-dialog { width: 100%; min-width: 0; max-height: 92vh; max-height: 92dvh; border-radius: 0; border-width: var(--rp-stroke) 0 0; }
   .rp-dialog-root:not([data-variant="drawer"]) > .rp-dialog .rp-dialog-foot { border-radius: 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .rp-dialog-foot .rp-btn { min-height: var(--rp-touch); }
   .rp-dialog-head, .rp-dialog-body { padding-left: 16px; padding-right: 16px; }

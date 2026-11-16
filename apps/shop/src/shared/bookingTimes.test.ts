@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
+  secondReminderDue, summaryDue,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -220,5 +221,37 @@ describe("card on file and the missed-booking fee", () => {
     expect(feeChargeable({ ...b, status: "cancelled", cancelledBy: "customer" }, now)).toBe(false);
     expect(feeChargeable({ ...b, fee: { amountMinor: 3000 } }, now)).toBe(false);
     expect(feeChargeable({ ...b, card: null }, now)).toBe(false);
+  });
+});
+
+describe("the second reminder and the morning list", () => {
+  it("keeps the second reminder only when it is a listed choice under the first", () => {
+    expect(cleanBookingSettings({}).secondReminderHours).toBe(0);
+    expect(cleanBookingSettings({ reminderHours: 24, secondReminderHours: 2 }).secondReminderHours).toBe(2);
+    expect(cleanBookingSettings({ reminderHours: 2, secondReminderHours: 2 }).secondReminderHours).toBe(0);
+    expect(cleanBookingSettings({ reminderHours: 24, secondReminderHours: 5 }).secondReminderHours).toBe(0);
+    expect(cleanBookingSettings({ reminderHours: 0, secondReminderHours: 3 }).secondReminderHours).toBe(3);
+    expect(cleanBookingSettings({ dailySummary: "yes" }).dailySummary).toBe(false);
+    expect(cleanBookingSettings({ dailySummary: true }).dailySummary).toBe(true);
+  });
+
+  it("is due inside its hours, never twice, never in the last 15 minutes, never for a booking made inside them", () => {
+    const start = new Date(at("2026-11-18", "14:00")).toISOString();
+    const made = new Date(at("2026-11-16", "09:00")).toISOString();
+    expect(secondReminderDue({ start, createdAt: made }, 2, at("2026-11-18", "11:30"))).toBe(false);
+    expect(secondReminderDue({ start, createdAt: made }, 2, at("2026-11-18", "12:30"))).toBe(true);
+    expect(secondReminderDue({ start, createdAt: made, reminder2SentAt: "x" }, 2, at("2026-11-18", "12:30"))).toBe(false);
+    expect(secondReminderDue({ start, createdAt: made }, 2, at("2026-11-18", "13:50"))).toBe(false);
+    expect(secondReminderDue({ start, createdAt: new Date(at("2026-11-18", "12:15")).toISOString() }, 2, at("2026-11-18", "12:30"))).toBe(false);
+    expect(secondReminderDue({ start, createdAt: made }, 0, at("2026-11-18", "12:30"))).toBe(false);
+  });
+
+  it("gives the shop's day from 7 in the morning, once", () => {
+    expect(summaryDue(at("2026-11-18", "06:59"), ZONE, "")).toBe("");
+    expect(summaryDue(at("2026-11-18", "07:00"), ZONE, "")).toBe("2026-11-18");
+    expect(summaryDue(at("2026-11-18", "23:30"), ZONE, "2026-11-17")).toBe("2026-11-18");
+    expect(summaryDue(at("2026-11-18", "09:00"), ZONE, "2026-11-18")).toBe("");
+    // 23:30 in Toronto is already the next day in UTC; the shop's own day still counts.
+    expect(summaryDue(at("2026-11-18", "23:30"), ZONE, "2026-11-18")).toBe("");
   });
 });

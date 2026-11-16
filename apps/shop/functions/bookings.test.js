@@ -22,11 +22,14 @@ function fakeDb() {
     async delete() { store.delete(key(c, id)); },
   });
   const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`)).map((k) => snapOf(c, k.slice(c.length + 1)));
-  const query = (c, filters = [], n = 1000) => ({
-    where: (f, op, v) => query(c, [...filters, [f, v, op]], n),
-    limit: (m) => query(c, filters, m),
+  const query = (c, filters = [], n = 1000, by = "") => ({
+    where: (f, op, v) => query(c, [...filters, [f, v, op]], n, by),
+    limit: (m) => query(c, filters, m, by),
+    orderBy: (f) => query(c, filters, n, f),
     async get() {
-      const docs = list(c).filter((d) => filters.every(([f, v, op]) => { const x = d.data()[f]; return op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; })).slice(0, n);
+      const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = d.data()[f]; return op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
+      if (by) hits.sort((a, b) => String(a.data()[by]).localeCompare(String(b.data()[by])));
+      const docs = hits.slice(0, n);
       return { docs, empty: docs.length === 0 };
     },
   });
@@ -428,6 +431,86 @@ describe("reminder choices and its own link", () => {
     await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "14:00"), name: "Bo", email: "bo@example.com" });
     t.clock.now = new Date(Date.parse(at("2026-11-18", "20:00")));
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+  });
+});
+
+describe("the second reminder", () => {
+  test("off by default; once switched on it goes once, a few hours before, and its link opens the booking", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "14:00"), ...CUSTOMER });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "12:30")));
+    expect(await t.desk.sweepSecondReminders()).toEqual({ reminded: 0 });
+    await t.db.collection("bookingSettings").doc("main").set({ secondReminderHours: 2 }, { merge: true });
+    expect(await t.desk.sweepSecondReminders()).toEqual({ reminded: 1 });
+    expect(await t.desk.sweepSecondReminders()).toEqual({ reminded: 0 });
+    const mail = t.emails.find((m) => String(m.subject).startsWith("Soon:"));
+    expect(mail.to).toBe("ada@example.com");
+    expect(mail.html).toContain("Starting soon");
+    const key = /key=([a-f0-9]+)/.exec(mail.html)[1];
+    t.db.store.get(`bookings/${r.body.id}`).manageKeyHash = "0".repeat(64);
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key })).statusCode).toBe(200);
+  });
+
+  test("never for a booking made inside those hours, a cancelled one, or one less than 15 minutes away", async () => {
+    const t = setup({ now: "2026-11-18T15:00:00Z" });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ secondReminderHours: 3 }, { merge: true });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "12:00"), ...CUSTOMER });
+    const c = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "10:00"), name: "Bo", email: "bo@example.com" });
+    await t.pub({ action: "bookingCancel", id: c.body.id, key: c.body.key });
+    t.clock.now = new Date(Date.parse(at("2026-11-19", "08:00")));
+    expect(await t.desk.sweepSecondReminders()).toEqual({ reminded: 0 });
+    const d = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "15:00"), name: "Cy", email: "cy@example.com" });
+    expect(d.statusCode).toBe(200);
+    t.clock.now = new Date(Date.parse(at("2026-11-19", "14:50")));
+    expect(await t.desk.sweepSecondReminders()).toEqual({ reminded: 0 });
+  });
+
+  test("a second reminder at or after the first one is refused when saved", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.adm({ op: "saveSettings", settings: { ...DEFAULT_BOOKING_SETTINGS, reminderHours: 2, secondReminderHours: 3 } });
+    expect(r.statusCode).toBe(200);
+    expect(t.db.store.get("bookingSettings/main").secondReminderHours).toBe(0);
+  });
+});
+
+describe("the owner's morning list", () => {
+  test("off by default; switched on it goes once a day from 7, in time order, and only on days with bookings", async () => {
+    const t = setup({ now: "2026-11-17T12:00:00Z" });
+    await t.seed();
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "14:00"), ...CUSTOMER });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), name: "Bo Lin", email: "bo@example.com", phone: "416 555 0100" });
+    const gone = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "16:00"), name: "Cy", email: "cy@example.com" });
+    await t.pub({ action: "bookingCancel", id: gone.body.id, key: gone.body.key });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-19", "10:00"), name: "Di", email: "di@example.com" });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "07:30")));
+    expect(await t.desk.sweepSummary()).toEqual({ sent: false });
+    await t.db.collection("bookingSettings").doc("main").set({ dailySummary: true }, { merge: true });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "06:55")));
+    expect((await t.desk.sweepSummary()).sent).toBe(false);
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "07:05")));
+    const before = t.emails.length;
+    expect(await t.desk.sweepSummary()).toEqual({ sent: true, day: "2026-11-18", count: 2 });
+    expect(await t.desk.sweepSummary()).toEqual({ sent: false });
+    const mail = t.emails[before];
+    expect(mail.to).toBe("owner@example.com");
+    expect(mail.subject).toMatch(/^\[BOOKINGS\] Today: 2 bookings, first at 10:00/);
+    expect(mail.html.indexOf("Bo Lin")).toBeLessThan(mail.html.indexOf("Ada Reader"));
+    expect(mail.html).not.toContain("Cy");
+    expect(mail.html).not.toContain("Di");
+    expect(t.emails.length).toBe(before + 1);
+  });
+
+  test("a day with nothing booked sends nothing, and is not tried again", async () => {
+    const t = setup({ now: "2026-11-20T13:00:00Z" });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ dailySummary: true }, { merge: true });
+    const before = t.emails.length;
+    expect(await t.desk.sweepSummary()).toEqual({ sent: false, day: "2026-11-20" });
+    expect(await t.desk.sweepSummary()).toEqual({ sent: false });
+    expect(t.emails.length).toBe(before);
   });
 });
 

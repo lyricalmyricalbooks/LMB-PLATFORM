@@ -2,7 +2,7 @@
 // country, sort) saved under a name, so "Toronto VIPs on the newsletter" is one click next time. Pure rules here; the
 // list is kept in the admin-only `adminPrefs/customerGroups` (customerGroupsStore.ts).
 
-export const SEGMENTS = ["all", "vip", "vip-lapsed", "returning", "new", "at-risk", "moved"] as const;
+export const SEGMENTS = ["all", "vip", "vip-lapsed", "returning", "new", "at-risk", "moved", "booked"] as const;
 export const CONSENTS = ["all", "subscribed", "none", "opted-out"] as const;
 export const SORTS = ["spent", "orders", "recent", "name"] as const;
 export const MAX_GROUPS = 30;
