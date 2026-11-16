@@ -829,6 +829,13 @@ Deposits & card on file; French twins). The Studio preview's sample deposit book
 (`bookTimeRules.ts`), and `bookingStart` sends the code (a 400/409 `code` clears it and shows `bookTimeCodeProblem`). The
 manage view shows the Discount row from `discountCode` / `discountMinor`. The Studio preview takes 10% off for any code.
 Words: Text & labels › Book a time page (`bookTimeCode*`, `bookTimeDiscount`; French twins).
+**Gift cards (16 November 2026):** while `bookingInfo.giftCards` and the service is paid when booked, the details form shows a
+second `ApplyBox` (the code box's own component; region `bookingsGiftCard`) that asks `bookingGiftCard` (with the applied
+code, since that changes what is paid now) and keeps `BookingGift { code, last4, giftMinor, payNowMinor }`. The button asks
+for `payNowMinor` (or `bookTimeGiftBook` when it is nothing), the summary gets a Gift card row, `bookingStart` sends
+`giftCard`, and a `gift` error clears it with `bookTimeGiftProblem`. The gift card clears when the service or code changes.
+The manage view shows `giftCardLast4` / `giftMinor`. The Studio preview lets any gift card pay up to 25.00. Words
+`bookTimeGift*` (Text & labels › Book a time page › Discount codes & gift cards; French twins).
 
 Payments, tips & card on file; French twins). The Studio preview's sample deposit booking pays at once, with no card page.
 **Tips (16 November 2026):** while the shop asks for tips (`tipPercents` in the view) `TipPicker` (region `bookingsTip`)

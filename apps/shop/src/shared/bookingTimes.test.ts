@@ -278,3 +278,31 @@ describe("the second reminder and the morning list", () => {
     expect(summaryDue(at("2026-11-18", "23:30"), ZONE, "2026-11-18")).toBe("");
   });
 });
+
+describe("gift cards on bookings", () => {
+  it("takes the gift card's part off the card page and counts it once paid", async () => {
+    const { balanceDue, bookedCardTaken, cardAsk, cardTaken, giftTaken, moneyKept, moneyTaken } = await import("./bookingTimes");
+    const held = { payment: "card", priceMinor: 6000, giftCard: { amountMinor: 2500 } };
+    expect([cardAsk(held), cardTaken(held), giftTaken(held), balanceDue(held)]).toEqual([3500, 0, 0, 6000]);
+    const paid = { ...held, paid: true };
+    expect([bookedCardTaken(paid), cardTaken(paid), giftTaken(paid), moneyTaken(paid), balanceDue(paid)]).toEqual([3500, 3500, 2500, 6000, 0]);
+    // Cancelled: the card refund and the gift card's part put back both come off what is kept.
+    expect(moneyKept({ ...paid, refund: { amountMinor: 3500 }, giftCard: { amountMinor: 2500, returned: true } })).toBe(0);
+    expect(moneyKept({ ...paid, refund: { amountMinor: 3500 } })).toBe(2500);
+  });
+
+  it("pays part of a deposit, and the rest stays due at the visit", async () => {
+    const { balanceDue, cardAsk, cardTaken, giftTaken } = await import("./bookingTimes");
+    const dep = { payment: "deposit", priceMinor: 10000, depositMinor: 3000, depositPaid: true, giftCard: { amountMinor: 3000 } };
+    expect([cardAsk(dep), cardTaken(dep), giftTaken(dep), balanceDue(dep)]).toEqual([0, 0, 3000, 7000]);
+  });
+
+  it("never leaves the card page a sliver below the smallest card payment", async () => {
+    const { giftCardPart } = await import("./bookingTimes");
+    expect(giftCardPart(4000, 10000)).toBe(4000);
+    expect(giftCardPart(4000, 1500)).toBe(1500);
+    expect(giftCardPart(4000, 3980)).toBe(3950);
+    expect(giftCardPart(40, 10000)).toBe(40);
+    expect(giftCardPart(4000, 0)).toBe(0);
+  });
+});

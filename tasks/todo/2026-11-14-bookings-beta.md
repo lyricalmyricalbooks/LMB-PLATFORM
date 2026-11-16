@@ -201,3 +201,15 @@ class). Not yet tried against real Google.
 Review: a booking takes the use when the time is taken, even while the card page is open; a hold that runs out gives it
 back. Gift cards on bookings and packages of visits come next.
 
+## Gift cards on bookings (16 November 2026, plan phase 3)
+
+- [x] Shared money rules: a gift card's part comes off the card page and counts as paid once the booking is paid.
+- [x] Server: try a gift card, take it when booking (checked and debited with the time), confirm at once when it covers
+      everything, put it back once on any cancel unless the owner keeps it; history lines name the booking.
+- [x] Book a time page: Have a gift card? box, button and summary follow it; EN and FR words; Studio preview sample.
+- [x] Owner: drawer row, payment words, cancel dialog toggle, gift card history.
+- [x] Proof: shared, handler, preview and admin tests, typecheck, lint, screenshots desktop and phone.
+
+Review: the balance comes off when the time is taken, even while the card page is open; a hold that runs out puts it
+back. Gift cards pay only what is paid when booked (not a pay-at-the-visit price, not the rest or a tip). Packages of
+visits come next.

@@ -6,7 +6,11 @@ import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop has a discount code that works on bookings, so the form offers a code box. */
-  codes?: boolean };
+  codes?: boolean;
+  /** The shop has gift cards, so the form offers a gift card box on paid services. */
+  giftCards?: boolean };
+/** A gift card the server accepted: its last four, what it pays now and what is left for the card page. */
+export type BookingGift = { code: string; last4: string; giftMinor: number; payNowMinor: number };
 /** A discount code the server accepted for one service: what it takes off, the price after it and what is paid now. */
 export type BookingCode = { code: string; discountMinor: number; priceMinor: number; payNowMinor: number };
 /** The service as priced with a code (the server's figures), so every line and button shows what will really be asked. */
@@ -26,6 +30,8 @@ export type BookingView = {
   canPayRest?: boolean; restPaidMinor?: number;
   /** A discount code used when booking, and what it took off (priceMinor is after it). */
   discountCode?: string; discountMinor?: number;
+  /** A gift card that paid part or all of it when booked, and whether that went back onto the card. */
+  giftCardLast4?: string; giftMinor?: number; giftReturned?: boolean;
   /** Tips: the shop's choices (empty when it doesn't ask), whether a tip can be added on its own, the tip given and the most one may be. */
   tipPercents?: number[]; canTip?: boolean; tipMinor?: number; tipLimitMinor?: number;
 };

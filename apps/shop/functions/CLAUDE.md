@@ -1291,6 +1291,20 @@ to `usageCount` in the same transaction (409 `code` at the limit); `freeTime` gi
 running out included (`discount.returned`). `bookingInfo.codes` says whether any code works on bookings. Emails show
 "Discount (CODE)". Tests: `bookingDiscount.test.js`, bookings.test.js › discount codes on bookings.
 
+**Gift cards on bookings (16 November 2026):** a gift card pays part or all of what is paid when booked (the price or the
+deposit, after any code), never a pay-at-the-visit price. Money rules in `src/shared/bookingTimes.ts`: `giftCard
+{ amountMinor }` comes off `cardAsk` and `bookedCardTaken`, `giftTaken` counts it once the booking's payment went through,
+`moneyKept` takes off a part put back (`giftReturned`), and `giftCardPart` never leaves the card page 1 to 49 cents. Public
+action `bookingGiftCard` tries one (`giftFor`: `giftCardProblem` with `shopTestMode`, `availableMinor` so order holds count;
+400 `gift` with `GIFT_CARD_MESSAGES`); `bookingStart` takes `giftCard` (the code) and stores `giftCard { id, last4,
+amountMinor }`. `takeTime` re-checks and debits the card in the same transaction as the time (409 `gift` when it fell
+short), history `redeemed` with `bookingId`. Covered in full with no card to save: confirmed and `paid`/`depositPaid` at
+once, no card page; otherwise the page asks for the rest and `confirmPaid` marks it paid with or without card money.
+`freeTime(…, { giftBack })` puts the part back once on any cancel (hold running out included; history `refunded` with
+`bookingId`, `giftCard.returned`, decided on the booking's own copy inside the transaction) and returns what it wrote; the
+admin `cancel` op takes `giftBack: false` to keep it. `bookingInfo.giftCards` says whether the shop has any gift card.
+Tests: bookings.test.js › gift cards on bookings, bookingTimes.test.ts › gift cards on bookings.
+
 **Tips (16 November 2026, `tasks/todo/2026-11-16-booking-tips.md`):** settings `tips` / `tipPercents` (shared
 `cleanTipPercents`). `bookingPayRest` takes `tipMinor` (`tipFits`: whole cents, ≥ 50, ≤ `tipLimitMinor` = the price or
 100.00) and the new public `bookingTip` a tip on its own (`tipOpen`: kept, priced, started visit, no tip yet, within 14

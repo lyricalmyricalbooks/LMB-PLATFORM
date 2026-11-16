@@ -1355,3 +1355,104 @@ describe("tips", () => {
     expect(await t.desk.sweepTips()).toEqual({ asked: 0 });
   });
 });
+
+describe("gift cards on bookings", () => {
+  const { giftCardId } = realRequire("./giftCards");
+  const CODE = "ABCD-EFGH-JKLM-NP23";
+  const cardPath = () => `giftCards/${giftCardId(CODE)}`;
+  const ready = async (card = {}, opts = {}) => {
+    const t = setup(opts);
+    await t.seed();
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 14000, depositPercent: 25 });
+    await t.db.collection("giftCards").doc(giftCardId(CODE)).set({ code: CODE, last4: "NP23", balanceMinor: 2500, initialMinor: 2500, enabled: true, history: [], ...card });
+    return t;
+  };
+  const book = (t, extra = {}) => t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "10:00"), ...CUSTOMER, ...extra });
+
+  test("the booking form offers a gift card box once the shop has gift cards", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.pub({ action: "bookingInfo" })).body.giftCards).toBe(false);
+    await t.db.collection("giftCards").doc("g1").set({ balanceMinor: 100 });
+    expect((await t.pub({ action: "bookingInfo" })).body.giftCards).toBe(true);
+  });
+
+  test("a gift card pays part, the card page takes the rest, and the card is debited once", async () => {
+    const t = await ready();
+    const tried = await t.pub({ action: "bookingGiftCard", serviceId: "review", giftCard: "abcd efgh jklm np23" });
+    expect(tried.body).toEqual({ last4: "NP23", giftMinor: 2500, payNowMinor: 1500 });
+    const r = await book(t, { giftCard: CODE });
+    expect(r.body.status).toBe("held");
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(1500);
+    expect(t.db.store.get(cardPath())).toMatchObject({ balanceMinor: 0, history: [{ type: "redeemed", minor: 2500, bookingId: "booking001" }] });
+    // The same balance can't pay for a second booking.
+    const again = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "14:00"), ...CUSTOMER, giftCard: CODE });
+    expect(again.body).toEqual({ error: "This gift card has no balance left.", code: "gift" });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_1" });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking).toMatchObject({ status: "confirmed", paid: true, giftCardLast4: "NP23", giftMinor: 2500, dueMinor: 0 });
+    expect(t.emails.find((e) => e.to === "ada@example.com").html).toMatch(/Gift card ••••NP23:<\/strong> \$25\.00/);
+  });
+
+  test("a gift card that covers it all books straight away with no card page", async () => {
+    const t = await ready({ balanceMinor: 10000 });
+    const r = await book(t, { giftCard: CODE });
+    expect(r.body.status).toBe("confirmed");
+    expect(t.opened).toHaveLength(0);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ status: "confirmed", paid: true, giftCard: { last4: "NP23", amountMinor: 4000 } });
+    expect(t.db.store.get(cardPath()).balanceMinor).toBe(6000);
+    // Cancelling puts it back on the card, once.
+    const c = await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect(c.body.booking).toMatchObject({ status: "cancelled", giftReturned: true });
+    expect(t.refunds).toHaveLength(0);
+    expect(t.db.store.get(cardPath())).toMatchObject({ balanceMinor: 10000, history: [{ type: "redeemed" }, { type: "refunded", minor: 4000, bookingId: "booking001" }] });
+    expect(t.emails.find((e) => e.subject.startsWith("Cancelled")).html).toMatch(/The \$40\.00 from your gift card is back on it\./);
+    await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key });
+    expect(t.db.store.get(cardPath()).balanceMinor).toBe(10000);
+  });
+
+  test("on a deposit it pays only the deposit, and the rest stays due at the visit", async () => {
+    const t = await ready({ balanceMinor: 10000 });
+    const r = await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "13:00"), ...CUSTOMER, giftCard: CODE });
+    expect(r.body.status).toBe("confirmed");
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ payment: "deposit", depositMinor: 3500, depositPaid: true, giftCard: { amountMinor: 3500 } });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking).toMatchObject({ dueMinor: 10500, giftMinor: 3500 });
+  });
+
+  test("never leaves a card payment smaller than the card page allows", async () => {
+    const t = await ready({ balanceMinor: 3980 });
+    expect((await t.pub({ action: "bookingGiftCard", serviceId: "review", giftCard: CODE })).body).toEqual({ last4: "NP23", giftMinor: 3950, payNowMinor: 50 });
+  });
+
+  test("a hold that runs out puts the gift card's part back", async () => {
+    const t = await ready();
+    await book(t, { giftCard: CODE });
+    expect(t.db.store.get(cardPath()).balanceMinor).toBe(0);
+    t.clock.now = new Date(Date.parse("2026-11-16T13:11:00Z"));
+    expect(await t.desk.sweepHolds()).toEqual({ confirmed: 0, freed: 1 });
+    expect(t.db.store.get(cardPath()).balanceMinor).toBe(2500);
+  });
+
+  test("the owner's cancel puts it back unless they keep it", async () => {
+    const t = await ready({ balanceMinor: 10000 });
+    const r = await book(t, { giftCard: CODE });
+    expect((await t.adm({ op: "cancel", id: r.body.id, giftBack: false })).body).toEqual({ ok: true, refunded: false, refundMinor: 0 });
+    expect(t.db.store.get(cardPath()).balanceMinor).toBe(6000);
+    const r2 = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "14:00"), ...CUSTOMER, giftCard: CODE });
+    expect((await t.adm({ op: "cancel", id: r2.body.id })).body).toEqual({ ok: true, refunded: false, refundMinor: 0, giftBackMinor: 4000 });
+    expect(t.db.store.get(cardPath()).balanceMinor).toBe(6000);
+  });
+
+  test("wrong, used up, switched off, test-only or free-service gift cards are refused in plain words", async () => {
+    const t = await ready();
+    const tryIt = (giftCard, serviceId = "review") => t.pub({ action: "bookingGiftCard", serviceId, giftCard }).then((r) => r.body);
+    expect(await tryIt("nope")).toEqual({ error: "We couldn't find that gift card. Check the code and try again.", code: "gift" });
+    expect(await tryIt(CODE, "visit")).toEqual({ error: "A gift card can only pay for a booking that's paid when you book.", code: "gift" });
+    await t.db.collection("giftCards").doc(giftCardId(CODE)).set({ enabled: false }, { merge: true });
+    expect((await tryIt(CODE)).error).toBe("This gift card can't be used. Please contact us.");
+    await t.db.collection("giftCards").doc(giftCardId(CODE)).set({ enabled: true, balanceMinor: 0 }, { merge: true });
+    expect((await tryIt(CODE)).error).toBe("This gift card has no balance left.");
+    expect((await book(t, { giftCard: CODE })).statusCode).toBe(400);
+  });
+});

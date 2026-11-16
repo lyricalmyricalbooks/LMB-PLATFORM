@@ -41,6 +41,10 @@ describe("the list", () => {
     expect(paymentText(b({ payment: "card", status: "held", priceMinor: 4000 }))).toBe("Paying now");
     expect(paymentText(b({ payment: "atShop", priceMinor: 2500 }))).toMatch(/25\.00 to pay at the shop$/);
     expect(paymentText(b({ payment: "card", paid: true, priceMinor: 4000, refund: { amountMinor: 4000, at: "x" } }))).toMatch(/^Refunded/);
+    const gift = { id: "g", last4: "NP23", amountMinor: 2500 };
+    expect(paymentText(b({ payment: "card", paid: true, priceMinor: 4000, giftCard: gift }))).toMatch(/40\.00 by card and gift card$/);
+    expect(paymentText(b({ payment: "card", paid: true, priceMinor: 2500, giftCard: gift }))).toMatch(/25\.00 by gift card$/);
+    expect(paymentText(b({ payment: "deposit", depositPaid: true, priceMinor: 10000, depositMinor: 2500, giftCard: gift }))).toMatch(/deposit paid by gift card, .*75\.00 to pay at the shop$/);
   });
   it("adds up the week", () => {
     expect(weekFigures([b({}), b({ minutes: 30, payment: "card", paid: true, priceMinor: 4000 }), b({ status: "cancelled" })])).toEqual({ count: 2, hours: 1.5, takenMinor: 4000 });
