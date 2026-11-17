@@ -14,12 +14,15 @@
 //
 // Public actions (through validateDiscountCode, rate limited): eventsInfo, eventStart, eventView. Owner ops go through
 // createStripeCheckoutSession `action: "eventsAdmin"`. `sweep()` (inside bookingSweep, every 5 minutes) confirms a paid
-// hold nobody came back to and frees an unpaid one. Refunds, moves and the door scanner are later phases (E2, E3).
+// hold nobody came back to and frees an unpaid one.
+//
+// At the door (E2): owner op `checkIn` marks one ticket used by its code (`usedAt` on the ticket inside its order, and
+// `arrived` on the event's places record, in one transaction), so a code gets one person in. Refunds and moves are E3.
 "use strict";
 
 const crypto = require("crypto");
 const {
-  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, withHold, withSold, withoutHold, ticketCodeFrom, eventWhen,
+  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, withHold, withSold, withoutHold, ticketCodeFrom, cleanTicketCode, eventWhen,
   TICKET_MESSAGES, MAX_EVENTS,
 } = require("./shared/eventTickets");
 const { waysOn } = require("./shared/waysToSell");
@@ -93,7 +96,8 @@ function publicOrder(id, o, event) {
     name: o.customer?.name || "", lines: o.lines || [], totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
     holdUntil: o.status === "held" ? o.holdUntil || null : null,
     // The codes and the online link only once the order is paid, and never for an event the shop called off.
-    tickets: paid ? o.tickets || [] : [],
+    // Each ticket's code and whether the door has used it; never who checked it in.
+    tickets: paid ? (o.tickets || []).map((t) => ({ code: t.code, ticketId: t.ticketId, name: t.name, used: !!t.usedAt })) : [],
     onlineUrl: paid && event && event.status !== "cancelled" ? event.onlineUrl || "" : "",
     eventCancelled: event?.status === "cancelled",
   };
@@ -122,17 +126,22 @@ function eventActions({
     return waysOn(features?.exists ? features.data() : null, start?.exists ? start.data() : null).includes("events");
   }
   /** Still to come for the website: on sale and not over (one with no end shows until a few hours after it starts). */
-  const comingLive = (list, nowMs) => list.filter((e) => e.status === "live" && (Date.parse(e.end || "") || Date.parse(e.start) + 4 * 60 * MINUTE) > nowMs);
+  const endMs = (e) => Date.parse(e.end || "") || Date.parse(e.start) + 4 * 60 * MINUTE;
+  const comingLive = (list, nowMs) => list.filter((e) => e.status === "live" && endMs(e) > nowMs);
   // The website shows its Events links from `settings/website.eventsLive`, which the pages already read. It is kept
   // in step here: after an event is saved or deleted, and when the owner flips the switch (admin op `hint`). Only a
   // hint for showing a link: every public action above still checks the real switches. A shop with no website
   // settings yet is left alone (a record holding only this would stand in for the starting design).
   async function tellWebsite() {
     try {
-      const live = (await featureOn()) && comingLive(await readEvents(), now().getTime()).length > 0;
+      const coming = (await featureOn()) ? comingLive(await readEvents(), now().getTime()) : [];
+      const live = coming.length > 0;
+      // When the last of them is over, so the pages take the link down by themselves with no scheduled job.
+      const until = live ? new Date(Math.max(...coming.map(endMs))).toISOString() : null;
       const ref = db.collection("settings").doc("website");
       const snap = await ref.get();
-      if (snap.exists && (snap.data()?.eventsLive === true) !== live) await ref.set({ eventsLive: live }, { merge: true });
+      const had = snap.exists ? snap.data() : null;
+      if (had && ((had.eventsLive === true) !== live || (had.eventsLiveUntil || null) !== until)) await ref.set({ eventsLive: live, eventsLiveUntil: until }, { merge: true });
       return live;
     } catch (err) {
       console.warn("events: the website link wasn't updated:", err?.message || err);
@@ -158,7 +167,7 @@ function eventActions({
   }
   const readPlaces = async (eventId) => { const snap = await placesRef(eventId).get(); return snap.exists ? snap.data() : null; };
   // The places record as written: the counts from the shared rules, the money taken so far, and when.
-  const placesDoc = (before, next, extra = {}) => ({ sold: next.sold || {}, held: next.held || {}, paidMinor: before?.paidMinor || 0, orders: before?.orders || 0, ...extra, updatedAt: now().toISOString() });
+  const placesDoc = (before, next, extra = {}) => ({ sold: next.sold || {}, held: next.held || {}, paidMinor: before?.paidMinor || 0, orders: before?.orders || 0, arrived: before?.arrived || 0, ...extra, updatedAt: now().toISOString() });
   const newTickets = (lines) => lines.flatMap((l) => Array.from({ length: l.qty }, () => ({ code: randomCode(), ticketId: l.ticketId, name: l.name })));
   const keyFits = (o, key) => KEY.test(String(key || "")) && (o.keyHashes || []).some((h) => sameHash(h, hash(key)));
   const orderUrl = (id, key) => siteLink(`/events?order=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
@@ -395,11 +404,12 @@ function eventActions({
   function adminEvent(event, places, nowMs) {
     const sold = soldCount(event, places);
     const left = placesLeft(event, places, nowMs);
-    return { ...event, sold: sold.byKind, soldTotal: sold.total, placesTotal: sold.places, left, paidMinor: places?.paidMinor || 0, orders: places?.orders || 0 };
+    return { ...event, sold: sold.byKind, soldTotal: sold.total, placesTotal: sold.places, left, paidMinor: places?.paidMinor || 0, orders: places?.orders || 0, arrived: Math.max(0, places?.arrived || 0) };
   }
   const adminOrder = (id, o) => ({
     id, status: o.status, eventId: o.eventId, name: o.customer?.name || "", email: o.customer?.email || "", lines: o.lines || [], ticketCount: o.ticketCount || 0,
-    totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency, tickets: o.tickets || [],
+    totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
+    tickets: (o.tickets || []).map((t) => ({ code: t.code, ticketId: t.ticketId, name: t.name, usedAt: t.usedAt || "" })),
     createdAt: o.createdAt || "", paidAt: o.paidAt || "", test: o.mode === "test",
   });
 
@@ -467,6 +477,49 @@ function eventActions({
         const sent = await tellTickets(id, snap.data(), key, { toOwner: false });
         if (!sent) return fail(res, 502, "The email didn't go out. Check Settings › Notifications and try again.");
         return res.status(200).json({ ok: true });
+      }
+      if (op === "checkIn") {
+        // At the door: one ticket by its code (typed, or scanned from the buyer's page). `value: false` takes it back.
+        const code = cleanTicketCode(req.body?.code);
+        if (!code) return fail(res, 400, "A ticket code is eight letters and numbers, like K7QM-2XPA.", "bad_code");
+        const found = await orders().where("ticketCodes", "array-contains", code).limit(5).get();
+        const doc = found.docs.find((d) => d.data()?.status === "paid");
+        if (!doc) return fail(res, 404, "No ticket has that code. Check the letters and try again.", "unknown_code");
+        const seen = doc.data();
+        const eventId = String(req.body?.eventId || "");
+        if (ID.test(eventId) && seen.eventId !== eventId) return fail(res, 409, `That ticket is for "${seen.eventTitle}", not this event.`, "wrong_event");
+        const event = await readEvent(seen.eventId);
+        if (event?.status === "cancelled") return fail(res, 409, "This event was cancelled, so its tickets can't be used.", "cancelled");
+        const undo = req.body?.value === false;
+        const at = now().toISOString();
+        const done = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(orders().doc(doc.id));
+          const o = fresh.exists ? fresh.data() : null;
+          const index = o?.status === "paid" ? (o.tickets || []).findIndex((t) => t.code === code) : -1;
+          if (index < 0) return null;
+          const ticket = o.tickets[index];
+          const was = ticket.usedAt || "";
+          if (undo ? !was : !!was) return { o, index, ticket, already: !undo, changed: false };
+          const { usedAt: _at, usedBy: _by, ...plain } = ticket;
+          const next = undo ? plain : { ...plain, usedAt: at, usedBy: by };
+          const tickets = o.tickets.map((t, i) => (i === index ? next : t));
+          const pSnap = await tx.get(placesRef(o.eventId));
+          const before = pSnap.exists ? pSnap.data() : null;
+          tx.set(placesRef(o.eventId), { arrived: Math.max(0, (before?.arrived || 0) + (undo ? -1 : 1)), updatedAt: at }, { merge: true });
+          tx.set(orders().doc(doc.id), { tickets, updatedAt: at }, { merge: true });
+          return { o: { ...o, tickets }, index, ticket: next, already: false, changed: true };
+        });
+        if (!done) return fail(res, 404, "No ticket has that code. Check the letters and try again.", "unknown_code");
+        const places = await readPlaces(done.o.eventId);
+        return res.status(200).json({
+          ok: true, already: done.already,
+          ticket: {
+            code, kind: done.ticket.name, usedAt: done.ticket.usedAt || "", orderId: doc.id, eventId: done.o.eventId, eventTitle: done.o.eventTitle,
+            name: done.o.customer?.name || "", number: done.index + 1, of: done.o.tickets.length,
+            arrivedOfOrder: done.o.tickets.filter((t) => t.usedAt).length,
+          },
+          arrived: Math.max(0, places?.arrived || 0),
+        });
       }
       return fail(res, 400, "Unknown request.");
     } catch (err) {

@@ -636,6 +636,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "eventsYourTickets", label: "Ticket codes (read aloud)", default: "Your tickets" },
       { key: "eventsTicketNumber", label: "Label on each ticket", default: "Ticket {number} of {total}", hint: "Use {number} and {total}." },
       { key: "eventsShowCode", label: "Under the ticket codes", default: "Show a code at the door. Each one is good for one person." },
+      { key: "eventsCodeQr", label: "Ticket QR code (read aloud)", default: "QR code for this ticket" },
+      { key: "eventsTicketUsed", label: "On a ticket already used at the door", default: "Checked in" },
       { key: "eventsOnlineRow", label: "Online", default: "Online" },
       { key: "eventsJoinOnline", label: "Join online link", default: "Join online" },
       { key: "eventsAddCalendar", label: "Add to calendar button", default: "Add to calendar" },

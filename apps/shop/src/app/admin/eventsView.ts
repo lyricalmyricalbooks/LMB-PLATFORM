@@ -136,6 +136,24 @@ export function soldLine(event: Pick<AdminEvent, "soldTotal" | "placesTotal">): 
 /** The guest list as spreadsheet rows, one per ticket, by name. Cells that could run as a formula are made plain. */
 export function guestCsv(orders: TicketOrder[]): string {
   const safe = (value: string) => { const v = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value; return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const rows = orders.flatMap((o) => o.tickets.map((t) => [o.name, o.email, t.name, t.code])).sort((a, b) => a[0].localeCompare(b[0]) || a[3].localeCompare(b[3]));
-  return [["Name", "Email", "Ticket", "Code"], ...rows].map((r) => r.map(safe).join(",")).join("\n");
+  const rows = orders.flatMap((o) => o.tickets.map((t) => [o.name, o.email, t.name, t.code, t.usedAt ? "Yes" : ""])).sort((a, b) => a[0].localeCompare(b[0]) || a[3].localeCompare(b[3]));
+  return [["Name", "Email", "Ticket", "Code", "Arrived"], ...rows].map((r) => r.map(safe).join(",")).join("\n");
 }
+
+/** How many of an event's tickets have been checked in, from its guest list. */
+export const arrivedCount = (orders: TicketOrder[]): number => orders.reduce((sum, o) => sum + o.tickets.filter((t) => t.usedAt).length, 0);
+
+/** The guest list narrowed to what the door typed: part of a name, an email or a code (spaces, dashes and case don't matter). */
+export function findGuests(orders: TicketOrder[], typed: string): TicketOrder[] {
+  const words = typed.trim().toLowerCase();
+  if (!words) return orders;
+  const plain = words.replace(/[^a-z0-9]/g, "");
+  return orders.filter((o) => o.name.toLowerCase().includes(words) || o.email.toLowerCase().includes(words)
+    || (plain.length >= 3 && o.tickets.some((t) => t.code.toLowerCase().replace(/[^a-z0-9]/g, "").includes(plain))));
+}
+
+/** The guest list after the door's answer for one ticket: that ticket marked used, or not, with nothing read again. */
+export function withTicketUsed(orders: TicketOrder[], code: string, usedAt: string): TicketOrder[] {
+  return orders.map((o) => (o.tickets.some((t) => t.code === code) ? { ...o, tickets: o.tickets.map((t) => (t.code === code ? { ...t, usedAt } : t)) } : o));
+}
+

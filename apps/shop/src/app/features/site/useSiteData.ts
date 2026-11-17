@@ -288,7 +288,8 @@ export function useSiteData() {
   useEffect(() => { setBookingsLive(bookingsLive); }, [bookingsLive]);
   // The same for "Events" while the shop has events coming up (eventsLive.ts).
   const eventsLive = (settings as any)?.eventsLive === true;
-  useEffect(() => { setEventsLive(eventsLive); }, [eventsLive]);
+  const eventsLiveUntil = (settings as any)?.eventsLiveUntil;
+  useEffect(() => { setEventsLive(eventsLive, eventsLiveUntil); }, [eventsLive, eventsLiveUntil]);
   // The phone menu's social icons (shopSocial.ts), in the owner's order.
   useEffect(() => { setShopSocial(settings); }, [settings]);
   return { books: sellableBooks, settings: { ...started, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };

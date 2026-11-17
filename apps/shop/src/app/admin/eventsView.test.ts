@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { blankForm, eventFigures, eventFromForm, eventState, formFromEvent, guestCsv, priceMinorOf, soldLine, splitEvents, whenParts } from "./eventsView";
+import { arrivedCount, blankForm, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, withTicketUsed, priceMinorOf, soldLine, splitEvents, whenParts } from "./eventsView";
 import type { AdminEvent, TicketOrder } from "./eventsApi";
 
 const ZONE = "America/Toronto";
@@ -74,7 +74,16 @@ describe("the list", () => {
       currency: "CAD", tickets: codes.map((code) => ({ code, ticketId: "gen", name: "General" })), createdAt: "", paidAt: "", test: false,
     });
     expect(guestCsv([order("Bo", ["BBBB-2222"]), order("=Ada", ["AAAA-2222", "AAAA-3333"])]).split("\n")).toEqual([
-      "Name,Email,Ticket,Code", "'=Ada,=ada@example.com,General,AAAA-2222".replace(",=ada", ",'=ada"), "'=Ada,'=ada@example.com,General,AAAA-3333", "Bo,bo@example.com,General,BBBB-2222",
+      "Name,Email,Ticket,Code,Arrived", "'=Ada,=ada@example.com,General,AAAA-2222,".replace(",=ada", ",'=ada"), "'=Ada,'=ada@example.com,General,AAAA-3333,", "Bo,bo@example.com,General,BBBB-2222,",
     ]);
+    const list = withTicketUsed([order("Bo", ["BBBB-2222"]), order("Ada", ["AAAA-2222", "AAAA-3333"])], "AAAA-3333", "2026-12-05T23:50:00.000Z");
+    expect(arrivedCount(list)).toBe(1);
+    expect(guestCsv(list).split("\n")[2]).toBe("Ada,ada@example.com,General,AAAA-3333,Yes");
+    expect(arrivedCount(withTicketUsed(list, "AAAA-3333", ""))).toBe(0);
+    expect(findGuests(list, " ad").map((o) => o.name)).toEqual(["Ada"]);
+    expect(findGuests(list, "bbbb 22").map((o) => o.name)).toEqual(["Bo"]);
+    expect(findGuests(list, "bo@example").map((o) => o.name)).toEqual(["Bo"]);
+    expect(findGuests(list, "")).toHaveLength(2);
+    expect(findGuests(list, "zed")).toEqual([]);
   });
 });

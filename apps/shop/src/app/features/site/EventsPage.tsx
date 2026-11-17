@@ -398,9 +398,13 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
           <>
             <ul {...regionProps("eventsCodes")} className="fm-evt-codes" aria-label={c("eventsYourTickets")}>
               {order.tickets.map((t, i) => (
-                <li key={t.code} className="fm-evt-code">
-                  <span className="fm-track-mono">{c("eventsTicketNumber", { number: i + 1, total: order.tickets.length })} · {t.name}</span>
-                  <strong translate="no">{codeText(t.code)}</strong>
+                <li key={t.code} className="fm-evt-code" data-used={t.used ? "true" : undefined}>
+                  <TicketQr code={t.code} alt={c("eventsCodeQr")} />
+                  <div className="fm-evt-code-words">
+                    <span className="fm-track-mono">{c("eventsTicketNumber", { number: i + 1, total: order.tickets.length })} · {t.name}</span>
+                    <strong translate="no">{codeText(t.code)}</strong>
+                    {t.used && <span className="fm-evt-code-used fm-track-mono">{c("eventsTicketUsed")}</span>}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -420,4 +424,20 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
       )}
     </div>
   );
+}
+
+/** A ticket's code as a QR picture the door scans (the letters beside it always work too). */
+function TicketQr({ code, alt }: { code: string; alt: string }) {
+  const [picture, setPicture] = useState("");
+  useEffect(() => {
+    let live = true;
+    void import("qrcode-generator").then(({ default: qrcode }) => {
+      const qr = qrcode(0, "M");
+      qr.addData(code);
+      qr.make();
+      if (live) setPicture(qr.createDataURL(6, 3));
+    }).catch(() => { /* the letters still work */ });
+    return () => { live = false; };
+  }, [code]);
+  return picture ? <img className="fm-evt-code-qr" src={picture} alt={alt} width={96} height={96} /> : <span className="fm-evt-code-qr" aria-hidden="true" />;
 }

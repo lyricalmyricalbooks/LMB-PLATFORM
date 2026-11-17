@@ -903,6 +903,10 @@ menu and tabs a link (`eventsNavLink`), and the footer a link (`footer-events`, 
 offers Events. Words: Text & labels › **Events page** (`events*`, French twins in `frenchCopy.ts`). The Studio fixture
 takes `?events=1` to show the links; `scripts/studio-e2e.mjs` clicks the page through.
 
+**Tickets to scan (E2):** the buyer's page draws a QR picture per ticket (`TicketQr`, `qrcode-generator` loaded on
+demand; words `eventsCodeQr`, `eventsTicketUsed`) and greys a ticket the door has used. The Events link follows
+`eventsLive` and `eventsLiveUntil` (`setEventsLive(on, until)`): it comes down when the last event ends, on an open page too.
+
 ## Pickup times at checkout (17 November 2026)
 
 When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),

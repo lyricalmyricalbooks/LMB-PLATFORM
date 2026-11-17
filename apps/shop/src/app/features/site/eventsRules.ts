@@ -12,7 +12,7 @@ export type EventOrderView = {
   id: string; status: "held" | "paid" | "cancelled"; eventId: string; title: string; start: string; end: string; venue: string; address: string; name: string;
   lines: { ticketId: string; name: string; qty: number; priceMinor: number }[];
   totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; holdUntil: string | null;
-  tickets: { code: string; ticketId: string; name: string }[]; onlineUrl: string; eventCancelled: boolean;
+  tickets: { code: string; ticketId: string; name: string; used?: boolean }[]; onlineUrl: string; eventCancelled: boolean;
 };
 
 /** The buyer's own link (`/events?order=<id>&key=<key>`), or null when it is missing or misshapen. */

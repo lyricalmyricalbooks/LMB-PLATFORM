@@ -35,6 +35,23 @@
 .rp .evt-photo-hint { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
 
 /* Who's coming */
+.rp .evt-door { display: grid; gap: 14px; margin: 0 0 20px; padding: 18px; border: 1px solid var(--rp-border); border-radius: 20px; background: var(--rp-surface-2); }
+.rp .evt-door-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+.rp .evt-door-count strong { font: 600 40px/1 var(--rp-font-body); letter-spacing: -0.03em; }
+.rp .evt-door-count span { font: 500 11px/1.3 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .evt-door-count .evt-bar { flex: 1 1 100%; }
+.rp .evt-door-form { display: grid; gap: 12px; }
+.rp .evt-door-input { font: 500 22px/1.2 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; }
+.rp .evt-door-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rp .evt-arrival { display: grid; gap: 4px; padding: 18px; border-radius: 18px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .evt-arrival[data-state="already"], .rp .evt-arrival[data-state="refused"] { background: var(--rp-tile-apricot); }
+.rp .evt-arrival-name { margin: 0; font: 600 22px/1.2 var(--rp-font-display, inherit); }
+.rp .evt-arrival-what { margin: 0; font: 500 12px/1.5 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.rp .evt-arrival-say { margin: 6px 0 0; font-weight: 600; }
+.rp .evt-guest-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 12px; }
+.rp .evt-guest-tools .evt-guest-count { margin: 0; }
+.rp .evt-guest-tools > :last-child:not(.evt-guest-count) { flex: 1 1 240px; max-width: 320px; }
+.rp .evt-guest-none { margin: 0 0 12px; font-size: 14px; color: var(--rp-text-muted); }
 .rp .evt-guest-count { margin: 0 0 12px; font: 500 11px/1.3 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-muted); }
 .rp .evt-guests { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .rp .evt-guest { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--rp-border); border-radius: 16px; }
@@ -44,7 +61,9 @@
 .rp .evt-guest-mail { flex-basis: 100%; font-size: 13px; color: var(--rp-text-muted); overflow-wrap: anywhere; }
 .rp .evt-guest-paid { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rp .evt-codes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.rp .evt-codes li { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.rp .evt-codes li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(150px, auto); align-items: center; gap: 12px; min-height: 36px; font-size: 14px; }
+.rp .evt-codes li[data-used="true"] > span:first-child, .rp .evt-codes li[data-used="true"] > code { color: var(--rp-text-muted); }
+.rp .evt-code-state { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .rp .evt-codes code { font: 500 13px/1.4 var(--rp-font-mono); letter-spacing: 0.06em; }
 
 @media (max-width: 760px) {
@@ -57,5 +76,8 @@
   .rp .evt-ticket > :first-child { grid-column: 1 / -1; }
   .rp .evt-ticket > .rp-icon-btn { margin-top: 0; justify-self: end; }
   .rp .evt-ticket-gap { display: none; }
+  .rp .evt-codes { gap: 12px; }
+  .rp .evt-codes li { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .rp .evt-code-state { grid-column: 1 / -1; justify-content: flex-start; }
 }
 @media (max-width: 767px) { .rp .evt-bento > :first-child { grid-column: 1 / -1; } }

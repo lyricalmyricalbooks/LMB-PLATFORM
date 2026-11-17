@@ -19,10 +19,10 @@ function fakeDb() {
   });
   const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`)).map((k) => snapOf(c, k.slice(c.length + 1)));
   const query = (c, filters = [], n = 1000) => ({
-    where: (f, _op, v) => query(c, [...filters, [f, v]], n),
+    where: (f, op, v) => query(c, [...filters, [f, v, op]], n),
     limit: (m) => query(c, filters, m),
     async get() {
-      const docs = list(c).filter((d) => filters.every(([f, v]) => d.data()[f] === v)).slice(0, n);
+      const docs = list(c).filter((d) => filters.every(([f, v, op]) => (op === "array-contains" ? (d.data()[f] || []).includes(v) : d.data()[f] === v))).slice(0, n);
       return { docs, empty: docs.length === 0 };
     },
   });
@@ -94,7 +94,7 @@ function setup({ platform = true, owner = true, checkout = "card", now = "2026-1
     now: () => clock.now,
     randomId: () => `order${String(++n).padStart(4, "0")}`,
     randomKey: () => String(n).padStart(48, "a"),
-    randomCode: () => `TICK-${String(++codes).padStart(4, "2")}`,
+    randomCode: () => `TCKT-222${"ABCDEFGH"[codes++]}`,
   });
   const seed = async (event = EVENT) => {
     await db.collection("platform").doc("features").set({ ways: { events: platform } });
@@ -163,13 +163,13 @@ describe("buying tickets", () => {
     t.pay();
     const view = await t.pub({ action: "eventView", orderId: "order0001", key });
     expect(view.body.order).toMatchObject({ status: "paid", chargedMinor: 3000, onlineUrl: "https://meet.example/launch" });
-    expect(view.body.order.tickets.map((x) => x.code)).toEqual(["TICK-2221", "TICK-2222"]);
+    expect(view.body.order.tickets.map((x) => x.code)).toEqual(["TCKT-222A", "TCKT-222B"]);
     expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 2 }, held: {}, paidMinor: 3000, orders: 1 });
     // One email to the buyer with both codes, one to the owner; looking again sends nothing more.
     expect(t.emails.map((m) => m.to)).toEqual(["ada@example.com", "owner@example.com"]);
     expect(t.emails[0].subject).toBe("Your tickets: Autumn launch");
-    expect(t.emails[0].html).toContain("TICK-2221");
-    expect(t.emails[0].html).toContain("TICK-2222");
+    expect(t.emails[0].html).toContain("TCKT-222A");
+    expect(t.emails[0].html).toContain("TCKT-222B");
     expect(t.emails[0].html).toContain("meet.example/launch");
     await t.pub({ action: "eventView", orderId: "order0001", key });
     await t.desk.sweep();
@@ -213,7 +213,7 @@ describe("buying tickets", () => {
     t.clock.now = new Date("2026-11-17T13:12:00Z");
     expect(await t.desk.sweep()).toEqual({ confirmed: 1, freed: 0 });
     expect((await t.doc("eventOrders", "order0001")).status).toBe("paid");
-    expect(t.emails[0].html).toContain("TICK-2221");
+    expect(t.emails[0].html).toContain("TCKT-222A");
   });
 
   test("a page paid for another amount is never believed", async () => {
@@ -281,9 +281,9 @@ describe("the website's Events link", () => {
     expect(t.db.store.has("settings/website")).toBe(false);
     await t.db.collection("settings").doc("website").set({ design: { a: 1 } });
     expect((await t.adm({ op: "hint" })).body).toEqual({ ok: true, eventsLive: true });
-    expect(await t.doc("settings", "website")).toEqual({ design: { a: 1 }, eventsLive: true });
+    expect(await t.doc("settings", "website")).toEqual({ design: { a: 1 }, eventsLive: true, eventsLiveUntil: "2026-12-06T03:00:00.000Z" });
     await t.adm({ op: "deleteEvent", id: made.body.event.id });
-    expect((await t.doc("settings", "website")).eventsLive).toBe(false);
+    expect(await t.doc("settings", "website")).toEqual({ design: { a: 1 }, eventsLive: false, eventsLiveUntil: null });
   });
   test("goes off when the owner switches Events off, and a past or draft event never turns it on", async () => {
     const t = setup({ owner: false });
@@ -349,5 +349,64 @@ describe("the owner", () => {
     expect((await t.doc("eventOrders", "order0001")).keyHashes).toHaveLength(2);
     expect((await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") })).statusCode).toBe(200);
     expect((await t.adm({ op: "resendTickets", orderId: "nothere12" })).statusCode).toBe(404);
+  });
+});
+
+describe("at the door", () => {
+  const two = async (t) => {
+    await t.seed();
+    await t.pub({ action: "eventStart", eventId: "launch01", tickets: { free: 2 }, ...BUYER });
+  };
+  test("a code gets one person in: the second scan says it was used, and undo frees it", async () => {
+    const t = setup();
+    await two(t);
+    const first = await t.adm({ op: "checkIn", eventId: "launch01", code: "tckt 222a" });
+    expect(first.body).toMatchObject({ ok: true, already: false, arrived: 1, ticket: { code: "TCKT-222A", kind: "Friend of the press", name: "Ada Reader", number: 1, of: 2, arrivedOfOrder: 1, eventTitle: "Autumn launch" } });
+    expect(first.body.ticket.usedAt).toBe("2026-11-17T13:00:00.000Z");
+    const again = await t.adm({ op: "checkIn", eventId: "launch01", code: "TCKT-222A" });
+    expect(again.body).toMatchObject({ ok: true, already: true, arrived: 1 });
+    expect((await t.adm({ op: "checkIn", code: "TCKT-222B" })).body.arrived).toBe(2);
+    const list = (await t.adm({ op: "list" })).body.events[0];
+    expect(list.arrived).toBe(2);
+    expect((await t.adm({ op: "orders", eventId: "launch01" })).body.orders[0].tickets.map((x) => !!x.usedAt)).toEqual([true, true]);
+    const undone = await t.adm({ op: "checkIn", code: "TCKT-222A", value: false });
+    expect(undone.body).toMatchObject({ ok: true, already: false, arrived: 1, ticket: { usedAt: "" } });
+    expect((await t.adm({ op: "checkIn", code: "TCKT-222A", value: false })).body.arrived).toBe(1);
+    expect((await t.doc("eventOrders", "order0001")).tickets[0]).toEqual({ code: "TCKT-222A", ticketId: "free", name: "Friend of the press" });
+  });
+  test("two scans of one code at the same moment let one person in", async () => {
+    const t = setup();
+    await two(t);
+    const both = await Promise.all([t.adm({ op: "checkIn", code: "TCKT-222A" }), t.adm({ op: "checkIn", code: "TCKT-222A" })]);
+    expect(both.map((r) => r.body.already).sort()).toEqual([false, true]);
+    expect((await t.doc("eventPlaces", "launch01")).arrived).toBe(1);
+  });
+  test("the count survives a later sale, and the buyer's page shows a used ticket without saying who scanned it", async () => {
+    const t = setup();
+    await two(t);
+    await t.adm({ op: "checkIn", code: "TCKT-222A" });
+    await t.pub({ action: "eventStart", eventId: "launch01", tickets: { free: 1 }, name: "Bo", email: "bo@example.com" });
+    expect((await t.doc("eventPlaces", "launch01")).arrived).toBe(1);
+    const view = await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    expect(view.body.order.tickets).toEqual([
+      { code: "TCKT-222A", ticketId: "free", name: "Friend of the press", used: true },
+      { code: "TCKT-222B", ticketId: "free", name: "Friend of the press", used: false },
+    ]);
+    expect(JSON.stringify(view.body)).not.toContain("owner@example.com");
+  });
+  test("refuses what isn't a ticket for this door, in plain words", async () => {
+    const t = setup();
+    await two(t);
+    expect((await t.adm({ op: "checkIn", code: "nope" })).body.code).toBe("bad_code");
+    expect((await t.adm({ op: "checkIn", code: "ZZZZ-ZZZZ" })).statusCode).toBe(404);
+    const other = await t.adm({ op: "checkIn", eventId: "another01", code: "TCKT-222A" });
+    expect(other.statusCode).toBe(409);
+    expect(other.body).toMatchObject({ code: "wrong_event", error: 'That ticket is for "Autumn launch", not this event.' });
+    await t.db.collection("events").doc("launch01").set({ ...EVENT, status: "cancelled" });
+    expect((await t.adm({ op: "checkIn", code: "TCKT-222A" })).body.code).toBe("cancelled");
+    expect((await t.doc("eventPlaces", "launch01")).arrived || 0).toBe(0);
+    const out = setup({ admin: false });
+    await out.seed();
+    expect((await out.adm({ op: "checkIn", code: "TCKT-222A" })).statusCode).toBe(401);
   });
 });
