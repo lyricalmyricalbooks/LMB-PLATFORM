@@ -10,7 +10,7 @@ import { useShopWords } from "./shopWords";
 import { groupNameProblem, matchingGroup, removeGroup, saveGroup, type CustomerGroup, type GroupFilters } from "./customerGroups";
 import { customerGroupsStore } from "./customerGroupsStore";
 import {
-  buildCustomers, withMovedCustomers, withBookings, bookingsLine, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
+  buildCustomers, withMovedCustomers, withBookings, bookingsLine, clientCard, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
   type Consent, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
@@ -18,8 +18,13 @@ import {
   SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
 } from "./riso/components";
 import { MONEY_SIGN } from "./moneySign";
-import { readBookingsBetween, useBookingsOn, type Booking } from "./bookingsApi";
-import { paymentText, timeText } from "./bookingsView";
+import { bookingsAdmin, readBookingsBetween, useBookingsOn, type Booking, type PackRow } from "./bookingsApi";
+import { cardText, moneyText, paymentText, timeText } from "./bookingsView";
+import type { BookAgain } from "./Bookings";
+import { useShopSells } from "./shopWords";
+import { sellsServices } from "../../shared/shopSells";
+import { SHOP_CURRENCY } from "./moneySign";
+import "./clientCard.css";
 import { dayOf } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 
@@ -28,9 +33,11 @@ const TONE: Record<CustomerSegment, BadgeTone> = { vip: "primary", "vip-lapsed":
 const CONSENT_TONE: Record<Consent, BadgeTone> = { subscribed: "success", "opted-out": "danger", none: "neutral" };
 // Opened rarely, so it loads only when asked for (plan 3.1).
 const CustomerMoveDialog = lazy(() => import("./ShopMoveDialogs").then(m => ({ default: m.CustomerMoveDialog })));
+// Book again (services plan, phase 5): the New booking window from Bookings, loaded only when asked for.
+const BookAgainDialog = lazy(() => import("./Bookings").then(m => ({ default: m.BookAgainDialog })));
 const PAGE_SIZE = 25;
-type Note = { note: string; tags: string[] };
-type Draft = { note: string; tags: string; loaded: boolean };
+type Note = { note: string; tags: string[]; phone?: string };
+type Draft = { note: string; tags: string; phone: string; loaded: boolean };
 /** Sub tabs of one customer's window. Ids are prefixed: `Tabs` renders `id="rp-tab-<id>"` and the segment tabs use plain ids. */
 export type CustomerTab = "cust-summary" | "cust-orders" | "cust-bookings" | "cust-notes";
 const ZONE = shopTimeZone();
@@ -81,6 +88,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [notesState, setNotesState] = useState<"loading" | "ok" | "failed">("loading");
   const [savingNote, setSavingNote] = useState(false);
   const [ask, confirmNode] = useConfirm();
+  const w = useShopWords();
   // Saved groups: the filters below under a name (customerGroups.ts), kept on the shop's account.
   const [groups, setGroups] = useState<CustomerGroup[]>([]);
   const [naming, setNaming] = useState<string | null>(null);
@@ -88,14 +96,22 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   // Bookings (beta): who booked, read once when the shop has Bookings. A failed read just leaves them out.
   const bookingsOn = useBookingsOn(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  // Packs of visits (read through the server: no browser may read them), for the client card. A failed read leaves them out.
+  const [packs, setPacks] = useState<PackRow[]>([]);
+  const [bookingsRead, setBookingsRead] = useState(0);
   useEffect(() => {
     if (!bookingsOn) return;
     let alive = true;
     const now = Date.now();
     readBookingsBetween(new Date(now - BOOKINGS_BACK_DAYS * 86_400_000).toISOString(), new Date(now + BOOKINGS_AHEAD_DAYS * 86_400_000).toISOString())
       .then((rows) => { if (alive) setBookings(rows); }).catch(() => { if (alive) setBookings([]); });
+    bookingsAdmin<{ packs: PackRow[] }>("packs").then((a) => { if (alive) setPacks(a.packs || []); }).catch(() => { if (alive) setPacks([]); });
     return () => { alive = false; };
-  }, [bookingsOn]);
+  }, [bookingsOn, bookingsRead]);
+  const servicesShop = sellsServices(useShopSells());
+  // A services shop's own names for the people who only booked or were brought over.
+  const segLabel = (seg: CustomerSegment) => (servicesShop && seg === "booked" ? "Booked" : servicesShop && seg === "moved" ? "Brought over" : SEGMENT_LABELS[seg]);
+  const [bookAgain, setBookAgain] = useState<BookAgain | null>(null);
 
   useEffect(() => { if (initialQuery !== undefined) setQ(initialQuery); }, [initialQuery]);
 
@@ -114,7 +130,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const loadNotes = () => {
     setNotesState("loading");
     adminApi.listCustomerNotes()
-      .then((rows) => { setNoteRows(rows); setNotes(new Map(rows.map((r) => [r.id, { note: r.note || "", tags: r.tags || [] }]))); setNotesState("ok"); })
+      .then((rows) => { setNoteRows(rows); setNotes(new Map(rows.map((r) => [r.id, { note: r.note || "", tags: r.tags || [], phone: r.phone || "" }]))); setNotesState("ok"); })
       .catch((e) => { console.error(e); setNotesState("failed"); });
   };
 
@@ -198,32 +214,35 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     if (open?.key !== c.key) setDetailTab("cust-summary");
     setOpen(c);
     const n = noteFor(c);
-    setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), loaded: notesReadyFor(c) });
+    setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), phone: n?.phone || "", loaded: notesReadyFor(c) });
   };
   // Notes (or the customer's id) arrived after the panel opened: show the stored note before allowing a save.
   useEffect(() => {
     if (!open || !draft || draft.loaded || !notesReadyFor(open)) return;
     const n = noteFor(open);
-    setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), loaded: true });
+    setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), phone: n?.phone || "", loaded: true });
   }, [open, draft, notesState, hashes, notes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Closing with an unsaved note asks first, so typed notes are never dropped by accident.
   const noteChanged = () => {
     if (!open || !draft || !draft.loaded) return false;
     const n = noteFor(open);
-    return draft.note !== (n?.note || "") || parseTags(draft.tags).join(",") !== (n?.tags || []).join(",");
+    return draft.note !== (n?.note || "") || parseTags(draft.tags).join(",") !== (n?.tags || []).join(",") || draft.phone.trim() !== (n?.phone || "");
   };
   const closeCustomer = async () => {
-    if (noteChanged() && !(await ask({ title: "Discard your note changes?", message: "The private note or tags for this customer have changes that aren't saved.", confirmLabel: "Discard changes" }))) return;
+    if (noteChanged() && !(await ask({ title: "Discard your note changes?", message: w("The private note or tags for this customer have changes that aren't saved."), confirmLabel: "Discard changes" }))) return false;
     setOpen(null);
+    return true;
   };
+  // Book again: the client window closes (asking first about an unsaved note) and the New booking window opens filled in.
+  const startBookAgain = async (again: BookAgain) => { if (await closeCustomer()) setBookAgain(again); };
   const saveNote = async () => {
     if (!open || !draft || !draft.loaded) return;
     const id = hashes.get(open.key) || await emailHash(open.key);
-    const data = { email: open.key, note: draft.note.slice(0, 5000), tags: parseTags(draft.tags) };
+    const data = { email: open.key, note: draft.note.slice(0, 5000), tags: parseTags(draft.tags), phone: draft.phone.trim().slice(0, 40) };
     setSavingNote(true);
     try {
       await adminApi.saveCustomerNote(id, data);
-      setNotes((m) => new Map(m).set(id, { note: data.note, tags: data.tags }));
+      setNotes((m) => new Map(m).set(id, { note: data.note, tags: data.tags, phone: data.phone }));
       toast.success("Note saved");
     } catch (e) { console.error(e); toast.error("Couldn't save the note — nothing was changed."); }
     finally { setSavingNote(false); }
@@ -237,7 +256,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
         {(noteFor(c)?.tags || []).length > 0 && <div className="rp-hint rp-mono">{noteFor(c)!.tags.join(" · ")}</div>}
       </div>
     ) },
-    { key: "segment", header: "Segment", render: (c) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={TONE[c.segment]}>{SEGMENT_LABELS[c.segment]}</StatusBadge></span> },
+    { key: "segment", header: "Segment", render: (c) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={TONE[c.segment]}>{segLabel(c.segment)}</StatusBadge></span> },
     { key: "consent", header: "Marketing", render: (c) => consent ? <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={CONSENT_TONE[consentFor(c)]}>{CONSENT_LABELS[consentFor(c)]}</StatusBadge></span> : "—" },
     { key: "location", header: "Location", render: (c) => [c.city, c.country].filter(Boolean).join(", ") || "—" },
     { key: "orders", header: "Orders", numeric: true, render: (c) => c.orderCount },
@@ -254,7 +273,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
       {/* Bringing customers over and exporting them are page actions, so they sit by the title, not among the filters. */}
       <PageActions>
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
-        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>Bring customers over</SecondaryButton>
+        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>{w("Bring customers over")}</SecondaryButton>
       </PageActions>
       <div className="rp-kpi-grid">
         <MetricCard label="Customers" value={stats.total} footer="With at least one paid order" />
@@ -271,8 +290,8 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           { id: "returning", label: "Returning", count: counts.returning },
           { id: "new", label: "New", count: counts.new },
           { id: "at-risk", label: "At risk", count: counts["at-risk"] },
-          ...(counts.moved ? [{ id: "moved", label: "Not ordered here yet", count: counts.moved }] : []),
-          ...(counts.booked ? [{ id: "booked", label: "Booked, no order yet", count: counts.booked }] : []),
+          ...(counts.moved ? [{ id: "moved", label: segLabel("moved"), count: counts.moved }] : []),
+          ...(counts.booked ? [{ id: "booked", label: segLabel("booked"), count: counts.booked }] : []),
         ]} />
       <FilterBar>
         {groups.length > 0 && (
@@ -319,7 +338,8 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           </form>
         </Dialog>
       )}
-      {moveOpen && <Suspense fallback={null}><CustomerMoveDialog onClose={() => setMoveOpen(false)} onDone={() => { loadNotes(); adminApi.getMarketingConsent().then(setConsent).catch(() => {}); }} /></Suspense>}
+      {bookAgain && <Suspense fallback={null}><BookAgainDialog initial={bookAgain} onClose={() => setBookAgain(null)} onBooked={() => setBookingsRead((n) => n + 1)} /></Suspense>}
+      {moveOpen && <Suspense fallback={null}><CustomerMoveDialog services={servicesShop} onClose={() => setMoveOpen(false)} onDone={() => { loadNotes(); adminApi.getMarketingConsent().then(setConsent).catch(() => {}); }} /></Suspense>}
       <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off${counts.moved ? ", plus the customers you brought over who haven't ordered here yet" : ""}${counts.booked ? `${counts.moved ? " and" : ", plus"} people who booked a time` : ""}.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0
@@ -337,9 +357,10 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
       </Dialog>
 
       {open && (
-        <Dialog open size="lg" title={open.name || open.email} description={`${open.email} · ${SEGMENT_LABELS[open.segment]} · Marketing: ${CONSENT_LABELS[consentFor(open)]}`} onClose={() => { void closeCustomer(); }}>
+        <Dialog open size="lg" title={open.name || open.email} description={`${open.email} · ${segLabel(open.segment)} · Marketing: ${CONSENT_LABELS[consentFor(open)]}`} onClose={() => { void closeCustomer(); }}>
           <CustomerDetail customer={open} tab={detailTab} onTab={setDetailTab} draft={draft} onDraft={setDraft}
-            notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} knownTags={allTags} onOpenOrder={() => setOpen(null)} showBookings={bookingsOn} />
+            notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} knownTags={allTags} onOpenOrder={() => setOpen(null)} showBookings={bookingsOn}
+            packs={packs} services={servicesShop} onBookAgain={(again) => { void startBookAgain(again); }} />
         </Dialog>
       )}
       <NewsletterCard />
@@ -349,15 +370,23 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   );
 }
 
-/** One customer's window: Summary · Orders · Notes & tags. */
-export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesState, onRetryNotes, savingNote, onSaveNote, knownTags = [], onOpenOrder, showBookings = false }: {
+/** One customer's window: Summary (with the client card when they booked) · Orders · Bookings · Notes & tags. */
+export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesState, onRetryNotes, savingNote, onSaveNote, knownTags = [], onOpenOrder, showBookings = false, packs = [], services = false, onBookAgain }: {
   customer: CustomerRow; tab: CustomerTab; onTab: (t: CustomerTab) => void;
   draft: Draft | null; onDraft: (d: Draft) => void; notesState: "loading" | "ok" | "failed"; onRetryNotes: () => void;
   savingNote: boolean; onSaveNote: () => void; knownTags?: string[]; onOpenOrder: () => void;
   /** The shop has Bookings: a Bookings tab lists theirs. */
   showBookings?: boolean;
+  /** Packs of visits sold (all clients'), for the client card's Packs left. */
+  packs?: PackRow[];
+  /** A services shop: the client card leads the Summary, and notes are the team's. */
+  services?: boolean;
+  onBookAgain?: (again: BookAgain) => void;
 }) {
   const booked = c.bookings || [];
+  const card = useMemo(() => clientCard(booked, packs, c.key, Date.now()), [booked, packs, c.key]);
+  const phone = draft?.phone || card.phone;
+  const hasCard = booked.length > 0 || (services && showBookings);
   const bookedLine = bookingsLine(booked, Date.now(), bookingDay);
   const w = useShopWords();
   const row = (label: string, value: React.ReactNode) => (
@@ -370,24 +399,28 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
           { id: "cust-summary", label: "Summary" },
           { id: "cust-orders", label: "Orders", count: c.orders.length },
           ...(showBookings || booked.length ? [{ id: "cust-bookings" as const, label: "Bookings", count: booked.length }] : []),
-          { id: "cust-notes", label: "Notes & tags" },
+          { id: "cust-notes", label: services ? "Private notes" : "Notes & tags" },
         ]} />
       <TabPanel tabId="cust-summary" active={tab === "cust-summary"}>
         <div className="rp-stack">
-          <p className="rp-hint" style={{ margin: 0 }}>
+          {hasCard && <ClientCardView card={card} phone={phone} again={card.again && onBookAgain ? () => onBookAgain({ ...card.again!, name: c.name, email: c.email, phone }) : undefined}
+            bookFirst={!card.again && onBookAgain ? () => onBookAgain({ serviceId: "", staffId: "", name: c.name, email: c.email, phone }) : undefined} />}
+          {(!services || c.orderCount > 0 || !hasCard || c.segment === "moved") && <p className="rp-hint" style={{ margin: 0 }}>
             {c.segment === "moved"
-              ? "Brought over from your old shop, with no order here yet. What they bought there is in Notes & tags."
+              ? services ? "Brought over from your old booking tool. Their visits there are in Private notes." : "Brought over from your old shop, with no order here yet. What they bought there is in Notes & tags."
               : c.segment === "booked" ? "Booked a time with you, with no order here yet."
               : <>{c.orderCount} paid order{c.orderCount === 1 ? "" : "s"} · {money(c.totalSpent)} lifetime after refunds{c.firstOrderAt ? ` · first order ${new Date(c.firstOrderAt).toLocaleDateString()}` : ""}</>}
-          </p>
-          <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 16px", margin: 0 }}>
+          </p>}
+          {/* A services client who never ordered has no order facts to show: the card above says it all. */}
+          {(!services || c.orderCount > 0 || !hasCard) && <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 16px", margin: 0 }}>
             {row("Location", [c.city, c.country].filter(Boolean).join(", ") || "—")}
             {row("Avg order", c.orderCount ? money(c.avgOrder) : "—")}
             {row("Last order", c.lastOrderAt ? `${shortDate(c.lastOrderAt)} (${c.daysSinceLast}d ago)` : "—")}
-            {(showBookings || booked.length > 0) && row("Bookings", bookedLine || "None yet")}
-          </dl>
+            {(showBookings || booked.length > 0) && !hasCard && row("Bookings", bookedLine || "None yet")}
+          </dl>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <a className="rp-btn rp-btn-secondary" href={`mailto:${encodeURIComponent(c.email).replace(/%40/g, "@")}`}>Email customer</a>
+            <a className="rp-btn rp-btn-secondary" href={`mailto:${encodeURIComponent(c.email).replace(/%40/g, "@")}`}>{w("Email customer")}</a>
+            {phone && <a className="rp-btn rp-btn-secondary" href={`tel:${phone.replace(/[^\d+]/g, "")}`}>Call</a>}
             <SecondaryButton onClick={() => { void copyText(c.email, "Email address"); }}>Copy email</SecondaryButton>
           </div>
         </div>
@@ -422,11 +455,16 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
       <TabPanel tabId="cust-notes" active={tab === "cust-notes"}>
         {draft && (
           <div className="rp-stack">
-            <TextArea label="Private note" hint="Only you can see this. Never shown to the customer. Ctrl (or ⌘) + Enter saves." value={draft.note} maxLength={5000}
+            <TextArea label={services ? "Private notes" : "Private note"} rows={services ? 6 : undefined}
+              hint={services ? "For you and your team: colour formulas, session notes, what they like. Clients never see it. Ctrl (or ⌘) + Enter saves." : w("Only you can see this. Never shown to the customer. Ctrl (or ⌘) + Enter saves.")} value={draft.note} maxLength={5000}
               onChange={(e) => onDraft({ ...draft, note: e.target.value })}
               onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && draft.loaded && !savingNote) { e.preventDefault(); onSaveNote(); } }} />
-            <TextField label="Tags" hint={w("Separate with commas, e.g. wholesale, author, festival")} value={draft.tags}
+            <TextField label="Tags" hint={services ? "Separate with commas, e.g. regular, sensitive scalp, mornings only" : w("Separate with commas, e.g. wholesale, author, festival")} value={draft.tags}
               onChange={(e) => onDraft({ ...draft, tags: e.target.value })} />
+            {(services || showBookings || !!draft.phone) && (
+              <TextField label="Phone" type="tel" autoComplete="off" maxLength={40} value={draft.phone} hint={!draft.phone && card.phone ? `From their bookings: ${card.phone}` : undefined}
+                onChange={(e) => onDraft({ ...draft, phone: e.target.value })} />
+            )}
             {(() => {
               const have = parseTags(draft.tags).map((t) => t.toLowerCase());
               const suggestions = knownTags.filter((t) => !have.includes(t.toLowerCase())).slice(0, 12);
@@ -455,5 +493,48 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
         )}
       </TabPanel>
     </div>
+  );
+}
+
+/**
+ * The client card (services plan, phase 5): visits, what they spent on bookings, missed visits and the next one, then
+ * the phone, saved card, packs left and their latest answers, with Book again (the last service and person).
+ */
+function ClientCardView({ card, phone, again, bookFirst }: { card: ReturnType<typeof clientCard>; phone: string; again?: () => void; bookFirst?: () => void }) {
+  const currency = card.currency || SHOP_CURRENCY;
+  const tile = (label: string, value: React.ReactNode, foot: React.ReactNode, flag?: "next" | "warn") => (
+    <div className="cc-tile" data-next={flag === "next" || undefined} data-warn={flag === "warn" || undefined}>
+      <p className="cc-kicker">{label}</p><p className="cc-value">{value}</p><p className="cc-foot">{foot}</p>
+    </div>
+  );
+  return (
+    <section className="cc" aria-label="Client card">
+      <div className="cc-tiles">
+        {tile("Visits", card.visits, card.lastVisit ? `Last ${bookingDay(card.lastVisit)}` : "None yet")}
+        {tile("Spent", moneyText(card.spentMinor, currency), "On bookings, after refunds")}
+        {tile("No-shows", card.noShows, card.cancelled ? `${card.cancelled} cancelled` : "None cancelled", card.noShows ? "warn" : undefined)}
+        {tile("Next visit", card.next ? bookingDay(card.next.start) : "Not booked",
+          card.next ? `${timeText(card.next.start, ZONE)} · ${card.next.serviceName}${card.next.staffName ? ` with ${card.next.staffName}` : ""}` : "Nothing coming up", "next")}
+      </div>
+      <dl className="cc-facts">
+        <dt>Phone</dt><dd>{phone || "Not given"}</dd>
+        <dt>Saved card</dt><dd>{card.card ? cardText(card.card) : "None"}</dd>
+        <dt>Packs left</dt><dd>{card.packs.length
+          ? card.packs.map((p) => `${p.serviceName}: ${p.left} of ${p.visits} visits${p.expiresOn ? `, until ${bookingDay(`${p.expiresOn}T12:00:00Z`)}` : ""}`).join(" · ")
+          : "None"}</dd>
+        {card.answers && <>
+          <dt>Their answers</dt>
+          <dd>
+            <span className="cc-answer-when">{card.answers.serviceName} · {bookingDay(card.answers.start)}</span>
+            {card.answers.list.map((a) => <span key={a.label} className="cc-answer"><strong>{/[?:.!]$/.test(a.label.trim()) ? a.label.trim() : `${a.label.trim()}:`}</strong> {a.answer}</span>)}
+          </dd>
+        </>}
+      </dl>
+      {(again || bookFirst) && (
+        <div className="cc-actions">
+          <PrimaryButton onClick={again || bookFirst}>{again ? "Book again" : "Book a visit"}</PrimaryButton>
+        </div>
+      )}
+    </section>
   );
 }

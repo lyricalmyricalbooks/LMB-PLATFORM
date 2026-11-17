@@ -6,6 +6,7 @@ import { emailHash } from "./Customers";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
 import { SPREADSHEET_ACCEPT, readProblem, readSpreadsheet, type SpreadsheetRead } from "./spreadsheetFile";
 import { GoogleSheetLink } from "./GoogleSheetLink";
+import { servicesWords } from "../../shared/shopSells";
 import { FirstRows, SheetChoice } from "./SheetChoice";
 import {
   IMPORTED_CONSENT_TEXT, newsletterJoiners, optedOutBy, planCustomerNotes, readCustomerExport, type CustomerMove, type CustomerWrite,
@@ -26,7 +27,10 @@ type Ready = {
  * becomes private notes and tags here, and, only when the owner confirms they have permission, newsletter subscribers.
  * Nothing is written before the preview; a second run of the same file changes nothing.
  */
-export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+export function CustomerMoveDialog({ onClose, onDone, services = false }: { onClose: () => void; onDone: () => void; services?: boolean }) {
+  // A services shop brings its clients over from a booking tool: the same file reader, its own words.
+  const w = services ? servicesWords : (text: string) => text;
+  const oldPlace = services ? "your old booking tool" : "your old shop";
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [ready, setReady] = useState<Ready | null>(null);
@@ -49,7 +53,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     catch { setReadError("Your customers couldn't be checked just now. Check your connection and try again."); return; }
     try {
       const move = readCustomerExport(text);
-      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [], name: n.name || "", place: n.place || "" }]));
+      const byEmail = new Map(notes.map(n => [String(n.email || "").toLowerCase(), { note: n.note || "", tags: n.tags || [], name: n.name || "", place: n.place || "", phone: n.phone || "" }]));
       const ids = new Map(await Promise.all(move.customers.map(async c => [c.email, await emailHash(c.email)] as const)));
       const writes = planCustomerNotes(move.customers, byEmail, new Date().toISOString().slice(0, 10)).map(w => ({ ...w, id: ids.get(w.email)! }));
       const joiners = newsletterJoiners(move.customers, consent.subscribed, optedOutBy(consent.optedOutHashes, email => ids.get(email)));
@@ -68,7 +72,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     const failed: string[] = [];
     let saved = 0, joined = 0, done = 0;
     for (const w of work) {
-      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags, ...(w.name ? { name: w.name } : {}), ...(w.place ? { place: w.place } : {}) }); saved++; }
+      try { await adminApi.saveCustomerNote(w.id, { email: w.email, note: w.note, tags: w.tags, ...(w.name ? { name: w.name } : {}), ...(w.place ? { place: w.place } : {}), ...(w.phone ? { phone: w.phone } : {}) }); saved++; }
       catch { failed.push(w.email); }
       setProgress(++done);
     }
@@ -90,25 +94,27 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
     : <>
         <SecondaryButton disabled={busy} onClick={onClose}>Cancel</SecondaryButton>
         <PrimaryButton disabled={busy || !total} onClick={run}>
-          {busy ? `Saving ${progress} of ${total}…` : total ? `Bring over ${work.length} customer${work.length === 1 ? "" : "s"}` : "Nothing new to bring over"}
+          {busy ? `Saving ${progress} of ${total}…` : total ? w(`Bring over ${work.length} customer${work.length === 1 ? "" : "s"}`) : "Nothing new to bring over"}
         </PrimaryButton>
       </>;
 
   return (
-    <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title="Bring customers over" footer={footer}
-      description="Bring your shop with you: choose the customer list your old shop exports, or your mailing list. You'll see what comes over before anything is saved.">
+    <Dialog open size="lg" onClose={() => { if (!busy) onClose(); }} title={w("Bring customers over")} footer={footer}
+      description={services ? "Bring your clients with you: choose the client list your old booking tool exports, or your mailing list. You'll see what comes over before anything is saved." : "Bring your shop with you: choose the customer list your old shop exports, or your mailing list. You'll see what comes over before anything is saved."}>
       <div className="rp-stack">
         {!result && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Each customer gets a private note with their name, town and what they spent at your old shop, plus their tags. Notes you already wrote are kept.</li>
-            <li>They show in Customers under Not ordered here yet until they order here. Bringing the same file over again changes nothing.</li>
-            <li>Only people your old shop or mailing list says agreed to marketing email can join your newsletter, and only if you confirm below. Anyone who unsubscribed stays off it.</li>
+            {services
+              ? <li>Each client gets a private note with their name, visits, missed visits and last visit at {oldPlace}, plus their phone, tags and notes. Notes you already wrote are kept.</li>
+              : <li>Each customer gets a private note with their name, town and what they spent at your old shop, plus their tags. Notes you already wrote are kept.</li>}
+            <li>{services ? "They show in Clients under Brought over. Bringing the same file over again changes nothing." : "They show in Customers under Not ordered here yet until they order here. Bringing the same file over again changes nothing."}</li>
+            <li>Only people {oldPlace} or mailing list says agreed to marketing email can join your newsletter, and only if you confirm below. Anyone who unsubscribed stays off it.</li>
           </ul>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label="Customer list file"
+            <input ref={fileRef} type="file" accept={SPREADSHEET_ACCEPT} hidden aria-label={w("Customer list file")}
               onChange={e => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
             <PrimaryButton icon={<Upload size={16} aria-hidden />} disabled={busy} onClick={() => fileRef.current?.click()}>
-              {fileName ? "Choose another file" : "Choose customer file"}
+              {fileName ? "Choose another file" : w("Choose customer file")}
             </PrimaryButton>
             <GoogleSheetLink disabled={busy} onFile={(f) => void choose(f)} />
             {fileName && <span className="rp-mono" style={{ overflowWrap: "anywhere" }}>{fileName}</span>}
@@ -132,7 +138,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
                 {ready.move.skipped.length > 0 && <StatusBadge tone="warning">{ready.move.skipped.length} skipped</StatusBadge>}
               </div>
               {ready.joiners.length > 0
-                ? <Checkbox label={`I have permission to email the ${ready.joiners.length} customer${ready.joiners.length === 1 ? "" : "s"} who agreed to marketing email at my old shop. Add them to my newsletter.`}
+                ? <Checkbox label={w(`I have permission to email the ${ready.joiners.length} customer${ready.joiners.length === 1 ? "" : "s"} who agreed to marketing email at ${services ? "my old booking tool" : "my old shop"}. Add them to my newsletter.`)}
                     checked={permission} disabled={busy} onChange={e => setPermission(e.target.checked)} />
                 : <p className="rp-hint" style={{ margin: 0 }}>No one new for the newsletter: the file doesn't show anyone else who agreed to marketing email, or they are already on your list.</p>}
               {ready.move.skipped.length > 0 && (
@@ -141,7 +147,7 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
                   {ready.move.skipped.length > 20 && <li>…and {ready.move.skipped.length - 20} more.</li>}
                 </ul>
               )}
-              <ol aria-label="Customers to bring over" style={{ margin: 0, padding: 0, listStyle: "none", maxHeight: 320, overflow: "auto", borderTop: "1px solid var(--rp-border)" }}>
+              <ol aria-label={w("Customers to bring over")} style={{ margin: 0, padding: 0, listStyle: "none", maxHeight: 320, overflow: "auto", borderTop: "1px solid var(--rp-border)" }}>
                 {ready.move.customers.slice(0, SHOWN).map((c, i) => {
                   const w = ready.writes[i];
                   return (
@@ -155,15 +161,15 @@ export function CustomerMoveDialog({ onClose, onDone }: { onClose: () => void; o
                     </li>
                   );
                 })}
-                {ready.move.customers.length > SHOWN && <li className="rp-hint" style={{ padding: "8px 0" }}>…and {ready.move.customers.length - SHOWN} more customers.</li>}
+                {ready.move.customers.length > SHOWN && <li className="rp-hint" style={{ padding: "8px 0" }}>…and {ready.move.customers.length - SHOWN} more {services ? "clients" : "customers"}.</li>}
               </ol>
             </div>)}
 
         {result && <div className="rp-stack" role="status">
           <StatusBadge tone={result.failed.length ? "warning" : "success"}>
-            {result.saved} customer{result.saved === 1 ? "" : "s"} brought over{result.joined ? ` · ${result.joined} joined the newsletter` : ""}{result.failed.length ? ` · ${result.failed.length} not saved` : ""}
+            {w(`${result.saved} customer${result.saved === 1 ? "" : "s"}`)} brought over{result.joined ? ` · ${result.joined} joined the newsletter` : ""}{result.failed.length ? ` · ${result.failed.length} not saved` : ""}
           </StatusBadge>
-          {result.failed.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Not saved: {result.failed.slice(0, 10).join(", ")}{result.failed.length > 10 ? "…" : ""}. Bring the same file over again to retry; customers already saved show as already here.</p>}
+          {result.failed.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Not saved: {result.failed.slice(0, 10).join(", ")}{result.failed.length > 10 ? "…" : ""}. Bring the same file over again to retry; {w("customers already saved show as already here.")}</p>}
         </div>}
       </div>
     </Dialog>

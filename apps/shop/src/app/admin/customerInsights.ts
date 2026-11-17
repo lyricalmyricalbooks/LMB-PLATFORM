@@ -3,7 +3,8 @@
 // refund comes off (refundedAmount), and a fully refunded order counts as 0 but keeps the
 // customer listed with that order in their history.
 import { refundedAmount } from "./overview/overviewInsights";
-import type { Booking } from "./bookingsApi";
+import type { Booking, PackRow } from "./bookingsApi";
+import { moneyKept } from "../../shared/bookingTimes";
 
 /** "moved": brought over from the old shop, with no order here yet (plan 23.10). "booked": booked a time, no order yet. */
 export type CustomerSegment = "vip" | "vip-lapsed" | "returning" | "new" | "at-risk" | "moved" | "booked";
@@ -150,6 +151,52 @@ export function bookingsLine(bookings: readonly Booking[] | undefined, nowMs: nu
   if (next) return `${count} · next ${dayText(next.start)}`;
   const last = [...kept].sort((a, b) => b.start.localeCompare(a.start))[0];
   return `${count} · last ${dayText(last.start)}`;
+}
+
+/**
+ * A client's card (services plan, phase 5): what their bookings say about them, newest first where it matters.
+ * Visits are confirmed bookings that have ended and weren't missed; spent is what the shop kept from their bookings
+ * (fees in, refunds out, tips never counted, as everywhere); packs are the open ones with visits still to book.
+ * `again` is the last visit (else the next booking) to book again: its service and person.
+ */
+export interface ClientCard {
+  visits: number; noShows: number; cancelled: number; spentMinor: number; currency: string;
+  lastVisit: string | null; next: Booking | null; phone: string;
+  card: { brand: string; last4: string } | null;
+  packs: { id: string; serviceName: string; left: number; visits: number; expiresOn: string | null }[];
+  answers: { serviceName: string; start: string; list: { label: string; answer: string }[] } | null;
+  again: { serviceId: string; staffId: string } | null;
+}
+
+export function clientCard(bookings: readonly Booking[] | undefined, packs: readonly PackRow[] | undefined, email: string, nowMs: number): ClientCard {
+  const list = [...(bookings || [])].filter((b) => b.status !== "held").sort((a, b) => b.start.localeCompare(a.start));
+  const kept = list.filter((b) => b.status === "confirmed");
+  const past = kept.filter((b) => Date.parse(b.end) <= nowMs);
+  const done = past.filter((b) => !b.noShow);
+  const next = kept.filter((b) => Date.parse(b.end) > nowMs).sort((a, b) => a.start.localeCompare(b.start))[0] || null;
+  const withCard = list.find((b) => b.card?.last4);
+  const withAnswers = list.find((b) => b.status !== "cancelled" && (b.answers || []).some((a) => String(a.answer || "").trim()));
+  const againFrom = done[0] || next;
+  const key = email.trim().toLowerCase();
+  return {
+    visits: done.length,
+    noShows: past.filter((b) => b.noShow).length,
+    cancelled: list.filter((b) => b.status === "cancelled").length,
+    spentMinor: list.reduce((n, b) => n + moneyKept(b), 0),
+    currency: list[0]?.currency || "",
+    lastVisit: done[0]?.start || null,
+    next,
+    phone: list.map((b) => String(b.customer?.phone || "").trim()).find(Boolean) || "",
+    card: withCard ? { brand: withCard.card!.brand || "", last4: withCard.card!.last4 || "" } : null,
+    packs: (packs || [])
+      .filter((p) => p.status === "active" && p.left > 0 && String(p.email || "").trim().toLowerCase() === key)
+      .map((p) => ({ id: p.id, serviceName: p.serviceName, left: p.left, visits: p.visits, expiresOn: p.expiresOn })),
+    answers: withAnswers ? {
+      serviceName: withAnswers.serviceName, start: withAnswers.start,
+      list: (withAnswers.answers || []).filter((a) => String(a.answer || "").trim()).map((a) => ({ label: a.label, answer: a.answer })),
+    } : null,
+    again: againFrom ? { serviceId: againFrom.serviceId, staffId: againFrom.staffId || "" } : null,
+  };
 }
 
 export function customerStats(rows: CustomerRow[]) {

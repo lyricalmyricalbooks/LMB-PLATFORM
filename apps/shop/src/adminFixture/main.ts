@@ -128,6 +128,13 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     // Started two hours ago, so Charge fee shows whatever the time of day.
     booking("bk-11", services[0], new Date(Date.now() - 2 * 3_600_000).toISOString(), "Fay Example", { noShow: true, cardHold: true, lateFeeMinor: 2000, card: { customer: "cus_example", paymentMethod: "pm_example", brand: "visa", last4: "4242" } }),
     booking("bk-7", services[1], at(1, 15), "Gus Example", { status: "held", paid: false, clearing: true }),
+    // A services shop (`?sells=…`): Ben is a regular, for the client card (Customers › Ben): visits, a missed one with a
+    // saved card and its fee, answers and a pack.
+    ...(new URLSearchParams(window.location.search).get("sells") ? [
+      booking("bk-ben-1", services[1], at(-60, 14), "Ben Example", { customer: { name: "Ben Example", email: "ben@example.com", phone: "416 555 0100" } }),
+      booking("bk-ben-2", services[1], at(-32, 14), "Ben Example", { noShow: true, cardHold: true, lateFeeMinor: 2000, fee: { amountMinor: 2000, at: at(-32, 16) }, card: { customer: "cus_example", paymentMethod: "pm_example", brand: "visa", last4: "4242" } }),
+      booking("bk-ben-3", services[1], at(-12, 14), "Ben Example"),
+    ] : []),
   ] : [];
   // Two people waiting for tomorrow's full class (the first holding a freed place) and one for a booked-up day (held its first free time).
   const dayAhead = (days: number) => { const d = new Date(); d.setDate(d.getDate() + days); return d.toLocaleDateString("en-CA"); };
@@ -153,6 +160,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   let packRows: PackRow[] = mode === "on" ? [
     pk("p", "Kai Example", 3), pk("q", "Lea Example", 1), pk("r", "Mo Example", 5, { paidAt: at(-1, 9) }), pk("s", "Ned Example", 2, { expiresOn: dayAhead(9) }),
     pk("t", "Oda Example", 0, { paidAt: at(-90, 9) }), pk("u", "Pat Example", 2, { status: "closed", refundMinor: 7200, paidAt: at(-60, 9) }),
+    ...(new URLSearchParams(window.location.search).get("sells") ? [pk("v", "Ben Example", 2)] : []),
   ] : [];
   const watchers = new Set<() => void>();
   const changed = () => watchers.forEach((w) => w());
@@ -1055,6 +1063,10 @@ if (new URLSearchParams(location.search).get("variants")) {
     const week: any = { publishes: sells, details: { at: "2026-11-01T09:00:00.000Z" }, ...(starting ? {} : { bring: { at: "2026-11-01T09:30:00.000Z", skipped: true }, welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso" } }), sellsProducts: new URLSearchParams(location.search).get("products") === "1" };
     const api = adminApi as any;
     api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
+    // Ben's private note, kept by the team (the client card's notes), with his phone.
+    const hash = async (email: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email)))).map((b) => b.toString(16).padStart(2, "0")).join("");
+    api.saveCustomerNote = async () => undefined;
+    api.listCustomerNotes = async () => [{ id: await hash("ben@example.com"), email: "ben@example.com", note: "Prints in teal and fluorescent pink. Likes the heavier paper.", tags: ["regular"], updatedAt: "2026-11-01T09:00:00.000Z", phone: "416 555 0100" }];
     api.updateFirstWeek = async (change: any) => { Object.assign(week, change); };
   }
 }

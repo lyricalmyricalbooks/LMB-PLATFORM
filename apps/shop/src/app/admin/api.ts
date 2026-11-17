@@ -2180,7 +2180,7 @@ export const adminApi = {
   // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
   listCustomerNotes: async () => {
     const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string; name?: string; place?: string }>;
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string; name?: string; place?: string; phone?: string }>;
   },
   // Trade accounts (plan 12.10): shops approved to pay wholesale prices (`stockists/{lower-case email}`, admin-only).
   listStockists: async () => {
@@ -2192,7 +2192,7 @@ export const adminApi = {
   },
   deleteStockist: async (id: string) => { await deleteDoc(doc(db, "stockists", id)); },
   // Merges, so saving a note keeps the name and place Bring customers over stored.
-  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[]; name?: string; place?: string }) => {
+  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[]; name?: string; place?: string; phone?: string }) => {
     await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() }, { merge: true });
   },
   /**

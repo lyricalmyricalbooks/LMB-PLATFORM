@@ -1218,6 +1218,25 @@ falls back to Week otherwise) is `TeamDayView`: pure `teamDay(rows, settings, da
 Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` with `staffId`). Fixture:
 `admin-fixture.html?team=1&page=bookings`.
 
+## Client records (17 November 2026, services plan phase 5)
+
+Plan: `tasks/todo/2026-11-17-client-records.md`. Customers (Clients in a services shop) › a client › Summary leads with
+the **client card** whenever they have bookings (or always in a services shop with Bookings on): `clientCard(bookings,
+packs, email, now)` in `customerInsights.ts` (visits = confirmed, ended, not missed; spent = `moneyKept`, tips never;
+no-shows; next visit; the newest saved card; the client's open packs with visits left, from op `packs`, read once per
+page visit; the newest booking answers; phone; `again` = the last visit's (else the next booking's) service and person).
+`ClientCardView` in `Customers.tsx`, styles `clientCard.css` (`.cc-*`, tokens only). **Book again** closes the client
+window (asking first about an unsaved note) and opens `BookAgainDialog` (lazy from `Bookings.tsx`): the New booking
+window filled in (`BookAgain`: service, the same person if they still take it, name, email, phone); a booking re-reads
+the page's bookings. Notes: a services shop calls the tab **Private notes** (for the team; clients never see it), and
+the tab has a **Phone** field: `customerNotes.phone` (≤ 40, rules + emulator incl. another-shop check). Bring customers
+over (`ShopMoveDialogs.tsx`, `services` prop) says clients and "your old booking tool"; `readCustomerExport` also reads
+booking-tool columns (Client Name, Mobile/Phone, Total Visits, No Shows, Last Visit, Client Notes) into `phone`,
+`visits`, `noShows`, `lastVisit`, and `planCustomerNotes` writes the phone (one typed here wins) and "12 visits there ·
+1 missed · last visit …". Segments in a services shop read Booked / Brought over. Fixture
+`admin-fixture.html?page=customers&sells=hair` › Ben Example (ben@example.com): visits, a missed visit with a card and
+fee, answers, a pack and a note with his phone.
+
 ## Shipping zones as a page (16 November 2026)
 Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,
 tokens only) in place of the old dialog; the pure picks live in `shipping/zonePlaces.ts` (tested). Quick picks (home

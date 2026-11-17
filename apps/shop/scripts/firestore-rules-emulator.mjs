@@ -297,6 +297,9 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("admin writes a customer note", assertSucceeds(setDoc(doc(admin, "customerNotes/x"), { email: "a@b.co", note: "Likes poetry", tags: ["wholesale"], updatedAt: "now" })));
   await check("admin keeps a brought-over customer's name and place", assertSucceeds(setDoc(doc(admin, "customerNotes/z"), { email: "b@b.co", note: "Brought over from your old shop", tags: [], name: "Ben", place: "Toronto, ON", updatedAt: "now" })));
   await check("admin note name too long refused", assertFails(setDoc(doc(admin, "customerNotes/z2"), { email: "b@b.co", note: "", tags: [], name: "x".repeat(101), updatedAt: "now" })));
+  await check("admin keeps a client's phone", assertSucceeds(setDoc(doc(admin, "customerNotes/p"), { email: "c@b.co", note: "", tags: [], phone: "416 555 0100", updatedAt: "now" })));
+  await check("this shop's owner can't write a client's phone in another shop", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "customerNotes/p"), { email: "c@b.co", note: "", tags: [], phone: "416 555 0100", updatedAt: "now" })));
+  await check("admin note phone too long refused", assertFails(setDoc(doc(admin, "customerNotes/p2"), { email: "c@b.co", note: "", tags: [], phone: "1".repeat(41), updatedAt: "now" })));
   await check("admin note extra key refused", assertFails(setDoc(doc(admin, "customerNotes/y"), { email: "a@b.co", note: "", tags: [], updatedAt: "now", junk: 1 })));
   await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
   await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
