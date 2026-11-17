@@ -39,7 +39,7 @@ export function provincialQuestion(places: string[]) {
 
 export const REGISTRATION_WORDS = {
   title: "Are you registered for GST/HST?",
-  hint: "You only have to register once your sales pass $30,000 over four calendar quarters, and you may only charge GST/HST once you have a registration number. If you aren't sure, choose No for now.",
+  hint: "You must register once sales pass $30,000 in four quarters, and charge GST/HST only after. Not sure? Choose No.",
   no: "No, not yet. Charge no tax.",
   yes: "Yes, I'm registered.",
   savedNo: "Not registered: customers aren't charged tax. Rates stay saved for when you register.",
