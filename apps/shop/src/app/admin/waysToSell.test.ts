@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { waySavedWords, waysShown } from "./WaysToSellCard";
+import { wayLine, waySavedWords, waysShown } from "./WaysToSellCard";
 import { WAYS, waysAllowed, waysIn, waysOn } from "../../shared/waysToSell";
 
 describe("Settings › Ways to sell (beta)", () => {
@@ -17,6 +17,11 @@ describe("Settings › Ways to sell (beta)", () => {
   it("says plainly that switching off keeps the work", () => {
     expect(waySavedWords(WAYS[0], true)).toBe("Events & tickets is on.");
     expect(waySavedWords(WAYS[0], false)).toMatch(/is off\. Everything you made with it is kept\./);
+  });
+  it("reminds an owner of what they asked for at sign-up, until it is on", () => {
+    expect(wayLine(WAYS[0], true, false)).toBe("Sell tickets to a launch, a show or a market day. You asked for this when you signed up.");
+    expect(wayLine(WAYS[0], true, true)).toBe(WAYS[0].line);
+    expect(wayLine(WAYS[0], false, false)).toBe(WAYS[0].line);
   });
   it("lists six ways with a plain line each", () => {
     expect(WAYS.map((w) => w.id)).toEqual(["events", "classes", "digital", "giving", "memberships", "rentals"]);

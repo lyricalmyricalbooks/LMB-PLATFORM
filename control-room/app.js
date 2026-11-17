@@ -3659,6 +3659,7 @@ function waysBetaSection(shop) {
     fill(slot, ...ways.map((w) => el("div", { className: "cr-actions", dataset: { way: w.id } },
       el("strong", { textContent: w.label }),
       !w.built && !w.on ? pill("neutral", "not built yet") : w.on ? pill("success", "on") : pill("neutral", "off"),
+      w.asked ? pill("info", "asked for at sign-up") : null,
       w.built || w.on ? flipOf(w) : null,
       w.on ? meta(w.ownerOn ? "owner switched it on" : "owner hasn't switched it on yet", w.changedAt ? `turned on ${dateOnly(w.changedAt)}${w.changedBy ? ` by ${w.changedBy}` : ""}` : null) : null)));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
@@ -3672,7 +3673,7 @@ async function loadWaysBeta() {
     const view = await api("GET", "/control/ways/overview");
     const figure = (label, value, foot) => el("div", { className: "rp-card rp-metric" },
       el("div", { className: "rp-metric-label", textContent: label }), el("div", { className: "rp-metric-value", textContent: String(value) }), el("div", { className: "rp-metric-foot", textContent: foot }));
-    fill($("#ways-beta-numbers"), ...view.ways.map((w) => figure(w.label, w.built ? w.shops : "–", w.built ? `of ${plural(view.totals.shops, "shop")}` : "Not built yet")));
+    fill($("#ways-beta-numbers"), ...view.ways.map((w) => figure(w.label, w.built ? w.shops : "–", `${w.built ? `of ${plural(view.totals.shops, "shop")}` : "Not built yet"} · ${w.asked} asked at sign-up`)));
     $("#ways-beta-shops").replaceChildren(view.shops.length ? table({
       caption: "Every live shop with a website",
       rows: view.shops,
@@ -3682,6 +3683,7 @@ async function loadWaysBeta() {
       },
       columns: [
         { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.testShop ? "test shop" : null)) },
+        { header: "Asked for at sign-up", render: (s) => (s.asked.length ? s.asked.map((id) => view.ways.find((w) => w.id === id)?.label ?? id).join(", ") : "") },
         { header: "Ways turned on", render: (s) => (s.ways.length ? el("div", { className: "cr-actions" }, ...s.ways.map((id) => pill("success", view.ways.find((w) => w.id === id)?.label ?? id))) : meta("None yet")) },
       ],
     }) : emptyState("No live shops yet."));

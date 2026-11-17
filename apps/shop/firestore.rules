@@ -383,9 +383,10 @@ service cloud.firestore {
         // (Settings › General › What you sell), which reads before `publishes`.
         allow read: if isAdminReader();
         allow create, update: if isAdmin()
-          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "ways", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "ways", "alsoSells", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
           && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
             && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
+            && request.resource.data.get("alsoSells", null) == resource.data.get("alsoSells", null)
             && request.resource.data.get("country", null) == resource.data.get("country", null)
             && request.resource.data.get("plan", null) == resource.data.get("plan", null)))
           // A services answer (a salon, a studio, a tutor) is kept or changed only in a shop that is already a

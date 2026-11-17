@@ -99,6 +99,8 @@ export function shopFromSignup(row, { testMode }) {
     sellingToday: row.answer ?? null,
     // "What do you sell?" (form.js PUBLISHES, plans 6.2 and 10.1), or null when skipped: it suggests the shop's look (6.3) and starts its products as that kind.
     publishes: row.publishes ?? null,
+    // "Anything else you'll sell?" (form.js ALSO_SELLS): the ways to sell (beta) the press asked for, when any.
+    ...(Array.isArray(row.alsoSells) && row.alsoSells.length ? { alsoSells: row.alsoSells } : {}),
     // French from a French sign-up browser (form.js): the welcome email goes in French before any plan email does.
     ...(row.language ? { language: row.language } : {}),
     testMode: testMode === true,

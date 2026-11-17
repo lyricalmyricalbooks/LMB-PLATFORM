@@ -45,6 +45,8 @@ export interface FirstWeekDoc {
   sells?: string | null;
   /** A services shop that also sells a few products (Settings › What you sell): it keeps the Products and stock pages. */
   sellsProducts?: boolean;
+  /** The ways to sell (beta) the owner asked for at sign-up ("Anything else you'll sell?"); never changed from the admin. */
+  alsoSells?: string[];
   /** Ways to sell (beta) the owner switched on in Settings (shared/waysToSell.ts): way id → on. */
   ways?: Partial<Record<import("../../shared/waysToSell").WayId, boolean>>;
   /** The country the press signed up from (two letters), for the shipping starter. */

@@ -1,4 +1,4 @@
-import { PLAN_CHOICES, QUESTION, SQUARE_COUNTRIES, squareWords } from "./form.js";
+import { ALSO_SELLS, PLAN_CHOICES, QUESTION, SQUARE_COUNTRIES, cleanAlsoSells, squareWords } from "./form.js";
 import { cleanHandle, handleProblem } from "../services/domains/freeAddress.js";
 
 // The setup record for one press (code plan 18.2): the only thing made for a press before it launches. One document per
@@ -23,7 +23,7 @@ export const PRESS_STATUSES = Object.freeze(["setup", "opening", "open", "expire
 // `design` is the shop website the press designed before its store was made (the designer at /design/studio, 10 November
 // 2026): Studio's whole design, kept as it is and handed to the new shop (setup/handover.js), whose admin puts it on. null
 // clears it. Only its size and shape are checked here: the shop's own designer owns what a design may hold.
-export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday", "design"]);
+export const SETUP_FIELDS = Object.freeze(["plan", "pressName", "sells", "country", "look", "adminLook", "moving", "language", "cardProvider", "domainChoice", "freeName", "sellingToday", "alsoSells", "design"]);
 /** The largest design kept, as JSON in UTF-8 bytes: well under a document's 1 MiB with the rest of the record. */
 export const MAX_DESIGN_BYTES = 400_000;
 const TEXT_LIMITS = Object.freeze({ plan: 9, pressName: 120, sells: 300, country: 2, look: 40, adminLook: 40, moving: 5, language: 2, cardProvider: 6, domainChoice: 4, freeName: 60, sellingToday: 20 });
@@ -68,6 +68,12 @@ export function setupChange(current, change) {
       const problem = designProblem(value);
       if (problem) return { ok: false, message: problem };
       fields.design = value;
+      continue;
+    }
+    if (key === "alsoSells") {
+      // "Anything else you'll sell?" (form.js ALSO_SELLS): any of its six picks, or none.
+      if (!Array.isArray(value) || value.length > ALSO_SELLS.options.length || cleanAlsoSells(value).length !== value.length) return { ok: false, message: "Pick from the choices." };
+      fields.alsoSells = cleanAlsoSells(value);
       continue;
     }
     if (key in TEXT_LIMITS) {
