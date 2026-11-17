@@ -47,13 +47,14 @@ test("only platform admins see or change a shop's ways to sell", async () => {
   assert.equal(await w.shopData.get(SHOP, FEATURES_DOC), null);
 });
 
-test("today nothing is built, so nothing can be turned on", async () => {
+test("today only Events is built, so nothing else can be turned on", async () => {
   const w = await world({ ways: WAYS });
-  for (const way of WAYS) {
+  assert.deepEqual(WAYS.filter((way) => way.built).map((way) => way.id), ["events"]);
+  for (const way of WAYS.filter((x) => !x.built)) {
     await assert.rejects(w.desk.set(ADMIN, { shopId: SHOP, way: way.id, on: true }), (e) => e.status === 409 && /isn't built yet/.test(e.message), way.id);
   }
   assert.equal(await w.shopData.get(SHOP, FEATURES_DOC), null);
-  assert.ok((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.every((way) => !way.built && !way.on));
+  assert.ok((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.every((way) => way.built === (way.id === "events") && !way.on));
 });
 
 test("off until turned on; on writes the shop's switch beside Bookings' and the registry, logged once", async () => {

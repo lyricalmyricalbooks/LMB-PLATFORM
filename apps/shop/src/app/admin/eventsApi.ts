@@ -14,7 +14,7 @@ export type TicketOrder = {
   totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; tickets: { code: string; ticketId: string; name: string }[];
   createdAt: string; paidAt: string; test: boolean;
 };
-export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets";
+export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets" | "hint";
 
 /** One object so the admin fixture (src/adminFixture/main.ts) can swap in sample events. */
 export const eventsData = {

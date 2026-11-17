@@ -273,6 +273,31 @@ describe("buying tickets", () => {
   });
 });
 
+describe("the website's Events link", () => {
+  test("follows the events: on after a live one is saved, off once it is deleted, and never made for a shop with no website settings", async () => {
+    const t = setup();
+    await t.seed(null);
+    const made = await t.adm({ op: "saveEvent", event: EVENT });
+    expect(t.db.store.has("settings/website")).toBe(false);
+    await t.db.collection("settings").doc("website").set({ design: { a: 1 } });
+    expect((await t.adm({ op: "hint" })).body).toEqual({ ok: true, eventsLive: true });
+    expect(await t.doc("settings", "website")).toEqual({ design: { a: 1 }, eventsLive: true });
+    await t.adm({ op: "deleteEvent", id: made.body.event.id });
+    expect((await t.doc("settings", "website")).eventsLive).toBe(false);
+  });
+  test("goes off when the owner switches Events off, and a past or draft event never turns it on", async () => {
+    const t = setup({ owner: false });
+    await t.seed();
+    await t.db.collection("settings").doc("website").set({ eventsLive: true });
+    expect((await t.adm({ op: "hint" })).body).toEqual({ ok: true, eventsLive: false });
+    expect((await t.doc("settings", "website")).eventsLive).toBe(false);
+    const late = setup({ now: "2026-12-07T13:00:00Z" });
+    await late.seed();
+    await late.db.collection("settings").doc("website").set({ eventsLive: true });
+    expect((await late.adm({ op: "hint" })).body.eventsLive).toBe(false);
+  });
+});
+
 describe("the owner", () => {
   test("makes, lists and edits events, with tickets sold and money taken", async () => {
     const t = setup();

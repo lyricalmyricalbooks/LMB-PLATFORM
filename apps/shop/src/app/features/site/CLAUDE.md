@@ -886,6 +886,23 @@ labels › Bookings page › Reviews of visits (`bookTimeReview*`). Add section 
 date, the owner's reply) and nothing while there are none. The preview uses `SAMPLE_REVIEWS`. Reviews of visits never show
 on book pages: those queries filter by `bookId`.
 
+## Events page (Events and tickets beta, 17 November 2026)
+
+`/events` (`EventsPage.tsx`, pure `eventsRules.ts`, token-only `eventsStyle.ts`, requests `eventsAsk.ts`) sits in the order
+slip's look (`fm-track-*` plus `fm-evt-*`) and is its own Studio page, **Events** (surface `eventsPage`, regions
+`eventsLayout`). Three views in one route: the list of coming events; `?event=<id>` one event with a quantity picker per
+ticket, name and email, and Pay (the server's `eventStart`: free tickets answer `{ orderId, key }`, paid ones a card page
+`url`); `?order=<id>&key=<key>` the buyer's own page (noindex; where the card page and the ticket email lead): codes for
+the door, the online link, Add to calendar, and it asks again every 3 s while the order is still `held`. Refusals map to
+words by code (`tickets` and `closed` reload what is left, `not_available`, 429), never shown raw. Tax shows as "plus
+tax": the server works it out on the whole order. **Studio preview** answers from `eventsPreview.ts` (three sample
+events, a sample order made from the picks; links inside the page keep `preview=true`). **Links:** while
+`settings/website.eventsLive` (kept by the server's `tellWebsite` in `functions/events.js`; `eventsLive.ts`) the header
+shows a ticket icon (`data-header-events`, hide with Style › Header › Icons & buttons › `hideHeaderEvents`), the phone
+menu and tabs a link (`eventsNavLink`), and the footer a link (`footer-events`, `eventsFooterLink`); Menus' link picker
+offers Events. Words: Text & labels › **Events page** (`events*`, French twins in `frenchCopy.ts`). The Studio fixture
+takes `?events=1` to show the links; `scripts/studio-e2e.mjs` clicks the page through.
+
 ## Pickup times at checkout (17 November 2026)
 
 When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),

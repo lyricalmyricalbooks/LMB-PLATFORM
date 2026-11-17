@@ -1275,8 +1275,9 @@ Fixture: `admin-fixture.html?page=bookings` (`&texts=soon`).
 `Dashboard.tsx` hides the page otherwise. Events, places and ticket orders are server-only, so every read and change is
 `eventsAdmin(op, body)` (`eventsApi.ts`, action `eventsAdmin`; ops `list`, `saveEvent`, `deleteEvent`, `orders`,
 `resendTickets`); never read them from Firestore. Pure rules in `eventsView.ts` (the form and what it sends, badges,
-tiles, the guest list CSV; times typed and shown in the shop's zone). The event's `photo` rides through the form
-untouched until the website page adds a picker. Menu: `events` is under Orders in the five-item menu and its own item
+tiles, the guest list CSV; times typed and shown in the shop's zone). The event's picture is `PhotoField` in the form (made smaller in the
+browser, uploaded to `assets/events/`, saved as the event's `photo` link). Switching the Events way in Ways to sell asks
+op `hint`, which keeps the website's Events link (`settings/website.eventsLive`) in step. Menu: `events` is under Orders in the five-item menu and its own item
 in the combined and services menus; `BETA_PAGES` in `riso/nav.ts` puts a small "Beta" (`.rp-nav-tag`) beside a page
 still in beta, so add the next way's page id there. Fixture: `admin-fixture.html?ways=events&page=events`
 (`&events=new`: none yet).

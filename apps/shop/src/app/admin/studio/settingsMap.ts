@@ -156,7 +156,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Header layout", keys: ["headerLayout", "headerStyle", "logoPosition", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSocialInMobileMenu", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
     { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds", "announcementCountdown", "announcementCountdownWithin", "announcementDismissible"] },
-    { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderBookings", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
+    { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderBookings", "hideHeaderEvents", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
   ],
   navlinks: [
     { title: "Link look", keys: ["navLinkColor", "navLinkActiveColor", "navLinkSize", "navLinkWeight", "navLinkSpacing", "navLinkTransform", "navLinkOpacity"] },
@@ -286,7 +286,7 @@ export function changedCounts(groups: StyleGroup[], design: any, defaults: any):
 export const TEXT_HEADINGS: { id: string; title: string; groups: string[] }[] = [
   { id: "everywhere", title: "Across the whole shop", groups: ["Site & sharing", "Header", "Footer", "Newsletter", "Cookie banner", "Sections"] },
   { id: "shop", title: "Shop & book pages", groups: ["Catalog & empty states", "Collection & wishlist pages", "Search & filters", "Product page", "Reviews"] },
-  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Customer account"] },
+  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Events page", "Customer account"] },
   { id: "special", title: "Special pages & messages", groups: ["Custom pages & 404", "Loading screen", "Under construction", "Maintenance page"] },
 ];
 
@@ -306,6 +306,7 @@ export const TEXT_BLURBS: Record<string, string> = {
   Checkout: "Every checkout step, field, error and the payment area.",
   "Order tracking": "The order-tracking page and its status messages.",
   "Bookings page": "The page where customers book an appointment, and their booking link.",
+  "Events page": "The page where customers see your events, get tickets and find their ticket codes.",
   "Customer account": "Sign-in, account pages and their messages.",
   "Custom pages & 404": "Missing-page message and custom-page helper words.",
   "Loading screen": "Words on the loading splash.",
@@ -349,6 +350,11 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Cancel, return & privacy requests", match: /^track(Req|Return|Privacy)/ },
     { title: "Payment link (orders you make)", match: /^trackPay(Text|Until|Now|Opening|Expired|Error)$/ },
     { title: "Errors & email links", order: -1, match: /^track(Err|Error|Unsub)/ },
+  ],
+  "Events page": [
+    { title: "What's on", match: /^events(Eyebrow|Title|Subtitle|Back|AllEvents|Loading|LoadError|Retry|None|NotFound|From|Free|SoldOut|SalesClosed|Cancelled|Online)/ },
+    { title: "Choosing tickets & paying", match: /^events(TicketsHeading|Left|Fewer|More|PlusTax|YourDetails|Name$|Email|Need|Total|Pay|GetFree|Working|Error|TicketsChanged|NotAvailable|TooMany)/ },
+    { title: "Your tickets", match: /^events(Going|Held|Ended|OrderNotFound|When|Where|NameRow|Tax|Paid|YourTickets|TicketNumber|ShowCode|JoinOnline|AddCalendar|GoogleCalendar|TryAgain)/ },
   ],
   "Bookings page": [
     { title: "Choosing a service and time", match: /^bookTime(Eyebrow|Title|Subtitle|Closed|Loading|LoadError|Retry|Step|Free|PayAtShop|Select|Change|Earlier|Later|NoTimes|ShowLater|Morning|Afternoon|Evening|Zone|Continue|Back)/ },
