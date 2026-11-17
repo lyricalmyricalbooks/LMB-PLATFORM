@@ -28,6 +28,8 @@ export type Booking = {
   pack?: { id: string; last4: string; visit?: number; visits?: number; returned?: boolean } | null;
   /** A tip the client added by card (never part of the price or a refund). */
   tip?: { amountMinor: number; at: string } | null;
+  /** Who takes it (when the shop lists people) and the room it uses, named as they were when booked or moved. */
+  staffId?: string; staffName?: string; roomId?: string; roomName?: string;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
 };
 

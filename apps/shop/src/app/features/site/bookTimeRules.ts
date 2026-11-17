@@ -9,7 +9,14 @@ export type BookingInfo = { on: boolean; zone?: string; currency?: string; cance
   /** The shop has a discount code that works on bookings, so the form offers a code box. */
   codes?: boolean;
   /** The shop has gift cards, so the form offers a gift card box on paid services. */
-  giftCards?: boolean };
+  giftCards?: boolean;
+  /** The people who take bookings (none when the shop lists nobody): who does which service (no services listed = all). */
+  staff?: BookingPerson[] };
+/** Someone who takes bookings, as the Book a time page sees them. */
+export type BookingPerson = { id: string; name: string; serviceIds: string[] };
+/** The people a client may pick for a service: those who do it (an empty list of services means every one). */
+export const peopleFor = (info: Pick<BookingInfo, "staff"> | null | undefined, serviceId: string): BookingPerson[] =>
+  (info?.staff || []).filter((p) => !p.serviceIds.length || p.serviceIds.includes(serviceId));
 /** A pack the server accepted for this service: its code as typed, last four, visits left of how many. */
 export type BookingPackUse = { code: string; last4: string; left: number; visits: number };
 /** A pack as its own page shows it (`bookingPackView`). */
@@ -35,6 +42,8 @@ export function withCode<S extends BookingServiceView>(service: S, code: Booking
 }
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; /** A Google Meet link, for a video-call service. */ meetUrl?: string; start: string; end: string;
+  /** Who takes it, when the shop lists people. */
+  staffId?: string; staffName?: string;
   status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;
   /** With payment "deposit": what was asked by card when booking, whether it is paid, and what is left for the visit. */
   depositMinor?: number; depositPaid?: boolean; dueMinor?: number;

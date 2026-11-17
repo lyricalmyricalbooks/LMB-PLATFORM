@@ -4,6 +4,7 @@ import {
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
+  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -393,5 +394,96 @@ describe("check-in codes", () => {
     expect(cleanCheckInCode(null)).toBe("");
     expect(checkInCodeFrom([0, 1, 2, 3, 31, 32, 255, 64])).toBe(`ABCD-${CHECK_IN_ALPHABET[31]}A${CHECK_IN_ALPHABET[31]}A`);
     expect(cleanCheckInCode(checkInCodeFrom([9, 8, 7, 6, 5, 4, 3, 2]))).toBe(checkInCodeFrom([9, 8, 7, 6, 5, 4, 3, 2]));
+  });
+});
+
+describe("staff and rooms", () => {
+  const cut = { id: "cut", minutes: 60, gapAfter: 0 };
+  const facial = { id: "facial", minutes: 60, gapAfter: 0, roomId: "r1" };
+  const team = cleanBookingSettings({
+    ...settings,
+    rooms: [{ id: "r1", name: "Quiet room" }],
+    staff: [
+      { id: "ana", name: "Ana" },
+      { id: "ben", name: "Ben", serviceIds: ["cut"], ownHours: true, hours: [[], [{ start: "12:00", end: "15:00" }], [], [], [], [], []], daysOff: ["2026-11-23"] },
+    ],
+  });
+  const withTeam = { ...team, live: true, minNoticeHours: 0 };
+  const ten = at("2026-11-16", "10:00");
+  const one = at("2026-11-16", "13:00");
+  const free = (args: Partial<Parameters<typeof freeTimes>[0]> & { service: typeof cut }) =>
+    freeTimes({ settings: withTeam, busy: [], day: "2026-11-16", zone: ZONE, nowMs: NOW, ...args }).map(hhmm);
+
+  it("books as one calendar when nobody is listed, with the same times as before", () => {
+    const before = freeTimes({ service: cut, settings, busy: [], day: "2026-11-16", zone: ZONE, nowMs: NOW });
+    expect(freeTimes({ service: cut, settings: { ...settings, staff: [], rooms: [] }, busy: [], day: "2026-11-16", zone: ZONE, nowMs: NOW })).toEqual(before);
+    expect(whoIsFree({ service: cut, settings, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toBe("");
+    // Someone listed but switched off counts as nobody.
+    const off = { ...withTeam, staff: withTeam.staff.map((p) => ({ ...p, active: false })) };
+    expect(freeTimes({ service: cut, settings: off, busy: [], day: "2026-11-16", zone: ZONE, nowMs: NOW })).toEqual(before);
+  });
+
+  it("follows each person's own hours and days off", () => {
+    expect(free({ service: cut, staffId: "ben" })).toEqual(["12:00", "12:30", "13:00", "13:30", "14:00"]);
+    expect(free({ service: cut, staffId: "ana" })[0]).toBe("10:00");
+    expect(freeTimes({ service: cut, settings: withTeam, busy: [], day: "2026-11-23", zone: ZONE, nowMs: NOW, staffId: "ben" })).toEqual([]);
+    expect(freeTimes({ service: cut, settings: withTeam, busy: [], day: "2026-11-23", zone: ZONE, nowMs: NOW }).length).toBeGreaterThan(0);
+  });
+
+  it("never offers someone who doesn't do the service", () => {
+    expect(staffFor(withTeam, "facial").map((p) => p.id)).toEqual(["ana"]);
+    expect(free({ service: facial, staffId: "ben" })).toEqual([]);
+    expect(whoIsFree({ service: facial, settings: withTeam, busy: [], start: one, zone: ZONE, nowMs: NOW, staffId: "ben" })).toBeNull();
+  });
+
+  it("skips a busy person and offers the other", () => {
+    const anaBusy = [{ start: one, end: one + 3_600_000, serviceId: "cut", staffId: "ana" }];
+    expect(whoIsFree({ service: cut, settings: withTeam, busy: anaBusy, start: one, zone: ZONE, nowMs: NOW })).toBe("ben");
+    expect(whoIsFree({ service: cut, settings: withTeam, busy: anaBusy, start: one, zone: ZONE, nowMs: NOW, staffId: "ana" })).toBeNull();
+    expect(free({ service: cut, busy: anaBusy })).toContain("13:00");
+    expect(free({ service: cut, busy: anaBusy, staffId: "ana" })).not.toContain("13:00");
+  });
+
+  it("lets only one booking use a room at a time, whoever does it", () => {
+    const twoRoomPeople = cleanBookingSettings({ ...withTeam, staff: [{ id: "ana", name: "Ana" }, { id: "cy", name: "Cy" }] });
+    const s2 = { ...twoRoomPeople, live: true, minNoticeHours: 0 };
+    const roomTaken = [{ start: ten, end: ten + 3_600_000, serviceId: "facial", staffId: "ana", roomId: "r1" }];
+    expect(whoIsFree({ service: facial, settings: s2, busy: roomTaken, start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+    // A haircut needs no room, so Cy is still free then.
+    expect(whoIsFree({ service: cut, settings: s2, busy: roomTaken, start: ten, zone: ZONE, nowMs: NOW })).toBe("cy");
+  });
+
+  it("shares a class only with the same person, and sends 'anyone' to the class already running", () => {
+    const yoga = { id: "yoga", minutes: 60, gapAfter: 0, places: 3, classTimes: [{ weekday: 1, time: "11:00" }] };
+    const eleven = at("2026-11-16", "11:00");
+    const s2 = { ...cleanBookingSettings({ ...withTeam, staff: [{ id: "ana", name: "Ana" }, { id: "cy", name: "Cy" }] }), live: true, minNoticeHours: 0 };
+    const cyTeaching = [{ start: eleven, end: eleven + 3_600_000, serviceId: "yoga", staffId: "cy" }];
+    expect(placesLeft(eleven, yoga, cyTeaching, "cy")).toBe(2);
+    expect(placesLeft(eleven, yoga, cyTeaching, "ana")).toBe(3);
+    expect(whoIsFree({ service: yoga, settings: s2, busy: cyTeaching, start: eleven, zone: ZONE, nowMs: NOW })).toBe("cy");
+  });
+
+  it("lets an older booking with no person block everyone", () => {
+    const old = [{ start: ten, end: ten + 3_600_000, serviceId: "cut" }];
+    expect(whoIsFree({ service: cut, settings: withTeam, busy: old, start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+    expect(free({ service: cut, busy: old })).not.toContain("10:00");
+  });
+
+  it("picks fairly: the person with fewer bookings that day, then list order", () => {
+    expect(whoIsFree({ service: cut, settings: withTeam, busy: [], start: one, zone: ZONE, nowMs: NOW })).toBe("ana");
+    const anaMorning = [{ start: ten, end: ten + 3_600_000, serviceId: "cut", staffId: "ana" }];
+    expect(whoIsFree({ service: cut, settings: withTeam, busy: anaMorning, start: one, zone: ZONE, nowMs: NOW })).toBe("ben");
+    expect(isFreeTime({ service: cut, settings: withTeam, busy: anaMorning, start: one, zone: ZONE, nowMs: NOW })).toBe(true);
+  });
+
+  it("cleans the people and rooms the owner typed", () => {
+    const people = cleanStaff([{ name: " Ana " }, { name: "" }, { id: "ana", name: "Ana two", email: "nope", serviceIds: ["cut", "bad id!", "cut"] }, "x"]);
+    expect(people.map((p) => [p.id, p.name, p.active, p.email])).toEqual([["p1", "Ana", true, ""], ["ana", "Ana two", true, ""]]);
+    expect(people[1].serviceIds).toEqual(["cut"]);
+    expect(cleanStaff(Array.from({ length: 30 }, (_, i) => ({ name: `P${i}` })))).toHaveLength(MAX_STAFF);
+    expect(cleanRooms([{ id: "r", name: "A" }, { id: "r", name: "B" }, { name: "" }]).map((r) => r.id)).toEqual(["r", "rx"]);
+    expect(cleanRooms(Array.from({ length: 12 }, (_, i) => ({ name: `R${i}` })))).toHaveLength(MAX_ROOMS);
+    expect(cleanService({ name: "Facial", minutes: 60, roomId: "r 1!" })).toMatchObject({ roomId: "r1" });
+    expect(cleanBookingSettings({})).toMatchObject({ staff: [], rooms: [] });
   });
 });

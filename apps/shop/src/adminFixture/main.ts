@@ -82,7 +82,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
 {
   const mode = new URLSearchParams(window.location.search).get("bookings") || "on";
   const service = (id: string, name: string, minutes: number, priceMinor: number, order: number, extra: Partial<BookingService> = {}): BookingService => ({
-    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, ...extra,
+    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, roomId: "", ...extra,
   });
   let services: BookingService[] = mode === "new" ? [] : [
     service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000, meet: true }),
@@ -90,13 +90,26 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     service("binding", "Bookbinding class", 90, 3000, 2, { active: false, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25 }),
   ];
-  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on" };
+  // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
+  const TEAM = new URLSearchParams(window.location.search).get("team") === "1";
+  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on",
+    ...(TEAM ? {
+      rooms: [{ id: "printroom", name: "Print room" }, { id: "chair1", name: "Chair by the window" }],
+      staff: [
+        { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
+        { id: "ben", name: "Ben Example", active: true, serviceIds: ["riso", "workshop"], ownHours: true, hours: [[], [{ start: "12:00", end: "18:00" }], [{ start: "12:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }], [], []], daysOff: [], email: "" },
+        { id: "cy", name: "Cy Example", active: false, serviceIds: ["review"], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
+      ],
+    } : {}) };
+  if (TEAM) services = services.map((s) => (s.id === "riso" ? { ...s, roomId: "printroom" } : s));
   const at = (days: number, hour: number, minute = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, minute, 0, 0); return d.toISOString(); };
   const plus = (iso: string, minutes: number) => new Date(Date.parse(iso) + minutes * 60_000).toISOString();
   const booking = (id: string, s: BookingService, start: string, customer: string, extra: Partial<Booking> = {}): Booking => ({
     id, serviceId: s.id, serviceName: s.name, minutes: s.minutes, location: s.location, start, end: plus(start, s.minutes),
     customer: { name: customer, email: `${customer.split(" ")[0].toLowerCase()}@example.com` }, status: "confirmed",
-    payment: s.priceMinor ? "card" : "free", priceMinor: s.priceMinor, currency: "CAD", paid: s.priceMinor > 0, source: "website", ...extra,
+    payment: s.priceMinor ? "card" : "free", priceMinor: s.priceMinor, currency: "CAD", paid: s.priceMinor > 0, source: "website",
+    ...(TEAM ? (s.id === "riso" || s.id === "workshop" ? { staffId: "ben", staffName: "Ben Example" } : { staffId: "ana", staffName: "Ana Example" }) : {}),
+    ...(TEAM && s.roomId ? { roomId: s.roomId, roomName: "Print room" } : {}), ...extra,
   });
   let rows: Booking[] = mode === "on" ? [
     booking("bk-1", services[0], at(0, 11), "Ada Example", { meetUrl: "https://meet.google.com/abc-defg-hij", checkInCode: "K7QM-2XPA" }),
@@ -211,7 +224,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     }
     if (op === "chargeFee") rows = rows.map((b) => (b.id === id ? { ...b, fee: { amountMinor: Number(body.amountMinor ?? b.lateFeeMinor), at: new Date().toISOString(), reason: "missed booking" } } : b));
     if (op === "paidAtShop") rows = rows.map((b) => (b.id === id ? { ...b, paid: true } : b));
-    if (op === "move") rows = rows.map((b) => (b.id === id ? { ...b, start: String(body.start), end: plus(String(body.start), b.minutes) } : b));
+    if (op === "move") {
+      const to = typeof body.staffId === "string" ? settings.staff.find((p) => p.id === body.staffId) : undefined;
+      rows = rows.map((b) => (b.id === id ? { ...b, start: String(body.start), end: plus(String(body.start), b.minutes), ...(to ? { staffId: to.id, staffName: to.name } : {}) } : b));
+    }
     if (op === "times") {
       const day = String(body.day || new Date().toLocaleDateString("en-CA"));
       return { times: [10, 10.5, 11, 13, 14.5, 15].map((h) => new Date(`${day}T${String(Math.floor(h)).padStart(2, "0")}:${h % 1 ? "30" : "00"}:00`).toISOString()) };

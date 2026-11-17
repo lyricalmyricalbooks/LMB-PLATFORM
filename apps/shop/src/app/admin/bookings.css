@@ -388,6 +388,26 @@
   .rp .bkg-pack-row .bkg-list-what, .rp .bkg-pack-row .bkg-pack-left { grid-column: 1 / -1; }
 }
 
+/* Team & rooms (Services plan phase 4): people as rows, rooms as chips. Tokens only. */
+.rp .bkg-team { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.rp .bkg-team-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.rp .bkg-team-head .bkg-tile-title { margin: 0; }
+.rp .bkg-team-empty { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border-radius: 16px; background: var(--rp-surface-2); color: var(--rp-text-muted); }
+.rp .bkg-team-empty p { margin: 0; font-size: 14px; line-height: 1.5; }
+.rp .bkg-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rp .bkg-person { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 14px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.rp .bkg-person:hover, .rp .bkg-person:focus-visible { background: var(--rp-surface-2); }
+.rp .bkg-person[data-off] { opacity: 0.7; }
+.rp .bkg-person-initial { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--rp-primary); color: var(--rp-on-primary); font-weight: 600; }
+.rp .bkg-person-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.rp .bkg-person-text strong { font-size: 15px; }
+.rp .bkg-person-text span { font-size: 13px; color: var(--rp-text-muted); overflow-wrap: anywhere; }
+.rp .bkg-person-services { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 12px; margin-top: 8px; }
+.rp .bkg-chips li .bkg-room-name { display: inline-flex; align-items: center; gap: 6px; }
+.rp .bkg-room-add { margin: 12px 0 0; }
+@media (max-width: 767px) {
+  .rp .bkg-team { grid-template-columns: minmax(0, 1fr); }
+}
 /* Check someone in (CheckInDialog): the code field, then who it is in a tile (mint checked in, sky already, apricot refused). */
 .rp .bkg-checkin-form { display: grid; gap: 12px; }
 .rp .bkg-checkin-input { font: 500 22px/1.2 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; }

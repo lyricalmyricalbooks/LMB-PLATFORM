@@ -20,6 +20,7 @@
 //                            pack? { id, last4, visit, visits, returned? } with payment "pack" and priceMinor 0 (a visit booked with
 //                            a pack of visits: listPriceMinor is the service's price; the use is counted when the time is taken
 //                            and given back once on cancel unless the shop keeps it),
+//                            staffId? and staffName? (who takes it, when the shop lists people), roomId? and roomName? (the room it uses),
 //                            checkInCode? ("K7QM-2XPA", given once confirmed: in its emails and on its page) and checkedInAt? (the
 //                            shop typed or scanned it at the till, op checkIn) }
 //   bookingPacks/{id}      a pack of visits bought on the Book a time page (id = hash of its code; only the last four are kept):
@@ -27,8 +28,9 @@
 //                          status: "held" | "active" | "closed", sessions, paymentIntent?, paidAt?, expiresOn (last shop day,
 //                          or null), uses: [{ bookingId, start, at, returned? }], holdUntil, refund?, createdAt, updatedAt }.
 //                          Server-only (no rule opens it): the code is the customer's key, so it is never stored.
-//   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId } } }: what is taken on one shop day, read and
-//                          written in the same transaction as the booking, so two customers can never take one time.
+//   bookingDays/{day}      { items: { [bookingId]: { start, end, held, s: serviceId, p?: staffId, r?: roomId } } }: what is taken on
+//                          one shop day, read and written in the same transaction as the booking, so two customers can never
+//                          take one time (or one person, or one room). An item with no p blocks everyone (older bookings).
 //   bookingWaitlist/{id}   { serviceId, serviceName, day, start | null, name, email, createdAt, offerStart?, offerUntil?,
 //                          offerKeyHash? }: someone who asked to hear when a full class time (start) or a full day (start
 //                          null) has room again. Server-only (no rule opens it). A freed place goes to the first in line:
@@ -55,10 +57,11 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
-  pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD, cleanCheckInCode, checkInCodeFrom,
+  pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
+  whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
@@ -116,11 +119,29 @@ function busyFrom(daySnaps, nowMs, except = "") {
       if (id === except || !item || !Number.isFinite(item.start) || !Number.isFinite(item.end)) continue;
       // A place held for the waiting list lasts until its own end (the owner picks how long); other holds STALE_HOLD_MS.
       if (item.offer && Number.isFinite(item.until) ? nowMs > item.until + OFFER_GRACE_MS : item.held && Number.isFinite(item.at) && nowMs - item.at > STALE_HOLD_MS) continue;
-      busy.push({ start: item.start, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined });
+      busy.push({ start: item.start, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined,
+        // Whose booking it is and which room it uses (staff and rooms); an older item without them blocks everyone.
+        ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}) });
     }
   }
   return busy;
 }
+
+/**
+ * What a day item and a booking carry for the person who takes it and the room it uses: nothing at all in a shop that
+ * books as one calendar and has no rooms, so its records stay as they were.
+ */
+function staffParts(settings, person, roomId) {
+  const who = person ? (settings.staff || []).find((p) => p.id === person) : null;
+  const room = roomId ? (settings.rooms || []).find((r) => r.id === roomId) : null;
+  return {
+    item: { ...(person ? { p: person } : {}), ...(roomId ? { r: roomId } : {}) },
+    record: { ...(person ? { staffId: person, staffName: who?.name || "" } : {}), ...(roomId ? { roomId, roomName: room?.name || "" } : {}) },
+  };
+}
+
+/** "with Ana" for emails and the owner's calendar, or "". */
+const withWhom = (b) => (b?.staffName ? `with ${b.staffName}` : "");
 
 /** A customer's details from the Book a time page, or { problem }. */
 function cleanCustomer(body) {
@@ -136,6 +157,7 @@ function publicBooking(id, b, settings, nowMs) {
   const start = Date.parse(b.start);
   return {
     id, serviceId: b.serviceId, serviceName: b.serviceName, minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
+    staffId: b.staffId || "", staffName: b.staffName || "",
     meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
     // A discount code: what it took off the service's price (priceMinor is already after it).
@@ -221,7 +243,7 @@ function bookingActions({
       balanceDue(b) ? `To pay at the visit: ${moneyWords(balanceDue(b), b.currency)}` : "",
       siteLink("/admin#bookings"),
     ].filter(Boolean).join("\n");
-    return { title: `${who}: ${b.serviceName || "Booking"}`, start: b.start, end: b.end, location: b.location || "", details };
+    return { title: `${who}: ${b.serviceName || "Booking"}${b.staffName ? ` (${b.staffName})` : ""}`, start: b.start, end: b.end, location: b.location || "", details };
   }
 
   /**
@@ -344,6 +366,7 @@ function bookingActions({
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
         <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
+        ${b.staffName ? `<p style="margin:0 0 4px;"><strong>With:</strong> ${escapeHtml(b.staffName)}</p>` : ""}
         ${where}
         ${video}
         ${money}
@@ -359,7 +382,7 @@ function bookingActions({
           to: owner,
           subject: `[BOOKING] ${{ booked: "New", moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${b.serviceName}, ${when}`,
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(b.serviceName)}</h2>
-            <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes</p>
+            <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes${b.staffName ? ` · ${escapeHtml(withWhom(b))}` : ""}</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
             ${money}
             ${held}
@@ -400,10 +423,13 @@ function bookingActions({
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
       if (!fresh.exists || fresh.data()?.offerUntil) return false;
-      if (!isFreeTime({ service, settings, busy: busyFrom(snaps, nowMs), start, zone: zone(), nowMs })) return false;
+      const who = whoIsFree({ service, settings, busy: busyFrom(snaps, nowMs), start, zone: zone(), nowMs });
+      if (who === null) return false;
+      // The held place keeps a person (and the room) free for them; booking it picks the person again.
+      const { item } = staffParts(settings, who, service.roomId);
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        items[offerItem(wid)] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, offer: true, until };
+        items[offerItem(wid)] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, ...item, offer: true, until };
         tx.set(dayRef(d), { items });
       });
       tx.set(waitlist().doc(wid), { offerStart: new Date(start).toISOString(), offerUntil: new Date(until).toISOString(), offerKeyHash: hash(key) }, { merge: true });
@@ -545,9 +571,11 @@ function bookingActions({
 
   /**
    * Takes `start` for a new booking if it is still free, writing the booking and its days together. With `offer` (a place
-   * held for this customer from the waiting list) the held place doesn't count against them and is used up.
+   * held for this customer from the waiting list) the held place doesn't count against them and is used up. With people
+   * on the team the booking goes to `staffId` (the client's pick), else to whoever is free (whoIsFree), chosen inside
+   * the transaction so two bookings at once go to two people; the person and room go on the day item and the booking.
    */
-  async function takeTime({ id, service, settings, start, record, check = true, offer = null }) {
+  async function takeTime({ id, service, settings, start, record, check = true, offer = null, staffId = "" }) {
     // A discount code's use is counted with the time, so its usage limit holds even when many book at once.
     const code = record.discount?.id ? db.collection("discounts").doc(record.discount.id) : null;
     // A gift card is debited with the time too, so one balance can never pay for two bookings.
@@ -566,7 +594,9 @@ function bookingActions({
       const giftSnap = gift ? await tx.get(gift) : null;
       const packSnap = pack ? await tx.get(pack) : null;
       const nearby = snaps.filter((_, i) => days.includes(all[i]));
-      if (check && !isFreeTime({ service, settings, busy: busyFrom(nearby, nowMs, offer?.item || ""), start, zone: zone(), nowMs })) return false;
+      const who = whoIsFree({ service, settings, busy: busyFrom(nearby, nowMs, offer?.item || ""), start, zone: zone(), nowMs, staffId });
+      if (check && who === null) return false;
+      const assigned = staffParts(settings, who ?? staffId, service.roomId);
       const card = giftSnap?.exists ? giftSnap.data() : null;
       const giftMinor = record.giftCard?.amountMinor || 0;
       if (giftSnap && (giftCardProblem(card, { now: new Date(nowMs), testMode }) || availableMinor(card, "", nowMs) < giftMinor)) return "gift_short";
@@ -586,9 +616,11 @@ function bookingActions({
       all.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         if (offer) delete items[offer.item];
-        if (days.includes(d)) items[id] = { start, end: blockEnd, held, at: nowMs, s: record.serviceId };
+        if (days.includes(d)) items[id] = { start, end: blockEnd, held, at: nowMs, s: record.serviceId, ...assigned.item };
         tx.set(dayRef(d), { items });
       });
+      // The caller's record carries the person too (it is what the confirmation email reads).
+      Object.assign(record, assigned.record);
       if (offer) tx.delete(waitlist().doc(offer.wid));
       let packed = {};
       if (packSnap) {
@@ -651,8 +683,12 @@ function bookingActions({
     return written;
   }
 
-  /** Moves a booking to `start` if free (its own old time doesn't count against it). */
-  async function moveTime(id, b, service, settings, start, { check = true, by = "customer" } = {}) {
+  /**
+   * Moves a booking to `start` if free (its own old time doesn't count against it). It stays with the same person while
+   * they still do the service; the owner may name another (`staffId`, "" for anyone free). Resolves to false, or to
+   * what changed on the booking.
+   */
+  async function moveTime(id, b, service, settings, start, { check = true, by = "customer", staffId } = {}) {
     const oldDays = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
     const end = start + b.minutes * MINUTE;
     const blockEnd = end + (b.gapAfter || 0) * MINUTE;
@@ -662,18 +698,26 @@ function bookingActions({
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
       const nearby = snaps.filter((_, i) => newDays.includes(all[i]));
-      if (check && !isFreeTime({ service, settings, busy: busyFrom(nearby, nowMs, id), start, zone: zone(), nowMs })) return false;
+      const wanted = staffId === undefined ? keptPerson(settings, b.serviceId, b.staffId) : String(staffId || "");
+      const who = whoIsFree({ service, settings, busy: busyFrom(nearby, nowMs, id), start, zone: zone(), nowMs, staffId: wanted });
+      if (check && who === null) return false;
+      const assigned = staffParts(settings, who ?? wanted, service.roomId);
       all.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         delete items[id];
-        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId };
+        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId, ...assigned.item };
         tx.set(dayRef(d), { items });
       });
-      tx.set(bookings().doc(id), {
+      // A booking that had a person and now has none (the team was cleared) loses the old name.
+      const staffChange = b.staffId || b.roomId ? { staffId: "", staffName: "", roomId: "", roomName: "", ...assigned.record } : assigned.record;
+      const newName = assigned.record.staffName;
+      const what = `moved from ${b.start}${newName && assigned.record.staffId !== b.staffId ? ` to ${newName}` : ""}`;
+      const changes = {
         start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: new Date(nowMs).toISOString(), reminderSentAt: null,
-        history: [...(b.history || []), { at: new Date(nowMs).toISOString(), what: `moved from ${b.start}`, by }].slice(-20),
-      }, { merge: true });
-      return true;
+        ...staffChange, history: [...(b.history || []), { at: new Date(nowMs).toISOString(), what, by }].slice(-20),
+      };
+      tx.set(bookings().doc(id), changes, { merge: true });
+      return changes;
     });
     // The time left behind may be what someone is waiting for.
     if (moved) await tellWaitlist(oldDays);
@@ -1151,6 +1195,8 @@ function bookingActions({
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
           codes: await codesOffered(), giftCards: await giftCardsOffered(),
+          // The people a client can pick (the "With" choice); none when the shop books as one calendar.
+          staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
           services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
@@ -1169,13 +1215,15 @@ function bookingActions({
         // A place held for this customer from the waiting list shows as free to them.
         const offer = await offerFor(req.body, service.id, nowMs);
         const busy = busyFrom(snaps, nowMs, offer?.item || "");
+        // Only one person's times when the client picked someone (a person who doesn't do it reads as anyone).
+        const staffId = keptPerson(settings, service.id, req.body?.staffId);
         const out = {};
         // A group class also says how many places each time has left.
         const left = {};
         for (const day of days) {
-          out[day] = freeTimes({ service, settings, busy, day, zone: zone(), nowMs }).map((ms) => {
+          out[day] = freeTimes({ service, settings, busy, day, zone: zone(), nowMs, staffId }).map((ms) => {
             const iso = new Date(ms).toISOString();
-            if (isClass(service)) left[iso] = placesLeft(ms, service, busy);
+            if (isClass(service)) left[iso] = classPlacesLeft(ms, service, settings, busy, staffId);
             return iso;
           });
         }
@@ -1186,7 +1234,7 @@ function bookingActions({
           if (list.length) full[day] = list.map((ms) => new Date(ms).toISOString());
         }
         // Days with nothing left only because they are booked up (not closed): the page offers the waiting list there.
-        const fullDays = days.filter((day) => !out[day].length && !full[day] && freeTimes({ service, settings, busy: [], day, zone: zone(), nowMs }).length > 0);
+        const fullDays = days.filter((day) => !out[day].length && !full[day] && freeTimes({ service, settings, busy: [], day, zone: zone(), nowMs, staffId }).length > 0);
         return res.status(200).json({ on: true, days: out, fullDays, ...(isClass(service) ? { places: service.places, left, full } : {}),
           ...(offer ? { held: { start: new Date(offer.start).toISOString(), until: offer.until } } : {}) });
       }
@@ -1288,6 +1336,9 @@ function bookingActions({
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
+        // The person the client picked ("" for anyone free); someone who doesn't do this service is refused.
+        const staffId = String(req.body?.staffId || "");
+        if (staffId && !keptPerson(settings, service.id, staffId)) return fail(res, 400, "That person doesn't take this service. Please pick someone else.", "staff");
         const customer = cleanCustomer(req.body);
         if (customer.problem) return fail(res, 400, customer.problem);
         // The service's own questions: a required one left empty stops the booking, with the question named.
@@ -1353,11 +1404,11 @@ function bookingActions({
           pendingKey: paid ? key : null,
           source: "website", history: [{ at, what: "booked", by: "customer" }], createdAt: at, updatedAt: at,
         };
-        const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs) });
+        const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs), staffId });
         if (took === "code_used") return fail(res, 409, "This code has reached its usage limit.", "code");
         if (took === "gift_short") return fail(res, 409, "This gift card's balance just changed. Please check it and try again.", "gift");
         if (took === "pack_used") return fail(res, 409, "This pack can't book another visit just now. Please check it and try again.", "pack");
-        if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
+        if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : staffId ? "That person was just booked then. Please pick another time or anyone free." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
           const written = pack ? (await bookings().doc(id).get()).data() : record;
           const booked = await syncCalendar(id, { ...written, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
@@ -1524,7 +1575,7 @@ function bookingActions({
         }
         const moved = await moveTime(id, b, { ...service, id: b.serviceId, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, settings, start);
         if (!moved) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
-        const next = await syncCalendar(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() });
+        const next = await syncCalendar(id, { ...b, ...moved });
         await tellCustomer(id, next, "moved", { key });
         return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
       }
@@ -1643,7 +1694,8 @@ function bookingActions({
         const nowMs = now().getTime();
         const snaps = await Promise.all([addDays(day, -1), day, addDays(day, 1)].map((d) => dayRef(d).get()));
         const own = { ...settings, minNoticeHours: 0, maxDaysAhead: 366 };
-        const times = freeTimes({ service, settings: own, busy: busyFrom(snaps, nowMs, String(req.body?.except || "")), day, zone: zone(), nowMs });
+        const staffId = keptPerson(settings, service.id, req.body?.staffId);
+        const times = freeTimes({ service, settings: own, busy: busyFrom(snaps, nowMs, String(req.body?.except || "")), day, zone: zone(), nowMs, staffId });
         return res.status(200).json({ times: times.map((ms) => new Date(ms).toISOString()) });
       }
       if (op === "waitlist") {
@@ -1724,10 +1776,13 @@ function bookingActions({
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
           history: [{ at, what: "booked", by }], createdAt: at, updatedAt: at,
         };
-        // The owner may book any time that doesn't clash, outside the hours too (a favour for a regular).
-        const own = { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]), daysOff: [], step: 5 };
-        const took = await takeTime({ id, service: { ...service, classTimes: [] }, settings: own, start, record });
-        if (!took) return fail(res, 409, isClass(service) ? "That class is full, or the time clashes with another booking." : "That time clashes with another booking.", "taken");
+        // The owner may book any time that doesn't clash, outside the hours too (a favour for a regular), with anyone on
+        // the team who does the service.
+        const staffId = String(req.body?.staffId || "");
+        if (staffId && !keptPerson(settings, service.id, staffId)) return fail(res, 400, "That person doesn't do this service.", "staff");
+        const own = ownerBookingSettings(settings);
+        const took = await takeTime({ id, service: { ...service, classTimes: [] }, settings: own, start, record, staffId });
+        if (!took) return fail(res, 409, isClass(service) ? "That class is full, or the time clashes with another booking." : staffId ? "That person is busy then." : "That time clashes with another booking.", "taken");
         const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
         if (req.body?.sendEmail !== false) await tellCustomer(id, booked, "booked", { key, byShop: true });
         return res.status(200).json({ ok: true, id });
@@ -1854,13 +1909,16 @@ function bookingActions({
         if (b.status !== "confirmed") return fail(res, 409, "Only a confirmed booking can be moved.");
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time.");
-        const own = { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]), daysOff: [], step: 5 };
+        const own = ownerBookingSettings(settings);
         // A class keeps its places when one of its people is moved: they may join another start of the same class.
         const theirs = (await readServices()).find((s) => s.id === b.serviceId);
-        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, own, start, { by });
-        if (!moved) return fail(res, 409, isClass(theirs) ? "That class is full, or the time clashes with another booking." : "That time clashes with another booking.", "taken");
+        // The same person unless the owner picks another ("" for anyone free).
+        const staffId = req.body?.staffId === undefined ? undefined : String(req.body.staffId || "");
+        if (staffId && !keptPerson(settings, b.serviceId, staffId)) return fail(res, 400, "That person doesn't do this service.", "staff");
+        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes: b.minutes, gapAfter: b.gapAfter || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId });
+        if (!moved) return fail(res, 409, isClass(theirs) ? "That class is full, or the time clashes with another booking." : staffId ? "That person is busy then." : "That time clashes with another booking.", "taken");
         // A new link: the old one in the customer's first email still works, since the key is unchanged.
-        const movedTo = await syncCalendar(id, { ...b, start: new Date(start).toISOString(), end: new Date(start + b.minutes * MINUTE).toISOString() });
+        const movedTo = await syncCalendar(id, { ...b, ...moved });
         if (req.body?.notify !== false) await tellCustomer(id, movedTo, "moved", { byShop: true });
         return res.status(200).json({ ok: true });
       }
@@ -2119,7 +2177,7 @@ function bookingActions({
       const dayWords = new Date(`${day}T12:00:00Z`).toLocaleDateString("en-CA", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
       const rows = list.map((b) => {
         const due = balanceDue(b);
-        const extra = [b.status === "held" ? "not confirmed yet" : "", due ? `${moneyWords(due, b.currency)} to pay at the visit` : "", b.customer?.phone || ""].filter(Boolean).join(" · ");
+        const extra = [withWhom(b), b.status === "held" ? "not confirmed yet" : "", due ? `${moneyWords(due, b.currency)} to pay at the visit` : "", b.customer?.phone || ""].filter(Boolean).join(" · ");
         return `<tr><td style="padding:8px 12px 8px 0;vertical-align:top;white-space:nowrap;"><strong>${escapeHtml(time(b.start))}</strong></td>
           <td style="padding:8px 0;vertical-align:top;"><strong>${escapeHtml(b.customer?.name || "")}</strong> · ${escapeHtml(b.serviceName || "")}${extra ? `<br><span style="opacity:.75;">${escapeHtml(extra)}</span>` : ""}${b.note ? `<br><em>“${escapeHtml(b.note)}”</em>` : ""}</td></tr>`;
       }).join("");
@@ -2198,7 +2256,7 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
     .filter((b) => Date.parse(b.end || "") >= from)
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "",
-      title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.status === "held" ? " (not paid yet)" : ""}`,
+      title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.staffName ? ` (${b.staffName})` : ""}${b.status === "held" ? " (not paid yet)" : ""}`,
       details: [b.customer?.email, b.customer?.phone, b.meetUrl ? `Video call: ${b.meetUrl}` : "", b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
     }));
   return bookingsFeedIcs(shopName ? `${shopName} bookings` : "Bookings", events, nowMs);
