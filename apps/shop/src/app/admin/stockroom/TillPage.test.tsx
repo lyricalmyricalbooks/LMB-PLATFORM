@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createRoot } from "react-dom/client";
 import { act } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fairNameOf, registerSalesForDay } from "@stockroom/fair-mode.js";
 
 vi.mock("./stockroomWrite", () => ({
@@ -93,12 +93,16 @@ async function pay(host: HTMLElement, how: string, given?: string) {
 }
 
 describe("the Till page", () => {
+  // Each page is unmounted after its test, so no React work (timers, the sold line) runs once the page is gone.
+  const roots: ReturnType<typeof createRoot>[] = [];
   beforeEach(() => { localStorage.clear(); save.mockReset(); document.body.innerHTML = ""; });
+  afterEach(async () => { await act(async () => { roots.splice(0).forEach((r) => r.unmount()); }); });
 
   async function mount(clock: { t: number }) {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
+    roots.push(root);
     await act(async () => { root.render(<Till records={records()} now={() => clock.t} />); });
     return host;
   }
