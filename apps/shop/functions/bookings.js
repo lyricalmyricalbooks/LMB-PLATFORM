@@ -62,7 +62,7 @@ const {
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
-  cleanRun, runStarts, runSettings, runsOnline,
+  cleanRun, runStarts, runSettings, runsOnline, withExtras,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -207,12 +207,18 @@ function cleanCustomer(body) {
   return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "" };
 }
 
+/** A booking's add-ons in words ("Deep conditioning, Long hair"), "" with none. */
+function extrasWords(b) {
+  return (Array.isArray(b.extras) ? b.extras : []).map((e) => e?.name).filter((n) => typeof n === "string" && n).join(", ");
+}
+
 /** What the customer's page may see of a booking (never the payment ids or the key's hash). */
 function publicBooking(id, b, settings, nowMs) {
   const start = Date.parse(b.start);
   return {
     id, serviceId: b.serviceId, serviceName: b.serviceName, minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
     staffId: b.staffId || "", staffName: b.staffName || "",
+    ...(Array.isArray(b.extras) && b.extras.length ? { extras: b.extras.map((e) => ({ id: e.id, name: e.name, minutes: e.minutes, priceMinor: e.priceMinor })) } : {}),
     // A course: every one of its dates (the first is `start`).
     ...(Array.isArray(b.course?.starts) && b.course.starts.length > 1 ? { courseStarts: b.course.starts } : {}),
     // A standing appointment: which visit of the run this is.
@@ -357,7 +363,7 @@ function bookingActions({
   function calendarEvent(id, b) {
     const who = b.customer?.name || "Booking";
     const details = [
-      b.customer?.email, b.customer?.phone, b.note ? `“${b.note}”` : "",
+      b.customer?.email, b.customer?.phone, extrasWords(b) ? `Extras: ${extrasWords(b)}` : "", b.note ? `“${b.note}”` : "",
       ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`),
       balanceDue(b) ? `To pay at the visit: ${moneyWords(balanceDue(b), b.currency)}` : "",
       siteLink("/admin#bookings"),
@@ -499,6 +505,7 @@ function bookingActions({
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
         <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
+        ${extrasWords(b) ? `<p style="margin:0 0 4px;"><strong>Extras:</strong> ${escapeHtml(extrasWords(b))}</p>` : ""}
         ${b.staffName ? `<p style="margin:0 0 4px;"><strong>With:</strong> ${escapeHtml(b.staffName)}</p>` : ""}
         ${where}
         ${dates}
@@ -521,6 +528,7 @@ function bookingActions({
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(b.serviceName)}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes${b.staffName ? ` · ${escapeHtml(withWhom(b))}` : ""}</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
+            ${extrasWords(b) ? `<p style="margin:0 0 4px;">Extras: ${escapeHtml(extrasWords(b))}</p>` : ""}
             ${runDates}
             ${money}
             ${held}
@@ -1547,10 +1555,12 @@ function bookingActions({
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, extras }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // Standing appointments: a run of visits can be booked at once.
             ...(runsOnline({ payment, places, holdCard: holdCard && canHoldCard(), repeats }) ? { repeats: true } : {}),
+            // Add-ons and options the client may tick: each adds its minutes and price.
+            ...(extras?.length ? { extras } : {}),
             // A course: every one of its dates (signed up for as a whole, from the first).
             ...(isCourse({ places, courseDates }) ? { courseStarts: courseStarts({ places, courseDates }, zone()).map((ms) => new Date(ms).toISOString()) } : {}),
             // Joining a course late: how many dates were missed, of how many, and the whole course's price.
@@ -1613,8 +1623,12 @@ function bookingActions({
       }
       if (action === "bookingTimes") {
         if (!settings.live) return res.status(200).json({ on: false });
-        const service = await publicService(req.body?.serviceId);
-        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const listed = await publicService(req.body?.serviceId);
+        if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
+        // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
+        const asked = withExtras(listed, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service } = asked;
         const from = isDay(req.body?.from) ? req.body.from : dayOf(nowMs, zone());
         const count = Math.min(MAX_DAYS_ASKED, Math.max(1, Math.round(Number(req.body?.days) || 7)));
         const days = Array.from({ length: count }, (_, i) => addDays(from, i));
@@ -1648,8 +1662,12 @@ function bookingActions({
       if (action === "bookingCode") {
         // Try a discount code before booking: what it takes off and what is paid now. Booking checks it again.
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = await publicService(req.body?.serviceId);
-        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const listed = await publicService(req.body?.serviceId);
+        if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
+        // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
+        const asked = withExtras(listed, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service } = asked;
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         try {
           const priced = await codeFor(service, req.body?.code, email);
@@ -1664,8 +1682,12 @@ function bookingActions({
       if (action === "bookingGiftCard") {
         // Try a gift card before booking: what it pays now and what is left for the card page. Booking checks it again.
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = await publicService(req.body?.serviceId);
-        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const listed = await publicService(req.body?.serviceId);
+        if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
+        // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
+        const asked = withExtras(listed, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service } = asked;
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         let upFront = depositOf(service);
         if (String(req.body?.code || "").trim()) {
@@ -1745,8 +1767,11 @@ function bookingActions({
       if (action === "bookingRunCheck") {
         // Before booking a standing appointment: is each later visit free? (The page lists the dates with this.)
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
-        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const listed = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
+        const asked = withExtras(listed, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service } = asked;
         if (!runsOnline({ ...service, holdCard: service.holdCard && canHoldCard() })) return fail(res, 400, "This service can't be booked as a standing appointment.", "run");
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
@@ -1759,8 +1784,12 @@ function bookingActions({
       }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = await publicService(req.body?.serviceId);
-        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        const listed = await publicService(req.body?.serviceId);
+        if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
+        // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
+        const asked = withExtras(listed, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service, extras } = asked;
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
         // The person the client picked ("" for anyone free); someone who doesn't do this service is refused.
@@ -1786,6 +1815,7 @@ function bookingActions({
         // Its first date (the first left, for a late joiner) gone means it can't be joined any more.
         if (isCourse(service) && courseStarts(service, zone())[0] <= nowMs) return fail(res, 409, "This course has already started. Please contact the shop.", "started");
         if (isCourse(service) && String(req.body?.pack || "").trim()) return fail(res, 400, "A pack pays for single visits, not for a course.", "pack");
+        if (String(req.body?.pack || "").trim() && extras.some((e) => e.priceMinor > 0)) return fail(res, 400, "A pack pays for the service on its own. Book the extras without the pack, or leave them off.", "pack");
         if (String(req.body?.pack || "").trim()) {
           const p = await loadPack(req.body.pack);
           const problem = packProblem(p, service.id, dayOf(start, zone()));
@@ -1841,6 +1871,7 @@ function bookingActions({
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
           ...(gift ? { giftCard: gift } : {}),
           ...(pack ? { pack, listPriceMinor: service.priceMinor } : {}),
+          ...(extras.length ? { extras } : {}),
           paid: false, ...giftPaid, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
@@ -2192,8 +2223,11 @@ function bookingActions({
       }
       if (op === "times") {
         // The admin's own times for a new or moved booking: the same free times customers see, without the notice.
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId);
-        if (!service) return fail(res, 404, "Choose a service.");
+        const found = (await readServices()).find((s) => s.id === req.body?.serviceId);
+        if (!found) return fail(res, 404, "Choose a service.");
+        const asked = withExtras(found, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service } = asked;
         const day = isDay(req.body?.day) ? req.body.day : dayOf(now().getTime(), zone());
         const nowMs = now().getTime();
         const snaps = await Promise.all([addDays(day, -1), day, addDays(day, 1)].map((d) => dayRef(d).get()));
@@ -2204,8 +2238,11 @@ function bookingActions({
       }
       if (op === "runCheck") {
         // New booking › Repeat: is each later visit of the run free? (Any hour, as the shop books it.)
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId);
-        if (!service) return fail(res, 404, "Choose a service.");
+        const found = (await readServices()).find((s) => s.id === req.body?.serviceId);
+        if (!found) return fail(res, 404, "Choose a service.");
+        const asked = withExtras(found, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service } = asked;
         if (isClass(service)) return fail(res, 400, "A class or course can't be booked as a standing appointment.", "run");
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time.");
@@ -2279,8 +2316,11 @@ function bookingActions({
       if (op === "create") {
         const found = (await readServices()).find((s) => s.id === req.body?.serviceId);
         // The owner can book someone onto a course late too, when it lets people join late.
-        const service = found && (joinableCourse(found, zone(), now().getTime()) ?? found);
-        if (!service) return fail(res, 404, "Choose a service.");
+        const listed = found && (joinableCourse(found, zone(), now().getTime()) ?? found);
+        if (!listed) return fail(res, 404, "Choose a service.");
+        const asked = withExtras(listed, req.body?.extras);
+        if (asked.problem) return fail(res, 400, asked.problem, "extras");
+        const { service, extras } = asked;
         const customer = cleanCustomer(req.body);
         if (customer.problem) return fail(res, 400, customer.problem.replace("your", "the customer's").replace("Please add an email address we can send your booking to.", "Add the customer's email address."));
         // A course is signed up for as a whole, from its first date.
@@ -2302,6 +2342,7 @@ function bookingActions({
           customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
           // Booked in by the owner: nothing is taken by card, so a priced service is all paid at the visit.
           status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor + (tax?.taxMinor || 0), ...taxFields(tax), currency: currency(),
+          ...(extras.length ? { extras } : {}),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
           history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by }], createdAt: at, updatedAt: at,
           ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
@@ -3086,7 +3127,7 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.roomName ? [b.roomName, b.location].filter(Boolean).join(", ") : b.location || "",
       title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.staffName && !staffId ? ` (${b.staffName})` : ""}${b.status === "held" ? " (not paid yet)" : ""}`,
-      details: [b.customer?.email, b.customer?.phone, b.meetUrl ? `Video call: ${b.meetUrl}` : "", b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
+      details: [b.customer?.email, b.customer?.phone, extrasWords(b) ? `Extras: ${extrasWords(b)}` : "", b.meetUrl ? `Video call: ${b.meetUrl}` : "", b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
     }));
   const person = staffId ? feed.staffName || "" : "";
   return bookingsFeedIcs(shopName ? `${shopName} bookings${person ? ` · ${person}` : ""}` : "Bookings", events, nowMs);

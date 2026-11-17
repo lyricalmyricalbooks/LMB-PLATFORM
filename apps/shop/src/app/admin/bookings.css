@@ -186,6 +186,8 @@
 .rp .bkg-questions-hint { margin: 0; clear: both; font-size: var(--rp-text-sm); color: var(--rp-text-subtle); }
 .rp .bkg-question { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: var(--rp-surface); }
 .rp .bkg-question-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; }
+.rp .bkg-extra .bkg-question-row { align-items: flex-end; gap: 10px; }
+.rp .bkg-extra .bkg-question-row > :not(button) { flex: 1 1 120px; min-width: 0; }
 .rp .bkg-question-remove { margin-left: auto; width: var(--rp-touch); height: var(--rp-touch); display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--rp-text-subtle); cursor: pointer; }
 .rp .bkg-question-remove:hover { background: var(--rp-surface-2); color: var(--rp-danger); }
 .rp .bkg-answers { margin: 0; display: grid; gap: 12px; }
@@ -463,6 +465,8 @@
 
 /* Standing appointment (New booking › Repeat): the run's dates, each free or taken. */
 .rp .bkg-run { display: grid; gap: 8px; padding: 14px; border-radius: 16px; background: var(--rp-surface); }
+.rp .bkg-extras-pick { display: grid; gap: 8px; margin: 0; padding: 14px; border: 0; border-radius: 16px; background: var(--rp-surface); }
+.rp .bkg-extras-pick legend { float: left; width: 100%; padding: 0; font-weight: 600; }
 .rp .bkg-run-head { margin: 0; font: 600 var(--rp-text-sm)/1.4 var(--rp-font-body); color: var(--rp-text); }
 .rp .bkg-run-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
 .rp .bkg-run-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--rp-text-sm); color: var(--rp-text); }

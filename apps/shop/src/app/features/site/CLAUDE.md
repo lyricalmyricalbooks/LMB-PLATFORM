@@ -956,6 +956,14 @@ with `bookTimeRunGone`. The pack box hides with a run. The booking page shows th
 Text & labels › Bookings page (`bookTimeRepeat*`, `bookTimeRun*`, `bookTimeCancelJustThis`, `bookTimeCancelLater`, French
 twins). The Studio preview's Quick call repeats and answers every date free.
 
+**Add-ons on the booking page (17 November 2026).** A service with `extras` shows `ExtrasPicker` at the top of the time
+step (region `bookingsExtras`, `.fm-book-extra*` in `bookTimeStyle.ts`): a tick box per extra with what it adds, then the
+visit's new length and price (`bookTimeExtrasHint`). `withPicked` (bookTimeRules.ts, display only) gives the service as
+picked, so the heading, money lines and button follow; the ids go to `bookingTimes`, `bookingRunCheck`, `bookingCode`,
+`bookingGiftCard` and `bookingStart`. Changing the ticks clears the time, the code and the gift card; priced ticks drop
+and hide the pack. Summary and booking page show an Add-ons row. Change time asks with the booking's own extras. Words:
+Text & labels › Bookings page › Add-ons (`bookTimeExtras*`, French twins). Studio's sample session has two.
+
 **Text me reminders on the booking page (17 November 2026).** When `bookingInfo.texts` is true, `BookTime.tsx` shows a tick
 box after the phone field (region `bookingsTexts`, words Text & labels › Bookings page `bookTimeTextOk`,
 `bookTimeTextOkHint`, `bookTimeTextOkNeedsPhone`, French twins); it is disabled until a phone is typed and is sent as
