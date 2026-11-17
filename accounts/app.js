@@ -294,7 +294,8 @@ function shopCard(shop) {
   const meta = el("div", { className: "cp-meta" },
     address ? el("span", { textContent: address }) : null,
     free ? el("span", { textContent: free }) : null,
-    shop.plan ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
+    // Every new shop is on the one plan (10 November 2026), so only an older plan is worth a line.
+    shop.plan && shop.plan !== "both" ? el("span", { textContent: `${PLAN_NAMES[shop.plan] ?? shop.plan} plan` }) : null);
   let trial = null;
   if (where.trialLeft !== undefined) {
     // The bar shows the days left, so a new trial reads as a full bar that runs down.

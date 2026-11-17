@@ -947,6 +947,15 @@ confirmation card: a QR code (`qrcode-generator`, loaded only there) and the let
 it says so instead. CSS `.fm-book-checkin*` in `bookTimeStyle.ts` (theme tokens, stacks at 420px). The desk scans it from
 Take a payment or the Fair till (`admin/CheckInDialog.tsx`).
 
+**Standing appointments on the booking page (17 November 2026).** For a service with `repeats` the time step adds
+`RunPicker` (region `bookingsRepeat`, `.fm-book-run*` in `bookTimeStyle.ts`): How often (Just once, every 1–12 weeks) and
+Visits (`runVisitChoices`, `fitRun` in `bookTimeRules.ts`), then every date at the picked time from `bookingRunCheck`, taken
+ones struck through; Continue waits until all are free. `bookingStart` sends `run`; a 409 `run_taken` goes back to the times
+with `bookTimeRunGone`. The pack box hides with a run. The booking page shows the Standing appointment row and, from
+`runVisits`, every visit with links (region `bookingsRun`), and cancel offers `bookTimeCancelLater` (`andLater`). Words:
+Text & labels › Bookings page (`bookTimeRepeat*`, `bookTimeRun*`, `bookTimeCancelJustThis`, `bookTimeCancelLater`, French
+twins). The Studio preview's Quick call repeats and answers every date free.
+
 **Text me reminders on the booking page (17 November 2026).** When `bookingInfo.texts` is true, `BookTime.tsx` shows a tick
 box after the phone field (region `bookingsTexts`, words Text & labels › Bookings page `bookTimeTextOk`,
 `bookTimeTextOkHint`, `bookTimeTextOkNeedsPhone`, French twins); it is disabled until a phone is typed and is sent as

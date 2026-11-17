@@ -2889,3 +2889,149 @@ describe("classes: a class pass and a first-visit price", () => {
     expect((await save(0)).body.service.introPriceMinor).toBeUndefined();
   });
 });
+
+describe("standing appointments", () => {
+  const RUN = { everyWeeks: 5, visits: 4 };
+  const runSetup = async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Haircut", minutes: 45, gapAfter: 0, payment: "atShop", priceMinor: 6000, repeats: true });
+    return t;
+  };
+
+  test("only a service the shop marked, paid at the visit or free, offers a run", async () => {
+    const t = await runSetup();
+    const services = (await t.pub({ action: "bookingInfo" })).body.services;
+    expect(services.find((s) => s.id === "cut").repeats).toBe(true);
+    expect(services.find((s) => s.id === "visit").repeats).toBeUndefined();
+    // A service paid by card when booked can't be booked as a run online.
+    const paid = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-17", "13:00"), ...CUSTOMER, run: RUN });
+    expect(paid.statusCode).toBe(400);
+    expect(paid.body.code).toBe("run");
+  });
+
+  test("a client books every 5 weeks, 4 times: four bookings, one email listing them, each with its own page", async () => {
+    const t = await runSetup();
+    const check = await t.pub({ action: "bookingRunCheck", serviceId: "cut", start: at("2026-11-17", "10:00"), run: RUN });
+    expect(check.body.visits.map((v) => v.start)).toEqual([at("2026-11-17", "10:00"), at("2026-12-22", "10:00"), at("2027-01-26", "10:00"), at("2027-03-02", "10:00")]);
+    expect(check.body.visits.every((v) => v.free)).toBe(true);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, run: RUN });
+    expect(r.body).toMatchObject({ status: "confirmed", visits: 4 });
+    const all = [...t.db.store.entries()].filter(([k]) => k.startsWith("bookings/")).map(([, b]) => b).sort((a, b) => a.start.localeCompare(b.start));
+    expect(all).toHaveLength(4);
+    expect(all.map((b) => b.series.visit)).toEqual([1, 2, 3, 4]);
+    expect(new Set(all.map((b) => b.series.id)).size).toBe(1);
+    // Every visit is paid at the visit, at the full price, and shares the run's link key.
+    expect(all.every((b) => b.payment === "atShop" && b.priceMinor === 6000 && b.status === "confirmed")).toBe(true);
+    expect(new Set(all.map((b) => b.manageKeyHash)).size).toBe(1);
+    // One email to the client (and one to the owner) for the whole run.
+    expect(t.emails.map((e) => e.to)).toEqual(["ada@example.com", "owner@example.com"]);
+    expect(t.emails[0].html).toContain("All 4 visits, every 5 weeks");
+    // The page lists every visit of the run; a later visit opens with the same key.
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking.run).toEqual({ visit: 1, visits: 4, everyWeeks: 5 });
+    expect(view.body.runVisits.map((v) => v.start)).toEqual(check.body.visits.map((v) => v.start));
+    const third = view.body.runVisits[2];
+    expect((await t.pub({ action: "bookingView", id: third.id, key: r.body.key })).body.booking.run.visit).toBe(3);
+  });
+
+  test("a taken date stops the whole run, and nothing is left booked", async () => {
+    const t = await runSetup();
+    await t.adm({ op: "create", serviceId: "visit", start: at("2027-01-26", "10:00"), name: "Bo", email: "bo@example.com", sendEmail: false });
+    const check = await t.pub({ action: "bookingRunCheck", serviceId: "cut", start: at("2026-11-17", "10:00"), run: RUN });
+    expect(check.body.visits.filter((v) => !v.free).map((v) => v.start)).toEqual([at("2027-01-26", "10:00")]);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, run: RUN });
+    expect(r.statusCode).toBe(409);
+    expect(r.body).toMatchObject({ code: "run_taken", taken: [at("2027-01-26", "10:00")] });
+    expect([...t.db.store.values()].filter((b) => b.serviceId === "cut")).toHaveLength(0);
+  });
+
+  test("a race on a later date takes every visit back out, the first too", async () => {
+    const t = await runSetup();
+    // Someone books the third date just after the first visit is taken (after the check passed).
+    const set = t.db.store.set.bind(t.db.store);
+    let sneaked = false;
+    t.db.store.set = (k, v) => {
+      const out = set(k, v);
+      if (!sneaked && k.startsWith("bookings/") && v?.series?.visit === 1) {
+        sneaked = true;
+        set("bookingDays/2027-01-26", { items: { other: { start: zonedTime("2027-01-26", "10:00", ZONE), end: zonedTime("2027-01-26", "11:00", ZONE), held: false } } });
+      }
+      return out;
+    };
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, run: RUN });
+    expect(sneaked).toBe(true);
+    expect(r.statusCode).toBe(409);
+    expect(r.body.taken).toEqual([at("2027-01-26", "10:00")]);
+    expect([...t.db.store.keys()].filter((k) => k.startsWith("bookings/"))).toHaveLength(0);
+    // Only the other client's time is left taken.
+    const items = [...t.db.store.entries()].filter(([k]) => k.startsWith("bookingDays/")).flatMap(([, d]) => Object.keys(d.items || {}));
+    expect(items).toEqual(["other"]);
+  });
+
+  test("bad runs are refused in plain words", async () => {
+    const t = await runSetup();
+    const ask = (run) => t.pub({ action: "bookingRunCheck", serviceId: "cut", start: at("2026-11-17", "10:00"), run });
+    expect((await ask({ everyWeeks: 5, visits: 13 })).body.error).toMatch(/2 to 12 visits/);
+    expect((await ask({ everyWeeks: 13, visits: 3 })).body.error).toMatch(/every 1 to 12 weeks/);
+    expect((await ask({ everyWeeks: 6, visits: 12 })).body.error).toMatch(/within a year/);
+    // One visit is just a booking.
+    expect((await ask({ everyWeeks: 5, visits: 1 })).body.visits).toHaveLength(1);
+  });
+
+  test("each visit moves alone; cancelling this and the later ones leaves the earlier ones", async () => {
+    const t = await runSetup();
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, run: RUN });
+    const visits = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.runVisits;
+    const moved = await t.pub({ action: "bookingMove", id: visits[1].id, key: r.body.key, start: at("2026-12-23", "11:00") });
+    expect(moved.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${visits[2].id}`).start).toBe(at("2027-01-26", "10:00"));
+    const gone = await t.pub({ action: "bookingCancel", id: visits[1].id, key: r.body.key, andLater: true });
+    expect(gone.body.booking.status).toBe("cancelled");
+    expect(gone.body.runVisits.map((v) => v.status)).toEqual(["confirmed", "cancelled", "cancelled", "cancelled"]);
+    expect(t.emails.at(-2).html).toContain("2 later visits are cancelled too");
+  });
+
+  test("a later visit already paid at the shop stays on when the run is cancelled", async () => {
+    const t = await runSetup();
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, run: RUN });
+    const visits = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.runVisits;
+    expect((await t.adm({ op: "paidAtShop", id: visits[2].id })).statusCode).toBe(200);
+    const x = await t.adm({ op: "cancel", id: visits[1].id, andLater: true });
+    expect(x.body).toMatchObject({ ok: true, laterCancelled: 1, laterSkipped: 1 });
+    expect(visits.map((v) => t.db.store.get(`bookings/${v.id}`).status)).toEqual(["confirmed", "cancelled", "confirmed", "cancelled"]);
+  });
+
+  test("the shop books a run for any one-to-one service, paid at each visit, at any hour", async () => {
+    const t = await runSetup();
+    // Portfolio review is paid by card online, so clients can't book a run; the shop can.
+    const check = await t.adm({ op: "runCheck", serviceId: "review", start: at("2026-11-21", "09:00"), run: { everyWeeks: 2, visits: 3 } });
+    expect(check.body.visits.every((v) => v.free)).toBe(true);
+    const c = await t.adm({ op: "create", serviceId: "review", start: at("2026-11-21", "09:00"), ...CUSTOMER, run: { everyWeeks: 2, visits: 3 } });
+    expect(c.body).toMatchObject({ ok: true, visits: 3 });
+    const all = [...t.db.store.values()].filter((b) => b.serviceId === "review");
+    expect(all.map((b) => b.payment)).toEqual(["atShop", "atShop", "atShop"]);
+    // Cancelling the first with the later ones clears the run.
+    const x = await t.adm({ op: "cancel", id: c.body.id, andLater: true });
+    expect(x.body).toMatchObject({ ok: true, laterCancelled: 2, laterSkipped: 0 });
+    expect(all.length).toBe(3);
+    expect([...t.db.store.values()].filter((b) => b.serviceId === "review" && b.status === "confirmed")).toHaveLength(0);
+    // A class can't be a run.
+    expect((await t.adm({ op: "saveService", service: { name: "Life drawing", minutes: 60, places: 6, repeats: true } })).body.service.repeats).toBe(false);
+  });
+
+  test("a run that starts at the far edge of the booking window may reach almost a year past it", async () => {
+    const t = await runSetup();
+    // 57 days out (inside the 60-day window), every 6 weeks, 9 times: the last visit is 393 days from today.
+    const LONG = { everyWeeks: 6, visits: 9 };
+    const check = await t.pub({ action: "bookingRunCheck", serviceId: "cut", start: at("2027-01-12", "10:00"), run: LONG });
+    expect(check.body.visits).toHaveLength(9);
+    expect(check.body.visits.at(-1).start).toBe(at("2027-12-14", "10:00"));
+    expect(check.body.visits.every((v) => v.free)).toBe(true);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2027-01-12", "10:00"), ...CUSTOMER, run: LONG });
+    expect(r.body).toMatchObject({ status: "confirmed", visits: 9 });
+    // The first visit still keeps to the window.
+    const far = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2027-02-16", "10:00"), ...CUSTOMER, email: "bo@example.com", run: LONG });
+    expect(far.statusCode).toBeGreaterThanOrEqual(400);
+  });
+});

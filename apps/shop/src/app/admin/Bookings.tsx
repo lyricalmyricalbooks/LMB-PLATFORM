@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -736,8 +736,12 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
   const packHeld = !!b.pack?.id && !b.pack.returned && b.status !== "cancelled";
   const [cancelling, setCancelling] = useState(false);
   const [charging, setCharging] = useState(false);
+  // A standing appointment with visits after this one: cancelling asks whether they go too.
+  const laterVisits = b.series && b.status !== "cancelled" ? Math.max(0, b.series.visits - b.series.visit) : 0;
+  const [runCancel, setRunCancel] = useState(false);
   const cancel = async () => {
     if (paidByCard || giftHeld || packHeld) { setCancelling(true); return; }
+    if (laterVisits) { setRunCancel(true); return; }
     if (!(await ask({ title: "Cancel this booking?", message: `${b.customer.name} gets an email saying it's cancelled. The time opens up for others.`, confirmLabel: "Cancel booking" }))) return;
     await run("cancel", "cancel", { refundMinor: 0 }, "Booking cancelled");
   };
@@ -757,6 +761,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
             {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : "Cancelled"}
           </StatusBadge>
         </div>
+        {b.series && <p className="bkg-detail-line"><CalendarPlus size={16} aria-hidden /> Standing appointment: visit {b.series.visit} of {b.series.visits}, {b.series.everyWeeks === 1 ? "every week" : `every ${b.series.everyWeeks} weeks`}</p>}
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
         {b.meetUrl && b.status === "confirmed" && <p className="bkg-detail-line"><Video size={16} aria-hidden /> <a href={b.meetUrl} target="_blank" rel="noopener noreferrer">Join the Google Meet call</a></p>}
         <dl className="bkg-facts">
@@ -802,15 +807,24 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
         )}
       </div>
       {cancelling && (
-        <CancelDialog booking={b} onClose={() => setCancelling(false)}
-          onCancel={async (refundMinor, giftBack, packBack) => {
-            await bookingsAdmin("cancel", { id: b.id, refundMinor, giftBack, packBack });
+        <CancelDialog booking={b} laterVisits={laterVisits} onClose={() => setCancelling(false)}
+          onCancel={async (refundMinor, giftBack, packBack, andLater) => {
+            await bookingsAdmin("cancel", { id: b.id, refundMinor, giftBack, packBack, andLater });
             const gift = giftBack && giftHeld ? `${moneyText(giftHeld, b.currency)} back on their gift card` : "";
             const card = refundMinor === 0 ? "" : refundMinor < cardTaken(b) ? `${moneyText(refundMinor, b.currency)} refunded` : "refunded";
             const visit = packBack && packHeld ? "the visit back on their pack" : "";
             const done = [card, gift, visit].filter(Boolean);
             toast.success(done.length ? `Cancelled, ${done.join(" and ")}` : "Booking cancelled");
             setCancelling(false);
+            onClose();
+          }} />
+      )}
+      {runCancel && (
+        <RunCancelDialog booking={b} laterVisits={laterVisits} onClose={() => setRunCancel(false)}
+          onCancel={async (andLater) => {
+            const r = await bookingsAdmin<{ laterCancelled?: number; laterSkipped?: number }>("cancel", { id: b.id, refundMinor: 0, andLater });
+            toast.success(laterText(r));
+            setRunCancel(false);
             onClose();
           }} />
       )}
@@ -1059,11 +1073,38 @@ function FeeDialog({ booking: b, onClose, onCharge }: { booking: Booking; onClos
   );
 }
 
+/** What the toast says after cancelling a visit of a standing appointment (visits with money on them are left). */
+function laterText(r: { laterCancelled?: number; laterSkipped?: number }): string {
+  const n = r.laterCancelled || 0;
+  const kept = r.laterSkipped ? ` ${r.laterSkipped === 1 ? "1 later visit has" : `${r.laterSkipped} later visits have`} a payment on it, so cancel ${r.laterSkipped === 1 ? "it" : "them"} on ${r.laterSkipped === 1 ? "its" : "their"} own.` : "";
+  return (n ? `Cancelled, with ${n === 1 ? "the next visit" : `${n} later visits`}.` : "Booking cancelled.") + kept;
+}
+
+/** Cancels one visit of a standing appointment, or it and every later one. */
+function RunCancelDialog({ booking: b, laterVisits, onClose, onCancel }: { booking: Booking; laterVisits: number; onClose: () => void; onCancel: (andLater: boolean) => Promise<void> }) {
+  const [saving, setSaving] = useState<"" | "one" | "all">("");
+  const [problem, setProblem] = useState("");
+  const go = async (andLater: boolean) => {
+    setSaving(andLater ? "all" : "one"); setProblem("");
+    try { await onCancel(andLater); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(""); }
+  };
+  return (
+    <Dialog open onClose={onClose} title="Cancel this visit?"
+      description={`It's visit ${b.series?.visit} of ${b.series?.visits} of ${b.customer.name}'s standing appointment. They get an email saying what's cancelled, and the times open up for others.`}
+      footer={<><SecondaryButton onClick={onClose}>Keep it</SecondaryButton>
+        <DestructiveButton onClick={() => void go(false)} busy={saving === "one"} disabled={!!saving}>Just this visit</DestructiveButton>
+        <DestructiveButton onClick={() => void go(true)} busy={saving === "all"} disabled={!!saving}>{laterVisits === 1 ? "This and the next one" : `This and the ${laterVisits} later ones`}</DestructiveButton></>}>
+      {problem && <p className="bkg-error" role="alert">{problem}</p>}
+    </Dialog>
+  );
+}
+
 /**
  * Cancels a booking with money taken by card (all of it or a deposit), refunding all of that, part of it or none, and/or
  * paid with a gift card, whose part goes back on the card unless the owner keeps it.
  */
-function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onClose: () => void; onCancel: (refundMinor: number, giftBack: boolean, packBack: boolean) => Promise<void> }) {
+function CancelDialog({ booking: b, laterVisits = 0, onClose, onCancel }: { booking: Booking; laterVisits?: number; onClose: () => void; onCancel: (refundMinor: number, giftBack: boolean, packBack: boolean, andLater: boolean) => Promise<void> }) {
+  const [andLater, setAndLater] = useState(false);
   const [choice, setChoice] = useState<"all" | "part" | "none">("all");
   const [part, setPart] = useState("");
   const [problem, setProblem] = useState("");
@@ -1080,7 +1121,7 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
   const refundMinor = choice === "all" ? onCard : choice === "none" ? 0 : partMinor;
   const save = async () => {
     setSaving(true); setProblem("");
-    try { await onCancel(refundMinor, gift > 0 && giftBack, packVisit && packBack); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
+    try { await onCancel(refundMinor, gift > 0 && giftBack, packVisit && packBack, laterVisits > 0 && andLater); } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
   };
   const options = [
     { id: "all", label: "Refund all", note: paid },
@@ -1099,6 +1140,7 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
             </button>
           ))}
         </fieldset>}
+        {laterVisits > 0 && <Toggle label={laterVisits === 1 ? "Cancel the next visit of their standing appointment too" : `Cancel the ${laterVisits} later visits of their standing appointment too`} checked={andLater} onChange={setAndLater} />}
         {packVisit && <Toggle label={`Put the visit back on their pack (ending ${b.pack?.last4 || ""})`} checked={packBack} onChange={setPackBack} />}
         {packVisit && !packBack && <p className="bkg-questions-hint">The visit counts as used, as for a late cancel.</p>}
         {gift > 0 && <Toggle label={`Put ${moneyText(gift, b.currency)} back on their gift card (ending ${b.giftCard?.last4 || ""})`} checked={giftBack} onChange={setGiftBack} />}
@@ -1113,10 +1155,11 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
 }
 
 /** Picks a day and one of its free times for a service. `onPick` throws to keep the dialog open. */
-function TimeDialog({ title, description, service, initialDay, except = "", staffId = "", confirmLabel, onClose, onPick, children, ready = true }: {
+function TimeDialog({ title, description, service, initialDay, except = "", staffId = "", confirmLabel, onClose, onPick, children, ready = true, after }: {
   title: string; description?: string; service: BookingService; initialDay: string; except?: string;
   /** Only this person's free times ("" = anyone on the team, or the shop's one calendar). */ staffId?: string; confirmLabel: string;
   onClose: () => void; onPick: (startIso: string) => Promise<void>; children?: React.ReactNode; ready?: boolean;
+  /** Shown under the times once one is picked (New booking › Repeat lists the run's dates). */ after?: (startIso: string) => React.ReactNode;
 }) {
   const [day, setDay] = useState(initialDay);
   const [times, setTimes] = useState<string[] | null>(null);
@@ -1149,6 +1192,7 @@ function TimeDialog({ title, description, service, initialDay, except = "", staf
             <button key={t} type="button" className="bkg-time" aria-pressed={picked === t} onClick={() => setPicked(t)}>{timeText(t, ZONE)}</button>
           ))}
         </fieldset>
+        {picked && after?.(picked)}
         {problem && <p className="bkg-error" role="alert">{problem}</p>}
       </div>
     </Dialog>
@@ -1205,6 +1249,37 @@ function PersonPick({ settings, serviceId, value, onChange }: { settings: Bookin
   );
 }
 
+/** The dates of a standing appointment, each marked free or taken (op runCheck), under New booking's times. */
+function RunDates({ serviceId, start, run, staffId, onFree }: { serviceId: string; start: string; run: { everyWeeks: number; visits: number }; staffId: string; onFree: (free: boolean) => void }) {
+  const [visits, setVisits] = useState<{ start: string; free: boolean }[] | null>(null);
+  const [problem, setProblem] = useState("");
+  useEffect(() => {
+    let live = true;
+    setVisits(null); setProblem(""); onFree(false);
+    bookingsAdmin<{ visits: { start: string; free: boolean }[] }>("runCheck", { serviceId, start, run, staffId })
+      .then((r) => { if (live) { setVisits(r.visits); onFree(r.visits.every((v) => v.free)); } })
+      .catch((e) => live && setProblem(e?.message || "The dates couldn't be checked."));
+    return () => { live = false; };
+  }, [serviceId, start, run.everyWeeks, run.visits, staffId]);
+  if (problem) return <p className="bkg-error" role="alert">{problem}</p>;
+  if (!visits) return <LoadingState label="Checking every date…" />;
+  const taken = visits.filter((v) => !v.free).length;
+  return (
+    <div className="bkg-run">
+      <p className="bkg-run-head">{taken ? `${taken === 1 ? "1 date is" : `${taken} dates are`} already taken. Change the time, the gap or the number of visits.` : `All ${visits.length} dates are free.`}</p>
+      <ol className="bkg-run-list">
+        {visits.map((v, i) => (
+          <li key={v.start} className={v.free ? "" : "is-taken"}>
+            <span>Visit {i + 1}</span>
+            <span>{dayText(dayOf(Date.parse(v.start), ZONE), "long")}, {timeText(v.start, ZONE)}</span>
+            {!v.free && <StatusBadge tone="danger">Taken</StatusBadge>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 /** What Book again fills in: the client and their last service and person (Customers › a client). */
 export type BookAgain = { serviceId: string; staffId: string; name: string; email: string; phone: string };
 
@@ -1215,12 +1290,19 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { 
   const [who, setWho] = useState({ name: initial?.name || "", email: initial?.email || "", phone: initial?.phone || "", note: "" });
   const [sendEmail, setSendEmail] = useState(true);
   const service = services.find((s) => s.id === serviceId) || services[0];
+  // Repeat: a standing appointment, the same time every few weeks (one-to-one services only).
+  const [everyWeeks, setEveryWeeks] = useState(0);
+  const [visits, setVisits] = useState(6);
+  const repeatable = service.places <= 1 && !(service.courseDates || []).length;
+  const run = repeatable && everyWeeks ? { everyWeeks, visits } : null;
+  const [runFree, setRunFree] = useState(false);
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
-    <TimeDialog key={service.id} title={initial ? "Book again" : "New booking"} service={service} initialDay={today()} staffId={staffId} confirmLabel="Book" onClose={onClose} ready={ready}
+    <TimeDialog key={service.id} title={initial ? "Book again" : "New booking"} service={service} initialDay={today()} staffId={staffId} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree)}
+      after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} onFree={setRunFree} /> : undefined}
       onPick={async (start) => {
-        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}) });
-        toast.success(`${who.name.trim()} is booked in`);
+        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}) });
+        toast.success(run ? `${who.name.trim()} is booked in for ${visits} visits` : `${who.name.trim()} is booked in`);
         onBooked?.();
         onClose();
       }}>
@@ -1236,6 +1318,20 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { 
         <TextField label="Phone (optional)" type="tel" value={who.phone} onChange={(e) => setWho({ ...who, phone: e.target.value })} autoComplete="off" />
         <TextField label="Note (optional)" value={who.note} onChange={(e) => setWho({ ...who, note: e.target.value })} />
       </div>
+      {repeatable && (
+        <div className="bkg-two">
+          <SelectField label="Repeat" value={String(everyWeeks)} onChange={(e) => { const w = Number(e.target.value); setEveryWeeks(w); if (w && (visits - 1) * w * 7 > MAX_RUN_DAYS) setVisits(Math.floor(MAX_RUN_DAYS / (w * 7)) + 1); }}>
+            <option value="0">Just once</option>
+            {Array.from({ length: MAX_RUN_WEEKS }, (_, i) => i + 1).map((w) => <option key={w} value={w}>{w === 1 ? "Every week" : `Every ${w} weeks`}</option>)}
+          </SelectField>
+          {everyWeeks > 0 && (
+            <SelectField label="Visits" value={String(visits)} onChange={(e) => setVisits(Number(e.target.value))}>
+              {Array.from({ length: MAX_RUN_VISITS - 1 }, (_, i) => i + 2).filter((n) => (n - 1) * everyWeeks * 7 <= MAX_RUN_DAYS).map((n) => <option key={n} value={n}>{n} visits</option>)}
+            </SelectField>
+          )}
+        </div>
+      )}
+      {run && <p className="bkg-questions-hint">{service.priceMinor > 0 ? "Each visit is paid at the visit, gets its own reminder and can be moved on its own." : "Each visit gets its own reminder and can be moved on its own."}</p>}
       <Toggle label="Email them the booking" checked={sendEmail} onChange={setSendEmail} />
     </TimeDialog>
   );
@@ -1269,7 +1365,7 @@ export function nextCourseDate(dates: readonly string[]): string {
   return `${addDays(last.slice(0, 10), 7)}T${last.slice(11, 16) || "18:00"}`;
 }
 
-export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0 };
+export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0, repeats: false };
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -1381,6 +1477,7 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
         holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
         meet: !!rest.meet && rest.places <= 1,
+        repeats: !!rest.repeats && rest.places <= 1 && !(rest.courseDates || []).length,
         chargeTax: priceMinor > 0 && !!rest.chargeTax,
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
@@ -1513,6 +1610,16 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
             ? `${rebookSpan(form.rebookWeeks).replace(/^a/, "A")} after a visit, customers get one email with a button to book again, unless they've already booked. It has an unsubscribe link.`
             : "Send customers one email to book again a set time after their visit."}</p>
         </div>
+        {!group && (
+          <div className="bkg-meet">
+            <Toggle label="Clients can book a standing appointment" checked={!!form.repeats} onChange={(v) => set("repeats", v)} />
+            <p className="bkg-questions-hint">{!form.repeats
+              ? `Clients book the same time every few weeks, up to ${MAX_RUN_VISITS} visits, in one go. You can always set one up yourself from New booking.`
+              : runsOnline({ payment: Number(form.price) > 0 ? form.pay : "free", places: 1, holdCard: form.holdCard && !paidInFull && !square, repeats: true })
+                ? "Clients choose how often and how many visits when they book. Each visit gets its own reminder and can be moved on its own."
+                : "Clients can only book a run when it's free or paid at the visit, with no card on file. You can still set one up from New booking."}</p>
+          </div>
+        )}
         <fieldset className="bkg-questions">
           <legend>Who can book a time</legend>
           <div className="bkg-seg" role="radiogroup" aria-label="Who can book a time">

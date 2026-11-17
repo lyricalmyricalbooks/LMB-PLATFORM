@@ -91,6 +91,8 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "bookingsGiftCard", label: "Gift card box" },
     { id: "bookingsTexts", label: "Text me reminders tick box" },
     { id: "bookingsPackCode", label: "Pack code box" },
+    { id: "bookingsRepeat", label: "Standing appointment: how often and its dates" },
+    { id: "bookingsRun", label: "Your booking: every visit of a standing appointment" },
     { id: "bookingsPack", label: "Buy a pack of visits" },
     { id: "bookingsPass", label: "Your pack: visits left", required: true },
     { id: "bookingsConfirmation", label: "Your booking: details", required: true },

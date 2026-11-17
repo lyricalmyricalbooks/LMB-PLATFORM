@@ -87,6 +87,12 @@ export type BookingService = {
    * visit?" email with a Book again button, unless they have booked again since. 0 = never.
    */
   rebookWeeks?: number;
+  /**
+   * Standing appointments (Services plan 2, B1): clients may book a run of visits at once ("every 5 weeks, 6 times").
+   * Only for one-to-one services paid at the visit or free, with no card kept: nothing is taken by card when booked,
+   * so every visit can stand alone. The shop can set up a run for any one-to-one service whatever this says.
+   */
+  repeats?: boolean;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -454,6 +460,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     chargeTax: payment !== "free" && s.chargeTax === true,
     rebookWeeks: whole(s.rebookWeeks, 0, MAX_REBOOK_WEEKS, 0),
+    repeats: s.repeats === true && places === 1 && !courseDates.length,
   };
 }
 
@@ -614,6 +621,58 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
 }
 
 export const MAX_REBOOK_WEEKS = 52;
+
+// ── Standing appointments (Services plan 2, B1) ──────────────────────────────────────────────────────────────────
+
+/** The most visits one run can hold, and the longest gap between two of them. */
+export const MAX_RUN_VISITS = 12;
+export const MAX_RUN_WEEKS = 12;
+/** A run stays inside a year from its first visit. */
+export const MAX_RUN_DAYS = 364;
+
+/** A run of visits: every `everyWeeks` weeks, `visits` times in all (the first visit included). */
+export type BookingRun = { everyWeeks: number; visits: number };
+
+/** Whether clients can book a run of this service online (see `repeats`). */
+export function runsOnline(s: Pick<BookingService, "payment" | "places" | "holdCard"> & { repeats?: boolean; courseDates?: readonly string[] } | null | undefined): boolean {
+  return !!s?.repeats && !isClass(s) && (s.payment === "free" || s.payment === "atShop") && !s.holdCard;
+}
+
+/** A run asked for, cleaned: null for none (missing, or one visit), else the run or what is wrong with it. */
+export function cleanRun(raw: unknown): BookingRun | { problem: string } | null {
+  if (raw == null || raw === false) return null;
+  const r = typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const visits = Math.round(Number(r.visits));
+  const everyWeeks = Math.round(Number(r.everyWeeks));
+  if (visits === 1 || r.visits === undefined) return null;
+  if (!Number.isFinite(visits) || visits < 2 || visits > MAX_RUN_VISITS) return { problem: `A standing appointment is 2 to ${MAX_RUN_VISITS} visits.` };
+  if (!Number.isFinite(everyWeeks) || everyWeeks < 1 || everyWeeks > MAX_RUN_WEEKS) return { problem: `Choose every 1 to ${MAX_RUN_WEEKS} weeks.` };
+  if ((visits - 1) * everyWeeks * 7 > MAX_RUN_DAYS) return { problem: "A standing appointment stays within a year. Choose fewer visits or a shorter gap." };
+  return { everyWeeks, visits };
+}
+
+/**
+ * Every visit of a run (milliseconds), the first being `start`: the same time on the shop's clock, `everyWeeks` weeks
+ * apart, so a clock change never moves the hour.
+ */
+export function runStarts(start: number, run: BookingRun, zone: string): number[] {
+  const day = dayOf(start, zone);
+  const p = partsIn(zone, start);
+  const hhmm = `${String(p.hour % 24).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+  const out = [start];
+  for (let n = 1; n < run.visits; n++) out.push(zonedTime(addDays(day, n * run.everyWeeks * 7), hhmm, zone));
+  return out;
+}
+
+/**
+ * Settings for a run's later visits: online, the shop's hours and days off; booked by the shop (`owner`), any hour. Either
+ * way a later visit may fall up to a year after a first visit at the far edge of the booking window, so the window grows
+ * by the longest run.
+ */
+export function runSettings(settings: BookingSettings, owner = false): BookingSettings {
+  const base = owner ? ownerBookingSettings(settings) : { ...settings, minNoticeHours: 0 };
+  return { ...base, maxDaysAhead: (base.maxDaysAhead || DEFAULT_BOOKING_SETTINGS.maxDaysAhead) + MAX_RUN_DAYS };
+}
 /** A rebook reminder goes out within this many days of falling due; a visit older than that is left alone. */
 export const REBOOK_WINDOW_DAYS = 14;
 

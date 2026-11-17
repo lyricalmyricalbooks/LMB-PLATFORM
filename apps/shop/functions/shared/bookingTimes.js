@@ -9,8 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = void 0;
+exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = void 0;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -27,6 +27,10 @@ exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
+exports.runsOnline = runsOnline;
+exports.cleanRun = cleanRun;
+exports.runStarts = runStarts;
+exports.runSettings = runSettings;
 exports.rebookDue = rebookDue;
 exports.reviewOpen = reviewOpen;
 exports.cleanVisitReview = cleanVisitReview;
@@ -344,6 +348,7 @@ function cleanService(raw, id = "") {
         roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         chargeTax: payment !== "free" && s.chargeTax === true,
         rebookWeeks: whole(s.rebookWeeks, 0, exports.MAX_REBOOK_WEEKS, 0),
+        repeats: s.repeats === true && places === 1 && !courseDates.length,
     };
 }
 /** A course's dates, cleaned: real shop-clock "YYYY-MM-DDTHH:MM" moments, no repeats, earliest first. */
@@ -504,6 +509,55 @@ function cleanBookingSettings(raw) {
     };
 }
 exports.MAX_REBOOK_WEEKS = 52;
+// ── Standing appointments (Services plan 2, B1) ──────────────────────────────────────────────────────────────────
+/** The most visits one run can hold, and the longest gap between two of them. */
+exports.MAX_RUN_VISITS = 12;
+exports.MAX_RUN_WEEKS = 12;
+/** A run stays inside a year from its first visit. */
+exports.MAX_RUN_DAYS = 364;
+/** Whether clients can book a run of this service online (see `repeats`). */
+function runsOnline(s) {
+    return !!s?.repeats && !(0, exports.isClass)(s) && (s.payment === "free" || s.payment === "atShop") && !s.holdCard;
+}
+/** A run asked for, cleaned: null for none (missing, or one visit), else the run or what is wrong with it. */
+function cleanRun(raw) {
+    if (raw == null || raw === false)
+        return null;
+    const r = typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const visits = Math.round(Number(r.visits));
+    const everyWeeks = Math.round(Number(r.everyWeeks));
+    if (visits === 1 || r.visits === undefined)
+        return null;
+    if (!Number.isFinite(visits) || visits < 2 || visits > exports.MAX_RUN_VISITS)
+        return { problem: `A standing appointment is 2 to ${exports.MAX_RUN_VISITS} visits.` };
+    if (!Number.isFinite(everyWeeks) || everyWeeks < 1 || everyWeeks > exports.MAX_RUN_WEEKS)
+        return { problem: `Choose every 1 to ${exports.MAX_RUN_WEEKS} weeks.` };
+    if ((visits - 1) * everyWeeks * 7 > exports.MAX_RUN_DAYS)
+        return { problem: "A standing appointment stays within a year. Choose fewer visits or a shorter gap." };
+    return { everyWeeks, visits };
+}
+/**
+ * Every visit of a run (milliseconds), the first being `start`: the same time on the shop's clock, `everyWeeks` weeks
+ * apart, so a clock change never moves the hour.
+ */
+function runStarts(start, run, zone) {
+    const day = dayOf(start, zone);
+    const p = partsIn(zone, start);
+    const hhmm = `${String(p.hour % 24).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+    const out = [start];
+    for (let n = 1; n < run.visits; n++)
+        out.push(zonedTime(addDays(day, n * run.everyWeeks * 7), hhmm, zone));
+    return out;
+}
+/**
+ * Settings for a run's later visits: online, the shop's hours and days off; booked by the shop (`owner`), any hour. Either
+ * way a later visit may fall up to a year after a first visit at the far edge of the booking window, so the window grows
+ * by the longest run.
+ */
+function runSettings(settings, owner = false) {
+    const base = owner ? ownerBookingSettings(settings) : { ...settings, minNoticeHours: 0 };
+    return { ...base, maxDaysAhead: (base.maxDaysAhead || exports.DEFAULT_BOOKING_SETTINGS.maxDaysAhead) + exports.MAX_RUN_DAYS };
+}
 /** A rebook reminder goes out within this many days of falling due; a visit older than that is left alone. */
 exports.REBOOK_WINDOW_DAYS = 14;
 /**

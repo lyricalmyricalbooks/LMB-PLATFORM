@@ -36,6 +36,8 @@ export type Booking = {
   /** Who takes it (when the shop lists people) and the room it uses, named as they were when booked or moved. */
   staffId?: string; staffName?: string; roomId?: string; roomName?: string;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
+  /** A standing appointment: which visit of the run this is, how many there are and how often (each is its own booking). */
+  series?: { id: string; visit: number; visits: number; everyWeeks: number } | null;
 };
 
 /**
@@ -111,7 +113,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus";
+export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus" | "runCheck";
 
 /** A card reader that connects over the internet (Take a payment). */
 export type CardReader = { id: string; label: string; online: boolean | null; device?: string };

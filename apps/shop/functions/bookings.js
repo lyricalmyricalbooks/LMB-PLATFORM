@@ -62,6 +62,7 @@ const {
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
+  cleanRun, runStarts, runSettings, runsOnline,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -216,6 +217,8 @@ function publicBooking(id, b, settings, nowMs) {
     staffId: b.staffId || "", staffName: b.staffName || "",
     // A course: every one of its dates (the first is `start`).
     ...(Array.isArray(b.course?.starts) && b.course.starts.length > 1 ? { courseStarts: b.course.starts } : {}),
+    // A standing appointment: which visit of the run this is.
+    ...(b.series?.id ? { run: { visit: b.series.visit || 1, visits: b.series.visits || 1, everyWeeks: b.series.everyWeeks || 1 } } : {}),
     meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
     // Sales tax: the part of priceMinor that is tax.
@@ -432,7 +435,7 @@ function bookingActions({
   }
 
   /** Emails the customer (and tells the owner) about a booking. `kind`: booked, moved, cancelled. Never throws. */
-  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "", siteReview = false, tooFew = false } = {}) {
+  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "", siteReview = false, tooFew = false, run = [] } = {}) {
     try {
       const to = b.customer?.email;
       if (!to || !EMAIL.test(to)) return;
@@ -443,6 +446,9 @@ function bookingActions({
       // A course lists every one of its dates.
       const dates = Array.isArray(b.course?.starts) && b.course.starts.length > 1
         ? `<p style="margin:12px 0 4px;"><strong>All ${b.course.starts.length} dates:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${b.course.starts.map((iso) => `<li>${escapeHtml(whenWords(b, iso))}</li>`).join("")}</ul>` : "";
+      // A standing appointment lists every visit of the run when it is booked.
+      const runDates = run.length > 1
+        ? `<p style="margin:12px 0 4px;"><strong>All ${run.length} visits, every ${b.series?.everyWeeks === 1 ? "week" : `${b.series?.everyWeeks || ""} weeks`}:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${run.map((iso) => `<li>${escapeHtml(whenWords(b, iso))}</li>`).join("")}</ul><p style="margin:0 0 4px;font-size:13px;">Each visit gets its own reminder, and can be moved or cancelled on its own from your booking page.</p>` : "";
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
       const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>Video call:</strong> <a href="${escapeHtml(b.meetUrl)}">Join with Google Meet</a></p>` : "";
       const arriving = ["booked", "moved", "reminder", "soon"].includes(kind);
@@ -498,6 +504,7 @@ function bookingActions({
         ${b.staffName ? `<p style="margin:0 0 4px;"><strong>With:</strong> ${escapeHtml(b.staffName)}</p>` : ""}
         ${where}
         ${dates}
+        ${runDates}
         ${video}
         ${money}
         ${held}
@@ -516,6 +523,7 @@ function bookingActions({
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(b.serviceName)}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes${b.staffName ? ` · ${escapeHtml(withWhom(b))}` : ""}</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
+            ${runDates}
             ${money}
             ${held}
             ${kind === "notCleared" ? `<p style="margin:12px 0 0;">Their bank payment was still clearing when the booking was due, so the time was released and nothing was taken. You may want to get in touch with them.</p>` : ""}
@@ -889,6 +897,108 @@ function bookingActions({
     return moved;
   }
 
+  // ── Standing appointments (Services plan 2, B1) ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Whether each of a run's later visits (`starts`, milliseconds) is free: with `staffId` (or anyone who does the service),
+   * in the shop's hours however far ahead, or at any hour when the shop books it (`owner`). Read only, so the page can show
+   * the dates before booking; the visits are taken one by one afterwards, each in its own transaction.
+   */
+  async function runPlan({ service, settings, starts, staffId = "", owner = false }) {
+    const rules = runSettings(settings, owner);
+    const nowMs = now().getTime();
+    return Promise.all(starts.map(async (ms) => {
+      const busy = await busyAround(dayOf(ms, zone()), nowMs);
+      const free = whoIsFree({ service: { ...service, classTimes: [] }, settings: rules, busy, start: ms, zone: zone(), nowMs, staffId }) !== null;
+      return { start: new Date(ms).toISOString(), free };
+    }));
+  }
+
+  /** Takes a booking back out entirely (a run that couldn't be booked whole): its time freed, its record deleted. */
+  async function dropBooking(id, b) {
+    await freeTime(id, b, { status: "cancelled", updatedAt: now().toISOString() });
+    await bookings().doc(id).delete();
+  }
+
+  /**
+   * Books a run's later visits after the first (`first`, as written, with its id). Each is its own booking: the full price
+   * paid at the visit (a code, gift card or pack only ever paid the first), its own reminders, moved or cancelled alone,
+   * with the first visit's person when they are free, else (when the client asked for anyone) whoever is. All or nothing:
+   * when a visit can't be taken, every visit is taken back out, the first too, and the dates that failed are answered.
+   */
+  async function bookRun({ firstId, first, service, settings, starts, staffId = "", owner = false, by }) {
+    const rules = runSettings(settings, owner);
+    const tax = await taxOn(service, service.priceMinor);
+    const price = service.priceMinor + (tax?.taxMinor || 0);
+    const { discount: _d, listPriceMinor: _l, giftCard: _g, pack: _p, depositMinor: _dm, depositPaid: _dp, taxMinor: _t, taxLines: _tl, ...base } = first;
+    const made = [];
+    const taken = [];
+    for (let n = 1; n < starts.length; n++) {
+      const id = randomId();
+      const at = now().toISOString();
+      const record = {
+        ...base, ...taxFields(tax), priceMinor: price, payment: price > 0 ? "atShop" : "free", paid: false, sessions: [], holdUntil: null, pendingKey: null,
+        series: { ...first.series, visit: n + 1 }, history: [{ at, what: `booked (visit ${n + 1} of ${starts.length})`, by }], createdAt: at, updatedAt: at,
+      };
+      const take = (who) => takeTime({ id, service: { ...service, classTimes: [] }, settings: rules, start: starts[n], record: { ...record }, staffId: who });
+      const ok = (await take(first.staffId || staffId)) === true || (!staffId && first.staffId ? (await take("")) === true : false);
+      if (ok) made.push(id);
+      else taken.push(new Date(starts[n]).toISOString());
+    }
+    if (taken.length) {
+      for (const id of made) {
+        const b = (await bookings().doc(id).get()).data();
+        if (b) await dropBooking(id, b);
+      }
+      const b = (await bookings().doc(firstId).get()).data();
+      if (b) await dropBooking(firstId, b);
+      return { taken };
+    }
+    // Into the shop's Google Calendar too, each visit on its own.
+    for (const id of made) {
+      const b = (await bookings().doc(id).get()).data();
+      if (b) await syncCalendar(id, b);
+    }
+    return { taken: [], ids: made };
+  }
+
+  /** The other visits of a booking's run, earliest first (for its page and for cancelling the rest). */
+  async function runVisits(b) {
+    if (!b.series?.id) return [];
+    const snap = await bookings().where("series.id", "==", b.series.id).limit(30).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+  }
+
+  /**
+   * A run's visits for the booking's own page: each one's id, start and status, so the page can link to them with the
+   * same key. Only with the run's own key (the booked email's): a reminder's key opens just its one visit.
+   */
+  async function runOf(id, b, key) {
+    if (!b.series?.id || !key || hash(key) !== b.manageKeyHash) return {};
+    const list = await runVisits(b);
+    return { runVisits: list.filter((v) => v.manageKeyHash === b.manageKeyHash).map((v) => ({ id: v.id, start: v.start, status: v.status, current: v.id === id })) };
+  }
+
+  /**
+   * "Cancel this and the later visits" on a standing appointment: the run's later visits still on are cancelled too.
+   * A visit something was paid on since (by card, the rest, a tip, or marked paid at the shop) is left for the shop to
+   * refund or keep on its own (`skipped`).
+   */
+  async function cancelLater(id, b, by, at) {
+    let cancelled = 0;
+    let skipped = 0;
+    for (const v of await runVisits(b)) {
+      if (v.id === id || v.status !== "confirmed" || Date.parse(v.start) <= Date.parse(b.start)) continue;
+      const { id: vid, ...vb } = v;
+      if (vb.paid || vb.depositPaid || cardTaken(vb) > 0 || tipTaken(vb) > 0 || vb.readerOpen || vb.restOpen) { skipped += 1; continue; }
+      const written = await freeTime(vid, vb, { status: "cancelled", cancelledAt: at, cancelledBy: by, updatedAt: at,
+        history: [...(vb.history || []), { at, what: "cancelled with the rest of the run", by }].slice(-20) });
+      await syncCalendar(vid, { ...vb, ...written });
+      cancelled += 1;
+    }
+    return { cancelled, skipped };
+  }
+
   /** Reads a held booking's payment pages; confirms it when one is paid. Returns the booking as it now stands. */
   async function refreshHeld(id, b, checkout) {
     if (b.status !== "held" || !checkout) return b;
@@ -1129,7 +1239,7 @@ function bookingActions({
    * customer when it was confirmed. A refund that can't start throws (`refundFailed`) and leaves the booking on.
    * `tooFew`: cancelled because a class didn't reach its minimum (the email says so).
    */
-  async function shopCancel(id, b, { amount = 0, by = "shop", giftBack: keepGift = true, packBack: keepVisit = true, notify = true, tooFew = false } = {}) {
+  async function shopCancel(id, b, { amount = 0, by = "shop", giftBack: keepGift = true, packBack: keepVisit = true, notify = true, tooFew = false, andLater = false } = {}) {
     const onCard = cardTaken(b);
     let refund = null;
     if (amount > 0) {
@@ -1149,10 +1259,13 @@ function bookingActions({
       history: [...(b.history || []), { at, what: `${what ? `cancelled and ${what}` : "cancelled"}${why}`, by }].slice(-20) };
     await freeTime(id, b, changes, { giftBack, packBack });
     await syncCalendar(id, { ...b, ...changes });
+    // A standing appointment: the later visits too, when asked (those with money on them are left).
+    const run = andLater && b.series?.id ? await cancelLater(id, b, by, at) : null;
+    const laterWords = run?.cancelled ? ` Your ${run.cancelled === 1 ? "next visit is" : `${run.cancelled} later visits are`} cancelled too.` : "";
     const paid = b.payment === "deposit" && !b.rest ? "deposit" : "payment";
     const cardWordsBack = !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${paid} is being refunded to your card.` : `Your ${paid} is being refunded to your card.`;
-    if (notify && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, tooFew, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}${packBack ? packBackWords(b) : ""}`.trim() });
-    return { refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}), ...(packBack ? { packBack: true } : {}) };
+    if (notify && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, tooFew, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}${packBack ? packBackWords(b) : ""}${laterWords}`.trim() });
+    return { ...(run ? { laterCancelled: run.cancelled, laterSkipped: run.skipped } : {}), refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}), ...(packBack ? { packBack: true } : {}) };
   }
 
   async function refundBooking(id, b, amountMinor = cardTaken(b)) {
@@ -1479,8 +1592,10 @@ function bookingActions({
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, minPlaces, packAnyClass, introPriceMinor }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
+            // Standing appointments: a run of visits can be booked at once.
+            ...(runsOnline({ payment, places, holdCard: holdCard && canHoldCard(), repeats }) ? { repeats: true } : {}),
             // A course: every one of its dates (signed up for as a whole, from the first).
             ...(isCourse({ places, courseDates }) ? { courseStarts: courseStarts({ places, courseDates }, zone()).map((ms) => new Date(ms).toISOString()) } : {}),
             // Joining a course late: how many dates were missed, of how many, and the whole course's price.
@@ -1675,6 +1790,21 @@ function bookingActions({
         if (problem) return fail(res, 400, PACK_MESSAGES[problem], "pack");
         return res.status(200).json({ last4: p.last4, left: packLeft(p), visits: p.visits, expiresOn: p.expiresOn || null });
       }
+      if (action === "bookingRunCheck") {
+        // Before booking a standing appointment: is each later visit free? (The page lists the dates with this.)
+        if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
+        if (!runsOnline({ ...service, holdCard: service.holdCard && canHoldCard() })) return fail(res, 400, "This service can't be booked as a standing appointment.", "run");
+        const start = Date.parse(String(req.body?.start || ""));
+        if (!Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
+        const run = cleanRun(req.body?.run);
+        if (!run) return res.status(200).json({ visits: [{ start: new Date(start).toISOString(), free: true }] });
+        if (run.problem) return fail(res, 400, run.problem, "run");
+        const staffId = keptPerson(settings, service.id, req.body?.staffId);
+        const starts = runStarts(start, run, zone());
+        return res.status(200).json({ visits: [{ start: new Date(start).toISOString(), free: true }, ...(await runPlan({ service, settings, starts: starts.slice(1), staffId }))] });
+      }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
         const service = await publicService(req.body?.serviceId);
@@ -1689,6 +1819,16 @@ function bookingActions({
         // The service's own questions: a required one left empty stops the booking, with the question named.
         const answered = cleanAnswers(service.questions, req.body?.answers);
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
+        // A standing appointment: a run of visits booked at once, each its own booking (services that take no card).
+        const run = cleanRun(req.body?.run);
+        if (run?.problem) return fail(res, 400, run.problem, "run");
+        if (run && !runsOnline({ ...service, holdCard: service.holdCard && canHoldCard() })) return fail(res, 400, "This service can't be booked as a standing appointment. Please book one visit.", "run");
+        if (run && String(req.body?.pack || "").trim()) return fail(res, 400, "A pack pays for single visits. Please book one visit with it.", "pack");
+        const runAt = run ? runStarts(start, run, zone()) : [];
+        if (run) {
+          const busyDates = (await runPlan({ service, settings, starts: runAt.slice(1), staffId })).filter((v) => !v.free).map((v) => v.start);
+          if (busyDates.length) return res.status(409).json({ error: "Some of those dates are already taken. Choose another time, gap or number of visits.", code: "run_taken", taken: busyDates });
+        }
         // A pack of visits pays for the visit outright: no code, gift card or card payment with it.
         let pack = null;
         // Its first date (the first left, for a late joiner) gone means it can't be joined any more.
@@ -1759,7 +1899,8 @@ function bookingActions({
           ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
           pendingKey: paid ? key : null,
-          source: "website", history: [{ at, what: "booked", by: "customer" }], createdAt: at, updatedAt: at,
+          source: "website", history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by: "customer" }], createdAt: at, updatedAt: at,
+          ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
         };
         const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs), staffId });
         if (took === "code_used") return refuse(res, 409, "This code has reached its usage limit.", "code");
@@ -1767,11 +1908,15 @@ function bookingActions({
         if (took === "pack_used") return refuse(res, 409, "This pack can't book another visit just now. Please check it and try again.", "pack");
         if (!took && isCourse(service)) return refuse(res, 409, "This course just filled up, or one of its dates is no longer free. Please contact the shop.", "taken");
         if (!took) return refuse(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : staffId ? "That person was just booked then. Please pick another time or anyone free." : "Someone just took that time. Please pick another.", "taken");
+        if (run && !paid) {
+          const later = await bookRun({ firstId: id, first: record, service, settings, starts: runAt, staffId, by: "customer" });
+          if (later.taken.length) { if (offered.intro) await releaseIntro(customer.email, id); return res.status(409).json({ error: "Someone just took one of those dates. Choose another time, gap or number of visits.", code: "run_taken", taken: later.taken }); }
+        }
         if (!paid) {
           const written = pack ? (await bookings().doc(id).get()).data() : record;
           const booked = await syncCalendar(id, { ...written, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
-          await tellCustomer(id, booked, "booked", { key });
-          return res.status(200).json({ id, key, status: "confirmed" });
+          await tellCustomer(id, booked, "booked", { key, run: runAt.map((ms) => new Date(ms).toISOString()) });
+          return res.status(200).json({ id, key, status: "confirmed", ...(run ? { visits: run.visits } : {}) });
         }
         try {
           const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}${deposit ? " (deposit)" : ""}`.slice(0, 250);
@@ -1878,7 +2023,7 @@ function bookingActions({
         if (b.status === "held") b = await refreshHeld(id, b, (await standalone()).checkout);
         if (b.restOpen) b = await refreshRest(id, b, (await standalone()).checkout);
         if (Date.parse(b.end) > nowMs) b = await withCheckInCode(id, b);
-        return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs) });
+        return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs), ...(await runOf(id, b, key)) });
       }
       if (action === "bookingPayRest") {
         // A card page for what is left; the booking page reads it when the customer comes back.
@@ -1935,7 +2080,7 @@ function bookingActions({
         return res.status(200).json({ booking: publicBooking(id, { ...b, reviewId: reviewRef.id }, settings, nowMs) });
       }
       if (action === "bookingCancel") {
-        if (b.status === "cancelled") return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs) });
+        if (b.status === "cancelled") return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs), ...(await runOf(id, b, key)) });
         if (b.status !== "confirmed" || !customerCanChange(Date.parse(b.start), settings, nowMs)) {
           return fail(res, 409, `This booking can't be cancelled online within ${settings.cancelHours} hours of its start. Please contact the shop.`, "too_late");
         }
@@ -1950,8 +2095,11 @@ function bookingActions({
           history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by: "customer" }].slice(-20) };
         const written = await freeTime(id, b, changes);
         const next = await syncCalendar(id, { ...b, ...written });
-        await tellCustomer(id, next, "cancelled", { refundText: `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}${packBackWords(b)}`.trim() });
-        return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
+        // "Cancel this and the later visits" on a standing appointment, with the run's own key: its later visits go too.
+        const alsoCancelled = req.body?.andLater === true && hash(key) === b.manageKeyHash ? (await cancelLater(id, b, "customer", at)).cancelled : 0;
+        const later = alsoCancelled ? ` Your ${alsoCancelled === 1 ? "next visit is" : `${alsoCancelled} later visits are`} cancelled too.` : "";
+        await tellCustomer(id, next, "cancelled", { refundText: `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}${packBackWords(b)}${later}`.trim() });
+        return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs), ...(await runOf(id, next, key)) });
       }
       if (action === "bookingMove") {
         if (b.status !== "confirmed" || !customerCanChange(Date.parse(b.start), settings, nowMs)) {
@@ -2109,6 +2257,20 @@ function bookingActions({
         const times = freeTimes({ service, settings: own, busy: busyFrom(snaps, nowMs, String(req.body?.except || "")), day, zone: zone(), nowMs, staffId });
         return res.status(200).json({ times: times.map((ms) => new Date(ms).toISOString()) });
       }
+      if (op === "runCheck") {
+        // New booking › Repeat: is each later visit of the run free? (Any hour, as the shop books it.)
+        const service = (await readServices()).find((s) => s.id === req.body?.serviceId);
+        if (!service) return fail(res, 404, "Choose a service.");
+        if (isClass(service)) return fail(res, 400, "A class or course can't be booked as a standing appointment.", "run");
+        const start = Date.parse(String(req.body?.start || ""));
+        if (!Number.isFinite(start)) return fail(res, 400, "Pick a time.");
+        const run = cleanRun(req.body?.run);
+        if (run?.problem) return fail(res, 400, run.problem, "run");
+        if (!run) return res.status(200).json({ visits: [] });
+        const staffId = keptPerson(settings, service.id, req.body?.staffId);
+        const starts = runStarts(start, run, zone());
+        return res.status(200).json({ visits: [{ start: new Date(start).toISOString(), free: true }, ...(await runPlan({ service, settings, starts: starts.slice(1), staffId, owner: true }))] });
+      }
       if (op === "waitlist") {
         // Who is waiting from one day to another (the week on screen). Read here because no browser may read the list.
         const from = isDay(req.body?.from) ? req.body.from : dayOf(now().getTime(), zone());
@@ -2180,6 +2342,11 @@ function bookingActions({
         const start = isCourse(service) ? courseStarts(service, zone())[0] : Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time.");
         if (isCourse(service) && start <= now().getTime()) return fail(res, 409, "This course has already started.", "started");
+        // A standing appointment: any one-to-one service, every visit paid at the visit.
+        const run = cleanRun(req.body?.run);
+        if (run?.problem) return fail(res, 400, run.problem, "run");
+        if (run && isClass(service)) return fail(res, 400, "A class or course can't be booked as a standing appointment.", "run");
+        const runAt = run ? runStarts(start, run, zone()) : [];
         const tax = await taxOn(service, service.priceMinor);
         const id = randomId();
         const key = randomKey();
@@ -2191,7 +2358,8 @@ function bookingActions({
           // Booked in by the owner: nothing is taken by card, so a priced service is all paid at the visit.
           status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor + (tax?.taxMinor || 0), ...taxFields(tax), currency: currency(),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
-          history: [{ at, what: "booked", by }], createdAt: at, updatedAt: at,
+          history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by }], createdAt: at, updatedAt: at,
+          ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
         };
         // The owner may book any time that doesn't clash, outside the hours too (a favour for a regular), with anyone on
         // the team who does the service.
@@ -2200,9 +2368,13 @@ function bookingActions({
         const own = ownerBookingSettings(settings);
         const took = await takeTime({ id, service: { ...service, classTimes: [] }, settings: own, start, record, staffId });
         if (!took) return fail(res, 409, isClass(service) ? "That class is full, or the time clashes with another booking." : staffId ? "That person is busy then." : "That time clashes with another booking.", "taken");
+        if (run) {
+          const later = await bookRun({ firstId: id, first: record, service, settings, starts: runAt, staffId, owner: true, by });
+          if (later.taken.length) return res.status(409).json({ error: "Some of those dates clash with other bookings, so nothing was booked. Change the time, the gap or the number of visits.", code: "run_taken", taken: later.taken });
+        }
         const booked = await syncCalendar(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
-        if (req.body?.sendEmail !== false) await tellCustomer(id, booked, "booked", { key, byShop: true });
-        return res.status(200).json({ ok: true, id });
+        if (req.body?.sendEmail !== false) await tellCustomer(id, booked, "booked", { key, byShop: true, run: runAt.map((ms) => new Date(ms).toISOString()) });
+        return res.status(200).json({ ok: true, id, ...(run ? { visits: run.visits } : {}) });
       }
       if (op === "readers" || op === "readerAdd" || op === "readerRemove") {
         // Card readers that connect over the internet (Stripe's smart readers): one place per shop, readers added with
@@ -2311,7 +2483,7 @@ function bookingActions({
         if (!Number.isInteger(amount) || amount < 0 || amount > onCard) return fail(res, 400, "The refund can't be more than they paid.");
         let out;
         try {
-          out = await shopCancel(id, b, { amount, by, giftBack: req.body?.giftBack !== false, packBack: req.body?.packBack !== false, notify: req.body?.notify !== false });
+          out = await shopCancel(id, b, { amount, by, giftBack: req.body?.giftBack !== false, packBack: req.body?.packBack !== false, notify: req.body?.notify !== false, andLater: req.body?.andLater === true });
         } catch (err) {
           if (!err?.refundFailed) throw err;
           return fail(res, 502, "The refund couldn't be started, so the booking is still on. Try again in a minute.");
@@ -3041,6 +3213,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
 module.exports = { PickupTimeProblem, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
