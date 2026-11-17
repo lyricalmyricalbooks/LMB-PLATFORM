@@ -151,7 +151,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
     bare ? (<>
       <FormField label={sellsServices(value) ? "What you do" : "What you sell"} hint={stockroomWordsNote(saved, heard, justSaved)}>
         {(a) => <span style={{ display: "flex", gap: 10, width: "100%" }}>
-          <select {...a} style={{ flex: 1, minWidth: 0 }} value={value} onChange={(e) => setValue(e.target.value)}>{options}</select>
+          <select {...a} className="rp-select" style={{ flex: 1, minWidth: 0, width: "auto" }} value={value} onChange={(e) => setValue(e.target.value)}>{options}</select>
           <PrimaryButton onClick={save} busy={busy} disabled={!changed || busy}>Save</PrimaryButton>
         </span>}
       </FormField>
