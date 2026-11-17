@@ -23,6 +23,9 @@ import {
 import "./stockroom.css";
 import "./till.css";
 import { SHOP_CURRENCY } from "../moneySign";
+import { useBookingsOn } from "../bookingsApi";
+import { CheckInButton } from "../CheckInDialog";
+import { cleanCheckInCode } from "../../../shared/bookingTimes";
 
 const RETRYABLE = new Set(["offline", "read-failed", "write-failed"]);
 const RETRY_MS = 30_000;
@@ -60,6 +63,9 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
   const flushing = useRef(false);
   const search = useRef<HTMLInputElement>(null);
 
+  // Bookings on: the till also checks people in (a code typed or scanned into the search box opens it).
+  const bookingsOn = useBookingsOn(true);
+  const [arrivalCode, setArrivalCode] = useState("");
   const [extras, setExtras] = useState(records.extras || []);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const items = useMemo(() => tillItems({ ...records, states, extras }), [records, states, extras]);
@@ -154,6 +160,7 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
   return (
     <div className="rp-till">
       <PageActions>
+        {bookingsOn && <CheckInButton code={arrivalCode} onCodeUsed={() => setArrivalCode("")} />}
         <SecondaryButton onClick={() => setExtrasOpen(true)}>Till-only items</SecondaryButton>
         <SecondaryButton onClick={() => setEventOpen(true)}>Event settings</SecondaryButton>
         <PrimaryButton onClick={() => setDayOpen(true)}>End of day</PrimaryButton>
@@ -172,7 +179,9 @@ export function Till({ records, now = () => Date.now() }: { records: StockroomRe
           onKeyDown={(e) => {
             if (e.key !== "Enter") return;
             const hit = findItems(items, query);
-            if (hit.length === 1) { add(hit[0].id); setQuery(""); }
+            if (hit.length === 1) { add(hit[0].id); setQuery(""); return; }
+            const arrival = bookingsOn && !hit.length ? cleanCheckInCode(query) : "";
+            if (arrival) { setArrivalCode(arrival); setQuery(""); }
           }} />
         {shown.length === 0
           ? <p className="rp-till-none">{items.length ? `Nothing matches “${query}”.` : w("No books in the stockroom yet.")}</p>

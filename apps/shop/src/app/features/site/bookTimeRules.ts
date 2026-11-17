@@ -51,6 +51,8 @@ export type BookingView = {
   packLast4?: string; packVisit?: number; packVisits?: number; packReturned?: boolean;
   /** Tips: the shop's choices (empty when it doesn't ask), whether a tip can be added on its own, the tip given and the most one may be. */
   tipPercents?: number[]; canTip?: boolean; tipMinor?: number; tipLimitMinor?: number;
+  /** The code to show at the desk while the visit is still to come, and whether the shop has checked them in. */
+  checkInCode?: string; checkedIn?: boolean;
 };
 
 /** A tip pick on the booking page: a percent of the price, none, or an amount the client types. */

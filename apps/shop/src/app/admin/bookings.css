@@ -387,3 +387,19 @@
   .rp .bkg-pack-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
   .rp .bkg-pack-row .bkg-list-what, .rp .bkg-pack-row .bkg-pack-left { grid-column: 1 / -1; }
 }
+
+/* Check someone in (CheckInDialog): the code field, then who it is in a tile (mint checked in, sky already, apricot refused). */
+.rp .bkg-checkin-form { display: grid; gap: 12px; }
+.rp .bkg-checkin-input { font: 500 22px/1.2 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; }
+.rp .bkg-checkin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rp .bkg-arrival { display: grid; gap: 4px; margin-top: 16px; padding: 18px; border-radius: 18px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .bkg-arrival[data-state="already"] { background: var(--rp-tile-sky); }
+.rp .bkg-arrival[data-state="refused"] { background: var(--rp-tile-apricot); }
+.rp .bkg-arrival-name { margin: 0; font: 600 22px/1.2 var(--rp-font-display, inherit); }
+.rp .bkg-arrival-what { margin: 0; font: 500 12px/1.5 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.rp .bkg-arrival-say { margin: 6px 0 0; font-weight: 600; }
+.rp .bkg-arrival-due { margin: 0; }
+.rp .bkg-arrival-note { margin: 4px 0 0; font-style: italic; }
+.rp .bkg-arrival-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.rp .bkg-code { font-family: var(--rp-font-mono); letter-spacing: 0.1em; }
+.rp .bkg-slot-tag[data-here] { background: var(--rp-tile-sky); color: var(--rp-on-tile); }

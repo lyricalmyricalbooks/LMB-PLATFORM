@@ -9,7 +9,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, CreditCard, Mail, Plus, QrCode } from "lucide-react";
 import toast from "react-hot-toast";
-import { Dialog, EmptyState, ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextField, useConfirm } from "./riso/components";
+import { Dialog, EmptyState, ErrorState, GhostButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextField, useConfirm } from "./riso/components";
+import { CheckInButton } from "./CheckInDialog";
 import { bookingsAdmin, followBookings, readBookingSetup, type Booking, type CardReader, type CardReaders, type ReaderState } from "./bookingsApi";
 import { moneyText, timeText } from "./bookingsView";
 import { amountMinor, deskState, dueToday } from "./deskPayment";
@@ -55,8 +56,20 @@ export function TakePayment() {
   if (setupError) return <ErrorState title="Couldn't open Take a payment" description={setupError} onRetry={() => void load()} />;
   if (!setup) return <LoadingState label="Loading your services…" />;
 
+  // Checked in with money still due: straight to that booking's pay QR code.
+  const payFor = async (id: string) => {
+    try {
+      const r = await bookingsAdmin<{ url: string }>("payLink", { id });
+      const b = (rows || []).find((x) => x.id === id);
+      if (b) await showQr(id, r.url, b);
+    } catch (e: any) {
+      toast.error(e?.message || "The pay link couldn't be made. Please try again.");
+    }
+  };
+
   return (
     <div className="bkg-page tp-page">
+      <PageActions><CheckInButton onTakePayment={(id) => void payFor(id)} /></PageActions>
       <div className="tp-grid">
         <WalkIn services={services} onReady={showQr} />
         <section className="bkg-tile">

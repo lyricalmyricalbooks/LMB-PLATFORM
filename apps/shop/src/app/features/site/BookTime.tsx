@@ -782,6 +782,31 @@ function TipPicker({ pick, onPick, percents, priceMinor, currency, limitMinor, o
 
 // ── An existing booking (the emailed link) ─────────────────────────────────────────────────────────────────────────
 
+/** The booking's check-in code, as letters and as a QR code the shop's till scans. */
+function CheckInCode({ code, c }: { code: string; c: Copy }) {
+  const [picture, setPicture] = useState("");
+  useEffect(() => {
+    let live = true;
+    void import("qrcode-generator").then(({ default: qrcode }) => {
+      const qr = qrcode(0, "M");
+      qr.addData(code);
+      qr.make();
+      if (live) setPicture(qr.createDataURL(6, 3));
+    }).catch(() => { /* the letters below still work */ });
+    return () => { live = false; };
+  }, [code]);
+  return (
+    <div className="fm-book-checkin" data-check-in>
+      {picture ? <img className="fm-book-checkin-qr" src={picture} alt={c("bookTimeCheckInQr")} width={150} height={150} /> : <span className="fm-book-checkin-qr" aria-hidden="true" />}
+      <div>
+        <p className="fm-track-mono">{c("bookTimeCheckInLabel")}</p>
+        <p className="fm-book-checkin-code" translate="no">{code}</p>
+        <p className="text-sm leading-6 fm-muted">{c("bookTimeCheckInText")}</p>
+      </div>
+    </div>
+  );
+}
+
 function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c: Copy }) {
   const [booking, setBooking] = useState<BookingView | null>(null);
   const [info, setInfo] = useState<BookingInfo | null>(null);
@@ -928,6 +953,8 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         {booking.status === "confirmed" && booking.payment === "atShop" && !fullyPaid && booking.priceMinor > 0 && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
         {booking.status === "confirmed" && booking.cardLast4 && !booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardOnFile", { last4: booking.cardLast4, fee: moneyText(booking.lateFeeMinor || 0, booking.currency) })}</p>}
         {!!booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeFeeCharged", { fee: moneyText(booking.feeMinor, booking.currency) })}</p>}
+        {booking.status === "confirmed" && (booking.checkedIn ? <p className="fm-book-checkin-done" role="status">{c("bookTimeCheckedIn")}</p>
+          : booking.checkInCode ? <CheckInCode code={booking.checkInCode} c={c} /> : null)}
       </div>
 
       {booking.status === "held" && (

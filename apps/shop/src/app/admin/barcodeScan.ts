@@ -32,13 +32,16 @@ export function cleanScan(raw: unknown, format = ""): string {
 
 export type Reader = { read(video: unknown): Promise<string> };
 
+/** Turns what the camera read into the code wanted, or "" to keep looking. */
+export type CleanCode = (raw: unknown, format?: string) => string;
+
 /** Wraps any BarcodeDetector-shaped reader: the first readable code wins, cleaned by its own format. */
-export function readerFrom(detector: DetectorLike): Reader {
+export function readerFrom(detector: DetectorLike, clean: CleanCode = cleanScan): Reader {
   return {
     async read(video) {
       const found = await detector.detect(video);
       for (const item of found) {
-        const code = cleanScan(item.rawValue, item.format);
+        const code = clean(item.rawValue, item.format);
         if (code) return code;
       }
       return "";
@@ -47,15 +50,15 @@ export function readerFrom(detector: DetectorLike): Reader {
 }
 
 /** The browser's own reader, or null when it has none or it reads none of our formats (Chrome on Windows says so). */
-export async function nativeReader(): Promise<Reader | null> {
+export async function nativeReader(wanted: readonly string[] = SCAN_FORMATS, clean: CleanCode = cleanScan): Promise<Reader | null> {
   const Ctor = detectorCtor();
   if (!Ctor) return null;
   try {
     if (Ctor.getSupportedFormats) {
       const formats = await Ctor.getSupportedFormats();
-      if (!SCAN_FORMATS.some((f) => formats.includes(f))) return null;
+      if (!wanted.some((f) => formats.includes(f))) return null;
     }
-    return readerFrom(new Ctor({ formats: [...SCAN_FORMATS] }));
+    return readerFrom(new Ctor({ formats: [...wanted] }), clean);
   } catch {
     return null;
   }
@@ -64,4 +67,9 @@ export async function nativeReader(): Promise<Reader | null> {
 /** A reader for the formats above: the browser's own, else the bundled copy (loaded only now). */
 export async function loadReader(loadFallback: () => Promise<Reader> = async () => (await import("./barcodeFallback")).fallbackReader()): Promise<Reader> {
   return (await nativeReader()) || loadFallback();
+}
+
+/** A reader for other codes (a booking's check-in QR code): the browser's own, else the bundled copy. */
+export async function loadCodeReader(formats: readonly string[], clean: CleanCode): Promise<Reader> {
+  return (await nativeReader(formats, clean)) || (await import("./barcodeFallback")).fallbackReader(formats, clean);
 }

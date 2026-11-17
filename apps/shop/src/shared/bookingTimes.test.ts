@@ -3,6 +3,7 @@ import {
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
+  cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -380,5 +381,17 @@ describe("pickup times", () => {
     expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-12-09", "12:00") })).toBe("too_far");
     expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-11-23", "12:00"), taken: 2 })).toBe("full");
     expect(pickupTimeProblem({ settings, zone, nowMs: now, start: NaN })).toBe("closed");
+  });
+});
+
+describe("check-in codes", () => {
+  it("typed or scanned loosely, kept only when it is one of ours", () => {
+    expect(cleanCheckInCode("k7qm 2xpa")).toBe("K7QM-2XPA");
+    expect(cleanCheckInCode(" K7QM-2XPA\n")).toBe("K7QM-2XPA");
+    expect(cleanCheckInCode("K7QM-2XP0")).toBe("");
+    expect(cleanCheckInCode("K7QM-2XPAB")).toBe("");
+    expect(cleanCheckInCode(null)).toBe("");
+    expect(checkInCodeFrom([0, 1, 2, 3, 31, 32, 255, 64])).toBe(`ABCD-${CHECK_IN_ALPHABET[31]}A${CHECK_IN_ALPHABET[31]}A`);
+    expect(cleanCheckInCode(checkInCodeFrom([9, 8, 7, 6, 5, 4, 3, 2]))).toBe(checkInCodeFrom([9, 8, 7, 6, 5, 4, 3, 2]));
   });
 });

@@ -1756,3 +1756,54 @@ describe("pickup times at checkout", () => {
     expect(await t.desk.pickupCheck(sel(at("2026-11-16", "14:00")), "o1")).toEqual({ pickupAt: at("2026-11-16", "14:00") });
   });
 });
+
+describe("check-in at the till", () => {
+  test("a confirmed booking gets a code in its email and on its page, and the till checks it in once, today only", async () => {
+    const t = setup();
+    await t.seed();
+    const today = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-16", "10:00"), ...CUSTOMER });
+    const later = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    const saved = t.db.store.get(`bookings/${today.body.id}`);
+    expect(saved.checkInCode).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+    const booked = t.emails.find((m) => m.to === CUSTOMER.email && /^Booked/.test(m.subject));
+    expect(booked.html).toContain("Check-in code:");
+    expect(booked.html).toContain(saved.checkInCode);
+    // Typed loosely: lower case, a space instead of the dash.
+    const typed = saved.checkInCode.toLowerCase().replace("-", " ");
+    const first = await t.adm({ op: "checkIn", code: typed });
+    expect(first.statusCode).toBe(200);
+    expect(first.body.booking).toMatchObject({ id: today.body.id, name: CUSTOMER.name, checkedInAt: "2026-11-16T13:00:00.000Z" });
+    expect(first.body.already).toBeUndefined();
+    expect((await t.adm({ op: "checkIn", code: saved.checkInCode })).body.already).toBe(true);
+    expect(t.db.store.get(`bookings/${today.body.id}`).history.filter((h) => h.what === "checked in")).toHaveLength(1);
+    // Another day's booking is named but not checked in.
+    const other = await t.adm({ op: "checkIn", code: t.db.store.get(`bookings/${later.body.id}`).checkInCode });
+    expect(other.statusCode).toBe(409);
+    expect(other.body).toMatchObject({ code: "not_today", booking: { id: later.body.id, checkedInAt: null } });
+    expect(other.body.error).toMatch(/not today/);
+    // Unknown and badly typed codes.
+    expect((await t.adm({ op: "checkIn", code: "ZZZZ-ZZZZ" })).body.code).toBe("unknown_code");
+    expect((await t.adm({ op: "checkIn", code: "HELLO" })).body.code).toBe("bad_code");
+    // Taken off from the admin by id.
+    const off = await t.adm({ op: "checkIn", id: today.body.id, value: false });
+    expect(off.body.booking.checkedInAt).toBeNull();
+    // Cancelled bookings are refused, with who it was.
+    await t.adm({ op: "cancel", id: today.body.id });
+    const gone = await t.adm({ op: "checkIn", code: saved.checkInCode });
+    expect(gone.body).toMatchObject({ code: "cancelled", booking: { name: CUSTOMER.name } });
+  });
+
+  test("the customer's page shows the code until the visit ends; a walk-in is checked in already", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "10:00"), ...CUSTOMER });
+    const key = t.emails.find((m) => /^Booked/.test(m.subject)).html.match(/key=([a-f0-9]+)/)[1];
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key });
+    expect(view.body.booking.checkInCode).toBe(t.db.store.get(`bookings/${r.body.id}`).checkInCode);
+    expect(view.body.booking.checkedIn).toBe(false);
+    t.clock.now = new Date("2026-11-18T13:00:00Z");
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key })).body.booking.checkInCode).toBe("");
+    const w = await t.adm({ op: "walkIn", serviceId: "visit", name: "Gil Example", priceMinor: 4500 });
+    expect(t.db.store.get(`bookings/${w.body.id}`).checkedInAt).toBeTruthy();
+  });
+});

@@ -864,3 +864,9 @@ checkout asks `pickupTimes` once the shopper picks a pickup option (`pickupTimes
 `coPickupTime*`) shows days, then that day's times; the chosen time goes out as `fulfillmentSelection.pickupAt`. Pay
 refuses without one, and a server refusal with a pickup code clears the time, reloads the list and says
 `coPickupTimeGone`. The tracking page shows the time (`trackPickupTime`).
+
+**Check-in code on the booking page (17 November 2026).** A confirmed booking's page shows `CheckInCode` in the
+confirmation card: a QR code (`qrcode-generator`, loaded only there) and the letters, words Text & labels › Bookings page
+(`bookTimeCheckInLabel`, `bookTimeCheckInText`, `bookTimeCheckInQr`, `bookTimeCheckedIn`, French twins); once checked in
+it says so instead. CSS `.fm-book-checkin*` in `bookTimeStyle.ts` (theme tokens, stacks at 420px). The desk scans it from
+Take a payment or the Fair till (`admin/CheckInDialog.tsx`).
