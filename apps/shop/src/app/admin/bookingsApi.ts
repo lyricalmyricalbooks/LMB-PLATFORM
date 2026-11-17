@@ -162,5 +162,7 @@ export type PackRow = {
   id: string; last4: string; serviceId: string; serviceName: string; name: string; email: string;
   visits: number; left: number; status: "active" | "closed" | "used" | string; priceMinor: number; currency: string;
   expiresOn: string | null; paidAt: string | null; refundMinor: number;
+  /** The sales tax inside priceMinor, when the service charges it (packs bought since 17 November 2026). */
+  taxMinor?: number; taxLines?: { name: string; cents: number }[];
   uses: { bookingId: string; start: string | null; returned: boolean }[];
 };

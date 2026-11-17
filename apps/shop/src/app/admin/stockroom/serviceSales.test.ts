@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { serviceLedgerRows, serviceSales, serviceYear } from "./serviceSales";
+import { packSales, serviceLedgerRows, serviceSales, serviceYear, withPackSales } from "./serviceSales";
 import { taxCenterModel, type MoneySources } from "./moneyReports";
 import { taxPeriodModel } from "./taxPeriods";
 import { yearFigures } from "./yearReport";
@@ -105,6 +105,34 @@ describe("service sales", () => {
       expect(model.channels.find((c) => c.id === "bookings")).toMatchObject({ salesCents: 21000, taxCents: 1950, sales: 3 });
       expect(model.taxCents).toBe(1950);
       expect(model.salesCents).toBe(21000);
+    });
+  });
+
+  describe("packs of visits", () => {
+    // Five visits for $226 with $26 HST in it, paid on 3 March; $113 given back on closing it.
+    const packs = [
+      { id: "p1", serviceName: "Cut and style", visits: 5, status: "closed", priceMinor: 22600, currency: "CAD", paidAt: "2026-03-03T16:00:00Z", refundMinor: 11300, taxMinor: 2600, taxLines: [{ name: "HST ON", cents: 2600 }] },
+      // An untaxed pack paid late evening in Toronto (next day in UTC).
+      { id: "p2", serviceName: "Cut and style", visits: 3, status: "active", priceMinor: 15000, currency: "CAD", paidAt: "2026-03-05T02:00:00Z", refundMinor: 0 },
+      // Fully refunded, never paid, and paid after today are left out.
+      { id: "p3", serviceName: "Cut and style", visits: 3, status: "closed", priceMinor: 15000, currency: "CAD", paidAt: "2026-03-06T16:00:00Z", refundMinor: 15000 },
+      { id: "p4", serviceName: "Cut and style", visits: 3, status: "active", priceMinor: 15000, currency: "CAD", paidAt: null, refundMinor: 0 },
+      { id: "p5", serviceName: "Cut and style", visits: 3, status: "active", priceMinor: 15000, currency: "CAD", paidAt: "2026-07-01T16:00:00Z", refundMinor: 0 },
+    ];
+    const sold = packSales(packs, ZONE, "2026-06-30", "CAD");
+
+    it("counts a pack on the day it was paid, less what was given back, with its share of tax", () => {
+      expect(sold.map((s) => [s.id, s.date, s.serviceName, s.keptMinor, s.taxMinor, s.taxLines, s.kind])).toEqual([
+        ["pack-p1", "2026-03-03", "Cut and style, pack of 5", 11300, 1300, [{ name: "HST ON", cents: 1300 }], "pack"],
+        ["pack-p2", "2026-03-04", "Cut and style, pack of 3", 15000, 0, [], "pack"],
+      ]);
+    });
+
+    it("sits among the visits by date and books net of tax", () => {
+      const all = withPackSales(serviceSales(bookings, ZONE, "2026-06-30", "CAD"), sold);
+      expect(all.map((s) => s.id).slice(0, 4)).toEqual(["pack-p1", "pack-p2", "a1", "b2"]);
+      const ledger = serviceLedgerRows(sold, "2026", "CAD");
+      expect(ledger.map((r) => [r.desc, r.baseAmount, r.taxAmount])).toEqual([["Cut and style, pack of 5", 100, 13], ["Cut and style, pack of 3", 150, 0]]);
     });
   });
 });

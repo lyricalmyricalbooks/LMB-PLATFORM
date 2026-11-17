@@ -1160,6 +1160,10 @@ the card shows "Plus tax") and the drawer's Tax row ("$5.85 included (HST ON)").
 `taxLines` (scaled to what was kept); the ledger's Sale row is net of tax with `taxAmount` and `taxes { name: cents }`;
 `taxPeriodModel` puts booking tax on its own rate lines (note "Bookings"), untaxed visits on "No tax charged", and adds
 it to `taxCents`. `yearFigures` revenue is net of tax. Fixture: the riso session charges HST ("Ben Example").
+**Packs of visits in the money pages (17 November 2026):** `readServiceSales` also reads op `packs` (`loadPacks`; a
+failed read, e.g. the accountant, leaves packs out) into `packSales`: a sale on the shop day it was paid, the price
+less any refund, with its tax share (`taxIn`), id `pack-<id>`, `kind: "pack"`. Pack visits book at no price, so nothing
+counts twice. Tests: `serviceSales.test.ts`, `moneyRecords.test.ts`.
 
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,
