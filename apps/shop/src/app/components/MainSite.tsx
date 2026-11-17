@@ -40,6 +40,7 @@ import { SectionPageContext } from "./sectionCopy";
 import { useWishlist } from "../lib/wishlist";
 import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
+import { shopOrigin } from "../lib/canonicalUrl";
 import { ga4FilterUse } from "../lib/ga4";
 import { breadcrumbData, collectionStructuredData, leadSentences, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, soldOutLastOn, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
@@ -607,7 +608,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
     noindex: !!urlQuery || onCollectionRoute && (!routeCategory || (collectionSlug === "all"
       ? publishedBooks.length === 0
       : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
-    url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
+    url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, shopOrigin()).href : undefined,
     title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : catalogOpen ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
     // The category's own description, else the intro the page shows (Text & labels › Collection & wishlist
     // pages), else the generic Site & sharing sentence — so each collection has its own search snippet.
@@ -617,7 +618,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
     image: settings?.design?.shareImageUrl || publishedBooks.find((book: any) => book?.photos?.[0]?.url)?.photos?.[0]?.url || undefined,
     type: "website",
     jsonLd: (() => {
-      const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+      const siteBase = new URL(import.meta.env.BASE_URL, shopOrigin()).href;
       const siteName = settings?.info?.name || getCopy(settings?.design, "siteName");
       if (onCollectionRoute && routeCategory) {
         const collectionUrl = new URL(`collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, siteBase).href;

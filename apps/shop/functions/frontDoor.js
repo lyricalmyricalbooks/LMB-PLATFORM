@@ -13,8 +13,12 @@
 //   SITE_FILES (sitemap.xml, robots.txt, …)        the shop's own published file, or a plain default
 //   /google<hex>.html                              Google's Search Console proof file, put there by Connect Google
 //   a storefront page (/, /books/x, …)             the shop's page as first drawn, or the app's blank page (spa.html)
+//                                                  made the shop's own (`shopShell`); 404 for a page the shop doesn't
+//                                                  have, 301 for one the owner redirected (frontDoorRoutes.js); asked
+//                                                  for on another of the shop's addresses, 301 to its main address
 // An address that names no shop, or a closed shop, gets a short page saying so. Nothing here writes.
 
+const zlib = require("node:zlib");
 const { usageLine } = require("./usageLog");
 const { isShopId } = require("./shopScope");
 
@@ -72,6 +76,53 @@ const CALENDAR_PATH = /^\/calendar\/([a-f0-9]{48})\.ics$/;
 // One booking as a calendar file, for the customer (its id and the customer's own key).
 const BOOKING_CALENDAR_PATH = /^\/calendar\/b\/([A-Za-z0-9_-]{6,40})\/([a-f0-9]{48})\.ics$/;
 
+// The words the app's blank page (index.html, built once for every shop) is written with. The front door puts the
+// shop's own name and address in their place before sending it (`shopShell`); apps/shop/scripts/indexShell.test.ts keeps
+// index.html using exactly these.
+const TEMPLATE_NAME = "Your Press";
+const STATIC_JSON_LD = /<script type="application\/ld\+json" id="seo-jsonld-static">[\s\S]*?<\/script>\s*/;
+
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/** The shop's main address from its profile (https, no path), or "". */
+function siteOf(profile) {
+  try {
+    const url = new URL(String(profile?.siteUrl || ""));
+    return url.protocol === "https:" && url.pathname.replace(/\/+$/, "") === "" && !url.search ? url.origin : "";
+  } catch {
+    return "";
+  }
+}
+
+/** A storefront page's own address, as the pages name it (lib/canonicalUrl.ts: no trailing slash on a content page). */
+function pageUrl(site, pathname) {
+  const path = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
+  return site + path;
+}
+
+/**
+ * The app's blank page as this shop's: its address in place of the template's (og:url names the page itself, with a
+ * canonical link when the page exists), its name in place of the template's, its country in og:locale, and none of the
+ * template's no-JS shop description. A page that doesn't exist says noindex. Only <head> is changed.
+ */
+function shopShell(html, profile, pathname, { missing = false } = {}) {
+  const site = siteOf(profile);
+  const end = html.indexOf("</head>");
+  if (end < 0) return html;
+  let head = html.slice(0, end).replace(STATIC_JSON_LD, "");
+  const here = site ? pageUrl(site, pathname) : "";
+  if (here) {
+    head = head.replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escapeHtml(here)}$2`);
+    head = head.replace(/\s*<link rel="canonical"[^>]*>/g, "");
+    if (!missing) head += `  <link rel="canonical" href="${escapeHtml(here)}" />\n  `;
+  }
+  const name = typeof profile?.name === "string" ? profile.name.trim() : "";
+  if (name) head = head.split(TEMPLATE_NAME).join(escapeHtml(name));
+  if (profile?.currency === "USD") head = head.replace(/(<meta property="og:locale" content=")[^"]*(")/, "$1en_US$2");
+  if (missing) head = head.replace(/(<meta name="robots" content=")[^"]*(")/, "$1noindex$2");
+  return head + html.slice(end);
+}
+
 const page = (title, words) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${title}</title></head><body style="font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem"><h1 style="font-size:1.4rem">${title}</h1><p>${words}</p></body></html>`;
 
 /**
@@ -80,9 +131,43 @@ const page = (title, words) => `<!doctype html><html lang="en"><head><meta chars
  * @param {() => any} deps.bucket   the shared file bucket (unscoped), read only under shops/<id>/site/
  * @param {(id: string) => Promise<object|null>} deps.loadShop  shopEntry's record reader (cached)
  * @param {() => string} deps.shellUrl  where the app's blank page is (the shared site's /spa.html)
+ * @param {(shop: object, pathname: string) => Promise<{ state: string, to?: string }>} [deps.routeCheck]  does a page
+ *   with no drawn copy exist (frontDoorRoutes.js routeChecker); without it every such page answers the blank page
  * @param {(shop: object, token: string) => Promise<string|null>} [deps.calendarFeed]  the owner's bookings calendar (bookings.js bookingsFeed)
  */
-function frontDoor({ rootDb, bucket, loadShop, shellUrl, calendarFeed = null, bookingCalendar = null, fetch = globalThis.fetch, now = () => Date.now(), log = console, usage = usageLine }) {
+/** The path and query the visitor asked for, as given ("/books/x?ref=1"); the bare path when that can't be read. */
+function pathOf(req, pathname) {
+  const raw = String(req.originalUrl || req.url || "");
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : pathname;
+}
+
+// Hosting passes this function's answers on as they are, so it squeezes its own: a drawn page of about 80 KB goes out
+// as about 15 KB. Brotli where the browser or crawler takes it (Googlebot does), else gzip; small or binary bodies as is.
+const SQUEEZE_MIN = 1024;
+const SQUEEZABLE = /^(text\/|application\/(json|xml|javascript))/;
+function squeeze(req, type, body) {
+  if (body == null || !SQUEEZABLE.test(type)) return null;
+  const raw = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+  if (raw.length < SQUEEZE_MIN) return null;
+  const accepts = String(req.get?.("accept-encoding") || req.headers?.["accept-encoding"] || "").toLowerCase();
+  const takes = (name) => accepts.split(",").some((part) => {
+    const [coding, ...params] = part.split(";").map((x) => x.trim());
+    const q = params.find((x) => x.startsWith("q="));
+    return coding === name && !(q && Number(q.slice(2)) === 0);
+  });
+  if (takes("br")) {
+    return { encoding: "br", body: zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } }) };
+  }
+  if (takes("gzip")) return { encoding: "gzip", body: zlib.gzipSync(raw, { level: 6 }) };
+  return null;
+}
+
+/** robots.txt for a shop that hasn't published its own yet: the same lines its publish run writes (scripts/sitemapData.mjs). */
+function defaultRobots(site) {
+  return "User-agent: *\nAllow: /\n" + ["admin", "checkout", "account", "wishlist", "track"].map((route) => `Disallow: /${route}\n`).join("") + `\nSitemap: ${site}/sitemap.xml\n`;
+}
+
+function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, calendarFeed = null, bookingCalendar = null, fetch = globalThis.fetch, now = () => Date.now(), log = console, usage = usageLine }) {
   const addresses = new Map();
   let shell = null;
 
@@ -119,12 +204,18 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, calendarFeed = null, bo
 
   return async function answer(req, res) {
     let metered = null;
+    // Cached an hour, not for ever: an owner who makes another address main later must not meet an old answer.
+    const moved = (to) => res.status(301).set("Location", to).set("Cache-Control", "private, max-age=3600").send("");
     const send = (status, type, body, cache = "no-cache") => {
-      // The shop's web traffic, by size (usageLog.js): what each shop's meter counts for the pages it serves.
+      const squeezed = squeeze(req, type, body);
+      if (squeezed) res.set("Content-Encoding", squeezed.encoding);
+      if (SQUEEZABLE.test(type)) res.set("Vary", "Accept-Encoding");
+      const out = squeezed ? squeezed.body : body;
+      // The shop's web traffic, by size (usageLog.js): what each shop's meter counts for the pages it serves, as sent.
       if (metered) {
-        try { usage({ shop: metered, kind: "page", bytes: req.method === "HEAD" ? 0 : Buffer.byteLength(body ?? "") }); } catch { /* never breaks the answer */ }
+        try { usage({ shop: metered, kind: "page", bytes: req.method === "HEAD" ? 0 : Buffer.byteLength(out ?? "") }); } catch { /* never breaks the answer */ }
       }
-      return res.status(status).set("Content-Type", type).set("Cache-Control", cache).send(body);
+      return res.status(status).set("Content-Type", type).set("Cache-Control", cache).send(out);
     };
     if (req.method !== "GET" && req.method !== "HEAD") return send(405, TYPES[".txt"], "Only reading is possible here.");
     const host = hostOf(req);
@@ -161,7 +252,7 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, calendarFeed = null, bo
       const body = await siteFile(shop.id, name);
       const type = TYPES[name.slice(name.lastIndexOf("."))];
       if (body) return send(200, type, body);
-      if (name === "robots.txt") return send(200, type, "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /checkout\n");
+      if (name === "robots.txt") return send(200, type, defaultRobots(siteOf(shop.record?.profile) || `https://${host}`));
       return send(404, TYPES[".txt"], "Not published yet.");
     }
 
@@ -171,9 +262,37 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, calendarFeed = null, bo
     }
 
     const snapshot = snapshotFile(pathname);
+    const profile = shop.record?.profile;
+    // One address per shop: a page asked for on another of its addresses (its free address once it has its own domain,
+    // a former address) moves for good to the main one, so search engines see one copy. Only when the main address is
+    // this same shop's, so a profile that names somewhere else never sends visitors away.
+    const site = siteOf(profile);
+    // The owner's own previews (Studio's frame, Preview page from the book editor) stay on the address the admin is
+    // open on, and a draft they preview is never answered "not found".
+    const ownerView = /[?&]preview=/.test(pathOf(req, "")) || String(req.get?.("sec-fetch-dest") || req.headers?.["sec-fetch-dest"] || "") === "iframe";
+    // A page asked for with a trailing slash (/books/x/) moves to the one without, the address the sitemap and
+    // canonical name, so the two never compete.
+    if (snapshot && !ownerView) {
+      const main = site ? new URL(site).hostname : host;
+      const away = main !== host && (await shopIdFor(main)) === shop.id;
+      const slash = pathname !== "/" && pathname.endsWith("/");
+      if (away || slash) {
+        const asked = pathOf(req, pathname);
+        const query = asked.includes("?") ? asked.slice(asked.indexOf("?")) : "";
+        return moved((away ? site : `https://${host}`) + (slash ? pathname.replace(/\/+$/, "") : pathname) + query);
+      }
+    }
     const body = snapshot ? await siteFile(shop.id, snapshot) : null;
-    return send(200, TYPES[".html"], body ?? await blankPage());
+    if (body) return send(200, TYPES[".html"], body);
+    // Not drawn yet: a product added since the last publish run (blank page, 200), or one that isn't there (404).
+    const check = snapshot && snapshot !== "index.html" && routeCheck && !ownerView ? await routeCheck(shop, pathname) : { state: "unknown" };
+    if (check.state === "missing" && check.to) {
+      const to = /^https:\/\//i.test(check.to) ? check.to : (site || `https://${host}`) + check.to;
+      return moved(to);
+    }
+    const missing = check.state === "missing";
+    return send(missing ? 404 : 200, TYPES[".html"], shopShell(await blankPage(), profile, pathname, { missing }));
   };
 }
 
-module.exports = { BOOKING_CALENDAR_PATH, CALENDAR_PATH, frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };
+module.exports = { shopShell, siteOf, defaultRobots, TEMPLATE_NAME, BOOKING_CALENDAR_PATH, CALENDAR_PATH, frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };

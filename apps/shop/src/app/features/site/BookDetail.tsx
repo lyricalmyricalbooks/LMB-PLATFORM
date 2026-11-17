@@ -32,6 +32,7 @@ import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
 import { useWishlist } from "../../lib/wishlist";
+import { shopOrigin } from "../../lib/canonicalUrl";
 import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, creatorLinks, defaultBookTitle, returnPolicyData, shippingDetailsData } from "../../lib/bookSeo";
 import { findCountry } from "./shippingZones";
 import { parseWeightGrams, quoteShipping } from "./shippingEngine";
@@ -438,9 +439,9 @@ export default function BookDetail() {
     const bagItems = catalogFulfillmentItems(cart, new Map((books || []).map((b: any) => [b.id, b])));
     return pdpFreeShipping(shippingProfiles, book, selectedVariant, bagItems, autoOffers);
   }, [showPdpFreeShipping, book, selectedVariant, shippingProfiles, cart, books, autoOffers]);
-  const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+  const siteBase = new URL(import.meta.env.BASE_URL, shopOrigin()).href;
 
-  const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}${productSegment()}/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
+  const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}${productSegment()}/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, shopOrigin()).href);
   // A shirt or ring with sizes tells search engines about every version (price range, stock per size), not just the chosen one (plan 10.21).
   const goodsWithVersions = !!book && !isBookKind(productKind(book)) && (book.variants || []).length > 0;
   const seoBook = selectedVariant && book && !goodsWithVersions ? {

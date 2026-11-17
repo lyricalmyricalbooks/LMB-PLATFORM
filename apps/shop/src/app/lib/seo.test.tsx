@@ -11,7 +11,7 @@ it('sets exact custom titles, canonical URLs, clears stale social images, and re
   setSiteIdentity({ copy: { siteTitleFormat: '{title} | Press' } });
   act(() => root.render(<MemoryRouter><Page title="Custom search title" exactTitle url="https://example.com/shop/books/one?utm_source=x" image="https://example.com/one.jpg" noindex /></MemoryRouter>));
   expect(document.title).toBe('Custom search title');
-  expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://example.com/shop/books/one');
+  expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://lmb-test-shop.web.app/shop/books/one'); // always the shop's main address (profile siteUrl)
   expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
   act(() => root.render(<MemoryRouter><Page title="Next" url="https://example.com/shop/" /></MemoryRouter>));
   expect(document.querySelector('meta[property="og:image"]')).toBeNull();
