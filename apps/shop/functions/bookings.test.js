@@ -63,6 +63,31 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   const refunds = [];
   const sessions = new Map();
   const charges = [];
+  // Card readers (Stripe smart readers): one place, readers by code, payments the test taps or declines.
+  const terminal = { places: [], readers: new Map(), intents: new Map(), offline: false, cancelled: [] };
+  const fakeReader = {
+    testMode: true,
+    async makePlace({ name, address }) { terminal.places.push({ name, address }); return `tml_${terminal.places.length}`; },
+    async list(place) { return [...terminal.readers.values()].filter((r) => r.place === place).map(({ place: _p, ...r }) => r); },
+    async add({ code, label, place }) {
+      if (code !== "simulated-wpe") throw Object.assign(new Error("Invalid registration code"), { statusCode: 400 });
+      const id = `tmr_${terminal.readers.size + 1}`;
+      terminal.readers.set(id, { id, label, online: true, device: "simulated_wisepos_e", action: null, place });
+      return { id, label, online: true };
+    },
+    async remove(id) { terminal.readers.delete(id); },
+    async read(id) { return terminal.readers.get(id) || null; },
+    async charge({ readerId, amountMinor, metadata }, key) {
+      if (terminal.offline) throw new Error("Reader is offline");
+      const intent = `pi_reader_${terminal.intents.size + 1}`;
+      terminal.intents.set(intent, { status: "requires_payment_method", amountMinor, metadata, key, readerId });
+      terminal.readers.get(readerId).action = { status: "in_progress", error: "", intent };
+      return { intent };
+    },
+    async payment(id) { const i = terminal.intents.get(id); return { status: i.status, amountMinor: i.status === "succeeded" ? i.amountMinor : 0, error: i.error || "" }; },
+    async cancel(readerId, intentId) { terminal.cancelled.push(intentId); const i = terminal.intents.get(intentId); if (i && i.status !== "succeeded") i.status = "canceled"; },
+    async testCard(readerId) { const r = terminal.readers.get(readerId); terminal.intents.get(r.action.intent).status = "succeeded"; r.action.status = "succeeded"; },
+  };
   const card = checkout === null ? null : {
     async open(params, idem) {
       const id = `cs_test_${String(opened.length).padStart(8, "0")}`;
@@ -75,6 +100,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
     async close(id) { closed.push(id); const s = sessions.get(id); if (s && s.payment_status !== "paid") s.status = "expired"; },
     ...(provider === "stripe" ? {
       async savedCard(id) { return sessions.get(id)?.status === "complete" ? { customer: "cus_ada", paymentMethod: "pm_ada", brand: "visa", last4: "4242" } : null; },
+      reader: fakeReader,
       async chargeSaved(args, idem) {
         if (decline) throw Object.assign(new Error("Your card was declined."), { statusCode: 402, type: "card_error", code: decline });
         charges.push({ args, idem });
@@ -111,7 +137,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   };
   const pub = async (body) => { const r = res(); await desk.handlePublic({ body }, r); return r; };
   const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
-  return { db, desk, clock, emails, opened, closed, refunds, sessions, charges, seed, pub, adm };
+  return { db, desk, clock, emails, opened, closed, refunds, sessions, charges, terminal, seed, pub, adm };
 }
 
 const CUSTOMER = { name: "Ada Reader", email: "ada@example.com" };
@@ -1155,6 +1181,89 @@ describe("paying the rest by link", () => {
     expect((await t.pub({ action: "bookingView", id: w.body.id, key })).body.booking).toMatchObject({ canPayRest: true, dueMinor: 4500 });
     // At the shop's price when none is typed.
     expect((await t.adm({ op: "walkIn", serviceId: "cut", name: "Hal Example", email: "hal@example.com" })).body.dueMinor).toBe(6000);
+  });
+
+  test("card readers: added with the reader's code at the shop's address, listed and removed", async () => {
+    const t = setup();
+    await seedMore(t);
+    expect((await t.adm({ op: "readers" })).body).toEqual({ available: true, testMode: true, readers: [] });
+    // The reader's place needs the shop's street address.
+    expect((await t.adm({ op: "readerAdd", code: "simulated-wpe" })).body.code).toBe("address");
+    await t.db.collection("settings").doc("website").set({ location: { street: "456 Montrose Ave", city: "Toronto", state: "Ontario", zip: "M6G 3H1", country: "Canada" } });
+    expect((await t.adm({ op: "readerAdd", code: "no good" })).statusCode).toBe(400);
+    expect((await t.adm({ op: "readerAdd", code: "wrong-code" })).body.error).toMatch(/didn't work/);
+    const added = await t.adm({ op: "readerAdd", code: "simulated-wpe", label: "Front desk" });
+    expect(added.body).toMatchObject({ ok: true, reader: { id: "tmr_1", label: "Front desk" } });
+    expect(t.terminal.places).toEqual([{ name: "Moth Press", address: { line1: "456 Montrose Ave", city: "Toronto", country: "CA", postal_code: "M6G 3H1", state: "ON" } }]);
+    await t.adm({ op: "readerAdd", code: "simulated-wpe", label: "Back room" });
+    expect(t.terminal.places).toHaveLength(1);
+    expect((await t.adm({ op: "readers" })).body.readers.map((r) => r.label)).toEqual(["Front desk", "Back room"]);
+    expect((await t.adm({ op: "readerRemove", readerId: "tmr_2" })).statusCode).toBe(200);
+    expect((await t.adm({ op: "readers" })).body.readers).toHaveLength(1);
+    // A Square shop has none yet.
+    const sq = setup({ provider: "square" });
+    await seedMore(sq);
+    expect((await sq.adm({ op: "readers" })).body).toEqual({ available: false, readers: [] });
+  });
+
+  test("a payment on the card reader is kept as the rest, closes the pay page, and can't be paid twice", async () => {
+    const t = setup();
+    await seedMore(t);
+    await t.db.collection("settings").doc("website").set({ location: { street: "456 Montrose Ave", city: "Toronto", state: "ON", zip: "M6G3H1", country: "CA" } });
+    await t.adm({ op: "readerAdd", code: "simulated-wpe", label: "Front desk" });
+    const w = await t.adm({ op: "walkIn", serviceId: "cut", name: "Gil Example", email: "gil@example.com", priceMinor: 4500 });
+    const key = new URL(w.body.url).searchParams.get("key");
+    // A pay page they opened is closed before the reader is used.
+    await t.pub({ action: "bookingPayRest", id: w.body.id, key });
+    expect((await t.adm({ op: "readerCharge", id: w.body.id, readerId: "bad" })).statusCode).toBe(400);
+    const sent = await t.adm({ op: "readerCharge", id: w.body.id, readerId: "tmr_1" });
+    expect(sent.body).toMatchObject({ ok: true, state: "waiting" });
+    expect(t.closed).toContain("cs_test_00000000");
+    expect(t.terminal.intents.get("pi_reader_1")).toMatchObject({ amountMinor: 4500, metadata: { booking: w.body.id, reader: "1" }, key: `booking-reader-${w.body.id}-4500-1` });
+    // While it is on the reader: no second charge, no pay page, no "paid another way".
+    expect((await t.adm({ op: "readerCharge", id: w.body.id, readerId: "tmr_1" })).body.code).toBe("reader_busy");
+    expect((await t.pub({ action: "bookingPayRest", id: w.body.id, key })).body.code).toBe("reader_busy");
+    expect((await t.adm({ op: "paidAtShop", id: w.body.id })).body.code).toBe("reader_busy");
+    expect((await t.adm({ op: "readerCheck", id: w.body.id })).body.state).toBe("waiting");
+    // The test card taps: paid, as the rest, with the receipt.
+    expect((await t.adm({ op: "readerTest", id: w.body.id })).body).toMatchObject({ state: "paid", dueMinor: 0 });
+    expect(t.db.store.get(`bookings/${w.body.id}`)).toMatchObject({ readerOpen: false, rest: { amountMinor: 4500, paymentIntent: "pi_reader_1", reader: true } });
+    expect(t.emails.some((m) => m.to === "gil@example.com" && /Paid in full/.test(m.subject))).toBe(true);
+    expect((await t.adm({ op: "readerCharge", id: w.body.id, readerId: "tmr_1" })).body.code).toBe("nothing_due");
+    // A cancel then refunds the reader's payment like any other.
+    await t.adm({ op: "cancel", id: w.body.id, refund: true });
+    expect(t.refunds[0]).toMatchObject({ paymentIntentId: "pi_reader_1", amountMinor: 4500 });
+  });
+
+  test("a declined card, a cancel, an offline reader and a payment left on the reader", async () => {
+    const t = setup();
+    await seedMore(t);
+    await t.db.collection("settings").doc("website").set({ location: { street: "456 Montrose Ave", city: "Toronto", zip: "M6G3H1", country: "Canada" } });
+    await t.adm({ op: "readerAdd", code: "simulated-wpe" });
+    const w = await t.adm({ op: "walkIn", serviceId: "cut", name: "Gil Example", priceMinor: 4500 });
+    await t.adm({ op: "readerCharge", id: w.body.id, readerId: "tmr_1" });
+    // Declined on the reader: closed with the reader's words, and a new try uses a new payment.
+    t.terminal.intents.get("pi_reader_1").error = "Your card was declined.";
+    t.terminal.readers.get("tmr_1").action = { status: "failed", error: "Your card was declined.", intent: "pi_reader_1" };
+    expect((await t.adm({ op: "readerCheck", id: w.body.id })).body).toMatchObject({ state: "idle", error: "Your card was declined." });
+    expect(t.terminal.cancelled).toContain("pi_reader_1");
+    expect((await t.adm({ op: "readerCharge", id: w.body.id, readerId: "tmr_1" })).body.state).toBe("waiting");
+    expect(t.terminal.intents.get("pi_reader_2").key).toBe(`booking-reader-${w.body.id}-4500-2`);
+    // Cancelled by the owner.
+    expect((await t.adm({ op: "readerCancel", id: w.body.id })).body).toMatchObject({ state: "idle" });
+    expect(t.db.store.get(`bookings/${w.body.id}`).readerOpen).toBe(false);
+    // An offline reader: a plain message and nothing left open; the next try doesn't reuse the stopped payment.
+    t.terminal.offline = true;
+    expect((await t.adm({ op: "readerCharge", id: w.body.id, readerId: "tmr_1" })).body.error).toMatch(/offline/);
+    expect(t.db.store.get(`bookings/${w.body.id}`).readerOpen).toBe(false);
+    t.terminal.offline = false;
+    await t.adm({ op: "readerCharge", id: w.body.id, readerId: "tmr_1" });
+    expect(t.terminal.intents.get("pi_reader_3").key).toBe(`booking-reader-${w.body.id}-4500-4`);
+    // Left on the reader: the sweep keeps a payment that went through, and stops one left too long.
+    t.clock.now = new Date(t.clock.now.getTime() + 20 * 60_000);
+    await t.desk.sweepHolds();
+    expect(t.db.store.get(`bookings/${w.body.id}`)).toMatchObject({ readerOpen: false, readerError: "The card reader payment ran out of time." });
+    expect(t.terminal.cancelled).toContain("pi_reader_3");
   });
 
   test("marking it paid at the shop closes the open pay page", async () => {

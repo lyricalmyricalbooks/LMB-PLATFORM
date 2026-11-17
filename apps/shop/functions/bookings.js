@@ -59,6 +59,7 @@ const {
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
+const { findCountry, regionCode } = require("./shared/shippingZones");
 const { giftCardId, last4, giftCardProblem, availableMinor, withHistory, GIFT_CARD_MESSAGES } = require("./giftCards");
 
 const HOLD_MINUTES = 10;
@@ -93,6 +94,7 @@ const PACK_ID = /^[a-f0-9]{40}$/;
 const offerItem = (wid) => `offer_${wid}`;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
+const READER_ID = /^tmr_[A-Za-z0-9_]{1,100}$/;
 /** A fee being charged stops a second tap for this long, in case the first one never finished. */
 const FEE_CLAIM_MS = 2 * MINUTE;
 const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
@@ -778,6 +780,86 @@ function bookingActions({
     return refreshRest(id, b, checkout);
   }
 
+  // ── Card readers at the desk (Services plan phase 3) ────────────────────────────────────────────────────────────
+
+  /** The provider's card readers for this shop's mode, or null (Square shops, for now). */
+  async function readerDesk() {
+    const { mode, checkout } = await standalone();
+    return { mode, reader: checkout?.reader || null };
+  }
+  const readersRef = () => db.collection("bookingReaders").doc("main");
+
+  /** The shop's one place for card readers in this mode, made from Settings › General › Location the first time. */
+  async function readerPlace(mode, reader, { make = false } = {}) {
+    const snap = await readersRef().get();
+    const kept = snap.exists ? String(snap.data()?.[`place_${mode}`] || "") : "";
+    if (kept || !make) return kept;
+    const site = await db.collection("settings").doc("website").get();
+    const loc = (site.exists ? site.data()?.location : null) || {};
+    const t = (v) => (typeof v === "string" ? v.trim() : "");
+    const country = findCountry(loc.country);
+    if (!t(loc.street) || !t(loc.city) || !country) {
+      throw Object.assign(new Error("Add your shop's street address in Settings › General › Location first. Card readers need it."), { readerCode: "address" });
+    }
+    const region = regionCode(country.code, loc.state, loc.zip);
+    const address = { line1: t(loc.street), city: t(loc.city), country: country.code, ...(t(loc.zip) ? { postal_code: t(loc.zip) } : {}), ...(region ? { state: region.split("-")[1] } : {}) };
+    const place = await reader.makePlace({ name: (shopName() || "Shop").slice(0, 100), address });
+    await readersRef().set({ [`place_${mode}`]: place }, { merge: true });
+    return place;
+  }
+
+  /**
+   * Reads a payment sent to a card reader: a payment that went through is kept as `rest` (so refunds, figures and the
+   * receipt work as for a pay link), a declined or stopped one closes with the reader's words. Returns the booking.
+   */
+  async function refreshReader(id, b, reader, { stopped = "The payment was stopped." } = {}) {
+    const charge = b.readerCharge;
+    if (!b.readerOpen || !charge?.intent || !reader) return b;
+    const payment = await reader.payment(charge.intent);
+    const at = now().toISOString();
+    if (payment.status === "succeeded") {
+      const kept = await db.runTransaction(async (tx) => {
+        const fresh = (await tx.get(bookings().doc(id))).data() || {};
+        if (!fresh.readerOpen || fresh.readerCharge?.intent !== charge.intent) return null;
+        const changes = {
+          ...(fresh.rest ? {} : { rest: { amountMinor: payment.amountMinor || charge.amountMinor, paymentIntent: charge.intent, at, reader: true } }),
+          readerOpen: false, readerCharge: null, readerError: "", updatedAt: at,
+          history: [...(fresh.history || []), { at, what: fresh.rest ? "card reader payment also went through (it was already paid)" : "paid on the card reader", by: "shop" }].slice(-20),
+        };
+        tx.set(bookings().doc(id), changes, { merge: true });
+        return { ...fresh, ...changes };
+      });
+      if (!kept) return { ...b, ...((await bookings().doc(id).get()).data() || {}) };
+      if (kept.rest?.paymentIntent === charge.intent) await tellCustomer(id, kept, "restPaid", { byShop: true, toOwner: false });
+      return kept;
+    }
+    let error = "";
+    const canceled = payment.status === "canceled";
+    if (canceled) error = stopped;
+    else if (payment.status === "requires_payment_method") {
+      const onReader = await reader.read(charge.readerId).catch(() => null);
+      const action = onReader?.action;
+      if (action?.status === "failed") error = action.error || payment.error || "The card wasn't accepted.";
+      else if (!action && payment.error) error = payment.error;
+    }
+    if (!error && !canceled) return b;
+    if (!canceled) await reader.cancel(charge.readerId, charge.intent);
+    const what = error ? `card reader: ${error}` : "card reader payment cancelled";
+    const changes = { readerOpen: false, readerCharge: null, readerError: error.slice(0, 200), updatedAt: at, history: [...(b.history || []), { at, what: what.slice(0, 200), by: "shop" }].slice(-20) };
+    await bookings().doc(id).set(changes, { merge: true });
+    return { ...b, ...changes };
+  }
+
+  /** The owner's words for a reader that couldn't be reached or a code that didn't work. */
+  function readerWords(err, fallback) {
+    if (err?.readerCode === "address") return err.message;
+    const message = String(err?.message || "");
+    if (/registration code/i.test(message)) return "That code didn't work. Check the code on the reader's screen and try again.";
+    if (/offline|not online|unreachable|timed out/i.test(message)) return "The card reader is offline. Check it is on and connected to the internet.";
+    if (/busy|in progress|another action/i.test(message)) return "The card reader is busy. Finish or cancel what is on its screen first.";
+    return fallback;
+  }
+
   /**
    * Refunds what a booking took by card (all of it unless a part is named): the rest's payment first, then the booking's
    * own. Returns the refund, or null when nothing was paid by card.
@@ -1284,6 +1366,8 @@ function bookingActions({
       if (!b) return fail(res, 404, "We couldn't find this booking. Check the link in your email.");
       /** A card page for what is left and/or a tip, listed on the booking so the view and the sweep can read it. */
       const payPage = async (res, b, { amountMinor, tipMinor, label }) => {
+        // A payment on the shop's card reader right now: paying by link as well could take the money twice.
+        if (b.readerOpen && amountMinor > 0) return fail(res, 409, "This payment is on the shop's card reader right now.", "reader_busy");
         const { checkout } = await standalone();
         const total = amountMinor + tipMinor;
         const pages = (b.restPages || []).filter((p) => p && SESSION_ID.test(String(p.id || "")));
@@ -1528,6 +1612,37 @@ function bookingActions({
         if (req.body?.sendEmail !== false) await tellCustomer(id, booked, "booked", { key, byShop: true });
         return res.status(200).json({ ok: true, id });
       }
+      if (op === "readers" || op === "readerAdd" || op === "readerRemove") {
+        // Card readers that connect over the internet (Stripe's smart readers): one place per shop, readers added with
+        // the code the reader shows. Square shops answer `available: false` for now.
+        const { mode, reader } = await readerDesk();
+        if (!reader) {
+          if (op === "readers") return res.status(200).json({ available: false, readers: [] });
+          return fail(res, 409, "Card readers work with Stripe for now.", "not_available");
+        }
+        try {
+          if (op === "readerAdd") {
+            const code = String(req.body?.code || "").trim().toLowerCase().replace(/\s+/g, "-");
+            const label = text(req.body?.label, 60) || "Card reader";
+            if (!/^[a-z0-9-]{3,60}$/.test(code)) return fail(res, 400, "Type the code the reader shows on its screen.", "code");
+            const place = await readerPlace(mode, reader, { make: true });
+            const added = await reader.add({ code, label, place });
+            return res.status(200).json({ ok: true, reader: added });
+          }
+          if (op === "readerRemove") {
+            const readerId = String(req.body?.readerId || "");
+            if (!READER_ID.test(readerId)) return fail(res, 400, "Choose a card reader.");
+            await reader.remove(readerId);
+            return res.status(200).json({ ok: true });
+          }
+          const place = await readerPlace(mode, reader);
+          return res.status(200).json({ available: true, testMode: reader.testMode === true, readers: place ? await reader.list(place) : [] });
+        } catch (err) {
+          console.warn("bookings: card readers:", op, err?.message || err);
+          const words = readerWords(err, op === "readerAdd" ? "The reader couldn't be added just now. Please try again." : "The card readers couldn't be reached just now. Please try again.");
+          return fail(res, err?.readerCode === "address" ? 409 : err?.statusCode === 400 ? 400 : 502, words, err?.readerCode || "reader");
+        }
+      }
       if (op === "walkIn") {
         // Take a payment at the desk for someone with no booking: a visit recorded as starting now, at the shop's price
         // or one the owner typed, paid from the same pay link and QR code as the rest of a booking (tip and all). It
@@ -1672,6 +1787,56 @@ function bookingActions({
         if (req.body?.notify !== false) await tellCustomer(id, { ...b, ...changes }, "fee", { byShop: true, toOwner: false });
         return res.status(200).json({ ok: true, fee });
       }
+      if (op === "readerCharge" || op === "readerCheck" || op === "readerCancel" || op === "readerTest") {
+        const { reader } = await readerDesk();
+        if (!reader) return fail(res, 409, "Card readers work with Stripe for now.", "not_available");
+        const state = (x) => ({ ok: true, state: x.readerOpen ? "waiting" : x.rest?.reader ? "paid" : "idle", error: x.readerOpen ? "" : String(x.readerError || ""), dueMinor: balanceDue(x) });
+        try {
+          if (op === "readerCheck") return res.status(200).json(state(await refreshReader(id, b, reader)));
+          if (op === "readerCancel") {
+            if (!b.readerOpen || !b.readerCharge) return res.status(200).json(state(b));
+            await reader.cancel(b.readerCharge.readerId, b.readerCharge.intent);
+            // Read once more: a card tapped just before the cancel still counts.
+            b = await refreshReader(id, b, reader, { stopped: "" });
+            if (b.readerOpen) {
+              const at = now().toISOString();
+              const changes = { readerOpen: false, readerCharge: null, readerError: "", updatedAt: at, history: [...(b.history || []), { at, what: "card reader payment cancelled", by }].slice(-20) };
+              await bookings().doc(id).set(changes, { merge: true });
+              b = { ...b, ...changes };
+            }
+            return res.status(200).json(state(b));
+          }
+          if (op === "readerTest") {
+            if (!reader.testMode) return fail(res, 409, "Test cards work in test mode only.", "test_only");
+            if (!b.readerOpen || !b.readerCharge) return fail(res, 409, "Send the payment to the reader first.", "not_waiting");
+            await reader.testCard(b.readerCharge.readerId);
+            return res.status(200).json(state(await refreshReader(id, b, reader)));
+          }
+          // readerCharge: what is left, sent to one reader.
+          const readerId = String(req.body?.readerId || "");
+          if (!READER_ID.test(readerId)) return fail(res, 400, "Choose a card reader.");
+          if (b.readerOpen) {
+            b = await refreshReader(id, b, reader);
+            if (b.readerOpen) return fail(res, 409, "A payment is already on a card reader. Finish or cancel it first.", "reader_busy");
+          }
+          // A pay link still open would let them pay twice: close it first (a payment that already came in counts).
+          b = await settleRest(id, b);
+          if (b.paid || !restPayable(b)) return fail(res, 409, b.rest || b.paid ? "This booking is already paid in full." : "Nothing is left to pay for this booking.", "nothing_due");
+          const amountMinor = balanceDue(b);
+          const tries = Math.max(0, Number(b.readerTries) || 0) + 1;
+          const description = `${shopName() ? `${shopName()}: ` : ""}${b.serviceName} (${b.customer?.name || "desk"})`.slice(0, 250);
+          // Counted before the reader is asked, so a try that failed never hands back its stopped payment.
+          await bookings().doc(id).set({ readerTries: tries }, { merge: true });
+          const started = await reader.charge({ readerId, amountMinor, currency: b.currency || currency(), description, metadata: { booking: id, rest: "1", reader: "1" } }, `booking-reader-${id}-${amountMinor}-${tries}`);
+          const at = now().toISOString();
+          const changes = { readerOpen: true, readerTries: tries, readerError: "", readerCharge: { intent: started.intent, readerId, amountMinor, at }, updatedAt: at, history: [...(b.history || []), { at, what: `${moneyWords(amountMinor, b.currency || currency())} sent to the card reader`, by }].slice(-20) };
+          await bookings().doc(id).set(changes, { merge: true });
+          return res.status(200).json(state({ ...b, ...changes }));
+        } catch (err) {
+          console.warn("bookings: card reader:", op, id, err?.message || err);
+          return fail(res, 502, readerWords(err, "The card reader couldn't be reached just now. Please try again."), "reader");
+        }
+      }
       if (op === "noShow" || op === "paidAtShop") {
         const at = now().toISOString();
         const changes = op === "noShow"
@@ -1681,6 +1846,7 @@ function bookingActions({
         if (op === "paidAtShop" && b.payment !== "atShop" && !(b.payment === "deposit" && b.depositPaid)) return fail(res, 409, "Nothing is due at the shop for this booking.");
         if (op === "paidAtShop" && req.body?.value !== false) {
           // A pay link still open would let them pay twice; a payment that already came in means it is paid.
+          if (b.readerOpen) return fail(res, 409, "A payment is on the card reader. Cancel it there first.", "reader_busy");
           b = await settleRest(id, b);
           if (b.rest) return fail(res, 409, "They already paid the rest by card.", "paid_by_card");
         }
@@ -1696,11 +1862,27 @@ function bookingActions({
 
   // ── The five-minute sweep ──────────────────────────────────────────────────────────────────────────────────────
 
+  /** Payments the owner sent to a card reader and walked away from: kept when paid, stopped after READER_MINUTES. */
+  async function sweepReaders(docs) {
+    const { reader } = await readerDesk();
+    if (!reader) return;
+    for (const doc of docs) {
+      let b = await refreshReader(doc.id, doc.data(), reader);
+      if (!b.readerOpen || !(now().getTime() - Date.parse(b.readerCharge?.at || "") > READER_MINUTES * MINUTE)) continue;
+      await reader.cancel(b.readerCharge.readerId, b.readerCharge.intent);
+      b = await refreshReader(doc.id, b, reader, { stopped: "The card reader payment ran out of time." });
+      if (!b.readerOpen) continue;
+      const at = now().toISOString();
+      await bookings().doc(doc.id).set({ readerOpen: false, readerCharge: null, readerError: "The card reader payment ran out of time.", updatedAt: at, history: [...(b.history || []), { at, what: "card reader payment ran out of time", by: "shop" }].slice(-20) }, { merge: true });
+    }
+  }
+
   /** Confirms paid holds and frees the time of holds that ran out (their payment page closed first). */
   async function sweepHolds() {
     if (!(await featureOn())) return { confirmed: 0, freed: 0 };
     await sweepPacks().catch((err) => console.warn("bookings: the packs sweep failed:", err?.message || err));
-    const [snap, rests] = await Promise.all([bookings().where("status", "==", "held").limit(100).get(), bookings().where("restOpen", "==", true).limit(100).get()]);
+    const [snap, rests, onReaders] = await Promise.all([bookings().where("status", "==", "held").limit(100).get(), bookings().where("restOpen", "==", true).limit(100).get(), bookings().where("readerOpen", "==", true).limit(50).get()]);
+    if (!onReaders.empty) await sweepReaders(onReaders.docs).catch((err) => console.warn("bookings: the card reader sweep failed:", err?.message || err));
     if (snap.empty && rests.empty) return { confirmed: 0, freed: 0 };
     const { checkout } = await standalone();
     // Pay-the-rest pages: keep a payment that came in; once every page has run out, stop looking.
@@ -1902,6 +2084,8 @@ const HOUR = 60 * 60 * 1000;
 const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
 /** How long a page to pay the rest stays open, and how long before its end a fresh one is opened instead. */
 const REST_PAGE_MINUTES = 60;
+/** A payment sent to a card reader and left waiting is stopped after this long (the sweep). */
+const READER_MINUTES = 15;
 const REST_REUSE_MINUTES = 15;
 /** The "Add a tip" email goes this many hours after a visit ends. */
 const TIP_ASK_HOURS = 2;

@@ -402,6 +402,35 @@ test("a shop reads its payments' fees and what each payout paid in, on its own a
   assert.equal((await call("checkout.sessions.retrieve", { id: "cs_x", params: { expand: ["customer"] } })).status, 400);
 });
 
+test("card readers: a shop reaches only its own place and readers, with checked ids and parameters", async () => {
+  const { stripe, call } = await world();
+  const sent = () => stripe.requests.at(-1);
+  const address = { line1: "12 Ink Lane", city: "Toronto", state: "ON", postal_code: "M6G3H1", country: "CA" };
+  assert.notEqual((await call("terminal.locations.create", { params: { display_name: "Moth Press", address } })).status, 400);
+  assert.equal(sent().path, "/v1/terminal/locations");
+  assert.equal(sent().headers["Stripe-Account"], "acct_moth");
+  assert.equal((await call("terminal.locations.create", { params: { display_name: "Moth Press", address: { ...address, phone: "1" } } })).status, 400);
+  assert.equal((await call("terminal.locations.create", { params: { address } })).status, 400);
+  assert.notEqual((await call("terminal.readers.create", { params: { registration_code: "simulated-wpe", label: "Front desk", location: "tml_1" } })).status, 400);
+  assert.equal(sent().path, "/v1/terminal/readers");
+  assert.equal((await call("terminal.readers.create", { params: { registration_code: "simulated-wpe", location: "acct_x" } })).status, 400);
+  assert.equal((await call("terminal.readers.create", { params: { registration_code: "a b", location: "tml_1" } })).status, 400);
+  assert.notEqual((await call("terminal.readers.list", { params: { location: "tml_1", limit: 10 } })).status, 400);
+  assert.notEqual((await call("terminal.readers.processPaymentIntent", { id: "tmr_1", params: { payment_intent: "pi_1" } })).status, 400);
+  assert.equal(sent().path, "/v1/terminal/readers/tmr_1/process_payment_intent");
+  assert.equal((await call("terminal.readers.processPaymentIntent", { id: "tmr_1", params: { payment_intent: "pi_1", amount: 5 } })).status, 400);
+  assert.equal((await call("terminal.readers.processPaymentIntent", { id: "../accounts", params: { payment_intent: "pi_1" } })).status, 400);
+  assert.notEqual((await call("terminal.readers.cancelAction", { id: "tmr_1" })).status, 400);
+  assert.notEqual((await call("terminal.readers.del", { id: "tmr_1" })).status, 400);
+  assert.equal(sent().method, "DELETE");
+  // The simulated reader's test card works in test mode only.
+  assert.equal((await call("testHelpers.terminal.readers.presentPaymentMethod", { id: "tmr_1" })).status, 400);
+  const before = stripe.requests.length;
+  assert.notEqual((await call("testHelpers.terminal.readers.presentPaymentMethod", { id: "tmr_1" }, "test")).status, 400);
+  assert.equal(stripe.requests.length, before + 1);
+  assert.equal(sent().path, "/v1/test_helpers/terminal/readers/tmr_1/present_payment_method");
+});
+
 test("every call a shop can make is listed", () => {
   assert.deepEqual([...SHOP_OP_NAMES].sort(), [
     "account.onboardingLink", "account.paymentDomain", "account.status", "balanceTransactions.list", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
@@ -412,6 +441,9 @@ test("every call a shop can make is listed", () => {
     "square.payouts.entries", "square.payouts.retrieve",
     // Switching between Stripe and Square (accountSlots.js)
     "account.switch",
+    // Card readers (Services plan phase 3)
+    "terminal.locations.create", "terminal.locations.list", "terminal.readers.cancelAction", "terminal.readers.create", "terminal.readers.del",
+    "terminal.readers.list", "terminal.readers.processPaymentIntent", "terminal.readers.retrieve", "testHelpers.terminal.readers.presentPaymentMethod",
   ].sort());
 });
 

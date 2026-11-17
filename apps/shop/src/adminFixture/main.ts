@@ -140,6 +140,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   ] : [];
   const watchers = new Set<() => void>();
   const changed = () => watchers.forEach((w) => w());
+  const readerMode = new URLSearchParams(window.location.search).get("readers") || "";
+  const DECLINE = new URLSearchParams(window.location.search).get("reader") === "decline";
+  let readerList = readerMode === "empty" ? [] : [
+    { id: "tmr_fixture1", label: "Front desk", online: true, device: "WisePOS E" },
+    { id: "tmr_fixture2", label: "Back room", online: false, device: "Reader S700" },
+  ];
   bookingsData.watchOn = (onChange) => { onChange(mode !== "off"); return () => {}; };
   bookingsData.readSetup = async () => ({ services: [...services], settings, saved: mode !== "new" });
   bookingsData.follow = (from, to, onRows) => {
@@ -166,6 +172,24 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       rows = [...rows, walk];
       changed();
       return { ok: true, id: walk.id, url: `https://press.example/book?booking=${walk.id}&key=${"e".repeat(48)}`, dueMinor: walk.priceMinor };
+    }
+    // Card readers (?readers=none for a Square shop, ?readers=empty for none added yet, ?reader=decline to decline the test card).
+    if (op === "readers" || op === "readerAdd" || op === "readerRemove") {
+      if (readerMode === "none") return { available: false, readers: [] };
+      if (op === "readerAdd") readerList = [...readerList, { id: `tmr_fixture${readerList.length + 1}`, label: String(body.label || "Front desk"), online: true, device: "WisePOS E" }];
+      if (op === "readerRemove") readerList = readerList.filter((r) => r.id !== body.readerId);
+      return { available: true, testMode: true, readers: readerList };
+    }
+    if (op === "readerCharge" || op === "readerCheck" || op === "readerCancel" || op === "readerTest") {
+      const b = rows.find((x) => x.id === id);
+      if (b && op === "readerCharge") rows = rows.map((x) => (x.id === id ? { ...x, readerOpen: true, readerError: "", readerCharge: { readerId: String(body.readerId), amountMinor: x.priceMinor, at: new Date().toISOString() } } : x));
+      if (b && op === "readerCancel") rows = rows.map((x) => (x.id === id ? { ...x, readerOpen: false, readerCharge: null } : x));
+      if (b && op === "readerTest") rows = rows.map((x) => (x.id !== id ? x : DECLINE
+        ? { ...x, readerOpen: false, readerCharge: null, readerError: "The card was declined. Ask for another card, or try again." }
+        : { ...x, readerOpen: false, readerCharge: null, rest: { amountMinor: x.priceMinor, at: new Date().toISOString(), reader: true } }));
+      changed();
+      const now = rows.find((x) => x.id === id);
+      return { ok: true, state: now?.readerOpen ? "waiting" : now?.rest?.reader ? "paid" : "idle", error: now?.readerOpen ? "" : now?.readerError || "", dueMinor: now?.priceMinor || 0 };
     }
     if (op === "payLink") return { ok: true, url: `https://press.example/book?booking=${id}&key=${"d".repeat(48)}`, sent: body.send === true };
     if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));
