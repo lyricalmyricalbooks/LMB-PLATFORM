@@ -2196,16 +2196,22 @@ describe("staff and rooms", () => {
 
   test("a calendar the platform couldn't read keeps its busy times, and a person taken off the team has theirs cleared", async () => {
     let answer = { available: true, busy: { ana: [{ start: at("2026-11-18", "10:00"), end: at("2026-11-18", "11:00") }] } };
-    const calendar = { ...fakeCalendar(), async peopleBusy() { return answer; } };
+    const unlinked = [];
+    const calendar = { ...fakeCalendar(), async peopleBusy() { return answer; }, async personDisconnect(person) { unlinked.push(person); throw new Error("Google is down"); } };
     const t = setup({ calendar, now: "2026-11-17T12:00:00Z" });
     await team(t, { staff: [{ id: "ana", name: "Ana" }] });
+    expect(unlinked).toEqual([]);
     await t.desk.sweepTeamCalendars();
     answer = { available: true, busy: { ana: null } };
     expect(await t.desk.sweepTeamCalendars({ force: true })).toEqual({ days: 0 });
     answer = null;
     expect(await t.desk.sweepTeamCalendars({ force: true })).toEqual({ days: 0 });
     expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items).some((k) => k.startsWith("gcal~ana~"))).toBe(true);
-    await team(t, { staff: [{ id: "ben", name: "Ben" }] });
+    // Taken off the team in the admin: their Google link is given up too, and a failure there doesn't stop the save.
+    const saved = await t.adm({ op: "saveSettings", settings: { ...t.db.store.get("bookingSettings/main"), staff: [{ id: "ben", name: "Ben" }] } });
+    expect(saved.statusCode).toBe(200);
+    expect(unlinked).toEqual(["ana"]);
+    expect(t.db.store.get("bookingSettings/main").staff.map((p) => p.id)).toEqual(["ben"]);
     answer = { available: true, busy: { ben: [] } };
     expect(await t.desk.sweepTeamCalendars({ force: true })).toEqual({ days: 1 });
     expect(Object.keys(t.db.store.get("bookingDays/2026-11-18")?.items || {}).filter((k) => k.startsWith("gcal~"))).toEqual([]);

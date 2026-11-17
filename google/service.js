@@ -112,6 +112,7 @@ const PERSON_ID = /^[A-Za-z0-9_-]{1,40}$/;
 const personKey = (shopId, person) => `${shopId}/${person}`;
 const MAX_PEOPLE = 20;
 const MAX_BUSY_MS = 62 * 24 * 3600 * 1000;
+const BUSY_AT_ONCE = 5;
 function personAsked(person) {
   if (typeof person !== "string" || !PERSON_ID.test(person)) throw bad("person must be a team member's id");
   return person;
@@ -215,26 +216,15 @@ export function createGoogleService({ config, google, tokens, people = null, sta
   }
 
   /**
-   * Forgets one person's link. Colophon's access to their Google account is given back too, unless the account is the
-   * shop's own or another linked person's here: Google keeps one grant per account, so that would cut them off as well.
+   * Forgets one person's link. Colophon's grant at Google is left alone: Google keeps one grant per account, and the same
+   * account may be the shop's own, another person's here or someone's in another shop, so giving it back could cut them
+   * off. The tokens are deleted here, and the person can remove Colophon from their Google account page themselves.
    */
   async function forgetPerson(row, person) {
     const key = personKey(row.shopId, person);
     const conn = await people.get(key);
     if (!people.live(conn)) { await notePerson(row.shopId, person, false); return { forgotten: false }; }
-    const email = String(conn.accountEmail || "").toLowerCase();
-    const shopConn = await tokens.get(row.shopId);
-    let shared = tokens.live(shopConn) && String(shopConn.accountEmail || "").toLowerCase() === email;
-    for (const other of row.google?.people ?? []) {
-      if (shared || other === person) continue;
-      const theirs = await people.get(personKey(row.shopId, other));
-      shared = people.live(theirs) && String(theirs.accountEmail || "").toLowerCase() === email;
-    }
-    try { await people.revoke(key, { atGoogle: !shared }); } catch (err) {
-      // Google may already have ended it; forget it here all the same.
-      console.warn(`Giving back a team member's Google access for ${row.shopId} failed:`, err?.message || err);
-      await people.revoke(key, { atGoogle: false });
-    }
+    await people.revoke(key, { atGoogle: false });
     await notePerson(row.shopId, person, false);
     return { forgotten: true };
   }
@@ -266,20 +256,22 @@ export function createGoogleService({ config, google, tokens, people = null, sta
       const fromMs = Date.parse(from), toMs = Date.parse(to);
       if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs || toMs - fromMs > MAX_BUSY_MS) throw bad("from and to must be two times up to 62 days apart");
       const busy = {};
-      for (const person of list) {
+      // A few at a time, so a big team still answers well inside the shop's wait for the platform.
+      const readOne = async (person) => {
         const conn = await people.get(personKey(row.shopId, person));
         // Not linked: nothing closes their times. Linked but unreadable: null, so the shop keeps what it had.
-        if (!people.live(conn)) { busy[person] = []; continue; }
+        if (!people.live(conn)) { busy[person] = []; return; }
         try {
           const grant = await people.fresh(personKey(row.shopId, person));
-          if (!grant) { busy[person] = null; continue; }
+          if (!grant) { busy[person] = null; return; }
           const spans = await google.freeBusy(grant.token, new Date(fromMs).toISOString(), new Date(toMs).toISOString());
           busy[person] = spans.filter((b) => Number.isFinite(Date.parse(b.start)) && Date.parse(b.end) > Date.parse(b.start)).slice(0, 2000);
         } catch (err) {
           console.warn(`A team member's busy times for ${row.shopId} couldn't be read:`, err?.message || err);
           busy[person] = null;
         }
-      }
+      };
+      for (let i = 0; i < list.length; i += BUSY_AT_ONCE) await Promise.all(list.slice(i, i + BUSY_AT_ONCE).map(readOne));
       return { available: true, busy };
     },
     async "google.personDisconnect"(row, { person } = {}) {

@@ -1404,7 +1404,10 @@ times as before. Tests: bookings.test.js › staff and rooms.
 minutes, 60 days ahead; the status step forces one when the last is over a minute old) writes each busy span into
 `bookingDays/<day>` as item `gcal~<person>~<start>~<end>` `{ start, end, p, g: true }`, so `busyFrom`, `freeTimes`,
 `whoIsFree` and the booking transactions block it for that person only. State `bookingSettings/googleBusy` `{ at, spans }`;
-only changed days are written, and a calendar that couldn't be read keeps its old spans. Tests: bookings.test.js.
+only changed days are written, and a calendar that couldn't be read keeps its old spans. `saveSettings` calls
+`personDisconnect` (best effort) for each person taken off the team. The platform only forgets a person's tokens
+(never revokes at Google: the account may be linked in another shop) and reads at most 5 calendars at once. Tests:
+bookings.test.js.
 
 **Each person's day (17 November 2026, Services plan phase 4 part 2, `tasks/todo/2026-11-17-team-day.md`):** op
 `calendarFeed` with `staffId` makes that person's private link (`bookingFeed/p-<id>` with `staffId`, `staffName`; the

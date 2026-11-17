@@ -1035,10 +1035,11 @@ test("a team member links their own calendar: only busy times are asked for, and
   assert.equal((await t.call("google.peopleBusy", { people: ["../x"], from: "2026-10-28T00:00:00.000Z", to: "2026-11-28T00:00:00.000Z" })).status, 400);
   assert.equal((await t.call("google.personLink", { person: "a/b" })).status, 400);
 
-  // Unlinking gives Colophon's access back (their account is nobody else's here) and forgets the tokens.
+  // Unlinking forgets the tokens here. The grant at Google stays: the same account may be linked in another shop.
+  const revokesBefore = t.google.calls.filter((c) => c[0] === "revoke").length;
   const off = await t.call("google.personDisconnect", { person: "ana" });
   assert.deepEqual(off.body, { available: true, forgotten: true });
-  assert.ok(t.google.calls.some((c) => c[0] === "revoke"));
+  assert.equal(t.google.calls.filter((c) => c[0] === "revoke").length, revokesBefore, "nothing is given back at Google");
   assert.deepEqual((await t.call("google.peopleStatus", { people: ["ana"] })).body.people.ana, { linked: false });
   assert.deepEqual((await t.shopRow()).google.people, []);
   assert.deepEqual((await t.call("google.peopleBusy", { people: ["ana"], from: "2026-10-28T00:00:00.000Z", to: "2026-11-28T00:00:00.000Z" })).body.busy, { ana: [] });

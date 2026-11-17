@@ -2493,6 +2493,12 @@ function bookingActions({
         const next = cleanBookingSettings(req.body?.settings);
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
         await tellWebsite(next.live);
+        // Someone taken off the team: their Google Calendar link goes too, so Colophon stops holding their access.
+        // Best effort: a link that can't be given back now stays listed in Google's own account page for them.
+        const kept = new Set((next.staff || []).map((p) => p.id));
+        for (const gone of (settings.staff || []).filter((p) => !kept.has(p.id))) {
+          await Promise.resolve().then(() => calendar.personDisconnect(gone.id)).catch((err) => console.warn("Team calendars:", err?.message || err));
+        }
         // Just switched on: the coming bookings go in too, and the owner learns whether Google is linked.
         const googleCalendar = next.googleCalendar && !settings.googleCalendar ? await fillCalendar() : undefined;
         return res.status(200).json({ ok: true, settings: next, ...(googleCalendar ? { googleCalendar } : {}) });
