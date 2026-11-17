@@ -2556,3 +2556,11 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings .rp-fk-control:has(> span > .rp-select + .rp-btn) { background: transparent; box-shadow: none; }
 /* A short word beside a menu label ("Beta"): small mono capitals in a thin outline, on the rail's own colours. */
 .rp-nav-tag { margin-left: 8px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 999px; font: 500 9px/1.2 var(--rp-font-mono); letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.72; }
+
+/* Polish pass: a switch is a pill on every admin page, not only in Settings (Orders' "Show test orders" was square),
+   and Inventory's low-stock line reads at the same size as the hint beside it. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-toggle-track { border-radius: 999px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-toggle-track::after { border-radius: 50%; }
+.rp:not(.studio-editor) .inv-threshold label { font-size: var(--rp-text-sm); }
+/* Phone Orders: three figures in a two-column grid leave one half-width tile; it takes the whole row instead. */
+.rp:not(.studio-editor) .od-phone .od-figures.rp-kpi-grid > .rp-metric:last-child:nth-child(odd) { grid-column: 1 / -1; }
