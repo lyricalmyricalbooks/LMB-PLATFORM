@@ -114,6 +114,7 @@ import { createTookData, tookDataRoutes } from "../control-room/tookData.js";
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { bookingsBetaRoutes, createBookingsBeta } from "../control-room/bookingsBeta.js";
+import { createWaysBeta, waysBetaRoutes } from "../control-room/waysBeta.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
@@ -511,6 +512,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
     ...bookingsBetaRoutes(bookingsBeta),
+    ...waysBetaRoutes(createWaysBeta({ admins, registry, auditLog, shopData, activity, now })),
     ...shopLooksRoutes(shopLooks),
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),

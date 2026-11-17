@@ -23,6 +23,7 @@
 //
 // Paging: `before` is the `next` of the page before (or any time), and the page holds entries older than it.
 import { ControlError, adminOf } from "./controlRoom.js";
+import { wayOf } from "../shared/ways/ways.js";
 
 export const TIMELINE_KINDS = Object.freeze(["billing", "release", "health", "support", "switch", "visit", "email", "security", "other"]);
 export const MAX_LIMIT = 500;
@@ -60,6 +61,7 @@ function controlAction(what, d = {}) {
     case "drift-snoozed": return { kind: "other", words: `Snoozed the drift warning for ${d.days ?? "?"} days${why(d.reason)}` };
     case "drift-woken": return { kind: "other", words: `Ended the drift warning's snooze${why(d.reason)}` };
     case "bookings-set": return { kind: "switch", words: `Turned Bookings (beta) ${d.to ? "on" : "off"}` };
+    case "ways-set": return { kind: "switch", words: `Turned ${wayOf(d.way)?.label ?? "a way to sell"} (beta) ${d.to ? "on" : "off"}` };
     case "job-run": return { kind: "other", words: `Ran the job "${d.job ?? "?"}" by hand${why(d.reason)}` };
     default: return { kind: "other", words: `${plain(what) || "Something was done"}${why(d.reason)}` };
   }

@@ -228,6 +228,7 @@ async function load() {
     await loadUsage();
     await loadSetup();
     await loadBookingsBeta();
+    await loadWaysBeta();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -1489,6 +1490,8 @@ function card(shop) {
     shop.plan !== "stockroom" ? shopChitChatsSection(shop) : null,
     shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Bookings (beta)" }) : null,
     shop.status === "live" && shop.plan !== "stockroom" ? bookingsBetaSection(shop) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section" }, "Ways to sell ", el("span", { className: "rp-badge", dataset: { tone: "info" }, textContent: "Beta" })) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? waysBetaSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
@@ -2364,7 +2367,7 @@ const ACTIVITY_WORDS = {
 
   "note-added": "added a private note", "note-deleted": "deleted a private note", "tags-set": "changed the shop's tags", "job-run": "ran a job by hand",
   "drift-snoozed": "snoozed a drifting press", "drift-woken": "ended a drifting press's snooze",
-  "test-shop-open": "opened a test shop's admin", "bookings-set": "switched Bookings on or off",
+  "test-shop-open": "opened a test shop's admin", "bookings-set": "switched Bookings on or off", "ways-set": "switched a way to sell on or off",
   "newsletter-paused": "paused the newsletter", "payments-moved": "moved card payments", "roll-back": "rolled a shop back to an earlier version", "plan-changed": "changed a shop's plan", "trial-started": "started a free trial", "address-live": "put a web address live", "member-deleted-account": "deleted their account", "repair-opened": "opened a repair",
   "today-snoozed": "snoozed a line on Today", "today-woken": "put a line back on Today",
 };
@@ -3624,6 +3627,69 @@ function bookingsBetaSection(shop) {
   show();
   return slot;
 }
+
+// Ways to sell (beta, control-room/waysBeta.js): six more things a shop can sell, each off until turned on here. A way
+// that isn't built yet shows "Not built yet" and has no switch. A plain yes or no turns one on or off; turning it off
+// keeps what the shop made with it.
+function waysBetaSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's ways to sell…" }));
+  const name = shop.pressName ?? shop.shopId;
+  const show = () => api("POST", "/control/ways", { shopId: shop.shopId }).then(({ ways, words }) => {
+    if (!ways) return slot.replaceChildren(el("p", { className: "rp-hint", textContent: words }));
+    const flipOf = (w) => {
+      const flip = button(w.on ? "Turn off" : "Turn on", w.on ? "ghost" : "primary");
+      flip.addEventListener("click", async () => {
+        const sure = await askBox(w.on
+          ? `Turn ${w.label} off for ${name}? Its pages close and the switch leaves their Settings. What they made with it is kept.`
+          : `Turn ${w.label} on for ${name}? They'll see it in Settings › Ways to sell, marked Beta, and can switch it on.`,
+        { yes: w.on ? "Turn off" : "Turn on", danger: w.on });
+        if (sure === null) return;
+        flip.disabled = true;
+        try {
+          await api("POST", "/control/ways/set", { shopId: shop.shopId, way: w.id, on: !w.on });
+          await show();
+        } catch (failure) {
+          flip.disabled = false;
+          slot.append(el("p", { className: "rp-hint", role: "alert", textContent: failure.message }));
+        }
+      });
+      return flip;
+    };
+    // One line per way: its name, where it stands, the switch (only for a built way, or one to turn off) and the owner's side.
+    fill(slot, ...ways.map((w) => el("div", { className: "cr-actions", dataset: { way: w.id } },
+      el("strong", { textContent: w.label }),
+      !w.built && !w.on ? pill("neutral", "not built yet") : w.on ? pill("success", "on") : pill("neutral", "off"),
+      w.built || w.on ? flipOf(w) : null,
+      w.on ? meta(w.ownerOn ? "owner switched it on" : "owner hasn't switched it on yet", w.changedAt ? `turned on ${dateOnly(w.changedAt)}${w.changedBy ? ` by ${w.changedBy}` : ""}` : null) : null)));
+  }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  show();
+  return slot;
+}
+
+// Shops › Ways to sell (beta) (control-room/waysBeta.js `overview`): how many shops have each way, and which.
+async function loadWaysBeta() {
+  try {
+    const view = await api("GET", "/control/ways/overview");
+    const figure = (label, value, foot) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }), el("div", { className: "rp-metric-value", textContent: String(value) }), el("div", { className: "rp-metric-foot", textContent: foot }));
+    fill($("#ways-beta-numbers"), ...view.ways.map((w) => figure(w.label, w.built ? w.shops : "–", w.built ? `of ${plural(view.totals.shops, "shop")}` : "Not built yet")));
+    $("#ways-beta-shops").replaceChildren(view.shops.length ? table({
+      caption: "Every live shop with a website",
+      rows: view.shops,
+      open: (row) => {
+        const shop = allShops.find((s) => s.shopId === row.shopId);
+        if (shop) openShop(shop);
+      },
+      columns: [
+        { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.testShop ? "test shop" : null)) },
+        { header: "Ways turned on", render: (s) => (s.ways.length ? el("div", { className: "cr-actions" }, ...s.ways.map((id) => pill("success", view.ways.find((w) => w.id === id)?.label ?? id))) : meta("None yet")) },
+      ],
+    }) : emptyState("No live shops yet."));
+  } catch (failure) {
+    $("#ways-beta-shops").replaceChildren(emptyState(failure.message));
+  }
+}
+$("#ways-beta-refresh").addEventListener("click", loadWaysBeta);
 
 // Shops › Bookings (beta) (control-room/bookingsBeta.js `overview`): every live shop with a website, this month's bookings
 // for those that have it on, and one button for the test shops. The switch for one shop stays in its record.

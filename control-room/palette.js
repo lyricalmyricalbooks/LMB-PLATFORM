@@ -8,7 +8,7 @@ import { shopMatches } from "./shopSearch.js";
  */
 export const GROUPS = [
   { id: "today", name: "Today", pages: ["today"] },
-  { id: "shops", name: "Shops", pages: ["shops", "signups", "setting-up", "bookings-beta"], tabs: [["shops", "Shops"], ["signups", "Sign-ups"], ["setting-up", "Setting up"], ["bookings-beta", "Bookings (beta)"]] },
+  { id: "shops", name: "Shops", pages: ["shops", "signups", "setting-up", "bookings-beta", "ways-beta"], tabs: [["shops", "Shops"], ["signups", "Sign-ups"], ["setting-up", "Setting up"], ["bookings-beta", "Bookings (beta)"], ["ways-beta", "Ways to sell (beta)"]] },
   { id: "inbox", name: "Inbox", pages: ["support", "repairs", "recovery", "apps"], tabs: [["support", "Support"], ["repairs", "Repairs"], ["recovery", "Account recovery"], ["apps", "App store"]] },
   { id: "money", name: "Money", pages: ["money", "failed-payments", "brands-leaving", "costs", "settings"], tabs: [["money", "Income"], ["failed-payments", "Failed payments"], ["brands-leaving", "Why brands leave"], ["costs", "Costs"], ["settings", "Prices and sign-up"]] },
   { id: "platform", name: "Platform", pages: ["platform", "launch", "jobs", "messages", "runbook", "breaches", "activity", "payments"] },
@@ -26,6 +26,7 @@ export const PLACES = Object.freeze([
   { words: "Sign-ups and the waitlist", go: "signups", group: "Shops" },
   { words: "Setting up", go: "setting-up", group: "Shops" },
   { words: "Bookings (beta)", go: "bookings-beta", group: "Shops" },
+  { words: "Ways to sell (beta)", go: "ways-beta", group: "Shops" },
   { words: "Support", go: "support", group: "Inbox" },
   { words: "Repairs", go: "repairs", group: "Inbox" },
   { words: "Account recovery", go: "recovery", group: "Inbox" },
