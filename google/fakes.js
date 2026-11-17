@@ -32,6 +32,7 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
     channel: { id: "UCmothpress", snippet: { title: "Moth Press" } },
     calendars: new Map(),
     events: new Map(), // "calendarId/eventId" -> event
+    busy: new Map(), // email -> [{ start, end }] (a team member's own calendar)
     businessAccounts: [{ name: "accounts/555" }],
     adsCustomers: ["1234567890"],
     productLinks: new Map(),
@@ -253,6 +254,11 @@ export function fakeGoogle({ failOnce = [], refuse = [] } = {}) {
       const saved = { ...structuredClone(event), id: eventId, ...(hangoutLink ? { hangoutLink } : {}) };
       world.events.set(key, saved);
       return structuredClone(saved);
+    },
+    async freeBusy(token, timeMin, timeMax) {
+      const grant = who(token, "teamCalendars");
+      look("freeBusy");
+      return (world.busy.get(grant.email) ?? []).filter((b) => b.end > timeMin && b.start < timeMax).map((b) => ({ ...b }));
     },
     async deleteEvent(token, calendarId, eventId) {
       who(token, "calendar");

@@ -2,7 +2,7 @@
 // own folder, and the door answering "coming soon" without keys.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { googleEnv, hostedGoogleLink, hostedShopFirebase, shopPlace } from "./hosted.js";
+import { googleEnv, googleStores, hostedGoogleLink, hostedShopFirebase, shopPlace } from "./hosted.js";
 import { readGoogleConfig } from "./config.js";
 
 const KEYS = { GOOGLE_CLIENT_ID: "id.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "made-up", GOOGLE_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64"), PLATFORM_URL: "https://platform.example" };
@@ -94,4 +94,16 @@ test("deleting a shared shop takes its own address off through the domain servic
   assert.deepEqual(calls, [["moth-press", { domain: "shop.mothpress.example", deleting: true }]]);
   assert.equal(result.steps.find((s) => s.step === "removeDomain").state, "done");
   assert.equal(result.steps.find((s) => s.step === "deleteFirebase").state, "done", "the shared project itself is left alone");
+});
+
+test("a team member's tokens live at googlePeople/<shop>__<person>, and nothing else gets in", async () => {
+  const written = new Map();
+  const platform = { get: async (path) => written.get(path) ?? null, set: async (path, value) => void written.set(path, value) };
+  const { people } = googleStores(platform);
+  await people.set("moth-press/ana_1", { sealed: "x" });
+  assert.deepEqual([...written.keys()], ["googlePeople/moth-press__ana_1"]);
+  assert.deepEqual(await people.get("moth-press/ana_1"), { sealed: "x" });
+  for (const bad of ["moth-press", "moth-press/a/b", "Moth/ana", "moth-press/../x", "moth-press/"]) {
+    assert.throws(() => people.get(bad), /not a team member/, bad);
+  }
 });

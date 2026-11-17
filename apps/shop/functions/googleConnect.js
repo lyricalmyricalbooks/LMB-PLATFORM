@@ -132,6 +132,11 @@ function googleConnectActions({ url, shopId, serviceKey, requireAdmin, requireOw
  * `put(id, event)` answers `{ available, meetUrl }`, `remove(id)` answers `{ available }`; both answer null when the
  * link is down or refuses, so a booking never waits on Google. Short timeout: a customer is waiting for the answer.
  */
+/**
+ * The shop's calls to the platform's Google link for Bookings: its Colophon calendar (`put`, `remove`) and, for a
+ * services shop's team, each person's own calendar link and busy times. Each answers the platform's body, or null when
+ * the platform can't be reached or refused (logged, never thrown).
+ */
 function googleCalendarSync({ url, shopId, serviceKey, fetch = globalThis.fetch, timeoutMs = 8000 }) {
   async function call(op, args) {
     const key = typeof serviceKey === "function" ? serviceKey() : "";
@@ -154,6 +159,11 @@ function googleCalendarSync({ url, shopId, serviceKey, fetch = globalThis.fetch,
   return {
     put: (id, event) => call("google.bookingEvent", { id, ...event }),
     remove: (id) => call("google.bookingEventRemove", { id }),
+    // A services shop's team (Services plan 2, B6): each person links their own calendar so their busy times close.
+    personLink: (person) => call("google.personLink", { person }),
+    peopleStatus: (people) => call("google.peopleStatus", { people }),
+    peopleBusy: (people, from, to) => call("google.peopleBusy", { people, from, to }),
+    personDisconnect: (person) => call("google.personDisconnect", { person }),
   };
 }
 

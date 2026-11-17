@@ -1245,6 +1245,17 @@ Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` w
 shop's own day. Bookings with no person sit on a last line with no commission. The person dialog's Their pay field sets
 the share; the public booking page's staff list never includes it. Shown only, never paid. Classes `.bkg-pay*`.
 
+**Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
+person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
+`link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while
+the platform's calendar permission is off. Busy times arrive as day items (functions/CLAUDE.md › Bookings). Fixture:
+`?team=1&page=bookings` (Ana linked; `&teamcal=soon`).
+
+**Share your booking page (Beta, 17 November 2026):** the hero card's Share opens `ShareDialog`: what it opens (the page,
+a service, a person for it), the link (`bookingShareLink`: `?service=` and `?with=`, as `wantedFromSearch` reads them),
+a QR code (`qrPicture`, downloadable) and a Book now button (`bookButtonHtml`: a plain new-tab link with its look written
+in, words escaped; tested). No frame embed on purpose: the shop's pages send `X-Frame-Options: SAMEORIGIN`.
+
 ## Client records (17 November 2026, services plan phase 5)
 
 Plan: `tasks/todo/2026-11-17-client-records.md`. Customers (Clients in a services shop) › a client › Summary leads with

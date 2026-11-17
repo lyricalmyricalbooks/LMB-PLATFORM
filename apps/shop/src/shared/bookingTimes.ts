@@ -68,6 +68,13 @@ export type BookingService = {
   packVisits: number;
   packPriceMinor: number;
   packDays: number;
+  /** A class pass (Classes, 17 November 2026): this class's pack books any weekly class, not only this one. */
+  packAnyClass?: boolean;
+  /**
+   * First-visit price (17 November 2026): someone who has never booked with the shop pays this instead of the price (at
+   * least MIN_CARD_MINOR and below the price; not with a pack). Left out: no first-visit price.
+   */
+  introPriceMinor?: number;
   /** The room or chair the service needs (Services plan phase 4): "" for none. Two bookings never share a room. */
   roomId: string;
   /**
@@ -462,6 +469,8 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   if (rawDates.length && courseDates.length < 2) return { problem: "A course has at least 2 dates. For a single date, leave the course dates empty." };
   if (courseDates.length && places < 2) return { problem: "A course needs room for at least 2 people." };
   const classTimes = courseDates.length ? [] : cleanClassTimes(s.classTimes);
+  const introPriceMinor = priceMinor > 0 ? Math.round(Number(s.introPriceMinor) || 0) : 0;
+  if (introPriceMinor && (introPriceMinor < MIN_CARD_MINOR || introPriceMinor >= priceMinor)) return { problem: "A first-visit price is at least 0.50 and less than the price." };
   // A minimum only for a group at set times: a weekly class or a course (a class at any free time has no session to decide).
   const atSetTimes = places >= 2 && (courseDates.length > 0 || classTimes.length > 0);
   const minPlaces = atSetTimes ? whole(s.minPlaces, 0, MAX_PLACES, 0) : 0;
@@ -494,6 +503,9 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     packVisits: courseDates.length ? 0 : packVisits,
     packPriceMinor: courseDates.length ? 0 : packPriceMinor,
     packDays: courseDates.length ? 0 : packDays,
+    // A class pass: a weekly class's pack that books any weekly class.
+    ...(packVisits >= 2 && !courseDates.length && places >= 2 && s.packAnyClass === true ? { packAnyClass: true } : {}),
+    ...(introPriceMinor ? { introPriceMinor } : {}),
     roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     chargeTax: payment !== "free" && s.chargeTax === true,
     rebookWeeks: whole(s.rebookWeeks, 0, MAX_REBOOK_WEEKS, 0),
@@ -532,7 +544,9 @@ export function withExtras<T extends Pick<BookingService, "minutes" | "priceMino
   if (!extras.length) return { service, extras };
   const minutes = service.minutes + extras.reduce((n, e) => n + e.minutes, 0);
   if (minutes > 8 * 60) return { problem: "With those extras the booking is longer than 8 hours. Choose fewer." };
-  return { service: { ...service, minutes, priceMinor: service.priceMinor + extras.reduce((n, e) => n + e.priceMinor, 0) }, extras };
+  const extrasMinor = extras.reduce((n, e) => n + e.priceMinor, 0);
+  // `extrasMinor` keeps what the extras add, so a price that replaces the service's own (a first-visit price) keeps them.
+  return { service: { ...service, minutes, priceMinor: service.priceMinor + extrasMinor, ...(extrasMinor ? { extrasMinor } : {}) }, extras };
 }
 
 /** A course's dates, cleaned: real shop-clock "YYYY-MM-DDTHH:MM" moments, no repeats, earliest first. */
@@ -1236,6 +1250,8 @@ export const offersPack = (s: { packVisits?: number; packPriceMinor?: number } |
 /** A bought pack as the server keeps it (`bookingPacks/{id}`). Each booking made with it is one use. */
 export type BookingPack = {
   serviceId?: string;
+  /** A class pass: it books any weekly class (not a course), not only the class it was bought from. */
+  anyClass?: boolean;
   visits?: number;
   uses?: { bookingId: string; at?: string; returned?: boolean }[];
   /** "held" while its card page is open, "active" once paid, "closed" when refunded or ended by the shop. */
@@ -1264,11 +1280,12 @@ export const PACK_MESSAGES: Record<PackProblem, string> = {
  * Why `pack` can't book a visit to `serviceId` on shop day `day` (the visit's own day), or null when it can. A pack
  * running out only stops visits after its last day; a visit booked before then keeps its place.
  */
-export function packProblem(pack: BookingPack | null | undefined, serviceId: string, day: string): PackProblem | null {
+export function packProblem(pack: BookingPack | null | undefined, serviceId: string, day: string, weeklyClass = false): PackProblem | null {
   if (!pack) return "not_found";
   if (pack.status === "held") return "not_paid";
   if (pack.status !== "active") return "closed";
-  if (pack.serviceId !== serviceId) return "other_service";
+  // A class pass books any weekly class (`weeklyClass`: the service booked is a class and not a course).
+  if (pack.serviceId !== serviceId && !(pack.anyClass && weeklyClass)) return "other_service";
   if (pack.expiresOn && day > pack.expiresOn) return "expired";
   if (packLeft(pack) <= 0) return "used_up";
   return null;

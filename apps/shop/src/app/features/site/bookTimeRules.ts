@@ -12,6 +12,8 @@ export type BookingServiceView = { id: string; name: string; description: string
   joining?: { missed: number; of: number; fullPriceMinor: number };
   /** Clients may book it as a standing appointment: the same time every few weeks, several visits at once. */ repeats?: boolean;
   /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number;
+  /** Its pack is a class pass: it books any weekly class. */ packAnyClass?: boolean;
+  /** What someone new to the shop pays the first time (the server decides who is new). */ introPriceMinor?: number;
   /** Add-ons and options the client may tick: each adds minutes and, on a paid service, money. */ extras?: BookingExtraView[] };
 /** An add-on or option of a one-to-one service. */
 export type BookingExtraView = { id: string; name: string; minutes: number; priceMinor: number };

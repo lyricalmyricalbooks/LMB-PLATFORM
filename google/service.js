@@ -22,6 +22,12 @@
 //                                        replaced under an id from the booking's, with a Google Meet call when `meet`;
 //                                        answers the call's link. `available: false` until that calendar is linked
 //   google.bookingEventRemove { id }     takes that booking's event away (gone already is fine)
+//   google.personLink { person }         a sign-in link for one person on the team to share when they're busy
+//                                        with their own Google account (only that; `teamCalendars`)
+//   google.peopleStatus { people }       which of these people have their calendar linked, and with which account
+//   google.peopleBusy { people, from, to }   each linked person's busy times between two moments (up to 62 days);
+//                                        `null` for someone whose calendar couldn't be read, so the shop keeps the last
+//   google.personDisconnect { person }   forgets that person's link (and gives Colophon's access back to their account)
 //   google.tryAgain { step }             one connect step again (the shop's Try again)
 //   google.disconnect                    the closing steps of the teardown job: the shop stays open
 import { createHash, randomBytes } from "node:crypto";
@@ -30,6 +36,7 @@ import { shopHosts } from "../services/payments/service.js";
 import { offeredExtras } from "./config.js";
 import { CONNECT_STEPS } from "./connect.js";
 import { SCOPES } from "./endpoints.js";
+import { teamCalendarPage } from "./teamCalendarPage.js";
 
 export class GoogleLinkError extends Error {
   constructor(status, code, message) {
@@ -41,6 +48,8 @@ export class GoogleLinkError extends Error {
 }
 
 const STATE_MS = 15 * 60 * 1000;
+/** A team member's sign-in link: passed on to them, so it lasts a day (still one use). */
+const PERSON_STATE_MS = 24 * 3600 * 1000;
 /** The tabs a stock sheet may have, and the most lines each takes (a heading line plus 2,000 or 5,000). */
 const SHEET_TABS = Object.freeze({ Stock: 2001, Sales: 5001, Expenses: 5001 });
 const MAX_SHEET_COLUMNS = 12;
@@ -98,7 +107,22 @@ function sheetCells(rows) {
   return rows.map((line) => (Array.isArray(line) ? line.slice(0, MAX_READ_COLUMNS) : []).map((cell) => (cell === null || cell === undefined ? "" : String(cell).slice(0, 5000))));
 }
 
-export function createGoogleService({ config, google, tokens, states, registry, connect, teardown, now = () => Date.now() }) {
+/** A person on a shop's team, by the id the shop's own team list gives them. */
+const PERSON_ID = /^[A-Za-z0-9_-]{1,40}$/;
+const personKey = (shopId, person) => `${shopId}/${person}`;
+const MAX_PEOPLE = 20;
+const MAX_BUSY_MS = 62 * 24 * 3600 * 1000;
+const BUSY_AT_ONCE = 5;
+function personAsked(person) {
+  if (typeof person !== "string" || !PERSON_ID.test(person)) throw bad("person must be a team member's id");
+  return person;
+}
+function peopleAsked(people) {
+  if (!Array.isArray(people) || people.length > MAX_PEOPLE) throw bad(`people must be a list of up to ${MAX_PEOPLE} team members`);
+  return [...new Set(people.map(personAsked))];
+}
+
+export function createGoogleService({ config, google, tokens, people = null, states, registry, connect, teardown, now = () => Date.now() }) {
   // On for every shop once Google approved the sign-in screen (GOOGLE_CONNECT_ENABLED). Before that, with the keys in
   // place, only the platform's test shop gets it: Google's "testing" sign-in lets its listed test users in (config.js).
   const isOn = (row) => Boolean(config.app) && (config.enabled || (config.testing === true && row?.testShop === true));
@@ -177,7 +201,83 @@ export function createGoogleService({ config, google, tokens, states, registry, 
     return { url: google.authorizeUrl({ state, scopes: scopesFor(chosen), loginHint }), expiresAt: Math.floor(expiresAt / 1000) };
   }
 
+  // ---- A services shop's team: each person links their own calendar, so their busy times close those times ----
+
+  /** People's links are on only with the later extras (Google reviews the permission in its later round). */
+  const teamOn = () => Boolean(people) && Boolean(config.laterExtras);
+
+  /** The shop's list of linked people, kept on its row so closing the shop can forget every one. */
+  async function notePerson(shopId, person, linked) {
+    const fresh = await registry.getShop(shopId);
+    const g = fresh?.google ?? {};
+    const list = new Set(Array.isArray(g.people) ? g.people : []);
+    if (linked) list.add(person); else list.delete(person);
+    await registry.updateShop(shopId, { google: { ...g, people: [...list].slice(0, 200) } });
+  }
+
+  /**
+   * Forgets one person's link. Colophon's grant at Google is left alone: Google keeps one grant per account, and the same
+   * account may be the shop's own, another person's here or someone's in another shop, so giving it back could cut them
+   * off. The tokens are deleted here, and the person can remove Colophon from their Google account page themselves.
+   */
+  async function forgetPerson(row, person) {
+    const key = personKey(row.shopId, person);
+    const conn = await people.get(key);
+    if (!people.live(conn)) { await notePerson(row.shopId, person, false); return { forgotten: false }; }
+    await people.revoke(key, { atGoogle: false });
+    await notePerson(row.shopId, person, false);
+    return { forgotten: true };
+  }
+
   const OPS = {
+    async "google.personLink"(row, { person } = {}) {
+      if (!teamOn()) return { available: false };
+      const who = personAsked(person);
+      const state = randomBytes(24).toString("hex");
+      // Passed on to the person and opened on their own phone, so it lasts a day (still one use). They land on a short
+      // page from the platform (teamCalendarPage.js), not the shop's admin they can't sign in to.
+      const expiresAt = now() + PERSON_STATE_MS;
+      await states.put(state, { shopId: row.shopId, person: who, expiresAt });
+      return { available: true, url: google.authorizeUrl({ state, scopes: [...SCOPES.identity, ...SCOPES.teamCalendars] }), expiresAt: Math.floor(expiresAt / 1000) };
+    },
+    async "google.peopleStatus"(row, { people: asked } = {}) {
+      if (!teamOn()) return { available: false, people: {} };
+      const list = peopleAsked(asked);
+      const out = {};
+      for (const person of list) {
+        const conn = await people.get(personKey(row.shopId, person));
+        out[person] = people.live(conn) ? { linked: true, accountEmail: conn.accountEmail || "", needsReconnect: people.needsReconnect(conn), linkedAt: conn.connectedAt || null } : { linked: false };
+      }
+      return { available: true, people: out };
+    },
+    async "google.peopleBusy"(row, { people: asked, from, to } = {}) {
+      if (!teamOn()) return { available: false, busy: {} };
+      const list = peopleAsked(asked);
+      const fromMs = Date.parse(from), toMs = Date.parse(to);
+      if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs || toMs - fromMs > MAX_BUSY_MS) throw bad("from and to must be two times up to 62 days apart");
+      const busy = {};
+      // A few at a time, so a big team still answers well inside the shop's wait for the platform.
+      const readOne = async (person) => {
+        const conn = await people.get(personKey(row.shopId, person));
+        // Not linked: nothing closes their times. Linked but unreadable: null, so the shop keeps what it had.
+        if (!people.live(conn)) { busy[person] = []; return; }
+        try {
+          const grant = await people.fresh(personKey(row.shopId, person));
+          if (!grant) { busy[person] = null; return; }
+          const spans = await google.freeBusy(grant.token, new Date(fromMs).toISOString(), new Date(toMs).toISOString());
+          busy[person] = spans.filter((b) => Number.isFinite(Date.parse(b.start)) && Date.parse(b.end) > Date.parse(b.start)).slice(0, 2000);
+        } catch (err) {
+          console.warn(`A team member's busy times for ${row.shopId} couldn't be read:`, err?.message || err);
+          busy[person] = null;
+        }
+      };
+      for (let i = 0; i < list.length; i += BUSY_AT_ONCE) await Promise.all(list.slice(i, i + BUSY_AT_ONCE).map(readOne));
+      return { available: true, busy };
+    },
+    async "google.personDisconnect"(row, { person } = {}) {
+      if (!people) return { available: false };
+      return { available: true, ...(await forgetPerson(row, personAsked(person))) };
+    },
     "google.status": (row) => status(row),
     async "google.sheetSync"(row, args = {}) {
       const tabs = sheetTabs(args);
@@ -297,8 +397,31 @@ export function createGoogleService({ config, google, tokens, states, registry, 
     return { status: 302, headers: { Location: url.toString() }, body: { google: outcome } };
   };
 
+  /** A team member allowed their busy times: their own grant, kept apart from the shop's. */
+  async function personSignedIn(row, saved, code) {
+    const back = (outcome) => teamCalendarPage(outcome, row.pressName);
+    if (!teamOn()) return back("failed");
+    if (typeof code !== "string" || !code) return back("denied");
+    try {
+      const granted = await google.exchangeCode(code);
+      if (!SCOPES.teamCalendars.every((scope) => (granted.scopes ?? []).includes(scope))) {
+        // They unticked the one thing asked for: nothing is kept.
+        await google.revoke(granted.refreshToken || granted.accessToken).catch(() => {});
+        return back("denied");
+      }
+      const accountEmail = (await google.whoami(granted.accessToken)).email;
+      await people.save(personKey(row.shopId, saved.person), granted, { accountEmail });
+      await notePerson(row.shopId, saved.person, true);
+      return back("linked");
+    } catch (err) {
+      console.error(`A team member's Google sign-in for ${row.shopId} failed:`, err?.message || err);
+      return back("failed");
+    }
+  }
+
   return {
     status, connectLink, scopesFor,
+    forgetPerson,
 
     /** The shop's door: `X-Shop-Id` + `Authorization: Bearer <service key>`, body { op, args }. */
     async shopCall({ headers, body } = {}) {
@@ -336,7 +459,8 @@ export function createGoogleService({ config, google, tokens, states, registry, 
       const saved = /^[0-9a-f]{48}$/.test(state) ? await states.take(state) : null;
       if (!saved || saved.expiresAt < now()) return { status: 400, body: { error: "This sign-in link has expired. Go back to your shop's admin and press Connect Google again." } };
       const row = await registry.getShop(saved.shopId);
-      if (!row || !isOn(row)) return backTo(saved.returnUrl, "failed");
+      if (!row || !isOn(row)) return saved.person ? teamCalendarPage("failed", row?.pressName) : backTo(saved.returnUrl, "failed");
+      if (saved.person) return personSignedIn({ ...row, shopId: saved.shopId }, saved, query.error ? "" : query.code);
       if (query.error || typeof query.code !== "string" || !query.code) return backTo(saved.returnUrl, "denied");
       let granted;
       let accountEmail;

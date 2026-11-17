@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -34,6 +34,7 @@ export function Bookings() {
   const [tab, setTab] = useState<Tab>("calendar");
   // The empty Calendar's "Add a service" opens the form straight away, not just the tab.
   const [adding, setAdding] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [setup, setSetup] = useState<{ services: BookingService[]; settings: BookingSettings; saved: boolean } | null>(null);
   const [setupError, setSetupError] = useState("");
   const [monday, setMonday] = useState(() => weekStartOf(today()));
@@ -137,8 +138,10 @@ export function Bookings() {
           <p className="bkg-page-note">{noServices && !live ? "Add a service to turn this on." : live ? "Your website shows Book a time." : "Hidden from your website. Bookings already made stay."}</p>
           <div className="bkg-pill-row">
             <button type="button" className="bkg-pill" onClick={() => void copyText(bookPageUrl(), "Link")}><Copy size={14} aria-hidden /> Copy link</button>
+            <button type="button" className="bkg-pill" onClick={() => setSharing(true)} disabled={noServices}><QrCode size={14} aria-hidden /> Share</button>
             <a className="bkg-pill" href={bookPageUrl()} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden /> View</a>
           </div>
+          {sharing && <ShareDialog services={setup.services} settings={setup.settings} live={live} onClose={() => setSharing(false)} />}
         </div>
       </section>
 
@@ -714,6 +717,80 @@ function FiguresPanel() {
         </ul>
       </section>
     </div>
+  );
+}
+
+/**
+ * Share your booking page (Beta): the link, a QR code to print and a Book now button for another website, each opening
+ * the whole page, one service, or one person for it.
+ */
+function ShareDialog({ services, settings, live, onClose }: { services: BookingService[]; settings: BookingSettings; live: boolean; onClose: () => void }) {
+  const offered = services.filter((s) => s.active);
+  const [service, setService] = useState("");
+  const [person, setPerson] = useState("");
+  const [words, setWords] = useState("Book now");
+  const [look, setLook] = useState<"dark" | "light">("dark");
+  const [qr, setQr] = useState("");
+  const people = booksByPerson(settings) && service ? staffFor(settings, service) : [];
+  const chosen = offered.find((s) => s.id === service);
+  const who = people.find((p) => p.id === person);
+  const link = bookingShareLink(bookPageUrl(), { service, person: who ? person : "" });
+  const button = bookButtonHtml(link, words, look);
+  useEffect(() => {
+    let alive = true;
+    setQr("");
+    qrPicture(link, 8).then((pic) => { if (alive) setQr(pic); }, () => undefined);
+    return () => { alive = false; };
+  }, [link]);
+  const what = chosen ? `${chosen.name}${who ? ` with ${who.name}` : ""}` : "your booking page";
+  const fileName = `book-${(chosen?.name || "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page"}-qr.gif`;
+  return (
+    <Dialog open onClose={onClose} size="lg" title="Share your booking page"
+      description="Put it in your Instagram bio, an email, a flyer by the till or on another website."
+      footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
+      <div className="bkg-form bkg-share-dialog">
+        <StatusBadge tone="info" glyph={false}>Beta</StatusBadge>
+        {!live && <p className="bkg-pay-note">Bookings are off, so the link shows that you aren't taking bookings yet. Turn Bookings on before you share it.</p>}
+        <div className="bkg-question-row">
+          <SelectField label="It opens" value={service} onChange={(e) => { setService(e.target.value); setPerson(""); }}>
+            <option value="">Your booking page</option>
+            {offered.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </SelectField>
+          {people.length > 1 && (
+            <SelectField label="With" value={person} onChange={(e) => setPerson(e.target.value)}>
+              <option value="">Whoever is free</option>
+              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </SelectField>
+          )}
+        </div>
+        <section className="bkg-share-part" aria-labelledby="bkg-share-link">
+          <h3 id="bkg-share-link" className="bkg-share-title">Link</h3>
+          <div className="bkg-share-link"><code>{link}</code><SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void copyText(link, "Link")}>Copy</SecondaryButton></div>
+        </section>
+        <section className="bkg-share-part bkg-share-qr" aria-labelledby="bkg-share-qr">
+          <div>
+            <h3 id="bkg-share-qr" className="bkg-share-title">QR code</h3>
+            <p className="bkg-questions-hint">For a flyer, your window or the till. A phone camera opens {what}.</p>
+            {qr && <a className="rp-btn rp-btn-secondary rp-btn-sm" href={qr} download={fileName}><Download size={15} aria-hidden /> Download</a>}
+          </div>
+          {qr ? <img src={qr} alt={`QR code that opens ${what}`} width={160} height={160} /> : <span className="bkg-share-qr-wait" aria-hidden />}
+        </section>
+        <section className="bkg-share-part" aria-labelledby="bkg-share-button">
+          <h3 id="bkg-share-button" className="bkg-share-title">Book now button for another website</h3>
+          <p className="bkg-questions-hint">Paste the code where your other website takes HTML. The button opens {what} in a new tab.</p>
+          <div className="bkg-question-row">
+            <TextField label="Button words" value={words} maxLength={40} onChange={(e) => setWords(e.target.value)} />
+            <div className="bkg-seg bkg-share-look" role="radiogroup" aria-label="Button colour">
+              <button type="button" role="radio" aria-checked={look === "dark"} onClick={() => setLook("dark")}>Dark</button>
+              <button type="button" role="radio" aria-checked={look === "light"} onClick={() => setLook("light")}>Light</button>
+            </div>
+          </div>
+          {/* The button as it will look: our own generated link, its words made safe by bookButtonHtml. */}
+          <div className="bkg-share-preview" dangerouslySetInnerHTML={{ __html: button }} />
+          <div className="bkg-share-link"><code>{button}</code><SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void copyText(button, "Button code")}>Copy code</SecondaryButton></div>
+        </section>
+      </div>
+    </Dialog>
   );
 }
 
@@ -1603,6 +1680,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
     packCount: String(service.packVisits || 5),
     packPrice: service.packPriceMinor ? (service.packPriceMinor / 100).toFixed(2) : "",
     packLasts: String(service.packDays || 0),
+    // A first-visit price for someone new to the shop, as typed ("" for none).
+    intro: service.introPriceMinor ? (service.introPriceMinor / 100).toFixed(2) : "",
     // Add-ons and options as the owner types them: minutes and price as text until saved.
     extraRows: (service.extras || []).map((e) => ({ id: e.id, name: e.name, minutes: e.minutes ? String(e.minutes) : "", price: e.priceMinor ? (e.priceMinor / 100).toFixed(2) : "" })),
   });
@@ -1627,7 +1706,7 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
     setSaving(true); setProblem("");
     try {
       const priceMinor = Math.round(Number(form.price || 0) * 100);
-      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, extraRows: rows, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, ...rest } = form;
       const sellPack = pack && priceMinor > 0;
       const holdCard = form.holdCard && !paidInFull && !square;
       const share = pay === "deposit" && priceMinor > 0;
@@ -1642,6 +1721,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
         packDays: sellPack ? Number(packLasts) || 0 : 0,
+        packAnyClass: sellPack && !!rest.packAnyClass,
+        introPriceMinor: priceMinor > 0 ? Math.round(Number(intro || 0) * 100) : 0,
         extras: rest.places > 1 || (rest.courseDates || []).length ? [] : rows.filter((x) => x.name.trim()).map((x) => ({
           id: x.id, name: x.name.trim(), minutes: Math.round(Number(x.minutes || 0)), priceMinor: priceMinor > 0 ? Math.round(Number(x.price || 0) * 100) : 0,
         })),
@@ -1688,12 +1769,20 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
           </fieldset>
         )}
         {Number(form.price) > 0 && (
+          <TextField label={`First-visit price (${SHOP_CURRENCY}, optional)`} inputMode="decimal" placeholder="0.00" value={form.intro}
+            hint={Number(form.intro) > 0 ? `People who have never booked with you pay this the first time, then ${moneyText(Math.round(Number(form.price) * 100), SHOP_CURRENCY)}.` : "An intro offer for people who have never booked with you."}
+            onChange={(e) => set("intro", e.target.value.replace(/[^\d.]/g, ""))} />
+        )}
+        {Number(form.price) > 0 && (
           <fieldset className="bkg-questions">
             <legend>Pack of visits</legend>
             <Toggle label="Sell a pack of visits" checked={form.pack} onChange={(v) => set("pack", v)} />
             <p className="bkg-questions-hint">{form.pack
               ? packHint(form.price, form.packCount, form.packPrice)
               : "Customers pay once for several visits, get a code by email and book each visit with it."}</p>
+            {form.pack && group && !course && (
+              <Toggle label="A class pass: use it for any weekly class" checked={!!form.packAnyClass} onChange={(v) => set("packAnyClass", v)} />
+            )}
             {form.pack && (
               <div className="bkg-three">
                 <SelectField label="Visits" value={form.packCount} onChange={(e) => set("packCount", e.target.value)}>
@@ -2206,12 +2295,87 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
             error={form.email && !EMAIL_SHAPE.test(form.email) ? "Check this email address." : undefined} />
           {person.id ? <PersonCalendar person={person} /> : <p className="bkg-questions-hint">Save first to make their own calendar link.</p>}
         </fieldset>
+        {person.id && (
+          <fieldset className="bkg-questions">
+            <legend>Their Google Calendar <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+            <PersonGoogle person={person} email={form.email} />
+          </fieldset>
+        )}
       </div>
     </Dialog>
   );
 }
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+type PersonLink = { linked: boolean; accountEmail?: string; needsReconnect?: boolean };
+/**
+ * A person's own Google Calendar (Beta, Services plan 2, B6): once they link it with their own Google account, clients
+ * can't book them when it shows them busy (only busy or free is shared). The owner sends them a one-use link.
+ */
+function PersonGoogle({ person, email }: { person: StaffMember; email: string }) {
+  const [state, setState] = useState<{ available: boolean; link?: PersonLink } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [url, setUrl] = useState("");
+  const [ask, confirmNode] = useConfirm();
+  const load = () => {
+    setFailed(false);
+    bookingsAdmin<{ available: boolean; people?: Record<string, PersonLink> }>("teamCalendar", { step: "status" })
+      .then((r) => setState({ available: r.available, link: r.people?.[person.id] }), () => setFailed(true));
+  };
+  useEffect(load, [person.id]);
+  const first = person.name.split(" ")[0] || person.name;
+  const link = async (send: boolean) => {
+    setBusy(send ? "send" : "copy");
+    try {
+      const r = await bookingsAdmin<{ available: boolean; url?: string; sent?: boolean }>("teamCalendar", { step: "link", staffId: person.id, send });
+      if (!r.available || !r.url) { setState({ available: false }); return; }
+      setUrl(r.url);
+      if (r.sent) toast.success(`Sent to ${email}`);
+      else await copyText(r.url, "Link");
+    } catch (e: any) {
+      toast.error(e?.message || "The link couldn't be made. Please try again.");
+    } finally { setBusy(""); }
+  };
+  const unlink = async () => {
+    if (!(await ask({ title: `Unlink ${first}'s calendar?`, message: `Clients can book ${first} by your hours again, even when their own calendar shows them busy.`, confirmLabel: "Unlink" }))) return;
+    setBusy("unlink");
+    try {
+      await bookingsAdmin("teamCalendar", { step: "unlink", staffId: person.id });
+      setState((s) => ({ available: s?.available ?? true, link: { linked: false } }));
+      setUrl("");
+      toast.success(`${first}'s calendar is unlinked`);
+    } catch (e: any) {
+      toast.error(e?.message || "That didn't work. Please try again.");
+    } finally { setBusy(""); }
+  };
+  if (failed) return <p className="bkg-questions-hint">Their calendar link couldn't be checked. <button type="button" className="bkg-inline-link" onClick={load}>Try again</button></p>;
+  if (!state) return <p className="bkg-questions-hint">Checking…</p>;
+  if (!state.available) return <p className="bkg-questions-hint">Coming soon: {first} will link their own Google Calendar, and clients won't be able to book them when it shows them busy.</p>;
+  const l = state.link;
+  return (
+    <div className="bkg-person-cal">
+      {l?.linked ? (<>
+        <p className="bkg-google-state"><StatusBadge tone={l.needsReconnect ? "warning" : "success"}>{l.needsReconnect ? "Needs linking again" : "Linked"}</StatusBadge> {l.accountEmail}</p>
+        <p className="bkg-questions-hint">{l.needsReconnect
+          ? `Google stopped sharing ${first}'s busy times. Send them a new link.`
+          : `Clients can't book ${first} when their Google Calendar shows them busy. Only busy or free is shared, never what their events are. Changes show within 15 minutes.`}</p>
+      </>) : (
+        <p className="bkg-questions-hint">{first} signs in with their own Google account and allows Colophon to see when they're busy. Clients then can't book them at those times. Only busy or free is shared.</p>
+      )}
+      <div className="bkg-due-actions">
+        {(!l?.linked || l.needsReconnect) && (<>
+          {EMAIL_SHAPE.test(email) && <SecondaryButton size="sm" icon={<Mail size={15} aria-hidden />} onClick={() => void link(true)} busy={busy === "send"} disabled={!!busy}>Email {first} a link</SecondaryButton>}
+          <SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void link(false)} busy={busy === "copy"} disabled={!!busy}>Copy a link</SecondaryButton>
+        </>)}
+        {l?.linked && <GhostButton size="sm" onClick={() => void unlink()} busy={busy === "unlink"} disabled={!!busy}>Unlink</GhostButton>}
+      </div>
+      {url && !l?.linked && <p className="bkg-cal-note">The link works once, for a day. Send it to {first} only.</p>}
+      {confirmNode}
+    </div>
+  );
+}
 
 /** One person's private calendar link: only their bookings, for their phone's calendar. A new link stops the old. */
 function PersonCalendar({ person }: { person: StaffMember }) {

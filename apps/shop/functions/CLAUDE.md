@@ -1432,6 +1432,17 @@ the service and are free; the owner may name another. The owner books with `owne
 Emails say "With: <name>" and the owner's feed puts the name in the title. No people listed: no `p`/`r`, no staff fields,
 times as before. Tests: bookings.test.js › staff and rooms.
 
+**Each person's Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** admin op
+`teamCalendar` (status, link, unlink) asks the platform through `googleCalendarSync` (`personLink`, `peopleStatus`,
+`peopleBusy`, `personDisconnect`; only free/busy is read). `sweepTeamCalendars` (in `bookingSweep`, at most every 15
+minutes, 60 days ahead; the status step forces one when the last is over a minute old) writes each busy span into
+`bookingDays/<day>` as item `gcal~<person>~<start>~<end>` `{ start, end, p, g: true }`, so `busyFrom`, `freeTimes`,
+`whoIsFree` and the booking transactions block it for that person only. State `bookingSettings/googleBusy` `{ at, spans }`;
+only changed days are written, and a calendar that couldn't be read keeps its old spans. `saveSettings` calls
+`personDisconnect` (best effort) for each person taken off the team. The platform only forgets a person's tokens
+(never revokes at Google: the account may be linked in another shop) and reads at most 5 calendars at once. Tests:
+bookings.test.js.
+
 **Each person's day (17 November 2026, Services plan phase 4 part 2, `tasks/todo/2026-11-17-team-day.md`):** op
 `calendarFeed` with `staffId` makes that person's private link (`bookingFeed/p-<id>` with `staffId`, `staffName`; the
 owner's stays `main`). `bookingsFeed` reads the `bookingFeed` docs (limit 200), compares every token with `sameHash`, and
@@ -1687,6 +1698,16 @@ before acting. Too few confirmed: a `closed` item goes on the time's day (every 
 class then and nothing else (`placesLeft`, `fullClassTimes`); each confirmed sign-up is cancelled through `shopCancel`
 (shared with the admin's cancel: full refund, gift card and pack visit back, calendar, email saying too few signed up,
 `cancelledFor: "minimum"`), and the owner gets one email. A time with a sign-up still paying waits for the next sweep.
+The run doc keeps `left` (sign-ups still to cancel), `retryAt` and `closed`; the first write is `closed: false` with
+`retryAt` set, so a sweep cut short anywhere is picked up by the next one, which closes the time first and then cancels.
+
+**Class passes and first-visit prices (17 November 2026, `tasks/todo/2026-11-17-classes-pass-intro.md`).** A weekly
+class's pack can be a class pass (`packAnyClass`, kept only for a group that isn't a course): the pack is saved with
+`anyClass: true` and "Any class", and `packProblem`'s fourth argument (`weeklyClass(service)`) lets it book any weekly
+class; courses still refuse packs. A priced service may have `introPriceMinor` (0.50 up to below the price): `introFor`
+gives it to an email with no held or confirmed booking, at `bookingStart` and `bookingCode` (a code comes off it), and
+the booking keeps `intro: true` with `listPriceMinor` the usual price. Not with a pack. The claim is `bookingIntros/<sha256 of email>`
+(`claimIntro`; a failed booking gives it back with `releaseIntro`); privacy export lists it and erase deletes it.
 
 
 **Repeat-booking fixes (17 November 2026, review of #889):** `zonedTime` (shared `bookingTimes.ts`) puts a wall time the

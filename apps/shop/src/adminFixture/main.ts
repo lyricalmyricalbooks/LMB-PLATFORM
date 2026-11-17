@@ -348,6 +348,13 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
+    // A person's own Google Calendar: Ana's is linked; `?teamcal=soon` is a platform without the later Google round.
+    if (op === "teamCalendar") {
+      if (new URLSearchParams(window.location.search).get("teamcal") === "soon") return { available: false };
+      if (body.step === "status") return { available: true, people: { ana: { linked: true, accountEmail: "ana@example.com" } } };
+      if (body.step === "link") return { available: true, url: "https://accounts.google.com/o/oauth2/v2/auth?state=example", sent: body.send === true };
+      return { ok: true };
+    }
     // Text reminders: open with a price, or ?texts=soon for a platform without the text company's keys.
     if (op === "textStatus") return textsSoon ? { available: false, price: "" } : { available: true, price: "1.6¢" };
     if (op === "walkIn") {

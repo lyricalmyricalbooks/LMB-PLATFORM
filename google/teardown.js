@@ -44,7 +44,7 @@ async function quietly(run) {
   try { return await run(); } catch (err) { if (!gone(err)) throw err; return null; }
 }
 
-export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, registry, auditLog, now = () => Date.now() }) {
+export function createGoogleTeardown({ google, tokens, people = null, shopFirebase, domainsCall, registry, auditLog, now = () => Date.now() }) {
   const recorder = createRecorder({ registry, auditLog, now });
   const iso = recorder.iso;
   const record = (shopId, step, outcome) => recorder.recordStep(shopId, step, outcome, { source: "google-teardown" });
@@ -123,6 +123,13 @@ export function createGoogleTeardown({ google, tokens, shopFirebase, domainsCall
         }
       }
       await tokens.revoke(ctx.shopId, { atGoogle: !shared });
+      // The team's own calendar links go too. Their grants are forgotten only: one of them may be the same Google
+      // account as the shop's or another shop's, and giving that back would cut them off as well.
+      if (people) {
+        for (const person of Array.isArray(ctx.google.people) ? ctx.google.people : []) {
+          await people.revoke(`${ctx.shopId}/${person}`, { atGoogle: false });
+        }
+      }
       return {
         state: "done",
         detail: shared
