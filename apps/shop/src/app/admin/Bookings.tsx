@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -1262,6 +1262,13 @@ export function BookAgainDialog({ initial, onClose, onBooked }: { initial: BookA
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** The next date of a course being typed: a week after the last one filled in, at the same time. */
+export function nextCourseDate(dates: readonly string[]): string {
+  const last = [...dates].reverse().find((d) => /^\d{4}-\d{2}-\d{2}T/.test(d));
+  if (!last) return `T${dates[dates.length - 1]?.split("T")[1] || "18:00"}`;
+  return `${addDays(last.slice(0, 10), 7)}T${last.slice(11, 16) || "18:00"}`;
+}
+
 export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0 };
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
@@ -1348,6 +1355,10 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const questions = form.questions || [];
   const classTimes = form.classTimes || [];
+  // A course: its own dates ("YYYY-MM-DDTHH:MM" on the shop's clock), sold as one sign-up for all of them.
+  const courseDates = form.courseDates || [];
+  const course = courseDates.length > 0;
+  const setCourseDate = (i: number, day: string, time: string) => set("courseDates", courseDates.map((d, j) => (j === i ? `${day}T${time}` : d)));
   const group = form.places > 1;
   const setClassTime = (i: number, change: Partial<(typeof classTimes)[number]>) => set("classTimes", classTimes.map((t, j) => (j === i ? { ...t, ...change } : t)));
   const setQuestion = (i: number, change: Partial<(typeof questions)[number]>) => set("questions", questions.map((q, j) => (j === i ? { ...q, ...change } : q)));
@@ -1497,8 +1508,27 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
             <>
               <TextField label="Places at each time" inputMode="numeric" value={String(form.places)} hint="Each booking takes one place."
                 onChange={(e) => set("places", Math.min(MAX_PLACES, Math.max(2, Number(e.target.value.replace(/\D/g, "")) || 2)))} />
-              <p className="bkg-questions-hint">{classTimes.length ? "The class runs at these times each week." : "Add the times the class runs each week, or leave this empty to offer every free time in your hours."}</p>
-              {classTimes.map((t, i) => (
+              <div className="bkg-seg" role="radiogroup" aria-label="When it runs">
+                <button type="button" role="radio" aria-checked={!course} onClick={() => set("courseDates", [])}>Every week</button>
+                <button type="button" role="radio" aria-checked={course} onClick={() => { if (!course) set("courseDates", ["T18:00", "T18:00"]); }}>A course with set dates</button>
+              </div>
+              {course && (
+                <>
+                  <p className="bkg-questions-hint">People sign up once, pay one price and get a place on every date. Sign-ups close when the first date starts.</p>
+                  {courseDates.map((d, i) => (
+                    <div key={i} className="bkg-classtime">
+                      <TextField label={`Date ${i + 1}`} type="date" value={d.split("T")[0]} onChange={(e) => setCourseDate(i, e.target.value, d.split("T")[1] || "18:00")} />
+                      <TextField label="Starts" type="time" value={d.split("T")[1] || ""} onChange={(e) => setCourseDate(i, d.split("T")[0], e.target.value)} />
+                      <button type="button" className="bkg-question-remove" aria-label={`Remove date ${i + 1}`} disabled={courseDates.length <= 2} onClick={() => set("courseDates", courseDates.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
+                    </div>
+                  ))}
+                  {courseDates.length < MAX_COURSE_DATES && (
+                    <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("courseDates", [...courseDates, nextCourseDate(courseDates)])}>Add a date</SecondaryButton>
+                  )}
+                </>
+              )}
+              {!course && <p className="bkg-questions-hint">{classTimes.length ? "The class runs at these times each week." : "Add the times the class runs each week, or leave this empty to offer every free time in your hours."}</p>}
+              {!course && classTimes.map((t, i) => (
                 <div key={i} className="bkg-classtime">
                   <SelectField label="Day" value={String(t.weekday)} onChange={(e) => setClassTime(i, { weekday: Number(e.target.value) })}>
                     {ORDERED_DAYS.map((d) => <option key={d} value={d}>{WEEKDAYS[d]}</option>)}
@@ -1507,7 +1537,7 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
                   <button type="button" className="bkg-question-remove" aria-label={`Remove ${WEEKDAYS[t.weekday]} ${t.time}`} onClick={() => set("classTimes", classTimes.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
                 </div>
               ))}
-              {classTimes.length < MAX_CLASS_TIMES && (
+              {!course && classTimes.length < MAX_CLASS_TIMES && (
                 <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("classTimes", [...classTimes, { weekday: classTimes[classTimes.length - 1]?.weekday ?? 6, time: classTimes[classTimes.length - 1]?.time ?? "14:00" }])}>Add a class time</SecondaryButton>
               )}
             </>

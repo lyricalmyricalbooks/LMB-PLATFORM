@@ -57,7 +57,7 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, isCourse, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
@@ -98,6 +98,18 @@ async function classesOn(shop) {
 }
 /** A class the website's Timetable lists: customers can book it, it has places for a group, and it runs at set weekly times. */
 const onTimetable = (s) => s.active && isClass(s) && s.classTimes.length > 0;
+// A course on the Timetable page: active, and its first session hasn't started (it is signed up for as a whole).
+const courseOpen = (s, zone, nowMs) => s.active && isCourse(s) && courseStarts(s, zone)[0] > nowMs;
+/**
+ * The stretches a booking holds on the days' ledger: one for an ordinary booking (under its own id), and one for each
+ * session of a course (the first under the id, the rest under `<id>~<n>`).
+ */
+function spansOf(id, b) {
+  const first = Date.parse(b.start);
+  const length = Date.parse(b.end) - first + (b.gapAfter || 0) * MINUTE;
+  const starts = Array.isArray(b.course?.starts) && b.course.starts.length ? b.course.starts.map((iso) => Date.parse(iso)) : [first];
+  return starts.map((start, n) => ({ key: n ? `${id}~${n}` : id, start, end: start + length }));
+}
 
 function newPackCode() {
   const bytes = crypto.randomBytes(12);
@@ -186,6 +198,8 @@ function publicBooking(id, b, settings, nowMs) {
   return {
     id, serviceId: b.serviceId, serviceName: b.serviceName, minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
     staffId: b.staffId || "", staffName: b.staffName || "",
+    // A course: every one of its dates (the first is `start`).
+    ...(Array.isArray(b.course?.starts) && b.course.starts.length > 1 ? { courseStarts: b.course.starts } : {}),
     meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
     // Sales tax: the part of priceMinor that is tax.
@@ -199,6 +213,8 @@ function publicBooking(id, b, settings, nowMs) {
     depositMinor: b.payment === "deposit" ? b.depositMinor || 0 : 0, depositPaid: !!b.depositPaid, dueMinor: balanceDue(b),
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
+    // A course is one sign-up for all of its dates: it can be cancelled online, never moved.
+    canMove: b.status === "confirmed" && customerCanChange(start, settings, nowMs) && !b.course,
     cancelHours: settings.cancelHours,
     // Card on file: only whether one is kept, its last four and the fee (never its ids).
     cardHold: !!b.cardHold, lateFeeMinor: b.cardHold ? b.lateFeeMinor || 0 : 0, cardLast4: b.card?.last4 || "", feeMinor: b.fee?.amountMinor || 0,
@@ -263,7 +279,8 @@ function bookingActions({
       const snap = await ref.get();
       if (!snap.exists) return;
       const had = snap.data() || {};
-      const classes = live === true && (await classesOn(db)) && (await readServices()).some(onTimetable);
+      const nowMs = now().getTime();
+      const classes = live === true && (await classesOn(db)) && (await readServices()).some((s) => onTimetable(s) || courseOpen(s, zone(), nowMs));
       const changes = {};
       if ((had.bookingsLive === true) !== (live === true)) changes.bookingsLive = live === true;
       if ((had.classesLive === true) !== classes) changes.classesLive = classes;
@@ -372,8 +389,8 @@ function bookingActions({
 
   // ── Emails ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  function whenWords(b) {
-    const start = new Date(b.start);
+  function whenWords(b, at = b.start) {
+    const start = new Date(at);
     const opts = { timeZone: zone() };
     const dayText = start.toLocaleDateString("en-CA", { ...opts, weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const timeText = start.toLocaleTimeString("en-CA", { ...opts, hour: "numeric", minute: "2-digit" });
@@ -398,6 +415,9 @@ function bookingActions({
       const brand = await emailBrand();
       const shop = brand.shopName || shopName() || "the shop";
       const when = whenWords(b);
+      // A course lists every one of its dates.
+      const dates = Array.isArray(b.course?.starts) && b.course.starts.length > 1
+        ? `<p style="margin:12px 0 4px;"><strong>All ${b.course.starts.length} dates:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${b.course.starts.map((iso) => `<li>${escapeHtml(whenWords(b, iso))}</li>`).join("")}</ul>` : "";
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
       const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>Video call:</strong> <a href="${escapeHtml(b.meetUrl)}">Join with Google Meet</a></p>` : "";
       const arriving = ["booked", "moved", "reminder", "soon"].includes(kind);
@@ -452,6 +472,7 @@ function bookingActions({
         <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
         ${b.staffName ? `<p style="margin:0 0 4px;"><strong>With:</strong> ${escapeHtml(b.staffName)}</p>` : ""}
         ${where}
+        ${dates}
         ${video}
         ${money}
         ${held}
@@ -671,8 +692,14 @@ function bookingActions({
     const pack = record.pack?.id ? packs().doc(record.pack.id) : null;
     const end = start + service.minutes * MINUTE;
     const blockEnd = end + service.gapAfter * MINUTE;
-    const days = daysTouched(start, blockEnd, zone());
+    // A course takes a place in every one of its sessions with the one sign-up.
+    const sessions = isCourse(service) ? courseStarts(service, zone()) : [start];
+    if (sessions[0] !== start) return false;
+    const length = blockEnd - start;
+    const days = [...new Set(sessions.flatMap((ms) => daysTouched(ms, ms + length, zone())))];
     const all = offer ? [...new Set([...days, ...offer.days])] : days;
+    // `days` (shop days) lets the admin find a course's people in any week it runs, with one query.
+    if (sessions.length > 1) record.course = { starts: sessions.map((ms) => new Date(ms).toISOString()), days: [...new Set(sessions.map((ms) => dayOf(ms, zone())))] };
     return db.runTransaction(async (tx) => {
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
@@ -680,9 +707,23 @@ function bookingActions({
       const giftSnap = gift ? await tx.get(gift) : null;
       const packSnap = pack ? await tx.get(pack) : null;
       const nearby = snaps.filter((_, i) => days.includes(all[i]));
-      const who = whoIsFree({ service, settings, busy: busyFrom(nearby, nowMs, offer?.item || ""), start, zone: zone(), nowMs, staffId });
+      const busy = busyFrom(nearby, nowMs, offer?.item || "");
+      const who = whoIsFree({ service, settings, busy, start, zone: zone(), nowMs, staffId });
       if (check && who === null) return false;
       const assigned = staffParts(settings, who ?? staffId, service.roomId);
+      // The later sessions of a course: each needs a place too, at any hour and however far ahead (the course's own
+      // dates decide), with the first session's person when they are free then, else anyone who does the class.
+      const later = [];
+      const anyHour = ownerBookingSettings(settings);
+      for (const ms of sessions.slice(1)) {
+        const local = new Date(ms).toLocaleTimeString("en-GB", { timeZone: zone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+        const session = { ...service, courseDates: [], classTimes: [{ weekday: new Date(`${dayOf(ms, zone())}T12:00:00Z`).getUTCDay(), time: local }] };
+        const ask = (person) => whoIsFree({ service: session, settings: anyHour, busy, start: ms, zone: zone(), nowMs, staffId: person });
+        const first = who ?? staffId;
+        const theirs = first ? ask(first) ?? ask("") : ask("");
+        if (theirs === null && (check || classPlacesLeft(ms, service, settings, busy) < 1)) return false;
+        later.push(staffParts(settings, theirs ?? first, service.roomId).item);
+      }
       const card = giftSnap?.exists ? giftSnap.data() : null;
       const giftMinor = record.giftCard?.amountMinor || 0;
       if (giftSnap && (giftCardProblem(card, { now: new Date(nowMs), testMode }) || availableMinor(card, "", nowMs) < giftMinor)) return "gift_short";
@@ -702,7 +743,10 @@ function bookingActions({
       all.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         if (offer) delete items[offer.item];
-        if (days.includes(d)) items[id] = { start, end: blockEnd, held, at: nowMs, s: record.serviceId, ...assigned.item };
+        sessions.forEach((ms, n) => {
+          if (!daysTouched(ms, ms + length, zone()).includes(d)) return;
+          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1] : assigned.item) };
+        });
         tx.set(dayRef(d), { items });
       });
       // The caller's record carries the person too (it is what the confirmation email reads).
@@ -725,7 +769,8 @@ function bookingActions({
    * puts its gift card's part back onto the card, once, unless the shop keeps it (`giftBack: false`). Returns what it wrote.
    */
   async function freeTime(id, b, changes, { giftBack = true, packBack = true } = {}) {
-    const days = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
+    const spans = spansOf(id, b);
+    const days = [...new Set(spans.flatMap((x) => daysTouched(x.start, x.end, zone())))];
     // A cancelled booking gives its discount code's use back, once.
     const giveBack = changes?.status === "cancelled" && b.discount?.id && !b.discount.returned;
     const code = giveBack ? db.collection("discounts").doc(b.discount.id) : null;
@@ -756,8 +801,9 @@ function bookingActions({
       }
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        if (!(id in items)) return;
-        delete items[id];
+        const mine = spans.filter((x) => x.key in items);
+        if (!mine.length) return;
+        for (const x of mine) delete items[x.key];
         tx.set(dayRef(d), { items });
       });
       const all = { ...changes, ...(giveBack ? { discount: { ...b.discount, returned: true } } : {}), ...(putBack ? { giftCard: { ...b.giftCard, returned: true } } : {}),
@@ -853,14 +899,15 @@ function bookingActions({
       holdUntil: null, updatedAt: at, history: [...(b.history || []), { at, what, by: "customer" }].slice(-20),
     };
     // The days stop calling it a hold.
-    const days = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
+    const spans = spansOf(id, b);
+    const days = [...new Set(spans.flatMap((x) => daysTouched(x.start, x.end, zone())))];
     const confirmed = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(bookings().doc(id));
       if (fresh.data()?.status !== "held") return false;
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        if (items[id]) items[id] = { ...items[id], held: false };
+        for (const x of spans) if (items[x.key]) items[x.key] = { ...items[x.key], held: false };
         tx.set(dayRef(d), { items });
       });
       tx.set(bookings().doc(id), changes, { merge: true });
@@ -1291,8 +1338,10 @@ function bookingActions({
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
+            // A course: every one of its dates (signed up for as a whole, from the first).
+            ...(isCourse({ places, courseDates }) ? { courseStarts: courseStarts({ places, courseDates }, zone()).map((ms) => new Date(ms).toISOString()) } : {}),
             // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
             ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
@@ -1304,7 +1353,16 @@ function bookingActions({
         // The Timetable page (/classes): one week of dated classes with the places left in each. Only while the shop
         // sells Classes; signing up goes through Book a time (bookingStart), so this only reads.
         if (!settings.live || !(await classesOn(db))) return res.status(200).json({ on: false });
-        const list = (await readServices()).filter(onTimetable);
+        const every = await readServices();
+        const list = every.filter(onTimetable);
+        // Courses still open for sign-up, with the fewest places left across their dates (one read per day they touch).
+        const open = every.filter((s) => courseOpen(s, zone(), nowMs));
+        const courseDays = [...new Set(open.flatMap((s) => courseStarts(s, zone()).flatMap((ms) => [addDays(dayOf(ms, zone()), -1), dayOf(ms, zone()), addDays(dayOf(ms, zone()), 1)])))].slice(0, 200);
+        const courseBusy = courseDays.length ? busyFrom(await Promise.all(courseDays.map((d) => dayRef(d).get())), nowMs, "") : [];
+        const courses = open.map((s) => ({
+          id: s.id, name: s.name, description: s.description, minutes: s.minutes, priceMinor: s.priceMinor, payment: s.payment, location: s.location, places: s.places,
+          ...(s.chargeTax ? { plusTax: true } : {}), starts: courseStarts(s, zone()).map((ms) => new Date(ms).toISOString()), left: coursePlacesLeft(s, settings, courseBusy, zone()),
+        })).sort((a, b) => a.starts[0].localeCompare(b.starts[0]) || a.id.localeCompare(b.id));
         const today = dayOf(nowMs, zone());
         // The last day Book a time's picker offers (BookTime.tsx), so every class listed can be signed up for from its button.
         const lastDay = addDays(today, Math.max(0, settings.maxDaysAhead - 1));
@@ -1323,7 +1381,7 @@ function bookingActions({
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), today, from, lastDay,
           classes: list.map(({ id, name, description, minutes, priceMinor, payment, location, places, chargeTax }) => ({ id, name, description, minutes, priceMinor, payment, location, places, ...(chargeTax ? { plusTax: true } : {}) })),
-          sessions,
+          sessions, courses,
         });
       }
       if (action === "bookingTimes") {
@@ -1470,6 +1528,8 @@ function bookingActions({
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
         // A pack of visits pays for the visit outright: no code, gift card or card payment with it.
         let pack = null;
+        if (isCourse(service) && start <= nowMs) return fail(res, 409, "This course has already started. Please contact the shop.", "started");
+        if (isCourse(service) && String(req.body?.pack || "").trim()) return fail(res, 400, "A pack pays for single visits, not for a course.", "pack");
         if (String(req.body?.pack || "").trim()) {
           const p = await loadPack(req.body.pack);
           const problem = packProblem(p, service.id, dayOf(start, zone()));
@@ -1535,6 +1595,7 @@ function bookingActions({
         if (took === "code_used") return fail(res, 409, "This code has reached its usage limit.", "code");
         if (took === "gift_short") return fail(res, 409, "This gift card's balance just changed. Please check it and try again.", "gift");
         if (took === "pack_used") return fail(res, 409, "This pack can't book another visit just now. Please check it and try again.", "pack");
+        if (!took && isCourse(service)) return fail(res, 409, "This course just filled up, or one of its dates is no longer free. Please contact the shop.", "taken");
         if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : staffId ? "That person was just booked then. Please pick another time or anyone free." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
           const written = pack ? (await bookings().doc(id).get()).data() : record;
@@ -1725,6 +1786,7 @@ function bookingActions({
         if (b.status !== "confirmed" || !customerCanChange(Date.parse(b.start), settings, nowMs)) {
           return fail(res, 409, `This booking can't be moved online within ${settings.cancelHours} hours of its start. Please contact the shop.`, "too_late");
         }
+        if (b.course) return fail(res, 409, "A course is one sign-up for all of its dates, so it can't be moved. You can cancel it, or contact the shop.", "course");
         const service = (await readServices()).find((s) => s.id === b.serviceId) || { minutes: b.minutes, gapAfter: b.gapAfter || 0 };
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time first.");
@@ -1940,8 +2002,10 @@ function bookingActions({
         if (!service) return fail(res, 404, "Choose a service.");
         const customer = cleanCustomer(req.body);
         if (customer.problem) return fail(res, 400, customer.problem.replace("your", "the customer's").replace("Please add an email address we can send your booking to.", "Add the customer's email address."));
-        const start = Date.parse(String(req.body?.start || ""));
+        // A course is signed up for as a whole, from its first date.
+        const start = isCourse(service) ? courseStarts(service, zone())[0] : Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time.");
+        if (isCourse(service) && start <= now().getTime()) return fail(res, 409, "This course has already started.", "started");
         const tax = await taxOn(service, service.priceMinor);
         const id = randomId();
         const key = randomKey();
@@ -2088,6 +2152,7 @@ function bookingActions({
       }
       if (op === "move") {
         if (b.status !== "confirmed") return fail(res, 409, "Only a confirmed booking can be moved.");
+        if (b.course) return fail(res, 409, "A course is one sign-up for all of its dates, so it can't be moved. Cancel it and sign the person up again.", "course");
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time.");
         const own = ownerBookingSettings(settings);

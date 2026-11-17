@@ -5,7 +5,8 @@ import { addDays, depositOf } from "../../../shared/bookingTimes";
 import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
   /** A pack of visits sold with it: `packVisits` visits for `packPriceMinor`, to use within `packDays` (0: no end). */ packVisits?: number; packPriceMinor?: number; packDays?: number;
-  /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number };
+  /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number;
+  /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[] };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
   hours?: Array<Array<{ start: string; end: string }>>;
@@ -55,6 +56,8 @@ export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; /** A Google Meet link, for a video-call service. */ meetUrl?: string; start: string; end: string;
   /** Who takes it, when the shop lists people. */
   staffId?: string; staffName?: string;
+  /** A course: every date this sign-up holds a place on. `canMove` false: it can be cancelled online but not moved. */
+  courseStarts?: string[]; canMove?: boolean;
   status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;
   /** With payment "deposit": what was asked by card when booking, whether it is paid, and what is left for the visit. */
   depositMinor?: number; depositPaid?: boolean; dueMinor?: number;
@@ -165,6 +168,11 @@ export function groupTimes(times: string[], zone: string): { group: TimeGroup; t
 export const timeText = (iso: string, zone: string) => new Date(iso).toLocaleTimeString(undefined, { timeZone: zone, hour: "numeric", minute: "2-digit" });
 
 /** "Tuesday 17 November, 10:00 – 11:00". */
+/** A course's dates, one line each: "Saturday, November 28, 6:00 PM". */
+export function courseDateLines(starts: readonly string[], zone: string): string[] {
+  return starts.map((iso) => `${new Date(iso).toLocaleDateString(undefined, { timeZone: zone, weekday: "long", day: "numeric", month: "long" })}, ${timeText(iso, zone)}`);
+}
+
 export function whenText(start: string, end: string, zone: string): string {
   const day = new Date(start).toLocaleDateString(undefined, { timeZone: zone, weekday: "long", day: "numeric", month: "long" });
   return `${day}, ${timeText(start, zone)} – ${timeText(end, zone)}`;

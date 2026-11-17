@@ -70,3 +70,20 @@ describe("words", () => {
     expect(personTag({ status: "confirmed" })).toBe("");
   });
 });
+
+describe("a course on the timetable", () => {
+  const course = svc("course", { name: "Wheel course", places: 6, courseDates: ["2026-11-18T10:00", "2026-11-25T10:00"] });
+  const starts = [iso("2026-11-18", "10:00"), iso("2026-11-25", "10:00")];
+  const signedUp = booking("Oz", "course", starts[0], { course: { starts, days: ["2026-11-18", "2026-11-25"] } });
+  it("shows every date in its own week, with the same people on each, even on a day off", () => {
+    const off = { ...settings, daysOff: ["2026-11-18"] };
+    const first = classWeek({ services: [course], settings: off, rows: [signedUp, signedUp], monday: MONDAY, zone: ZONE, nowMs: NOW });
+    expect(first.flatMap((d) => d.sessions).map((s) => [s.start, s.scheduled, s.people.map((p) => p.id)])).toEqual([[starts[0], true, ["Oz"]]]);
+    // The next week: the booking starts a week earlier, and still fills its place.
+    const second = classWeek({ services: [course], settings: off, rows: [signedUp], monday: "2026-11-23", zone: ZONE, nowMs: NOW });
+    expect(second.flatMap((d) => d.sessions).map((s) => [s.start, s.people.length])).toEqual([[starts[1], 1]]);
+  });
+  it("says what it is on the class card", () => {
+    expect(classTimesText(course)).toMatch(/^Course · 2 dates from /);
+  });
+});

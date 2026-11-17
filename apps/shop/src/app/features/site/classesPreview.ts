@@ -3,7 +3,7 @@
 // The sample class ids are Book a time's own sample class, so Sign up lands on a sample that can be booked in preview.
 import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import type { ClassSessionView, ClassView, TimetableInfo } from "./classesRules";
+import type { ClassSessionView, ClassView, CourseView, TimetableInfo } from "./classesRules";
 
 const CLASSES: ClassView[] = [
   { id: "sample-class", name: "Saturday workshop", description: "Sample class. Yours show here once you add them under Classes.", minutes: 120, priceMinor: 6000, payment: "deposit", location: "The studio", places: 8 },
@@ -29,5 +29,11 @@ export function previewTimetable(body: Record<string, any> = {}, currency = "CAD
     const day = addDays(from, i);
     for (const w of WEEKLY) if (w.weekday === weekdayOf(day)) sessions.push({ classId: w.classId, day, start: new Date(zonedTime(day, w.time, zone)).toISOString(), left: w.left });
   }
-  return { on: true, zone, currency, today, from, lastDay, classes: CLASSES, sessions };
+  // A sample course: four Thursdays, starting next week.
+  const firstThursday = addDays(today, ((4 - weekdayOf(today) + 7) % 7) + 7);
+  const courses: CourseView[] = [{
+    id: "sample-course", name: "Four-week beginners' course", description: "A sample course. One sign-up covers every date.", minutes: 120, priceMinor: 18000, payment: "full", location: "The studio", places: 8,
+    starts: [0, 7, 14, 21].map((n) => new Date(zonedTime(addDays(firstThursday, n), "18:30", zone)).toISOString()), left: 3,
+  }];
+  return { on: true, zone, currency, today, from, lastDay, classes: CLASSES, sessions, courses };
 }

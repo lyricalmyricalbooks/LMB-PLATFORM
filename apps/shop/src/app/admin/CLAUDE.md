@@ -1324,3 +1324,7 @@ reminders) comes with it. Fixture: `admin-fixture.html?ways=classes&page=classes
 **Classes on the website (C1b):** Settings › General › Ways to sell sends `bookingsData.admin("hint")` when the owner
 flips Classes, so the website's Classes links follow; `classesLive` is the server's and `adminApi.updateSettings` never
 writes it. The customer page is `features/site/ClassesPage.tsx`.
+
+**Courses (17 November 2026):** the class editor's "When it runs" offers "A course with set dates" (`courseDates`,
+`nextCourseDate`). A course booking starts on its first date, so `Classes.tsx` also reads `readCourseRows(days)`
+(`course.days` array-contains-any the week's days) and `classWeek` puts each person on every date of theirs.
