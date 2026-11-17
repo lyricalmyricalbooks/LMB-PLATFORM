@@ -147,6 +147,8 @@ function render(billing) {
   $("#plan-per").textContent = billing.plusTax ? "a month, plus tax" : "a month";
   $("#plan-name").textContent = `${billing.planName} plan`;
   $("#plan-when").textContent = words.when;
+  // The red line over the page already says it word for word, so the plan card doesn't repeat it.
+  $("#plan-when").hidden = !words.when || billing.access === "paused" || billing.status === "past_due";
   $("#plan-closing").textContent = words.closing;
   $("#plan-closing").hidden = !words.closing;
   $("#keep-closing").textContent = words.keepClosing;
