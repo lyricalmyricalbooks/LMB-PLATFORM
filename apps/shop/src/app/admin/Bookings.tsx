@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -34,6 +34,7 @@ export function Bookings() {
   const [tab, setTab] = useState<Tab>("calendar");
   // The empty Calendar's "Add a service" opens the form straight away, not just the tab.
   const [adding, setAdding] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [setup, setSetup] = useState<{ services: BookingService[]; settings: BookingSettings; saved: boolean } | null>(null);
   const [setupError, setSetupError] = useState("");
   const [monday, setMonday] = useState(() => weekStartOf(today()));
@@ -137,8 +138,10 @@ export function Bookings() {
           <p className="bkg-page-note">{noServices && !live ? "Add a service to turn this on." : live ? "Your website shows Book a time." : "Hidden from your website. Bookings already made stay."}</p>
           <div className="bkg-pill-row">
             <button type="button" className="bkg-pill" onClick={() => void copyText(bookPageUrl(), "Link")}><Copy size={14} aria-hidden /> Copy link</button>
+            <button type="button" className="bkg-pill" onClick={() => setSharing(true)} disabled={noServices}><QrCode size={14} aria-hidden /> Share</button>
             <a className="bkg-pill" href={bookPageUrl()} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden /> View</a>
           </div>
+          {sharing && <ShareDialog services={setup.services} settings={setup.settings} live={live} onClose={() => setSharing(false)} />}
         </div>
       </section>
 
@@ -714,6 +717,80 @@ function FiguresPanel() {
         </ul>
       </section>
     </div>
+  );
+}
+
+/**
+ * Share your booking page (Beta): the link, a QR code to print and a Book now button for another website, each opening
+ * the whole page, one service, or one person for it.
+ */
+function ShareDialog({ services, settings, live, onClose }: { services: BookingService[]; settings: BookingSettings; live: boolean; onClose: () => void }) {
+  const offered = services.filter((s) => s.active);
+  const [service, setService] = useState("");
+  const [person, setPerson] = useState("");
+  const [words, setWords] = useState("Book now");
+  const [look, setLook] = useState<"dark" | "light">("dark");
+  const [qr, setQr] = useState("");
+  const people = booksByPerson(settings) && service ? staffFor(settings, service) : [];
+  const chosen = offered.find((s) => s.id === service);
+  const who = people.find((p) => p.id === person);
+  const link = bookingShareLink(bookPageUrl(), { service, person: who ? person : "" });
+  const button = bookButtonHtml(link, words, look);
+  useEffect(() => {
+    let alive = true;
+    setQr("");
+    qrPicture(link, 8).then((pic) => { if (alive) setQr(pic); }, () => undefined);
+    return () => { alive = false; };
+  }, [link]);
+  const what = chosen ? `${chosen.name}${who ? ` with ${who.name}` : ""}` : "your booking page";
+  const fileName = `book-${(chosen?.name || "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page"}-qr.gif`;
+  return (
+    <Dialog open onClose={onClose} size="lg" title="Share your booking page"
+      description="Put it in your Instagram bio, an email, a flyer by the till or on another website."
+      footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
+      <div className="bkg-form bkg-share-dialog">
+        <StatusBadge tone="info" glyph={false}>Beta</StatusBadge>
+        {!live && <p className="bkg-pay-note">Bookings are off, so the link shows that you aren't taking bookings yet. Turn Bookings on before you share it.</p>}
+        <div className="bkg-question-row">
+          <SelectField label="It opens" value={service} onChange={(e) => { setService(e.target.value); setPerson(""); }}>
+            <option value="">Your booking page</option>
+            {offered.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </SelectField>
+          {people.length > 1 && (
+            <SelectField label="With" value={person} onChange={(e) => setPerson(e.target.value)}>
+              <option value="">Whoever is free</option>
+              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </SelectField>
+          )}
+        </div>
+        <section className="bkg-share-part" aria-labelledby="bkg-share-link">
+          <h3 id="bkg-share-link" className="bkg-share-title">Link</h3>
+          <div className="bkg-share-link"><code>{link}</code><SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void copyText(link, "Link")}>Copy</SecondaryButton></div>
+        </section>
+        <section className="bkg-share-part bkg-share-qr" aria-labelledby="bkg-share-qr">
+          <div>
+            <h3 id="bkg-share-qr" className="bkg-share-title">QR code</h3>
+            <p className="bkg-questions-hint">For a flyer, your window or the till. A phone camera opens {what}.</p>
+            {qr && <a className="rp-btn rp-btn-secondary rp-btn-sm" href={qr} download={fileName}><Download size={15} aria-hidden /> Download</a>}
+          </div>
+          {qr ? <img src={qr} alt={`QR code that opens ${what}`} width={160} height={160} /> : <span className="bkg-share-qr-wait" aria-hidden />}
+        </section>
+        <section className="bkg-share-part" aria-labelledby="bkg-share-button">
+          <h3 id="bkg-share-button" className="bkg-share-title">Book now button for another website</h3>
+          <p className="bkg-questions-hint">Paste the code where your other website takes HTML. The button opens {what} in a new tab.</p>
+          <div className="bkg-question-row">
+            <TextField label="Button words" value={words} maxLength={40} onChange={(e) => setWords(e.target.value)} />
+            <div className="bkg-seg bkg-share-look" role="radiogroup" aria-label="Button colour">
+              <button type="button" role="radio" aria-checked={look === "dark"} onClick={() => setLook("dark")}>Dark</button>
+              <button type="button" role="radio" aria-checked={look === "light"} onClick={() => setLook("light")}>Light</button>
+            </div>
+          </div>
+          {/* The button as it will look: our own generated link, its words made safe by bookButtonHtml. */}
+          <div className="bkg-share-preview" dangerouslySetInnerHTML={{ __html: button }} />
+          <div className="bkg-share-link"><code>{button}</code><SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void copyText(button, "Button code")}>Copy code</SecondaryButton></div>
+        </section>
+      </div>
+    </Dialog>
   );
 }
 

@@ -480,3 +480,25 @@ export function teamPayRows(pay: TeamPay): string[][] {
   ];
 }
 
+
+/**
+ * Share your booking page (Beta, Services plan 2 extras): the link that opens the booking page, a service already picked
+ * (`service`), and a person (`with`), as the booking page reads them (`wantedFromSearch` in features/site/bookTimeRules).
+ */
+export function bookingShareLink(pageUrl: string, pick: { service?: string; person?: string } = {}): string {
+  const url = new URL(pageUrl);
+  if (pick.service) url.searchParams.set("service", pick.service);
+  if (pick.person) url.searchParams.set("with", pick.person);
+  return url.toString();
+}
+
+const htmlText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/**
+ * A Book now button to paste into another website: a plain link that opens the booking page in a new tab (the shop's
+ * pages never open inside another site's frame). Its look is written into the button so it works on any website.
+ */
+export function bookButtonHtml(link: string, label: string, look: "dark" | "light" = "dark"): string {
+  const colours = look === "dark" ? "background:#111111;color:#ffffff;border:2px solid #111111" : "background:#ffffff;color:#111111;border:2px solid #111111";
+  return `<a href="${htmlText(link)}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 24px;border-radius:999px;${colours};font:600 16px/1.2 system-ui,sans-serif;text-decoration:none">${htmlText(label.trim() || "Book now")}</a>`;
+}
