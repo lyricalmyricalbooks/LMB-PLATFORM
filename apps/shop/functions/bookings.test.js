@@ -2523,6 +2523,17 @@ describe("courses: one sign-up, one price, a place on every date", () => {
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
   });
 
+  test("a later date booked inside its reminder window gets no reminder for it", async () => {
+    const { t, id } = await withCourse({ payment: "free", priceMinor: 0 });
+    await t.adm({ op: "saveSettings", settings: { live: true, reminderHours: 24, secondReminderHours: 0 } });
+    const made = (await t.adm({ op: "create", serviceId: id, ...person(1) })).body;
+    const bid = made.id || made.booking?.id;
+    const row = t.db.store.get(`bookings/${bid}`);
+    t.db.store.set(`bookings/${bid}`, { ...row, createdAt: new Date(Date.parse(at("2026-12-04", "20:00"))).toISOString(), reminderSentAt: row.createdAt });
+    t.clock.now = new Date(Date.parse(at("2026-12-04", "21:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+  });
+
   test("the Timetable gives no count for a course whose days it couldn't all read", async () => {
     const t = setup();
     await t.seed();

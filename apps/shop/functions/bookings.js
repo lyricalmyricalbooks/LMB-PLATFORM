@@ -761,7 +761,8 @@ function bookingActions({
       Object.assign(record, assigned.record);
       // A course keeps who takes each date when it isn't one person throughout (a stand-in on a later date).
       const names = [assigned, ...later].map((x) => x.record.staffName || "");
-      if (record.course && names.some((n) => n !== names[0])) record.course = { ...record.course, staff: names };
+      const ids = [assigned, ...later].map((x) => x.record.staffId || "");
+      if (record.course && ids.some((n) => n !== ids[0])) record.course = { ...record.course, staff: names, staffIds: ids };
       if (offer) tx.delete(waitlist().doc(offer.wid));
       let packed = {};
       if (packSnap) {
@@ -2438,6 +2439,9 @@ function bookingActions({
       const kinds = [["reminder", reminderHours, "reminded", Math.min(HOUR, (reminderHours * HOUR) / 2), "reminderKeyHash"], ["soon", secondReminderHours, "reminded2", 15 * 60_000, "reminder2KeyHash"]];
       for (const [kind, hours, list, least, keyField] of kinds) {
         if (!hours || !Number.isFinite(left) || (course[list] || []).includes(iso) || left > hours * HOUR || left < least) continue;
+        // Booked inside the window: the confirmation just went out, so this date needs no reminder (as for a first date).
+        const made = Date.parse(b.createdAt || "");
+        if (Number.isFinite(made) && Date.parse(iso) - made <= hours * HOUR) continue;
         const key = randomKey();
         course = { ...course, [list]: [...(course[list] || []), iso] };
         await bookings().doc(id).set({ course, [keyField]: hash(key) }, { merge: true });
@@ -2722,7 +2726,7 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
   const from = nowMs - 31 * 24 * HOUR;
   // Someone on a course is in the calendar on every one of its dates.
   const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-    .flatMap((b) => datesOf(b).map((x, n) => ({ ...b, id: n ? `${b.id}-${n + 1}` : b.id, start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString(), ...(n && b.course?.staff?.[n] ? { staffName: b.course.staff[n] } : {}) })))
+    .flatMap((b) => datesOf(b).map((x, n) => ({ ...b, id: n ? `${b.id}-${n + 1}` : b.id, start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString(), ...(n && b.course?.staff?.[n] ? { staffName: b.course.staff[n] } : {}), ...(n && b.course?.staffIds?.[n] ? { staffId: b.course.staffIds[n] } : {}), ...(n && !b.course?.staffIds && b.course?.staff?.[n] && b.course.staff[n] !== b.staffName ? { staffId: b.course.staff[n] === feed.staffName ? staffId : "" } : {}) })))
     .filter((b) => Date.parse(b.end || "") >= from && (!staffId || b.staffId === staffId))
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.roomName ? [b.roomName, b.location].filter(Boolean).join(", ") : b.location || "",
