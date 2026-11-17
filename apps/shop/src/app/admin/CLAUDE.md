@@ -1245,6 +1245,11 @@ Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` w
 shop's own day. Bookings with no person sit on a last line with no commission. The person dialog's Their pay field sets
 the share; the public booking page's staff list never includes it. Shown only, never paid. Classes `.bkg-pay*`.
 
+**Share your booking page (Beta, 17 November 2026):** the hero card's Share opens `ShareDialog`: what it opens (the page,
+a service, a person for it), the link (`bookingShareLink`: `?service=` and `?with=`, as `wantedFromSearch` reads them),
+a QR code (`qrPicture`, downloadable) and a Book now button (`bookButtonHtml`: a plain new-tab link with its look written
+in, words escaped; tested). No frame embed on purpose: the shop's pages send `X-Frame-Options: SAMEORIGIN`.
+
 ## Client records (17 November 2026, services plan phase 5)
 
 Plan: `tasks/todo/2026-11-17-client-records.md`. Customers (Clients in a services shop) › a client › Summary leads with

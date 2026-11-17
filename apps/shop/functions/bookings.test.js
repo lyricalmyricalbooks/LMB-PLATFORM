@@ -136,7 +136,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
     optedOut: async (e) => optOuts.has(e),
     unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
-    payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
+    payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { if (refunds.failNext > 0) { refunds.failNext -= 1; throw new Error("card declined"); } refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
     hitLimit: async () => true,
     LIMITS: {},
@@ -1205,6 +1205,14 @@ describe("card on file and the missed-booking fee", () => {
     expect(email).toMatch(/Card on file:<\/strong> Visa ending 4242\. Missing this booking, or cancelling less than 24 hours before, may cost \$30\.00/);
   });
 
+  test("a first visit priced under the missed-booking fee never risks more than that visit", async () => {
+    const t = setup();
+    await seedCards(t);
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000, holdCard: true, lateFeeMinor: 3000, introPriceMinor: 2000 });
+    const { r } = await bookCut(t);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ priceMinor: 2000, lateFeeMinor: 2000 });
+  });
+
   test("a card page left unfinished never confirms, and a deposit page also saves the card", async () => {
     const t = setup();
     await seedCards(t);
@@ -1718,6 +1726,24 @@ describe("gift cards on bookings", () => {
     return t;
   };
   const book = (t, extra = {}) => t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "10:00"), ...CUSTOMER, ...extra });
+
+  test("a gift card is quoted on the first-visit price for someone new, as the booking will charge", async () => {
+    const t = await ready();
+    await t.db.collection("bookingServices").doc("first").set({ name: "Trial", minutes: 60, gapAfter: 0, payment: "full", priceMinor: 4000, introPriceMinor: 1000 });
+    const quote = (email) => t.pub({ action: "bookingGiftCard", serviceId: "first", giftCard: CODE, email }).then((r) => r.body);
+    expect(await quote("new@example.com")).toEqual({ last4: "NP23", giftMinor: 1000, payNowMinor: 0 });
+    t.db.store.set("bookings/before", { customer: { email: "back@example.com" }, status: "confirmed" });
+    expect(await quote("back@example.com")).toEqual({ last4: "NP23", giftMinor: 2500, payNowMinor: 1500 });
+  });
+
+  test("a first-visit price never asks for a deposit under what the card page takes", async () => {
+    const t = await ready();
+    await t.db.collection("bookingServices").doc("tiny").set({ name: "Taster", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 4000, depositPercent: 10, introPriceMinor: 200 });
+    const r = await t.pub({ action: "bookingStart", serviceId: "tiny", start: at("2026-11-18", "10:00"), ...CUSTOMER, email: "new@example.com" });
+    expect(r.body.status).toBe("held");
+    // 10% of 2.00 would be 0.20; the card page takes at least 0.50.
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(50);
+  });
 
   test("the booking form offers a gift card box once the shop has gift cards", async () => {
     const t = setup();
@@ -2615,6 +2641,18 @@ describe("courses: one sign-up, one price, a place on every date", () => {
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
   });
 
+  test("joining late with a first-visit price: never more than the late-join price", async () => {
+    const { t, id } = await withCourse({ lateJoin: true, introPriceMinor: 15000 });
+    await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    await t.adm({ op: "saveSettings", settings: { live: true, maxDaysAhead: 60 } });
+    t.clock.now = new Date(at("2026-11-28", "20:30"));
+    const late = await t.pub({ action: "bookingStart", serviceId: id, start: all[1], ...person(2) });
+    expect(late.body).toMatchObject({ status: "held" });
+    expect(t.db.store.get(`bookings/${late.body.id}`)).toMatchObject({ priceMinor: 12000 });
+    expect(t.db.store.get(`bookings/${late.body.id}`).intro).toBeUndefined();
+  });
+
   test("joining late: the dates left at their share of the price, alongside the people already on it", async () => {
     const { t, id } = await withCourse({ lateJoin: true });
     await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
@@ -2774,11 +2812,140 @@ describe("classes: a minimum number to run", () => {
     expect(second).toEqual([expect.objectContaining({ s: id, closed: true })]);
   });
 
+  test("a refund that fails stays on the list, the owner is told, and the next sweeps finish it, after the start too", async () => {
+    const { t, id } = await withClass();
+    const bid = await signUp(t, id, 1);
+    t.clock.now = new Date(Date.parse(wed) - 2 * 3600_000);
+    t.emails.length = 0;
+    t.refunds.failNext = 1;
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 1, ran: 0 });
+    expect(t.db.store.get(`bookings/${bid}`).status).toBe("confirmed");
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ decision: "cancelled", left: [bid], retry: true, retryAt: new Date(Date.parse(wed) - 2 * 3600_000).toISOString() });
+    const owner = t.emails.find((e) => e.to === "owner@example.com").html;
+    expect(owner).toContain("The refund didn't go through yet");
+    expect(owner).not.toContain("refunded in full and emailed");
+    // The class has started; the next sweep still finishes the refund and the cancel.
+    t.clock.now = new Date(Date.parse(wed) + 3600_000);
+    await t.desk.sweepMinimum();
+    expect(t.db.store.get(`bookings/${bid}`)).toMatchObject({ status: "cancelled", cancelledFor: "minimum" });
+    expect([...t.refunds]).toEqual([expect.objectContaining({ paymentIntentId: "pi_1", amountMinor: 3000 })]);
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ left: [], retry: false, retryAt: null });
+  });
+
+  test("a sweep cut short before closing the time closes it on the next sweep", async () => {
+    const { t, id } = await withClass();
+    const bid = await signUp(t, id, 1);
+    const decided = new Date(Date.parse(wed) - 2 * 3600_000).toISOString();
+    // What the first sweep wrote before it stopped: the decision, nobody cancelled and the time still open.
+    t.db.store.set(`bookingRuns/${id}~${Date.parse(wed)}`, { serviceId: id, start: new Date(wed).toISOString(), decision: "cancelled", count: 1, minPlaces: 2, decidedAt: decided, closed: false, left: [bid], retry: true, retryAt: decided });
+    t.clock.now = new Date(Date.parse(wed) - 3600_000);
+    await t.desk.sweepMinimum();
+    expect(Object.values(t.db.store.get("bookingDays/2026-11-18").items)).toContainEqual(expect.objectContaining({ s: id, closed: true }));
+    expect(t.db.store.get(`bookings/${bid}`).status).toBe("cancelled");
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ closed: true, retry: false, retryAt: null });
+  });
+
   test("without a minimum nothing is decided", async () => {
     const { t, id } = await withClass({ minPlaces: 0 });
     await signUp(t, id, 1);
     t.clock.now = new Date(Date.parse(wed) - 2 * 3600_000);
     expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 0 });
+  });
+});
+
+describe("classes: a class pass and a first-visit price", () => {
+  const wed = at("2026-11-18", "14:00");
+  const thu = at("2026-11-19", "14:00");
+  async function ready() {
+    const t = setup();
+    await t.seed();
+    const save = async (service) => (await t.adm({ op: "saveService", service })).body.service;
+    const drawing = await save({ name: "Life drawing", minutes: 60, places: 6, payment: "full", priceMinor: 2500, classTimes: [{ weekday: 3, time: "14:00" }], packVisits: 5, packPriceMinor: 10000, packAnyClass: true });
+    const yoga = await save({ name: "Yoga", minutes: 60, places: 6, payment: "full", priceMinor: 2000, classTimes: [{ weekday: 4, time: "14:00" }], introPriceMinor: 500 });
+    return { t, drawing, yoga };
+  }
+  async function buyPass(t, serviceId) {
+    await t.pub({ action: "bookingPackBuy", serviceId, ...CUSTOMER });
+    const code = decodeURIComponent(t.opened.at(-1).params.success_url.split("pack=")[1]);
+    Object.assign(t.sessions.get(`cs_test_${String(t.opened.length - 1).padStart(8, "0")}`), { payment_status: "paid", payment_intent: "pi_pass" });
+    await t.pub({ action: "bookingPackView", pack: code });
+    return code;
+  }
+
+  test("a class pass books any weekly class, but not a one-to-one service", async () => {
+    const { t, drawing, yoga } = await ready();
+    expect(drawing).toMatchObject({ packAnyClass: true });
+    const code = await buyPass(t, drawing.id);
+    const pack = [...t.db.store.entries()].find(([k]) => k.startsWith("bookingPacks/"))[1];
+    expect(pack).toMatchObject({ anyClass: true, serviceName: "Any class" });
+    expect(t.opened[0].params.line_items[0].price_data.product_data.name).toContain("class pass of 5 classes");
+    expect((await t.pub({ action: "bookingStart", serviceId: drawing.id, start: wed, ...CUSTOMER, pack: code })).body.status).toBe("confirmed");
+    expect((await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER, pack: code })).body.status).toBe("confirmed");
+    const other = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), ...CUSTOMER, pack: code });
+    expect(other.body.code).toBe("pack");
+  });
+
+  test("a pass only for a weekly class: a one-to-one service's pack keeps to that service", async () => {
+    const t = setup();
+    await t.seed();
+    const one = (await t.adm({ op: "saveService", service: { name: "Lesson", minutes: 60, places: 1, payment: "full", priceMinor: 5000, packVisits: 3, packPriceMinor: 13500, packAnyClass: true } })).body.service;
+    expect(one.packAnyClass).toBeUndefined();
+  });
+
+  test("someone new pays the first-visit price once; after that the usual price", async () => {
+    const { t, yoga } = await ready();
+    expect((await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === yoga.id).introPriceMinor).toBe(500);
+    const first = await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(500);
+    expect(t.db.store.get(`bookings/${first.body.id}`)).toMatchObject({ priceMinor: 500, intro: true, listPriceMinor: 2000 });
+    Object.assign(t.sessions.get(`cs_test_${String(t.opened.length - 1).padStart(8, "0")}`), { payment_status: "paid", payment_intent: "pi_y" });
+    await t.pub({ action: "bookingView", id: first.body.id, key: first.body.key });
+    await t.pub({ action: "bookingStart", serviceId: yoga.id, start: at("2026-11-26", "14:00"), ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(2000);
+  });
+
+  test("two bookings started at the same moment can't both have the first-visit price", async () => {
+    const { t, yoga } = await ready();
+    const [a, b] = await Promise.all([
+      t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER }),
+      t.pub({ action: "bookingStart", serviceId: yoga.id, start: at("2026-11-26", "14:00"), ...CUSTOMER }),
+    ]);
+    const prices = [a, b].map((r) => t.db.store.get(`bookings/${r.body.id}`).priceMinor).sort();
+    expect(prices).toEqual([2000, 500].sort());
+  });
+
+  test("a priced extra is still charged on top of the first-visit price", async () => {
+    const { t } = await ready();
+    await t.db.collection("bookingServices").doc("trial").set({ name: "Trial", minutes: 60, gapAfter: 0, payment: "full", priceMinor: 4000, introPriceMinor: 1000, extras: [{ id: "x", name: "Hot towel", minutes: 15, priceMinor: 500 }] });
+    const r = await t.pub({ action: "bookingStart", serviceId: "trial", start: at("2026-11-20", "10:00"), ...CUSTOMER, extras: ["x"] });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(1500);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ priceMinor: 1500, intro: true });
+  });
+
+  test("many cancelled bookings never hide an earlier visit from the first-visit check", async () => {
+    const { t, yoga } = await ready();
+    for (let i = 0; i < 60; i++) t.db.store.set(`bookings/old${String(i).padStart(2, "0")}`, { customer: { email: CUSTOMER.email.toLowerCase() }, status: "cancelled" });
+    t.db.store.set("bookings/zz-visit", { customer: { email: CUSTOMER.email.toLowerCase() }, status: "confirmed" });
+    await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(2000);
+  });
+
+  test("a booking that doesn't go through gives the first-visit price back for the next try", async () => {
+    const { t, yoga } = await ready();
+    const refused = await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER, code: "NOSUCHCODE" });
+    expect(refused.body.code).toBe("code");
+    expect([...t.db.store.keys()].some((k) => k.startsWith("bookingIntros/"))).toBe(false);
+    await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(500);
+  });
+
+  test("a first-visit price is below the price and at least 0.50", async () => {
+    const t = setup();
+    await t.seed();
+    const save = (introPriceMinor) => t.adm({ op: "saveService", service: { name: "Yoga", minutes: 60, places: 1, payment: "full", priceMinor: 2000, introPriceMinor } });
+    expect((await save(2000)).statusCode).toBe(400);
+    expect((await save(20)).statusCode).toBe(400);
+    expect((await save(0)).body.service.introPriceMinor).toBeUndefined();
   });
 });
 
@@ -2945,6 +3112,21 @@ describe("standing appointments", () => {
     // The first visit still keeps to the window.
     const far = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2027-02-16", "10:00"), ...CUSTOMER, email: "bo@example.com", run: LONG });
     expect(far.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  test("a first-visit price covers only the run's first visit; the later ones are plain visits at the full price", async () => {
+    const t = await runSetup();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Haircut", minutes: 45, gapAfter: 0, payment: "atShop", priceMinor: 6000, repeats: true, introPriceMinor: 2000 });
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, email: "new@example.com", run: RUN });
+    expect(r.body).toMatchObject({ status: "confirmed" });
+    const visits = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.runVisits;
+    const [first, ...later] = visits.map((v) => t.db.store.get(`bookings/${v.id}`));
+    expect(first).toMatchObject({ intro: true, priceMinor: 2000 });
+    for (const b of later) {
+      expect(b.priceMinor).toBe(6000);
+      expect(b.intro).toBeUndefined();
+      expect(b.listPriceMinor).toBeUndefined();
+    }
   });
 });
 

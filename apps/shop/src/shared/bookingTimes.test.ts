@@ -5,7 +5,7 @@ import {
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime, runStarts,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
-  cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue,
+  cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue, packProblem,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -620,5 +620,14 @@ describe("a class's minimum number to run", () => {
     expect(placesLeft(start, klass, busy)).toBe(0);
     expect(placesLeft(start + 24 * HOUR, klass, busy)).toBe(6);
     expect(placesLeft(start, { id: "visit", minutes: 30, gapAfter: 0, places: 1 }, busy)).toBe(1);
+  });
+});
+
+describe("a class pass", () => {
+  const pass = { serviceId: "drawing", anyClass: true, status: "active", visits: 5, uses: [], expiresOn: null };
+  it("books any weekly class, and only its own service otherwise", () => {
+    expect(packProblem(pass, "yoga", "2026-11-18", true)).toBeNull();
+    expect(packProblem(pass, "yoga", "2026-11-18", false)).toBe("other_service");
+    expect(packProblem({ ...pass, anyClass: false }, "yoga", "2026-11-18", true)).toBe("other_service");
   });
 });
