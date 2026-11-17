@@ -1,6 +1,6 @@
 // Home for a services shop (services plan, phase 1): the day is its appointments, not parcels and stock. Pure rules for
 // HomeServices.tsx, over the bookings Home follows (two weeks back, to catch what was never marked paid, and a week on).
-import { addDays, balanceDue, dayOf, moneyTaken } from "../../../shared/bookingTimes";
+import { addDays, balanceDue, dayOf, feeChargeable, moneyKept, moneyTaken, tipTaken } from "../../../shared/bookingTimes";
 import type { Booking } from "../bookingsApi";
 
 /** How far back and ahead Home reads bookings. */
@@ -24,6 +24,10 @@ export type ServicesDay = {
   week: { count: number; hours: number; takenMinor: number };
   /** Finished, to be paid at the shop, and never marked paid: the owner's to-do. */
   unpaid: Booking[];
+  /** What today's appointments brought in (kept after refunds, fees in) and the tips on top (services plan, phase 6). */
+  taken: { keptMinor: number; tipsMinor: number; currency: string };
+  /** Missed or shop-cancelled bookings whose fee can still be charged to the saved card, newest first. */
+  fees: Booking[];
 };
 
 export function servicesDay(rows: readonly Booking[], nowMs: number, zone: string): ServicesDay {
@@ -44,7 +48,26 @@ export function servicesDay(rows: readonly Booking[], nowMs: number, zone: strin
       takenMinor: inWeek.reduce((n, b) => n + moneyTaken(b), 0),
     },
     unpaid: live.filter((b) => (b.payment === "atShop" || b.payment === "deposit") && !b.noShow && balanceDue(b) > 0 && Date.parse(b.end) <= nowMs),
+    taken: takenOn(rows.filter((b) => b.status !== "held" && dayKey(b) === todayKey)),
+    fees: rows.filter((b) => feeChargeable(b, nowMs)).sort((a, b) => b.start.localeCompare(a.start)),
   };
+}
+
+function takenOn(list: readonly Booking[]): ServicesDay["taken"] {
+  return {
+    keptMinor: list.reduce((n, b) => n + moneyKept(b), 0),
+    tipsMinor: list.reduce((n, b) => n + tipTaken(b), 0),
+    currency: list[0]?.currency || "",
+  };
+}
+
+/** "in 25 min", "in 1 hr 10 min", "now" (under way), for the Next client tile. */
+export function startsIn(startIso: string, nowMs: number): string {
+  const mins = Math.round((Date.parse(startIso) - nowMs) / 60_000);
+  if (mins <= 0) return "now";
+  if (mins < 60) return `in ${mins} min`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `in ${h} hr${m ? ` ${m} min` : ""}`;
 }
 
 /** "3 appointments today", "1 appointment today", "Nothing booked today". */

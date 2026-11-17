@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Booking } from "../bookingsApi";
-import { servicesDay, todayLine } from "./servicesHome";
+import { servicesDay, startsIn, todayLine } from "./servicesHome";
 
 const ZONE = "America/Toronto";
 // Saturday 14 November 2026, 13:00 in Toronto.
@@ -44,5 +44,29 @@ describe("a services shop's Home", () => {
     expect(todayLine(0)).toBe("Nothing booked today");
     expect(todayLine(1)).toBe("1 appointment today");
     expect(todayLine(3)).toBe("3 appointments today");
+  });
+
+  it("adds up what today brought in, tips on top, and finds the fees still to charge (phase 6)", () => {
+    const card = { customer: "cus_1", paymentMethod: "pm_1", brand: "visa", last4: "4242" };
+    const more = [
+      ...rows,
+      booking("tipped", at(0, 9), { tip: { amountMinor: 900, at: "x" } }),
+      booking("refunded", at(0, 8), { status: "cancelled", refund: { amountMinor: 6000, at: "x" } }),
+      booking("missed", at(-1, 15), { noShow: true, paid: false, payment: "atShop", card, lateFeeMinor: 2500 }),
+      booking("charged", at(-2, 15), { noShow: true, paid: false, payment: "atShop", card, lateFeeMinor: 2500, fee: { amountMinor: 2500, at: "x" } }),
+      booking("nocard", at(-1, 16), { noShow: true, paid: false, payment: "atShop", lateFeeMinor: 2500 }),
+    ];
+    const d = servicesDay(more, NOW, ZONE);
+    // early, late and tipped kept 60.00 each, and "gone" was cancelled with nothing refunded, so the shop kept it too;
+    // "refunded" gave it all back. The 9.00 tip is counted apart.
+    expect(d.taken).toEqual({ keptMinor: 24000, tipsMinor: 900, currency: "CAD" });
+    expect(d.fees.map((b) => b.id)).toEqual(["missed"]);
+  });
+
+  it("says when the next client starts", () => {
+    expect(startsIn(at(0, 13.5), NOW)).toBe("in 30 min");
+    expect(startsIn(at(0, 14.25), NOW)).toBe("in 1 hr 15 min");
+    expect(startsIn(at(0, 15), NOW)).toBe("in 2 hr");
+    expect(startsIn(at(0, 12.5), NOW)).toBe("now");
   });
 });
