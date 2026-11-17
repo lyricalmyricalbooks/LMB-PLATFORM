@@ -102,6 +102,8 @@ export type BookingView = {
   courseStarts?: string[]; canMove?: boolean;
   /** "Tell me if an earlier time opens": whether this visit can ask, and whether it has. */
   canEarlier?: boolean; earlier?: boolean;
+  /** The shop's form before the first visit, while this client hasn't signed it; or when they signed it. */
+  form?: { title: string; text: string; questions: BookingQuestion[] }; formSigned?: string;
   /** Add-ons and options booked with it (minutes and priceMinor already include them). */
   extras?: BookingExtraView[];
   /** A standing appointment: which visit of the run this is, how many there are and how often. */

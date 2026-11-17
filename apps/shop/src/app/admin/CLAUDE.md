@@ -1348,3 +1348,7 @@ own, saved as `rates`. New booking shows "Their own: … minutes, …" when the 
 
 **Earlier times (17 November 2026, Services plan 2 B5).** A booking whose client ticked "Tell me if an earlier time
 opens" (`earlierWanted`) shows a line in the drawer. Nothing to set: offers are held 30 minutes.
+
+**Form before the first visit (17 November 2026, Services plan 2 B4).** Bookings › Hours & rules › `FormTile` (Beta)
+edits `settings.intakeForm`. `clientForm.tsx` (`ClientFormFacts`, op `clientForm`) adds a Form row to the booking drawer
+and the client card (Customers).

@@ -1489,6 +1489,13 @@ with `/book?earlier=<id>&ekey=<key>`. `bookingEarlierView`/`bookingEarlierTake` 
 `moveTime(..., { alsoFree })`, which ignores and drops the hold in the same transaction. `sweepWaitlist` forgets past
 visits and passes lapsed holds on (the time joins `passed`). Cancelling drops the wish. Privacy export/erase include it.
 
+**A form before the first visit (17 November 2026, Services plan 2 B4, `tasks/todo/2026-11-17-first-visit-form.md`).**
+Settings `intakeForm` (`cleanIntakeForm`, left out with no words or questions; `formFor` picks it per service). Signed
+forms live in server-only `bookingForms/{sha256(email)[0..40]}` with the words signed and `version` (`formVersion`; new
+words ask again). `bookingView` adds `form` (unsigned) or `formSigned`; `bookingForm` needs `signedName`, `agree: true`
+and the required answers. Confirmation, move and reminder emails carry a "Before your visit" note until signed. Admin op
+`clientForm` reads one for the drawer and client card. Privacy export/erase include `bookingForms`.
+
 **Text reminders (17 November 2026, Services plan phase 7, `tasks/todo/2026-11-17-text-reminders.md`).** Settings
 `textReminders` (Hours & rules › Text reminders, off by default). With `PLATFORM_TEXTS_URL` set (`shopConfig.platformTextsUrl`,
 written by the release runner), index.js gives `bookingActions` a `texts` sender (`textSender.js`: `status()` cached five

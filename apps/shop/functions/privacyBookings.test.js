@@ -100,6 +100,10 @@ function setup() {
       w1: { serviceName: 'Evening class', day: '2026-11-22', name: 'Ada', email: 'ada@example.com' },
       w2: { serviceName: 'Evening class', day: '2026-11-22', name: 'Bo', email: 'bo@example.com' },
     },
+    bookingForms: {
+      f1: { email: 'ada@example.com', signedName: 'Ada Lovelace', answers: [{ label: 'Allergies', answer: 'Nuts' }] },
+      f2: { email: 'bo@example.com', signedName: 'Bo' },
+    },
     // "Tell me if an earlier time opens".
     bookingEarlier: {
       free1: { bookingId: 'free1', serviceName: 'Studio visit', start: '2026-11-20T15:00:00.000Z', name: 'Ada', email: 'ada@example.com' },
@@ -127,6 +131,7 @@ describe("the owner's privacy export and erase", () => {
     expect(out.body.bookings.find(b => b.id === 'free1')).toMatchObject({ note: 'Bringing a friend', answers: [{ label: 'Allergies', answer: 'Nuts' }] });
     for (const b of out.body.bookings) for (const key of ['manageKeyHash', 'pendingKey', 'sessions', 'paymentIntent']) expect(b).not.toHaveProperty(key);
     expect(out.body.bookingWaitingList.map(w => w.id)).toEqual(['w1', 'free1']);
+    expect(out.body.bookingForms.map(f => f.id)).toEqual(['f1']);
     expect(out.body.bookingPacks.map(p => p.id).sort()).toEqual(['p1', 'p2']);
     for (const p of out.body.bookingPacks) for (const key of ['pendingCode', 'sessions', 'paymentIntent']) expect(p).not.toHaveProperty(key);
     // Event tickets they bought, codes included, without link keys or payment ids.
@@ -148,6 +153,8 @@ describe("the owner's privacy export and erase", () => {
     expect(bookings.get('other')).toMatchObject({ customer: { name: 'Bo', email: 'bo@example.com' }, note: 'Mine', manageKeyHash: 'ghi' });
     expect([...db.store.get('bookingWaitlist').keys()]).toEqual(['w2']);
     expect([...db.store.get('bookingEarlier').keys()]).toEqual(['other']);
+    expect([...db.store.get('bookingForms').keys()]).toEqual(['f2']);
+    expect(out.body.deleted.bookingForms).toBe(1);
     // An unpaid pack goes; a paid one stays as the payment record it is.
     expect(out.body.deleted.unpaidPacks).toBe(1);
     expect([...db.store.get('bookingPacks').keys()].sort()).toEqual(['p1', 'p3']);

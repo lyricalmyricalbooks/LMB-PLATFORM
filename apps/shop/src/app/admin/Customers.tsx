@@ -25,6 +25,7 @@ import { useShopSells } from "./shopWords";
 import { sellsServices } from "../../shared/shopSells";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./clientCard.css";
+import { ClientFormFacts } from "./clientForm";
 import { dayOf } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 
@@ -403,7 +404,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
         ]} />
       <TabPanel tabId="cust-summary" active={tab === "cust-summary"}>
         <div className="rp-stack">
-          {hasCard && <ClientCardView card={card} phone={phone} again={card.again && onBookAgain ? () => onBookAgain({ ...card.again!, name: c.name, email: c.email, phone }) : undefined}
+          {hasCard && <ClientCardView card={card} phone={phone} email={c.email} again={card.again && onBookAgain ? () => onBookAgain({ ...card.again!, name: c.name, email: c.email, phone }) : undefined}
             bookFirst={!card.again && onBookAgain ? () => onBookAgain({ serviceId: "", staffId: "", name: c.name, email: c.email, phone }) : undefined} />}
           {(!services || c.orderCount > 0 || !hasCard || c.segment === "moved") && <p className="rp-hint" style={{ margin: 0 }}>
             {c.segment === "moved"
@@ -500,7 +501,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
  * The client card (services plan, phase 5): visits, what they spent on bookings, missed visits and the next one, then
  * the phone, saved card, packs left and their latest answers, with Book again (the last service and person).
  */
-function ClientCardView({ card, phone, again, bookFirst }: { card: ReturnType<typeof clientCard>; phone: string; again?: () => void; bookFirst?: () => void }) {
+function ClientCardView({ card, phone, email, again, bookFirst }: { card: ReturnType<typeof clientCard>; phone: string; email: string; again?: () => void; bookFirst?: () => void }) {
   const currency = card.currency || SHOP_CURRENCY;
   const tile = (label: string, value: React.ReactNode, foot: React.ReactNode, flag?: "next" | "warn") => (
     <div className="cc-tile" data-next={flag === "next" || undefined} data-warn={flag === "warn" || undefined}>
@@ -518,6 +519,7 @@ function ClientCardView({ card, phone, again, bookFirst }: { card: ReturnType<ty
       </div>
       <dl className="cc-facts">
         <dt>Phone</dt><dd>{phone || "Not given"}</dd>
+        <ClientFormFacts email={email} />
         <dt>Saved card</dt><dd>{card.card ? cardText(card.card) : "None"}</dd>
         <dt>Packs left</dt><dd>{card.packs.length
           ? card.packs.map((p) => `${p.serviceName}: ${p.left} of ${p.visits} visits${p.expiresOn ? `, until ${bookingDay(`${p.expiresOn}T12:00:00Z`)}` : ""}`).join(" · ")

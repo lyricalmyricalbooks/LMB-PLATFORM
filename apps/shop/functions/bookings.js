@@ -37,6 +37,9 @@
 //                          it is held for them for the shop's waitHoldMinutes (an `offer_<id>` item in bookingDays) and emailed with a
 //                          link that books it; the entry goes once they book, once the hold runs out (the place then goes
 //                          to the next person) or once its day has passed.
+//   bookingForms/{emailHash} { email, name, signedName, signedAt, version, title, text, answers, bookingId }: the form a
+//                          client filled in before their first visit (Services plan 2, B4), the words they signed kept
+//                          with it. Server-only (health answers). One per email; signing a newer wording replaces it.
 //   bookingEarlier/{bookingId} { bookingId, serviceId, serviceName, start, name, email, createdAt, passed[], offerStart?,
 //                          offerUntil?, offerKeyHash? }: a client who asked to hear if a time earlier than their own
 //                          one-to-one booking opens (Services plan 2, B5). Server-only. A freed earlier time goes to the
@@ -62,7 +65,7 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, isCourse, joinableCourse, runDecisionDue, classStartsOn, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, formFor, formVersion, freeTimes, isClass, isCourse, joinableCourse, runDecisionDue, classStartsOn, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
@@ -292,6 +295,23 @@ function bookingActions({
   const dayRef = (day) => db.collection("bookingDays").doc(day);
   const waitlist = () => db.collection("bookingWaitlist");
   const earlierList = () => db.collection("bookingEarlier");
+  const formsList = () => db.collection("bookingForms");
+  const formDoc = (email) => formsList().doc(hash(String(email || "").trim().toLowerCase()).slice(0, 40));
+  /** The shop's form for this booking's service, and whether its client signed this wording already; null with none. */
+  async function formState(b, settings) {
+    const form = formFor(settings?.intakeForm, b.serviceId);
+    if (!form || !EMAIL.test(String(b.customer?.email || ""))) return null;
+    const snap = await formDoc(b.customer.email).get();
+    const record = snap.exists ? snap.data() : null;
+    return { form, record, signed: record?.version === formVersion(form) };
+  }
+  /** A booking card with the form still to fill in (`form`) or when it was signed (`formSigned`). */
+  async function withForm(card, b, settings) {
+    const state = b.status === "cancelled" ? null : await formState(b, settings);
+    if (!state) return card;
+    return state.signed ? { ...card, formSigned: state.record.signedAt }
+      : { ...card, form: { title: state.form.title, text: state.form.text, questions: state.form.questions } };
+  }
   const packs = () => db.collection("bookingPacks");
 
   // On when the platform turned Bookings on for the shop, or when the shop sells Classes (a way to sell, both of its
@@ -512,6 +532,9 @@ function bookingActions({
       const own = afterVisit && siteReview && key ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(manageUrl(id, key))}#review">Leave a review</a></p>` : "";
       const review = own || (reviewUrl && afterVisit ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : "");
       const again = kind === "thanks" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
+      // The form before the first visit, while it isn't signed: on the confirmation and the reminders.
+      const formState0 = ["booked", "moved", "reminder"].includes(kind) && key ? await formState(b, await readSettings().catch(() => null)).catch(() => null) : null;
+      const formNote = formState0 && !formState0.signed ? `<p style="margin:16px 0 4px;"><strong>Before your visit:</strong> please fill in "${escapeHtml(formState0.form.title)}" on your booking page. It takes a minute, and you only do it once.</p>` : "";
       const html = risoLayout(`
         <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
@@ -527,6 +550,7 @@ function bookingActions({
         ${money}
         ${held}
         ${checkIn}
+        ${formNote}
         ${manage}
         ${again}
         ${review}
@@ -2169,7 +2193,21 @@ function bookingActions({
         if (b.status === "held") b = await refreshHeld(id, b, (await standalone()).checkout);
         if (b.restOpen) b = await refreshRest(id, b, (await standalone()).checkout);
         if (Date.parse(b.end) > nowMs) b = await withCheckInCode(id, b);
-        return res.status(200).json({ booking: await withEarlier(publicBooking(id, b, settings, nowMs), b), ...(await runOf(id, b, key)) });
+        return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings), ...(await runOf(id, b, key)) });
+      }
+      if (action === "bookingForm") {
+        // The form before the first visit, signed with the client's typed name and a tick.
+        const state = b.status === "cancelled" ? null : await formState(b, settings);
+        if (!state) return fail(res, 409, "There is no form to fill in for this booking.", "no_form");
+        const signedName = text(req.body?.signedName, 100);
+        if (!signedName) return fail(res, 400, "Type your full name to sign.", "no_name");
+        if (req.body?.agree !== true) return fail(res, 400, "Tick the box to agree.", "no_agree");
+        const answered = cleanAnswers(state.form.questions, req.body?.answers);
+        if ("problem" in answered) return fail(res, 400, answered.problem, "answer");
+        const signedAt = new Date(nowMs).toISOString();
+        await formDoc(b.customer.email).set({ email: b.customer.email.trim().toLowerCase(), name: b.customer.name || "", signedName, agreed: true, signedAt,
+          version: formVersion(state.form), title: state.form.title, text: state.form.text, answers: answered.answers, bookingId: id });
+        return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings) });
       }
       if (action === "bookingEarlier") {
         // "Tell me if an earlier time opens" on (`on: true`) or off for this one-to-one visit.
@@ -2448,6 +2486,16 @@ function bookingActions({
         const staffId = keptPerson(settings, service.id, req.body?.staffId);
         const starts = runStarts(start, run, zone());
         return res.status(200).json({ visits: [{ start: new Date(start).toISOString(), free: true }, ...(await runPlan({ service, settings, starts: starts.slice(1), staffId, owner: true }))] });
+      }
+      if (op === "clientForm") {
+        // The form a client signed before their first visit (client card and booking drawer), and whether it is the
+        // current wording.
+        const email = String(req.body?.email || "").trim().toLowerCase();
+        if (!EMAIL.test(email)) return fail(res, 400, "Unknown client.");
+        const snap = await formDoc(email).get();
+        const record = snap.exists ? snap.data() : null;
+        const current = record && settings.intakeForm ? record.version === formVersion(settings.intakeForm) : false;
+        return res.status(200).json({ form: record ? { signedName: record.signedName, signedAt: record.signedAt, title: record.title, text: record.text, answers: record.answers || [], current } : null, asks: !!settings.intakeForm?.on });
       }
       if (op === "waitlist") {
         // Who is waiting from one day to another (the week on screen). Read here because no browser may read the list.
@@ -3360,6 +3408,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
 module.exports = { PickupTimeProblem, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

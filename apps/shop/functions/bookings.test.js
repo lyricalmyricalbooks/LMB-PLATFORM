@@ -3113,3 +3113,49 @@ describe("tell me if an earlier time opens", () => {
     expect((await t.pub({ action: "bookingEarlier", id: c.id, key: c.key, on: true })).statusCode).toBe(409);
   });
 });
+
+describe("a form before the first visit", () => {
+  const FORM = { on: true, title: "Health form", text: "I have told the studio about anything that matters.", questions: [{ id: "allergies", label: "Allergies", long: false, required: true }], serviceIds: [] };
+  const withForm = async (form = FORM) => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, intakeForm: form });
+    const b = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "15:00"), name: "Ada", email: "Ada@Example.com" })).body;
+    return { t, b };
+  };
+
+  test("the settings keep a form only with words, and say which services ask", () => {
+    expect(cleanBookingSettings({ intakeForm: { on: true, text: "  " } }).intakeForm).toBeUndefined();
+    expect(cleanBookingSettings({ intakeForm: { on: true, text: "Hi", serviceIds: ["visit", "bad id", "visit"] } }).intakeForm).toEqual({ on: true, title: "Before your first visit", text: "Hi", questions: [], serviceIds: ["visit"] });
+  });
+
+  test("the booking page asks for it, the confirmation says so, and signing keeps the name, tick, date and answers", async () => {
+    const { t, b } = await withForm();
+    expect(t.emails.find((m) => /^Booked/.test(m.subject)).html).toContain("please fill in \"Health form\" on your booking page");
+    const view = (await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking;
+    expect(view.form).toEqual({ title: "Health form", text: FORM.text, questions: FORM.questions });
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", agree: true, answers: {} })).body.code).toBe("answer");
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", answers: { allergies: "None" } })).body.code).toBe("no_agree");
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: "f".repeat(48), signedName: "Ada L", agree: true, answers: { allergies: "None" } })).statusCode).toBe(404);
+    const signed = await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", agree: true, answers: { allergies: "None" } });
+    expect(signed.body.booking).toMatchObject({ formSigned: "2026-11-16T13:00:00.000Z" });
+    expect(signed.body.booking.form).toBeUndefined();
+    // Once per client: the next booking with the same email doesn't ask, and the owner sees it on their card.
+    const again = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-27", "15:00"), name: "Ada", email: "ada@example.com" })).body;
+    expect((await t.pub({ action: "bookingView", id: again.id, key: again.key })).body.booking).toMatchObject({ formSigned: "2026-11-16T13:00:00.000Z" });
+    const card = (await t.adm({ op: "clientForm", email: "ADA@example.com" })).body;
+    expect(card.form).toMatchObject({ signedName: "Ada L", title: "Health form", answers: [{ label: "Allergies", answer: "None" }], current: true });
+    // New words ask again.
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, intakeForm: { ...FORM, text: "New words." } });
+    expect((await t.pub({ action: "bookingView", id: again.id, key: again.key })).body.booking.form.text).toBe("New words.");
+    expect((await t.adm({ op: "clientForm", email: "ada@example.com" })).body.form.current).toBe(false);
+  });
+
+  test("a service the form isn't for, or a form turned off, asks nothing", async () => {
+    const { t, b } = await withForm({ ...FORM, serviceIds: ["review"] });
+    expect((await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking.form).toBeUndefined();
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada", agree: true, answers: { allergies: "x" } })).statusCode).toBe(409);
+    const off = await withForm({ ...FORM, on: false });
+    expect((await off.t.pub({ action: "bookingView", id: off.b.id, key: off.b.key })).body.booking.form).toBeUndefined();
+  });
+});
