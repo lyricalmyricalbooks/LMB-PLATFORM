@@ -12,7 +12,7 @@ describe("setup mode's menu (code plan 18.6)", () => {
 
   it("is exactly the admin's own menu (v4: the website side, and the stockroom side behind the switch)", () => {
     // Bookings is turned on shop by shop (beta), so it isn't shown before the shop exists.
-    expect(menu).toEqual(withoutPages(sidebarItems(NAV, WEBSITE_SIDE), new Set(["bookings"])));
+    expect(menu).toEqual(withoutPages(sidebarItems(NAV, WEBSITE_SIDE), new Set(["bookings", "events"])));
     expect(JSON.stringify(menu)).not.toContain("bookings");
     expect(menu.map((i) => i.label)).toEqual(["Home", "Orders", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]);
     expect(setupMenu("stockroom")).toEqual(sidebarItems(NAV, STOCKROOM_SIDE));

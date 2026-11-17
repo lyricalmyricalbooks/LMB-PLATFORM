@@ -43,7 +43,9 @@ export function AppShell({ appearance = "light", sidebar, topbar, children, main
 
 export type NavEntry = {
   id: string; label: string; icon: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
-  children?: Array<{ id: string; label: string; icon?: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>; badge?: number }>;
+  children?: Array<{ id: string; label: string; icon?: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>; badge?: number; tag?: string }>;
+  /** A short word beside the label, like "Beta". */
+  tag?: string;
   /** A small group heading shown above this item (e.g. "Settings"). */
   section?: string;
   /** Count of things waiting on this page (e.g. orders to ship); hidden at 0. */
@@ -88,6 +90,7 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
                   >
                     <Icon size={18} aria-hidden />
                     <span className="rp-nav-label">{item.label}</span>
+                    {item.tag && <span className="rp-nav-tag">{item.tag}</span>}
                     {!!item.badge && (
                       <span className="rp-nav-badge" aria-label={`${item.badge} need attention`}>{item.badge > 99 ? "99+" : item.badge}</span>
                     )}
@@ -101,7 +104,7 @@ export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, 
                             type="button" className="rp-nav-subitem"
                             aria-current={activeChildId === c.id ? "page" : undefined}
                             onClick={() => onSelectChild(item.id, c.id)}
-                          >{c.label}{!!c.badge && (
+                          >{c.label}{c.tag && <span className="rp-nav-tag">{c.tag}</span>}{!!c.badge && (
                             <span className="rp-nav-badge" aria-label={`${c.badge} need attention`}>{c.badge > 99 ? "99+" : c.badge}</span>
                           )}</button>
                         </li>

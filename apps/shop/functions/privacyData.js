@@ -113,10 +113,16 @@ function redactedBookingFields(booking, now) {
     : { ...base, customer: { name: BOOKING_NAME_REMOVED, email: "", phone: "" } };
 }
 
+/** What an erase request writes onto one order of event tickets (events.js): see the note where it is used. */
+function redactedTicketOrderFields(order, now) {
+  const base = { keyHashes: [], pendingKey: null, privacyRedactedAt: now, updatedAt: now };
+  return order && order.status === "paid" && order.chargedMinor > 0 ? base : { ...base, customer: { name: BOOKING_NAME_REMOVED, email: "" } };
+}
+
 function reviewErasure(mode) {
   if (mode === "unpublish") return { authorName: "Anonymous", status: "rejected" };
   if (mode === "remove-text") return { authorName: "Anonymous", title: "", body: "" };
   return { authorName: "Anonymous" };
 }
 
-module.exports = { findByEmail, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL, lower, bookingPaid, redactedBookingFields, BOOKING_NAME_REMOVED };
+module.exports = { findByEmail, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL, lower, bookingPaid, redactedBookingFields, redactedTicketOrderFields, BOOKING_NAME_REMOVED };

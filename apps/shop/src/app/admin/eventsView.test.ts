@@ -1,0 +1,80 @@
+import { describe, expect, test } from "vitest";
+import { blankForm, eventFigures, eventFromForm, eventState, formFromEvent, guestCsv, priceMinorOf, soldLine, splitEvents, whenParts } from "./eventsView";
+import type { AdminEvent, TicketOrder } from "./eventsApi";
+
+const ZONE = "America/Toronto";
+const NOW = Date.parse("2026-11-17T15:00:00Z");
+const event = (over: Partial<AdminEvent> = {}): AdminEvent => ({
+  id: "ev1", title: "Autumn launch", description: "", start: "2026-12-06T00:00:00.000Z", end: "2026-12-06T03:00:00.000Z", venue: "The Print Room", address: "",
+  onlineUrl: "", photo: "", status: "live", chargeTax: false, tickets: [{ id: "gen", name: "General", priceMinor: 1500, places: 40, maxPerOrder: 10 }],
+  sold: { gen: 12 }, soldTotal: 12, placesTotal: 40, left: { gen: 28 }, paidMinor: 18000, orders: 7, ...over,
+});
+
+describe("the event form", () => {
+  test("a new event starts two weeks out with one General ticket", () => {
+    const form = blankForm(ZONE, NOW);
+    expect(form).toMatchObject({ day: "2026-12-01", time: "19:00", status: "draft" });
+    expect(form.tickets.map((t) => t.name)).toEqual(["General"]);
+  });
+  test("an event opens in the shop's own time and goes back unchanged", () => {
+    const form = formFromEvent(event(), ZONE);
+    expect(form).toMatchObject({ day: "2026-12-05", time: "19:00", endTime: "22:00" });
+    expect(form.tickets[0]).toEqual({ id: "gen", name: "General", price: "15.00", places: "40", maxPerOrder: "10" });
+    const out = eventFromForm(form, ZONE);
+    expect(out).toMatchObject({ event: { id: "ev1", start: "2026-12-06T00:00:00.000Z", end: "2026-12-06T03:00:00.000Z", tickets: [{ id: "gen", priceMinor: 1500, places: 40 }] } });
+  });
+  test("an end before the start is the next morning", () => {
+    const out = eventFromForm({ ...formFromEvent(event(), ZONE), time: "21:00", endTime: "01:00" }, ZONE);
+    expect(out).toMatchObject({ event: { start: "2026-12-06T02:00:00.000Z", end: "2026-12-06T06:00:00.000Z" } });
+  });
+  test("problems are named in plain words", () => {
+    const form = formFromEvent(event(), ZONE);
+    expect(eventFromForm({ ...form, title: " " }, ZONE)).toEqual({ problem: "Give the event a name." });
+    expect(eventFromForm({ ...form, tickets: [] }, ZONE)).toEqual({ problem: "Add at least one ticket." });
+    expect(eventFromForm({ ...form, tickets: [{ ...form.tickets[0], price: "abc" }] }, ZONE)).toHaveProperty("problem");
+    expect(eventFromForm({ ...form, tickets: [{ ...form.tickets[0], places: "0" }] }, ZONE)).toEqual({ problem: 'Say how many places "General" has.' });
+    expect(eventFromForm({ ...form, onlineUrl: "meet.example" }, ZONE)).toEqual({ problem: "The online link starts with https://" });
+  });
+  test("prices are read as typed", () => {
+    expect(priceMinorOf("")).toBe(0);
+    expect(priceMinorOf("$12.5")).toBe(1250);
+    expect(priceMinorOf("12,50")).toBe(1250);
+    expect(priceMinorOf("12.345")).toBeNaN();
+  });
+});
+
+describe("the list", () => {
+  test("an event's badge follows its status, its start and its places", () => {
+    expect(eventState(event(), NOW)).toBe("onSale");
+    expect(eventState(event({ status: "draft" }), NOW)).toBe("draft");
+    expect(eventState(event({ soldTotal: 40 }), NOW)).toBe("soldOut");
+    expect(eventState(event({ start: "2026-11-01T00:00:00.000Z" }), NOW)).toBe("past");
+    expect(eventState(event({ status: "cancelled" }), NOW)).toBe("cancelled");
+  });
+  test("coming events are soonest first; past and cancelled ones newest first", () => {
+    const list = [event({ id: "b", start: "2027-01-10T00:00:00.000Z" }), event({ id: "a" }), event({ id: "old", start: "2026-10-01T00:00:00.000Z" }), event({ id: "off", status: "cancelled", start: "2026-12-20T00:00:00.000Z" })];
+    const { coming, past } = splitEvents(list, NOW);
+    expect(coming.map((e) => e.id)).toEqual(["a", "b"]);
+    expect(past.map((e) => e.id)).toEqual(["off", "old"]);
+  });
+  test("the figures count coming tickets and all the money", () => {
+    const list = [event(), event({ id: "d", status: "draft", soldTotal: 0, paidMinor: 0 }), event({ id: "old", start: "2026-10-01T00:00:00.000Z", paidMinor: 5000 })];
+    expect(eventFigures(list, NOW)).toMatchObject({ onSale: 1, sold: 12, places: 80, paidMinor: 23000 });
+    expect(eventFigures(list, NOW).next?.id).toBe("ev1");
+    expect(eventFigures([], NOW)).toEqual({ next: null, onSale: 0, sold: 0, places: 0, paidMinor: 0 });
+  });
+  test("dates and the sold line read in the shop's zone", () => {
+    expect(whenParts("2026-12-06T00:00:00.000Z", ZONE)).toMatchObject({ weekday: "Sat", day: "5", month: "Dec" });
+    expect(soldLine(event())).toEqual({ text: "12 of 40 sold", percent: 30 });
+    expect(soldLine(event({ placesTotal: 0, soldTotal: 0 })).percent).toBe(0);
+  });
+  test("the guest list has one row per ticket and no cell that runs as a formula", () => {
+    const order = (name: string, codes: string[]): TicketOrder => ({
+      id: name, status: "paid", eventId: "ev1", name, email: `${name.toLowerCase()}@example.com`, lines: [], ticketCount: codes.length, totalMinor: 0, taxMinor: 0, chargedMinor: 0,
+      currency: "CAD", tickets: codes.map((code) => ({ code, ticketId: "gen", name: "General" })), createdAt: "", paidAt: "", test: false,
+    });
+    expect(guestCsv([order("Bo", ["BBBB-2222"]), order("=Ada", ["AAAA-2222", "AAAA-3333"])]).split("\n")).toEqual([
+      "Name,Email,Ticket,Code", "'=Ada,=ada@example.com,General,AAAA-2222".replace(",=ada", ",'=ada"), "'=Ada,'=ada@example.com,General,AAAA-3333", "Bo,bo@example.com,General,BBBB-2222",
+    ]);
+  });
+});

@@ -1267,3 +1267,16 @@ Settings › Shipping › Profiles is one workspace (`shipping/ShippingProfilesW
 in `Bookings.tsx`, before Tips) asks op `textStatus`: "Opening soon" badge while the platform has no text keys, else the
 switch **Send reminders by text too** (`textReminders`, saved with the form) and the price per text, billed at cost.
 Fixture: `admin-fixture.html?page=bookings` (`&texts=soon`).
+
+
+**Events and tickets (beta, 17 November 2026, `tasks/todo/2026-11-17-events-tickets-e1.md`):** Admin › Events
+(`Events.tsx`, `events.css`, the bento tiles from `bookings.css`). Shown only while Events is on for the shop:
+`useWaysOn` (`waysApi.ts`: the platform's `platform/features.ways` and the owner's `firstWeek/start.ways`) in
+`Dashboard.tsx` hides the page otherwise. Events, places and ticket orders are server-only, so every read and change is
+`eventsAdmin(op, body)` (`eventsApi.ts`, action `eventsAdmin`; ops `list`, `saveEvent`, `deleteEvent`, `orders`,
+`resendTickets`); never read them from Firestore. Pure rules in `eventsView.ts` (the form and what it sends, badges,
+tiles, the guest list CSV; times typed and shown in the shop's zone). The event's `photo` rides through the form
+untouched until the website page adds a picker. Menu: `events` is under Orders in the five-item menu and its own item
+in the combined and services menus; `BETA_PAGES` in `riso/nav.ts` puts a small "Beta" (`.rp-nav-tag`) beside a page
+still in beta, so add the next way's page id there. Fixture: `admin-fixture.html?ways=events&page=events`
+(`&events=new`: none yet).
