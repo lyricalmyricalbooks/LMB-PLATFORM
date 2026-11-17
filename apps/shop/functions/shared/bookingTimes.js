@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -22,6 +22,8 @@ exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
 exports.rebookDue = rebookDue;
+exports.reviewOpen = reviewOpen;
+exports.cleanVisitReview = cleanVisitReview;
 exports.reviewLink = reviewLink;
 exports.thanksDue = thanksDue;
 exports.cleanRooms = cleanRooms;
@@ -86,6 +88,7 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     pickupReadyHours: 2,
     thankYou: false,
     reviewUrl: "",
+    siteReviews: false,
     staff: [],
     rooms: [],
 };
@@ -383,6 +386,7 @@ function cleanBookingSettings(raw) {
         staff: cleanStaff(s.staff, hours),
         thankYou: s.thankYou === true,
         reviewUrl: reviewLink(s.reviewUrl),
+        siteReviews: s.siteReviews === true,
     };
 }
 exports.MAX_REBOOK_WEEKS = 52;
@@ -402,6 +406,29 @@ function rebookDue(b, service, nowMs) {
         return false;
     const dueAt = start + weeks * 7 * 86_400_000;
     return dueAt <= nowMs && nowMs < dueAt + exports.REBOOK_WINDOW_DAYS * 86_400_000;
+}
+/** Can the client review this visit on their booking page? The shop takes reviews, the visit happened, none yet. */
+function reviewOpen(b, settings, nowMs) {
+    if (!settings.siteReviews || b.reviewId || b.status !== "confirmed" || b.noShow)
+        return false;
+    return Date.parse(b.start || "") <= nowMs;
+}
+exports.REVIEW_BODY_MAX = 2000;
+/**
+ * A client's review as they wrote it, cleaned: a whole rating 1–5 and some words (up to REVIEW_BODY_MAX), or { problem }.
+ * The name shown is their first name and the first letter of their last ("Ada R."), never the full name.
+ */
+function cleanVisitReview(raw, fullName) {
+    const r = raw && typeof raw === "object" ? raw : {};
+    const rating = Number(r.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5)
+        return { problem: "Please choose from one to five stars." };
+    const body = typeof r.body === "string" ? r.body.trim().slice(0, exports.REVIEW_BODY_MAX) : "";
+    if (body.length < 3)
+        return { problem: "Please write a few words about your visit." };
+    const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+    const authorName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.` : parts[0] || "A client";
+    return { rating, body, authorName: authorName.slice(0, 80) };
 }
 /** A review link as typed: an https address of at most 500 characters, else "". */
 function reviewLink(raw) {

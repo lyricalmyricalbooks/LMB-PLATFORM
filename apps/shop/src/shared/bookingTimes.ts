@@ -151,6 +151,11 @@ export type BookingSettings = {
   thankYou: boolean;
   /** Where clients leave a review (a Google review link, say): https only, "" for none. */
   reviewUrl: string;
+  /**
+   * Reviews on the shop's own website (Services plan phase 7): the after-visit email asks for a review on the client's
+   * booking page; the owner approves each one before it shows in the Client reviews section.
+   */
+  siteReviews?: boolean;
 };
 
 /**
@@ -190,6 +195,7 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   pickupReadyHours: 2,
   thankYou: false,
   reviewUrl: "",
+  siteReviews: false,
   staff: [],
   rooms: [],
 };
@@ -472,6 +478,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     staff: cleanStaff(s.staff, hours),
     thankYou: s.thankYou === true,
     reviewUrl: reviewLink(s.reviewUrl),
+    siteReviews: s.siteReviews === true,
   };
 }
 
@@ -495,6 +502,32 @@ export function rebookDue(
   if (!Number.isFinite(start)) return false;
   const dueAt = start + weeks * 7 * 86_400_000;
   return dueAt <= nowMs && nowMs < dueAt + REBOOK_WINDOW_DAYS * 86_400_000;
+}
+
+/** Can the client review this visit on their booking page? The shop takes reviews, the visit happened, none yet. */
+export function reviewOpen(
+  b: { status?: string; noShow?: boolean; start?: string; reviewId?: string | null },
+  settings: { siteReviews?: boolean },
+  nowMs: number,
+): boolean {
+  if (!settings.siteReviews || b.reviewId || b.status !== "confirmed" || b.noShow) return false;
+  return Date.parse(b.start || "") <= nowMs;
+}
+
+export const REVIEW_BODY_MAX = 2000;
+/**
+ * A client's review as they wrote it, cleaned: a whole rating 1–5 and some words (up to REVIEW_BODY_MAX), or { problem }.
+ * The name shown is their first name and the first letter of their last ("Ada R."), never the full name.
+ */
+export function cleanVisitReview(raw: unknown, fullName: string): { rating: number; body: string; authorName: string } | { problem: string } {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const rating = Number(r.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return { problem: "Please choose from one to five stars." };
+  const body = typeof r.body === "string" ? r.body.trim().slice(0, REVIEW_BODY_MAX) : "";
+  if (body.length < 3) return { problem: "Please write a few words about your visit." };
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  const authorName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.` : parts[0] || "A client";
+  return { rating, body, authorName: authorName.slice(0, 80) };
 }
 
 /** A review link as typed: an https address of at most 500 characters, else "". */

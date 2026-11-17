@@ -2148,6 +2148,21 @@ await check("the four services sections (price list, team, big Book button, hour
   if (process.env.STUDIO_SHOTS) for (const [, part] of picks) await frame.locator(`.fm-svc-${part}`).first().screenshot({ path: `${process.env.STUDIO_SHOTS}/services-${part}.png` });
 });
 
+await check("the Client reviews section shows sample reviews of visits with stars and the owner's reply", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Client reviews/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  const frame = page.frameLocator("iframe").first();
+  const cards = frame.locator(".fm-svc-reviews li");
+  await cards.first().waitFor({ timeout: 15000 });
+  if (await cards.count() !== 3) throw new Error(`expected 3 sample reviews, saw ${await cards.count()}`);
+  const stars = await cards.first().locator("[role=img]").getAttribute("aria-label");
+  if (!/5 out of 5/.test(stars || "")) throw new Error(`the stars read "${stars}"`);
+  await frame.getByText("Our reply").first().waitFor({ timeout: 5000 });
+  if (process.env.STUDIO_SHOTS) await frame.locator(".fm-svc-reviews").first().screenshot({ path: `${process.env.STUDIO_SHOTS}/services-reviews.png` });
+});
+
 await browser.close();
 await server?.close();
 for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name} (${Math.round(r.ms / 1000)}s)${r.ok ? "" : ` — ${r.error}`}`);

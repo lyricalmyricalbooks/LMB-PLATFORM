@@ -5,7 +5,7 @@
 // (functions/bookings.js); this page only shows what it answers.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Users } from "lucide-react";
+import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Star, Users } from "lucide-react";
 import { useSEO } from "../../lib/seo";
 import { StoreChrome } from "./StoreChrome";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
@@ -807,6 +807,70 @@ function TipPicker({ pick, onPick, percents, priceMinor, currency, limitMinor, o
   );
 }
 
+/** "How was your visit?": stars and a few words, once per kept visit; the shop approves it before it shows. */
+function ReviewBox({ id, manageKey, booking, onDone, c }: { id: string; manageKey: string; booking: BookingView; onDone: (b: BookingView) => void; c: Copy }) {
+  const [rating, setRating] = useState(0);
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  // The emailed link ends in #review: bring the box into view once it is drawn.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#review") document.getElementById("review")?.scrollIntoView({ block: "start" });
+  }, []);
+  if (booking.reviewed) {
+    return (
+      <div {...regionProps("bookingsReview")} id="review" className="fm-track-card p-6 sm:p-8" role="status">
+        <p className="fm-track-mono mb-2">{c("bookTimeReviewTitle")}</p>
+        <p className="text-base leading-7">{sent ? c("bookTimeReviewThanks") : c("bookTimeReviewDone")}</p>
+      </div>
+    );
+  }
+  const send = async () => {
+    if (!rating) { setError(c("bookTimeReviewNeedStars")); return; }
+    if (body.trim().length < 3) { setError(c("bookTimeReviewNeedWords")); return; }
+    setBusy(true);
+    setError("");
+    try {
+      const answer = await ask("bookingReview", { id, key: manageKey, rating, body });
+      setSent(true);
+      if (answer?.booking) onDone(answer.booking);
+    } catch (err: any) {
+      if (err?.code === "reviewed") { setSent(true); onDone({ ...booking, canReview: false, reviewed: true }); }
+      else setError(c("bookTimeError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form {...regionProps("bookingsReview")} id="review" className="fm-track-card p-6 sm:p-8 space-y-5" onSubmit={(e) => { e.preventDefault(); void send(); }} noValidate>
+      <div>
+        <h2 className="fm-track-display text-3xl">{c("bookTimeReviewTitle")}</h2>
+        <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimeReviewText")}</p>
+      </div>
+      <fieldset>
+        <legend className="fm-track-mono mb-3">{c("bookTimeReviewStars")}</legend>
+        <div className="fm-book-stars" role="radiogroup" aria-label={c("bookTimeReviewStars")}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={c("bookTimeReviewStar", { count: n })}
+              className="fm-book-star" data-on={n <= rating || undefined} onClick={() => { setRating(n); setError(""); }}>
+              <Star size={28} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <label className="block">
+        <span className="fm-track-mono mb-2 block">{c("bookTimeReviewWords")}</span>
+        <textarea className="fm-track-input" rows={4} maxLength={2000} value={body} onChange={(e) => { setBody(e.target.value); setError(""); }} />
+      </label>
+      {error && <p className="text-sm" role="alert">{error}</p>}
+      <button type="submit" className="fm-track-btn" disabled={busy}>
+        {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeReviewSend")}
+      </button>
+    </form>
+  );
+}
+
 // ── An existing booking (the emailed link) ─────────────────────────────────────────────────────────────────────────
 
 /** The booking's check-in code, as letters and as a QR code the shop's till scans. */
@@ -985,6 +1049,8 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         {booking.status === "confirmed" && (booking.checkedIn ? <p className="fm-book-checkin-done" role="status">{c("bookTimeCheckedIn")}</p>
           : booking.checkInCode ? <CheckInCode code={booking.checkInCode} c={c} /> : null)}
       </div>
+
+      {(booking.canReview || booking.reviewed) && <ReviewBox id={id} manageKey={manageKey} booking={booking} onDone={setBooking} c={c} />}
 
       {booking.status === "held" && (
         <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => { polls.current = 0; void load(true); }}>{c("bookTimeCheckAgain")}</button>

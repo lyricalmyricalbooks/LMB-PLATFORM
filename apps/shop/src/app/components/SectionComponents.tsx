@@ -2436,6 +2436,52 @@ export function BookingHoursSection({ settings, enableAnimations }: any) {
   );
 }
 
+/** A review's date as the shopper reads it ("10 Nov 2026"); blank when it can't be read. */
+function reviewDate(day: string): string {
+  const at = Date.parse(`${day}T12:00:00Z`);
+  return Number.isFinite(at) ? new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "";
+}
+
+/**
+ * Client reviews: approved reviews of visits (Bookings › Hours & rules › Show reviews on your website), newest first.
+ * Nothing while bookings are off or there is no approved review yet (Studio's preview shows samples).
+ */
+export function ClientReviewsSection({ settings, enableAnimations }: any) {
+  const c = useSectionCopy();
+  const info = useBookingInfo();
+  const max = Math.min(12, Math.max(1, Number(settings.maxReviews) || 6));
+  const reviews = (info?.reviews || []).slice(0, max);
+  if (!info?.on || !reviews.length) return null;
+  return (
+    <section className="fm-svc-reviews" style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <BookingHeading settings={settings} type="ClientReviewsSection" enableAnimations={enableAnimations} />
+        <ul className="m-0 p-0 list-none grid gap-6 md:grid-cols-2 lg:grid-cols-3 text-left">
+          {reviews.map((r, i) => (
+            <li key={`${r.authorName}-${r.date}-${i}`} className="flex flex-col gap-3 p-6 border border-white/15" style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
+              <p className="m-0 text-lg tracking-[0.15em]" style={{ color: settings.accentColor || "var(--accent)" }} role="img" aria-label={c("bookTimeReviewStar", { count: r.rating })}>
+                {"★".repeat(r.rating)}<span className="text-white/25">{"★".repeat(Math.max(0, 5 - r.rating))}</span>
+              </p>
+              <p className="m-0 text-sm text-white/80 leading-relaxed whitespace-pre-line" style={bStyle(settings)}>{r.body}</p>
+              <p className="m-0 mt-auto text-xs text-white/60" style={bStyle(settings)}>
+                <span className="font-bold text-white">{r.authorName}</span>
+                {settings.showService !== false && r.serviceName && <span> · {r.serviceName}</span>}
+                {settings.showDate !== false && reviewDate(r.date) && <span> · {reviewDate(r.date)}</span>}
+              </p>
+              {settings.showReply !== false && r.reply && (
+                <div className="pl-3 border-l-2 border-white/15">
+                  <p className="m-0 text-[10px] font-bold tracking-[0.3em] uppercase text-white/60" style={bStyle(settings)} data-theme-field="replyLabel">{settings.replyLabel ?? fb("ClientReviewsSection.replyLabel")}</p>
+                  <p className="m-0 mt-1 text-sm text-white/80 leading-relaxed whitespace-pre-line" style={bStyle(settings)}>{r.reply}</p>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 export function MapSection({ settings, enableAnimations }: any) {
   const query = settings.address ?? fb("MapSection.address");
   const src = `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;

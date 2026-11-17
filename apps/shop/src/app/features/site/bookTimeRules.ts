@@ -9,6 +9,8 @@ export type BookingServiceView = { id: string; name: string; description: string
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
   hours?: Array<Array<{ start: string; end: string }>>;
+  /** Approved reviews of visits, newest first, for the Client reviews section (empty while the shop doesn't take them). */
+  reviews?: VisitReview[];
   /** The shop has a discount code that works on bookings, so the form offers a code box. */
   codes?: boolean;
   /** The shop has gift cards, so the form offers a gift card box on paid services. */
@@ -70,6 +72,8 @@ export type BookingView = {
   tipPercents?: number[]; canTip?: boolean; tipMinor?: number; tipLimitMinor?: number;
   /** The code to show at the desk while the visit is still to come, and whether the shop has checked them in. */
   checkInCode?: string; checkedIn?: boolean;
+  /** A review of the visit on the shop's website: whether one can be written now, and whether it was. */
+  canReview?: boolean; reviewed?: boolean;
 };
 
 /** A tip pick on the booking page: a percent of the price, none, or an amount the client types. */
@@ -212,3 +216,6 @@ export function sectionServices(info: BookingInfo | null, max: unknown): Booking
   const n = Math.round(Number(max));
   return info.services.slice(0, Number.isFinite(n) ? Math.min(6, Math.max(1, n)) : 3);
 }
+
+/** An approved review of a visit, as the website shows it (first name and initial only). */
+export type VisitReview = { authorName: string; rating: number; body: string; serviceName: string; date: string; reply?: string };

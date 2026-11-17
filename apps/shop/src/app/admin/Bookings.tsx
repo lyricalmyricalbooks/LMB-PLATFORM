@@ -905,7 +905,7 @@ function TipsTile({ tips, percents, onChange }: { tips: boolean; percents: numbe
   );
 }
 
-/** After the visit: a thank-you email with Book again, and a review link when the owner gives one. */
+/** After the visit: a thank-you email with Book again, reviews for the website, or a review link elsewhere. */
 function ThanksTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
   const [text, setText] = useState(form.reviewUrl);
   useEffect(() => setText(form.reviewUrl), [form.reviewUrl]);
@@ -916,7 +916,9 @@ function ThanksTile({ form, onChange }: { form: BookingSettings; onChange: (patc
       <div className="bkg-form">
         <Toggle label="Send a thank-you email" checked={form.thankYou} onChange={(v) => onChange({ thankYou: v })} />
         <p className="bkg-cal-text">{form.thankYou ? "A couple of hours after each visit, clients get a short thank-you with a Book again button. If you ask for tips, the tip email says thank you instead, so nobody gets two." : "Clients get no email after their visit."}</p>
-        {form.thankYou && (
+        <Toggle label="Collect reviews for your website" checked={form.siteReviews === true} onChange={(v) => onChange({ siteReviews: v })} />
+        <p className="bkg-cal-text">{form.siteReviews ? "Clients can review a visit from their booking page and from the thank-you email. You approve each one in Reviews, then add the Client reviews section in Studio to show them." : "Clients aren't asked for a review on your website."}</p>
+        {form.thankYou && !form.siteReviews && (
           <TextField label="Review link (optional)" hint="Where clients can review you, like your Google review link. It shows as Leave a review." inputMode="url" placeholder="https://g.page/r/…/review"
             value={text} onChange={(e) => setText(e.target.value)} error={problem || undefined}
             onBlur={() => { if (!problem) onChange({ reviewUrl: reviewLink(text) }); }} />

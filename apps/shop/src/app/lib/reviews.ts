@@ -20,6 +20,10 @@ export type Review = {
   verified?: boolean;
   /** Admin-written: pinned to the top of the book's reviews. */
   featured?: boolean;
+  /** "booking" for a review of a visit (written by the server; bookId is then ""). */
+  source?: "booking";
+  serviceName?: string;
+  staffName?: string;
 };
 
 /** Splits a list into groups of `size` (Firestore "in" queries take up to 30 values). */

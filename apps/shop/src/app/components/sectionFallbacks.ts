@@ -75,6 +75,8 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "BookingHoursSection.title": "Hours & where to find us",
   "BookingHoursSection.directionsLabel": "Get directions",
   "BookingHoursSection.goodToKnow": "Good to know",
+  "ClientReviewsSection.title": "What clients say",
+  "ClientReviewsSection.replyLabel": "Our reply",
   "MapSection.address": "New York, NY",
   "MapSection.title": "Map",
   "RowSection.btn.text": "Shop now",

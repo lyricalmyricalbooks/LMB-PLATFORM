@@ -5,7 +5,7 @@
 // saved and no email is sent.
 import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import { takesDeposit, upFrontMinor, withCode, type BookingCode, type BookingInfo, type BookingPackView, type BookingServiceView, type BookingView } from "./bookTimeRules";
+import { takesDeposit, upFrontMinor, withCode, type BookingCode, type BookingInfo, type BookingPackView, type BookingServiceView, type BookingView, type VisitReview } from "./bookTimeRules";
 
 export const SAMPLE_BOOKING_ID = "sample-booking";
 export const SAMPLE_BOOKING_KEY = "0".repeat(48);
@@ -61,11 +61,20 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
     status: "confirmed", payment: deposit ? "deposit" : service.priceMinor > 0 ? "card" : "free", paid: !deposit && service.priceMinor > 0, priceMinor: service.priceMinor, currency,
     ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service), canPayRest: true, restPaidMinor: 0, tipPercents: [15, 18, 20], tipLimitMinor: 10_000 } : {}),
     name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24,
+    // The review box shows on the sample so it can be designed (a real one shows only after the visit).
+    canReview: true,
     ...(service.holdCard ? { cardHold: true, cardLast4: "4242", lateFeeMinor: service.lateFeeMinor } : {}),
     ...(applied ? { discountCode: applied.code, discountMinor: applied.discountMinor } : {}),
     ...(gift ? { giftCardLast4: gift.last4, giftMinor: gift.giftMinor } : {}),
   };
 }
+
+/** Sample client reviews for the Client reviews section in Studio's preview. */
+const SAMPLE_REVIEWS: VisitReview[] = [
+  { authorName: "Maya L.", rating: 5, body: "Sample review. Approved reviews from your clients show here.", serviceName: "One-to-one session", date: "2026-11-10" },
+  { authorName: "Tom O.", rating: 5, body: "Friendly, on time and really helpful. I've already booked my next visit.", serviceName: "Studio visit", date: "2026-11-02" },
+  { authorName: "Priya S.", rating: 4, body: "A lovely afternoon and I learned a lot in a small group.", serviceName: "Saturday workshop", date: "2026-10-26", reply: "Thank you, Priya. See you at the next one!" },
+];
 
 export const SAMPLE_PACK_CODE = "SAMP-LEPA-CK42";
 
@@ -80,7 +89,7 @@ function samplePack(nowMs: number, zone: string, currency: string): BookingPackV
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
   if (action === "bookingInfo") {
-    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, hours: SAMPLE_HOURS, staff: [{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: ["sample-session", "sample-class"] }] } satisfies BookingInfo;
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, hours: SAMPLE_HOURS, reviews: SAMPLE_REVIEWS, staff: [{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: ["sample-session", "sample-class"] }] } satisfies BookingInfo;
   }
   if (action === "bookingTimes") {
     const from = typeof body.from === "string" ? body.from : today;
@@ -134,6 +143,7 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   if (action === "bookingMove" && typeof body.start === "string") sample = { ...sampleBooking(zone, currency, nowMs, sample.serviceId, body.start, sample.discountCode), giftCardLast4: sample.giftCardLast4, giftMinor: sample.giftMinor };
   // Paying what is left: no card page in the preview, it just shows as paid in full.
   if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0, tipMinor: Number(body.tipMinor) || 0 };
+  if (action === "bookingReview") sample = { ...sample, canReview: false, reviewed: true };
   if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
   return { booking: sample };
 }
