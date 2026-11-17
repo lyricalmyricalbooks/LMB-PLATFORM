@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -1312,6 +1312,9 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
 const PACK_DAY_CHOICES = [0, 30, 60, 90, 180, 365, MAX_PACK_DAYS];
 // Rebook reminder choices, in weeks (0 = off).
 const REBOOK_CHOICES = [0, 2, 3, 4, 5, 6, 8, 10, 12, 16, 26, 52];
+/** When a class with a minimum is decided, in hours before it starts. */
+const DECIDE_CHOICES = [2, 6, 12, 24, 48, 72, 168];
+const decideText = (h: number) => (h === 168 ? "a week" : h % 24 === 0 ? (h === 24 ? "a day" : `${h / 24} days`) : `${h} hours`);
 const rebookSpan = (w: number): string => (w === 52 ? "a year" : w === 26 ? "6 months" : `${w} week${w === 1 ? "" : "s"}`);
 const rebookText = (w: number): string => (!w ? "Don't send a reminder" : `After ${rebookSpan(w)}`);
 const packDaysText = (d: number): string => (!d ? "No end date" : d % 365 === 0 ? `${d / 365} year${d === 365 ? "" : "s"}` : d % 30 === 0 && d < 365 ? `${d / 30} month${d === 30 ? "" : "s"}` : `${d} days`);
@@ -1540,6 +1543,24 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
               ))}
               {!course && classTimes.length < MAX_CLASS_TIMES && (
                 <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("classTimes", [...classTimes, { weekday: classTimes[classTimes.length - 1]?.weekday ?? 6, time: classTimes[classTimes.length - 1]?.time ?? "14:00" }])}>Add a class time</SecondaryButton>
+              )}
+              {(course || classTimes.length > 0) && (
+                <div className="bkg-meet">
+                  <SelectField label="Minimum to run" value={String(form.minPlaces || 0)}
+                    onChange={(e) => { const n = Number(e.target.value); setForm((f) => ({ ...f, minPlaces: n || undefined, decideHours: n ? f.decideHours || DECIDE_HOURS : undefined })); }}>
+                    <option value="0">It always runs</option>
+                    {Array.from({ length: Math.max(0, form.places - 1) }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n} people</option>)}
+                  </SelectField>
+                  {!!form.minPlaces && (
+                    <SelectField label="Decide" value={String(form.decideHours || DECIDE_HOURS)} onChange={(e) => set("decideHours", Number(e.target.value))}>
+                      {DECIDE_CHOICES.concat(DECIDE_CHOICES.includes(form.decideHours || DECIDE_HOURS) ? [] : [form.decideHours || DECIDE_HOURS])
+                        .map((h) => <option key={h} value={h}>{decideText(h)} before it starts</option>)}
+                    </SelectField>
+                  )}
+                  <p className="bkg-questions-hint">{form.minPlaces
+                    ? `If fewer than ${form.minPlaces} have signed up ${decideText(form.decideHours || DECIDE_HOURS)} before ${course ? "the first date" : "a class"}, it's cancelled: everyone is refunded in full and emailed, and you get an email too.`
+                    : `Pick a number to cancel ${course ? "the course" : "a class"} automatically when too few sign up.`}</p>
+                </div>
               )}
             </>
           )}

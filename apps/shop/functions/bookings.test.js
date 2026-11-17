@@ -2673,3 +2673,111 @@ describe("courses: one sign-up, one price, a place on every date", () => {
     expect(more.filter((c) => c.left === undefined).map((c) => c.name)).toEqual(["Course 12"]);
   });
 });
+
+describe("classes: a minimum number to run", () => {
+  const person = (n) => ({ name: `Person ${n}`, email: `p${n}@example.com` });
+  // Wednesdays at 14:00, four places, needs two, decided a day before.
+  const wed = at("2026-11-18", "14:00");
+  async function withClass(extra = {}) {
+    const t = setup();
+    await t.seed();
+    const saved = await t.adm({ op: "saveService", service: { name: "Life drawing", minutes: 120, gapAfter: 0, places: 4, payment: "full", priceMinor: 3000, classTimes: [{ weekday: 3, time: "14:00" }], minPlaces: 2, ...extra } });
+    return { t, id: saved.body.service?.id, saved };
+  }
+  async function signUp(t, id, n) {
+    const r = await t.pub({ action: "bookingStart", serviceId: id, start: wed, ...person(n) });
+    const sid = `cs_test_${String(t.opened.length - 1).padStart(8, "0")}`;
+    Object.assign(t.sessions.get(sid), { payment_status: "paid", payment_intent: `pi_${n}` });
+    await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    return r.body.id;
+  }
+
+  test("kept only for a group at set times, never above the places, decided a day before by default", async () => {
+    const { saved } = await withClass();
+    expect(saved.body.service).toMatchObject({ minPlaces: 2, decideHours: 24 });
+    const t = setup();
+    await t.seed();
+    // A class at any free time has no session to decide; one person at a time has no group.
+    expect((await t.adm({ op: "saveService", service: { name: "Open studio", minutes: 60, places: 4, payment: "free", minPlaces: 2 } })).body.service.minPlaces).toBeUndefined();
+    expect((await t.adm({ op: "saveService", service: { name: "One to one", minutes: 60, places: 1, payment: "free", minPlaces: 2, classTimes: [{ weekday: 3, time: "18:00" }] } })).body.service.minPlaces).toBeUndefined();
+    expect((await t.adm({ op: "saveService", service: { name: "Tiny", minutes: 60, places: 3, payment: "free", minPlaces: 5, classTimes: [{ weekday: 3, time: "18:00" }] } })).statusCode).toBe(400);
+    expect((await withClass({ minPlaces: 1 })).saved.body.service.minPlaces).toBeUndefined();
+    expect((await withClass({ decideHours: 999 })).saved.body.service.decideHours).toBe(168);
+    // Customers see it on Book a time.
+    const { t: u, id } = await withClass();
+    expect((await u.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === id).minPlaces).toBe(2);
+  });
+
+  test("too few at the decide time: everyone is refunded and emailed, the owner is told, and the time closes", async () => {
+    const { t, id } = await withClass();
+    const bid = await signUp(t, id, 1);
+    expect(t.db.store.get(`bookings/${bid}`).status).toBe("confirmed");
+    // Before the decide time nothing happens.
+    t.clock.now = new Date(Date.parse(wed) - 25 * 3600_000);
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 0 });
+    t.clock.now = new Date(Date.parse(wed) - 23 * 3600_000);
+    t.emails.length = 0;
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 1, ran: 0 });
+    expect(t.db.store.get(`bookings/${bid}`)).toMatchObject({ status: "cancelled", cancelledFor: "minimum", cancelledBy: "minimum" });
+    expect(t.refunds).toEqual([expect.objectContaining({ paymentIntentId: "pi_1", amountMinor: 3000 })]);
+    expect(t.emails.map((e) => e.to).sort()).toEqual(["owner@example.com", "p1@example.com"]);
+    expect(t.emails.find((e) => e.to === "p1@example.com").html).toContain("Not enough people signed up for this class to run");
+    expect(t.emails.find((e) => e.to === "owner@example.com").subject).toContain("Not enough people: Life drawing");
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ decision: "cancelled", count: 1, minPlaces: 2 });
+    // Decided once; the time is neither offered nor full (no waiting list), and signing up is refused.
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 0 });
+    const times = (await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-18", days: 1 })).body;
+    expect(times.days["2026-11-18"]).toEqual([]);
+    expect(times.full["2026-11-18"]).toBeUndefined();
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start: wed, ...person(3) })).statusCode).toBe(409);
+    // Another service at the same time is not held up by the closed class.
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: wed, ...person(4) })).statusCode).toBe(200);
+    // Next week's class is still open.
+    const next = at("2026-11-25", "14:00");
+    expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-25", days: 1 })).body.days["2026-11-25"]).toEqual([next]);
+  });
+
+  test("enough people: it runs and stays open, and is not decided again", async () => {
+    const { t, id } = await withClass();
+    await signUp(t, id, 1);
+    await signUp(t, id, 2);
+    t.clock.now = new Date(Date.parse(wed) - 2 * 3600_000);
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 1 });
+    expect(t.refunds).toEqual([]);
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 0 });
+    // Someone cancelling after the decision doesn't cancel the class.
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ decision: "runs", count: 2 });
+  });
+
+  test("someone still paying holds the decision until the next sweep", async () => {
+    const { t, id } = await withClass();
+    await signUp(t, id, 1);
+    await t.pub({ action: "bookingStart", serviceId: id, start: wed, ...person(2) });
+    t.clock.now = new Date(Date.parse(wed) - 2 * 3600_000);
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 0 });
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toBeUndefined();
+  });
+
+  test("a course is decided on its first date and every date closes", async () => {
+    const t = setup();
+    await t.seed();
+    const dates = ["2026-11-28T18:00", "2026-12-05T18:00"];
+    const id = (await t.adm({ op: "saveService", service: { name: "Wheel course", minutes: 120, places: 4, payment: "free", courseDates: dates, minPlaces: 3, decideHours: 48 } })).body.service.id;
+    const made = (await t.adm({ op: "create", serviceId: id, ...person(1) })).body;
+    const bid = made.id || made.booking?.id;
+    t.clock.now = new Date(Date.parse(at("2026-11-26", "19:00")));
+    t.emails.length = 0;
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 1, ran: 0 });
+    expect(t.db.store.get(`bookings/${bid}`).status).toBe("cancelled");
+    expect(t.emails.find((e) => e.to === "p1@example.com").html).toContain("for this course to run");
+    const second = Object.values(t.db.store.get("bookingDays/2026-12-05").items);
+    expect(second).toEqual([expect.objectContaining({ s: id, closed: true })]);
+  });
+
+  test("without a minimum nothing is decided", async () => {
+    const { t, id } = await withClass({ minPlaces: 0 });
+    await signUp(t, id, 1);
+    t.clock.now = new Date(Date.parse(wed) - 2 * 3600_000);
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 0 });
+  });
+});

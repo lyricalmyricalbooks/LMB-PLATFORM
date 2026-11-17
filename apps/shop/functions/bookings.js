@@ -57,7 +57,7 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, isCourse, joinableCourse, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, isCourse, joinableCourse, runDecisionDue, classStartsOn, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
@@ -136,6 +136,8 @@ const MINUTE = 60_000;
 /** A hold the sweep never got to (a failed run) stops blocking its time after this long. */
 const STALE_HOLD_MS = 2 * 60 * 60 * 1000;
 const MAX_DAYS_ASKED = 14;
+/** The most sign-ups read for one class time (a class has at most 100 places). */
+const MAX_PLACES_READ = 300;
 /** The most one payment taken at the desk may be (a typo guard: $10,000). */
 const WALK_IN_MAX_MINOR = 1_000_000;
 /** How many people may wait for one day of one service. */
@@ -169,7 +171,9 @@ function busyFrom(daySnaps, nowMs, except = "") {
       if (item.offer && Number.isFinite(item.until) ? nowMs > item.until + OFFER_GRACE_MS : item.held && Number.isFinite(item.at) && nowMs - item.at > STALE_HOLD_MS) continue;
       busy.push({ start: item.start, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined,
         // Whose booking it is and which room it uses (staff and rooms); an older item without them blocks everyone.
-        ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}) });
+        ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}),
+        // A class time cancelled for too few people (sweepMinimum): it closes that class then, nothing else.
+        ...(item.closed === true ? { closed: true } : {}) });
     }
   }
   return busy;
@@ -426,7 +430,7 @@ function bookingActions({
   }
 
   /** Emails the customer (and tells the owner) about a booking. `kind`: booked, moved, cancelled. Never throws. */
-  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "", siteReview = false } = {}) {
+  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "", siteReview = false, tooFew = false } = {}) {
     try {
       const to = b.customer?.email;
       if (!to || !EMAIL.test(to)) return;
@@ -458,7 +462,7 @@ function bookingActions({
         notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
         booked: `You're booked in with ${escapeHtml(shop)}.`,
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
-        cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
+        cancelled: `${tooFew ? `Not enough people signed up for this ${b.course ? "course" : "class"} to run, so ${escapeHtml(shop)} has cancelled it. Sorry for the change of plans.` : `Your booking with ${escapeHtml(shop)} is cancelled.`}${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
       const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid" || kind === "thanks";
       // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
@@ -534,7 +538,7 @@ function bookingActions({
     if (!isClass(service)) return [];
     const others = busy.filter((b) => b.serviceId !== service.id);
     const open = new Set(freeTimes({ service, settings, busy, day, zone: zone(), nowMs }));
-    return freeTimes({ service, settings, busy: others, day, zone: zone(), nowMs }).filter((ms) => !open.has(ms) && busy.some((b) => b.serviceId === service.id && b.start === ms));
+    return freeTimes({ service, settings, busy: others, day, zone: zone(), nowMs }).filter((ms) => !open.has(ms) && busy.some((b) => b.serviceId === service.id && b.start === ms && !b.closed));
   }
 
   /**
@@ -1117,6 +1121,38 @@ function bookingActions({
    * Refunds what a booking took by card (all of it unless a part is named): the rest's payment first, then the booking's
    * own. Returns the refund, or null when nothing was paid by card.
    */
+  /**
+   * The shop cancels a booking (`b` already settled with settleRest): refunds `amount` of what was paid by card, puts a
+   * gift card's part and a pack's visit back unless kept (giftBack / packBack false), frees its time and tells the
+   * customer when it was confirmed. A refund that can't start throws (`refundFailed`) and leaves the booking on.
+   * `tooFew`: cancelled because a class didn't reach its minimum (the email says so).
+   */
+  async function shopCancel(id, b, { amount = 0, by = "shop", giftBack: keepGift = true, packBack: keepVisit = true, notify = true, tooFew = false } = {}) {
+    const onCard = cardTaken(b);
+    let refund = null;
+    if (amount > 0) {
+      try { refund = await refundBooking(id, b, amount); } catch (err) {
+        console.error(`Booking ${id} refund failed:`, err?.message || err);
+        throw Object.assign(new Error("refund failed"), { refundFailed: true });
+      }
+    }
+    const at = now().toISOString();
+    // The gift card's part goes back onto it unless the shop keeps it (giftBack: false).
+    const giftBack = keepGift && !!b.giftCard?.amountMinor && !b.giftCard.returned;
+    // The pack's visit goes back onto it unless the shop keeps it (packBack: false, a late cancel).
+    const packBack = keepVisit && !!b.pack?.id && !b.pack.returned;
+    const what = [refund ? "refunded" : "", giftBack ? "gift card put back" : "", packBack ? "visit put back on the pack" : ""].filter(Boolean).join(" and ");
+    const why = tooFew ? " (not enough people to run)" : "";
+    const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, holdUntil: null, updatedAt: at, ...(refund ? { refund } : {}), ...(tooFew ? { cancelledFor: "minimum" } : {}),
+      history: [...(b.history || []), { at, what: `${what ? `cancelled and ${what}` : "cancelled"}${why}`, by }].slice(-20) };
+    await freeTime(id, b, changes, { giftBack, packBack });
+    await syncCalendar(id, { ...b, ...changes });
+    const paid = b.payment === "deposit" && !b.rest ? "deposit" : "payment";
+    const cardWordsBack = !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${paid} is being refunded to your card.` : `Your ${paid} is being refunded to your card.`;
+    if (notify && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, tooFew, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}${packBack ? packBackWords(b) : ""}`.trim() });
+    return { refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}), ...(packBack ? { packBack: true } : {}) };
+  }
+
   async function refundBooking(id, b, amountMinor = cardTaken(b)) {
     if (!cardTaken(b) || b.refund?.refundId) return null;
     const mode = (await shopTestMode()) ? "test" : "live";
@@ -1398,12 +1434,13 @@ function bookingActions({
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, minPlaces }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // A course: every one of its dates (signed up for as a whole, from the first).
             ...(isCourse({ places, courseDates }) ? { courseStarts: courseStarts({ places, courseDates }, zone()).map((ms) => new Date(ms).toISOString()) } : {}),
             // Joining a course late: how many dates were missed, of how many, and the whole course's price.
             ...(joining ? { joining } : {}),
+            ...(minPlaces ? { minPlaces } : {}),
             // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
             ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
@@ -2212,31 +2249,19 @@ function bookingActions({
       if (op === "cancel") {
         if (b.status === "cancelled") return res.status(200).json({ ok: true });
         b = await settleRest(id, b);
-        let refund = null;
         // refund: true is the whole payment; refundMinor a part of it (a shop keeping a deposit), 0 for none.
         const part = req.body?.refundMinor;
         const onCard = cardTaken(b);
         const amount = part === undefined ? (req.body?.refund === true ? onCard : 0) : Number(part);
         if (!Number.isInteger(amount) || amount < 0 || amount > onCard) return fail(res, 400, "The refund can't be more than they paid.");
-        if (amount > 0) {
-          try { refund = await refundBooking(id, b, amount); } catch (err) {
-            console.error(`Booking ${id} refund failed:`, err?.message || err);
-            return fail(res, 502, "The refund couldn't be started, so the booking is still on. Try again in a minute.");
-          }
+        let out;
+        try {
+          out = await shopCancel(id, b, { amount, by, giftBack: req.body?.giftBack !== false, packBack: req.body?.packBack !== false, notify: req.body?.notify !== false });
+        } catch (err) {
+          if (!err?.refundFailed) throw err;
+          return fail(res, 502, "The refund couldn't be started, so the booking is still on. Try again in a minute.");
         }
-        const at = now().toISOString();
-        // The gift card's part goes back onto it unless the shop keeps it (giftBack: false).
-        const giftBack = req.body?.giftBack !== false && !!b.giftCard?.amountMinor && !b.giftCard.returned;
-        // The pack's visit goes back onto it unless the shop keeps it (packBack: false, a late cancel).
-        const packBack = req.body?.packBack !== false && !!b.pack?.id && !b.pack.returned;
-        const what = [refund ? "refunded" : "", giftBack ? "gift card put back" : "", packBack ? "visit put back on the pack" : ""].filter(Boolean).join(" and ");
-        const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, holdUntil: null, updatedAt: at, ...(refund ? { refund } : {}),
-          history: [...(b.history || []), { at, what: what ? `cancelled and ${what}` : "cancelled", by }].slice(-20) };
-        await freeTime(id, b, changes, { giftBack, packBack });
-        await syncCalendar(id, { ...b, ...changes });
-        const cardWordsBack = !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.` : `Your ${b.payment === "deposit" && !b.rest ? "deposit" : "payment"} is being refunded to your card.`;
-        if (req.body?.notify !== false && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}${packBack ? packBackWords(b) : ""}`.trim() });
-        return res.status(200).json({ ok: true, refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}), ...(packBack ? { packBack: true } : {}) });
+        return res.status(200).json({ ok: true, ...out });
       }
       if (op === "move") {
         if (b.status !== "confirmed") return fail(res, 409, "Only a confirmed booking can be moved.");
@@ -2736,6 +2761,95 @@ function bookingActions({
     return { reminded };
   }
 
+  /**
+   * Minimum number to run (Classes, 17 November 2026). For each class time with a minimum whose decide time has come
+   * (`runDecisionDue`: from `decideHours` before it starts), once: with at least `minPlaces` confirmed it runs; with fewer,
+   * that time closes (a `closed` item on its days, on every date of a course, so nobody signs up after) and every
+   * confirmed sign-up is cancelled, refunded in full (gift card and pack visit put back) and emailed, and the owner gets
+   * one email. A time with someone still paying is left to the next sweep. The decision is kept in
+   * `bookingRuns/<serviceId>~<startMs>`, written before anything else, so a second sweep never decides twice.
+   */
+  const runs = () => db.collection("bookingRuns");
+  async function sweepMinimum() {
+    if (!(await featureOn())) return { cancelled: 0, ran: 0 };
+    const nowMs = now().getTime();
+    const wanted = (await readServices()).filter((s) => s.minPlaces);
+    let cancelled = 0;
+    let ran = 0;
+    for (const service of wanted) {
+      // A course is decided on its first date; a weekly class on each of its times between now and its decide time.
+      const starts = isCourse(service) ? courseStarts(service, zone()).slice(0, 1)
+        : Array.from({ length: Math.ceil(service.decideHours / 24) + 2 }, (_, i) => addDays(dayOf(nowMs, zone()), i)).flatMap((d) => classStartsOn(d, service, zone()));
+      for (const start of starts) {
+        if (!runDecisionDue(start, service, nowMs)) continue;
+        const runRef = runs().doc(`${service.id}~${start}`);
+        if ((await runRef.get()).exists) continue;
+        const iso = new Date(start).toISOString();
+        const snap = await bookings().where("start", "==", iso).limit(MAX_PLACES_READ).get();
+        const mine = snap.docs.map((d) => ({ id: d.id, b: d.data() })).filter((x) => x.b.serviceId === service.id);
+        if (mine.some((x) => x.b.status === "held")) continue;
+        const going = mine.filter((x) => x.b.status === "confirmed");
+        const decidedAt = new Date(nowMs).toISOString();
+        if (going.length >= service.minPlaces) {
+          await runRef.set({ serviceId: service.id, start: iso, decision: "runs", count: going.length, minPlaces: service.minPlaces, decidedAt });
+          ran += 1;
+          continue;
+        }
+        await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt });
+        await closeClassTime(service, start);
+        for (const { id, b } of going) {
+          try {
+            const settled = await settleRest(id, b);
+            await shopCancel(id, settled, { amount: cardTaken(settled), by: "minimum", tooFew: true });
+          } catch (err) {
+            console.error(`bookings: couldn't cancel ${id} for the minimum:`, err?.message || err);
+          }
+        }
+        await tellOwnerTooFew(service, start, going);
+        cancelled += 1;
+      }
+    }
+    return { cancelled, ran };
+  }
+
+  /** Closes a class time (every date of a course) so nobody signs up for it again: a `closed` item on each of its days. */
+  async function closeClassTime(service, start) {
+    const length = (service.minutes + (service.gapAfter || 0)) * MINUTE;
+    const spans = (isCourse(service) ? courseStarts(service, zone()) : [start]).map((ms, n) => ({ key: `closed~${service.id}~${start}${n ? `~${n}` : ""}`, start: ms, end: ms + length }));
+    for (const x of spans) {
+      const day = dayOf(x.start, zone());
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(dayRef(day));
+        const items = { ...((snap.exists ? snap.data()?.items : null) || {}) };
+        items[x.key] = { start: x.start, end: x.end, s: service.id, closed: true };
+        tx.set(dayRef(day), { items });
+      });
+    }
+  }
+
+  /** The owner's email that a class time didn't reach its minimum and who was cancelled. Never throws. */
+  async function tellOwnerTooFew(service, start, going) {
+    try {
+      const owner = ownerEmail();
+      if (!owner) return;
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const when = whenWords({ start: new Date(start).toISOString() });
+      const kind = isCourse(service) ? "course" : "class";
+      const people = going.length ? `<ul style="margin:0 0 16px;padding-left:20px;">${going.map(({ b }) => `<li>${escapeHtml(b.customer?.name || "")} · ${escapeHtml(b.customer?.email || "")}</li>`).join("")}</ul>` : "";
+      const html = risoLayout(`
+        <h4 style="margin:0 0 8px;">Not enough people</h4>
+        <h2 style="margin:0 0 12px;">${escapeHtml(service.name)}, ${escapeHtml(when)}</h2>
+        <p style="margin:0 0 12px;">${going.length} signed up and this ${kind} needs ${service.minPlaces}, so it has been cancelled and nobody else can sign up for it.${going.length ? ` ${going.length === 1 ? "They were" : "Each of them was"} refunded in full and emailed:` : ""}</p>
+        ${people}
+        ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to: owner, subject: `[BOOKING] Not enough people: ${service.name}, ${when}`, html });
+    } catch (err) {
+      console.error("bookings: minimum email to the owner failed:", err?.message || err);
+    }
+  }
+
   /** The rebook reminder itself. Never throws. */
   async function tellRebook(b, service, email) {
     try {
@@ -2758,7 +2872,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
