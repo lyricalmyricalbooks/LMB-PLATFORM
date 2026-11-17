@@ -4,7 +4,7 @@
    tiles on the surface, the next step on the inverse ink tile, "ready" and "open" on the success tint. Each look keeps
    its own corners and type, so the board reads as part of whichever look the press chose. */
 
-.rp:not(.studio-editor) .rp-sb { display: grid; gap: 16px; margin-bottom: 16px; min-width: 0; }
+.rp:not(.studio-editor) .rp-sb { display: grid; gap: 16px; margin-bottom: 16px; padding-top: 24px; min-width: 0; }
 .rp:not(.studio-editor) .rp-sb-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; }
 .rp:not(.studio-editor) .rp-sb-eyebrow { margin: 0 0 6px; font: 500 12px/1.2 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--rp-text-muted); }
 .rp:not(.studio-editor) .rp-sb-title { margin: 0; font-family: var(--rp-font-display); font-weight: var(--rp-title-weight, 600); font-size: clamp(30px, 4vw, 44px); line-height: 1.02; letter-spacing: -0.03em; text-transform: none; color: var(--rp-text); }
