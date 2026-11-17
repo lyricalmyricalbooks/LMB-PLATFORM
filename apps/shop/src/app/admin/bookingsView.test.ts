@@ -4,6 +4,7 @@ import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/booking
 import type { Booking } from "./bookingsApi";
 
 const ZONE = "America/Toronto";
+const AFTER = Date.parse("2027-01-01T00:00:00.000Z");
 const b = (over: Partial<Booking>): Booking => ({
   id: "x", serviceId: "s", serviceName: "Visit", minutes: 60, start: "2026-11-17T15:00:00.000Z", end: "2026-11-17T16:00:00.000Z",
   customer: { name: "Ada", email: "ada@example.com" }, status: "confirmed", payment: "free", priceMinor: 0, currency: "CAD", paid: false, ...over,
@@ -194,7 +195,7 @@ describe("team pay", () => {
       paid({ id: "7", staffId: "ana", status: "held" }),
       paid({ id: "8", staffId: "ana", start: "2026-12-01T15:00:00.000Z", end: "2026-12-01T16:00:00.000Z" }),
     ];
-    const pay = teamPay(rows, staff, ZONE, "2026-11");
+    const pay = teamPay(rows, staff, ZONE, "2026-11", AFTER);
     expect(pay.people.map((l) => [l.id, l.name, l.visits, l.takenMinor, l.percent, l.commissionMinor, l.tipsMinor])).toEqual([
       // Two kept visits' worth (the no-show still paid), the refunded one counts nothing; a held one and December don't count.
       ["ana", "Ana", 1, 20_000, 40, 8_000, 2_000],
@@ -209,8 +210,14 @@ describe("team pay", () => {
   it("keeps the month by the shop's own day", () => {
     // 2 a.m. UTC on 1 December is still 30 November in Toronto.
     const late = paid({ staffId: "ana", start: "2026-12-01T02:00:00.000Z", end: "2026-12-01T03:00:00.000Z" });
-    expect(teamPay([late], [person({})], ZONE, "2026-11").people[0].visits).toBe(1);
-    expect(teamPay([late], [person({})], ZONE, "2026-12").people[0].visits).toBe(0);
+    expect(teamPay([late], [person({})], ZONE, "2026-11", AFTER).people[0].visits).toBe(1);
+    expect(teamPay([late], [person({})], ZONE, "2026-12", AFTER).people[0].visits).toBe(0);
+  });
+
+  it("counts a visit only once it has started", () => {
+    const later = paid({ staffId: "ana", start: "2026-11-20T15:00:00.000Z", end: "2026-11-20T16:00:00.000Z" });
+    expect(teamPay([later], [person({})], ZONE, "2026-11", Date.parse("2026-11-17T12:00:00.000Z")).people[0].visits).toBe(0);
+    expect(teamPay([later], [person({})], ZONE, "2026-11", Date.parse("2026-11-20T15:00:00.000Z")).people[0].visits).toBe(1);
   });
 
   it("writes a spreadsheet with a total row", () => {

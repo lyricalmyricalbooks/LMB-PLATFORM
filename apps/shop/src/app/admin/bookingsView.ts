@@ -445,7 +445,7 @@ export function hourLabel(min: number): string {
 export type PayLine = { id: string; name: string; visits: number; takenMinor: number; percent: number; commissionMinor: number; tipsMinor: number };
 export type TeamPay = { month: string; people: PayLine[]; takenMinor: number; commissionMinor: number; tipsMinor: number };
 
-export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[], zone: string, month: string): TeamPay {
+export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[], zone: string, month: string, now = Date.now()): TeamPay {
   const lines = new Map<string, PayLine>();
   const line = (id: string, name: string, percent: number) => {
     if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, percent, commissionMinor: 0, tipsMinor: 0 });
@@ -459,7 +459,8 @@ export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[],
     const kept = moneyKept(b);
     l.takenMinor += kept - taxIn(b, kept);
     l.tipsMinor += tipTaken(b);
-    if (b.status === "confirmed" && !b.noShow) l.visits += 1;
+    // A visit counts once it has started; later ones this month aren't visits yet.
+    if (b.status === "confirmed" && !b.noShow && Date.parse(b.start) <= now) l.visits += 1;
   }
   const people = [...lines.values()]
     .filter((l) => l.visits || l.takenMinor || l.tipsMinor || staff.some((p) => p.id === l.id && p.active))
