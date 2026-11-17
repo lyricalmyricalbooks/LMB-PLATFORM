@@ -82,7 +82,7 @@ function NewBooking({ c }: { c: Copy }) {
   const [start, setStart] = useState("");
   // Who takes it when the shop lists people: one of them, or "" for anyone free.
   const [staffId, setStaffId] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
   const [busy, setBusy] = useState(false);
@@ -170,7 +170,7 @@ function NewBooking({ c }: { c: Copy }) {
     setError("");
     try {
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...(staffId ? { staffId } : {}), ...form, answers, ...held, ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -282,6 +282,17 @@ function NewBooking({ c }: { c: Copy }) {
               <input id="bt-phone" type="tel" className="fm-track-input" autoComplete="tel" value={form.phone} maxLength={40}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </Field>
+            {info.texts && (
+              <div {...regionProps("bookingsTexts")} className="text-sm leading-6">
+                <label htmlFor="bt-text-ok" className="flex items-start gap-2.5">
+                  <input id="bt-text-ok" type="checkbox" checked={form.textOk} disabled={!form.phone.trim()}
+                    onChange={(e) => setForm({ ...form, textOk: e.target.checked })}
+                    aria-describedby="bt-text-ok-hint" className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--accent)]" />
+                  <span>{c("bookTimeTextOk")}</span>
+                </label>
+                <p id="bt-text-ok-hint" className="fm-muted text-xs mt-1">{c(form.phone.trim() ? "bookTimeTextOkHint" : "bookTimeTextOkNeedsPhone")}</p>
+              </div>
+            )}
             {questions.map((q) => {
               const id = `bt-q-${q.id}`;
               const problem = problems.answers?.[q.id];

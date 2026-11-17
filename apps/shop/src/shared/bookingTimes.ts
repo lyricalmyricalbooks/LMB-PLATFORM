@@ -156,6 +156,11 @@ export type BookingSettings = {
    * booking page; the owner approves each one before it shows in the Client reviews section.
    */
   siteReviews?: boolean;
+  /**
+   * Text-message reminders (Services plan phase 7): the reminder and the second reminder also go by text to a client who
+   * ticked "Text me reminders" and gave a mobile number. Sent through the platform, billed to the shop at cost.
+   */
+  textReminders?: boolean;
 };
 
 /**
@@ -196,6 +201,7 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   thankYou: false,
   reviewUrl: "",
   siteReviews: false,
+  textReminders: false,
   staff: [],
   rooms: [],
 };
@@ -479,6 +485,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     thankYou: s.thankYou === true,
     reviewUrl: reviewLink(s.reviewUrl),
     siteReviews: s.siteReviews === true,
+    textReminders: s.textReminders === true,
   };
 }
 

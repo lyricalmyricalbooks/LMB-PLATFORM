@@ -36,6 +36,23 @@ export function firestoreSentLog(firestore) {
   };
 }
 
+/** textSent/<shopId>_<key>: the platform's text-message log (services/texts). Equality filters only, no extra index. */
+export function firestoreTextLog(firestore) {
+  const id = (key) => String(key).replace(/\//g, "_");
+  return {
+    get: (key) => firestore.get(`textSent/${id(key)}`),
+    put: (key, entry) => firestore.set(`textSent/${id(key)}`, entry),
+    async countSince(shopId, since) {
+      const rows = await firestore.query("textSent", { where: [["shopId", "==", shopId], ["status", "==", "sent"]], limit: 20000 });
+      return rows.filter((row) => row.data.at >= since).length;
+    },
+    async listMonth(month) {
+      const rows = await firestore.query("textSent", { where: [["month", "==", month]], limit: 50000 });
+      return rows.map((row) => row.data);
+    },
+  };
+}
+
 /** paymentAccounts/<shopId>: { provider, accountId, mode, createdAt }. */
 export function firestoreAccounts(firestore) {
   return {

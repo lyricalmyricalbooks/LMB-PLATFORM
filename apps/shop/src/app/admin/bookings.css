@@ -457,3 +457,4 @@
 /* A short visit shows its time and name on one line, so nothing is cut off. */
 .rp .bkg-tday-block[data-short] { grid-auto-flow: column; justify-content: start; align-items: baseline; gap: 6px; padding: 4px 8px; }
 .rp .bkg-tday-block[data-short] .bkg-slot-what, .rp .bkg-tday-block[data-short] .bkg-slot-tag { display: none; }
+.rp .bkg-texts-soon { margin: -8px 0 12px; }

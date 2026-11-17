@@ -196,3 +196,22 @@ Julian, once:
 Prices are settings, in cents: `BANK_FEED_PRICE_CAD` (400), `BANK_FEED_PRICE_USD` (300), `BANK_FEED_EXTRA_CAD` (150),
 `BANK_FEED_EXTRA_USD` (100) for each bank past `BANK_FEED_INCLUDED_BANKS` (2). A shop can connect up to 6 banks.
 
+## Text reminders (booking reminders by text, at cost)
+
+A shop with Bookings switches on Calendar › Hours & rules › **Send reminders by text too**; clients who tick
+"Text me reminders" and give a mobile number then get the reminder and the second reminder by text as well as email
+(`services/texts`). Each text part is billed to the shop at cost on its next bill ("Text messages, November 2026"),
+nothing during the trial. Until the keys are in, shops see "Opening soon".
+
+Julian, once:
+
+1. **Make a Twilio account** at console.twilio.com and buy a **toll-free number** (Canada and the US); fill in
+   Twilio's toll-free verification form (business name, sample message, opt-out "Reply STOP"). Texts may be held
+   until it is approved.
+2. **Store two secrets** in the platform project's Secret Manager: `twilio-account-sid` and `twilio-auth-token`
+   (Twilio console › Account info).
+3. **Switch it on.** Add `TWILIO_FROM: "+1…"` (the number) and `TEXTS: "on"` to the repository variable
+   `SERVER_SETTINGS`; the next deploy carries it and the Launch page shows "Text-message reminders" ready.
+
+Prices are settings, in millionths of a dollar per text part: `TEXT_PART_MICROS_CAD` (16000) and
+`TEXT_PART_MICROS_USD` (11600). Change them if Twilio's price changes.

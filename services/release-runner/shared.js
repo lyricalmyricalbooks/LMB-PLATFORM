@@ -72,6 +72,9 @@ export function sharedServerEnv({ platformUrl, region = REGION }) {
     // Bank feed (services/bankfeed, beta, a paid add-on): Bookkeeping › Transactions connects the shop's bank through
     // Plaid. Until the platform has BANK_FEED on, the card says "Opening soon".
     `PLATFORM_BANK_FEED_URL="${base}/api/bank-feed"`,
+    // Text-message reminders (services/texts): Bookings sends reminders by text to clients who asked. Until the platform
+    // has TEXTS on, the switch says "Opening soon".
+    `PLATFORM_TEXTS_URL="${base}/api/texts"`,
     "",
   ].join("\n");
 }

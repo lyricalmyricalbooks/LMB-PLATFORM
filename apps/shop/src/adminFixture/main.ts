@@ -167,6 +167,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   const watchers = new Set<() => void>();
   const changed = () => watchers.forEach((w) => w());
   const readerMode = new URLSearchParams(window.location.search).get("readers") || "";
+  const textsSoon = new URLSearchParams(window.location.search).get("texts") === "soon";
   const DECLINE = new URLSearchParams(window.location.search).get("reader") === "decline";
   let readerList = readerMode === "empty" ? [] : [
     { id: "tmr_fixture1", label: "Front desk", online: true, device: "WisePOS E" },
@@ -192,6 +193,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
+    // Text reminders: open with a price, or ?texts=soon for a platform without the text company's keys.
+    if (op === "textStatus") return textsSoon ? { available: false, price: "" } : { available: true, price: "1.6¢" };
     if (op === "walkIn") {
       const s = services.find((x) => x.id === body.serviceId) || services[0];
       const walk = booking(`walk-${rows.length + 1}`, s, new Date().toISOString(), String(body.name), { payment: "atShop", paid: false, priceMinor: Number(body.priceMinor ?? s.priceMinor), source: "admin", customer: { name: String(body.name), email: String(body.email || "") } });

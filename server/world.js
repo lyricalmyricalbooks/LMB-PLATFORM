@@ -75,6 +75,7 @@ import { createAppShopDoor } from "../services/apps/shopDoor.js";
 import { createShippoLink, firestoreShippoStates, shippoLinkConfig } from "../services/shippo/link.js";
 import { createReceiptMail, receiptShopDoorRoutes } from "../services/receipts/index.js";
 import { bankFeedShopDoorRoutes, createBankFeed } from "../services/bankfeed/index.js";
+import { createTexts, textShopDoorRoutes } from "../services/texts/index.js";
 import { createRecovery, recoveryByHand } from "../accounts/recovery.js";
 import { recoveryRoutes } from "../accounts/recoveryRoutes.js";
 import { deviceWatch } from "../accounts/devices.js";
@@ -140,7 +141,7 @@ import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { registryFiles, shopDataClient, stockroomDataClient } from "../clients/shop.js";
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
-  firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreSupport, firestoreWaitlist,
+  firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreTextLog, firestoreSupport, firestoreWaitlist,
   firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState, firestoreChitChats, firestoreMailchimp,
 } from "../clients/stores.js";
 import {
@@ -227,6 +228,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const receiptMail = createReceiptMail({ env, fetch, token, registry, auditLog, now });
   // Bank feed (beta, a paid add-on): each shop's banks through Plaid, read-only (services/bankfeed).
   const bankFeed = createBankFeed({ env, fetch, registry, auditLog, plusTax: readBillingConfig(env).tax, now });
+  // Text-message reminders: shops' booking reminders by text, billed at cost (services/texts).
+  const texts = createTexts({ env, fetch, registry, log: firestoreTextLog(platform), now });
 
   // Billing on Stripe's test mode (services/payments alone reads the key).
   const billingStores = firestoreBillingStores(platform);
@@ -409,7 +412,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const tookData = createTookData({ admins, registry, shopData, exports: dataExportStore, now });
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now });
-  const bookingsBeta = createBookingsBeta({ admins, registry, auditLog, shopData, activity, now });
+  const bookingsBeta = createBookingsBeta({ admins, registry, auditLog, shopData, activity, texts, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
   const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
   const appUse = createAppUse({ admins, installs: appInstallStore, outbox: appAlertOutbox, now });
@@ -460,7 +463,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const termsNotice = createTermsNotice({ signups: stores.signups, email, settings: live, now });
 
   // What the jobs can run (server/jobs.js reads these); the jobs page's "Run now" runs the ones that need nothing more.
-  const parts = { bankFeed, sharedShops: Boolean(sharedRun), accounting, social, googleLink, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
+  const parts = { bankFeed, texts, sharedShops: Boolean(sharedRun), accounting, social, googleLink, domains, usage, usageMeters, costReader, ownApps, chitchats, chitchatsStores, mailchimp, env, fetch, token, projectId, now, settings, live, platform, registry, auditLog, shopData, email, billing, closing, shopMaker, pressMessages, incomeHistory, trialTips, checkups, termsNotice };
   const runNow = {
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
@@ -526,7 +529,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...exportRoutes(dataExports),
   };
   const door = createApi({
-    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers, shippo: shippoLink })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
+    signup, verifyIdToken: createIdTokenVerifier({ projectId, fetch, now: nowMs }), settings, live, plusTax: readBillingConfig(env).tax, routes, publicRoutes: { ...frontDoorPublicRoutes(frontDoor), ...billingPublicRoutes({ billing }), ...appStorePublicRoutes(appMakers), ...appInstallPublicRoutes(appInstalls), ...appShopDoorRoutes(createAppShopDoor({ registry, installs: appInstalls, makers: appMakers, shippo: shippoLink })), ...receiptShopDoorRoutes(receiptMail), ...bankFeedShopDoorRoutes(bankFeed), ...textShopDoorRoutes(texts), ...chitChatsPublicRoutes(chitchats), ...mailchimpPublicRoutes(mailchimp) },
     onSignedIn: deviceWatch({ devices: firestoreDevices(platform), email, now }),
     limits: createLimits({ throttle: firestoreThrottle(platform), admins, proxyHops: proxyHopsOf(env), now, log }),
     log,

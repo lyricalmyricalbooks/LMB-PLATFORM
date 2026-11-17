@@ -1436,3 +1436,14 @@ name shortened to "Ada R.") writes, in one transaction, `reviews/{id}` (`source:
 `staffName`, `status: "pending"`, `verified: true`), admin-only `reviewContacts/{id}` and the booking's `reviewId`; a second
 try is 409 `reviewed`. The owner gets a `[REVIEW]` email and approves it in Reviews. `bookingInfo.reviews` lists the newest 12
 approved ones (`visitReviews`: one `source ==` query, no index) only while `siteReviews` is on, for the Client reviews section.
+
+**Text reminders (17 November 2026, Services plan phase 7, `tasks/todo/2026-11-17-text-reminders.md`).** Settings
+`textReminders` (Hours & rules › Text reminders, off by default). With `PLATFORM_TEXTS_URL` set (`shopConfig.platformTextsUrl`,
+written by the release runner), index.js gives `bookingActions` a `texts` sender (`textSender.js`: `status()` cached five
+minutes per shop, `send()`; never throws). `bookingInfo.texts` is true only when the switch is on and the platform answers
+`available`. A client ticks "Text me reminders" with a phone of 7+ digits (`cleanCustomer` keeps `textOk`). After the
+reminder and second-reminder emails, `textReminder` sends the short text (service, shop, time, person, the manage link,
+"Reply STOP"), key `booking-<id>-<kind>-<hash>` so a rerun never texts twice, and stamps `reminderTextAt` /
+`reminder2TextAt`; `optedOut` sets `customer.textOk = false`. Admin op `textStatus` answers the price for the tile. The
+platform bills the texts at cost (LMB-PLATFORM `services/texts`). Tests: bookings.test.js › text-message reminders,
+textSender.test.js.

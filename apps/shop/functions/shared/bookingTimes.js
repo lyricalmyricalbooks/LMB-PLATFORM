@@ -89,6 +89,7 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     thankYou: false,
     reviewUrl: "",
     siteReviews: false,
+    textReminders: false,
     staff: [],
     rooms: [],
 };
@@ -387,6 +388,7 @@ function cleanBookingSettings(raw) {
         thankYou: s.thankYou === true,
         reviewUrl: reviewLink(s.reviewUrl),
         siteReviews: s.siteReviews === true,
+        textReminders: s.textReminders === true,
     };
 }
 exports.MAX_REBOOK_WEEKS = 52;

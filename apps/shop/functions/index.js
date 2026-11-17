@@ -1943,6 +1943,8 @@ const { handleInvoicePay, handleInvoicePayOpen } = require("./invoicePay").invoi
 });
 // Bookings (beta, bookings.js): customers book a time from /book; off until the platform turns it on for the shop.
 const bookingDesk = require("./bookings").bookingActions({
+  // Text-message reminders through the platform (PLATFORM_TEXTS_URL), billed to the shop at cost; none without the door.
+  texts: shopConfig.platformTextsUrl ? require("./textSender").createTextSender({ url: shopConfig.platformTextsUrl, shopId: platformShopId, serviceKey: platformServiceKey }) : null,
   calendar: require("./googleConnect").googleCalendarSync({ url: shopConfig.platformGoogleUrl, shopId: platformShopId, serviceKey: platformServiceKey }),
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),

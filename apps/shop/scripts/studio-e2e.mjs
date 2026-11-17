@@ -2110,6 +2110,23 @@ await check("the Book a time page opens in the designer with sample services, cl
   await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().waitFor({ timeout: 10000 });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 
+await check("the Book a time form offers Text me reminders, which needs a phone number first", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-store-region=bookingsService]").first().waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
+  await frame.locator("[data-store-region=bookingsService]").nth(1).click();
+  await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().click({ timeout: 10000 });
+  await frame.locator("[data-store-region=bookingsTimes] button.fm-track-btn:not([disabled])").first().click();
+  const box = frame.locator("[data-store-region=bookingsTexts] input[type=checkbox]");
+  await box.waitFor({ timeout: 10000 });
+  if (!(await box.isDisabled())) throw new Error("the tick box works before a phone number is given");
+  await frame.locator("#bt-phone").fill("416 555 0199");
+  await box.check();
+  if (!(await box.isChecked())) throw new Error("the tick box didn't tick");
+  if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsForm]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-texts.png` });
+}, "?bookings=1#designer?t=bookingsPage&tab=sections");
+
 await check("a Book a time section added to the home page shows sample services that link to the booking page", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

@@ -901,3 +901,8 @@ confirmation card: a QR code (`qrcode-generator`, loaded only there) and the let
 (`bookTimeCheckInLabel`, `bookTimeCheckInText`, `bookTimeCheckInQr`, `bookTimeCheckedIn`, French twins); once checked in
 it says so instead. CSS `.fm-book-checkin*` in `bookTimeStyle.ts` (theme tokens, stacks at 420px). The desk scans it from
 Take a payment or the Fair till (`admin/CheckInDialog.tsx`).
+
+**Text me reminders on the booking page (17 November 2026).** When `bookingInfo.texts` is true, `BookTime.tsx` shows a tick
+box after the phone field (region `bookingsTexts`, words Text & labels › Bookings page `bookTimeTextOk`,
+`bookTimeTextOkHint`, `bookTimeTextOkNeedsPhone`, French twins); it is disabled until a phone is typed and is sent as
+`textOk` only with one. Studio's preview shows it (`bookTimePreview.ts` `texts: true`).

@@ -81,7 +81,8 @@ export function bookingsUse(services, bookings, nowMs) {
   };
 }
 
-export function createBookingsBeta({ admins, registry, auditLog, shopData, activity = null, now = () => new Date() }) {
+// `texts` (optional): the platform's text-message reminders (services/texts `forShop`), for this month's texts and cost.
+export function createBookingsBeta({ admins, registry, auditLog, shopData, activity = null, texts = null, now = () => new Date() }) {
   const at = () => now().toISOString();
 
   async function liveShop(claims, shopId) {
@@ -125,6 +126,8 @@ export function createBookingsBeta({ admins, registry, auditLog, shopData, activ
             changedAt: features?.bookingsChangedAt ?? null,
             changedBy: features?.bookingsChangedBy ?? null,
             use: bookingsUse(services, bookings, nowMs),
+            // Text-message reminders this month and what they cost the shop, at cost; null while texts aren't open.
+            texts: texts?.available ? await texts.forShop(shopId).catch(() => null) : null,
           },
         };
       } catch (failure) {

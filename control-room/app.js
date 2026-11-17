@@ -3616,7 +3616,8 @@ function bookingsBetaSection(shop) {
         b.changedAt ? meta(`${b.on ? "turned on" : "turned off"} ${dateOnly(b.changedAt)}${b.changedBy ? ` by ${b.changedBy}` : ""}`) : null),
       u.services || u.lastDays || u.nextDays
         ? el("p", { className: "rp-hint", textContent: `${plural(u.services, "service")} on offer${u.hiddenServices ? ` (${u.hiddenServices} hidden)` : ""}. ${plural(u.lastDays, "booking")} in the last 30 days, ${u.nextDays} coming in the next 30${u.cancelled ? `, ${u.cancelled} cancelled` : ""}. ${u.paid} paid by card, ${u.fromWebsite} booked by customers online.` })
-        : el("p", { className: "rp-hint", textContent: b.on ? "No services or bookings yet." : "Never used." }));
+        : el("p", { className: "rp-hint", textContent: b.on ? "No services or bookings yet." : "Never used." }),
+      b.texts ? el("p", { className: "rp-hint", textContent: `${plural(b.texts.texts, "text")} sent this month${b.texts.texts ? `, ${money(b.texts.cents, b.texts.currency)} at cost` : ""}.` }) : null);
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   show();
   return slot;

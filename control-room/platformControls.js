@@ -19,6 +19,7 @@ import { activityEntry } from "./activity.js";
 import { EMAIL_SETTING } from "../services/email/index.js";
 import { RECEIPT_MAIL_SETTING } from "../services/receipts/index.js";
 import { BANK_FEED_SETTING } from "../services/bankfeed/config.js";
+import { TEXTS_SETTING } from "../services/texts/config.js";
 import { PAYMENTS_SECRETS } from "../services/payments/index.js";
 import { BILLING_SECRETS } from "../services/billing/index.js";
 import { WAIT_FOR_A_PERSON_MS } from "../signup/shopMaker.js";
@@ -40,6 +41,8 @@ const LAUNCH_KEYS = Object.freeze([
     gives: "Shops forward receipts to their own address and check them in Bookkeeping. Optional: shops see \"Opening soon\" until it is on." },
   { id: "bank-feed", label: "Bank feed add-on (beta)", optional: true, setting: BANK_FEED_SETTING, getIt: "https://dashboard.plaid.com/developers/keys",
     gives: "Shops add the bank feed to their plan and connect their bank through Plaid. Optional: shops see \"Opening soon\" until it is on." },
+  { id: "texts", label: "Text-message reminders", optional: true, setting: TEXTS_SETTING, getIt: "https://console.twilio.com/",
+    gives: "Services shops send booking reminders by text, billed to each shop at cost. Optional: shops see \"Opening soon\" until it is on." },
 ]);
 
 /** Where Support's saved replies live in the platform's records, and how many are kept. */

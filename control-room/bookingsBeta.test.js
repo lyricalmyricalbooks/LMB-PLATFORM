@@ -20,7 +20,7 @@ const ADMIN = { uid: "uid-admin", email: "admin@example.com", email_verified: tr
 const PRESS = { uid: "uid-owner", email: "owner@example.com", email_verified: true };
 const SHOP = "moth-press";
 
-async function world() {
+async function world({ texts = null } = {}) {
   const registry = fakeRegistry();
   await registry.createShop(SHOP, { shopId: SHOP, status: "live", plan: "both", pressName: "Moth Press" });
   await registry.createShop("stock-only", { shopId: "stock-only", status: "live", plan: "stockroom" });
@@ -35,7 +35,7 @@ async function world() {
   await shopData.set(SHOP, "bookings/old", { start: at(-90), status: "confirmed", source: "website" });
   const auditLog = fakeAuditLog();
   const activity = { rows: [], record: async (entry) => void activity.rows.push(entry) };
-  const desk = createBookingsBeta({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, auditLog, shopData, activity, now: () => new Date(NOW) });
+  const desk = createBookingsBeta({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, auditLog, shopData, activity, texts, now: () => new Date(NOW) });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: bookingsBetaRoutes(desk), log: () => {} });
   const ask = (claims, path, body) => api({ method: "POST", path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   const get = (claims, path) => api({ method: "GET", path, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
@@ -80,6 +80,10 @@ test("a shop not live, or without a website, can't have Bookings; a missing answ
 test("use: services on offer, bookings either side of now, held ones left out", async () => {
   const { bookings } = await (await world()).desk.forShop(ADMIN, { shopId: SHOP });
   assert.deepEqual(bookings.use, { services: 1, hiddenServices: 1, lastDays: 1, nextDays: 1, cancelled: 1, paid: 1, fromWebsite: 1 });
+  assert.equal(bookings.texts, null, "no text line while texts aren't open");
+  const texts = { available: true, forShop: async (shopId) => ({ available: true, month: "2026-11", texts: 12, parts: 14, cents: 22, currency: "CAD", shopId }) };
+  const withTexts = (await (await world({ texts })).desk.forShop(ADMIN, { shopId: SHOP })).bookings.texts;
+  assert.deepEqual([withTexts.texts, withTexts.cents, withTexts.shopId], [12, 22, SHOP]);
   assert.deepEqual(bookingsUse([], [], NOW), { services: 0, hiddenServices: 0, lastDays: 0, nextDays: 0, cancelled: 0, paid: 0, fromWebsite: 0 });
 });
 
