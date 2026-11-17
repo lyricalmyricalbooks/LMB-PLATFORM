@@ -1,7 +1,7 @@
 // Events and tickets (beta): the pure rules behind Admin › Events (Events.tsx): the editor's form and what it sends,
 // how an event reads in the list, and the figures at the top. Times are typed and shown in the shop's own time zone.
 import { zonedTime, dayOf, addDays } from "../../shared/bookingTimes";
-import { MIN_TICKET_MINOR, salesOpen, type EventStatus } from "../../shared/eventTickets";
+import { MAX_FEE_MINOR, MIN_TICKET_MINOR, salesOpen, type EventStatus } from "../../shared/eventTickets";
 import type { AdminEvent, TicketOrder } from "./eventsApi";
 
 export type TicketForm = { id: string; name: string; price: string; places: string; maxPerOrder: string };
@@ -12,6 +12,8 @@ export type EventForm = {
   onlineUrl: string;
   /** Kept as saved: the picture is chosen with the website page (not in this form yet). */
   photo: string; status: EventStatus; chargeTax: boolean; tickets: TicketForm[]; extras: ExtraForm[];
+  /** The shop's own booking fee for each paid ticket, as typed ("" = none). */
+  fee: string;
 };
 
 /** "19:00" on the shop's clock for an ISO time. */
@@ -40,7 +42,7 @@ export const blankExtra = (): ExtraForm => ({ id: `x${Date.now().toString(36)}${
 export function blankForm(zone: string, nowMs: number): EventForm {
   return {
     id: "", title: "", description: "", day: addDays(dayOf(nowMs, zone), 14), time: "19:00", endTime: "", venue: "", address: "", onlineUrl: "", photo: "",
-    status: "draft", chargeTax: false, tickets: [blankTicket("General")], extras: [],
+    status: "draft", chargeTax: false, tickets: [blankTicket("General")], extras: [], fee: "",
   };
 }
 
@@ -51,6 +53,7 @@ export function formFromEvent(event: AdminEvent, zone: string): EventForm {
     chargeTax: event.chargeTax,
     tickets: event.tickets.map((t) => ({ id: t.id, name: t.name, price: priceText(t.priceMinor), places: String(t.places), maxPerOrder: String(t.maxPerOrder) })),
     extras: (event.extras ?? []).map((x) => ({ id: x.id, name: x.name, price: priceText(x.priceMinor), maxPerOrder: String(x.maxPerOrder) })),
+    fee: priceText(event.feeMinor || 0),
   };
 }
 
@@ -87,12 +90,14 @@ export function eventFromForm(form: EventForm, zone: string): { event: Record<st
     if (!Number.isFinite(priceMinor) || priceMinor < MIN_TICKET_MINOR) return { problem: `Give "${name}" a price of at least 0.50, like 5 or 7.50.` };
     extras.push({ id: x.id, name, priceMinor, maxPerOrder: Number(x.maxPerOrder) || 10 });
   }
+  const feeMinor = priceMinorOf(form.fee);
+  if (!Number.isFinite(feeMinor) || feeMinor > MAX_FEE_MINOR) return { problem: `The booking fee doesn't look right. Use a number up to ${(MAX_FEE_MINOR / 100).toFixed(2)}, or leave it empty for none.` };
   const link = form.onlineUrl.trim();
   if (link && !/^https:\/\/\S+$/i.test(link)) return { problem: "The online link starts with https://" };
   return {
     event: {
       ...(form.id ? { id: form.id } : {}), title: form.title, description: form.description, start: new Date(start).toISOString(), end,
-      venue: form.venue, address: form.address, onlineUrl: link, photo: form.photo, status: form.status, chargeTax: form.chargeTax, tickets, extras,
+      venue: form.venue, address: form.address, onlineUrl: link, photo: form.photo, status: form.status, chargeTax: form.chargeTax, tickets, extras, feeMinor,
     },
   };
 }

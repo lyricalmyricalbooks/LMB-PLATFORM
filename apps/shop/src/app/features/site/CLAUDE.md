@@ -927,6 +927,10 @@ extra's limit; they count and are sent only once a ticket is picked, and the sum
 refused extra (code `extras`) reloads the event and clears the picks. Words: Text & labels › Events page › **Choosing
 tickets & paying** (`eventsExtrasHeading`, `eventsExtrasChanged`, French twins). The preview's launch party has two.
 
+**Booking fee (E3f):** an event with `feeMinor` shows the fee beside each paid ticket's price (`eventsFeeNote`) and as a
+row in the summary and on the buyer's page (`eventsFeeRow`); `feeOf` (eventsRules.ts) is the page's own sum, replaced by
+the server's figure once a code is applied. Words: Text & labels › Events page › **Choosing tickets & paying**.
+
 ## Pickup times at checkout (17 November 2026)
 
 When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),

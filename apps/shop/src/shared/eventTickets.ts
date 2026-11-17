@@ -18,6 +18,8 @@ export const MIN_TICKET_MINOR = 50;
 export const MAX_TICKET_MINOR = 1_000_000;
 /** Small paid things sold with the tickets (a programme, a drink): up to this many per event. */
 export const MAX_EXTRAS = 8;
+/** The most a shop may add to each paid ticket as its own booking fee. */
+export const MAX_FEE_MINOR = 2000;
 
 export type EventStatus = "draft" | "live" | "cancelled";
 export type TicketKind = { id: string; name: string; priceMinor: number; places: number; maxPerOrder: number };
@@ -37,6 +39,8 @@ export type ShopEvent = {
   tickets: TicketKind[];
   /** Paid extras a buyer may add to a ticket order. Missing on events saved before extras. */
   extras?: EventExtra[];
+  /** The shop's own booking fee, added once for each paid ticket (free tickets never carry it). Missing = none. */
+  feeMinor?: number;
 };
 /** What is taken for one event: tickets sold per kind, and the orders still paying. */
 export type EventPlaces = { sold?: Record<string, number>; held?: Record<string, { until: string; lines: Record<string, number> }> };
@@ -115,11 +119,15 @@ export function cleanEvent(raw: unknown, id = ""): ShopEvent | { problem: string
     if (extras.some((x) => x.id === extra.id)) return { problem: "Two extras share an id. Remove one and add it again." };
     extras.push(extra);
   }
+  const feeMinor = Math.round(Number(e.feeMinor) || 0);
+  if (feeMinor < 0) return { problem: "A booking fee can't be less than nothing." };
+  if (feeMinor > MAX_FEE_MINOR) return { problem: `A booking fee can be up to ${(MAX_FEE_MINOR / 100).toFixed(2)} a ticket.` };
   const status: EventStatus = e.status === "live" || e.status === "cancelled" ? e.status : "draft";
   return {
     id, title, description: longText(e.description, 4000), start, end, venue: text(e.venue, 120), address: text(e.address, 240),
     onlineUrl: webLink(e.onlineUrl), photo: webLink(e.photo), status, chargeTax: e.chargeTax === true, tickets,
     ...(extras.length ? { extras } : {}),
+    ...(feeMinor ? { feeMinor } : {}),
   };
 }
 
@@ -203,6 +211,12 @@ export function extraLines(event: Pick<ShopEvent, "extras">, wanted: unknown): {
   return { lines, totalMinor: lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0) };
 }
 
+/** The shop's booking fee for an order: the event's fee once for each paid ticket. */
+export function bookingFeeMinor(event: Pick<ShopEvent, "feeMinor">, lines: Pick<OrderLine, "qty" | "priceMinor">[]): number {
+  const fee = count(event.feeMinor);
+  return fee ? fee * lines.reduce((sum, l) => sum + (l.priceMinor > 0 ? l.qty : 0), 0) : 0;
+}
+
 /** An order's lines as the places record keeps them: ticket id → how many. */
 export function lineCounts(lines: OrderLine[]): Record<string, number> {
   return Object.fromEntries(lines.map((l) => [l.ticketId, l.qty]));
@@ -275,7 +289,7 @@ export function movedLines(lines: OrderLine[], kinds: Record<string, string | nu
 /**
  * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the
  * tax. Giving back the last tickets returns everything still kept (extras too), so cents never go missing. Extras stay
- * with the buyer while they keep a ticket. `counts` is ticket id →
+ * with the buyer while they keep a ticket. A booking fee is part of the tickets' share, so it goes back with them. `counts` is ticket id →
  * how many are refunded now; `ticketsLeft` is how many the order keeps afterwards.
  */
 export function refundMinorFor(

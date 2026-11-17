@@ -20,7 +20,7 @@ export function sampleEvents(nowMs: number): EventView[] {
         { id: "supporter", name: "Supporter (with a signed print)", priceMinor: 4000, maxPerOrder: 4, left: 2, soldOut: false },
         { id: "student", name: "Student", priceMinor: 800, maxPerOrder: 2, left: 0, soldOut: true },
       ],
-      extras: [{ id: "programme", name: "Printed programme", priceMinor: 500, maxPerOrder: 6 }, { id: "drink", name: "Welcome drink", priceMinor: 800, maxPerOrder: 6 }] },
+      extras: [{ id: "programme", name: "Printed programme", priceMinor: 500, maxPerOrder: 6 }, { id: "drink", name: "Welcome drink", priceMinor: 800, maxPerOrder: 6 }], feeMinor: 100 },
     { id: "sample-talk", title: "In conversation: making things by hand", description: "A free evening talk, in the room or online.",
       start: at(20, 23), end: at(21, 0), venue: "The studio", address: "", photo: "", online: true, open: true, cancelled: false,
       tickets: [{ id: "seat", name: "A seat", priceMinor: 0, maxPerOrder: 4, left: 4, soldOut: false }] },
@@ -39,11 +39,12 @@ function sampleOrder(nowMs: number, currency: string, eventId?: string, picks?: 
   const wanted = picks && Object.values(picks).some((n) => n > 0) ? picks : { [event.tickets[0].id]: 2 };
   const lines = event.tickets.filter((t) => wanted[t.id] > 0).map((t) => ({ ticketId: t.id, name: t.name, qty: Math.min(wanted[t.id], t.maxPerOrder), priceMinor: t.priceMinor }));
   const extras = (event.extras ?? []).filter((x) => extraPicks[x.id] > 0).map((x) => ({ extraId: x.id, name: x.name, qty: Math.min(extraPicks[x.id], x.maxPerOrder), priceMinor: x.priceMinor }));
-  const totalMinor = lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0) + extras.reduce((sum, x) => sum + x.qty * x.priceMinor, 0);
+  const feeMinor = (event.feeMinor || 0) * lines.reduce((sum, l) => sum + (l.priceMinor > 0 ? l.qty : 0), 0);
+  const totalMinor = lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0) + extras.reduce((sum, x) => sum + x.qty * x.priceMinor, 0) + feeMinor;
   let n = 0;
   return {
     id: SAMPLE_EVENT_ORDER, status: "paid", eventId: event.id, title: event.title, start: event.start, end: event.end || "", venue: event.venue || "", address: event.address || "",
-    name: name || "Sample Customer", lines, extras, totalMinor, taxMinor: 0, chargedMinor: totalMinor, currency, holdUntil: null,
+    name: name || "Sample Customer", lines, extras, feeMinor, totalMinor, taxMinor: 0, chargedMinor: totalMinor, currency, holdUntil: null,
     tickets: lines.flatMap((l) => Array.from({ length: l.qty }, () => ({ code: `SAMP-${String(++n).padStart(4, "0")}`, ticketId: l.ticketId, name: l.name }))),
     onlineUrl: event.online ? "https://example.com/watch" : "", eventCancelled: false,
   };
@@ -57,8 +58,9 @@ export function previewEventsAnswer(action: string, body: Record<string, any> = 
     const event = sampleEvents(nowMs).find((e) => e.id === body.eventId);
     const list = (event?.tickets || []).reduce((sum, t) => sum + (Number(body.tickets?.[t.id]) || 0) * t.priceMinor, 0);
     const amountMinor = Math.round(list / 10);
-    const due = list - amountMinor + (event?.extras || []).reduce((sum, x) => sum + (Number(body.extras?.[x.id]) || 0) * x.priceMinor, 0);
-    return { code: String(body.code || "").trim().toUpperCase(), amountMinor, totalMinor: due, taxMinor: 0, chargedMinor: due };
+    const feeMinor = (event?.feeMinor || 0) * (event?.tickets || []).reduce((sum, t) => sum + (t.priceMinor > 0 ? Number(body.tickets?.[t.id]) || 0 : 0), 0);
+    const due = list - amountMinor + feeMinor + (event?.extras || []).reduce((sum, x) => sum + (Number(body.extras?.[x.id]) || 0) * x.priceMinor, 0);
+    return { code: String(body.code || "").trim().toUpperCase(), amountMinor, feeMinor, totalMinor: due, taxMinor: 0, chargedMinor: due };
   }
   if (action === "eventStart") {
     sample = sampleOrder(nowMs, currency, body.eventId, body.tickets, body.name, body.extras);

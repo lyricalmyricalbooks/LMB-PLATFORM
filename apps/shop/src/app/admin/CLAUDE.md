@@ -1311,3 +1311,6 @@ fixture gives one guest a code.
 is dropped on save, a price under 0.50 is refused in plain words). Who's coming shows an order's extras (`extrasText`),
 the guest list CSV has an Extras column, and the refund dialog says whether the extras are refunded (only with the last
 ticket). The fixture's launch party has two extras and one order with them.
+
+**Booking fee (E3f):** the event editor has **Booking fee per paid ticket (optional)** (`EventForm.fee`, empty = none,
+refused above `MAX_FEE_MINOR`). Who's coming says "Includes $2.00 booking fee" on an order that paid one.

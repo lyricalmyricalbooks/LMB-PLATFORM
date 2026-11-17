@@ -21,6 +21,8 @@ export type TicketOrder = {
   discount?: { code: string; amountMinor: number } | null;
   /** Extras bought with the tickets, and what they came to before tax. */
   extras?: ExtraLine[]; extrasMinor?: number;
+  /** The shop's booking fee in this order's total. */
+  feeMinor?: number;
 };
 /** One round of calling an event off: orders given back this call, the money sent, the ones that failed, and how many wait. */
 export type CancelAnswer = { ok: true; done: number; amountMinor: number; failed: { id: string; name: string; code?: string }[]; left: number };

@@ -244,6 +244,9 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
           )}
         </fieldset>
 
+        <TextField label="Booking fee per paid ticket (optional)" inputMode="decimal" value={form.fee} onChange={(e) => set({ fee: e.target.value })} placeholder="None"
+          hint="Yours to keep, to help with card costs. Buyers see it before they pay. Free tickets never carry it." />
+
         <SelectField label="Where it stands" value={form.status} onChange={(e) => set({ status: e.target.value as EventStatus })}
           hint={STATUS_CHOICES.find((c) => c.id === form.status)?.hint}>
           {STATUS_CHOICES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -370,6 +373,7 @@ function GuestList({ event, door, zone, currency, others, onClose }: { event: Ad
                       {order.status === "refunded" && order.refundedMinor ? null
                         : order.chargedMinor ? moneyText(Math.max(0, order.chargedMinor - (order.refundedMinor || 0)), order.currency || currency) : "Free"}
                       {!!order.refundedMinor && <small>{moneyText(order.refundedMinor, order.currency || currency)} sent back</small>}
+                      {!!order.feeMinor && order.status === "paid" && <small>Includes {moneyText(order.feeMinor, order.currency || currency)} booking fee</small>}
                       {!!order.discount?.amountMinor && <small>Code {order.discount.code}, {moneyText(order.discount.amountMinor, order.currency || currency)} off</small>}
                     </span>
                   </div>

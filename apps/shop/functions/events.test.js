@@ -613,7 +613,7 @@ describe("discount codes on tickets", () => {
     await t.db.collection("discounts").doc("disc0001").set(CODE);
     expect((await t.pub({ action: "eventsInfo" })).body.codes).toBe(true);
     const tried = await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, code: " early " });
-    expect(tried.body).toEqual({ code: "EARLY", amountMinor: 600, totalMinor: 2400, taxMinor: 0, chargedMinor: 2400 });
+    expect(tried.body).toEqual({ code: "EARLY", amountMinor: 600, feeMinor: 0, totalMinor: 2400, taxMinor: 0, chargedMinor: 2400 });
     expect((await t.doc("discounts", "disc0001")).usageCount).toBe(0);
     expect(t.db.store.has("eventPlaces/launch01")).toBe(false);
     expect((await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, code: "NOPE" })).body).toMatchObject({ code: "code", error: "That code isn't valid." });
@@ -750,5 +750,54 @@ describe("extras with a ticket order", () => {
     await t.db.collection("discounts").doc("disc0001").set({ code: "HALF", type: "percentage", value: 50, forTickets: true, usageCount: 0 });
     const tried = await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, extras: { prog: 2 }, code: "HALF" });
     expect(tried.body).toMatchObject({ amountMinor: 1500, totalMinor: 2500 });
+  });
+});
+
+describe("the shop's booking fee", () => {
+  const TAX = async () => (minor) => ({ taxMinor: Math.round(minor * 0.13), taxLines: [{ name: "HST", cents: Math.round(minor * 0.13) }] });
+  const FEE = { ...EVENT, feeMinor: 150 };
+  test("the fee is added once for each paid ticket, taxed with the rest, shown to the buyer and refunded with the ticket", async () => {
+    const t = setup({ shopTax: TAX });
+    await t.seed({ ...FEE, chargeTax: true });
+    expect((await t.pub({ action: "eventsInfo" })).body.events[0].feeMinor).toBe(150);
+    const r = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 2, free: 1 }, ...BUYER });
+    expect(r.statusCode).toBe(200);
+    // 30.00 of tickets + 2 × 1.50, plus 13%.
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({ totalMinor: 3300, feeMinor: 300, taxMinor: 429, chargedMinor: 3729 });
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(3729);
+    t.pay(0);
+    const view = await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    expect(view.body.order.feeMinor).toBe(300);
+    expect(t.emails[0].html).toContain("Booking fee:</strong>");
+    const orders = (await t.adm({ op: "orders", eventId: "launch01" })).body.orders;
+    expect(orders[0].feeMinor).toBe(300);
+    const paidCode = orders[0].tickets.find((x) => x.ticketId === "gen").code;
+    // One paid ticket back: 15.00 + its 1.50 fee + tax on both.
+    expect((await t.adm({ op: "refund", orderId: "order0001", codes: [paidCode] })).body.amountMinor).toBe(1865);
+    expect((await t.adm({ op: "refund", orderId: "order0001" })).body.amountMinor).toBe(3729 - 1865);
+  });
+  test("free tickets carry no fee, and an event with no fee is as before", async () => {
+    const t = setup();
+    await t.seed(FEE);
+    const r = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { free: 2 }, ...BUYER });
+    expect(r.body.paid).toBe(true);
+    expect((await t.doc("eventOrders", "order0001")).feeMinor).toBeUndefined();
+    const plain = setup();
+    await plain.seed();
+    expect((await plain.pub({ action: "eventsInfo" })).body.events[0].feeMinor).toBe(0);
+    await plain.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, ...BUYER });
+    expect(await plain.doc("eventOrders", "order0001")).toMatchObject({ totalMinor: 1500, chargedMinor: 1500 });
+    expect((await plain.doc("eventOrders", "order0001")).feeMinor).toBeUndefined();
+  });
+  test("a code keeps the fee unless it makes every ticket free", async () => {
+    const t = setup();
+    await t.seed(FEE);
+    await t.db.collection("discounts").doc("disc0001").set({ code: "HALF", type: "percentage", value: 50, forTickets: true, usageCount: 0 });
+    await t.db.collection("discounts").doc("disc0002").set({ code: "GUEST", type: "percentage", value: 100, forTickets: true, usageCount: 0 });
+    expect((await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, code: "HALF" })).body).toMatchObject({ amountMinor: 1500, feeMinor: 300, totalMinor: 1800 });
+    expect((await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, code: "GUEST" })).body).toMatchObject({ amountMinor: 3000, feeMinor: 0, totalMinor: 0, chargedMinor: 0 });
+    const r = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "GUEST", ...BUYER });
+    expect(r.body.paid).toBe(true);
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({ totalMinor: 0, chargedMinor: 0, status: "paid" });
   });
 });

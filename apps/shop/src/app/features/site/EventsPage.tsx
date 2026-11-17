@@ -22,7 +22,7 @@ import { bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { moneyText } from "./bookTimeRules";
 import {
-  cartOf, clampQty, codeText, extrasOf, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch,
+  cartOf, clampQty, codeText, extrasOf, feeOf, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch,
   type EventOrderView, type EventView, type EventsInfo, type TicketCode,
 } from "./eventsRules";
 
@@ -246,8 +246,10 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
   // Extras ride along with tickets: with no ticket picked they are neither shown in the sums nor sent.
   const added = extrasOf(event, cart.count ? extraPicks : {});
   const taxed = cart.taxed || added.taxed;
+  // The server's own fee once a code is applied (a code that makes every ticket free takes the fee with it).
+  const fee = applied ? applied.feeMinor || 0 : feeOf(event, cart.tickets);
   // With a code, the server's own figures are shown (the code comes off before any tax).
-  const due = applied ? applied.totalMinor : cart.totalMinor + added.totalMinor;
+  const due = applied ? applied.totalMinor : cart.totalMinor + added.totalMinor + fee;
   const amount = moneyText(due, currency);
   const tryCode = async (code: string, tickets = cart.tickets) => {
     setApplied(await askEvents("eventCode", { eventId: event.id, tickets, extras: added.extras, code, email: form.email.trim() }) as TicketCode);
@@ -324,6 +326,7 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
                       <h3>{t.name}</h3>
                       <p translate="no">
                         {t.priceMinor > 0 ? moneyText(t.priceMinor, currency) : c("eventsFree")}{!!t.taxMinor && <> {c("eventsPlusTax")}</>}
+                        {t.priceMinor > 0 && !!event.feeMinor && <> {c("eventsFeeNote", { amount: moneyText(event.feeMinor, currency) })}</>}
                         {canBuy && t.left > 0 && t.left < Math.min(5, t.maxPerOrder) && <> · <b>{c("eventsLeft", { count: t.left })}</b></>}
                       </p>
                     </div>
@@ -385,6 +388,7 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
               {(event.extras ?? []).filter((x) => added.extras[x.id]).map((x) => (
                 <Row key={x.id} label={`${added.extras[x.id]} × ${x.name}`} value={moneyText(added.extras[x.id] * x.priceMinor, currency)} />
               ))}
+              {fee > 0 && <Row label={c("eventsFeeRow")} value={moneyText(fee, currency)} />}
               {applied && <Row label={c("eventsDiscountRow", { code: applied.code })} value={`−${moneyText(applied.amountMinor, currency)}`} />}
               <div className="fm-track-total">
                 <span className="fm-track-mono">{c("eventsTotal")}</span>
@@ -482,6 +486,7 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
         {order.name && <Row label={c("eventsNameRow")} value={order.name} />}
         {order.lines.map((l) => <Row key={l.ticketId} label={`${l.qty} × ${l.name}`} value={l.priceMinor > 0 ? moneyText(l.qty * l.priceMinor, order.currency) : c("eventsFree")} />)}
         {(order.extras ?? []).map((x) => <Row key={x.extraId} label={`${x.qty} × ${x.name}`} value={moneyText(x.qty * x.priceMinor, order.currency)} />)}
+        {!!order.feeMinor && <Row label={c("eventsFeeRow")} value={moneyText(order.feeMinor, order.currency)} />}
         {!!order.discount?.amountMinor && <Row label={c("eventsDiscountRow", { code: order.discount.code })} value={`−${moneyText(order.discount.amountMinor, order.currency)}`} />}
         {order.taxMinor > 0 && <Row label={c("eventsTax")} value={moneyText(order.taxMinor, order.currency)} />}
         {paid && order.onlineUrl && !called && (
