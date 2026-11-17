@@ -29,6 +29,7 @@ export const FIXED_LINKS: { value: string; label: string; hint?: string }[] = [
   { value: "/track", label: "Order tracking" },
   { value: "/book", label: "Book a time", hint: "Your bookings page" },
   { value: "/events", label: "Events", hint: "Your events and tickets page" },
+  { value: "/classes", label: "Classes", hint: "Your class timetable" },
 ];
 
 /**

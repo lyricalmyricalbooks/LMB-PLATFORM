@@ -6,7 +6,7 @@ export type PickerOption = {
   templateId: string; global?: boolean; productSlug?: string; collectionSlug?: string;
 };
 
-const PAGE_ORDER = ["heroPage", "storefront", "cartPage", "wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage", "page404"];
+const PAGE_ORDER = ["heroPage", "storefront", "cartPage", "wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage", "page404"];
 
 export function pickerOptions(input: {
   templates: { id: string; label: string; pageSlug?: string }[];

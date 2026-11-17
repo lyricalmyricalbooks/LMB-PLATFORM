@@ -8,6 +8,7 @@ import { elementScheme } from "./colorSchemes";
 import { CurrencySelector } from "../../CurrencyContext";
 import { bookingsLinkShown, useBookingsLive } from "./bookingsLive";
 import { eventsLinkShown, useEventsLive } from "./eventsLive";
+import { classesLinkShown, useClassesLive } from "./classesLive";
 import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
 import { ThemeToggle } from "../../components/theme/ThemeToggle";
@@ -19,6 +20,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   const { pathname } = useLocation();
   const bookings = useBookingsLive();
   const events = useEventsLive();
+  const classes = useClassesLive();
   const social = useShopSocial();
   // A tap or click outside the open menu closes it (like the category drop-downs).
   useEffect(() => {
@@ -58,6 +60,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
       {!d.hideHeaderSearch && <button className={linkClass} onClick={() => { close(); onSearch(); }}>{getCopy(design, "navSearch")}</button>}
       {bookingsLinkShown(bookings, d) && <Link className={linkClass} onClick={close} to="/book" {...here("/book")}>{getCopy(design, "bookTimeNavLink")}</Link>}
       {eventsLinkShown(events, d) && <Link className={linkClass} onClick={close} to="/events" {...here("/events")}>{getCopy(design, "eventsNavLink")}</Link>}
+      {classesLinkShown(classes, d) && <Link className={linkClass} onClick={close} to="/classes" {...here("/classes")}>{getCopy(design, "classesNavLink")}</Link>}
       {!d.hideHeaderWishlist && <Link className={linkClass} onClick={close} to="/wishlist">{getCopy(design, "ariaWishlist")}</Link>}
       {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
       {!d.hideCurrencySelector && <div className="px-6 py-3 [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
@@ -97,9 +100,11 @@ function MobileNavTabs({ design, d, groups, bookings, showThemeToggle, pathname,
   const secondary: typeof tabs = [];
   if (d.showSecondaryNavigation !== false) for (const item of groups.secondary) if (item.kind === "page") secondary.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label });
   const events = useEventsLive();
+  const classes = useClassesLive();
   const extras: typeof tabs = [];
   if (bookingsLinkShown(bookings, d)) extras.push({ key: "bookings", to: "/book", label: getCopy(design, "bookTimeNavLink") });
   if (eventsLinkShown(events, d)) extras.push({ key: "events", to: "/events", label: getCopy(design, "eventsNavLink") });
+  if (classesLinkShown(classes, d)) extras.push({ key: "classes", to: "/classes", label: getCopy(design, "classesNavLink") });
   if (!d.hideHeaderWishlist) extras.push({ key: "wishlist", to: "/wishlist", label: getCopy(design, "ariaWishlist") });
   if (!d.hideHeaderAccount && accountsEnabled(design)) extras.push({ key: "account", to: "/account", label: getCopy(design, "ariaAccount") });
   const activeKey = [...tabs.flatMap(t => [t, ...(t.children || [])]), ...secondary, ...extras].find(t => pathname.endsWith(t.to))?.key;

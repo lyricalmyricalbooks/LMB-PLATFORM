@@ -2469,7 +2469,8 @@ export type PreviewModeId =
   | "account"
   | "tracking"
   | "bookings"
-  | "events";
+  | "events"
+  | "classes";
 
 export type PageTemplateMeta = {
   id: string;
@@ -2493,6 +2494,7 @@ export const PAGE_TEMPLATES: PageTemplateMeta[] = [
   { id: "trackingPage", label: "Order tracking", description: "Order lookup and tracking sections.", previewMode: "tracking" },
   { id: "bookingsPage", label: "Book a time", description: "The page where customers book a time with you.", previewMode: "bookings" },
   { id: "eventsPage", label: "Events", description: "The page where customers see your events and get tickets.", previewMode: "events" },
+  { id: "classesPage", label: "Classes", description: "The page where customers see your timetable and sign up for a class.", previewMode: "classes" },
 ];
 
 /**

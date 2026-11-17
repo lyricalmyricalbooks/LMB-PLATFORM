@@ -1321,3 +1321,6 @@ time of every class (a service with `places` > 1) plus any start people are book
 numbers. A session opens the class list (check in on the day, Add a person); New class and Edit reuse Bookings'
 `ServiceDialog`. `useBookingsOn` is also true when the Classes way is on, so the Bookings page (hours, team, rooms,
 reminders) comes with it. Fixture: `admin-fixture.html?ways=classes&page=classes`.
+**Classes on the website (C1b):** Settings › General › Ways to sell sends `bookingsData.admin("hint")` when the owner
+flips Classes, so the website's Classes links follow; `classesLive` is the server's and `adminApi.updateSettings` never
+writes it. The customer page is `features/site/ClassesPage.tsx`.
