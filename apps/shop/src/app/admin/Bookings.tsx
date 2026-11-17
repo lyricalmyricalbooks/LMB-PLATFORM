@@ -906,6 +906,36 @@ function TipsTile({ tips, percents, onChange }: { tips: boolean; percents: numbe
 }
 
 /** After the visit: a thank-you email with Book again, reviews for the website, or a review link elsewhere. */
+/**
+ * Text-message reminders (Services plan phase 7): the reminders also go by text to clients who tick "Text me reminders".
+ * The platform sends them and puts them on the monthly bill at cost; "Opening soon" until it can.
+ */
+function TextsTile({ on, reminders, onChange }: { on: boolean; reminders: boolean; onChange: (on: boolean) => void }) {
+  const [status, setStatus] = useState<{ available: boolean; price: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    bookingsAdmin<{ available: boolean; price: string }>("textStatus").then((s) => live && setStatus(s)).catch(() => live && setStatus({ available: false, price: "" }));
+    return () => { live = false; };
+  }, []);
+  const open = status?.available === true;
+  return (
+    <section className="bkg-tile" data-texts-tile>
+      <h2 className="bkg-tile-title">Text reminders</h2>
+      {status && !open && <p className="bkg-texts-soon"><StatusBadge tone="info" glyph={false}>Opening soon</StatusBadge></p>}
+      <div className="bkg-form">
+        <Toggle label="Send reminders by text too" checked={open && on} disabled={!open} onChange={onChange} />
+        <p className="bkg-cal-text">
+          {!status ? "Checking…"
+            : !open ? "Soon clients will be able to get their reminders by text as well as by email."
+            : !on ? "Reminders go by email only."
+            : !reminders ? "Turn on the reminder email above: texts go out at the same times."
+            : `Clients who give a mobile number and tick "Text me reminders" get each reminder by text too. Each text costs ${status.price}, added to your monthly bill at cost. Long texts count as two.`}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function ThanksTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
   const [text, setText] = useState(form.reviewUrl);
   useEffect(() => setText(form.reviewUrl), [form.reviewUrl]);
@@ -1569,6 +1599,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
             </SelectField>
           </div>
         </section>
+        <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} onChange={(textReminders) => setForm({ ...form, textReminders })} />
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />

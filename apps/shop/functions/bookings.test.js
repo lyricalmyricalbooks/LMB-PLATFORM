@@ -54,7 +54,7 @@ function res() {
   return out;
 }
 
-function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null, shopTax = null } = {}) {
+function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null, shopTax = null, texts = null } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -111,7 +111,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   let n = 0;
   const optOuts = new Set();
   const desk = bookingActions({
-    db, calendar, findDiscount, shopTax,
+    db, calendar, findDiscount, shopTax, texts,
     optedOut: async (e) => optOuts.has(e),
     unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
@@ -419,6 +419,73 @@ describe("the day-before reminder", () => {
     await t.seed();
     await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+  });
+});
+
+describe("text-message reminders", () => {
+  const textDoor = ({ available = true, answer = null } = {}) => {
+    const sent = [];
+    return { sent, status: async () => ({ available, price: available ? "1.6¢" : "" }), send: async (m) => { sent.push(m); return answer ? answer(m) : { ok: true, id: `SM${sent.length}`, parts: 2 }; } };
+  };
+  const turnOn = (t, on = true) => t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, textReminders: on, secondReminderHours: 2 });
+
+  test("the form offers the tick only while the owner's switch is on and the platform sends texts", async () => {
+    const off = setup({ texts: textDoor() });
+    await off.seed();
+    expect((await off.pub({ action: "bookingInfo" })).body.texts).toBe(false);
+    await turnOn(off);
+    expect((await off.pub({ action: "bookingInfo" })).body.texts).toBe(true);
+    const closed = setup({ texts: textDoor({ available: false }) });
+    await closed.seed();
+    await turnOn(closed);
+    expect((await closed.pub({ action: "bookingInfo" })).body.texts).toBe(false);
+    expect((await closed.adm({ op: "textStatus" })).body).toEqual({ available: false, price: "" });
+    expect((await off.adm({ op: "textStatus" })).body).toEqual({ available: true, price: "1.6¢" });
+    expect((await setup().adm({ op: "textStatus" })).statusCode).toBe(403);
+  });
+
+  test("both reminders go by text too, once each, only to a client who ticked the box with a number", async () => {
+    const door = textDoor();
+    const t = setup({ texts: door });
+    await t.seed();
+    await turnOn(t);
+    const ticked = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER, phone: "416 555 0199", textOk: true });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "13:00"), name: "Bo", email: "bo@example.com", phone: "416 555 0100" });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "15:00"), name: "Cy", email: "cy@example.com", textOk: true });
+    expect(t.db.store.get(`bookings/${ticked.body.id}`).customer.textOk).toBe(true);
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
+    await t.desk.sweepReminders();
+    expect(door.sent).toHaveLength(1);
+    const [first] = door.sent;
+    expect(first.to).toBe("416 555 0199");
+    expect(first.kind).toBe("booking-reminder");
+    expect(first.body).toMatch(/^Reminder: Studio visit at Moth Press, .+ Change or cancel: https:\/\/press\.example\/book\?booking=.+ Reply STOP to stop texts\.$/);
+    expect(first.body.length).toBeLessThanOrEqual(459);
+    await t.desk.sweepReminders();
+    expect(door.sent).toHaveLength(1);
+    expect(t.db.store.get(`bookings/${ticked.body.id}`).reminderTextAt).toBeTruthy();
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "08:30")));
+    await t.desk.sweepSecondReminders();
+    expect(door.sent.map((m) => m.kind)).toEqual(["booking-reminder", "booking-soon"]);
+    expect(door.sent[1].body).toMatch(/^Soon: /);
+    expect(new Set(door.sent.map((m) => m.idempotencyKey)).size).toBe(2);
+  });
+
+  test("the owner's switch off sends no texts, and a client who replied STOP loses the tick", async () => {
+    const door = textDoor({ answer: () => ({ ok: false, retryable: false, optedOut: true, message: "unsubscribed" }) });
+    const t = setup({ texts: door });
+    await t.seed();
+    await turnOn(t, false);
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER, phone: "416 555 0199", textOk: true });
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
+    await t.desk.sweepReminders();
+    expect(door.sent).toHaveLength(0);
+    await turnOn(t);
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "08:30")));
+    expect(await t.desk.sweepSecondReminders()).toEqual({ reminded: 1 });
+    expect(door.sent).toHaveLength(1);
+    expect(t.db.store.get(`bookings/${r.body.id}`).customer.textOk).toBe(false);
+    expect(t.emails.some((m) => String(m.subject).startsWith("Soon:"))).toBe(true);
   });
 });
 

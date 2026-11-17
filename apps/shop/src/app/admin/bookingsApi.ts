@@ -89,7 +89,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus";
 
 /** A card reader that connects over the internet (Take a payment). */
 export type CardReader = { id: string; label: string; online: boolean; device?: string };

@@ -175,3 +175,23 @@ test("the bank feed add-on goes on the next bill once per month a bank was conne
   await w.billing.billRunningCosts({ month: "2026-11", costs: { "moth-press": 100, "trial-press": 0, "no-bank": 0 } });
   assert.equal(w.stripe.world.invoiceItems.size, 2);
 });
+
+test("text messages go on the next bill at cost, once per shop and month, never in the trial", async () => {
+  const w = make();
+  await w.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  await w.billing.startTrial({ account: { ...ACCOUNT, accountId: "acct-2", email: "two@example.com" }, shopId: "trial-press", pressName: "Trial Press", plan: "both" });
+  await w.stores.subscriptions.set("moth-press", { ...(await w.stores.subscriptions.get("moth-press")), status: "active", trialEnd: "2026-10-20T00:00:00Z" });
+  const cents = (currency, parts) => Math.round(parts * (currency === "USD" ? 11_600 : 16_000) / 10_000);
+
+  const run = await w.billing.billTexts({ month: "2026-11", texts: { "moth-press": { texts: 90, parts: 120 }, "trial-press": { texts: 3, parts: 3 } }, cents });
+  assert.deepEqual(run.billed, [{ shopId: "moth-press", cents: 192 }, { shopId: "trial-press", cents: 0 }]);
+  const items = [...w.stripe.world.invoiceItems.values()];
+  assert.equal(items.length, 1, "a trial month costs nothing");
+  assert.deepEqual([items[0].amount, items[0].currency, items[0].discountable, items[0].metadata.lmb_kind, items[0].metadata.lmb_texts, items[0].metadata.lmb_parts], [192, "cad", "false", "texts", "90", "120"]);
+  assert.match(items[0].description, /^Text messages, November 2026 \/ Messages texte$/);
+  // Again (the job runs daily), and after a record that didn't save: never a second line.
+  assert.deepEqual((await w.billing.billTexts({ month: "2026-11", texts: { "moth-press": { texts: 90, parts: 120 } }, cents })).billed, []);
+  await w.stores.subscriptions.set("moth-press", { ...(await w.stores.subscriptions.get("moth-press")), textBills: {} });
+  assert.deepEqual((await w.billing.billTexts({ month: "2026-11", texts: { "moth-press": { texts: 90, parts: 120 } }, cents })).billed, [{ shopId: "moth-press", cents: 192 }]);
+  assert.equal(w.stripe.world.invoiceItems.size, 1);
+});

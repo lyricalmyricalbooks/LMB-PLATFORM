@@ -149,7 +149,9 @@ function cleanCustomer(body) {
   const email = text(body?.email, 320).toLowerCase();
   if (!name) return { problem: "Please add your name." };
   if (!EMAIL.test(email)) return { problem: "Please add an email address we can send your booking to." };
-  return { name, email, phone: text(body?.phone, 40), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "" };
+  const phone = text(body?.phone, 40);
+  // Text reminders only with a number and the client's own tick (the shop's switch is checked when sending).
+  return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "" };
 }
 
 /** What the customer's page may see of a booking (never the payment ids or the key's hash). */
@@ -203,6 +205,9 @@ function bookingActions({
   // signed one-click unsubscribe link (may be async). Without both no rebook reminder is sent.
   optedOut = null,
   unsubscribeUrl = null,
+  // Text-message reminders (textSender.js): { status() -> { available, price }, send({ to, body, kind, idempotencyKey }) }
+  // through the platform, billed to the shop at cost. None: no texts, and the admin's switch says "Opening soon".
+  texts = null,
 }) {
   const services = () => db.collection("bookingServices");
   const settingsRef = () => db.collection("bookingSettings").doc("main");
@@ -1247,6 +1252,8 @@ function bookingActions({
           codes: await codesOffered(), giftCards: await giftCardsOffered(),
           // Approved reviews of visits, newest first, for the Client reviews section (only while the shop takes them).
           reviews: settings.siteReviews ? await visitReviews() : [],
+          // Whether the form offers "Text me reminders": the owner's switch, and the platform sending texts.
+          texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
           services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }, i) => ({
@@ -1451,7 +1458,7 @@ function bookingActions({
         const at = new Date(nowMs).toISOString();
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
-          customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
+          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
@@ -1766,6 +1773,11 @@ function bookingActions({
         }
         return res.status(200).json({ path: `/calendar/${token}.ics` });
       }
+      if (op === "textStatus") {
+        // The Text reminders switch: open (with the price of one text part) or "Opening soon".
+        const status = texts ? await texts.status().catch(() => ({ available: false, price: "" })) : { available: false, price: "" };
+        return res.status(200).json({ available: status.available === true, price: status.price || "" });
+      }
       if (op === "saveSettings") {
         const next = cleanBookingSettings(req.body?.settings);
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
@@ -1867,7 +1879,7 @@ function bookingActions({
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           // The owner booking someone in may fill in the service's questions or leave them.
-          customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
+          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
           // Booked in by the owner: nothing is taken by card, so a priced service is all paid at the visit.
           status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor + (tax?.taxMinor || 0), ...taxFields(tax), currency: currency(),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
@@ -2195,6 +2207,34 @@ function bookingActions({
     return { confirmed, freed };
   }
 
+  /** Whether the platform sends texts for this shop now (textSender.js caches it a few minutes). Never throws. */
+  async function textsOpen() {
+    if (!texts) return false;
+    try { return (await texts.status())?.available === true; } catch { return false; }
+  }
+
+  /**
+   * The reminder by text too (Services plan phase 7), for a client who ticked "Text me reminders" with a number, while
+   * the owner's switch is on. One text per reminder (the key is the booking's id, the kind and the reminder's own key), so
+   * a second sweep never sends it again, and a moved booking's new reminder gets its own text. Never throws: the email has gone either way. A client who replied STOP loses the tick.
+   */
+  async function textReminder(id, b, kind, key) {
+    try {
+      if (!texts || !b.customer?.textOk || !b.customer?.phone) return;
+      const settings = await readSettings();
+      if (!settings.textReminders) return;
+      const when = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
+      const shop = String(shopName() || "").trim().slice(0, 40);
+      const body = `${kind === "soon" ? "Soon" : "Reminder"}: ${b.serviceName.slice(0, 60)}${shop ? ` at ${shop}` : ""}, ${when}${b.staffName ? ` with ${b.staffName.slice(0, 30)}` : ""}. Change or cancel: ${manageUrl(id, key)} Reply STOP to stop texts.`;
+      const sent = await texts.send({ to: b.customer.phone, body, kind: `booking-${kind}`, idempotencyKey: `booking-${id}-${kind}-${hash(key).slice(0, 10)}` });
+      if (sent?.optedOut) await bookings().doc(id).set({ customer: { ...b.customer, textOk: false } }, { merge: true });
+      else if (sent?.ok) await bookings().doc(id).set({ [kind === "soon" ? "reminder2TextAt" : "reminderTextAt"]: now().toISOString() }, { merge: true });
+      else if (sent && !sent.ok) console.warn(`bookings: the ${kind} text for ${id} wasn't sent: ${sent.message || "no answer"}`);
+    } catch (err) {
+      console.error("bookings: reminder text failed:", err?.message || err);
+    }
+  }
+
   /**
    * Emails each confirmed customer once, about a day before their booking. Skips bookings made in the last
    * REMINDER_SKIP_HOURS (the confirmation is fresh) and ones starting within the hour. Marks before sending, so a
@@ -2217,6 +2257,7 @@ function bookingActions({
       const key = randomKey();
       await bookings().doc(doc.id).set({ reminderSentAt: new Date(nowMs).toISOString(), reminderKeyHash: hash(key) }, { merge: true });
       await tellCustomer(doc.id, b, "reminder", { byShop: true, key });
+      await textReminder(doc.id, b, "reminder", key);
       reminded += 1;
     }
     return { reminded };
@@ -2240,6 +2281,7 @@ function bookingActions({
       const key = randomKey();
       await bookings().doc(doc.id).set({ reminder2SentAt: new Date(nowMs).toISOString(), reminder2KeyHash: hash(key) }, { merge: true });
       await tellCustomer(doc.id, b, "soon", { byShop: true, key });
+      await textReminder(doc.id, b, "soon", key);
       reminded += 1;
     }
     return { reminded };

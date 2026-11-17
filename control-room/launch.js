@@ -97,6 +97,17 @@ const KEY_STEPS = {
     action: { href: key.getIt, words: "Open Plaid" },
     how: [{ text: "In Plaid, copy your keys and add them in Google Cloud's secret store." }, settingStep(key), DEPLOY_STEP],
   }),
+  texts: (key) => ({
+    title: "Turn on text-message reminders",
+    why: "Services shops send booking reminders by text; each shop pays for its own texts at cost on its bill.",
+    action: { href: key.getIt, words: "Open Twilio" },
+    how: [
+      { text: "In Twilio, buy one toll-free number and ask Twilio to verify it (a form about what the texts are for)." },
+      { text: "Copy the account SID and auth token into Google Cloud's secret store as twilio-account-sid and twilio-auth-token." },
+      { text: "In GitHub, add the number to the server settings:", copy: "TWILIO_FROM=+1…", href: SETTINGS_PAGE, linkWords: "Open the server settings" },
+      settingStep(key), DEPLOY_STEP,
+    ],
+  }),
 };
 
 function secretStep(key, { secretsPage }) {

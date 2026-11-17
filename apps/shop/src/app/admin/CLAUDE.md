@@ -1261,3 +1261,8 @@ Fixture: `admin-fixture.html?shipping=1&page=settings/shipping` › Fix profile 
 
 ## Shipping profiles workspace (17 November 2026)
 Settings › Shipping › Profiles is one workspace (`shipping/ShippingProfilesWorkspace.tsx`, Julian's "Shipping Profiles v2" mockup; since 17 November the profiles are a row of cards across the top, his option A, and the workspace fills the width with zones side by side): profile cards, books, zones with an in-card place picker (quick picks, continents, countries, CA/US provinces and states; no search), Try it (`tryIt` uses `matchShippingZone`/`computeShippingCost` on the draft) and a fixed Save bar. Every edit is a draft; `savePlan` (`shipping/profilesWorkspace.ts`) turns it into creates, deletes, updates and book moves. New profiles come from the 3-step wizard (books first). The old list, profile editor and NewShippingProfileDialog are gone from this tab; the zone/rate editor code below the workspace is still reached by nothing else and can be removed next.
+
+**Text reminders (17 November 2026, Services plan phase 7):** Calendar › Hours & rules › **Text reminders** (`TextsTile`
+in `Bookings.tsx`, before Tips) asks op `textStatus`: "Opening soon" badge while the platform has no text keys, else the
+switch **Send reminders by text too** (`textReminders`, saved with the form) and the price per text, billed at cost.
+Fixture: `admin-fixture.html?page=bookings` (`&texts=soon`).

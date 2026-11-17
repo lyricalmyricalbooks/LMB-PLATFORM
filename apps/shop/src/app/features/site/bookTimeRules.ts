@@ -15,6 +15,8 @@ export type BookingInfo = { on: boolean; zone?: string; currency?: string; cance
   codes?: boolean;
   /** The shop has gift cards, so the form offers a gift card box on paid services. */
   giftCards?: boolean;
+  /** The shop sends reminders by text, so the form offers "Text me reminders" next to the phone number. */
+  texts?: boolean;
   /** The people who take bookings (none when the shop lists nobody): who does which service (no services listed = all). */
   staff?: BookingPerson[] };
 /** Someone who takes bookings, as the Book a time page sees them. */

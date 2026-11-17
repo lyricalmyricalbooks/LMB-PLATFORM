@@ -1268,6 +1268,50 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
 
     /**
+     * Text-message reminders (services/texts, Services plan phase 7): last month's texts go on the shop's next bill as
+     * their own line, "Text messages, October 2026", at what they cost the platform. `texts` is { [shopId]: { texts,
+     * parts } }; `cents(currency, parts)` prices them. A trial month and a test shop cost nothing, as with the bank
+     * feed. After the month, once per shop and month, safe to run every day.
+     */
+    async billTexts({ month, texts = {}, cents }) {
+      const { end } = monthBounds(month);
+      const billed = [], skipped = [], failed = [];
+      for (const row of await subscriptions.list()) {
+        const sent = texts[row.shopId];
+        if (!row.subscriptionId || !(sent?.parts > 0) || row.textBills?.[month]) continue;
+        if (ENDED.has(row.status) || row.testShop === true || currentPaymentWay(row, now()) === "payAsYouSell") { skipped.push(row.shopId); continue; }
+        try {
+          const currency = cur(row);
+          const paid = !row.trialEnd || Date.parse(row.trialEnd) < end;
+          const amount = paid ? cents(currency, sent.parts) : 0;
+          let invoiceItemId = null;
+          const made = amount > 0 ? await runningCostLine(row, month, "texts") : null;
+          if (made) invoiceItemId = made.id;
+          else if (amount > 0) {
+            const item = await call("POST", "/v1/invoiceitems", {
+              params: {
+                customer: row.customerId, subscription: row.subscriptionId, amount, currency: currency.toLowerCase(),
+                description: `Text messages, ${monthWords(month)} / Messages texte`, discountable: false,
+                ...(tax ? { tax_behavior: "exclusive", tax_code: settings.taxCode } : {}),
+                metadata: { lmb_shop_id: row.shopId, lmb_month: month, lmb_kind: "texts", lmb_texts: String(sent.texts), lmb_parts: String(sent.parts) },
+              },
+              idempotencyKey: `texts-${row.shopId}-${month}`,
+            });
+            invoiceItemId = item?.id ?? null;
+          }
+          const entry = { cents: made ? made.amount : amount, texts: sent.texts, parts: sent.parts, invoiceItemId, at: at() };
+          await save(row.shopId, { textBills: { ...(row.textBills ?? {}), [month]: entry } }, null);
+          await logChange(row.shopId, "texts-billed", { month, cents: entry.cents, texts: sent.texts });
+          billed.push({ shopId: row.shopId, cents: entry.cents });
+        } catch (failure) {
+          failed.push(`${row.shopId}: ${failure.message}`);
+        }
+      }
+      if (failed.length) throw new Error(`Texts billed, but ${failed.length} shop${failed.length > 1 ? "s" : ""} had trouble: ${failed.join("; ")}`);
+      return { month, billed, skipped };
+    },
+
+    /**
      * The daily heads-up: when this month's bill (fee plus running cost so far, carried on to the month's end) looks set
      * to pass the amount the press chose (DEFAULT_ALERT_CENTS unless they set one), they're emailed once that month.
      * `soFar` is { [shopId]: cents } for the month so far.
