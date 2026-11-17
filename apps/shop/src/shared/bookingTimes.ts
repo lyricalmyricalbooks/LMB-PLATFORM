@@ -145,6 +145,8 @@ export type StaffMember = {
   email: string;
   /** Their own length or price for a service, when it differs from the service's (Services plan 2, B3). */
   rates?: PersonRate[];
+  /** Their share of what their visits take, 0.5 to 100 (Services plan 2, team pay). Shown on the pay report, never paid out. */
+  commissionPercent?: number;
 };
 /** A room or chair that only one booking can use at a time. */
 export type BookingRoom = { id: string; name: string };
@@ -887,9 +889,18 @@ export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BO
       daysOff: cleanDaysOff(p.daysOff),
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
       rates: cleanRates(p.rates),
+      ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
     });
   }
   return out;
+}
+
+/** A commission share: a number from 0.5 to 100 in half steps; anything else is none (0). */
+export function commissionOf(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+  if (!Number.isFinite(n)) return 0;
+  const half = Math.round(n * 2) / 2;
+  return half < 0.5 ? 0 : Math.min(100, half);
 }
 
 /** A person's own lengths and prices: one per service, at least one of the two set, lengths 5 minutes to 8 hours. */

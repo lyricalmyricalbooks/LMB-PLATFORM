@@ -320,7 +320,11 @@ function NewBooking({ c }: { c: Copy }) {
         const payNow = pack ? 0 : gift ? gift.payNowMinor : upFrontMinor(priced);
         // A first-visit price is decided by the server from the email (an applied code's quote already has it), so the
         // page says it may apply instead of naming a total the card page might not ask for.
-        const maybeIntro = !!service.introPriceMinor && service.introPriceMinor < (listed?.priceMinor ?? service.priceMinor) && !pack && !applied;
+        // Like the server: the first-visit price replaces the visit's own price (the chosen person's, if they have one)
+        // and the ticked extras still cost what they cost on top.
+        const ownPrice = listed ? asPerson(listed, peopleFor(info, listed.id).find((p) => p.id === staffId)).priceMinor : service.priceMinor;
+        const extrasMoney = Math.max(0, service.priceMinor - ownPrice);
+        const maybeIntro = !!service.introPriceMinor && service.introPriceMinor < ownPrice && !pack && !applied;
         return (
         <div className="grid gap-8 lg:grid-cols-[1fr_280px] items-start">
           <form {...regionProps("bookingsForm")} onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">
@@ -413,7 +417,7 @@ function NewBooking({ c }: { c: Copy }) {
               <span className="fm-track-mono">{c("bookTimePaid")}</span>
               <strong translate="no">{pack ? c("bookTimePackPaid") : priced.priceMinor > 0 ? moneyText(priced.priceMinor, currency) : c("bookTimeFree")}</strong>
             </div>
-            {maybeIntro && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeIntroNote", { price: moneyText((service.introPriceMinor || 0) + service.priceMinor - (listed?.priceMinor ?? service.priceMinor), currency) })}</p>}
+            {maybeIntro && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeIntroNote", { price: moneyText((service.introPriceMinor || 0) + extrasMoney, currency) })}</p>}
             {!pack && takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
             {!pack && priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
             {run && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimeRunNote")}</p>}

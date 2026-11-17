@@ -1514,6 +1514,8 @@ function bookingActions({
     if (claimFor && !(await claimIntro(who, claimFor))) return service;
     // Priced extras the client ticked still cost what they cost on top of the first-visit price.
     const intro = { ...service, priceMinor: service.introPriceMinor + (service.extrasMinor || 0), intro: true };
+    // A missed-booking fee never comes to more than the visit it is for.
+    if (Number(intro.lateFeeMinor) > intro.priceMinor) intro.lateFeeMinor = intro.priceMinor;
     // A percentage deposit of the lower price can fall under what a card page takes (0.50): ask for that much instead
     // (never more than the price, which is itself at least 0.50), so the first visit can always be booked.
     const deposit = depositOf(intro);
@@ -2116,7 +2118,7 @@ function bookingActions({
           ...(offered.intro ? { intro: true, listPriceMinor: service.priceMinor } : {}),
           ...(extras.length ? { extras } : {}),
           paid: false, ...giftPaid, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
-          ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
+          ...(holdCard ? { cardHold: true, lateFeeMinor: offered.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
           pendingKey: paid ? key : null,
           source: "website", history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by: "customer" }], createdAt: at, updatedAt: at,

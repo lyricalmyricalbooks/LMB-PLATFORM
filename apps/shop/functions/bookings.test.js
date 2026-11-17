@@ -1205,6 +1205,14 @@ describe("card on file and the missed-booking fee", () => {
     expect(email).toMatch(/Card on file:<\/strong> Visa ending 4242\. Missing this booking, or cancelling less than 24 hours before, may cost \$30\.00/);
   });
 
+  test("a first visit priced under the missed-booking fee never risks more than that visit", async () => {
+    const t = setup();
+    await seedCards(t);
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000, holdCard: true, lateFeeMinor: 3000, introPriceMinor: 2000 });
+    const { r } = await bookCut(t);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ priceMinor: 2000, lateFeeMinor: 2000 });
+  });
+
   test("a card page left unfinished never confirms, and a deposit page also saves the card", async () => {
     const t = setup();
     await seedCards(t);
