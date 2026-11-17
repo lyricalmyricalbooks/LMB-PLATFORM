@@ -974,8 +974,10 @@ function bookingActions({
   /**
    * Frees a booking's time (cancelled, or a hold that ran out), and writes `changes` on the booking. A cancelled booking
    * puts its gift card's part back onto the card, once, unless the shop keeps it (`giftBack: false`). Returns what it wrote.
+   * `still(booking)`, when given, is checked on the booking as it stands inside the same transaction: if it no longer
+   * holds (paid for since it was read, say), nothing is written and it returns null.
    */
-  async function freeTime(id, b, changes, { giftBack = true, packBack = true } = {}) {
+  async function freeTime(id, b, changes, { giftBack = true, packBack = true, still = null } = {}) {
     const spans = spansOf(id, b);
     const days = [...new Set(spans.flatMap((x) => daysTouched(x.start, x.end, zone())))];
     // A cancelled booking gives its discount code's use back, once.
@@ -993,7 +995,8 @@ function bookingActions({
       const giftSnap = gift ? await tx.get(gift) : null;
       // Only the booking's own copy decides, so two cancels at once never put the money back twice.
       const packSnap = pack ? await tx.get(pack) : null;
-      const fresh = gift || pack ? (await tx.get(bookings().doc(id))).data() : null;
+      const fresh = gift || pack || still ? (await tx.get(bookings().doc(id))).data() : null;
+      if (still && !(fresh && still(fresh))) return null;
       const putBack = !!giftSnap?.exists && !fresh?.giftCard?.returned;
       const visitBack = !!packSnap?.exists && !fresh?.pack?.returned && (packSnap.data()?.uses || []).some((u) => u.bookingId === id && !u.returned);
       if (codeSnap?.exists) tx.set(code, { usageCount: Math.max(0, (Number(codeSnap.data()?.usageCount) || 0) - 1) }, { merge: true });
@@ -1018,6 +1021,7 @@ function bookingActions({
       tx.set(bookings().doc(id), all, { merge: true });
       return all;
     });
+    if (!written) return null;
     // No earlier time for a visit that is off (a time held for it goes back to the others below).
     if (written && b.earlierWanted) {
       const e = (await earlierList().doc(id).get()).data();
@@ -1165,14 +1169,17 @@ function bookingActions({
    * refund or keep on its own (`skipped`).
    */
   async function cancelLater(id, b, by, at) {
+    const untouched = (v) => v.status === "confirmed" && !(v.paid || v.depositPaid || cardTaken(v) > 0 || tipTaken(v) > 0 || v.readerOpen || v.restOpen);
     let cancelled = 0;
     let skipped = 0;
     for (const v of await runVisits(b)) {
       if (v.id === id || v.status !== "confirmed" || Date.parse(v.start) <= Date.parse(b.start)) continue;
       const { id: vid, ...vb } = v;
-      if (vb.paid || vb.depositPaid || cardTaken(vb) > 0 || tipTaken(vb) > 0 || vb.readerOpen || vb.restOpen) { skipped += 1; continue; }
+      if (!untouched(vb)) { skipped += 1; continue; }
+      // Checked again inside the cancel itself: a payment that lands between the read and the write keeps the visit.
       const written = await freeTime(vid, vb, { status: "cancelled", cancelledAt: at, cancelledBy: by, updatedAt: at,
-        history: [...(vb.history || []), { at, what: "cancelled with the rest of the run", by }].slice(-20) });
+        history: [...(vb.history || []), { at, what: "cancelled with the rest of the run", by }].slice(-20) }, { still: untouched });
+      if (!written) { skipped += 1; continue; }
       await syncCalendar(vid, { ...vb, ...written });
       cancelled += 1;
     }
