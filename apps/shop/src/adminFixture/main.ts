@@ -243,7 +243,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   let rows: Booking[] = mode === "on" ? [
     booking("bk-1", services[0], at(0, 11), "Ada Example", { meetUrl: "https://meet.google.com/abc-defg-hij", checkInCode: "K7QM-2XPA" }),
     booking("bk-2", services[1], at(0, 14, 30), "Ben Example", { priceMinor: 5085, taxMinor: 585, taxLines: [{ name: "HST ON", cents: 585 }], tip: { amountMinor: 800, at: at(0, 15, 40) }, note: "First time on a riso.", answers: [{ label: "What are you printing?", answer: "A two-colour zine, 16 pages, A5." }, { label: "How many copies?", answer: "60" }] }),
-    booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin" }),
+    booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin", series: { id: "run_bk-3", visit: 2, visits: 6, everyWeeks: 5 } }),
     // Made before the team was listed: names nobody, so the Team day shows its Not assigned column.
     ...(TEAM ? [booking("bk-14", services[0], at(0, 12), "Nia Example", { staffId: undefined, staffName: undefined })] : []),
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
@@ -395,6 +395,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "move") {
       const to = typeof body.staffId === "string" ? settings.staff.find((p) => p.id === body.staffId) : undefined;
       rows = rows.map((b) => (b.id === id ? { ...b, start: String(body.start), end: plus(String(body.start), b.minutes), ...(to ? { staffId: to.id, staffName: to.name } : {}) } : b));
+    }
+    if (op === "runCheck") {
+      // Every date of the run at the picked time; the third is taken, so the warning can be seen.
+      const run = body.run as { everyWeeks: number; visits: number };
+      const first = Date.parse(String(body.start));
+      return { visits: Array.from({ length: run.visits }, (_, n) => ({ start: new Date(first + n * run.everyWeeks * 7 * 86_400_000).toISOString(), free: n !== 2 })) };
     }
     if (op === "times") {
       const day = String(body.day || new Date().toLocaleDateString("en-CA"));

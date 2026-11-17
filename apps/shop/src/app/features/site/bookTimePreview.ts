@@ -5,7 +5,7 @@
 // saved and no email is sent.
 import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import { takesDeposit, upFrontMinor, withCode, type BookingCode, type BookingInfo, type BookingPackView, type BookingServiceView, type BookingView, type VisitReview } from "./bookTimeRules";
+import { fitRun, takesDeposit, upFrontMinor, withCode, type RunVisit, type BookingCode, type BookingInfo, type BookingPackView, type BookingServiceView, type BookingView, type VisitReview } from "./bookTimeRules";
 
 export const SAMPLE_BOOKING_ID = "sample-booking";
 export const SAMPLE_BOOKING_KEY = "0".repeat(48);
@@ -19,7 +19,7 @@ const SERVICES: BookingServiceView[] = [
     packVisits: 5, packPriceMinor: 18000, packDays: 365,
     questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
   { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8 },
-  { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "" },
+  { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "", repeats: true },
 ];
 /** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */
 const CLASS_LEFT = [8, 3, 0, 1, 6];
@@ -29,6 +29,16 @@ const SAMPLE_HOURS = [[], ...[1, 2, 3].map(() => [{ start: "09:00", end: "17:00"
 
 /** The sample booking as last changed in this preview (Change time and Cancel work on it). */
 let sample: BookingView | null = null;
+/** The sample standing appointment's visits, when the sample was booked as one (the first is the sample itself). */
+let sampleRun: RunVisit[] = [];
+
+/** A standing appointment's dates at the same shop-clock time: every one free in the preview. */
+function sampleRunStarts(start: string, run: { everyWeeks: number; visits: number }, zone: string): string[] {
+  const ms = Date.parse(start);
+  const day = dayOf(ms, zone);
+  const time = new Date(ms).toLocaleTimeString("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  return Array.from({ length: run.visits }, (_, n) => new Date(zonedTime(addDays(day, n * run.everyWeeks * 7), time, zone)).toISOString());
+}
 
 /** Any code typed in the preview takes 10% off a paid service, so the code box and its summary row can be designed. */
 function sampleCode(service: BookingServiceView, code: unknown): BookingCode | null {
@@ -131,8 +141,18 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     if (typed.length !== 12 || !service?.packVisits) throw Object.assign(new Error(), { code: "pack" });
     return { last4: typed.slice(-4), left: 3, visits: service.packVisits, expiresOn: addDays(today, 300) };
   }
+  if (action === "bookingRunCheck") {
+    const run = fitRun({ everyWeeks: Math.max(1, Number(body.run?.everyWeeks) || 1), visits: Math.max(2, Number(body.run?.visits) || 2) });
+    return { visits: sampleRunStarts(String(body.start), run, zone).map((start) => ({ start, free: true })) };
+  }
   if (action === "bookingStart") {
     sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start, body.code, body.giftCard);
+    sampleRun = [];
+    if (body.run && typeof body.start === "string") {
+      const run = fitRun({ everyWeeks: Math.max(1, Number(body.run.everyWeeks) || 1), visits: Math.max(2, Number(body.run.visits) || 2) });
+      sample = { ...sample, run: { visit: 1, visits: run.visits, everyWeeks: run.everyWeeks } };
+      sampleRun = sampleRunStarts(body.start, run, zone).map((start, n) => ({ id: n ? `${SAMPLE_BOOKING_ID}-${n + 1}` : SAMPLE_BOOKING_ID, start, status: "confirmed" as const, ...(n ? {} : { current: true }) }));
+    }
     if (typeof body.pack === "string" && body.pack) {
       sample = { ...sample, payment: "pack", paid: true, priceMinor: 0, packLast4: body.pack.replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase(), packVisit: 3, packVisits: 5,
         depositMinor: undefined, depositPaid: undefined, dueMinor: undefined, canPayRest: undefined, discountCode: undefined, discountMinor: undefined, giftCardLast4: undefined, giftMinor: undefined };
@@ -144,6 +164,9 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   // Paying what is left: no card page in the preview, it just shows as paid in full.
   if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0, tipMinor: Number(body.tipMinor) || 0 };
   if (action === "bookingReview") sample = { ...sample, canReview: false, reviewed: true };
-  if (action === "bookingCancel") sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
-  return { booking: sample };
+  if (action === "bookingCancel") {
+    sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
+    sampleRun = sampleRun.map((v) => (v.current || body.andLater === true ? { ...v, status: "cancelled" } : v));
+  }
+  return { booking: sample, ...(sampleRun.length ? { runVisits: sampleRun } : {}) };
 }

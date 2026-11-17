@@ -23,7 +23,7 @@ import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
-  peopleFor,
+  peopleFor, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -93,12 +93,17 @@ function NewBooking({ c }: { c: Copy }) {
   const [gift, setGift] = useState<BookingGift | null>(null);
   // A pack of visits the server accepted for the chosen service: it pays for the visit, so no code or gift card with it.
   const [pack, setPack] = useState<BookingPackUse | null>(null);
+  // A standing appointment (a service the shop lets clients repeat): how often and how many visits, and whether every
+  // date of it is free at the picked time (null while it is being checked).
+  const [run, setRun] = useState<BookingRun | null>(null);
+  const [runFree, setRunFree] = useState<boolean | null>(null);
   // "Book a visit" on a pack's own page links here with the pack, so it is applied once the service is chosen.
   const usePack = useMemo(() => packFromSearch(search, "usepack"), [search]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   // Opened from the team section (`?with=`): that person stays picked for any service they do.
   useEffect(() => {
     setApplied(null);
+    setRun(null);
     setStaffId(service && wanted.person && peopleFor(info, service.id).some((p) => p.id === wanted.person) ? wanted.person : "");
   }, [service?.id]);
   useEffect(() => {
@@ -173,12 +178,14 @@ function NewBooking({ c }: { c: Copy }) {
     setError("");
     try {
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
       setBusy(false);
       // The person picked stopped doing this service meanwhile: back to anyone free and the times.
+      // Someone took one of the run's dates meanwhile: back to the time, where the dates are checked again.
+      if (err?.code === "run_taken") { setStep("time"); setError(c("bookTimeRunGone")); return; }
       if (err?.code === "staff") { setStaffId(""); setStart(""); setStep("time"); setError(c("bookTimeStaffProblem")); return; }
       if (err?.code === "taken" || err?.code === "started") { setStart(""); setStep("time"); setError(c(course ? (err.code === "started" ? "bookTimeCourseStarted" : "bookTimeCourseFull") : "bookTimeTaken")); return; }
       // The code stopped working meanwhile (used up, ended): take it off so the right price shows, and say so.
@@ -257,8 +264,9 @@ function NewBooking({ c }: { c: Copy }) {
           {!course && <TimePicker serviceId={service.id} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
             offer={service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : undefined}
             waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />}
+          {!course && service.repeats && !pack && <RunPicker serviceId={service.id} staffId={staffId} start={start} run={run} onRun={setRun} onFree={setRunFree} zone={zone} c={c} />}
           <div className="fm-book-actions mt-2">
-            <button type="button" className="fm-track-btn" disabled={!start} onClick={() => { setError(""); setStep("details"); }}>
+            <button type="button" className="fm-track-btn" disabled={!start || (!!run && runFree !== true)} onClick={() => { setError(""); setStep("details"); }}>
               {start && !course ? `${c("bookTimeContinue")} · ${timeText(start, zone)}` : c("bookTimeContinue")}
             </button>
             {steps[0] === "service" && (
@@ -323,7 +331,7 @@ function NewBooking({ c }: { c: Copy }) {
               <textarea id="bt-note" className="fm-track-input" value={form.note} maxLength={1000}
                 onChange={(e) => setForm({ ...form, note: e.target.value })} />
             </Field>
-            {(!!service.packVisits || pack) && !applied && !gift && (
+            {(!!service.packVisits || pack) && !applied && !gift && !run && (
               <ApplyBox region={regionProps("bookingsPackCode")} field="bt-pack" c={c} words={{ open: "bookTimePackOpen", label: "bookTimePackLabel", problem: "bookTimePackProblem" }}
                 applied={pack ? c("bookTimePackApplied", { last4: pack.last4, left: pack.left }) : ""}
                 onRemove={() => setPack(null)} maxLength={20}
@@ -356,6 +364,7 @@ function NewBooking({ c }: { c: Copy }) {
             <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
             {course && <Row label={c("bookTimeCourseDates", { count: course.length })} value={courseDateLines(course, zone).join(" · ")} />}
             {chosen && <Row label={c("bookTimeWith")} value={chosen.name} />}
+            {run && <Row label={c("bookTimeRunRow")} value={`${c("bookTimeRunVisitCount", { count: run.visits })} · ${runGap(run.everyWeeks, c)}`} />}
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
             {applied && <Row label={c("bookTimeDiscount")} value={`${applied.code} −${moneyText(applied.discountMinor, currency)}`} />}
             {!pack && taxMinor > 0 && <Row label={c("bookTimeTax")} value={moneyText(taxMinor, currency)} />}
@@ -367,6 +376,7 @@ function NewBooking({ c }: { c: Copy }) {
             </div>
             {!pack && takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
             {!pack && priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
+            {run && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimeRunNote")}</p>}
             <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 mt-5 cursor-pointer" onClick={() => setStep("time")}>
               <ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeChange")}
             </button>
@@ -374,6 +384,77 @@ function NewBooking({ c }: { c: Copy }) {
           </aside>
         </div>
       ); })()}
+    </div>
+  );
+}
+
+/** "Every 5 weeks" / "Every week". */
+function runGap(everyWeeks: number, c: Copy): string {
+  return everyWeeks === 1 ? c("bookTimeRepeatWeek") : c("bookTimeRepeatWeeks", { weeks: everyWeeks });
+}
+
+/**
+ * Standing appointment (a service the shop lets clients repeat): how often and how many visits, then every date at the
+ * picked time, each checked with the server (`bookingRunCheck`). `onFree` says whether they are all free (null: checking).
+ */
+function RunPicker({ serviceId, staffId, start, run, onRun, onFree, zone, c }: {
+  serviceId: string; staffId: string; start: string; run: BookingRun | null; onRun: (run: BookingRun | null) => void;
+  onFree: (free: boolean | null) => void; zone: string; c: Copy;
+}) {
+  const [visits, setVisits] = useState<{ start: string; free: boolean }[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setVisits(null); setFailed(false); onFree(null);
+    if (!run || !start) return;
+    let live = true;
+    ask("bookingRunCheck", { serviceId, start, run, ...(staffId ? { staffId } : {}) }).then((answer) => {
+      if (!live) return;
+      const list = (answer.visits || []) as { start: string; free: boolean }[];
+      setVisits(list);
+      onFree(list.length > 0 && list.every((v) => v.free));
+    }).catch(() => { if (live) { setFailed(true); onFree(false); } });
+    return () => { live = false; };
+  }, [serviceId, staffId, start, run?.everyWeeks, run?.visits]);
+  const taken = visits ? visits.filter((v) => !v.free).length : 0;
+  return (
+    <div {...regionProps("bookingsRepeat")} className="fm-book-run">
+      <div className="fm-book-run-pick">
+        <label className="fm-book-run-field">
+          <span className="fm-track-mono">{c("bookTimeRepeat")}</span>
+          <select className="fm-track-input" value={run?.everyWeeks || 0} onChange={(e) => {
+            const weeks = Number(e.target.value);
+            onRun(weeks ? fitRun({ everyWeeks: weeks, visits: run?.visits || 6 }) : null);
+          }}>
+            <option value={0}>{c("bookTimeRepeatOnce")}</option>
+            {RUN_WEEK_CHOICES.map((w) => <option key={w} value={w}>{runGap(w, c)}</option>)}
+          </select>
+        </label>
+        {run && (
+          <label className="fm-book-run-field">
+            <span className="fm-track-mono">{c("bookTimeRunVisits")}</span>
+            <select className="fm-track-input" value={run.visits} onChange={(e) => onRun({ ...run, visits: Number(e.target.value) })}>
+              {runVisitChoices(run.everyWeeks).map((n) => <option key={n} value={n}>{c("bookTimeRunVisitCount", { count: n })}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      {run && !start && <p className="text-sm leading-6 fm-muted">{c("bookTimeRunPickTime")}</p>}
+      {run && start && (failed ? <p className="text-sm leading-6" role="alert">{c("bookTimeError")}</p>
+        : !visits ? <p className="text-sm leading-6 fm-muted" role="status">{c("bookTimeRunChecking")}</p>
+        : (
+          <>
+            <p className="text-sm leading-6" role="status">{taken ? c("bookTimeRunSomeTaken") : c("bookTimeRunFree", { count: visits.length })}</p>
+            <ol className="fm-book-run-list">
+              {visits.map((v, i) => (
+                <li key={v.start} data-free={v.free ? "true" : "false"}>
+                  <span className="fm-track-mono">{i + 1}</span>
+                  <span>{courseDateLines([v.start], zone)[0]}</span>
+                  {!v.free && <span className="fm-book-run-taken">{c("bookTimeRunTaken")}</span>}
+                </li>
+              ))}
+            </ol>
+          </>
+        ))}
     </div>
   );
 }
@@ -932,12 +1013,15 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [tipPick, setTipPick] = useState<TipPick>({ kind: "none" });
+  // A standing appointment: every visit of it, this one marked (sent with the booking by the server).
+  const [runVisits, setRunVisits] = useState<RunVisit[]>([]);
   const polls = useRef(0);
 
   const load = (quiet = false) => {
     if (!quiet) setState("loading");
     return ask("bookingView", { id, key: manageKey }).then((answer) => {
       setBooking(answer.booking || null);
+      setRunVisits(answer.runVisits || []);
       setState(answer.booking ? "ready" : "missing");
     }).catch((err: any) => setState(err?.status === 404 ? "missing" : "failed"));
   };
@@ -981,6 +1065,9 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   const stamp = booking.status === "cancelled" ? "ended" : booking.status === "held" ? "unpaid" : "paid";
 
   const fullyPaid = booking.paid || (!!booking.restPaidMinor && !booking.dueMinor);
+  // Booked visits of the run after this one: cancelling can take them too.
+  const here = runVisits.findIndex((v) => v.current);
+  const laterLeft = here < 0 ? 0 : runVisits.slice(here + 1).filter((v) => v.status === "confirmed").length;
   const tipPercents = booking.tipPercents || [];
   const asksTip = (booking.canPayRest || booking.canTip) && tipPercents.length > 0 && !booking.tipMinor;
   const tipMinor = asksTip ? tipMinorOf(tipPick, booking.priceMinor) : 0;
@@ -1007,6 +1094,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
     try {
       const answer = await ask(action, { id, key: manageKey, ...body });
       setBooking(answer.booking);
+      if (answer.runVisits) setRunVisits(answer.runVisits);
       setMode("view");
       setNewStart("");
       setNotice(action === "bookingMove" ? c("bookTimeMoved") : "");
@@ -1051,6 +1139,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         <Row label={c("bookTimeWhen")} value={whenText(booking.start, booking.end, zone)} />
         {!!booking.courseStarts?.length && <Row label={c("bookTimeCourseDates", { count: booking.courseStarts.length })} value={courseDateLines(booking.courseStarts, zone).join(" · ")} />}
         {booking.staffName && <Row label={c("bookTimeWith")} value={booking.staffName} />}
+        {booking.run && <Row label={c("bookTimeRunRow")} value={`${c("bookTimeRunVisit", { visit: booking.run.visit, visits: booking.run.visits })} · ${runGap(booking.run.everyWeeks, c)}`} />}
         {booking.location && <Row label={c("bookTimeWhere")} value={booking.location} />}
         {booking.meetUrl && booking.status === "confirmed" && (
           <div className="fm-track-row"><span className="fm-track-mono">{c("bookTimeVideo")}</span><a className="text-right underline underline-offset-2" href={booking.meetUrl} target="_blank" rel="noopener noreferrer">{c("bookTimeJoin")}</a></div>
@@ -1074,6 +1163,23 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         {booking.status === "confirmed" && (booking.checkedIn ? <p className="fm-book-checkin-done" role="status">{c("bookTimeCheckedIn")}</p>
           : booking.checkInCode ? <CheckInCode code={booking.checkInCode} c={c} /> : null)}
       </div>
+
+      {runVisits.length > 1 && (
+        <section {...regionProps("bookingsRun")} className="fm-track-card p-6 sm:p-8 fm-book-run" aria-labelledby="bt-run-title">
+          <h2 id="bt-run-title" className="fm-track-mono">{c("bookTimeRunAll", { count: runVisits.length })}</h2>
+          <ol className="fm-book-run-list">
+            {runVisits.map((v, i) => (
+              <li key={v.id} data-free={v.status === "cancelled" ? "false" : "true"} aria-current={v.current ? "true" : undefined}>
+                <span className="fm-track-mono">{i + 1}</span>
+                {v.current ? <span>{courseDateLines([v.start], zone)[0]}</span>
+                  : <Link to={`/book?booking=${encodeURIComponent(v.id)}&key=${encodeURIComponent(manageKey)}`} className="underline underline-offset-2">{courseDateLines([v.start], zone)[0]}</Link>}
+                {v.current ? <span className="fm-book-run-mark">{c("bookTimeRunThis")}</span> : v.status === "cancelled" ? <span className="fm-book-run-taken">{c("bookTimeRunCancelled")}</span> : null}
+              </li>
+            ))}
+          </ol>
+          <p className="text-sm leading-6 fm-muted">{c("bookTimeRunNote")}</p>
+        </section>
+      )}
 
       {(booking.canReview || booking.reviewed) && <ReviewBox id={id} manageKey={manageKey} booking={booking} onDone={setBooking} c={c} />}
 
@@ -1137,8 +1243,13 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
           </div>
           <div className="fm-book-actions">
             <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void act("bookingCancel")}>
-              {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeCancelYes")}
+              {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c(laterLeft ? "bookTimeCancelJustThis" : "bookTimeCancelYes")}
             </button>
+            {laterLeft > 0 && (
+              <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void act("bookingCancel", { andLater: true })}>
+                {c("bookTimeCancelLater", { count: laterLeft })}
+              </button>
+            )}
             <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setMode("view")}>{c("bookTimeCancelNo")}</button>
           </div>
         </div>
