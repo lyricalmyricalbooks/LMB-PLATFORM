@@ -2864,9 +2864,9 @@ function bookingActions({
           ran += 1;
           continue;
         }
-        // The decision goes first (with everyone still to cancel), so a second sweep never decides twice and a failed
-        // refund stays on the list for the next one.
-        await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt, left: going.map((x) => x.id) });
+        // The decision goes first (with everyone still to cancel, marked to retry), so a second sweep never decides
+        // twice and a refund that fails, or a sweep cut short here, stays on the list for the next one.
+        await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt, ...retryState(going.map((x) => x.id)) });
         await closeClassTime(service, start);
         const left = await cancelForMinimum(service, going.map((x) => x.id));
         await runRef.set(retryState(left), { merge: true });
