@@ -8,7 +8,7 @@ import { DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, STOCKROOM_TAB, combined
 
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
-export const ADMIN_TABS = ["overview", "alerts", "help", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "bookings", "design", "settings"] as const;
+export const ADMIN_TABS = ["overview", "alerts", "help", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "bookings", "takePayment", "design", "settings"] as const;
 /** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
 // QuickBooks moved into Settings › Apps (12 November 2026): its old address opens Apps with QuickBooks open.
 export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications", bookkeeping: "apps" };
@@ -62,6 +62,7 @@ export function routeFromHash(hash: string, combined: boolean = combinedAdmin())
   if (!h) return null;
   const [head, rest] = [h.split("/")[0], h.split("/").slice(1).join("/")];
   if (head === "gift-cards") return { tab: "giftCards", ...(rest ? { giftCardId: decode(rest) } : {}) };
+  if (head === "take-payment") return { tab: "takePayment" };
   if (head === "orders") return { tab: "orders", ...(rest ? { orderId: decode(rest) } : {}) };
   // Social posts (`#social-posts`), and a post started from a book (`#social-posts/book/<id>`).
   if (head === "social-posts" || head === "socialPosts") {
@@ -114,6 +115,7 @@ export function hashForRoute(r: AdminRoute): string {
   if (r.tab === "orders") return r.orderId ? `#orders/${encodeURIComponent(r.orderId)}` : "#orders";
   if (r.tab === "giftCards") return "#gift-cards";
   if (r.tab === "socialPosts") return "#social-posts";
+  if (r.tab === "takePayment") return "#take-payment";
   if (r.tab === STOCKROOM_TAB) return `#${STOCKROOM_TAB}/${stockroomPage(r.subTab)?.id ?? DEFAULT_STOCKROOM_PAGE}`;
   if (r.tab === SALES_TAB) return `#${SALES_TAB}`;
   if (r.tab === REORDER_TAB) return `#${REORDER_TAB}`;

@@ -1,7 +1,7 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug, Blocks,
-  Share2, Send, ChartLine, CalendarDays,
+  Share2, Send, ChartLine, CalendarDays, HandCoins,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -19,6 +19,8 @@ export const NAV: NavEntry[] = [
   { id: "messages", label: "Messages", icon: Inbox },
   // Bookings (beta): times customers book with the shop (Bookings.tsx); hidden until the platform turns it on.
   { id: "bookings", label: "Bookings", icon: CalendarDays },
+  // Take a payment at the desk (Services plan, phase 3; TakePayment.tsx): shown with Bookings.
+  { id: "takePayment", label: "Take a payment", icon: HandCoins },
   // Facebook & Instagram, Pinterest, TikTok and Google & YouTube, like Shopify's sales channels (plan 27.5).
   { id: "channels", label: "Sales channels", icon: Share2 },
   // Posting a product to the connected accounts, now or later (plan 27.6), next to Discounts like Shopify's Marketing.
@@ -68,7 +70,7 @@ const SETTINGS_PAGES = (NAV.find((n) => n.id === "settings")?.children || []).ma
 export const MENU: Menu = [
   // Analytics sits under Home here, so the shop-only menu keeps its five items (plan 1.27).
   { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", "bookings", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", "bookings", "takePayment", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
   // Sales channels sit with the products: where each one is listed (Studio opens full screen, so not under Design).
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
   { label: "Design", icon: Palette, pages: ["design"] },
@@ -89,7 +91,7 @@ export const WEBSITE_SIDE: Menu = [
   // The v3 mockups (Julian, 11 November 2026): Messages is its own item; Customers and All sales sit under Orders.
   { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers"] },
   // Bookings (beta) is its own item (Julian, 14 November 2026); it shows only in a shop that has Bookings.
-  { label: "Bookings", icon: CalendarDays, pages: ["bookings"] },
+  { label: "Bookings", icon: CalendarDays, pages: ["bookings", "takePayment"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
   // v4 (12 Nov 2026): Marketing sits above Analytics.
@@ -165,6 +167,7 @@ const SERVICES_SETTINGS = SETTINGS_PAGES.filter((id) => id !== SETTINGS_ITEM_PRE
 export const SERVICES_WEBSITE_SIDE: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
   { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
+  { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
   { label: "Clients", icon: Users, pages: ["customers"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", SALES_TAB], labels: { orders: "Website sales" } },
@@ -186,6 +189,7 @@ export const SERVICES_MONEY_SIDE: Menu = [
 export const SERVICES_MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
   { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
+  { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
   { label: "Clients", icon: Users, pages: ["customers", "messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", "discounts", "giftCards", "socialPosts"], labels: { orders: "Website sales" } },
   { label: "Design", icon: Palette, pages: ["design"] },
@@ -251,6 +255,7 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   analytics: { title: "Analytics", description: "Who visits your shop, where they come from and what they look at." },
   orders: { title: "Orders", description: "Review payments, fulfillment, and shipping for every order." },
   bookings: { title: "Bookings", description: "Times customers reserved with you, the services on offer, and your hours." },
+  takePayment: { title: "Take a payment", description: "Take payment at the desk: the client scans a code and pays by card." },
   customers: { title: "Customers", description: "Who buys from you: lifetime value, repeat buyers, and customers to win back." },
   inventory: { title: "Inventory", description: "Stock on hand, low-stock and reprint alerts, and quick count corrections." },
   catalog: { title: "Books", description: "Manage titles, pricing, formats, and inventory." },
