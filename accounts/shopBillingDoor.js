@@ -23,6 +23,7 @@ import { billingCallLog, billingCalls, billingPage, needsSecondStep } from "./bi
 import { ownerTwoStepProblem } from "./twoStep.js";
 import { errorRef, isOurError } from "../signup/api.js";
 import { siteUrlOf } from "../services/domains/names.js";
+import { sampleBillingAnswer } from "../services/billing/sampleBilling.js";
 
 export const SHOP_BILLING_PREFIX = "/api/shop-billing/";
 
@@ -99,6 +100,15 @@ export function createShopBillingDoor({ billing, paymentWay = null, exports = nu
       throw new DoorError(403, "Only the shop's owner can see or change its plan.");
     }
     const accountPage = billingPage(settings, shopId);
+    // One of the platform's own test shops with no real plan (they are never billed): its billing pages show sample
+    // data (services/billing/sampleBilling.js) and refuse every change. A real plan on a test shop wins.
+    if (row.testShop === true && !(await billing.status(shopId))) {
+      const sample = sampleBillingAnswer(call, row, { settings, now: now(), email });
+      if (sample !== undefined) {
+        await record(shopId, call, email, "sample");
+        return call === "status" ? { ...sample, accountPage, changesNeedTwoStep: false } : sample;
+      }
+    }
     const problem = needsSecondStep(entry, body) ? ownerTwoStepProblem(claims, row) : null;
     if (problem) {
       await record(shopId, call, email, "refused: needs two-step sign-in");

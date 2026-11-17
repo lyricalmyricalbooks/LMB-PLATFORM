@@ -105,3 +105,28 @@ export function trackerFigures({ month, now, record = null, history = {}, feeCen
     alert: { cents: limit, on: limit > 0, watched, passing: limit > 0 && watched !== null && watched > limit, used: limit > 0 && watched !== null ? Math.min(1, watched / limit) : null },
   };
 }
+
+/**
+ * The tracker's answer as Settings › Billing reads it: `figures` (trackerFigures) with every amount as { cents, text }.
+ * `money(cents)` puts cents into words in the press's currency. Shared by billing.costTracker and the test shops' sample
+ * billing (sampleBilling.js), so the two always have one shape.
+ */
+export function trackerAnswer(figures, { currency, money: words, plusTax, updatedAt = null, percentOff = null, alertSent = false }) {
+  const money = (cents) => (Number.isInteger(cents) ? { cents, text: words(cents) } : null);
+  const short = (m) => new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", month: "short" }).format(new Date(monthBounds(m).start));
+  return {
+    month: figures.month, monthWords: figures.monthWords, monthName: figures.monthWords.split(" ")[0], day: figures.day, days: figures.days,
+    measured: figures.measured, currency, plusTax, updatedAt,
+    soFar: money(figures.soFar), monthEnd: money(figures.monthEnd),
+    groups: figures.groups.map((g) => ({ ...g, text: words(g.cents) })),
+    estimate: {
+      fee: money(figures.estimate.fee), discount: figures.estimate.discount ? money(figures.estimate.discount) : null,
+      percentOff,
+      running: money(figures.estimate.running), beforeTax: money(figures.estimate.beforeTax), freeTrial: figures.estimate.freeTrial,
+    },
+    trend: figures.trend.map((t) => ({ month: t.month, words: short(t.month), now: t.now === true, ...(money(t.cents) ?? { cents: null, text: "" }) })),
+    lastMonth: figures.lastMonth ? { month: figures.lastMonth.month, monthWords: monthWords(figures.lastMonth.month), ...money(figures.lastMonth.cents) } : null,
+    average: money(figures.average), change: figures.change,
+    alert: { ...figures.alert, text: words(figures.alert.cents), watched: money(figures.alert.watched), sent: alertSent },
+  };
+}

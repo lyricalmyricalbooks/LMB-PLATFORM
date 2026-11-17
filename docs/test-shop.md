@@ -48,6 +48,12 @@ Each test shop also gets sample records (`setup/test-sample-data.js`), so every 
   5): sales at a fair, a review copy, two copies sent to the stockist "Test Corner Shop" with one sold, and that sale on
   an invoice due in 20 days. The stockist has no email address, so no reminder can be sent. Also the invoice details.
 - In the book shop only, a 50% author royalty on those two items (royalties are a book-shop feature).
+- Sample billing (`services/billing/sampleBilling.js`, 17 November 2026): a test shop is never billed, so a `platform/plan`
+  copy marked `sample: true` opens Settings › Plan and Billing, and the billing door (`accounts/shopBillingDoor.js`)
+  answers a test shop with no real plan from the sample: out of its trial on the founding offer, a Visa on file (and a
+  spare Mastercard), the next bill, this month's running costs, four paid monthly bills with a printable copy, and made-up
+  billing details. In the shop's own currency (the US shop in US dollars, no tax; the Canadian ones with Ontario HST).
+  Every change there is refused in plain words. A real plan on a test shop wins, and a reset never writes over its copy.
 
 Setup step 12 adds whatever is missing, and "Make the test shop" looks at it on every run, so a test shop made before a sample existed gets it next run. The control room's **Reset sample data** writes the products and every sample
 record again with today's dates; the stockroom part only when the control room can reach the stockroom.

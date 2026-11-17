@@ -39,6 +39,7 @@ import { sellsOf } from "../shared/sells/sells.js";
 import { testShopDocs } from "../setup/test-catalogue.js";
 import { testStudioDocs } from "../setup/test-studio-data.js";
 import { writeTestSamples } from "../setup/test-sample-data.js";
+import { SAMPLE_PLAN_DOC, testShopPlanDocument } from "../services/billing/sampleBilling.js";
 import { testShopKind, testShopServices, testShopWords } from "../setup/testShopPlace.js";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
@@ -499,6 +500,14 @@ export function createControlRoom({
       for (const { path, data } of docs) await shopData.set(shopId, path, data);
       const stockroom = stockroomData && (await stockroomData.ready(shopId)) ? stockroomData : null;
       const samples = await writeTestSamples({ shop: shopData, stockroom }, shopId, kind, { replace: true, now: now(), pressName: row.pressName, currency: row.currency });
+      // Sample billing (services/billing/sampleBilling.js): the plan copy that opens Settings › Plan and Billing, with
+      // today's dates. Never over a real plan's copy (a test shop someone put on a real plan keeps it).
+      const plan = await shopData.get(shopId, SAMPLE_PLAN_DOC);
+      if (!plan || plan.sample === true) {
+        const { platformUrl } = settings ? await settings() : platformSettings({});
+        await shopData.set(shopId, SAMPLE_PLAN_DOC, testShopPlanDocument(row, { platformUrl, now: now() }));
+        samples.push(SAMPLE_PLAN_DOC);
+      }
       return { shopId, reset: docs.length, samples: samples.length, stockroom: Boolean(stockroom) };
     },
 
