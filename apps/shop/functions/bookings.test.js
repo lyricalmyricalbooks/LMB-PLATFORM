@@ -2480,4 +2480,36 @@ describe("courses: one sign-up, one price, a place on every date", () => {
     expect((await t.pub({ action: "bookingStart", serviceId: id, start: first, ...person(2) })).body.code).toBe("started");
     expect((await t.adm({ op: "create", serviceId: id, ...person(2) })).body.code).toBe("started");
   });
+
+  test("a later date's stand-in is kept on the booking when the first date's person is busy then", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, staff: [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }] });
+    const one = (await t.adm({ op: "saveService", service: { name: "Glazing", minutes: 60, places: 1, payment: "free" } })).body.service.id;
+    const id = (await t.adm({ op: "saveService", service: { name: "Wheel course", minutes: 60, places: 2, payment: "free", courseDates: ["2026-11-28T18:00", "2026-12-05T18:00"] } })).body.service.id;
+    // Ana is taken on the second date.
+    const busy = Date.parse(at("2026-12-05", "18:00"));
+    await t.db.collection("bookingDays").doc("2026-12-05").set({ items: { other: { start: busy, end: busy + 3600_000, held: false, at: busy, s: one, p: "ana" } } });
+    const made = (await t.pub({ action: "bookingStart", serviceId: id, start: first, staffId: "ana", ...person(2) })).body;
+    const b = (await t.db.collection("bookings").doc(made.id).get()).data();
+    expect(b.staffName).toBe("Ana");
+    expect(b.course.staff).toEqual(["Ana", "Ben"]);
+  });
+
+  test("the Timetable gives no count for a course whose days it couldn't all read", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    const month = (m) => Array.from({ length: 28 }, (_, i) => `2027-${String(m).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}T18:00`);
+    const ids = [];
+    for (const m of [1, 3, 5, 7, 9, 11]) ids.push((await t.adm({ op: "saveService", service: { name: `Course ${m}`, minutes: 60, places: 4, payment: "free", courseDates: month(m) } })).body.service.id);
+    const courses = (await t.pub({ action: "classTimetable" })).body.courses;
+    expect(courses).toHaveLength(6);
+    // 30 days each: six whole courses fit in 200, the seventh would not.
+    expect(courses.every((c) => c.left === 4)).toBe(true);
+    await t.adm({ op: "saveService", service: { name: "Course 12", minutes: 60, places: 4, payment: "free", courseDates: month(12) } });
+    const more = (await t.pub({ action: "classTimetable" })).body.courses;
+    expect(more.filter((c) => c.left === undefined).map((c) => c.name)).toEqual(["Course 12"]);
+  });
 });

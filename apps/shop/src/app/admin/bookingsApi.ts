@@ -15,7 +15,7 @@ export type Booking = {
   payment: "free" | "card" | "deposit" | "atShop" | "pack"; priceMinor: number; /** With payment "deposit": the part taken by card when booked. */ depositMinor?: number; depositPaid?: boolean; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
   /** The code the client shows at the desk, and when the shop checked them in (op checkIn). */ checkInCode?: string; checkedInAt?: string | null;
   /** A course: every date this one sign-up holds a place on (the first is `start`), and their shop days. */
-  course?: { starts: string[]; days: string[] };
+  course?: { starts: string[]; days: string[]; /** Who takes each date, when it isn't the same person throughout. */ staff?: string[] };
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
   /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */
   cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
@@ -49,7 +49,7 @@ export const bookingsData = {
   },
   readSetup: readSetupFromShop,
   follow: followFromShop,
-  courseRows: courseRowsFromShop,
+  followCourse: followCourseFromShop,
   range: rangeFromShop,
   admin: adminFromServer as (op: AdminOp, body: Record<string, unknown>) => Promise<unknown>,
 };
@@ -95,12 +95,14 @@ function followFromShop(fromIso: string, toIso: string, onRows: (rows: Booking[]
  * Everyone signed up for a course with a date on one of `days` (shop days, at most 30): a course is one booking that
  * starts on its first date, so the week's own query misses it in the later weeks.
  */
-async function courseRowsFromShop(days: string[]): Promise<Booking[]> {
-  if (!days.length) return [];
-  const snap = await getDocs(query(collection(db, "bookings"), where("course.days", "array-contains-any", days.slice(0, 30)), limit(500)));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }));
+function followCourseFromShop(days: string[], onRows: (rows: Booking[]) => void, onError: (e: Error) => void): () => void {
+  if (!days.length) { onRows([]); return () => {}; }
+  const q = query(collection(db, "bookings"), where("course.days", "array-contains-any", days.slice(0, 30)), limit(500));
+  return onSnapshot(q, (snap) => onRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }))), onError);
 }
-export const readCourseRows = (days: string[]) => bookingsData.courseRows(days);
+/** Followed live, like the week's own bookings, so a sign-up or a cancellation shows in every week the course runs. */
+export const followCourseRows = (days: string[], onRows: (rows: Booking[]) => void, onError: (e: Error) => void) =>
+  bookingsData.followCourse(days, onRows, onError);
 
 /** Every booking starting from `fromIso` up to `toIso`, read once (the Figures tab). */
 async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]> {

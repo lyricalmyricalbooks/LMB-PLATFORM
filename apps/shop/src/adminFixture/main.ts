@@ -319,7 +319,11 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     watchers.add(send); send();
     return () => void watchers.delete(send);
   };
-  bookingsData.courseRows = async (days) => rows.filter((b) => b.course?.days.some((d) => days.includes(d)));
+  bookingsData.followCourse = (days, onRows) => {
+    const send = () => onRows(rows.filter((b) => b.course?.days.some((d) => days.includes(d))));
+    watchers.add(send); send();
+    return () => void watchers.delete(send);
+  };
   bookingsData.range = async (from, to) => [...rows, ...history].filter((b) => b.start >= from && b.start < to);
   bookingsData.admin = async (op, body) => {
     const id = String(body.id ?? "");

@@ -83,6 +83,12 @@ describe("a course on the timetable", () => {
     const second = classWeek({ services: [course], settings: off, rows: [signedUp], monday: "2026-11-23", zone: ZONE, nowMs: NOW });
     expect(second.flatMap((d) => d.sessions).map((s) => [s.start, s.people.length])).toEqual([[starts[1], 1]]);
   });
+  it("shows a later date's stand-in, not the first date's person", () => {
+    const covered = { ...signedUp, staffName: "Rui", course: { ...signedUp.course!, staff: ["Rui", "Ana"] } };
+    const week = (monday: string) => classWeek({ services: [course], settings, rows: [covered], monday, zone: ZONE, nowMs: NOW }).flatMap((d) => d.sessions).map((s) => s.teacher);
+    expect(week(MONDAY)).toEqual(["Rui"]);
+    expect(week("2026-11-23")).toEqual(["Ana"]);
+  });
   it("says what it is on the class card", () => {
     expect(classTimesText(course)).toMatch(/^Course · 2 dates from /);
   });

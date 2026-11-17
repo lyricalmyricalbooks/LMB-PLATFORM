@@ -57,11 +57,13 @@ export function classWeek({ services, settings, rows, monday, zone, nowMs }: {
       seen.add(b.id);
       // Someone on a course holds a place on every one of its dates.
       const starts = b.course?.starts?.length ? b.course.starts.map((iso) => Date.parse(iso)) : [Date.parse(b.start)];
-      for (const startMs of starts) {
+      for (const [n, startMs] of starts.entries()) {
         if (!Number.isFinite(startMs) || dayOf(startMs, zone) !== day) continue;
         const it = session(s, startMs, false);
         it.people.push(b);
-        if (b.staffName) it.teacher = b.staffName;
+        // A course's later date can have a stand-in: the booking lists who takes each date when they differ.
+        const teacher = b.course?.staff?.[n] ?? b.staffName;
+        if (teacher) it.teacher = teacher;
         if (b.roomName) it.room = b.roomName;
       }
     }

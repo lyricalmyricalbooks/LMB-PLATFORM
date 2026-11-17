@@ -722,7 +722,7 @@ function bookingActions({
         const first = who ?? staffId;
         const theirs = first ? ask(first) ?? ask("") : ask("");
         if (theirs === null && (check || classPlacesLeft(ms, service, settings, busy) < 1)) return false;
-        later.push(staffParts(settings, theirs ?? first, service.roomId).item);
+        later.push(staffParts(settings, theirs ?? first, service.roomId));
       }
       const card = giftSnap?.exists ? giftSnap.data() : null;
       const giftMinor = record.giftCard?.amountMinor || 0;
@@ -745,12 +745,15 @@ function bookingActions({
         if (offer) delete items[offer.item];
         sessions.forEach((ms, n) => {
           if (!daysTouched(ms, ms + length, zone()).includes(d)) return;
-          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1] : assigned.item) };
+          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1].item : assigned.item) };
         });
         tx.set(dayRef(d), { items });
       });
       // The caller's record carries the person too (it is what the confirmation email reads).
       Object.assign(record, assigned.record);
+      // A course keeps who takes each date when it isn't one person throughout (a stand-in on a later date).
+      const names = [assigned, ...later].map((x) => x.record.staffName || "");
+      if (record.course && names.some((n) => n !== names[0])) record.course = { ...record.course, staff: names };
       if (offer) tx.delete(waitlist().doc(offer.wid));
       let packed = {};
       if (packSnap) {
@@ -1357,11 +1360,23 @@ function bookingActions({
         const list = every.filter(onTimetable);
         // Courses still open for sign-up, with the fewest places left across their dates (one read per day they touch).
         const open = every.filter((s) => courseOpen(s, zone(), nowMs));
-        const courseDays = [...new Set(open.flatMap((s) => courseStarts(s, zone()).flatMap((ms) => [addDays(dayOf(ms, zone()), -1), dayOf(ms, zone()), addDays(dayOf(ms, zone()), 1)])))].slice(0, 200);
-        const courseBusy = courseDays.length ? busyFrom(await Promise.all(courseDays.map((d) => dayRef(d).get())), nowMs, "") : [];
+        // Whole courses only, up to 200 days in all: a course whose days didn't fit goes out with no count (an unread
+        // day would read as empty and promise places that are gone). Signing up still checks every date.
+        const daysOf = (s) => [...new Set(courseStarts(s, zone()).flatMap((ms) => [addDays(dayOf(ms, zone()), -1), dayOf(ms, zone()), addDays(dayOf(ms, zone()), 1)]))];
+        const courseDays = new Set();
+        const counted = new Set();
+        // The soonest courses are counted first.
+        for (const s of [...open].sort((a, b) => courseStarts(a, zone())[0] - courseStarts(b, zone())[0])) {
+          const fresh = daysOf(s).filter((d) => !courseDays.has(d));
+          if (courseDays.size + fresh.length > 200) continue;
+          fresh.forEach((d) => courseDays.add(d));
+          counted.add(s.id);
+        }
+        const courseBusy = courseDays.size ? busyFrom(await Promise.all([...courseDays].map((d) => dayRef(d).get())), nowMs, "") : [];
         const courses = open.map((s) => ({
           id: s.id, name: s.name, description: s.description, minutes: s.minutes, priceMinor: s.priceMinor, payment: s.payment, location: s.location, places: s.places,
-          ...(s.chargeTax ? { plusTax: true } : {}), starts: courseStarts(s, zone()).map((ms) => new Date(ms).toISOString()), left: coursePlacesLeft(s, settings, courseBusy, zone()),
+          ...(s.chargeTax ? { plusTax: true } : {}), starts: courseStarts(s, zone()).map((ms) => new Date(ms).toISOString()),
+          ...(counted.has(s.id) ? { left: coursePlacesLeft(s, settings, courseBusy, zone()) } : {}),
         })).sort((a, b) => a.starts[0].localeCompare(b.starts[0]) || a.id.localeCompare(b.id));
         const today = dayOf(nowMs, zone());
         // The last day Book a time's picker offers (BookTime.tsx), so every class listed can be signed up for from its button.
