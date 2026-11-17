@@ -1654,3 +1654,9 @@ class then and nothing else (`placesLeft`, `fullClassTimes`); each confirmed sig
 (shared with the admin's cancel: full refund, gift card and pack visit back, calendar, email saying too few signed up,
 `cancelledFor: "minimum"`), and the owner gets one email. A time with a sign-up still paying waits for the next sweep.
 
+
+**Repeat-booking fixes (17 November 2026, review of #889):** `zonedTime` (shared `bookingTimes.ts`) puts a wall time the
+clocks skip in spring after the jump (2:30 is 3:30), so `runStarts`, classes and free times never land an hour early; a
+time that happens twice in autumn is the first one. `cancelLater` passes `still: untouched` to `freeTime`, which checks
+the booking again inside its transaction and writes nothing (returns null) when it was paid for since it was read; that
+visit counts as skipped.
