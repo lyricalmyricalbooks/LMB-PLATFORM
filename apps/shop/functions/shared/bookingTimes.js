@@ -39,6 +39,7 @@ exports.staffFor = staffFor;
 exports.clashes = clashes;
 exports.bookingWindow = bookingWindow;
 exports.freeTimes = freeTimes;
+exports.classStartsOn = classStartsOn;
 exports.whoIsFree = whoIsFree;
 exports.classPlacesLeft = classPlacesLeft;
 exports.keptPerson = keptPerson;
@@ -694,6 +695,25 @@ function freeTimesFor({ service, settings, busy, day, zone, nowMs }, hours, staf
         }
     }
     return out;
+}
+/**
+ * A class's own starts (milliseconds) on one shop day, earliest first: its weekly class times that fall on that weekday,
+ * whether or not anyone has booked and however full it is. Nothing for a service that isn't a class, or a class with no
+ * weekly times (it runs at any free time in the opening hours). Days off and notice are the caller's to apply.
+ */
+function classStartsOn(day, service, zone) {
+    if (!(0, exports.isDay)(day) || !(0, exports.isClass)(service))
+        return [];
+    const out = [];
+    for (const t of service.classTimes || []) {
+        if (t.weekday !== (0, exports.weekdayOf)(day))
+            continue;
+        const start = zonedTime(day, t.time, zone);
+        // A clock change can make two wall times one moment; list it once.
+        if (!out.includes(start))
+            out.push(start);
+    }
+    return out.sort((x, y) => x - y);
 }
 /**
  * Who takes a booking of `service` at `start`: the person asked for when they are free, else (anyone) someone already

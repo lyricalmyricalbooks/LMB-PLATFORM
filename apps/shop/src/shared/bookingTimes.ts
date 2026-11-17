@@ -802,6 +802,23 @@ function freeTimesFor({ service, settings, busy, day, zone, nowMs }: {
 }
 
 /**
+ * A class's own starts (milliseconds) on one shop day, earliest first: its weekly class times that fall on that weekday,
+ * whether or not anyone has booked and however full it is. Nothing for a service that isn't a class, or a class with no
+ * weekly times (it runs at any free time in the opening hours). Days off and notice are the caller's to apply.
+ */
+export function classStartsOn(day: string, service: Pick<BookingService, "places" | "classTimes">, zone: string): number[] {
+  if (!isDay(day) || !isClass(service)) return [];
+  const out: number[] = [];
+  for (const t of service.classTimes || []) {
+    if (t.weekday !== weekdayOf(day)) continue;
+    const start = zonedTime(day, t.time, zone);
+    // A clock change can make two wall times one moment; list it once.
+    if (!out.includes(start)) out.push(start);
+  }
+  return out.sort((x, y) => x - y);
+}
+
+/**
  * Who takes a booking of `service` at `start`: the person asked for when they are free, else (anyone) someone already
  * running that class then, else whoever has the fewest bookings that day, then the list's order. "" when the shop books
  * as one calendar and the time is free; null when nobody can take it (the server's check before it takes a booking).

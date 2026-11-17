@@ -36,7 +36,7 @@ describe("the combined admin (shop + stockroom plan)", () => {
   });
 
   it("splits the menu in two sides, website and stockroom, each named by the job", () => {
-    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Bookings", "Events", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]);
+    expect(WEBSITE_SIDE.map((g) => g.label)).toEqual(["Home", "Orders", "Bookings", "Events", "Classes", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]);
     expect(STOCKROOM_SIDE.map((g) => g.label)).toEqual(["Inventory", "Sales", "Stockists", "Invoices", "Tax centre", "Bookkeeping", "Backups"]);
     expect(FAIR_MENU.map((g) => g.label)).toEqual(["Till", "Record a sale", "QR codes", "Today's sales", "Stock check"]);
     // v4: the Google Sheet is Settings › Google's "Sales spreadsheet", on the website side.

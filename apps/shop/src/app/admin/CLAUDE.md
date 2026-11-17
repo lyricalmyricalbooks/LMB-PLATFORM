@@ -1314,3 +1314,10 @@ ticket). The fixture's launch party has two extras and one order with them.
 
 **Booking fee (E3f):** the event editor has **Booking fee per paid ticket (optional)** (`EventForm.fee`, empty = none,
 refused above `MAX_FEE_MINOR`). Who's coming says "Includes $2.00 booking fee" on an order that paid one.
+
+**Classes (beta, 17 November 2026, `tasks/todo/2026-11-17-classes-timetable-admin.md`):** Admin › Classes (`Classes.tsx`,
+`classes.css`, pure rules in `classesView.ts`) is a timetable over the Bookings data: `classWeek` lists every weekly
+time of every class (a service with `places` > 1) plus any start people are booked into, `classFigures` the bento
+numbers. A session opens the class list (check in on the day, Add a person); New class and Edit reuse Bookings'
+`ServiceDialog`. `useBookingsOn` is also true when the Classes way is on, so the Bookings page (hours, team, rooms,
+reminders) comes with it. Fixture: `admin-fixture.html?ways=classes&page=classes`.

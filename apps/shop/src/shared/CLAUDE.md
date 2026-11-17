@@ -109,3 +109,5 @@ browsers may write (mirroring `firestore.rules`).
   `refundMinorFor` gives back the share really paid, so an order bought with a discount code (E3d) never refunds list price.
   Extras (E3e): `cleanExtra`, `extraLines`; `refundMinorFor` shares only the tickets' part of the total between tickets.
   Booking fee (E3f): `feeMinor` on the event, `bookingFeeMinor` (once for each paid ticket).
+- Classes (beta, 17 November 2026): `bookingTimes.ts` `classStartsOn(day, service, zone)` gives a class's weekly starts
+  on one shop day (earliest first, clock changes handled); the admin's timetable and, later, the website's read it.

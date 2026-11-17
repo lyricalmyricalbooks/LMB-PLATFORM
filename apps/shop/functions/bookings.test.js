@@ -152,6 +152,20 @@ describe("off until the platform turns it on", () => {
     expect((await t.pub({ action: "bookingInfo" })).body).toEqual({ on: false });
     expect((await t.adm({ op: "saveSettings", settings: {} })).statusCode).toBe(403);
   });
+  test("Classes (a way to sell) turns the engine on too, but only with both of its switches", async () => {
+    const t = setup({ on: false });
+    await t.seed();
+    // The platform allows Classes; the owner hasn't switched it on yet.
+    await t.db.collection("platform").doc("features").set({ ways: { classes: true } });
+    expect((await t.pub({ action: "bookingInfo" })).body).toEqual({ on: false });
+    expect((await t.adm({ op: "saveSettings", settings: {} })).statusCode).toBe(403);
+    // The owner switches it on: the engine answers.
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    expect((await t.pub({ action: "bookingInfo" })).body.on).toBe(true);
+    // Another way on (Events) is not Classes; the owner's switch alone is nothing without the platform's.
+    await t.db.collection("platform").doc("features").set({ ways: { events: true } });
+    expect((await t.pub({ action: "bookingInfo" })).body).toEqual({ on: false });
+  });
   test("with the switch on but the page not live, customers see nothing", async () => {
     const t = setup({ live: false });
     await t.seed();
