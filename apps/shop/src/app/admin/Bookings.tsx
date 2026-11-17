@@ -250,7 +250,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                     {slot.people.map((b) => (
                       <li key={b.id}>
                         <button type="button" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
-                          {b.customer.name}{b.status === "held" ? <em>{b.clearing ? "clearing" : "paying"}</em> : b.noShow ? <em>no-show</em> : null}
+                          {b.customer.name}{b.status === "held" ? <em>{b.clearing ? "clearing" : "paying"}</em> : b.noShow ? <em>no-show</em> : b.checkedInAt && b.status === "confirmed" ? <em>here</em> : null}
                         </button>
                       </li>
                     ))}
@@ -273,6 +273,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                   <span className="bkg-slot-what">{slot.booking.serviceName}{slot.booking.staffName ? ` · ${slot.booking.staffName}` : ""}</span>
                   {slot.booking.status === "held" && <span className="bkg-slot-tag">{slot.booking.clearing ? "Payment clearing" : "Paying now"}</span>}
                   {slot.booking.noShow && <span className="bkg-slot-tag">No-show</span>}
+                  {!slot.booking.noShow && slot.booking.checkedInAt && slot.booking.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
                 </button>
               ); })}
               {rows !== null && holds.loose.map((h) => (
@@ -682,6 +683,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
           {b.cardHold && <div><dt>Card on file</dt><dd>{b.card ? `${cardText(b.card)}, ${moneyText(b.lateFeeMinor || 0, b.currency)} if missed` : b.status === "held" ? "Being saved" : "Not saved"}</dd></div>}
           {!!tipTaken(b) && <div><dt>Tip</dt><dd>{moneyText(tipTaken(b), b.currency)} by card</dd></div>}
           {b.fee && <div><dt>Fee</dt><dd>{moneyText(b.fee.amountMinor, b.currency)} charged{b.fee.reason ? ` for a ${b.fee.reason}` : ""}, {new Date(b.fee.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</dd></div>}
+          {b.checkInCode && b.status === "confirmed" && <div><dt>Check-in code</dt><dd className="bkg-code">{b.checkInCode}</dd></div>}
           <div><dt>Booked</dt><dd>{b.source === "admin" ? "By you" : "On your website"}{b.createdAt ? `, ${new Date(b.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</dd></div>
         </dl>
         {b.note && <blockquote className="bkg-note">“{b.note}”</blockquote>}
@@ -692,6 +694,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
         )}
         {b.status === "confirmed" && (
           <div className="bkg-detail-toggles">
+            {(day === dayOf(Date.now(), ZONE) || !!b.checkedInAt) && <Toggle label={b.checkedInAt ? `Checked in at ${timeText(b.checkedInAt, ZONE)}` : "Checked in"} checked={!!b.checkedInAt} disabled={!!busy} onChange={(v) => void run("checkin", "checkIn", { value: v }, v ? "Checked in" : "Check-in taken off")} />}
             <Toggle label="Didn't turn up" checked={!!b.noShow} disabled={!!busy} onChange={(v) => void run("noshow", "noShow", { value: v }, v ? "Marked as a no-show" : "No-show taken off")} />
             {(b.payment === "atShop" || (b.payment === "deposit" && b.depositPaid)) && <Toggle label={b.payment === "deposit" ? `Rest paid at the shop (${moneyText(Math.max(0, b.priceMinor - (b.depositMinor || 0)), b.currency)})` : "Paid at the shop"} checked={b.paid} disabled={!!busy} onChange={(v) => void run("paid", "paidAtShop", { value: v }, v ? "Marked paid" : "Paid mark taken off")} />}
           </div>

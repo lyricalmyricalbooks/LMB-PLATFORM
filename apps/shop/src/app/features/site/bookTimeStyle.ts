@@ -6,6 +6,7 @@
 //   fm-book-times / -time     a day's time chips (aria-pressed)  fm-book-group   Morning / Afternoon / Evening
 //   fm-book-time[data-full]   a full class time (opens the waiting list form, fm-book-wait)
 //   fm-book-summary           the chosen service + time slip      fm-book-actions  a row of buttons
+//   fm-book-checkin           the check-in code (QR + letters) on a confirmed booking; -done once checked in
 //   fm-book-code              the discount code box (applied: a ruled slip line; -row: the field + Apply button)
 const S = ".fm-track";
 
@@ -57,6 +58,12 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-day:focus-visible,${S} .fm-book-time:focus-visible,${S} .fm-book-service:focus-visible,${S} .fm-book-arrow:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:3px;}`,
   `${S} .fm-book-summary{display:grid;gap:0;}`,
   `${S} .fm-book-actions{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;}`,
+  // The check-in code on the customer's booking page: the QR code (black on white, so any till reads it) beside the letters.
+  `${S} .fm-book-checkin{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;margin-top:20px;padding-top:20px;border-top:1px dashed var(--t-rule);}`,
+  `${S} .fm-book-checkin-qr{display:block;width:150px;height:150px;image-rendering:pixelated;outline:2px solid var(--t-edge);}`,
+  `${S} .fm-book-checkin-code{margin:6px 0 4px;font-family:var(--t-mono);font-size:26px;letter-spacing:.14em;}`,
+  `${S} .fm-book-checkin-done{margin:20px 0 0;padding-top:20px;border-top:1px dashed var(--t-rule);font-weight:600;}`,
+  `@media (max-width:420px){${S} .fm-book-checkin{grid-template-columns:1fr;justify-items:start;}}`,
   `${S} .fm-book-actions .fm-track-link{text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px;}`,
   `${S} .fm-book-code{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 0;border-top:1px dashed var(--t-rule);border-bottom:1px dashed var(--t-rule);font-family:var(--t-mono);font-size:13px;letter-spacing:.06em;}`,
   `${S} .fm-book-code-row{display:flex;gap:8px;align-items:stretch;}`,

@@ -4,14 +4,14 @@
 // would fetch it from a public CDN, which we don't want for a shop's admin.
 import { BarcodeDetector, prepareZXingModule } from "barcode-detector/ponyfill";
 import engineUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
-import { readerFrom, SCAN_FORMATS, type Reader } from "./barcodeScan";
+import { cleanScan, readerFrom, SCAN_FORMATS, type CleanCode, type Reader } from "./barcodeScan";
 
 let ready = false;
 
-export function fallbackReader(): Reader {
+export function fallbackReader(formats: readonly string[] = SCAN_FORMATS, clean: CleanCode = cleanScan): Reader {
   if (!ready) {
     prepareZXingModule({ overrides: { locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? engineUrl : prefix + path) } });
     ready = true;
   }
-  return readerFrom(new BarcodeDetector({ formats: [...SCAN_FORMATS] }));
+  return readerFrom(new BarcodeDetector({ formats: [...formats] as any }), clean);
 }

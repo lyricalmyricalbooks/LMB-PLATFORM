@@ -12,6 +12,7 @@ export type Booking = {
   id: string; serviceId: string; serviceName: string; minutes: number; location?: string; meetUrl?: string; start: string; end: string;
   customer: { name: string; email: string; phone?: string }; note?: string; answers?: { label: string; answer: string }[]; status: BookingStatus;
   payment: "free" | "card" | "deposit" | "atShop" | "pack"; priceMinor: number; /** With payment "deposit": the part taken by card when booked. */ depositMinor?: number; depositPaid?: boolean; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
+  /** The code the client shows at the desk, and when the shop checked them in (op checkIn). */ checkInCode?: string; checkedInAt?: string | null;
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
   /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */
   cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
@@ -86,7 +87,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn";
 
 /** A card reader that connects over the internet (Take a payment). */
 export type CardReader = { id: string; label: string; online: boolean; device?: string };
@@ -111,8 +112,25 @@ async function adminFromServer(op: AdminOp, body: Record<string, unknown> = {}):
     body: JSON.stringify({ action: "bookingsAdmin", op, ...body }),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Bookings couldn't be saved just now. Please try again.");
+  if (!response.ok) throw Object.assign(new Error(result.error || "Bookings couldn't be saved just now. Please try again."), { code: result.code, answer: result });
   return result;
+}
+
+/** The person at the desk, as the till shows them after a check-in (op checkIn). */
+export type Arrival = {
+  id: string; name: string; serviceName: string; start: string; end: string; minutes: number; status: BookingStatus;
+  dueMinor: number; currency: string; note: string; checkedInAt: string | null; checkInCode: string;
+};
+export type CheckInResult = { ok: true; already?: boolean; booking: Arrival } | { ok: false; error: string; code?: string; booking?: Arrival };
+
+/** Checks someone in by their code (typed or scanned) or a booking's id; `value: false` takes it off. Never throws. */
+export async function checkInBooking(body: { code?: string; id?: string; value?: boolean }): Promise<CheckInResult> {
+  try {
+    const r = await bookingsData.admin("checkIn", body) as { already?: boolean; booking: Arrival };
+    return { ok: true, already: r.already, booking: r.booking };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || "Check-in didn't work just now. Please try again.", code: e?.code, booking: e?.answer?.booking };
+  }
 }
 
 /** A pack of visits a customer bought (op `packs`; held packs that were never paid are left out). */

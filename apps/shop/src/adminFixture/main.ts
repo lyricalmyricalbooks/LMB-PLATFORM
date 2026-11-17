@@ -112,12 +112,13 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     ...(TEAM && s.roomId ? { roomId: s.roomId, roomName: "Print room" } : {}), ...extra,
   });
   let rows: Booking[] = mode === "on" ? [
-    booking("bk-1", services[0], at(0, 11), "Ada Example", { meetUrl: "https://meet.google.com/abc-defg-hij" }),
+    booking("bk-1", services[0], at(0, 11), "Ada Example", { meetUrl: "https://meet.google.com/abc-defg-hij", checkInCode: "K7QM-2XPA" }),
     booking("bk-2", services[1], at(0, 14, 30), "Ben Example", { tip: { amountMinor: 800, at: at(0, 15, 40) }, note: "First time on a riso.", answers: [{ label: "What are you printing?", answer: "A two-colour zine, 16 pages, A5." }, { label: "How many copies?", answer: "60" }] }),
     booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin" }),
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
-    booking("bk-6", services[3], at(0, 9), "Flo Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false }),
+    booking("bk-6", services[3], at(0, 9), "Flo Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false, checkInCode: "FLQW-HERE", checkedInAt: at(0, 8, 52) }),
+    booking("bk-13", services[3], at(0, 16), "Rue Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false, checkInCode: "RUE5-TQDA", note: "Bringing my own paper." }),
     booking("bk-8", services[2], at(1, 13), "Hal Example"),
     booking("bk-12", services[1], at(2, 10), "Kai Example", { payment: "pack", priceMinor: 0, listPriceMinor: 4500, paid: true, pack: { id: "p".repeat(40), last4: "K7QD", visit: 2, visits: 5 } }),
     booking("bk-9", services[2], at(1, 13), "Ivy Example", { status: "held", paid: false }),
@@ -206,6 +207,21 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     }
     if (op === "payLink") return { ok: true, url: `https://press.example/book?booking=${id}&key=${"d".repeat(48)}`, sent: body.send === true };
     if (op === "noShow") rows = rows.map((b) => (b.id === id ? { ...b, noShow: true } : b));
+    if (op === "checkIn") {
+      // As the server: by code or id, today only, once; the answer says who it was.
+      const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const b = rows.find((r) => (code ? (r.checkInCode || "").replace("-", "") === code : r.id === id));
+      if (!b) throw Object.assign(new Error("No booking has that check-in code. Check the letters, or find them in Bookings."), { code: "unknown_code" });
+      const card = (x: Booking) => ({ id: x.id, name: x.customer.name, serviceName: x.serviceName, start: x.start, end: x.end, minutes: x.minutes, status: x.status,
+        dueMinor: x.payment === "deposit" && !x.paid ? x.priceMinor - (x.depositMinor || 0) : x.payment === "atShop" && !x.paid ? x.priceMinor : 0, currency: x.currency, note: x.note || "", checkedInAt: x.checkedInAt || null, checkInCode: x.checkInCode || "" });
+      if (body.value === false) { rows = rows.map((r) => (r.id === b.id ? { ...r, checkedInAt: null } : r)); changed(); return { ok: true, booking: card({ ...b, checkedInAt: null }) }; }
+      if (new Date(b.start).toDateString() !== new Date().toDateString()) throw Object.assign(new Error("This booking is for another day, not today."), { code: "not_today", answer: { booking: card(b) } });
+      if (b.checkedInAt) return { ok: true, already: true, booking: card(b) };
+      const next = { ...b, checkedInAt: new Date().toISOString() };
+      rows = rows.map((r) => (r.id === b.id ? next : r));
+      changed();
+      return { ok: true, booking: card(next) };
+    }
     if (op === "chargeFee") rows = rows.map((b) => (b.id === id ? { ...b, fee: { amountMinor: Number(body.amountMinor ?? b.lateFeeMinor), at: new Date().toISOString(), reason: "missed booking" } } : b));
     if (op === "paidAtShop") rows = rows.map((b) => (b.id === id ? { ...b, paid: true } : b));
     if (op === "move") {

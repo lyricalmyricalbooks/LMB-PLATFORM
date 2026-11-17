@@ -1374,3 +1374,11 @@ the service and are free; the owner may name another. The owner books with `owne
 Emails say "With: <name>" and the owner's feed puts the name in the title. No people listed: no `p`/`r`, no staff fields,
 times as before. Tests: bookings.test.js › staff and rooms.
 
+**Check-in at the desk (17 November 2026, Bookings plan phase 4).** A confirmed booking gets `checkInCode` (8 letters
+from `CHECK_IN_ALPHABET`, shown `XXXX-XXXX`; `withCheckInCode` sets it lazily from `crypto.randomBytes`) the first time
+an email (booked, moved, reminders) or the booking page needs it. `publicBooking` shows it only while confirmed and not
+yet over, plus `checkedIn`. Admin op `checkIn` takes `{ code }` (cleaned by the shared `cleanCheckInCode`, so spaces,
+lower case and a missing dash pass; looked up by `checkInCode`, no new index) or `{ id }`, and `value: false` takes it
+off. It sets `checkedInAt`, `noShow: false` and a history line, and answers `arrivalCard` (name, service, time, what is
+left to pay). Refusals: `bad_code`, `no_code`, `unknown_code` (404), and 409 with the booking for cancelled, held and
+`not_today`; a second scan answers `already`. A walk-in is saved checked in. Tests: bookings.test.js › check-in at the till.

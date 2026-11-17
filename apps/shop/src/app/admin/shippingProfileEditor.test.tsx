@@ -26,34 +26,49 @@ afterEach(async () => { await act(async () => root?.unmount()); root = null; doc
 const click = async (el: Element | null | undefined) => { await act(async () => { (el as HTMLElement).click(); }); };
 const byText = (root: Element, sel: string, text: string) => [...root.querySelectorAll(sel)].find((b) => b.textContent?.trim() === text);
 
-describe("Settings › Shipping › profiles (v4 form kit)", () => {
-  it("lists profiles as one ruled list with Edit and a ⋯ menu, no eyebrow or description", async () => {
+const input = async (el: HTMLInputElement, value: string) => act(async () => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
+describe("Settings › Shipping › Profiles workspace (Shipping Profiles v2 mockup)", () => {
+  it("lists profiles in the rail with their books and first zones", async () => {
     const el = await mount();
-    expect(el.querySelector('[aria-label="Shipping profiles"]')?.textContent).toContain("Heavy books");
-    expect(el.querySelector(".rp-kicker, .rp-section-kicker, .rp-card-desc")).toBeNull();
-    expect(el.textContent).not.toContain("A profile is a set of zones");
+    const rail = el.querySelector('[aria-label="Shipping profiles"]')!;
+    expect(rail.textContent).toContain("Heavy books");
+    expect(rail.textContent).toContain("Ships nowhere yet");
+    expect(rail.textContent).toContain("1 book");
   });
 
-  it("opens a profile as one form kit page: sections, zones with their rates, one status bar (v4 mockup 1f)", async () => {
+  it("opens a profile with its books, zones and the Try it answer", async () => {
     const el = await mount();
-    await click(byText(el, "button", "General"));
-    expect(el.querySelector("h1, h2")?.textContent).toBe("General");
-    const sections = [...el.querySelectorAll(".rp-fk-section-title")].map((n) => n.textContent);
-    expect(sections).toEqual(["How you charge", "Zones and rates", "Packing", "Books", "Try a checkout"]);
-    // No sub tabs or figures strip any more: everything is on the one page.
-    expect(el.querySelector('[role="tablist"][aria-label="Profile"]')).toBeNull();
-    expect(el.querySelector(".rp-kpi-grid")).toBeNull();
-    expect(el.querySelector('[aria-label="Rates for Canada"]')?.textContent).toContain("Standard");
-    expect(el.querySelector('[role="region"][aria-label="Form status"]')?.textContent).toContain("All saved");
-    await click(byText(el, "button", "← Shipping"));
-    expect(el.querySelector('[aria-label="Shipping profiles"]')).not.toBeNull();
+    await click(byText(el, "button", "General0 books · defaultCanada"));
+    expect((el.querySelector('[aria-label="Profile name"]') as HTMLInputElement).value).toBe("General");
+    expect(el.querySelector(".spw-result")?.textContent).toContain("$8.00");
+    await click(byText(el, "button", "Brazil"));
+    expect(el.querySelector(".spw-result")?.textContent).toContain("Can't check out");
   });
 
-  it("asks a non-default profile for its name and lists its books", async () => {
+  it("shows a gap banner, then a Save bar after an edit, and Discard puts it back", async () => {
     const el = await mount();
-    await click(byText(el, "button", "Heavy books"));
-    expect(el.textContent).toContain("Profile name");
-    expect(el.querySelector('[aria-label="Books that use this profile"]')?.textContent).toContain("Heavy Atlas");
-    if (process.env.SHOT_HTML) (await import("node:fs")).writeFileSync(process.env.SHOT_HTML, el.innerHTML);
+    await click(byText(el, "button", "Heavy books1 bookShips nowhere yet"));
+    expect(el.textContent).toContain("Some customers can't buy these books");
+    expect(el.textContent).toContain("Heavy Atlas");
+    await click(byText(el, "button", "Add “Everywhere else”"));
+    expect(el.querySelector('[aria-label="Unsaved shipping changes"]')).not.toBeNull();
+    await click(byText(el, "button", "Discard"));
+    expect(el.querySelector('[aria-label="Unsaved shipping changes"]')).toBeNull();
+  });
+
+  it("refuses to save a zone with no price, and saves a fixed one", async () => {
+    const el = await mount();
+    await click(byText(el, "button", "Heavy books1 bookShips nowhere yet"));
+    await click(byText(el, "button", "Add “Everywhere else”"));
+    await click(byText(el, "button", "Save"));
+    expect(el.textContent).toContain("Enter the first-book price (0 for free).");
+    api.updateShippingProfile = vi.fn(async () => ({}));
+    await input(el.querySelector(".spw-zone input[inputmode=decimal]") as HTMLInputElement, "12");
+    await click(byText(el, "button", "Save"));
+    expect(api.updateShippingProfile).toHaveBeenCalledWith("heavy", expect.objectContaining({ zones: [expect.objectContaining({ restOfWorld: true, rates: [expect.objectContaining({ base: 12 })] })] }));
   });
 });
