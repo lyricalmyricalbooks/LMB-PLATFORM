@@ -1202,11 +1202,31 @@ function bookingActions({
    * The service at its first-visit price (`intro: true`) for someone who has never booked with the shop (no booking
    * held or confirmed under their email; cancelled ones don't count), else as it is.
    */
-  async function introFor(service, email) {
+  async function introFor(service, email, claimFor = "") {
     if (!service.introPriceMinor || !email) return service;
-    const snap = await bookings().where("customer.email", "==", String(email).trim().toLowerCase()).limit(50).get();
+    const who = String(email).trim().toLowerCase();
+    const snap = await bookings().where("customer.email", "==", who).limit(50).get();
     if (snap.docs.some((d) => ["confirmed", "held"].includes(d.data()?.status))) return service;
+    // Booking for real: the first visit is claimed for this booking in one step (`bookingIntros/<email hash>`), so two
+    // bookings started at the same moment can't both get it. A claim whose booking was let go, or never went ahead
+    // within five minutes, is taken over.
+    if (claimFor && !(await claimIntro(who, claimFor))) return service;
     return { ...service, priceMinor: service.introPriceMinor, intro: true };
+  }
+  async function claimIntro(email, bookingId) {
+    const ref = db.collection("bookingIntros").doc(hash(email));
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const other = snap.exists ? snap.data()?.bookingId : "";
+      if (other && other !== bookingId) {
+        const was = await tx.get(bookings().doc(other));
+        if (was.exists && ["confirmed", "held"].includes(was.data()?.status)) return false;
+        // Not written yet: another booking is being made this very moment.
+        if (!was.exists && now().getTime() - Date.parse(snap.data()?.at || 0) < 5 * MINUTE) return false;
+      }
+      tx.set(ref, { bookingId, at: now().toISOString() });
+      return true;
+    });
   }
 
   async function codeFor(service, raw, email) {
@@ -1669,7 +1689,8 @@ function bookingActions({
           pack = { id: p.id, last4: p.last4 };
         }
         // Someone new to the shop pays the first-visit price (not with a pack); a code then comes off that.
-        const offered = pack ? service : await introFor(service, customer.email);
+        const id = randomId();
+        const offered = pack ? service : await introFor(service, customer.email, id);
         // A discount code comes off the price first; a deposit is then worked out on what is left.
         let priced = null;
         if (!pack && String(req.body?.code || "").trim()) {
@@ -1708,7 +1729,6 @@ function bookingActions({
         const paid = cardDue > 0 || holdCard;
         // Paid in full by the gift card with no page to visit: the booking's payment is done now.
         const giftPaid = gift && !paid ? (deposit ? { depositPaid: true } : { paid: true }) : {};
-        const id = randomId();
         const key = randomKey();
         const at = new Date(nowMs).toISOString();
         const record = {
@@ -2793,9 +2813,19 @@ function bookingActions({
   async function sweepMinimum() {
     if (!(await featureOn())) return { cancelled: 0, ran: 0 };
     const nowMs = now().getTime();
-    const wanted = (await readServices()).filter((s) => s.minPlaces);
     let cancelled = 0;
     let ran = 0;
+    // Cancelled times with a sign-up left over (a refund the payment service refused): try again on every sweep, even
+    // after the time has passed, until none are left.
+    const retries = await runs().where("retry", "==", true).limit(50).get();
+    const allServices = await readServices();
+    const wanted = allServices.filter((s) => s.minPlaces);
+    for (const doc of retries.docs) {
+      const r = doc.data() || {};
+      const service = allServices.find((s) => s.id === r.serviceId) || { id: r.serviceId };
+      const left = await cancelForMinimum(service, r.left || []);
+      await doc.ref.set({ left, retry: left.length > 0 }, { merge: true });
+    }
     for (const service of wanted) {
       // A course is decided on its first date; a weekly class on each of its times between now and its decide time.
       const starts = isCourse(service) ? courseStarts(service, zone()).slice(0, 1)
@@ -2805,7 +2835,8 @@ function bookingActions({
         const runRef = runs().doc(`${service.id}~${start}`);
         if ((await runRef.get()).exists) continue;
         const iso = new Date(start).toISOString();
-        const snap = await bookings().where("start", "==", iso).limit(MAX_PLACES_READ).get();
+        // This class's own bookings only, so other services at the same time never crowd them out of the read.
+        const snap = await bookings().where("start", "==", iso).where("serviceId", "==", service.id).limit(MAX_PLACES_READ).get();
         const mine = snap.docs.map((d) => ({ id: d.id, b: d.data() })).filter((x) => x.b.serviceId === service.id);
         if (mine.some((x) => x.b.status === "held")) continue;
         const going = mine.filter((x) => x.b.status === "confirmed");
@@ -2815,21 +2846,38 @@ function bookingActions({
           ran += 1;
           continue;
         }
-        await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt });
+        // The decision goes first (with everyone still to cancel), so a second sweep never decides twice and a failed
+        // refund stays on the list for the next one.
+        await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt, left: going.map((x) => x.id) });
         await closeClassTime(service, start);
-        for (const { id, b } of going) {
-          try {
-            const settled = await settleRest(id, b);
-            await shopCancel(id, settled, { amount: cardTaken(settled), by: "minimum", tooFew: true });
-          } catch (err) {
-            console.error(`bookings: couldn't cancel ${id} for the minimum:`, err?.message || err);
-          }
-        }
-        await tellOwnerTooFew(service, start, going);
+        const left = await cancelForMinimum(service, going.map((x) => x.id));
+        await runRef.set({ left, retry: left.length > 0 }, { merge: true });
+        await tellOwnerTooFew(service, start, going, left);
         cancelled += 1;
       }
     }
     return { cancelled, ran };
+  }
+
+  /**
+   * Cancels and refunds in full each booking in `ids` that is still on, for a class that didn't reach its minimum.
+   * Answers the ids that couldn't be done (a refund the payment service refused), for the next sweep to try again.
+   */
+  async function cancelForMinimum(service, ids) {
+    const left = [];
+    for (const id of ids) {
+      try {
+        const snap = await bookings().doc(id).get();
+        const b = snap.exists ? snap.data() : null;
+        if (!b || b.status !== "confirmed") continue;
+        const settled = await settleRest(id, b);
+        await shopCancel(id, settled, { amount: cardTaken(settled), by: "minimum", tooFew: true });
+      } catch (err) {
+        console.error(`bookings: couldn't cancel ${id} for the minimum of ${service.id}:`, err?.message || err);
+        left.push(id);
+      }
+    }
+    return left;
   }
 
   /** Closes a class time (every date of a course) so nobody signs up for it again: a `closed` item on each of its days. */
@@ -2848,7 +2896,7 @@ function bookingActions({
   }
 
   /** The owner's email that a class time didn't reach its minimum and who was cancelled. Never throws. */
-  async function tellOwnerTooFew(service, start, going) {
+  async function tellOwnerTooFew(service, start, going, failed = []) {
     try {
       const owner = ownerEmail();
       if (!owner) return;
@@ -2856,12 +2904,16 @@ function bookingActions({
       const shop = brand.shopName || shopName() || "the shop";
       const when = whenWords({ start: new Date(start).toISOString() });
       const kind = isCourse(service) ? "course" : "class";
-      const people = going.length ? `<ul style="margin:0 0 16px;padding-left:20px;">${going.map(({ b }) => `<li>${escapeHtml(b.customer?.name || "")} · ${escapeHtml(b.customer?.email || "")}</li>`).join("")}</ul>` : "";
+      const list = (rows) => `<ul style="margin:0 0 16px;padding-left:20px;">${rows.map(({ b }) => `<li>${escapeHtml(b.customer?.name || "")} · ${escapeHtml(b.customer?.email || "")}</li>`).join("")}</ul>`;
+      const stuck = going.filter((x) => failed.includes(x.id));
+      const done = going.filter((x) => !failed.includes(x.id));
+      const people = done.length ? list(done) : "";
       const html = risoLayout(`
         <h4 style="margin:0 0 8px;">Not enough people</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(service.name)}, ${escapeHtml(when)}</h2>
-        <p style="margin:0 0 12px;">${going.length} signed up and this ${kind} needs ${service.minPlaces}, so it has been cancelled and nobody else can sign up for it.${going.length ? ` ${going.length === 1 ? "They were" : "Each of them was"} refunded in full and emailed:` : ""}</p>
+        <p style="margin:0 0 12px;">${going.length} signed up and this ${kind} needs ${service.minPlaces}, so it has been cancelled and nobody else can sign up for it.${done.length ? ` ${done.length === 1 ? "This person was" : "These people were"} refunded in full and emailed:` : ""}</p>
         ${people}
+        ${stuck.length ? `<p style="margin:0 0 12px;">The refund didn't go through yet for ${stuck.length === 1 ? "this person" : "these people"}. Colophon tries again every few minutes; you can also cancel them yourself in Bookings:</p>${list(stuck)}` : ""}
         ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
       await sendEmail({ to: owner, subject: `[BOOKING] Not enough people: ${service.name}, ${when}`, html });

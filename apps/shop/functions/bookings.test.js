@@ -136,7 +136,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
     optedOut: async (e) => optOuts.has(e),
     unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
-    payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
+    payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { if (refunds.failNext > 0) { refunds.failNext -= 1; throw new Error("card declined"); } refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
     hitLimit: async () => true,
     LIMITS: {},
@@ -2774,6 +2774,26 @@ describe("classes: a minimum number to run", () => {
     expect(second).toEqual([expect.objectContaining({ s: id, closed: true })]);
   });
 
+  test("a refund that fails stays on the list, the owner is told, and the next sweeps finish it, after the start too", async () => {
+    const { t, id } = await withClass();
+    const bid = await signUp(t, id, 1);
+    t.clock.now = new Date(Date.parse(wed) - 2 * 3600_000);
+    t.emails.length = 0;
+    t.refunds.failNext = 1;
+    expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 1, ran: 0 });
+    expect(t.db.store.get(`bookings/${bid}`).status).toBe("confirmed");
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ decision: "cancelled", left: [bid], retry: true });
+    const owner = t.emails.find((e) => e.to === "owner@example.com").html;
+    expect(owner).toContain("The refund didn't go through yet");
+    expect(owner).not.toContain("refunded in full and emailed");
+    // The class has started; the next sweep still finishes the refund and the cancel.
+    t.clock.now = new Date(Date.parse(wed) + 3600_000);
+    await t.desk.sweepMinimum();
+    expect(t.db.store.get(`bookings/${bid}`)).toMatchObject({ status: "cancelled", cancelledFor: "minimum" });
+    expect([...t.refunds]).toEqual([expect.objectContaining({ paymentIntentId: "pi_1", amountMinor: 3000 })]);
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ left: [], retry: false });
+  });
+
   test("without a minimum nothing is decided", async () => {
     const { t, id } = await withClass({ minPlaces: 0 });
     await signUp(t, id, 1);
@@ -2831,6 +2851,16 @@ describe("classes: a class pass and a first-visit price", () => {
     await t.pub({ action: "bookingView", id: first.body.id, key: first.body.key });
     await t.pub({ action: "bookingStart", serviceId: yoga.id, start: at("2026-11-26", "14:00"), ...CUSTOMER });
     expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(2000);
+  });
+
+  test("two bookings started at the same moment can't both have the first-visit price", async () => {
+    const { t, yoga } = await ready();
+    const [a, b] = await Promise.all([
+      t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER }),
+      t.pub({ action: "bookingStart", serviceId: yoga.id, start: at("2026-11-26", "14:00"), ...CUSTOMER }),
+    ]);
+    const prices = [a, b].map((r) => t.db.store.get(`bookings/${r.body.id}`).priceMinor).sort();
+    expect(prices).toEqual([2000, 500].sort());
   });
 
   test("a first-visit price is below the price and at least 0.50", async () => {

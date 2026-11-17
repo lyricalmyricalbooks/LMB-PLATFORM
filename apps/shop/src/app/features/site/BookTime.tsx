@@ -111,7 +111,7 @@ function NewBooking({ c }: { c: Copy }) {
   useEffect(() => setGift(null), [service?.id, applied?.code]);
   // A course is signed up for as a whole: its first date is the start, with nothing to pick.
   const course = service?.courseStarts?.length ? service.courseStarts : null;
-  useEffect(() => { if (course && step === "time") setStart(course[0]); }, [service?.id, step]);
+  useEffect(() => { if (course && step === "time") setStart(course[0]); }, [service?.id, step, course?.[0]]);
 
   const load = () => {
     setLoadFailed(false);
@@ -180,7 +180,10 @@ function NewBooking({ c }: { c: Copy }) {
       setBusy(false);
       // The person picked stopped doing this service meanwhile: back to anyone free and the times.
       if (err?.code === "staff") { setStaffId(""); setStart(""); setStep("time"); setError(c("bookTimeStaffProblem")); return; }
-      if (err?.code === "taken" || err?.code === "started") { setStart(""); setStep("time"); setError(c(course ? (err.code === "started" ? "bookTimeCourseStarted" : "bookTimeCourseFull") : "bookTimeTaken")); return; }
+      if (err?.code === "taken" || err?.code === "started") {
+        // A course past its first date (or full) may now start later: show the fresh dates, not the old first one.
+        if (course) ask("bookingInfo").then((a) => { const fresh = (a as BookingInfo).services?.find((sv) => sv.id === service?.id); if (fresh) { setInfo(a as BookingInfo); setService(fresh); } }).catch(() => {});
+        setStart(""); setStep("time"); setError(c(course ? (err.code === "started" ? "bookTimeCourseStarted" : "bookTimeCourseFull") : "bookTimeTaken")); return; }
       // The code stopped working meanwhile (used up, ended): take it off so the right price shows, and say so.
       if (err?.code === "code") { setApplied(null); setError(c("bookTimeCodeProblem")); return; }
       // The gift card's balance changed meanwhile: take it off so the right amount shows, and say so.
@@ -278,6 +281,9 @@ function NewBooking({ c }: { c: Copy }) {
         const taxMinor = applied ? applied.taxMinor || 0 : service.taxMinor || 0;
         // What the card page asks for now: what is paid when booked, less any gift card; nothing with a pack.
         const payNow = pack ? 0 : gift ? gift.payNowMinor : upFrontMinor(priced);
+        // A first-visit price is decided by the server from the email (an applied code's quote already has it), so the
+        // page says it may apply instead of naming a total the card page might not ask for.
+        const maybeIntro = !!service.introPriceMinor && !pack && !applied;
         return (
         <div className="grid gap-8 lg:grid-cols-[1fr_280px] items-start">
           <form {...regionProps("bookingsForm")} onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">
@@ -350,6 +356,7 @@ function NewBooking({ c }: { c: Copy }) {
                 : pack ? (service.holdCard ? c("bookTimeSaveCard") : c("bookTimePackBook"))
                 : paysUpFront(priced) && !payNow ? c("bookTimeGiftBook")
                 : takesDeposit(priced) ? c("bookTimePayDeposit", { amount: moneyText(payNow, currency) })
+                : paysUpFront(priced) && maybeIntro ? c("bookTimePayIntro")
                 : paysUpFront(priced) ? c("bookTimePay", { amount: moneyText(payNow, currency) })
                 : service.holdCard ? c("bookTimeSaveCard") : c("bookTimeBook")}
             </button>
@@ -367,6 +374,7 @@ function NewBooking({ c }: { c: Copy }) {
               <span className="fm-track-mono">{c("bookTimePaid")}</span>
               <strong translate="no">{pack ? c("bookTimePackPaid") : priced.priceMinor > 0 ? moneyText(priced.priceMinor, currency) : c("bookTimeFree")}</strong>
             </div>
+            {maybeIntro && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeIntroNote", { price: moneyText(service.introPriceMinor || 0, currency) })}</p>}
             {!pack && takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
             {!pack && priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
             <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 mt-5 cursor-pointer" onClick={() => setStep("time")}>

@@ -1113,6 +1113,8 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeCourseCount: "Cours · {count} dates",
   bookTimeCourseDates: "Les {count} dates",
   bookTimeIntroPrice: "Première visite {price}",
+  bookTimeIntroNote: "Nouveau ici? Votre première visite coûte {price}. La page de paiement affiche le montant exact.",
+  bookTimePayIntro: "Continuer vers le paiement",
   bookTimePackAnyClass: "tous les cours",
   bookTimeClassMinimum: "Minimum {count} personnes pour avoir lieu",
   bookTimeCourseLate: "Déjà commencé · rejoignez les {count} dernières dates sur {of}",
