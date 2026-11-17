@@ -109,21 +109,30 @@ function setup() {
       f1: { email: 'ada@example.com', signedName: 'Ada Lovelace', answers: [{ label: 'Allergies', answer: 'Nuts' }] },
       f2: { email: 'bo@example.com', signedName: 'Bo' },
     },
+    // The team's visit notes and before/after photos (clientVisits).
+    clientVisits: {
+      v1: { client: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', email: 'ada@example.com', day: '2026-11-10', note: 'Formula 6N + 20 vol', photos: [{ path: 'client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg', kind: 'before' }, { path: '../elsewhere.jpg', kind: 'after' }] },
+      v2: { client: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', email: 'bo@example.com', day: '2026-11-11', note: 'Trim', photos: [{ path: 'client-photos/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/after-1-y.jpg', kind: 'after' }] },
+    },
     // "Tell me if an earlier time opens".
     bookingEarlier: {
       free1: { bookingId: 'free1', serviceName: 'Studio visit', start: '2026-11-20T15:00:00.000Z', name: 'Ada', email: 'ada@example.com' },
       other: { bookingId: 'other', serviceName: 'Studio visit', start: '2026-11-21T15:00:00.000Z', name: 'Bo', email: 'bo@example.com' },
     },
   });
+  const deletedFiles = [];
   const res = () => { const r = { code: 0, body: null, status(c) { r.code = c; return r; }, json(b) { r.body = b; return r; } }; return r; };
   const { handlePrivacyAdmin } = privacyActions({
-    db, admin: { auth: () => ({ getUserByEmail: async () => { throw new Error('none'); }, deleteUser: async () => {} }) },
+    db, admin: {
+      auth: () => ({ getUserByEmail: async () => { throw new Error('none'); }, deleteUser: async () => {} }),
+      storage: () => ({ bucket: () => ({ file: path => ({ delete: async () => { deletedFiles.push(path); } }) }) }),
+    },
     GIFT_CARD_PERSONAL: {}, LIMITS: {}, findByEmailData: findByEmail, giftCardsFor: async () => [],
     neverPaid: () => false, optOutId: e => e, publicOutboxEntry: (id, d) => ({ id, ...d }),
     redactedOperationsFields: () => ({}), redactedOrderFields: () => ({}), reviewErasure: () => ({}),
     requireAdmin: async () => ({ email: 'owner@example.com' }),
   });
-  return { db, res, handlePrivacyAdmin };
+  return { db, res, handlePrivacyAdmin, handleMyData: null, deletedFiles };
 }
 
 describe("the owner's privacy export and erase", () => {
@@ -171,5 +180,38 @@ describe("the owner's privacy export and erase", () => {
     expect(tickets.get('t1')).toMatchObject({ customer: { name: 'Ada', email: 'ada@example.com' }, keyHashes: [], ticketCodes: ['ABCD-2345'] });
     expect(tickets.get('t2')).toMatchObject({ customer: { name: BOOKING_NAME_REMOVED, email: '' }, keyHashes: [], tickets: [{ code: 'WXYZ-6789', name: 'Free' }] });
     expect(tickets.get('t3')).toMatchObject({ customer: { name: 'Bo', email: 'bo@example.com' }, keyHashes: ['k3'] });
+  });
+
+  it("visit notes and photos: in the owner's export, deleted with their photos on erase, nobody else's touched", async () => {
+    const { db, res, handlePrivacyAdmin, deletedFiles } = setup();
+    const exp = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyExport', email: 'ada@example.com' } }, exp);
+    expect(exp.body.clientVisitNotes.map(v => v.id)).toEqual(['v1']);
+    const out = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyErase', email: 'ada@example.com' } }, out);
+    expect([...db.store.get('clientVisits').keys()]).toEqual(['v2']);
+    // Only a path inside the client-photos folder is ever deleted.
+    expect(deletedFiles).toEqual(['client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg']);
+    expect(out.body.deleted).toMatchObject({ clientVisits: 1, clientPhotos: 1 });
+  });
+});
+
+describe("the shopper's own copy", () => {
+  it('leaves out the team\'s visit notes', async () => {
+    const { db } = setup();
+    const { privacyActions: actions } = require('./privacyRequests.js');
+    expect(typeof actions).toBe('function');
+    // The shopper's export reads with scan: false; clientVisits is never read then.
+    const reads = [];
+    const findByEmailData = async (_db, collection, field, email, opts) => { reads.push([collection, opts.scan]); return Object.assign(await findByEmail(_db, collection, field, email, opts), {}); };
+    const { handleMyData } = actions({
+      db, admin: { auth: () => ({ verifyIdToken: async () => ({ email: 'ada@example.com', email_verified: true, uid: 'u1' }), getUserByEmail: async () => { throw new Error('none'); } }) },
+      LIMITS: {}, hitLimit: async () => true, findByEmailData, giftCardsFor: async () => [], publicOutboxEntry: (id, d) => ({ id, ...d }),
+    });
+    const out = { code: 0, body: null, status(c) { out.code = c; return out; }, json(b) { out.body = b; return out; } };
+    await handleMyData({ headers: { authorization: 'Bearer t' }, body: { action: 'myDataExport' } }, out);
+    expect(out.code).toBe(200);
+    expect(out.body).not.toHaveProperty('clientVisitNotes');
+    expect(reads.some(([c]) => c === 'clientVisits')).toBe(false);
   });
 });

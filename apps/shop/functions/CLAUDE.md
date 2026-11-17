@@ -752,6 +752,10 @@ TTL 30 days on `expiresAt`). Admin: Settings › General › Tools & records ›
   phone, note and answers; any other loses every detail (name becomes "Details removed"). Both lose their link keys and get
   `reminderSentAt`, so no link works and no reminder goes. The time is never freed: the owner keeps or cancels it. Tests:
   `privacyBookings.test.js`.
+- **Privacy and visit notes (17 November 2026):** the owner's export lists `clientVisitNotes` (`clientVisits` by `email`);
+  erase deletes those records and their photos (`admin.storage()` scoped to the shop, only `client-photos/<64 hex>/<name>`
+  paths, a file already gone counts; one that won't delete is listed in `photosNotDeleted`). The shopper's own copy
+  (`scan: false`) never reads them: they are the team's notes. Tests: `privacyBookings.test.js`.
 - **Privacy export/erase** (`functions/privacyData.js`, `personalDataFor` / `handlePrivacyAdmin`): addresses match in any
   capitalisation (exact lower-case query plus a bounded field-only scan for older mixed-case rows); browser writes of contact
   messages, review contacts and saved carts now lower-case the email. Export and erase also cover `giftCards` (purchaser/recipient;

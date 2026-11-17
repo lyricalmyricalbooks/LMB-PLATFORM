@@ -23,3 +23,34 @@
   .rp .cc-value { font-size: 20px; overflow-wrap: normal; }
   .rp .cc-tile { padding: 14px 14px; }
 }
+
+/* Visit notes and photos (ClientVisits.tsx): one rounded sheet per visit, photos as square thumbnails. */
+.rp .cv { display: grid; gap: 10px; }
+.rp .cv-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.rp .cv-title { margin: 0; display: flex; align-items: center; gap: 8px; font: 600 16px/1.3 var(--rp-font-body); }
+.rp .cv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rp .cv-visit { padding: 14px 18px; border-radius: 18px; background: var(--rp-surface-2); display: grid; gap: 10px; min-width: 0; }
+.rp .cv-visit-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.rp .cv-day { font: 500 12px/1.4 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.rp .cv-actions { display: flex; gap: 4px; }
+.rp .cv-note { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rp .cv-photos { display: flex; flex-wrap: wrap; gap: 14px 24px; }
+.rp .cv-group, .rp .cv-pick { display: grid; gap: 6px; min-width: 0; }
+.rp .cv-kind { font: 500 11px/1.3 var(--rp-font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .cv-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp .cv-thumb { position: relative; width: 88px; height: 88px; border-radius: 12px; overflow: hidden; background: var(--rp-surface); display: grid; place-items: center; }
+.rp .cv-thumb[data-loading] { background: var(--rp-surface); opacity: 0.6; }
+.rp .cv-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rp .cv-thumb-open { all: unset; cursor: zoom-in; width: 100%; height: 100%; display: block; }
+.rp .cv-thumb-open:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-text)); outline-offset: -2px; }
+.rp .cv-thumb-note { padding: 6px; font-size: 11px; line-height: 1.3; text-align: center; color: var(--rp-text-muted); }
+.rp .cv-thumb-remove { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border: 0; border-radius: 999px; display: grid; place-items: center; background: var(--rp-surface); color: var(--rp-text); cursor: pointer; }
+.rp .cv-add { width: 88px; height: 88px; border-radius: 12px; border: 1px dashed var(--rp-border-strong, var(--rp-text-muted)); background: transparent; color: var(--rp-text); display: grid; place-content: center; justify-items: center; gap: 4px; font: 500 13px/1.2 var(--rp-font-body); cursor: pointer; }
+.rp .cv-add:disabled { opacity: 0.5; cursor: default; }
+.rp .cv-form { display: grid; gap: 16px; }
+.rp .cv-problem { margin: 0; color: var(--rp-danger); font-size: 14px; }
+.rp .cv-big { display: block; max-width: 100%; max-height: 72vh; margin: 0 auto; border-radius: 12px; object-fit: contain; }
+@media (max-width: 480px) {
+  .rp .cv-thumb, .rp .cv-add { width: 76px; height: 76px; }
+  .rp .cv-visit { padding: 12px 14px; }
+}
