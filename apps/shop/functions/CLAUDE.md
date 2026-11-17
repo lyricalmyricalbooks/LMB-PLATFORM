@@ -1471,3 +1471,10 @@ customer's link, `tickets` with a code each). Rules shared with the page: `share
 - Privacy: export and erase cover `eventOrders` (`redactedTicketOrderFields`: a card-paid order keeps name and email).
 - Not built yet: the website page (E1b), check-in at the door (E2), refunds, moves, extras and codes (E3).
 - Tests: `events.test.js`, `src/shared/eventTickets.test.ts`, `privacyBookings.test.js`.
+
+**The website's Events link (17 November 2026):** `tellWebsite()` in `events.js` writes `settings/website.eventsLive`
+(Events on and a live event still to come) after `saveEvent` and `deleteEvent` and on admin op `hint` (asked by Ways to
+sell when the owner flips Events; answered even while Events is off, so the link goes away). It only writes when the
+record exists and the value differs, never throws into the caller, and is a hint for showing a link: every public action
+still checks the real switches. `adminApi.updateSettings` strips `eventsLive` like `bookingsLive`. No sweep keeps it:
+after the last event ends the link stays until the next save, and the page then says nothing is coming up.

@@ -1,4 +1,5 @@
 import { setBookingsLive } from "./bookingsLive";
+import { setEventsLive } from "./eventsLive";
 import { setShopSocial } from "./shopSocial";
 import { useLocation } from "react-router";
 import { consentAllows, CONSENT_EVENT, noteCookieBanner } from "../../lib/consent";
@@ -285,6 +286,9 @@ export function useSiteData() {
   // The header, phone menu and footer show "Book a time" while the shop takes bookings (bookingsLive.ts).
   const bookingsLive = (settings as any)?.bookingsLive === true;
   useEffect(() => { setBookingsLive(bookingsLive); }, [bookingsLive]);
+  // The same for "Events" while the shop has events coming up (eventsLive.ts).
+  const eventsLive = (settings as any)?.eventsLive === true;
+  useEffect(() => { setEventsLive(eventsLive); }, [eventsLive]);
   // The phone menu's social icons (shopSocial.ts), in the owner's order.
   useEffect(() => { setShopSocial(settings); }, [settings]);
   return { books: sellableBooks, settings: { ...started, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };

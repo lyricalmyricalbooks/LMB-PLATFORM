@@ -27,9 +27,10 @@ Two pull requests, so each stays readable:
 
 ## E1b: the website (next pull request)
 
-- [ ] `/events` on the shop's site: the list, an event's page, buying tickets, the "you're going" page.
-- [ ] Words in Studio › Text & labels, colours from the theme; header and footer link while events are live.
-- [ ] `events` set to built in `shared/ways/ways.js`, turned on for the test shops, a test purchase in Stripe test mode.
+- [x] `/events` on the shop's site: the list, an event's page, buying tickets, the "you're going" page.
+- [x] Words in Studio › Text & labels, colours from the theme; header and footer link while events are live.
+- [x] `events` set to built in `shared/ways/ways.js`; a picture per event in the admin form.
+- [ ] After the merge: turned on for the test shops, a test purchase in Stripe test mode.
 
 ## Not in E1 (later phases of the plan)
 
@@ -58,3 +59,13 @@ Checks: shared rules 14 tests (shop and server copies), server 15, page helpers 
 9; rules emulator ALL OK with the new server-only and two-shop checks; type-check, lint and build clean; desktop and
 phone screenshots of the page, the editor and the guest list from the admin fixture
 (`admin-fixture.html?ways=events&page=events`).
+
+### E1b review (17 November 2026)
+
+The website half: `/events` is one page with three views (the list, `?event=<id>`, the buyer's `?order=&key=`), built
+like Book a time (its own Studio surface `eventsPage`, regions `eventsLayout`, words in Text & labels › Events page with
+French twins, sample answers in Studio's preview). The header, phone menu and footer show an Events link from
+`settings/website.eventsLive`, which the server keeps in step when an event is saved or deleted and when the owner flips
+the switch (admin op `hint`), so there is no extra read and no scheduled job. Tax is shown as "plus tax" before the card
+page because the server works it out on the whole order, not per ticket. Known gap: a link left showing after the last
+event ends stays until the next save (the page then says nothing is coming up).

@@ -121,6 +121,24 @@ function eventActions({
     ]);
     return waysOn(features?.exists ? features.data() : null, start?.exists ? start.data() : null).includes("events");
   }
+  /** Still to come for the website: on sale and not over (one with no end shows until a few hours after it starts). */
+  const comingLive = (list, nowMs) => list.filter((e) => e.status === "live" && (Date.parse(e.end || "") || Date.parse(e.start) + 4 * 60 * MINUTE) > nowMs);
+  // The website shows its Events links from `settings/website.eventsLive`, which the pages already read. It is kept
+  // in step here: after an event is saved or deleted, and when the owner flips the switch (admin op `hint`). Only a
+  // hint for showing a link: every public action above still checks the real switches. A shop with no website
+  // settings yet is left alone (a record holding only this would stand in for the starting design).
+  async function tellWebsite() {
+    try {
+      const live = (await featureOn()) && comingLive(await readEvents(), now().getTime()).length > 0;
+      const ref = db.collection("settings").doc("website");
+      const snap = await ref.get();
+      if (snap.exists && (snap.data()?.eventsLive === true) !== live) await ref.set({ eventsLive: live }, { merge: true });
+      return live;
+    } catch (err) {
+      console.warn("events: the website link wasn't updated:", err?.message || err);
+      return null;
+    }
+  }
   async function standalone() {
     const mode = (await shopTestMode()) ? "test" : "live";
     return { mode, checkout: await payments.standaloneCheckout(mode) };
@@ -287,7 +305,7 @@ function eventActions({
       if (!(await featureOn())) return res.status(200).json({ on: false });
       if (action === "eventsInfo") {
         // Live events that haven't ended (one with no end shows until a few hours after it starts).
-        const coming = (await readEvents()).filter((e) => e.status === "live" && (Date.parse(e.end || "") || Date.parse(e.start) + 4 * 60 * MINUTE) > nowMs).slice(0, MAX_SHOWN);
+        const coming = comingLive(await readEvents(), nowMs).slice(0, MAX_SHOWN);
         const calc = coming.some((e) => e.chargeTax) && shopTax ? await shopTax().catch(() => null) : null;
         const places = await Promise.all(coming.map((e) => readPlaces(e.id)));
         return res.status(200).json({ on: true, zone: zone(), currency: currency(), events: coming.map((e, i) => publicEvent(e, places[i], nowMs, calc)) });
@@ -391,6 +409,8 @@ function eventActions({
     const op = req.body?.op;
     const by = adminUser.email || "admin";
     try {
+      // The owner just flipped the Events switch (Settings › Ways to sell): the website's links follow, on or off.
+      if (op === "hint") return res.status(200).json({ ok: true, eventsLive: (await tellWebsite()) === true });
       if (!(await featureOn())) return fail(res, 403, "Events aren't turned on for this shop.", "off");
       const nowMs = now().getTime();
       if (op === "list") {
@@ -414,6 +434,7 @@ function eventActions({
           if (kind.places < n) return fail(res, 409, `${n} "${kind.name}" ${n === 1 ? "ticket is" : "tickets are"} already sold, so it needs at least ${n} ${n === 1 ? "place" : "places"}.`, "sold");
         }
         await events().doc(id).set({ ...event, updatedAt: now().toISOString(), updatedBy: by });
+        await tellWebsite();
         return res.status(200).json({ ok: true, event: adminEvent(event, places, nowMs) });
       }
       if (op === "deleteEvent") {
@@ -425,6 +446,7 @@ function eventActions({
         if (soldCount(event, places).total > 0 || stillPaying) return fail(res, 409, "People have tickets for this event, so it can't be deleted. Mark it cancelled instead.", "sold");
         await events().doc(id).delete();
         await placesRef(id).delete();
+        await tellWebsite();
         return res.status(200).json({ ok: true });
       }
       if (op === "orders") {

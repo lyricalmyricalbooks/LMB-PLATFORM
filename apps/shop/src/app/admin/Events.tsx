@@ -2,8 +2,8 @@
 // tickets and who is coming, in the Colophon bento look (bookings.css tiles + events.css, tokens only). Shown only when
 // Events is on for the shop (the platform's switch and the owner's, Dashboard.tsx). Events, places and ticket orders
 // are server-only records, so every read and change goes through the server (eventsApi.ts): it never sells one place twice.
-import { useEffect, useMemo, useState } from "react";
-import { CalendarPlus, Download, Mail, Pencil, Plus, Ticket, Trash2, Users } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarPlus, Download, ImagePlus, Mail, Pencil, Plus, Ticket, Trash2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField,
@@ -199,6 +199,8 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
         <TextField label="Online link (optional)" type="url" value={form.onlineUrl} onChange={(e) => set({ onlineUrl: e.target.value })}
           placeholder="https://" hint="Only people with a ticket get this link, in their ticket email." />
 
+        <PhotoField photo={form.photo} onChange={(photo) => set({ photo })} />
+
         <fieldset className="evt-tickets">
           <legend>Tickets</legend>
           {form.tickets.map((t) => (
@@ -281,5 +283,41 @@ function GuestList({ event, zone, currency, onClose }: { event: AdminEvent; zone
           </>
         )}
     </Drawer>
+  );
+}
+
+/** The event's picture for its page on the website: one photo, made smaller in the browser, kept with the shop's other pictures. */
+function PhotoField({ photo, onChange }: { photo: string; onChange: (url: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Choose a picture (JPG, PNG or WebP)."); return; }
+    setBusy(true);
+    try {
+      const [{ prepareProductImage }, { adminApi }] = await Promise.all([import("./prepareImage"), import("./api")]);
+      const ready = await prepareProductImage(file, 1600);
+      const ext = (ready.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      onChange(await adminApi.uploadFile(ready, `assets/events/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`));
+    } catch {
+      toast.error("The picture couldn't be added. Try again.");
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  };
+  return (
+    <div className="evt-photo">
+      <span className="evt-photo-label">Picture (optional)</span>
+      <div className="evt-photo-row">
+        {photo ? <img src={photo} alt="" className="evt-photo-thumb" /> : <span className="evt-photo-thumb" data-empty aria-hidden><ImagePlus size={20} /></span>}
+        <div className="evt-photo-actions">
+          <SecondaryButton onClick={() => input.current?.click()} busy={busy}>{photo ? "Change picture" : "Add a picture"}</SecondaryButton>
+          {photo && <GhostButton onClick={() => onChange("")} disabled={busy}>Remove</GhostButton>}
+        </div>
+      </div>
+      <p className="evt-photo-hint">Shown on the event's page on your website. A wide picture works best.</p>
+      <input ref={input} type="file" accept="image/*" hidden aria-label="Event picture" onChange={(e) => { void choose(e.target.files?.[0]); }} />
+    </div>
   );
 }

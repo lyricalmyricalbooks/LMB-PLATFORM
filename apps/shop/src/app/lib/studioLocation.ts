@@ -10,7 +10,7 @@ const TABS = new Set(["essentials", "sections", "style", "text", "menus", "pages
 // The old Shared layout tab became Page layout's Header / Footer groups (Studio 2.0 · 1.5).
 const RETIRED_TABS: Record<string, StudioLocation["leftTab"]> = { shared: "sections" };
 const DEVICES = new Set(["desktop", "tablet", "mobile"]);
-const TEMPLATE = /^(heroPage|storefront|productPage|collectionPage|cartPage|page|page404|wishlistPage|accountPage|trackingPage|bookingsPage|page:[\w-]{1,120})$/;
+const TEMPLATE = /^(heroPage|storefront|productPage|collectionPage|cartPage|page|page404|wishlistPage|accountPage|trackingPage|bookingsPage|eventsPage|page:[\w-]{1,120})$/;
 const SLUG = /^[\w-]{1,160}$/;
 
 /** Read `#designer?…` (or just its query). Unknown or malformed values are ignored. */
@@ -53,5 +53,6 @@ export function locationForPath(pathname: string, base = "/"): StudioLocation {
   if (path.startsWith("/account")) return { templateId: "accountPage" };
   if (path === "/track") return { templateId: "trackingPage" };
   if (path === "/book") return { templateId: "bookingsPage" };
+  if (path === "/events") return { templateId: "eventsPage" };
   return { templateId: "heroPage" };
 }

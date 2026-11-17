@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { WAYS, waysIn, type Way, type WayId } from "../../shared/waysToSell";
 import { useWaysAllowed } from "./waysApi";
+import { eventsAdmin } from "./eventsApi";
 import { FormSection } from "./riso/FormKit";
 import { StatusBadge } from "./riso/components";
 
@@ -63,6 +64,8 @@ export function WaysToSellCard() {
       const next = WAYS.map((w) => w.id).filter((id) => (id === way.id ? on : chosen.includes(id)));
       setChosen(next);
       window.dispatchEvent(new CustomEvent(WAYS_CHANGED_EVENT, { detail: next }));
+      // The website's Events links follow the switch (the server works out whether there is anything to link to).
+      if (way.id === "events") void eventsAdmin("hint").catch(() => {});
       toast.success(waySavedWords(way, on));
     } catch {
       toast.error("Couldn't save that. Check your connection and try again.");

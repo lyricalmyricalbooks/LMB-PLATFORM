@@ -340,6 +340,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "hideHeaderSearch", label: "Hide search icon", kind: "toggle" },
       { key: "hideHeaderWishlist", label: "Hide wishlist (heart) icon", kind: "toggle" },
       { key: "hideHeaderBookings", label: "Hide Book a time (calendar) icon; it only shows while you take bookings", kind: "toggle" },
+      { key: "hideHeaderEvents", label: "Hide Events (ticket) icon; it only shows while you have events coming up", kind: "toggle" },
       { key: "hideHeaderAccount", label: "Hide account icon", kind: "toggle" },
       { key: "hideCurrencySelector", label: "Hide currency selector", kind: "toggle" },
       { key: "hideThemeToggle", label: "Hide light/dark toggle", kind: "toggle" },

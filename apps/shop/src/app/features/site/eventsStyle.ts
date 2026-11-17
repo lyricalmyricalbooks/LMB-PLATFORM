@@ -1,0 +1,58 @@
+// Events page (features/site/EventsPage.tsx): the parts the order slip (trackingStyle.ts) doesn't have, in the same
+// print language. Token-driven only: every colour is a theme variable, so the page follows Studio's palette.
+//   fm-evt-list / -card      the coming events (a card is a link)      fm-evt-date     the date block on a card
+//   fm-evt-photo             an event's picture (card and event page)  fm-evt-tag      mono price / state tag
+//   fm-evt-facts             when, where, online lines                  fm-evt-about    the description
+//   fm-evt-tickets / -ticket the ticket kinds with their quantity pickers (fm-evt-qty, fm-evt-step)
+//   fm-evt-codes / -code     the buyer's ticket codes                   fm-evt-layout   event page: tickets + your details
+const S = ".fm-track";
+
+export const EVENTS_CSS = [
+  `${S} .fm-evt-list{display:grid;gap:18px;margin:0;padding:0;list-style:none;}`,
+  `${S} .fm-evt-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 22px;align-items:center;padding:20px 22px;border:var(--t-edge-w) solid var(--t-edge);background:var(--surface, transparent);color:inherit;text-decoration:none;border-radius:var(--rp-card-radius, 0px);transition:transform .12s ease, box-shadow .12s ease;}`,
+  `${S} a.fm-evt-card:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--t-shadow);}`,
+  `${S} a.fm-evt-card:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:3px;}`,
+  `${S} .fm-evt-card[data-photo="true"]{grid-template-columns:auto 112px minmax(0,1fr) auto;}`,
+  `${S} .fm-evt-date{display:grid;justify-items:center;align-content:center;gap:2px;width:76px;min-height:84px;padding:8px 6px;background:var(--accent);color:var(--on-accent, rgb(var(--fg-rgb)));border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);font-family:var(--t-mono);}`,
+  `${S} .fm-evt-date span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;}`,
+  `${S} .fm-evt-date strong{font-family:var(--heading-font, inherit);font-size:34px;line-height:1;}`,
+  `${S} .fm-evt-photo{display:block;width:100%;object-fit:cover;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);background:var(--surface, transparent);}`,
+  `${S} .fm-evt-card .fm-evt-photo{width:112px;height:84px;}`,
+  `${S} .fm-evt-hero{aspect-ratio:16/9;margin:0 0 28px;}`,
+  `${S} .fm-evt-main{display:grid;gap:6px;min-width:0;}`,
+  `${S} .fm-evt-main h2{margin:0;font-family:var(--heading-font, inherit);font-size:26px;line-height:1.1;overflow-wrap:anywhere;}`,
+  `${S} .fm-evt-main p{margin:0;font-size:15px;line-height:1.5;color:var(--muted, currentColor);}`,
+  `${S} .fm-evt-tag{justify-self:end;font-family:var(--t-mono);font-size:13px;font-weight:700;letter-spacing:.08em;white-space:nowrap;padding:4px 10px;border:2px solid currentColor;}`,
+  `${S} .fm-evt-tag[data-state="soldOut"],${S} .fm-evt-tag[data-state="closed"]{opacity:.6;border-style:dashed;}`,
+  `${S} .fm-evt-tag[data-state="cancelled"]{color:var(--danger, currentColor);}`,
+  `@media (max-width:640px){${S} .fm-evt-card,${S} .fm-evt-card[data-photo="true"]{grid-template-columns:auto minmax(0,1fr);padding:16px;}${S} .fm-evt-card .fm-evt-photo{display:none;}${S} .fm-evt-tag{grid-column:1/-1;justify-self:start;}${S} .fm-evt-date{width:64px;min-height:72px;}${S} .fm-evt-date strong{font-size:28px;}${S} .fm-evt-main h2{font-size:22px;}}`,
+  `${S} .fm-evt-facts{display:grid;gap:10px;margin:18px 0 0;padding:0;list-style:none;font-size:16px;line-height:1.45;}`,
+  `${S} .fm-evt-facts li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;align-items:start;}`,
+  `${S} .fm-evt-facts svg{margin-top:3px;}`,
+  `${S} .fm-evt-facts small{display:block;font-size:14px;color:var(--muted, currentColor);}`,
+  `${S} .fm-evt-about{margin:0 0 28px;font-size:16px;line-height:1.7;white-space:pre-line;overflow-wrap:anywhere;}`,
+  `${S} .fm-evt-layout{display:grid;gap:28px;}`,
+  `@media (min-width:900px){${S} .fm-evt-layout{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);align-items:start;}}`,
+  `${S} .fm-evt-tickets{display:grid;gap:0;margin:0;padding:0;list-style:none;}`,
+  `${S} .fm-evt-ticket{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:16px 0;border-bottom:1px dashed var(--t-rule);}`,
+  `${S} .fm-evt-ticket:first-child{padding-top:0;}`,
+  `${S} .fm-evt-ticket h3{margin:0;font-size:17px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;}`,
+  `${S} .fm-evt-ticket p{margin:2px 0 0;font-family:var(--t-mono);font-size:13px;letter-spacing:.04em;color:var(--muted, currentColor);}`,
+  `${S} .fm-evt-ticket p b{color:var(--warning, currentColor);font-weight:700;}`,
+  `${S} .fm-evt-ticket[data-gone="true"] h3{opacity:.55;text-decoration:line-through;text-decoration-thickness:1px;}`,
+  `${S} .fm-evt-qty{display:inline-grid;grid-template-columns:44px 40px 44px;align-items:center;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);overflow:hidden;}`,
+  `${S} .fm-evt-qty output{text-align:center;font-family:var(--t-mono);font-size:16px;font-weight:700;}`,
+  `${S} .fm-evt-step{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;cursor:pointer;}`,
+  `${S} .fm-evt-step:hover:not(:disabled){background:rgba(var(--fg-rgb),0.08);}`,
+  `${S} .fm-evt-step:disabled{opacity:.3;cursor:default;}`,
+  `${S} .fm-evt-step:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:-3px;}`,
+  `${S} .fm-evt-gone{font-family:var(--t-mono);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.7;}`,
+  `${S} .fm-evt-form{display:grid;gap:18px;}`,
+  `${S} .fm-evt-codes{display:grid;gap:12px;margin:22px 0 0;padding:0;list-style:none;}`,
+  `@media (min-width:641px){${S} .fm-evt-codes{grid-template-columns:repeat(2,minmax(0,1fr));}}`,
+  `${S} .fm-evt-code{display:grid;gap:4px;padding:16px 18px;border:var(--t-edge-w) dashed var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
+  `${S} .fm-evt-code strong{font-family:var(--t-mono);font-size:22px;letter-spacing:.12em;overflow-wrap:anywhere;}`,
+  `${S} .fm-evt-error{margin:6px 0 0;font-size:13px;color:var(--danger, currentColor);}`,
+  `${S} .fm-evt-empty{padding:28px 0;text-align:center;}`,
+  `@media (prefers-reduced-motion:reduce){${S} .fm-evt-card{transition:none;}${S} a.fm-evt-card:hover{transform:none;}}`,
+].join("\n");
