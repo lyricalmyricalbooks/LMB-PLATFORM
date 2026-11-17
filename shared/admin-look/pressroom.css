@@ -2519,3 +2519,32 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp-dialog-body fieldset :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--rp-surface); }
 :root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-danger { border: 1px solid var(--rp-danger); background: var(--rp-surface); color: var(--rp-danger); }
 :root[data-admin-look="colophon"] .rp-dialog-root .rp-dialog .rp-btn.rp-btn-danger:hover:not(:disabled) { background: var(--rp-danger-tint); }
+
+/* Settings polish (17 November 2026, Julian: "a small design update" to Settings and its pages). One field look on
+   every Settings card (the form kit's soft filled fields, not the older outlined boxes), round switches like the rest
+   of the bento look, tighter cards on phones with the fold arrow kept beside the title, and two-up fields stacked on
+   phones. Scoped to `.rp-settings` minus Shipping (redesigned on its own, PR 844), so other pages keep their look. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card :is(.rp-input, .rp-textarea, .rp-select) { min-height: 44px; padding: 11px 14px; border: 0; border-radius: 12px !important; background-color: var(--rp-input-bg) !important; box-shadow: none; color: var(--rp-text); font: 400 14px/1.4 var(--rp-font-body); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-select { padding-right: 36px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-textarea { min-height: 112px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card :is(.rp-input, .rp-textarea, .rp-select):focus { outline: none; box-shadow: 0 0 0 2px var(--rp-info); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card :is(.rp-input, .rp-textarea, .rp-select)[aria-invalid="true"] { box-shadow: inset 0 0 0 1.5px var(--rp-warning); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-card { background: var(--rp-surface-2); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-card :is(.rp-input, .rp-textarea, .rp-select) { background-color: var(--rp-surface) !important; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-card .rp-card-actions { justify-content: flex-start; gap: 8px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card-title { font-weight: 600; letter-spacing: -0.01em; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-toggle-track { border-radius: 999px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-toggle-track::after { border-radius: 50%; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-callout-list { margin: 16px 0 0; border-radius: 14px; background: var(--rp-surface-2); overflow: hidden; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-callout-list > li { padding: 12px 14px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-callout-list > li + li { border-top: 1px solid var(--rp-divider); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-callout-ok { margin: 16px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--rp-success-tint); color: var(--rp-success); }
+@media (max-width: 767px) {
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card:is(:has(> .rp-card-head), :has(> .rp-card-body)) { padding: 0; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card > .rp-card-head { padding: 18px 18px 8px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card > .rp-card-body { padding: 4px 18px 18px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card > .rp-card-head:has(> .rp-card-fold) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px 12px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card > .rp-card-head > .rp-card-fold { grid-column: 2; grid-row: 1; margin: 0 -6px 0 0; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card > .rp-card-head > :not(.rp-card-heading, .rp-card-fold) { grid-column: 1 / -1; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-fk-row > * { flex-basis: 100%; }
+}
