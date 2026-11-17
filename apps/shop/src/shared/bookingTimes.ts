@@ -142,6 +142,10 @@ export type BookingSettings = {
   staff: StaffMember[];
   /** Rooms and chairs services can need. */
   rooms: BookingRoom[];
+  /** A thank-you email a couple of hours after each visit, with Book again (and `reviewUrl` when set). */
+  thankYou: boolean;
+  /** Where clients leave a review (a Google review link, say): https only, "" for none. */
+  reviewUrl: string;
 };
 
 /**
@@ -179,6 +183,8 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   pickupSlotMinutes: 30,
   pickupPerSlot: 4,
   pickupReadyHours: 2,
+  thankYou: false,
+  reviewUrl: "",
   staff: [],
   rooms: [],
 };
@@ -458,7 +464,31 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     pickupReadyHours: whole(s.pickupReadyHours, 0, 72, DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
     rooms: cleanRooms(s.rooms),
     staff: cleanStaff(s.staff, hours),
+    thankYou: s.thankYou === true,
+    reviewUrl: reviewLink(s.reviewUrl),
   };
+}
+
+/** A review link as typed: an https address of at most 500 characters, else "". */
+export function reviewLink(raw: unknown): string {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text || text.length > 500) return "";
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" && url.hostname.includes(".") ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Should the visit get the thank-you email? The shop sends them, the visit happened (confirmed, not a no-show, started)
+ * and none went yet. A visit that gets the "Add a tip" email (`tipOpen`) is thanked in that email instead.
+ */
+export function thanksDue(b: BookingMoney & { noShow?: boolean; tip?: unknown; start?: string; end?: string; thanksSentAt?: string | null; tipAskedAt?: string | null }, settings: Pick<BookingSettings, "thankYou" | "tips">, nowMs: number): boolean {
+  if (!settings.thankYou || b.thanksSentAt || b.tipAskedAt || b.status !== "confirmed" || b.noShow) return false;
+  if (!(Date.parse(b.start || "") <= nowMs)) return false;
+  return !tipOpen(b, settings.tips, nowMs);
 }
 
 /** A week of opening hours, cleaned (7 days, up to 4 windows each, in order, no overlaps); `fallback` when broken. */

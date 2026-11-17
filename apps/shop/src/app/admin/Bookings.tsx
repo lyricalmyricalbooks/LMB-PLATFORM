@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -818,6 +818,27 @@ function TipsTile({ tips, percents, onChange }: { tips: boolean; percents: numbe
   );
 }
 
+/** After the visit: a thank-you email with Book again, and a review link when the owner gives one. */
+function ThanksTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
+  const [text, setText] = useState(form.reviewUrl);
+  useEffect(() => setText(form.reviewUrl), [form.reviewUrl]);
+  const problem = text.trim() && !reviewLink(text) ? "Paste the full address, starting with https://" : "";
+  return (
+    <section className="bkg-tile" data-thanks-tile>
+      <h2 className="bkg-tile-title">After the visit</h2>
+      <div className="bkg-form">
+        <Toggle label="Send a thank-you email" checked={form.thankYou} onChange={(v) => onChange({ thankYou: v })} />
+        <p className="bkg-cal-text">{form.thankYou ? "A couple of hours after each visit, clients get a short thank-you with a Book again button. If you ask for tips, the tip email says thank you instead, so nobody gets two." : "Clients get no email after their visit."}</p>
+        {form.thankYou && (
+          <TextField label="Review link (optional)" hint="Where clients can review you, like your Google review link. It shows as Leave a review." inputMode="url" placeholder="https://g.page/r/…/review"
+            value={text} onChange={(e) => setText(e.target.value)} error={problem || undefined}
+            onBlur={() => { if (!problem) onChange({ reviewUrl: reviewLink(text) }); }} />
+        )}
+      </div>
+    </section>
+  );
+}
+
 /** Pickup times at checkout: shoppers choosing "Pick up" pick a time inside the opening hours below. */
 function PickupTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
   return (
@@ -1423,6 +1444,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
           </div>
         </section>
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
+        <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <section className="bkg-tile">
           <h2 className="bkg-tile-title">Days off</h2>

@@ -1392,3 +1392,10 @@ asks, balances and refunds work unchanged. The tax in any part paid or kept is `
 the same share as of the price. bookingInfo shows `taxMinor` per service, bookingCode answers it, walk-ins add it to the
 typed amount, and the emails say "Includes tax (HST ON)". Packs of visits are not taxed yet. Tests: bookings.test.js ›
 "sales tax on a service".
+
+**Thank-you email after the visit (17 November 2026, Bookings plan phase 4).** Hours & rules › After the visit saves
+`thankYou` and `reviewUrl` (https only, ≤500, `reviewLink` in `shared/bookingTimes`). The five-minute `bookingSweep` calls
+`sweepThanks`: visits that ended `TIP_ASK_HOURS` to a day ago and pass `thanksDue` (confirmed, not a no-show, started, no
+`thanksSentAt` or `tipAskedAt`, and not getting the tip email by `tipOpen`) are marked `thanksSentAt`, then sent the `thanks`
+email (Book again → `/book?service=<id>`, Leave a review when a link is set). The tip email carries the review link too
+while `thankYou` is on, so one visit never gets both.

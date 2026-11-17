@@ -4775,6 +4775,8 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   await bookingDesk.sweepWaitlist();
   const tips = await bookingDesk.sweepTips();
   if (tips.asked) console.log(`bookingSweep: ${tips.asked} tip emails sent`);
+  const thanks = await bookingDesk.sweepThanks();
+  if (thanks.thanked) console.log(`bookingSweep: ${thanks.thanked} thank-you emails sent`);
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

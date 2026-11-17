@@ -59,7 +59,7 @@ const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
-  secondReminderDue, summaryDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
+  secondReminderDue, summaryDue, thanksDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
 } = require("./shared/bookingTimes");
@@ -337,7 +337,7 @@ function bookingActions({
   }
 
   /** Emails the customer (and tells the owner) about a booking. `kind`: booked, moved, cancelled. Never throws. */
-  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop } = {}) {
+  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "" } = {}) {
     try {
       const to = b.customer?.email;
       if (!to || !EMAIL.test(to)) return;
@@ -353,12 +353,13 @@ function bookingActions({
         <p style="margin:0 0 4px;font-size:13px;">Show it at the desk when you arrive.${key ? " Your booking page has it as a code to scan." : ""}</p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
-      const subject = { tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const subject = { thanks: `Thank you for coming: ${b.serviceName}`, tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
       const lead = {
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
         restPaid: `Thank you. You paid ${escapeHtml(moneyWords(restTaken(b), b.currency))} by card${tipTaken(b) ? `, with a ${escapeHtml(tipText)} tip` : ""}, so your booking with ${escapeHtml(shop)} is paid in full.`,
-        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.`,
+        thanks: `Thank you for visiting ${escapeHtml(shop)}. We hope to see you again soon.${reviewUrl ? " If you have a moment, a short review helps others find us." : ""}`,
+        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.${reviewUrl ? " And if you have a moment, a short review helps others find us." : ""}`,
         tipPaid: `Thank you! Your ${escapeHtml(tipText)} tip for your visit to ${escapeHtml(shop)} has gone through.`,
         reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
         soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
@@ -367,7 +368,7 @@ function bookingActions({
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
-      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid";
+      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid" || kind === "thanks";
       // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
       const due = balanceDue(b);
       const taken = bookedCardTaken(b);
@@ -384,8 +385,11 @@ function bookingActions({
       const held = ended || !b.card ? "" : `<p style="margin:0 0 4px;"><strong>Card on file:</strong> ${escapeHtml(cardWords(b.card))}. Missing this booking${cancelHours ? `, or cancelling less than ${cancelHours} hours before,` : ""} may cost ${escapeHtml(moneyWords(b.lateFeeMinor || 0, b.currency))}.</p>`;
       const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? "Add a tip" : kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
+      // After the visit: leave a review (the shop's own link) and book the same service again.
+      const review = reviewUrl && (kind === "thanks" || kind === "tip") ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : "";
+      const again = kind === "thanks" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
@@ -397,6 +401,8 @@ function bookingActions({
         ${held}
         ${checkIn}
         ${manage}
+        ${again}
+        ${review}
         ${calendar}
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
       await sendEmail({ to, subject, html });
@@ -2253,13 +2259,37 @@ function bookingActions({
       if (b.tipAskedAt || !tipOpen(b, true, nowMs)) continue;
       const key = randomKey();
       await bookings().doc(doc.id).set({ tipAskedAt: new Date(nowMs).toISOString(), tipKeyHash: hash(key) }, { merge: true });
-      await tellCustomer(doc.id, b, "tip", { byShop: true, toOwner: false, key });
+      await tellCustomer(doc.id, b, "tip", { byShop: true, toOwner: false, key, reviewUrl: settings.thankYou ? settings.reviewUrl : "" });
       asked += 1;
     }
     return { asked };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, sweepTips, featureOn, pickupCheck };
+  /**
+   * The thank-you email (Hours & rules › After the visit), once per visit, TIP_ASK_HOURS after it ended (within a day of
+   * that): Book again, and Leave a review when the shop gave a link. Visits that get the "Add a tip" email are thanked
+   * there (`thanksDue`). Marked before sending, so a second sweep never sends twice.
+   */
+  async function sweepThanks() {
+    if (!(await featureOn())) return { thanked: 0 };
+    const settings = await readSettings();
+    if (!settings.thankYou) return { thanked: 0 };
+    const nowMs = now().getTime();
+    const from = new Date(nowMs - (TIP_ASK_HOURS + 24) * HOUR).toISOString();
+    const to = new Date(nowMs - TIP_ASK_HOURS * HOUR).toISOString();
+    const snap = await bookings().where("end", ">=", from).where("end", "<=", to).limit(500).get();
+    let thanked = 0;
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      if (!thanksDue(b, settings, nowMs)) continue;
+      await bookings().doc(doc.id).set({ thanksSentAt: new Date(nowMs).toISOString() }, { merge: true });
+      await tellCustomer(doc.id, b, "thanks", { byShop: true, toOwner: false, reviewUrl: settings.reviewUrl });
+      thanked += 1;
+    }
+    return { thanked };
+  }
+
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, sweepTips, sweepThanks, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */

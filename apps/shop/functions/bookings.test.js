@@ -6,7 +6,7 @@ import { createRequire } from "module";
 
 const realRequire = createRequire(import.meta.url);
 const { bookingActions, busyFrom } = realRequire("./bookings");
-const { zonedTime, DEFAULT_BOOKING_SETTINGS } = realRequire("./shared/bookingTimes");
+const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings } = realRequire("./shared/bookingTimes");
 
 const ZONE = "America/Toronto";
 const at = (day, hhmm) => new Date(zonedTime(day, hhmm, ZONE)).toISOString();
@@ -1992,5 +1992,82 @@ describe("sales tax on a service", () => {
     await none.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), ...CUSTOMER });
     expect(none.db.store.get("bookings/booking001").taxMinor).toBeUndefined();
     expect(none.opened[0].params.line_items[0].price_data.unit_amount).toBe(4000);
+  });
+});
+
+describe("the thank-you email after the visit", () => {
+  const REVIEW = "https://g.page/r/test-shop/review";
+  const seedThanks = async (t, extra = {}) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, thankYou: true, reviewUrl: REVIEW, ...extra });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const book = (t, time, extra = {}) => t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", time), ...CUSTOMER, ...extra });
+  const after = (t, time, hours) => { t.clock.now = new Date(Date.parse(at("2026-11-18", time)) + 30 * 60_000 + hours * 3_600_000); };
+  const thanks = (t) => t.emails.filter((e) => /^Thank you for coming/.test(e.subject));
+
+  test("one thank-you a couple of hours after the visit, with Book again and the review link", async () => {
+    const t = setup();
+    await seedThanks(t);
+    const r = await book(t, "15:00");
+    after(t, "15:00", 0.5);
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 0 });
+    after(t, "15:00", 2.5);
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 1 });
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 0 });
+    const [email] = thanks(t);
+    expect(email.to).toBe(CUSTOMER.email);
+    expect(email.html).toContain("Book again");
+    expect(email.html).toContain("/book?service=cut");
+    expect(email.html).toContain(`href="${REVIEW}"`);
+    expect(t.db.store.get(`bookings/${r.body.id}`).thanksSentAt).toBeTruthy();
+  });
+
+  test("no review link means no Leave a review, and the switch off sends nothing", async () => {
+    const t = setup();
+    await seedThanks(t, { reviewUrl: "" });
+    await book(t, "15:00");
+    after(t, "15:00", 2.5);
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 1 });
+    expect(thanks(t)[0].html).not.toContain("Leave a review");
+    const off = setup();
+    await seedThanks(off, { thankYou: false });
+    await book(off, "15:00");
+    after(off, "15:00", 2.5);
+    expect(await off.desk.sweepThanks()).toEqual({ thanked: 0 });
+  });
+
+  test("a no-show or a cancelled booking is not thanked", async () => {
+    const t = setup();
+    await seedThanks(t);
+    const a = await book(t, "13:00");
+    const b = await book(t, "15:00", { name: "Bo", email: "bo@example.com" });
+    await t.adm({ op: "cancel", id: b.body.id });
+    after(t, "13:00", 0.1);
+    await t.adm({ op: "noShow", id: a.body.id });
+    after(t, "15:00", 2.5);
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 0 });
+  });
+
+  test("with tips on, a paid visit is thanked in the tip email, review link included, never twice", async () => {
+    const t = setup();
+    await seedThanks(t, { tips: true });
+    const r = await book(t, "15:00");
+    await t.adm({ op: "paidAtShop", id: r.body.id });
+    after(t, "15:00", 2.5);
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 0 });
+    expect(await t.desk.sweepTips()).toEqual({ asked: 1 });
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 0 });
+    const emails = thanks(t);
+    expect(emails).toHaveLength(1);
+    expect(emails[0].html).toContain("Add a tip");
+    expect(emails[0].html).toContain(`href="${REVIEW}"`);
+  });
+
+  test("the review link must be a full https address", () => {
+    expect(cleanBookingSettings({ reviewUrl: " https://g.page/r/x/review " }).reviewUrl).toBe("https://g.page/r/x/review");
+    expect(cleanBookingSettings({ reviewUrl: "http://example.com" }).reviewUrl).toBe("");
+    expect(cleanBookingSettings({ reviewUrl: "javascript:alert(1)" }).reviewUrl).toBe("");
+    expect(cleanBookingSettings({}).thankYou).toBe(false);
   });
 });

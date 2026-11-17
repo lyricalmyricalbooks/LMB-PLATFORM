@@ -21,6 +21,8 @@ exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
+exports.reviewLink = reviewLink;
+exports.thanksDue = thanksDue;
 exports.cleanRooms = cleanRooms;
 exports.cleanStaff = cleanStaff;
 exports.zonedTime = zonedTime;
@@ -81,6 +83,8 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     pickupSlotMinutes: 30,
     pickupPerSlot: 4,
     pickupReadyHours: 2,
+    thankYou: false,
+    reviewUrl: "",
     staff: [],
     rooms: [],
 };
@@ -375,7 +379,33 @@ function cleanBookingSettings(raw) {
         pickupReadyHours: whole(s.pickupReadyHours, 0, 72, exports.DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
         rooms: cleanRooms(s.rooms),
         staff: cleanStaff(s.staff, hours),
+        thankYou: s.thankYou === true,
+        reviewUrl: reviewLink(s.reviewUrl),
     };
+}
+/** A review link as typed: an https address of at most 500 characters, else "". */
+function reviewLink(raw) {
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text || text.length > 500)
+        return "";
+    try {
+        const url = new URL(text);
+        return url.protocol === "https:" && url.hostname.includes(".") ? url.href : "";
+    }
+    catch {
+        return "";
+    }
+}
+/**
+ * Should the visit get the thank-you email? The shop sends them, the visit happened (confirmed, not a no-show, started)
+ * and none went yet. A visit that gets the "Add a tip" email (`tipOpen`) is thanked in that email instead.
+ */
+function thanksDue(b, settings, nowMs) {
+    if (!settings.thankYou || b.thanksSentAt || b.tipAskedAt || b.status !== "confirmed" || b.noShow)
+        return false;
+    if (!(Date.parse(b.start || "") <= nowMs))
+        return false;
+    return !tipOpen(b, settings.tips, nowMs);
 }
 /** A week of opening hours, cleaned (7 days, up to 4 windows each, in order, no overlaps); `fallback` when broken. */
 function cleanHours(raw, fallback) {
