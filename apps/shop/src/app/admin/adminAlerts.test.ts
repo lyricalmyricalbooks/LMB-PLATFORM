@@ -7,6 +7,18 @@ const ago = (min: number) => new Date(now - min * 60000).toISOString();
 const ids = (a: any[]) => a.map((x) => x.id);
 
 describe("buildAdminAlerts", () => {
+  it("tells the owner when a paid buyer used up their downloads, until the limits are reset", () => {
+    const done = { paymentStatus: "paid", status: "completed", createdAt: ago(60) };
+    const orders = [
+      { id: "U", ...done, downloadLimitReached: { "zine__base": ago(5) } },
+      { id: "R", ...done, downloadLimitReached: {} },
+      { id: "N", paymentStatus: "unpaid", createdAt: ago(60), downloadLimitReached: { "zine__base": ago(5) } },
+    ];
+    const a = buildAdminAlerts(orders, null, now);
+    expect(ids(a)).toEqual(["downloads-used-up"]);
+    expect(a[0]).toMatchObject({ tone: "warning", orderIds: ["U"], action: "order" });
+  });
+
   it("flags an unpaid order with a Stripe payment after 10 minutes", () => {
     const orders = [
       { id: "A", paymentStatus: "unpaid", stripePaymentIntentId: "pi_1", createdAt: ago(30) },

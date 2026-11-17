@@ -58,6 +58,9 @@ import PdpShipBy from "./extras/pdp-ship-by/PdpShipBy";
 import PdpAskQuestion from "./extras/pdp-ask-question/PdpAskQuestion";
 import PdpBulkQuote from "./extras/pdp-bulk-quote/PdpBulkQuote";
 import PdpInBag from "./extras/pdp-in-bag/PdpInBag";
+import PayWhatYouWant from "./extras/pdp-pay-what-you-want/PayWhatYouWant";
+import { readAmount } from "./extras/pdp-pay-what-you-want/payWhatYouWantBox";
+import { paysWhatTheyWant } from "../../../shared/payWhatYouWant";
 import PdpPaymentIcons from "./extras/pdp-payment-icons/PdpPaymentIcons";
 import { resolveFooterBadges } from "./paymentBadges";
 import PdpTaxNote from "./extras/pdp-tax-note/PdpTaxNote.tsx";
@@ -155,6 +158,9 @@ export default function BookDetail() {
   // Buy-card extras: ticked add-ons (with inscription wording) and a gift card's recipient.
   const [addOnPicks, setAddOnPicks]   = useState<AddOnPicks>({});
   const [addOnError, setAddOnError]   = useState("");
+  // Pay what you want (Digital D2): what the buyer typed, and why it can't be used ("low" | "high" | "number").
+  const [pwywTyped, setPwywTyped]     = useState("");
+  const [pwywError, setPwywError]     = useState("");
   const [editionError, setEditionError] = useState("");
   // Option buttons (plan 10.2): the shopper's picks so far, for a product saved with options (Size, Colour).
   const [optionPicks, setOptionPicks] = useState<OptionPicks>({});
@@ -526,7 +532,14 @@ export default function BookDetail() {
     setAddOnError("");
     if (isGiftCard && !giftFormValid(giftForm)) { setGiftError(getCopy(settings?.design, "pdpGiftEmailError")); return null; }
     setGiftError("");
-    return { addOns: addOnRequest(addOns, addOnPicks), ...(isGiftCard ? { giftCardDetails: giftForm } : {}) };
+    let chosenPrice: number | undefined;
+    if (book && paysWhatTheyWant(book, selectedVariant || undefined)) {
+      const read = readAmount(pwywTyped, catalogUnitPrice(book, undefined), convertPrice(1));
+      if ("problem" in read) { setPwywError(read.problem === "high" ? "high" : "low"); return null; }
+      setPwywError("");
+      chosenPrice = read.amount;
+    }
+    return { addOns: addOnRequest(addOns, addOnPicks), ...(isGiftCard ? { giftCardDetails: giftForm } : {}), ...(chosenPrice !== undefined ? { chosenPrice } : {}) };
   };
 
   // Coming soon button: open the signup and put the cursor in its email box; a second press closes it.
@@ -1166,6 +1179,17 @@ export default function BookDetail() {
       }
       case "buy": {
         return <Fragment key={block.id}>
+                  {!isOutOfStock && !isComingSoon && paysWhatTheyWant(book, selectedVariant || undefined) && regionVisible(regionDesign, "productPayWhatYouWant") && (
+                    <PayWhatYouWant
+                      design={regionDesign}
+                      lowest={catalogUnitPrice(book, undefined)}
+                      value={pwywTyped}
+                      onChange={(next) => { setPwywTyped(next); setPwywError(""); }}
+                      error={pwywError}
+                      formatPrice={formatPrice}
+                      currencySign={formatPrice(0).replace(/[0-9.,\s]/g, "")}
+                    />
+                  )}
                   {/* CTA */}
                   <div
                     className={`flex flex-wrap gap-2.5 w-full ${

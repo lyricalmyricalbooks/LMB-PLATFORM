@@ -839,6 +839,22 @@ order-confirmation email both use them. Emailed download links stay outside brow
 - **File:** signed URL has `responseDisposition: attachment; filename="<title>.<ext>"` (the upload's epoch prefix dropped) and
   `responseType` from the extension (pdf, epub, mp3, m4a, zip).
 - Deploy Functions with the frontend. No rule or index change (`downloadCounts` is written by Functions and by the admin).
+- **Several files, every shop (Digital D1, Beta, 17 November 2026):** `src/shared/digitalFiles.ts` (server copy
+  `shared/digitalFiles.js`) is the one rule. A product or edition holds `digitalFiles: [{ file, name, size }]` (≤20, ≤5 GB each,
+  storage.rules refuses bigger); the admin keeps `digitalFileName` = the first file, and `filesOf` still reads a lone
+  `digitalFileName`. `filesFor`: the edition's own files, else the product's. Links take `&file=<n>` (0 when left out);
+  each file has its own count key (`fileCountKey`: the first file keeps `countKey`, so older counts carry on). The email,
+  Account and tracking list one button per file when there are several (`emailDigitalEntries` adds `files`). Any product turns
+  digital with Books › edit › **Digital product (Beta)** (`digital: true`), in every kind of shop. `priceOrder` refuses
+  downloads to a buyer outside `settings/website.digitalDownloads.countries` (default CA and US, `"*"` = every other country)
+  with `digital_country`; payment links skip it. D1b adds the account Library.
+- **Pay what you want and used-up downloads (Digital D2, Beta, 17 November 2026):** `src/shared/payWhatYouWant.ts` (server
+  copy `shared/payWhatYouWant.js`). A product with `payWhatYouWant: true`, no edition, not a gift card or box set: its price
+  is the lowest, the buyer's `chosenPrice` on the line (shop currency, ≤ max(1000, price)) is what `priceOrder` charges and
+  keeps on the line; anything lower, higher or not a number is refused with `pay_what_you_want`, a typed nothing charges the
+  price. Product page box: `extras/pdp-pay-what-you-want` (region `productPayWhatYouWant`; the buyer types in the shown
+  currency, `readAmount` converts back). A refused download notes `downloadLimitReached.<countKey>` once on the order; the
+  Alerts page shows `downloads-used-up` for paid orders, and Reset download limits clears it with the counts.
 
 ## Payments module (27 October 2026, code plans 1.11–1.12)
 

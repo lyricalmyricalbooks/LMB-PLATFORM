@@ -1165,6 +1165,8 @@ export function Checkout() {
     // Settings › General › Store status › Maintenance: the server refuses every new checkout.
     // A paused or closed plan (plan 6.7, "shop_paused") reads the same to a shopper: checkout is closed for now.
     if (data?.code === "store_closed" || data?.code === "shop_paused") return new CopyError(checkoutDesign, "coStoreClosed");
+    // Digital D1: downloads only sell to buyers in the shop's chosen countries (Settings › General › Digital downloads).
+    if (data?.code === "digital_country") return new CopyError(checkoutDesign, "coDigitalCountry");
     return message ?new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
   };
 
@@ -1337,6 +1339,7 @@ export function Checkout() {
           // The server re-prices extras from the catalog; only their ids and wording are used.
           ...(item.addOns?.length ? { addOns: item.addOns.map(addOn => ({ id: addOn.id, ...(addOn.text ? { text: addOn.text } : {}) })) } : {}),
           ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}),
+          ...(item.chosenPrice !== undefined ? { chosenPrice: item.chosenPrice } : {}),
         })),
         ...(giftCards.length ? { giftCards: giftCards.map(card => ({ code: card.code })) } : {}),
         subtotal: itemsSubtotal,
@@ -1407,7 +1410,8 @@ export function Checkout() {
               customer,
               items: cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity,
                 ...(item.addOns?.length ? { addOns: item.addOns.map(addOn => ({ id: addOn.id, ...(addOn.text ? { text: addOn.text } : {}) })) } : {}),
-                ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}) })),
+                ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}),
+                ...(item.chosenPrice !== undefined ? { chosenPrice: item.chosenPrice } : {}) })),
               ...(physicalItems.length ? { fulfillmentSelection: sentSelection } : {}),
               ...(orderData.shippingMethod ? { shippingMethod: orderData.shippingMethod } : {}),
               ...(checkoutCartId ? { cartId: checkoutCartId } : {}),

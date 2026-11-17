@@ -340,7 +340,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Gift cards, automatic offers & free gifts", match: /^co(GiftCard|Auto|FreeGift|Line)/ },
     { title: "After the order", match: /^co(Thanks|Account|Pending|Continue|OrderPlaced|OrderConfirmed|Finalizing|CheckEmail|OrderNumber|ConfirmationSent|Confirming|Success|TrackOrder)/ },
     { title: "Empty bag", match: /^coEmpty/ },
-    { title: "Error messages", order: -1, match: /^co(Err|ServerRefused|TotalChanged|BelowMinimum|BagUpdated|Catalog|PaymentCanceled|PaymentNotFinished|DiscountInvalid|DiscountExpired|DiscountRejected|CheckoutFailed)|Error$|Failed$/ },
+    { title: "Error messages", order: -1, match: /^co(Err|ServerRefused|TotalChanged|BelowMinimum|BagUpdated|Catalog|PaymentCanceled|PaymentNotFinished|DiscountInvalid|DiscountExpired|DiscountRejected|CheckoutFailed|DigitalCountry)|Error$|Failed$/ },
   ],
   "Order tracking": [
     { title: "Find your order", match: /^track(Eyebrow|Title|Subtitle|Order|Email|Submit|Loading|Link|Found|Back|Another|Created|Help)/ },
@@ -382,12 +382,12 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Saved address", match: /^account(Address|Field|Phone|Street|SaveAddress|Abort|Cancel$|Unconfigured)/ },
     { title: "Your data", match: /^yourData/ },
     { title: "Order history", match: /^(account(History|Items|AddOn|GiftCard|FreeGift|BoxSet|Dispatch|ShipTo|Logistics|Manage|Close|Delivered|Cancelled|Awaiting|Track|Unfulfilled|Shipped|Processing|Paid|Unpaid|Refunded|PartiallyRefunded|BookCount)|carrierLabel|trackingCodeLabel)/ },
-    { title: "Downloads", match: /^account(Digital|Ebook|Download$)/ },
+    { title: "Downloads & library", match: /^account(Digital|Ebook|Download$|Library)/ },
     { title: "Error messages", order: -1, match: /^account.*Error$/ },
   ],
   "Product page": [
     { title: "Photos & breadcrumb", match: /^(pdpCrumb|pdpBreadcrumb|pdpCaption|pdpPhotos|ariaGoToPhoto|ariaPrevPhoto|ariaNextPhoto|ariaEnlargePhoto|ariaClosePhoto|ariaPhotoViewer|bookPhotoAlt|bookVideoLabel|ariaGoToVideo|backToCatalog|categoryFallback)/ },
-    { title: "Buy box, options, stock, pre-orders & coming soon", match: /^(pdpInStock|pdpBackorder|pdpMadeToOrder|pdpPreorder|pdpComingSoon|comingSoon|pdpSaleEnds|pdpSaleCountdown|pdpTaxNote|pdpReleaseCountdown|pdpPaymentIcons|pdpInBag|pdpFreeShip|pdpShipBy|pdpPickup|saleBadge|preorder|addToBag|pdpBuyNow|quickAdd|onlyLeft|saveAmount|priceOnRequest|ariaQty|bookAdded|bookFormat|pdpEdition|pdpOption|wishlist|bookShare|bookLinkCopied)/ },
+    { title: "Buy box, options, stock, pay what you want, pre-orders & coming soon", match: /^(pdpPwyw|pdpInStock|pdpBackorder|pdpMadeToOrder|pdpPreorder|pdpComingSoon|comingSoon|pdpSaleEnds|pdpSaleCountdown|pdpTaxNote|pdpReleaseCountdown|pdpPaymentIcons|pdpInBag|pdpFreeShip|pdpShipBy|pdpPickup|saleBadge|preorder|addToBag|pdpBuyNow|quickAdd|onlyLeft|saveAmount|priceOnRequest|ariaQty|bookAdded|bookFormat|pdpEdition|pdpOption|wishlist|bookShare|bookLinkCopied)/ },
     { title: "Extras, questions, box sets & gift cards", match: /^(pdpAddOn|pdpBoxSet|pdpGift|pdpAsk|pdpQuote)/ },
     { title: "Description, details & tabs", match: /^(tab|spec|productDescriptionLabel|pdpDescription|noDescription|pdpDetailsAria|pdpPolicy)/ },
     { title: "Back-in-stock alert", match: /^alert/ },

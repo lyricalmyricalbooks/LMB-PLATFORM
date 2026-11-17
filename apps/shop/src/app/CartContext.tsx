@@ -8,12 +8,13 @@ import { clearBagNote } from "./features/site/bagNote";
 import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, saleActive, type GiftCardDetails } from "./features/site/promotions";
 import { smallPhotoUrl } from "./features/site/photoSources";
 import { shopCurrency } from "../lib/shopProfile";
+import { chosenUnitPrice } from "../shared/payWhatYouWant";
 
 /** A paid extra on one copy (signed copy, inscription, gift wrap). Price is per copy, CAD, from the catalog. */
 export type CartAddOn = { id: string; label: string; price: number; text?: string };
 export type CartGiftCardDetails = GiftCardDetails;
 /** What the shopper chose for a line beyond the book and edition. Only ids/texts and the gift form are kept. */
-export type CartLineOptions = { addOns?: { id: string; text?: string }[]; giftCardDetails?: Partial<GiftCardDetails> };
+export type CartLineOptions = { addOns?: { id: string; text?: string }[]; giftCardDetails?: Partial<GiftCardDetails>; chosenPrice?: number };
 
 export interface CartItem {
   id: string;
@@ -39,6 +40,8 @@ export interface CartItem {
   /** Display only: a box set, and how many books one set holds. */
   bundle?: boolean;
   bundleCount?: number;
+  /** Pay what you want (Digital D2): the amount the buyer chose for one copy; the server checks it again. */
+  chosenPrice?: number;
   /** Identity of the line (book + edition + add-ons + gift recipient). Derived; see cartLineKey. */
   lineKey?: string;
 }
@@ -131,8 +134,11 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
   for (const line of cart) {
     const book = byId.get(line.id);
     const variant = line.variantId ? (book?.variants || []).find((v: any) => v.id === line.variantId) : undefined;
-    const base = book ? catalogUnitPrice(book, variant) : NaN;
-    if (!book || (line.variantId && !variant) || !Number.isFinite(base) || base < 0) { drop(line); continue; }
+    const listed = book ? catalogUnitPrice(book, variant) : NaN;
+    if (!book || (line.variantId && !variant) || !Number.isFinite(listed) || listed < 0) { drop(line); continue; }
+    // Pay what you want: the buyer's amount while it still fits; a price raised past it brings the line up to the price.
+    const chosen = chosenUnitPrice(book, variant, listed, line.chosenPrice);
+    const base = chosen ?? listed;
     const giftCard = isGiftCardProduct(book);
     if (giftCard && !(base > 0)) { drop(line); continue; }
     // Extras are re-priced from the catalog; a line whose extra was withdrawn can't be bought as is.
@@ -163,6 +169,7 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
     const bundleCount = bundleCountOf(book);
     if (!!line.giftCard !== giftCard || !!line.bundle !== bundleCount > 0 || (line.bundleCount || 0) !== bundleCount) changed = true;
     const next: CartItem = { ...line, price, quantity, stockLimit, preorder, releaseDate };
+    if (base === listed) delete next.chosenPrice; else next.chosenPrice = base;
     delete next.addOns; delete next.giftCardDetails; delete next.giftCard; delete next.bundle; delete next.bundleCount;
     if (addOns) next.addOns = addOns;
     if (gift) { next.giftCardDetails = gift; next.giftCard = true; }
@@ -279,9 +286,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // Gift cards have no stock; backorderable lines have no stock cap (same rule as repriceCart and the server).
     const stockLimit = giftCard || backorderable(product, variant) ? undefined : (variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel);
     if (typeof stockLimit === "number" && stockLimit <= 0) return false;
-    const base = catalogUnitPrice(product, variant);
+    const listed = catalogUnitPrice(product, variant);
     // A book with no usable price can't be charged; never put a NaN line in the bag.
-    if (!Number.isFinite(base) || base < 0 || (giftCard && !(base > 0))) return false;
+    if (!Number.isFinite(listed) || listed < 0 || (giftCard && !(listed > 0))) return false;
+    // Pay what you want: the amount the buyer typed (the product page checks it first and says why).
+    const base = chosenUnitPrice(product, variant, listed, options?.chosenPrice);
+    if (base === null) return false;
     let picked: { addOns: CartAddOn[]; price: number };
     let gift: CartGiftCardDetails | undefined;
     try {
@@ -308,6 +318,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ...(picked.addOns.length ? { addOns: picked.addOns } : {}),
       ...(gift ? { giftCardDetails: gift, giftCard: true } : {}),
       ...(bundleCount > 0 ? { bundle: true, bundleCount } : {}),
+      ...(base !== listed ? { chosenPrice: base } : {}),
     };
     const key = cartLineKey(draft);
     draft.lineKey = key;
@@ -322,7 +333,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.find(i => lineKeyOf(i) === key);
       if (existing) {
         if (existing.quantity >= lineQuantityCap(limit)) return prev;
-        return prev.map(i => i === existing ? { ...i, lineKey: key, quantity: nextCartQuantity(existing.quantity, quantity, limit) } : i);
+        // Adding again with another amount (pay what you want) keeps the latest amount for every copy.
+        const amount = draft.chosenPrice === undefined ? (({ chosenPrice: _c, ...rest }) => rest)(existing) : { ...existing, chosenPrice: draft.chosenPrice };
+        return prev.map(i => i === existing ? { ...amount, price: draft.price, lineKey: key, quantity: nextCartQuantity(existing.quantity, quantity, limit) } : i);
       }
       if (lineQuantityCap(limit) <= 0) return prev;
       return [...prev, { ...draft, quantity: nextCartQuantity(0, quantity, limit) }];

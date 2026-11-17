@@ -47,7 +47,8 @@ service firebase.storage {
       }
       match /digital-assets/{allPaths=**} {
         allow read: if false; // Only accessible via Admin SDK signed URLs on the backend
-        allow write: if isAdmin();
+        // Digital D1: one file is at most 5 GB (src/shared/digitalFiles.ts MAX_DIGITAL_FILE_BYTES); deleting is allowed.
+        allow write: if isAdmin() && (request.resource == null || request.resource.size <= 5 * 1024 * 1024 * 1024);
       }
     }
   }

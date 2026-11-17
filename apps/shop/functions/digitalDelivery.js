@@ -5,9 +5,12 @@
 //    count is kept on the order (`downloadCounts`, server-only: publicOrderView never sends it) and the owner can
 //    reset it from Order detail. Each click mints a fresh, short-lived signed Storage URL.
 //  - Box sets deliver their e-book parts: a request may name a component's book id.
-//  - One file per digital edition: the edition's own file wins, the book-level file is the fallback.
+//  - Several files per product or edition (Digital D1, shared/digitalFiles.js): the edition's own files win, the
+//    product's are the fallback, and each file is counted on its own (the first keeps the old per-line key).
 //  - Cancelled or disputed orders are refused.
 //  - The saved file gets a clean name (book title + extension), downloads as an attachment, with a real content type.
+
+const { filesFor, fileCountKey, fileLabel } = require("./shared/digitalFiles");
 
 const DOWNLOAD_LIMIT = 10;
 const SIGNED_URL_MINUTES = 15;
@@ -65,10 +68,9 @@ function deliveryCandidates(order, itemId, variantId) {
   return out;
 }
 
-/** The Storage file name for this edition: its own file, else the book's. "" when neither is set. */
+/** The first Storage file name for this edition: its own files, else the book's. "" when neither has one. */
 function pickFileName(book, variantId) {
-  const variant = variantId ? ((book && book.variants) || []).find(v => v && v.id === variantId) : null;
-  return String((variant && variant.digitalFileName) || (book && book.digitalFileName) || "");
+  return filesFor(book, variantId)[0]?.file || "";
 }
 
 /** A key safe to use as a Firestore map field for one book + edition. */
@@ -100,7 +102,9 @@ function downloadFilename(title, fileName) {
   const stored = String(fileName || "").replace(/^\d{10,}-/, "");
   const base = String(title || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)
     || stored.replace(/\.[A-Za-z0-9]{1,5}$/, "") || "download";
-  return ext ? `${base}.${ext}` : base;
+  if (!ext) return base;
+  // A label that already ends in the extension ("Pattern.pdf") keeps it once.
+  return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`;
 }
 
 /** Content-Disposition for the signed URL: attachment with an ASCII fallback plus the exact UTF-8 name. */
@@ -119,10 +123,14 @@ function nextDownloadCount(counts, key, limit = DOWNLOAD_LIMIT) {
   return { ok: true, used, next: { ...(counts || {}), [key]: used + 1 } };
 }
 
+/** What buyers see for each file of this edition, in download order ([] when the product can't be read). */
+const fileNames = (book, variantId) => (book ? filesFor(book, variantId).map(fileLabel) : []);
+
 /**
  * The digital entries an order email lists. `loadBook(id)` returns the catalog book (or null);
  * `isPhysical(line)` and `catalogDigital(book, variant)` are index.js's own rules; `preorderActive` as in shared/preorder.js.
- * Each entry: { itemId, variantId, title, pendingUntil } where pendingUntil is "" (downloadable now),
+ * Each entry: { itemId, variantId, title, pendingUntil, files } where files names each file (one link per file when
+ * there are several) and pendingUntil is "" (downloadable now),
  * a YYYY-MM-DD date, or "announced" (pre-order with no date yet).
  */
 async function emailDigitalEntries(order, { loadBook, isPhysical, catalogDigital, preorderActive, releaseDateOf, today }) {
@@ -135,7 +143,8 @@ async function emailDigitalEntries(order, { loadBook, isPhysical, catalogDigital
   for (const line of (order && order.items) || []) {
     if (!line || line.giftCard === true) continue;
     if (!isPhysical(line)) {
-      entries.push({ itemId: line.id, variantId: line.variantId || "", title: line.title, pendingUntil: pendingFor(line.preorder, line.releaseDate) });
+      const book = await loadBook(line.id);
+      entries.push({ itemId: line.id, variantId: line.variantId || "", title: line.title, pendingUntil: pendingFor(line.preorder, line.releaseDate), files: fileNames(book, line.variantId) });
     }
     if (line.bundle === true && Array.isArray(line.components)) {
       for (const part of line.components) {
@@ -149,6 +158,7 @@ async function emailDigitalEntries(order, { loadBook, isPhysical, catalogDigital
           itemId: part.id, variantId: part.variantId || "",
           title: part.title || book.title || line.title,
           pendingUntil: waiting ? (releaseDateOf(book) || "announced") : "",
+          files: fileNames(book, part.variantId),
         });
       }
     }
@@ -159,5 +169,5 @@ async function emailDigitalEntries(order, { loadBook, isPhysical, catalogDigital
 module.exports = {
   DOWNLOAD_LIMIT, MAX_DOWNLOAD_LIMIT, SIGNED_URL_MINUTES, DEFAULT_DOWNLOAD_NOTE, downloadNote, downloadLimitFrom,
   downloadRefusal, deliveryCandidates, pickFileName, countKey, contentTypeFor, extensionOf,
-  downloadFilename, contentDisposition, nextDownloadCount, emailDigitalEntries,
+  downloadFilename, contentDisposition, nextDownloadCount, emailDigitalEntries, filesFor, fileCountKey, fileLabel,
 };

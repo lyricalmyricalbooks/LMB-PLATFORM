@@ -44,6 +44,7 @@ import { accountRequestLine, REQUESTS_ANCHOR } from "./OrderRequests";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { YourDataCard } from "./YourDataCard";
+import { AccountLibrary } from "./AccountLibrary";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
@@ -407,13 +408,13 @@ function AccountContent() {
     }
   }
 
-  const handleDownloadDigitalAsset = (order: any, itemId: string, variantId = "") => {
+  const handleDownloadDigitalAsset = (order: any, itemId: string, variantId = "", file = 0) => {
     if (!order.downloadToken) {
       toast.error(getCopy(settings?.design, "accountDownloadError"));
       return;
     }
     window.open(
-      functionUrl("downloadDigitalAsset", { orderId: order.id || order.orderId, itemId, variantId: variantId || undefined, token: order.downloadToken }),
+      functionUrl("downloadDigitalAsset", { orderId: order.id || order.orderId, itemId, variantId: variantId || undefined, file: file ? String(file) : undefined, token: order.downloadToken }),
       "_blank"
     );
   };
@@ -776,6 +777,9 @@ function AccountContent() {
           </section>
         )}
 
+        {/* Library (Digital D1b): every download from every paid order, in one place. */}
+        <AccountLibrary design={settings?.design} orders={orders} entriesByOrder={digitalItems} onDownload={handleDownloadDigitalAsset} />
+
         {/* Order History Details View */}
         <section {...regionProps("accountHistory")} className="glass-card border border-white/5 rounded-[2.5rem] p-10">
           <h2 className="text-xs font-black tracking-[0.5em] text-white/30 uppercase mb-8">{getCopy(settings?.design, "accountHistory")}</h2>
@@ -949,13 +953,13 @@ function AccountContent() {
                               {orderDigitalAssets.map((item) => {
                                 // One download per book and edition (box-set parts included).
                                 return (
-                                  <div key={`${item.itemId}|${item.variantId}`} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
+                                  <div key={`${item.itemId}|${item.variantId}|${item.file}`} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
                                     <div className="truncate pr-4">
                                       <p className="text-[10px] font-bold text-white uppercase truncate">{item.title}</p>
                                       <p className="text-[8px] fm-muted uppercase tracking-widest mt-1">{getCopy(settings?.design, "accountEbook")}</p>
                                     </div>
                                     <button
-                                      onClick={() => handleDownloadDigitalAsset(o, item.itemId, item.variantId)}
+                                      onClick={() => handleDownloadDigitalAsset(o, item.itemId, item.variantId, item.file)}
                                       className="text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
                                       style={{ backgroundColor: "var(--accent)" }}
                                       title={getCopy(settings?.design, "accountDownload")}

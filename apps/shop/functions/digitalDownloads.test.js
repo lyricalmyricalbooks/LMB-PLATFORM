@@ -79,6 +79,18 @@ describe('#113 download count cap', () => {
     expect((await app.download({ itemId: 'b1' })).code).toBe(429);
     expect(app.signed).toHaveLength(2);
   });
+  test('a used-up download is noted once on the order for the Alerts page', async () => {
+    const w = world();
+    w.settings.website = { digitalDownloads: { limit: 1 } };
+    const app = harness(w);
+    await app.download({ itemId: 'b1' });
+    expect(app.docs.orders.o1.downloadLimitReached).toBeUndefined();
+    expect((await app.download({ itemId: 'b1' })).code).toBe(429);
+    const first = app.docs.orders.o1.downloadLimitReached;
+    expect(Object.keys(first)).toHaveLength(1);
+    await app.download({ itemId: 'b1' });
+    expect(app.docs.orders.o1.downloadLimitReached).toEqual(first);
+  });
   test('a missing or out-of-range limit keeps the default', () => {
     expect(dd.downloadLimitFrom(undefined)).toBe(dd.DOWNLOAD_LIMIT);
     expect(dd.downloadLimitFrom({ digitalDownloads: { limit: 0 } })).toBe(dd.DOWNLOAD_LIMIT);
@@ -196,5 +208,49 @@ describe('licence keys (gap list 38)', () => {
     expect(html).toContain('KEY-2');
     expect(app.docs.licenceKeys.b1.available).toEqual(['KEY-3']);
     expect(app.docs.orders.o1.licenceKeys[0].keys).toEqual(['KEY-1', 'KEY-2']);
+  });
+});
+
+describe('Digital D1: several files on one product', () => {
+  const files = [{ file: '1730000000001-pattern.pdf', name: 'Pattern.pdf' }, { file: '1730000000002-sizes.zip', name: 'Size charts' }];
+  test('each file downloads by its place in the list, named as the owner named it', async () => {
+    const app = harness(world({}, { digitalFiles: files, digitalFileName: files[0].file }));
+    await app.download({ itemId: 'b1' });
+    await app.download({ itemId: 'b1', file: '1' });
+    expect(app.signed.map((s) => s.name)).toEqual(['digital-assets/1730000000001-pattern.pdf', 'digital-assets/1730000000002-sizes.zip']);
+    expect(app.signed[0].responseDisposition).toContain('filename="Pattern.pdf"');
+    expect(app.signed[1].responseDisposition).toContain('filename="Size charts.zip"');
+  });
+  test('each file has its own allowance; the first keeps the old count so earlier orders carry on', async () => {
+    const w = world({ downloadCounts: { b1__base: 10 } }, { digitalFiles: files });
+    const app = harness(w);
+    expect((await app.download({ itemId: 'b1' })).code).toBe(429);
+    expect((await app.download({ itemId: 'b1', file: '1' })).location).toBeTruthy();
+    expect(Object.keys(app.docs.orders.o1.downloadCounts)).toEqual(['b1__base', 'b1__base__1730000000002-sizes_zip']);
+  });
+  test('a file number that is not on the product is refused, and nothing is signed', async () => {
+    const app = harness(world({}, { digitalFiles: files }));
+    expect((await app.download({ itemId: 'b1', file: '2' })).code).toBe(404);
+    expect((await app.download({ itemId: 'b1', file: '-1' })).code).toBe(400);
+    expect((await app.download({ itemId: 'b1', file: 'x' })).code).toBe(400);
+    expect(app.signed).toHaveLength(0);
+  });
+  test('an edition with its own files wins over the product files', async () => {
+    const variants = [{ id: 'hd', name: 'HD', digital: true, digitalFiles: [{ file: '9-hd.mp4', name: 'Lesson' }] }];
+    const app = harness(world({ items: [line({ variantId: 'hd', format: 'Video' })] }, { digitalFiles: files, variants }));
+    await app.download({ itemId: 'b1', variantId: 'hd' });
+    expect(app.signed[0].name).toBe('digital-assets/9-hd.mp4');
+  });
+  test('the email gives one button per file, each with its own file number', async () => {
+    const html = await harness(world({}, { digitalFiles: files })).paid([line()]);
+    expect(html).toContain('Night Poems: Pattern.pdf');
+    expect(html).toContain('Night Poems: Size charts');
+    expect(html.match(/Download File/g)).toHaveLength(2);
+    expect(html).toMatch(/itemId=b1[^"]*file=1/);
+  });
+  test('a single file keeps one plain button with no file number', async () => {
+    const html = await harness(world()).paid([line()]);
+    expect(html.match(/Download File/g)).toHaveLength(1);
+    expect(html).not.toMatch(/[?&]file=/);
   });
 });

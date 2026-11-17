@@ -62,6 +62,7 @@ const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = re
 const { taxPartsByKind, discountedLineValues, chargesTax, untaxedValue } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
+const { chosenUnitPrice } = require("./shared/payWhatYouWant");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
 const { paymentLinkFor, addOnParentClosed, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -73,6 +74,7 @@ const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode,
 const { readBooks, writeStock } = require("./inventory");
 const { planExchange } = require("./exchanges");
 const { resolveCountry } = require("./shared/shippingZones");
+const { digitalCountryAllowed } = require("./shared/digitalFiles");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
 const { REQUIRED_WEBHOOK_EVENTS, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
@@ -1252,6 +1254,13 @@ function cachedAutomaticDiscounts(now = Date.now()) {
 // gift-card amounts are all worked out here. Throws PricingError for a shopper-fixable problem.
 // An order the owner made with a payment link (paymentLinks.js, plan 21.1) pays the agreed prices and shipping instead,
 // with no discount on top; `paymentLink` is the draft record while the link is being made.
+/** Where the buyer of downloads is, read the way the tax reads it (authoritativeTax). */
+function digitalBuyerCountry(order) {
+  const billing = order.customer?.billingAddress?.country;
+  const delivery = order.customer?.address?.country;
+  return order.fulfillmentSelection?.method === "pickup" ? (billing || delivery) : (delivery || billing);
+}
+
 async function priceOrder(order, { orderId = "", settings: knownSettings = null, paymentLink: draftLink = null } = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.customer?.email || "").trim())) {
     throw new PricingError("Check the email address: it doesn't look complete.");
@@ -1304,8 +1313,11 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
       if (available < quantity) throw new PricingError(`Insufficient stock for ${book.title || label}${variant?.name ? ` (${variant.name})` : ""}. Only ${available} left.`);
     }
-    const basePrice = catalogUnitPrice(book, variant);
-    if (!Number.isFinite(basePrice) || basePrice < 0) throw new PricingError(`"${book.title || label}" is temporarily unavailable for purchase (pricing error).`);
+    const listPrice = catalogUnitPrice(book, variant);
+    if (!Number.isFinite(listPrice) || listPrice < 0) throw new PricingError(`"${book.title || label}" is temporarily unavailable for purchase (pricing error).`);
+    // Pay what you want (Digital D2): the buyer's own amount, at least the product's price and at most the highest.
+    const basePrice = chosenUnitPrice(book, variant, listPrice, requested.chosenPrice);
+    if (basePrice === null) throw new PricingError(`Choose an amount of at least ${listPrice.toFixed(2)} for "${book.title || label}".`, "pay_what_you_want");
     let picked;
     try {
       picked = addOnSelection(book, requested.addOns);
@@ -1328,7 +1340,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       }
     }
     // Only fields the browser may describe are kept; everything that prices or ships comes from the catalog.
-    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, ...rest } = requested;
+    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, chosenPrice: _cp, ...rest } = requested;
     // Each part weighs what its chosen edition weighs (falling back to the book).
     const partWeights = components.map(part => {
       const partBook = booksById[part.id] || {};
@@ -1344,6 +1356,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       quantity,
       price: Math.round((unitBase + picked.price) * 100) / 100,
       ...(unitBase < basePrice ? { wholesale: true } : {}),
+      ...(basePrice !== listPrice ? { chosenPrice: basePrice } : {}),
       ...(picked.addOns.length ? { basePrice: unitBase, addOns: picked.addOns } : {}),
       ...(components.length ? { bundle: true, components } : {}),
       ...(giftCard ? { giftCard: true, giftCardDetails: giftCardInfo } : {}),
@@ -1368,6 +1381,13 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
   const settings = knownSettings || (await db.collection("settings").doc("website").get()).data() || {};
   // Settings › General › Store status › Maintenance: every checkout path is priced here, so this stops them all.
   if (checkoutClosed(settings)) throw new PricingError("The shop is paused for maintenance, so checkout is closed for now. Please try again soon.", "store_closed");
+  // Digital D1: downloads are sold only to buyers in the shop's chosen countries (Settings › General › Digital
+  // downloads; Canada and the US to start), read where the tax reads it (authoritativeTax): the delivery address, else
+  // the billing one (a download-only bag); for pickup, the billing one. A payment link is the owner's own deal.
+  if (!link && items.some(item => item.giftCard !== true && !isPhysicalItem(item))
+    && !digitalCountryAllowed(settings, resolveCountry(digitalBuyerCountry(order))?.code)) {
+    throw new PricingError("Downloads from this shop can't be bought from your country yet. Please remove them from your bag to check out.", "digital_country");
+  }
   const testMode = settings.payments?.testMode === true;
   const email = order.customer?.email;
   const discountable = discountableItems(items);
@@ -3771,7 +3791,11 @@ async function handleOrderUpdated(event) {
       const say = emailFrench.sayer(emailFrench.emailLanguage(order));
       let downloadSection = "";
       if (digitalItems.length > 0) {
-        const linkFor = item => functionLink(shopConfig, "downloadDigitalAsset", { orderId, itemId: item.itemId, variantId: item.variantId || "", token: order.downloadToken || "" });
+        const linkFor = (item, file = 0) => functionLink(shopConfig, "downloadDigitalAsset", { orderId, itemId: item.itemId, variantId: item.variantId || "", token: order.downloadToken || "", ...(file ? { file: String(file) } : {}) });
+        // A product with several files gets one row per file (Digital D1), named as the owner named them.
+        const rows = digitalItems.flatMap(item => (item.files || []).length > 1 && !item.pendingUntil
+          ? item.files.map((name, file) => ({ item, file, title: `${item.title}: ${name}` }))
+          : [{ item, file: 0, title: item.title }]);
         const limit = digitalDelivery.downloadLimitFrom((await db.collection("settings").doc("website").get()).data());
         const note = String(notificationSettings.order_confirmation?.downloadNote
           || (sellsBooks(notificationSettings.sells) ? digitalDelivery.downloadNote(limit) : goodsDownloadNote(limit)));
@@ -3780,13 +3804,13 @@ async function handleOrderUpdated(event) {
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">${say(sellsBooks(notificationSettings.sells) ? "Digital Library Access" : "Your downloads")}</h3>
             <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">${escapeHtml(note)}</p>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
-              ${digitalItems.map(item => `
+              ${rows.map(({ item, file, title }) => `
                 <tr>
-                  <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${escapeHtml(item.title)}</strong></td>
+                  <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${escapeHtml(title)}</strong></td>
                   <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
                     ${item.pendingUntil
                       ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? say(sellsBooks(notificationSettings.sells) ? "Available once the book is released" : "Available once it is released") : `${say("Available from")} ${escapeHtml(item.pendingUntil)}`}</span>`
-                      : `<a href="${linkFor(item)}"
+                      : `<a href="${linkFor(item, file)}"
                        style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">${say("Download File")}</a>`}
                   </td>
                 </tr>

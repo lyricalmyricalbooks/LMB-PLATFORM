@@ -96,6 +96,10 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (paidTwice.length) out.push(alert("paid-twice", "danger", `${plural(paidTwice.length, "order was", "orders were")} paid twice`,
     `${providerName()} took a second payment for an order that was already paid: ${list(paidTwice)}. Refund the extra payment in the ${providerName()} Dashboard.`, paidTwice));
 
+  const usedUp = orders.filter((o) => o.paymentStatus === "paid" && o.downloadLimitReached && Object.keys(o.downloadLimitReached).length > 0);
+  if (usedUp.length) out.push(alert("downloads-used-up", "warning", `${plural(usedUp.length, "buyer has", "buyers have")} used up their downloads`,
+    `They can't download their files again until you open the order and choose Reset download limits: ${list(usedUp)}.`, usedUp));
+
   const overLimit = orders.filter((o) => o.discountOverLimit && o.paymentStatus === "paid" && !isFinished(o));
   if (overLimit.length) out.push(alert("discount-over-limit", "warning", `${plural(overLimit.length, "order used", "orders used")} a discount code past its limit`,
     `Two shoppers used the last copy of a limited code at the same moment: ${list(overLimit)}. Decide whether to honour it before shipping.`, overLimit));

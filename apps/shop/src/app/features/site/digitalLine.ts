@@ -1,5 +1,7 @@
 // Same rule as the server's downloadDigitalAsset: only an order line for the digital edition
 // unlocks the e-book. A paperback of a book that also sells an e-book does not.
+import { fileLabel, filesFor } from "../../../shared/digitalFiles";
+
 /** Default downloads per book and edition on one order (functions/digitalDelivery.js keeps the same number; the shop can change it in Settings). */
 export const DOWNLOAD_LIMIT = 10;
 
@@ -13,8 +15,7 @@ export const UNREADABLE_BOOK = { digitalFileName: "(not readable)" };
 
 /** A file is set for this edition (its own, else the book's): the same pick the server makes. */
 export function hasDigitalFile(book: any, variantId?: string): boolean {
-  const variant = variantId ? (book?.variants || []).find((v: any) => v?.id === variantId) : null;
-  return !!(variant?.digitalFileName || book?.digitalFileName);
+  return filesFor(book, variantId).length > 0;
 }
 
 export function lineIsDigital(line: any, book: any): boolean {
@@ -31,20 +32,25 @@ export interface DigitalEntry {
   itemId: string;
   variantId: string;
   title: string;
+  /** Which of the edition's files (Digital D1): 0 is the first, and the only one on most products. */
+  file: number;
 }
 
 /**
- * Every download an order offers, one per book + edition: its digital lines, and the digital parts of box sets
+ * Every download an order offers, one per file of each book + edition: its digital lines, and the digital parts of box sets
  * (a part's book id is a valid download id on the server). `booksById` holds the catalog books (or UNREADABLE_BOOK).
  */
 export function digitalEntries(order: any, booksById: Record<string, any>): DigitalEntry[] {
   const out: DigitalEntry[] = [];
   const seen = new Set<string>();
+  // One entry per file: a product with several files lists each by the name the owner gave it.
   const add = (itemId: string, variantId: string, title: string) => {
     const key = `${itemId}|${variantId}`;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({ itemId, variantId, title });
+    const files = filesFor(booksById[itemId], variantId);
+    if (files.length > 1) files.forEach((f, file) => out.push({ itemId, variantId, title: `${title}: ${fileLabel(f)}`, file }));
+    else out.push({ itemId, variantId, title, file: 0 });
   };
   for (const item of order?.items || []) {
     if (lineIsDigital(item, booksById[item.id])) add(item.id, item.variantId || "", item.title);
@@ -66,4 +72,28 @@ export function downloadBookIds(order: any): string[] {
     if (item?.bundle === true) for (const part of item.components || []) if (part?.id) ids.add(part.id);
   }
   return [...ids];
+}
+
+export interface LibraryEntry extends DigitalEntry {
+  /** The order the download runs through: the newest paid one that holds this file. */
+  order: any;
+}
+
+/**
+ * The account's Library (Digital D1b): every download across the shopper's paid orders, one row per product, edition and
+ * file. Bought twice, it is listed once, through the newest order (`orders` comes newest first, like the order history).
+ */
+export function libraryEntries(orders: any[], entriesByOrder: Record<string, DigitalEntry[]>): LibraryEntry[] {
+  const out: LibraryEntry[] = [];
+  const seen = new Set<string>();
+  for (const order of orders || []) {
+    if (order?.paymentStatus !== "paid") continue;
+    for (const entry of entriesByOrder[order.id] || []) {
+      const key = `${entry.itemId}|${entry.variantId}|${entry.file}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...entry, order });
+    }
+  }
+  return out;
 }
