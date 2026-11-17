@@ -2782,7 +2782,7 @@ describe("classes: a minimum number to run", () => {
     t.refunds.failNext = 1;
     expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 1, ran: 0 });
     expect(t.db.store.get(`bookings/${bid}`).status).toBe("confirmed");
-    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ decision: "cancelled", left: [bid], retry: true });
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ decision: "cancelled", left: [bid], retry: true, retryAt: new Date(Date.parse(wed) - 2 * 3600_000).toISOString() });
     const owner = t.emails.find((e) => e.to === "owner@example.com").html;
     expect(owner).toContain("The refund didn't go through yet");
     expect(owner).not.toContain("refunded in full and emailed");
@@ -2791,7 +2791,7 @@ describe("classes: a minimum number to run", () => {
     await t.desk.sweepMinimum();
     expect(t.db.store.get(`bookings/${bid}`)).toMatchObject({ status: "cancelled", cancelledFor: "minimum" });
     expect([...t.refunds]).toEqual([expect.objectContaining({ paymentIntentId: "pi_1", amountMinor: 3000 })]);
-    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ left: [], retry: false });
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ left: [], retry: false, retryAt: null });
   });
 
   test("without a minimum nothing is decided", async () => {

@@ -2828,15 +2828,18 @@ function bookingActions({
     let cancelled = 0;
     let ran = 0;
     // Cancelled times with a sign-up left over (a refund the payment service refused): try again on every sweep, even
-    // after the time has passed, until none are left.
-    const retries = await runs().where("retry", "==", true).limit(50).get();
+    // after the time has passed, until none are left. Least recently tried first (`retryAt`, set to now on each try and
+    // cleared once done), so a batch that keeps failing can't keep later ones waiting.
+    const nowIso = new Date(nowMs).toISOString();
+    const retryState = (left) => ({ left, retry: left.length > 0, retryAt: left.length > 0 ? nowIso : null });
+    const retries = await runs().where("retryAt", "<=", nowIso).orderBy("retryAt").limit(50).get();
     const allServices = await readServices();
     const wanted = allServices.filter((s) => s.minPlaces);
     for (const doc of retries.docs) {
       const r = doc.data() || {};
       const service = allServices.find((s) => s.id === r.serviceId) || { id: r.serviceId };
       const left = await cancelForMinimum(service, r.left || []);
-      await doc.ref.set({ left, retry: left.length > 0 }, { merge: true });
+      await doc.ref.set(retryState(left), { merge: true });
     }
     for (const service of wanted) {
       // A course is decided on its first date; a weekly class on each of its times between now and its decide time.
@@ -2863,7 +2866,7 @@ function bookingActions({
         await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt, left: going.map((x) => x.id) });
         await closeClassTime(service, start);
         const left = await cancelForMinimum(service, going.map((x) => x.id));
-        await runRef.set({ left, retry: left.length > 0 }, { merge: true });
+        await runRef.set(retryState(left), { merge: true });
         await tellOwnerTooFew(service, start, going, left);
         cancelled += 1;
       }
