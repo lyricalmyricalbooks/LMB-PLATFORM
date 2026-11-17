@@ -2781,3 +2781,64 @@ describe("classes: a minimum number to run", () => {
     expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 0, ran: 0 });
   });
 });
+
+describe("classes: a class pass and a first-visit price", () => {
+  const wed = at("2026-11-18", "14:00");
+  const thu = at("2026-11-19", "14:00");
+  async function ready() {
+    const t = setup();
+    await t.seed();
+    const save = async (service) => (await t.adm({ op: "saveService", service })).body.service;
+    const drawing = await save({ name: "Life drawing", minutes: 60, places: 6, payment: "full", priceMinor: 2500, classTimes: [{ weekday: 3, time: "14:00" }], packVisits: 5, packPriceMinor: 10000, packAnyClass: true });
+    const yoga = await save({ name: "Yoga", minutes: 60, places: 6, payment: "full", priceMinor: 2000, classTimes: [{ weekday: 4, time: "14:00" }], introPriceMinor: 500 });
+    return { t, drawing, yoga };
+  }
+  async function buyPass(t, serviceId) {
+    await t.pub({ action: "bookingPackBuy", serviceId, ...CUSTOMER });
+    const code = decodeURIComponent(t.opened.at(-1).params.success_url.split("pack=")[1]);
+    Object.assign(t.sessions.get(`cs_test_${String(t.opened.length - 1).padStart(8, "0")}`), { payment_status: "paid", payment_intent: "pi_pass" });
+    await t.pub({ action: "bookingPackView", pack: code });
+    return code;
+  }
+
+  test("a class pass books any weekly class, but not a one-to-one service", async () => {
+    const { t, drawing, yoga } = await ready();
+    expect(drawing).toMatchObject({ packAnyClass: true });
+    const code = await buyPass(t, drawing.id);
+    const pack = [...t.db.store.entries()].find(([k]) => k.startsWith("bookingPacks/"))[1];
+    expect(pack).toMatchObject({ anyClass: true, serviceName: "Any class" });
+    expect(t.opened[0].params.line_items[0].price_data.product_data.name).toContain("class pass of 5 classes");
+    expect((await t.pub({ action: "bookingStart", serviceId: drawing.id, start: wed, ...CUSTOMER, pack: code })).body.status).toBe("confirmed");
+    expect((await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER, pack: code })).body.status).toBe("confirmed");
+    const other = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), ...CUSTOMER, pack: code });
+    expect(other.body.code).toBe("pack");
+  });
+
+  test("a pass only for a weekly class: a one-to-one service's pack keeps to that service", async () => {
+    const t = setup();
+    await t.seed();
+    const one = (await t.adm({ op: "saveService", service: { name: "Lesson", minutes: 60, places: 1, payment: "full", priceMinor: 5000, packVisits: 3, packPriceMinor: 13500, packAnyClass: true } })).body.service;
+    expect(one.packAnyClass).toBeUndefined();
+  });
+
+  test("someone new pays the first-visit price once; after that the usual price", async () => {
+    const { t, yoga } = await ready();
+    expect((await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === yoga.id).introPriceMinor).toBe(500);
+    const first = await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(500);
+    expect(t.db.store.get(`bookings/${first.body.id}`)).toMatchObject({ priceMinor: 500, intro: true, listPriceMinor: 2000 });
+    Object.assign(t.sessions.get(`cs_test_${String(t.opened.length - 1).padStart(8, "0")}`), { payment_status: "paid", payment_intent: "pi_y" });
+    await t.pub({ action: "bookingView", id: first.body.id, key: first.body.key });
+    await t.pub({ action: "bookingStart", serviceId: yoga.id, start: at("2026-11-26", "14:00"), ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(2000);
+  });
+
+  test("a first-visit price is below the price and at least 0.50", async () => {
+    const t = setup();
+    await t.seed();
+    const save = (introPriceMinor) => t.adm({ op: "saveService", service: { name: "Yoga", minutes: 60, places: 1, payment: "full", priceMinor: 2000, introPriceMinor } });
+    expect((await save(2000)).statusCode).toBe(400);
+    expect((await save(20)).statusCode).toBe(400);
+    expect((await save(0)).body.service.introPriceMinor).toBeUndefined();
+  });
+});

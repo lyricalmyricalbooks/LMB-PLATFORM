@@ -226,12 +226,13 @@ function NewBooking({ c }: { c: Copy }) {
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
+                {!!s.introPriceMinor && <span translate="no">{c("bookTimeIntroPrice", { price: moneyText(s.introPriceMinor, currency) })}</span>}
                 {!!s.minPlaces && <span>{c("bookTimeClassMinimum", { count: s.minPlaces })}</span>}
                 {!!s.courseStarts?.length && <span>{s.joining ? c("bookTimeCourseLate", { count: s.courseStarts.length, of: s.joining.of }) : c("bookTimeCourseCount", { count: s.courseStarts.length })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(withTax(s)), currency), rest: moneyText(withTax(s).priceMinor - upFrontMinor(withTax(s)), currency) })}</span>}
                 {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
-                {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: `${moneyText(s.packPriceMinor || 0, currency)}${s.taxMinor ? ` ${c("bookTimePlusTax")}` : ""}` })}</span>}
+                {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: `${moneyText(s.packPriceMinor || 0, currency)}${s.taxMinor ? ` ${c("bookTimePlusTax")}` : ""}` })}{s.packAnyClass ? ` · ${c("bookTimePackAnyClass")}` : ""}</span>}
               </span>
             </button>
           ))}
@@ -466,7 +467,7 @@ function PackOffer({ service, currency, c }: { service: BookingServiceView; curr
   };
   return (
     <section {...regionProps("bookingsPack")} className="fm-track-card fm-book-pack p-5 sm:p-8 mt-6" aria-labelledby="bt-pack-title">
-      <p className="fm-track-mono mb-2" translate="no">{c("bookTimePackOffer", { visits: service.packVisits || 0, price })}</p>
+      <p className="fm-track-mono mb-2" translate="no">{c("bookTimePackOffer", { visits: service.packVisits || 0, price })}{service.packAnyClass ? ` · ${c("bookTimePackAnyClass")}` : ""}</p>
       <h2 id="bt-pack-title" className="fm-track-display text-3xl">{c("bookTimePackTitle")}</h2>
       <p className="mt-3 text-base leading-7" translate="no">
         {c("bookTimePackText", { visits: service.packVisits || 0, price })}

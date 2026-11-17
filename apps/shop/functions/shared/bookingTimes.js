@@ -302,6 +302,9 @@ function cleanService(raw, id = "") {
     if (courseDates.length && places < 2)
         return { problem: "A course needs room for at least 2 people." };
     const classTimes = courseDates.length ? [] : cleanClassTimes(s.classTimes);
+    const introPriceMinor = priceMinor > 0 ? Math.round(Number(s.introPriceMinor) || 0) : 0;
+    if (introPriceMinor && (introPriceMinor < exports.MIN_CARD_MINOR || introPriceMinor >= priceMinor))
+        return { problem: "A first-visit price is at least 0.50 and less than the price." };
     // A minimum only for a group at set times: a weekly class or a course (a class at any free time has no session to decide).
     const atSetTimes = places >= 2 && (courseDates.length > 0 || classTimes.length > 0);
     const minPlaces = atSetTimes ? whole(s.minPlaces, 0, exports.MAX_PLACES, 0) : 0;
@@ -335,6 +338,9 @@ function cleanService(raw, id = "") {
         packVisits: courseDates.length ? 0 : packVisits,
         packPriceMinor: courseDates.length ? 0 : packPriceMinor,
         packDays: courseDates.length ? 0 : packDays,
+        // A class pass: a weekly class's pack that books any weekly class.
+        ...(packVisits >= 2 && !courseDates.length && places >= 2 && s.packAnyClass === true ? { packAnyClass: true } : {}),
+        ...(introPriceMinor ? { introPriceMinor } : {}),
         roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         chargeTax: payment !== "free" && s.chargeTax === true,
         rebookWeeks: whole(s.rebookWeeks, 0, exports.MAX_REBOOK_WEEKS, 0),
@@ -943,14 +949,15 @@ exports.PACK_MESSAGES = {
  * Why `pack` can't book a visit to `serviceId` on shop day `day` (the visit's own day), or null when it can. A pack
  * running out only stops visits after its last day; a visit booked before then keeps its place.
  */
-function packProblem(pack, serviceId, day) {
+function packProblem(pack, serviceId, day, weeklyClass = false) {
     if (!pack)
         return "not_found";
     if (pack.status === "held")
         return "not_paid";
     if (pack.status !== "active")
         return "closed";
-    if (pack.serviceId !== serviceId)
+    // A class pass books any weekly class (`weeklyClass`: the service booked is a class and not a course).
+    if (pack.serviceId !== serviceId && !(pack.anyClass && weeklyClass))
         return "other_service";
     if (pack.expiresOn && day > pack.expiresOn)
         return "expired";

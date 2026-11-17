@@ -711,6 +711,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookTimeClassSize", label: "Group class size ({count} is the number of places)", default: "Up to {count} people" },
       { key: "bookTimeCourseCount", label: "Course size ({count} is the number of dates)", default: "Course · {count} dates" },
       { key: "bookTimeCourseDates", label: "Course dates heading ({count} is the number of dates)", default: "All {count} dates" },
+      { key: "bookTimeIntroPrice", label: "First-visit price ({price})", default: "First visit {price}" },
+      { key: "bookTimePackAnyClass", label: "Class pass note on a pack", default: "any class" },
       { key: "bookTimeClassMinimum", label: "Class minimum to run ({count} people)", default: "Runs with {count}+ people" },
       { key: "bookTimeCourseLate", label: "Joining a course late ({count} dates left of {of})", default: "Under way · join for the last {count} of {of} dates" },
       { key: "bookTimeCourseNote", label: "Course note under its dates", default: "One sign-up and one price cover every date." },

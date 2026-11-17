@@ -1603,3 +1603,10 @@ class then and nothing else (`placesLeft`, `fullClassTimes`); each confirmed sig
 (shared with the admin's cancel: full refund, gift card and pack visit back, calendar, email saying too few signed up,
 `cancelledFor: "minimum"`), and the owner gets one email. A time with a sign-up still paying waits for the next sweep.
 
+**Class passes and first-visit prices (17 November 2026, `tasks/todo/2026-11-17-classes-pass-intro.md`).** A weekly
+class's pack can be a class pass (`packAnyClass`, kept only for a group that isn't a course): the pack is saved with
+`anyClass: true` and "Any class", and `packProblem`'s fourth argument (`weeklyClass(service)`) lets it book any weekly
+class; courses still refuse packs. A priced service may have `introPriceMinor` (0.50 up to below the price): `introFor`
+gives it to an email with no held or confirmed booking, at `bookingStart` and `bookingCode` (a code comes off it), and
+the booking keeps `intro: true` with `listPriceMinor` the usual price. Not with a pack.
+

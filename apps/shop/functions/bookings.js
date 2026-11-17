@@ -100,6 +100,8 @@ async function classesOn(shop) {
 const onTimetable = (s) => s.active && isClass(s) && s.classTimes.length > 0;
 // A course on the Timetable page: active, and still open to sign up for (before it starts, or late while it lets people
 // join late with dates left).
+/** A class at weekly times or any free time, not a course: what a class pass books. */
+const weeklyClass = (s) => isClass(s) && !isCourse(s);
 const courseOpen = (s, zone, nowMs) => s.active && isCourse(s) && joinableCourse(s, zone, nowMs) !== null;
 /**
  * The stretches a booking holds on the days' ledger: one for an ordinary booking (under its own id), and one for each
@@ -755,7 +757,7 @@ function bookingActions({
       const giftMinor = record.giftCard?.amountMinor || 0;
       if (giftSnap && (giftCardProblem(card, { now: new Date(nowMs), testMode }) || availableMinor(card, "", nowMs) < giftMinor)) return "gift_short";
       const packData = packSnap?.exists ? packSnap.data() : null;
-      if (packSnap && packProblem(packData, record.serviceId, dayOf(start, zone()))) return "pack_used";
+      if (packSnap && packProblem(packData, record.serviceId, dayOf(start, zone()), weeklyClass(service))) return "pack_used";
       if (codeSnap) {
         const used = Number(codeSnap.data()?.usageCount) || 0;
         const limit = Number(codeSnap.data()?.usageLimit) || 0;
@@ -1196,6 +1198,17 @@ function bookingActions({
    * A code typed on the booking form, priced for this service: { discount: { id, code, amountMinor }, priceMinor (after
    * the code), upFront (what the card page takes now) }. Throws BookingCodeProblem in the customer's words.
    */
+  /**
+   * The service at its first-visit price (`intro: true`) for someone who has never booked with the shop (no booking
+   * held or confirmed under their email; cancelled ones don't count), else as it is.
+   */
+  async function introFor(service, email) {
+    if (!service.introPriceMinor || !email) return service;
+    const snap = await bookings().where("customer.email", "==", String(email).trim().toLowerCase()).limit(50).get();
+    if (snap.docs.some((d) => ["confirmed", "held"].includes(d.data()?.status))) return service;
+    return { ...service, priceMinor: service.introPriceMinor, intro: true };
+  }
+
   async function codeFor(service, raw, email) {
     const typed = String(raw || "").trim().toUpperCase().slice(0, 40);
     if (!findDiscount || service.payment === "free" || !typed) throw new BookingCodeProblem("This code can't be used on bookings.");
@@ -1434,13 +1447,15 @@ function bookingActions({
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, minPlaces }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, minPlaces, packAnyClass, introPriceMinor }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // A course: every one of its dates (signed up for as a whole, from the first).
             ...(isCourse({ places, courseDates }) ? { courseStarts: courseStarts({ places, courseDates }, zone()).map((ms) => new Date(ms).toISOString()) } : {}),
             // Joining a course late: how many dates were missed, of how many, and the whole course's price.
             ...(joining ? { joining } : {}),
             ...(minPlaces ? { minPlaces } : {}),
+            ...(packAnyClass ? { packAnyClass } : {}),
+            ...(introPriceMinor ? { introPriceMinor } : {}),
             // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
             ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
@@ -1537,7 +1552,7 @@ function bookingActions({
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         try {
-          const priced = await codeFor(service, req.body?.code, email);
+          const priced = await codeFor(await introFor(service, email), req.body?.code, email);
           const tax = await taxOn(service, priced.priceMinor);
           const total = priced.priceMinor + (tax?.taxMinor || 0);
           return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: total, ...(tax ? { taxMinor: tax.taxMinor } : {}), payNowMinor: depositOf({ ...service, priceMinor: total }) });
@@ -1584,13 +1599,14 @@ function bookingActions({
         const until = nowMs + PACK_PAGE_MINUTES * MINUTE;
         const at = new Date(nowMs).toISOString();
         await packs().doc(pid).set({
-          last4: code.slice(-4), serviceId: service.id, serviceName: service.name, visits: service.packVisits, days: service.packDays,
+          last4: code.slice(-4), serviceId: service.id, serviceName: service.packAnyClass ? "Any class" : service.name, visits: service.packVisits, days: service.packDays,
+          ...(service.packAnyClass ? { anyClass: true } : {}),
           priceMinor: payMinor, ...taxFields(tax), currency: currency(), mode, customer: { name: customer.name, email: customer.email },
           status: "held", sessions: [], uses: [], holdUntil: new Date(until).toISOString(), createdAt: at, updatedAt: at,
           // Kept only until it is paid, so the email can carry the code; afterwards only its hash (the id) is left.
           pendingCode: code,
         });
-        const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}, pack of ${service.packVisits} visits`.slice(0, 250);
+        const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}, ${service.packAnyClass ? `class pass of ${service.packVisits} classes` : `pack of ${service.packVisits} visits`}`.slice(0, 250);
         const metadata = { pack: pid };
         let session;
         try {
@@ -1623,7 +1639,7 @@ function bookingActions({
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const p = await loadPack(req.body?.pack);
         const when = Date.parse(String(req.body?.start || ""));
-        const problem = packProblem(p, service.id, dayOf(Number.isFinite(when) ? when : nowMs, zone()));
+        const problem = packProblem(p, service.id, dayOf(Number.isFinite(when) ? when : nowMs, zone()), weeklyClass(service));
         if (problem) return fail(res, 400, PACK_MESSAGES[problem], "pack");
         return res.status(200).json({ last4: p.last4, left: packLeft(p), visits: p.visits, expiresOn: p.expiresOn || null });
       }
@@ -1648,21 +1664,23 @@ function bookingActions({
         if (isCourse(service) && String(req.body?.pack || "").trim()) return fail(res, 400, "A pack pays for single visits, not for a course.", "pack");
         if (String(req.body?.pack || "").trim()) {
           const p = await loadPack(req.body.pack);
-          const problem = packProblem(p, service.id, dayOf(start, zone()));
+          const problem = packProblem(p, service.id, dayOf(start, zone()), weeklyClass(service));
           if (problem) return fail(res, 400, PACK_MESSAGES[problem], "pack");
           pack = { id: p.id, last4: p.last4 };
         }
+        // Someone new to the shop pays the first-visit price (not with a pack); a code then comes off that.
+        const offered = pack ? service : await introFor(service, customer.email);
         // A discount code comes off the price first; a deposit is then worked out on what is left.
         let priced = null;
         if (!pack && String(req.body?.code || "").trim()) {
           try {
-            priced = await codeFor(service, req.body.code, customer.email);
+            priced = await codeFor(offered, req.body.code, customer.email);
           } catch (err) {
             if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
             throw err;
           }
         }
-        const before = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : service.priceMinor;
+        const before = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : offered.priceMinor;
         // Sales tax (a service with chargeTax) goes on top of the price after any code; the booking's price includes it.
         const tax = await taxOn(service, before);
         const price = before + (tax?.taxMinor || 0);
@@ -1701,6 +1719,8 @@ function bookingActions({
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
           ...(gift ? { giftCard: gift } : {}),
           ...(pack ? { pack, listPriceMinor: service.priceMinor } : {}),
+          // The first-visit price: listPriceMinor is the usual price.
+          ...(offered.intro ? { intro: true, listPriceMinor: service.priceMinor } : {}),
           paid: false, ...giftPaid, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           ...(holdCard ? { cardHold: true, lateFeeMinor: service.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.

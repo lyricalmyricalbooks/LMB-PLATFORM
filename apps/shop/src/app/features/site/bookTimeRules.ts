@@ -9,7 +9,9 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[];
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
   joining?: { missed: number; of: number; fullPriceMinor: number };
-  /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number };
+  /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number;
+  /** Its pack is a class pass: it books any weekly class. */ packAnyClass?: boolean;
+  /** What someone new to the shop pays the first time (the server decides who is new). */ introPriceMinor?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
   hours?: Array<Array<{ start: string; end: string }>>;
