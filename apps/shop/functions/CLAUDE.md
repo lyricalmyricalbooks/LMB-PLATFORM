@@ -23,6 +23,13 @@ are made with `onDocument*` from `shopEntry.trigger` (the path you write, e.g. `
   root, never written here) and answers only from that shop (record profile, bucket `shops/<id>/site/`). Its slug rule
   is the prerender's (`safeSlug`, parity-tested); a new published file goes in `SITE_FILES` and in
   `scripts/deployConfig.mjs` `PER_SHOP_FILES`.
+- **The front door's SEO answers (17 November 2026):** a storefront page asked for on another of the shop's addresses
+  (its free address once it has a main domain, a `www` twin) gets a 301 to the same path on the main address (`siteUrl`,
+  only when that address points at the same shop; never for `?preview=` or a frame, so Studio keeps working). A page with
+  no drawn copy is checked by `frontDoorRoutes.js` (`routeCheck`, products, pages, policies and URL redirects read inside
+  `shops/<id>/`, five minutes per shop): missing → 404 with noindex, or the owner's redirect as a 301; live or unsure →
+  the shell made the shop's own (`shopShell`). Its slug and redirect rules mirror `findProduct` and `redirects.ts`
+  (parity-tested in `frontDoorRoutes.test.js`); change them together. The fallback robots.txt names the sitemap.
 - The older handler tests run one shop with the folders off (`SHOP_FOLDERS: "off"`, `vite.config.ts`). New tests of
   shop-crossing behaviour turn them on (`shopScope.test.js`, `shopEntry.test.js`).
 

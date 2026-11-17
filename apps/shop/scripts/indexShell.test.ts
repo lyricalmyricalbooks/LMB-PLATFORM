@@ -27,4 +27,13 @@ describe('index.html shell', () => {
     expect(shell).not.toMatch(/name="twitter:image"/);
     expect(shell).toMatch(/name="twitter:card" content="summary"/);
   });
+  it('carries no real shop: the front door makes it each shop\'s own', () => {
+    // A page not drawn yet is answered with this file on every shop (functions/frontDoor.js shopShell), which swaps in
+    // the shop's address and replaces the template name below with the shop's; nothing else may name one shop.
+    const { TEMPLATE_NAME } = require('../functions/frontDoor');
+    expect(shell).toContain(`<title>${TEMPLATE_NAME}</title>`);
+    const head = shell.split('<body')[0];
+    for (const word of ['Montrose', 'BookStore', 'streetAddress', 'postalCode', 'sameAs']) expect(head, word).not.toContain(word);
+    expect(head).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
 });

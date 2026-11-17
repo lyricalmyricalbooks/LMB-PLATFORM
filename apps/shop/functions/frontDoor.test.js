@@ -12,7 +12,7 @@ const SHOPS = {
   "press-c": { id: "press-c", tenant: "", status: "closed", record: { profile: PROFILE("press-c") } },
   "press-d": { id: "press-d", tenant: "", status: "open", record: {} },
 };
-const ADDRESSES = { "press-a.example": "press-a", "www.press-b.example": "press-b", "press-c.example": "press-c", "press-d.example": "press-d", "odd.example": "Not An Id" };
+const ADDRESSES = { "press-a.example": "press-a", "press-a.shops.example": "press-a", "www.press-b.example": "press-b", "press-c.example": "press-c", "press-d.example": "press-d", "odd.example": "Not An Id" };
 const FILES = {
   "shops/press-a/site/index.html": "<html>A home</html>",
   "shops/press-a/site/books/night-buses.html": "<html>A book</html>",
@@ -21,7 +21,7 @@ const FILES = {
   "shops/press-a/site/google0123456789abcdef.html": "google-site-verification: google0123456789abcdef.html",
 };
 
-function door({ files = FILES, usage = () => {} } = {}) {
+function door({ files = FILES, usage = () => {}, shell = "<html>blank app</html>", routeCheck = null } = {}) {
   const reads = { addresses: 0, files: [], shell: 0 };
   const rootDb = () => ({
     collection: name => ({
@@ -43,16 +43,16 @@ function door({ files = FILES, usage = () => {} } = {}) {
       },
     }),
   });
-  const fetch = async url => { reads.shell++; expect(url).toBe("https://lmb-test-shop.web.app/spa.html"); return { ok: true, text: async () => "<html>blank app</html>" }; };
-  const answer = frontDoor({ rootDb, bucket, loadShop: async id => SHOPS[id] ?? null, shellUrl: () => "https://lmb-test-shop.web.app/spa.html", fetch, log: { error() {} }, usage });
-  const ask = async (host, path, method = "GET") => {
+  const fetch = async url => { reads.shell++; expect(url).toBe("https://lmb-test-shop.web.app/spa.html"); return { ok: true, text: async () => shell }; };
+  const answer = frontDoor({ rootDb, bucket, loadShop: async id => SHOPS[id] ?? null, shellUrl: () => "https://lmb-test-shop.web.app/spa.html", fetch, log: { error() {} }, usage, routeCheck });
+  const ask = async (host, path, method = "GET", { url, headers = {} } = {}) => {
     const out = { headers: {} };
     const res = {
       status(code) { out.status = code; return this; },
       set(k, v) { out.headers[k] = v; return this; },
       send(body) { out.body = String(body); return this; },
     };
-    await answer({ method, path, headers: { host }, hostname: host, get: () => undefined }, res);
+    await answer({ method, path, url: url ?? path, headers: { host, ...headers }, hostname: host, get: h => headers[h] }, res);
     return out;
   };
   return { ask, reads };
@@ -164,5 +164,97 @@ describe("Google's proof file (Connect Google)", () => {
     const rewrites = frontDoorHosting({}, "us-central1").rewrites;
     expect(rewrites.some(r => r.regex && new RegExp(r.regex).test("/google0123456789abcdef.html"))).toBe(true);
     expect(rewrites.some(r => r.regex && r.regex.includes("google") && new RegExp(r.regex).test("/google/../x.html"))).toBe(false);
+  });
+});
+
+// The app's blank page as the shared build writes it (index.html, trimmed to what the front door changes).
+const SHELL = `<!DOCTYPE html><html lang="en"><head>
+    <title>Your Press</title>
+    <meta name="description" content="Shop online at Your Press." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta property="og:url" content="https://lmb-test-shop.web.app/" />
+    <meta property="og:site_name" content="Your Press" />
+    <meta property="og:locale" content="en_CA" />
+    <script type="application/ld+json" id="seo-jsonld-static">
+    { "@type": "Store", "name": "Your Press", "url": "https://lmb-test-shop.web.app/" }
+    </script>
+  </head><body><div id="root"></div><script>var name = "Your Press";</script></body></html>`;
+
+describe("one address per shop", () => {
+  it("moves a page asked for on another of the shop's addresses to its main one, for good", async () => {
+    const { ask } = door();
+    const out = await ask("press-a.shops.example", "/books/night-buses", "GET", { url: "/books/night-buses?ref=ig" });
+    expect(out.status).toBe(301);
+    expect(out.headers.Location).toBe("https://press-a.example/books/night-buses?ref=ig");
+    expect(out.headers["Cache-Control"]).toBe("private, max-age=3600");
+    expect((await ask("press-a.shops.example", "/")).headers.Location).toBe("https://press-a.example/");
+  });
+  it("answers on the main address as before, and leaves the profile, files and owner previews where they are", async () => {
+    const { ask } = door();
+    expect((await ask("press-a.example", "/books/night-buses")).status).toBe(200);
+    expect((await ask("press-a.shops.example", "/shop-profile.js")).status).toBe(200);
+    expect((await ask("press-a.shops.example", "/sitemap.xml")).status).toBe(200);
+    expect((await ask("press-a.shops.example", "/", "GET", { url: "/?preview=true" })).status).toBe(200);
+    expect((await ask("press-a.shops.example", "/books/night-buses", "GET", { headers: { "sec-fetch-dest": "iframe" } })).status).toBe(200);
+  });
+  it("never sends visitors to a main address that isn't this shop's", async () => {
+    // press-b's profile names press-b.example, which no shop holds: its www address keeps answering.
+    const { ask } = door();
+    expect((await ask("www.press-b.example", "/")).status).toBe(200);
+  });
+});
+
+describe("pages not drawn yet", () => {
+  const live = async () => ({ state: "live" });
+  it("make the app's blank page the shop's own: its address, name and no template shop description", async () => {
+    const shop = { ...SHOPS["press-a"], record: { profile: { ...PROFILE("press-a"), name: "Moth & Co", currency: "USD" } } };
+    SHOPS["press-e"] = { ...shop, id: "press-e", record: { profile: { ...shop.record.profile, shopId: "press-e", siteUrl: "https://press-e.example" } } };
+    ADDRESSES["press-e.example"] = "press-e";
+    try {
+      const { ask } = door({ shell: SHELL, routeCheck: live });
+      const out = await ask("press-e.example", "/books/new-one/");
+      expect(out.status).toBe(200);
+      expect(out.body).toContain('<meta property="og:url" content="https://press-e.example/books/new-one" />');
+      expect(out.body).toContain('<link rel="canonical" href="https://press-e.example/books/new-one" />');
+      expect(out.body).toContain("<title>Moth &amp; Co</title>");
+      expect(out.body).toContain('<meta property="og:locale" content="en_US" />');
+      expect(out.body).not.toContain("seo-jsonld-static");
+      expect(out.body).not.toContain("lmb-test-shop");
+      expect(out.body).toContain('content="index, follow');
+      expect(out.body).toContain('var name = "Your Press";'); // the page body and scripts are left alone
+    } finally {
+      delete SHOPS["press-e"];
+      delete ADDRESSES["press-e.example"];
+    }
+  });
+  it("answer 404 with noindex for a product or page the shop doesn't have", async () => {
+    const asked = [];
+    const { ask } = door({ shell: SHELL, routeCheck: async (shop, path) => { asked.push([shop.id, path]); return { state: "missing" }; } });
+    const out = await ask("press-a.example", "/books/gone");
+    expect(out.status).toBe(404);
+    expect(out.body).toContain('<meta name="robots" content="noindex" />');
+    expect(out.body).not.toContain('rel="canonical"');
+    expect(asked).toEqual([["press-a", "/books/gone"]]);
+    // A drawn page and the home page are never checked; an owner's preview of a draft isn't refused.
+    await ask("press-a.example", "/books/night-buses");
+    expect((await ask("press-a.example", "/books/draft", "GET", { url: "/books/draft?preview=true" })).status).toBe(200);
+    expect(asked).toHaveLength(1);
+  });
+  it("send an address the owner redirected on with a 301", async () => {
+    const { ask } = door({ shell: SHELL, routeCheck: async (_shop, path) => ({ state: "missing", to: path === "/books/old" ? "/books/new?x=1" : "https://elsewhere.example/a" }) });
+    expect((await ask("press-a.example", "/books/old")).headers.Location).toBe("https://press-a.example/books/new?x=1");
+    const away = await ask("press-a.example", "/page/moved");
+    expect(away.status).toBe(301);
+    expect(away.headers.Location).toBe("https://elsewhere.example/a");
+  });
+  it("keep the blank page with a 200 when it can't tell", async () => {
+    const { ask } = door({ shell: SHELL, routeCheck: async () => ({ state: "unknown" }) });
+    expect((await ask("press-a.example", "/collections/new")).status).toBe(200);
+  });
+  it("a shop with no robots file yet gets the publish run's own lines, with its sitemap", async () => {
+    const { ask } = door();
+    const robots = (await ask("press-a.example", "/robots.txt")).body;
+    for (const route of ["admin", "checkout", "account", "wishlist", "track"]) expect(robots).toContain(`Disallow: /${route}\n`);
+    expect(robots).toContain("Sitemap: https://press-a.example/sitemap.xml");
   });
 });

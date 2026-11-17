@@ -4,9 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary SEO -->
-    <title>Your Press — Independent Publishing House</title>
-    <meta name="description" content="Your Press is an independent publishing house based in Toronto, specializing in photography and art books, photobooks and artists' books. Shop our archive of rare editions and exclusive prints." />
+    <!-- Primary SEO. A neutral starting point, the same for every shop: the shop's own words come from Studio
+         (Text & labels › Site & sharing) through useSEO and the prerendered pages, and the front door puts the shop's
+         name and address in an undrawn page (functions/frontDoor.js shopShell, which looks for "Your Press"). -->
+    <title>Your Press</title>
+    <meta name="description" content="Shop online at Your Press." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="author" content="Your Press" />
     <!-- The route SEO hook sets canonical URLs after routing, including deep links. -->
@@ -23,37 +25,23 @@
          Studio › Style › Logo & wordmark › Share image, and prerendered pages carry it. -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://lmb-test-shop.web.app/" />
-    <meta property="og:title" content="Your Press — Independent Publishing House" />
-    <meta property="og:description" content="An independent publishing house specializing in contemporary photography and art books, photobooks and artists' books. Based in Toronto with roots in Italy." />
+    <meta property="og:title" content="Your Press" />
+    <meta property="og:description" content="Shop online at Your Press." />
     <meta property="og:site_name" content="Your Press" />
     <meta property="og:locale" content="en_CA" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Your Press" />
-    <meta name="twitter:description" content="Independent publishing house specializing in contemporary photography and art books, photobooks and artists' books." />
+    <meta name="twitter:description" content="Shop online at Your Press." />
 
-    <!-- JSON-LD Structured Data -->
+    <!-- JSON-LD for crawlers that never run scripts: a bare store, never an address (useSEO replaces it). -->
     <script type="application/ld+json" id="seo-jsonld-static">
     {
       "@context": "https://schema.org",
-      "@type": "BookStore",
+      "@type": "Store",
       "name": "Your Press",
-      "url": "https://lmb-test-shop.web.app/",
-      "description": "Independent publishing house based in Toronto, specializing in contemporary photography and art books, photobooks and artists' books.",
-      "knowsAbout": ["Art books", "Photography books", "Photobooks", "Artists' books", "Zines"],
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "456 Montrose Avenue",
-        "addressLocality": "Toronto",
-        "addressRegion": "Ontario",
-        "postalCode": "M6G 3H1",
-        "addressCountry": "CA"
-      },
-      "email": "owner@example.com",
-      "sameAs": [
-        "https://www.instagram.com/yourpress"
-      ]
+      "url": "https://lmb-test-shop.web.app/"
     }
     </script>
 

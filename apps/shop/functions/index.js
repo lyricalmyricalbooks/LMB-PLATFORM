@@ -5333,7 +5333,8 @@ exports.tick = onScheduleReal(
 
 // The front door (the shared system, step 5; frontDoor.js): one Hosting site for every shop's address. Hosting sends it
 // the profile, each shop's published files and the storefront pages; it finds the shop by the address typed (the
-// platform's addresses/{host}) and answers with that shop's own. It reads only: addresses, records and shops/<id>/site/.
+// platform's addresses/{host}) and answers with that shop's own. It reads only: addresses, records, shops/<id>/site/ and,
+// for a page not drawn yet, the shop's own product, page and redirect lists (frontDoorRoutes.js).
 exports.frontDoor = require("firebase-functions/v2/https").onRequest(
   { memory: "256MiB", concurrency: 80, timeoutSeconds: 30 },
   require("./frontDoor").frontDoor({
@@ -5341,6 +5342,8 @@ exports.frontDoor = require("firebase-functions/v2/https").onRequest(
     bucket: () => sdk.storage().bucket(),
     loadShop: shopEntry.loadShop,
     shellUrl: () => process.env.SHOP_FRONT_DOOR_SHELL_URL || `https://${process.env.GCLOUD_PROJECT}.web.app/spa.html`,
+    // Pages with no drawn copy: real (blank page), missing (404) or redirected (301), read from the shop's own folder.
+    routeCheck: require("./frontDoorRoutes").routeChecker({ db: () => sdk.firestore() }),
     bookingCalendar: (shop, id, key) => require("./bookings").customerBookingIcs({ db: sdk.firestore(), shopId: shop.id, id, key, shopName: shop.record?.profile?.name || "" }),
     calendarFeed: (shop, token) => require("./bookings").bookingsFeed({ db: sdk.firestore(), shopId: shop.id, token, shopName: shop.record?.profile?.name || "" }),
   }),

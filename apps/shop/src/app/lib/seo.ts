@@ -4,6 +4,8 @@ import { getCopy } from "../features/site/storeCopy";
 import { inThemePreview } from "../features/site/themePreview";
 
 import { canonicalUrl } from "./canonicalUrl";
+import { shopLanguageOf } from "../features/site/shopLanguage";
+import { shopCountry } from "../../lib/shopProfile";
 
 type SEO = {
   exactTitle?: boolean;
@@ -73,6 +75,12 @@ function clearJsonLd(id: string) {
   document.getElementById(id)?.remove();
 }
 
+/** og:locale for the shop's language and country: French shops fr_CA, US shops en_US, the rest en_CA. */
+export function ogLocale(design: any, country: string = shopCountry()): string {
+  if (shopLanguageOf(design) === "fr") return "fr_CA";
+  return country === "US" ? "en_US" : "en_CA";
+}
+
 export function useSEO(seo: SEO) {
   const location = useLocation();
   const design = useSyncExternalStore(subscribe, getSiteDesign, getSiteDesign);
@@ -120,6 +128,7 @@ export function useSEO(seo: SEO) {
     }
     setMeta('meta[name="twitter:card"]', "content", image ? "summary_large_image" : "summary");
     setMeta('meta[property="og:site_name"]', "content", getCopy(design, "siteName"));
+    setMeta('meta[property="og:locale"]', "content", ogLocale(design));
     setMeta('meta[name="author"]', "content", getCopy(design, "siteName"));
     setMeta('meta[name="twitter:title"]', "content", title);
     setMeta('meta[name="twitter:description"]', "content", description);
