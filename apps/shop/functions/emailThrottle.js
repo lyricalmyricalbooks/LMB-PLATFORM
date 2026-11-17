@@ -19,6 +19,8 @@ const CONTACT_LIMITS = {
   newsletterConfirm: { max: 1, windowMs: 24 * 60 * 60 * 1000, perAddress: true },
   // Bookings (beta): booked, moved and cancelled emails to the address a customer typed on the Book a time page.
   bookingEmail: { max: 6, windowMs: 60 * 60 * 1000, perAddress: true },
+  // Free tickets (events.js): the ticket email of an order nobody paid for.
+  eventEmail: { max: 6, windowMs: 60 * 60 * 1000, perAddress: true },
   // Reminder / alert emails to addresses the shop only knows because a visitor typed them.
   abandonedCart: { perAddress: false },
   backInStock: { perAddress: false },

@@ -3,7 +3,7 @@
 // once (a repeat writes nothing); off keeps the rest; the overview counts shops per way.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createWaysBeta, waysBetaRoutes, START_DOC } from "./waysBeta.js";
+import { createWaysBeta, eventsUse, waysBetaRoutes, START_DOC } from "./waysBeta.js";
 import { FEATURES_DOC } from "./bookingsBeta.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { eventLine } from "./timeline.js";
@@ -87,6 +87,26 @@ test("the shop's record shows each way, and whether the owner switched it on", a
   assert.deepEqual([rows.rentals.asked, rows.classes.asked, rows.events.asked], [true, true, false], "what the owner asked for at sign-up");
   assert.deepEqual([rows.digital.built, rows.digital.on, rows.digital.ownerOn], [false, false, false]);
   assert.deepEqual(waysOn(await w.shopData.get(SHOP, FEATURES_DOC), await w.shopData.get(SHOP, START_DOC)), ["events"]);
+});
+
+test("the shop's record shows how it uses Events: events, coming ones and tickets sold", async () => {
+  const w = await world();
+  await w.desk.set(ADMIN, { shopId: SHOP, way: "events", on: true });
+  const soon = new Date(NOW + 86_400_000).toISOString();
+  const past = new Date(NOW - 86_400_000).toISOString();
+  await w.shopData.set(SHOP, "events/launch", { title: "Launch", status: "live", start: soon });
+  await w.shopData.set(SHOP, "events/draft", { title: "Draft", status: "draft", start: soon });
+  await w.shopData.set(SHOP, "events/old", { title: "Old", status: "live", start: past });
+  await w.shopData.set(SHOP, "events/off", { title: "Off", status: "cancelled", start: soon });
+  await w.shopData.set(SHOP, "eventPlaces/launch", { sold: { g: 4, s: 1 }, paidMinor: 9000 });
+  await w.shopData.set(SHOP, "eventPlaces/old", { sold: { g: 7 }, paidMinor: 3500, held: { x: { until: soon } } });
+  // Another shop's events never count here.
+  await w.shopData.set("test-goods", "events/theirs", { title: "Theirs", status: "live", start: soon });
+  await w.shopData.set("test-goods", "eventPlaces/theirs", { sold: { g: 50 } });
+  const rows = Object.fromEntries((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.map((way) => [way.id, way]));
+  assert.deepEqual(rows.events.use, { events: 4, coming: 2, onSale: 1, ticketsSold: 12, paidMinor: 12500 });
+  assert.equal(rows.rentals.use, null);
+  assert.deepEqual(eventsUse([], [], NOW), { events: 0, coming: 0, onSale: 0, ticketsSold: 0, paidMinor: 0 });
 });
 
 test("a shop not live, or without a website, can't have one; a wrong way or a missing answer is refused", async () => {

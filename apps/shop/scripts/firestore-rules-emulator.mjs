@@ -610,6 +610,33 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("another shop's owner can't read this shop's bookings", assertFails(getDoc(doc(ownerThereInS1, "bookings/b1"))));
 }
 
+// Events and tickets (beta, functions/events.js): events, places and ticket orders are server-only. No browser reads or
+// writes them, in its own shop or another: the admin and the website ask the server.
+{
+  await env.withSecurityRulesDisabled(ctx => Promise.all([
+    setDoc(doc(folder(ctx.firestore()), "events/e1"), { title: "Launch", status: "live" }),
+    setDoc(doc(folder(ctx.firestore()), "eventPlaces/e1"), { sold: { g: 2 } }),
+    setDoc(doc(folder(ctx.firestore()), "eventOrders/o1"), { eventId: "e1", status: "paid", customer: { email: "reader@example.com" }, ticketCodes: ["KRTW-2345"] }),
+    setDoc(doc(ctx.firestore(), "shops/s2/events/e2"), { title: "Their launch", status: "live" }),
+    setDoc(doc(ctx.firestore(), "shops/s2/eventOrders/o2"), { eventId: "e2", status: "paid" }),
+  ]));
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
+  const ownerS2 = signedIn("o1", { email: "owner@example.com", email_verified: true }, { shop: "s2" });
+  const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  for (const path of ["events/e1", "eventPlaces/e1", "eventOrders/o1"]) {
+    await check(`owner can't read ${path} directly`, assertFails(getDoc(doc(owner, path))));
+    await check(`owner can't write ${path}`, assertFails(setDoc(doc(owner, path), { status: "cancelled" }, { merge: true })));
+    await check(`anon can't read ${path}`, assertFails(getDoc(doc(anon, path))));
+    await check(`anon can't write ${path}`, assertFails(setDoc(doc(anon, path), { status: "paid" }, { merge: true })));
+    await check(`another shop's owner can't read this shop's ${path}`, assertFails(getDoc(doc(ownerThereInS1, path))));
+  }
+  await check("the ticket holder can't read their ticket order directly", assertFails(getDoc(doc(reader, "eventOrders/o1"))));
+  await check("anon can't make a ticket order", assertFails(setDoc(doc(anon, "eventOrders/o9"), { eventId: "e1", status: "paid" })));
+  await check("owner can't read another shop's events", assertFails(getDoc(doc(ownerS2, "events/e2"))));
+  await check("owner can't read another shop's ticket orders", assertFails(getDoc(doc(ownerS2, "eventOrders/o2"))));
+}
+
 // Walls between shops (docs/shared-system.md). Shop s2 has its own records; nobody from s1's sign-in list may touch
 // them, and nobody from s2's (or from no list at all) may touch s1's, whatever role or address the pass carries.
 {

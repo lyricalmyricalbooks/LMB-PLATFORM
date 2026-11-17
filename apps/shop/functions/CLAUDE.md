@@ -1447,3 +1447,27 @@ reminder and second-reminder emails, `textReminder` sends the short text (servic
 `reminder2TextAt`; `optedOut` sets `customer.textOk = false`. Admin op `textStatus` answers the price for the tile. The
 platform bills the texts at cost (LMB-PLATFORM `services/texts`). Tests: bookings.test.js › text-message reminders,
 textSender.test.js.
+
+
+## Events and tickets (beta, 17 November 2026)
+
+`functions/events.js` (`eventActions`, plan `tasks/todo/2026-11-17-events-tickets-e1.md`). On only while both switches
+are (`waysOn`: `platform/features.ways.events` from the control room and `firstWeek/start.ways.events` from the owner);
+every action checks first. Records, all server-only (no rule opens them; `scripts/firestore-rules-emulator.mjs` checks):
+`events/{id}`, `eventPlaces/{eventId}` (`sold`, `held`, `paidMinor`; read and written in the order's own transaction, so
+the last ticket is never sold twice) and `eventOrders/{id}` (status `held | paid | cancelled`, `keyHashes` for the
+customer's link, `tickets` with a code each). Rules shared with the page: `shared/eventTickets`.
+- Public actions (`PUBLIC_EVENT_ACTIONS`, through `validateDiscountCode`, `LIMITS.event`): `eventsInfo` (live coming
+  events; never the online link), `eventStart`, `eventView` (works after Events is switched off, so tickets bought stay
+  readable). A paid order holds its places `HOLD_MINUTES` (10) on a standalone card page (one line for the exact
+  amount, metadata `eventOrder`, key `event-order-<id>`; the webhook ignores it). Free tickets confirm at once after
+  claiming the `eventEmail` budget.
+- `eventDesk.sweep()` runs inside `bookingSweep` (no new scheduled job): it confirms a hold whose page was paid for the
+  exact amount and frees one that ran out, whatever the switches say.
+- Owner ops (`eventsAdmin`): `list`, `saveEvent` (a ticket kind people bought can't go or shrink below what sold),
+  `deleteEvent` (refused once sold or while someone is paying), `orders`, `resendTickets` (a fresh link; the last five
+  keep working). Ticket emails are English or French by the buyer's browser; the owner gets `[TICKETS] …`.
+- Tax: `chargeTax` on an event adds the shop's rate on top through the same `serviceTax()` as Bookings.
+- Privacy: export and erase cover `eventOrders` (`redactedTicketOrderFields`: a card-paid order keeps name and email).
+- Not built yet: the website page (E1b), check-in at the door (E2), refunds, moves, extras and codes (E3).
+- Tests: `events.test.js`, `src/shared/eventTickets.test.ts`, `privacyBookings.test.js`.

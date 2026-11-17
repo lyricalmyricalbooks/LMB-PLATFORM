@@ -24,6 +24,7 @@ import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroo
 import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
 import { DEFAULT_BOOKING_SETTINGS, type BookingService } from "../shared/bookingTimes";
 import { waysData } from "../app/admin/waysApi";
+import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
 import { waysIn } from "../shared/waysToSell";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
@@ -43,6 +44,52 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
 {
   const allowed = waysIn(Object.fromEntries((new URLSearchParams(window.location.search).get("ways") || "").split(",").map((id) => [id, true])));
   waysData.watchAllowed = (onChange) => { onChange(allowed); return () => {}; };
+  // The fixture's owner has switched on every way the platform offers, so each page shows.
+  waysData.watchChosen = (onChange) => { onChange(allowed); return () => {}; };
+}
+
+// ── Events (beta, `?ways=events&page=events`): three coming events and one past, with a guest list (`&events=new`:
+// none yet). In memory; changes answer at once. ──
+{
+  const DAY = 86_400_000;
+  const at = (days: number, hour: number) => { const d = new Date(Date.now() + days * DAY); d.setUTCHours(hour, 0, 0, 0); return d.toISOString(); };
+  const kind = (id: string, name: string, priceMinor: number, places: number) => ({ id, name, priceMinor, places, maxPerOrder: 10 });
+  const made = (id: string, title: string, start: string, venue: string, status: AdminEvent["status"], tickets: AdminEvent["tickets"], sold: Record<string, number>): AdminEvent => {
+    const soldTotal = Object.values(sold).reduce((a, b) => a + b, 0);
+    return {
+      id, title, description: "Doors half an hour before. Drinks and a short reading.", start, end: "", venue, address: "12 Sample Street", onlineUrl: "", photo: "", status, chargeTax: false, tickets,
+      sold, soldTotal, placesTotal: tickets.reduce((a, t) => a + t.places, 0), left: Object.fromEntries(tickets.map((t) => [t.id, t.places - (sold[t.id] || 0)])),
+      paidMinor: tickets.reduce((a, t) => a + t.priceMinor * (sold[t.id] || 0), 0), orders: Math.ceil(soldTotal / 2),
+    };
+  };
+  let events: AdminEvent[] = new URLSearchParams(window.location.search).get("events") === "new" ? [] : [
+    made("evt-launch", "Autumn launch party", at(9, 23), "The shop", "live", [kind("g", "General", 1500, 60), kind("s", "Supporter", 3000, 20)], { g: 34, s: 9 }),
+    made("evt-workshop", "Zine-making workshop", at(16, 18), "Back room", "live", [kind("g", "Place at the table", 4500, 12)], { g: 12 }),
+    made("evt-reading", "Winter reading night", at(30, 0), "Online", "draft", [kind("g", "Free place", 0, 100)], {}),
+    made("evt-market", "Summer market day", at(-40, 15), "Market hall", "live", [kind("g", "Entry", 500, 200)], { g: 143 }),
+  ];
+  const guests: TicketOrder[] = [
+    ["Ada Example", "ada@example.com", 2, "g"], ["Ben Example", "ben@example.com", 1, "s"], ["Cleo Example", "cleo@example.com", 3, "g"],
+  ].map(([name, email, count, ticketId], i) => ({
+    id: `ord-${i}`, status: "paid" as const, eventId: "evt-launch", name: String(name), email: String(email),
+    lines: [{ ticketId: String(ticketId), name: ticketId === "s" ? "Supporter" : "General", qty: Number(count), priceMinor: ticketId === "s" ? 3000 : 1500 }],
+    ticketCount: Number(count), totalMinor: Number(count) * (ticketId === "s" ? 3000 : 1500), taxMinor: 0, chargedMinor: Number(count) * (ticketId === "s" ? 3000 : 1500), currency: "CAD",
+    tickets: Array.from({ length: Number(count) }, (_, n) => ({ code: `${"KRTW MPQZ HNDB".split(" ")[i]}-${"2345 6789 ABCD".split(" ")[n]}`, ticketId: String(ticketId), name: ticketId === "s" ? "Supporter" : "General" })),
+    createdAt: at(-2, 14), paidAt: at(-2, 14), test: false,
+  }));
+  eventsData.admin = async (op, body) => {
+    if (op === "list") return { zone: "America/Toronto", currency: "CAD", events };
+    if (op === "saveEvent") {
+      const e = body.event as AdminEvent;
+      const old = events.find((x) => x.id === e.id);
+      const next = made(e.id || `evt-${Date.now()}`, e.title, e.start, e.venue, e.status, e.tickets, old?.sold || {});
+      events = old ? events.map((x) => (x.id === next.id ? next : x)) : [...events, next];
+      return { ok: true, event: next };
+    }
+    if (op === "deleteEvent") { events = events.filter((x) => x.id !== body.id); return { ok: true }; }
+    if (op === "orders") return { orders: body.eventId === "evt-launch" ? guests : [] };
+    return { ok: true };
+  };
 }
 
 // ── Stockroom › QR codes (?page=stockroom/qrcodes): two items with a card payment link, one without, and one own code

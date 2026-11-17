@@ -2555,3 +2555,5 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings .rp-fk-control:has(> span > .rp-select + .rp-btn) { background: transparent; box-shadow: none; }
+/* A short word beside a menu label ("Beta"): small mono capitals in a thin outline, on the rail's own colours. */
+.rp-nav-tag { margin-left: 8px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 999px; font: 500 9px/1.2 var(--rp-font-mono); letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.72; }

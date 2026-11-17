@@ -1,0 +1,459 @@
+// Events and tickets (beta; LMB-PLATFORM tasks/todo/2026-11-17-events-tickets-e1.md). A shop makes an event with a day,
+// a place and kinds of ticket; shoppers buy tickets and pay on the shop's own card page (Stripe or Square, no shop
+// order, the order webhook ignores it); each ticket gets a code by email.
+//
+// On only while both switches are: the platform's (`platform/features` › `ways.events`, the control room) and the
+// owner's (`firstWeek/start` › `ways.events`, Settings › Ways to sell). Every action checks them first.
+//
+// Records, all server-only (no rule opens them to a browser; the admin reads through `eventsAdmin`):
+//   events/{id}             what the owner made (shared/eventTickets `cleanEvent`)
+//   eventPlaces/{eventId}   tickets sold per kind and the orders still paying, read and written in the order's own
+//                           transaction, so the last ticket can't be sold twice
+//   eventOrders/{id}        one purchase: `held` while the customer pays (its places kept HOLD_MINUTES), then `paid`
+//                           with its ticket codes, or `cancelled` when the page closed unpaid
+//
+// Public actions (through validateDiscountCode, rate limited): eventsInfo, eventStart, eventView. Owner ops go through
+// createStripeCheckoutSession `action: "eventsAdmin"`. `sweep()` (inside bookingSweep, every 5 minutes) confirms a paid
+// hold nobody came back to and frees an unpaid one. Refunds, moves and the door scanner are later phases (E2, E3).
+"use strict";
+
+const crypto = require("crypto");
+const {
+  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, withHold, withSold, withoutHold, ticketCodeFrom, eventWhen,
+  TICKET_MESSAGES, MAX_EVENTS,
+} = require("./shared/eventTickets");
+const { waysOn } = require("./shared/waysToSell");
+
+/** How long an order's places are kept while the customer pays. */
+const HOLD_MINUTES = 10;
+/** The card page's own end (Stripe's shortest is 30 minutes); the sweep closes it when the hold runs out. */
+const PAGE_MINUTES = 31;
+const MINUTE = 60_000;
+/** How many coming events the shop's page lists. */
+const MAX_SHOWN = 50;
+const ID = /^[A-Za-z0-9_-]{6,40}$/;
+const KEY = /^[a-f0-9]{48}$/;
+const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PUBLIC_EVENT_ACTIONS = Object.freeze(["eventsInfo", "eventStart", "eventView"]);
+
+const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
+const hash = (key) => crypto.createHash("sha256").update(String(key)).digest("hex");
+const sameHash = (a, b) => typeof a === "string" && typeof b === "string" && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const fail = (res, status, error, code) => res.status(status).json({ error, ...(code ? { code } : {}) });
+const moneyWords = (minor, currency, locale = "en-CA") => new Intl.NumberFormat(locale, { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
+const french = (locale) => /^fr\b/i.test(String(locale || ""));
+
+/** The buyer's name and email, or the problem in plain words. */
+function cleanBuyer(body) {
+  const name = text(body?.name, 100);
+  const email = text(body?.email, 320).toLowerCase();
+  if (!name) return { problem: "Please add your name." };
+  if (!EMAIL.test(email)) return { problem: "Please add an email address we can send your tickets to." };
+  return { name, email };
+}
+
+// The fixed words of the ticket email, in the buyer's language (the page sends the browser's).
+const WORDS = {
+  en: {
+    subject: (n, title) => `Your ${n === 1 ? "ticket" : "tickets"}: ${title}`,
+    heading: (n) => (n === 1 ? "Your ticket" : "Your tickets"),
+    intro: (shop) => `Thank you. Here is what you need for the door, from ${shop}. Show each code when you arrive.`,
+    when: "When", where: "Where", online: "Join online", paid: "Paid", free: "Free", tax: "Includes tax", button: "See your tickets",
+    keep: "Keep this email: anyone with a code can use that ticket.",
+  },
+  fr: {
+    subject: (n, title) => `${n === 1 ? "Votre billet" : "Vos billets"} : ${title}`,
+    heading: (n) => (n === 1 ? "Votre billet" : "Vos billets"),
+    intro: (shop) => `Merci. Voici ce qu'il vous faut à l'entrée, de la part de ${shop}. Présentez chaque code à votre arrivée.`,
+    when: "Quand", where: "Où", online: "Participer en ligne", paid: "Payé", free: "Gratuit", tax: "Taxes incluses", button: "Voir vos billets",
+    keep: "Conservez ce courriel : toute personne ayant un code peut utiliser ce billet.",
+  },
+};
+
+/** What the shop's page may show of an event: never how many places it has in all, only what is left to buy now. */
+function publicEvent(event, places, nowMs, taxOf) {
+  const left = placesLeft(event, places, nowMs);
+  const open = salesOpen(event, nowMs);
+  return {
+    id: event.id, title: event.title, description: event.description, start: event.start, end: event.end, venue: event.venue,
+    address: event.address, photo: event.photo, online: !!event.onlineUrl, open, cancelled: event.status === "cancelled",
+    tickets: event.tickets.map((t) => ({
+      id: t.id, name: t.name, priceMinor: t.priceMinor, maxPerOrder: t.maxPerOrder, left: Math.min(left[t.id] ?? 0, t.maxPerOrder), soldOut: !(left[t.id] > 0),
+      ...(event.chargeTax && t.priceMinor > 0 && taxOf ? { taxMinor: taxOf(t.priceMinor)?.taxMinor || 0 } : {}),
+    })),
+  };
+}
+
+/** What the buyer's own page may see of their order (never payment ids or key hashes). */
+function publicOrder(id, o, event) {
+  const paid = o.status === "paid";
+  return {
+    id, status: o.status, eventId: o.eventId, title: o.eventTitle, start: o.start, end: o.end || "", venue: o.venue || "", address: o.address || "",
+    name: o.customer?.name || "", lines: o.lines || [], totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
+    holdUntil: o.status === "held" ? o.holdUntil || null : null,
+    // The codes and the online link only once the order is paid, and never for an event the shop called off.
+    tickets: paid ? o.tickets || [] : [],
+    onlineUrl: paid && event && event.status !== "cancelled" ? event.onlineUrl || "" : "",
+    eventCancelled: event?.status === "cancelled",
+  };
+}
+
+function eventActions({
+  db, requireAdmin, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", zone, currency,
+  sendEmail = async () => {}, emailBrand = async () => ({}), claimEmailSend = async () => true, ownerEmail = () => "",
+  escapeHtml, risoLayout, risoButton, now = () => new Date(),
+  randomId = () => crypto.randomBytes(12).toString("base64url").replace(/[^A-Za-z0-9]/g, "").slice(0, 16).padEnd(8, "0"),
+  randomKey = () => crypto.randomBytes(24).toString("hex"),
+  randomCode = () => ticketCodeFrom(crypto.randomBytes(8)),
+  // Sales tax on tickets (index.js, the same as Bookings): async () → (amountMinor) → { taxMinor, taxLines }, or null.
+  shopTax = null,
+}) {
+  const events = () => db.collection("events");
+  const orders = () => db.collection("eventOrders");
+  const placesRef = (eventId) => db.collection("eventPlaces").doc(eventId);
+
+  /** Both switches: the platform lets this shop sell tickets, and the owner turned it on. */
+  async function featureOn() {
+    const [features, start] = await Promise.all([
+      db.collection("platform").doc("features").get().catch(() => null),
+      db.collection("firstWeek").doc("start").get().catch(() => null),
+    ]);
+    return waysOn(features?.exists ? features.data() : null, start?.exists ? start.data() : null).includes("events");
+  }
+  async function standalone() {
+    const mode = (await shopTestMode()) ? "test" : "live";
+    return { mode, checkout: await payments.standaloneCheckout(mode) };
+  }
+  async function taxCalc(event) {
+    return event?.chargeTax && shopTax ? await shopTax().catch(() => null) : null;
+  }
+  async function readEvents() {
+    const snap = await events().limit(MAX_EVENTS).get();
+    return snap.docs.map((d) => cleanEvent(d.data(), d.id)).filter((e) => !e.problem).sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
+  }
+  async function readEvent(id) {
+    if (!ID.test(String(id || ""))) return null;
+    const snap = await events().doc(id).get();
+    const event = snap.exists ? cleanEvent(snap.data(), id) : null;
+    return event && !event.problem ? event : null;
+  }
+  const readPlaces = async (eventId) => { const snap = await placesRef(eventId).get(); return snap.exists ? snap.data() : null; };
+  // The places record as written: the counts from the shared rules, the money taken so far, and when.
+  const placesDoc = (before, next, extra = {}) => ({ sold: next.sold || {}, held: next.held || {}, paidMinor: before?.paidMinor || 0, orders: before?.orders || 0, ...extra, updatedAt: now().toISOString() });
+  const newTickets = (lines) => lines.flatMap((l) => Array.from({ length: l.qty }, () => ({ code: randomCode(), ticketId: l.ticketId, name: l.name })));
+  const keyFits = (o, key) => KEY.test(String(key || "")) && (o.keyHashes || []).some((h) => sameHash(h, hash(key)));
+  const orderUrl = (id, key) => siteLink(`/events?order=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
+
+  /** Emails a paid order's tickets to the buyer (and tells the owner, the first time). Never throws. */
+  async function tellTickets(id, o, key, { toOwner = true } = {}) {
+    try {
+      const to = o.customer?.email;
+      if (!to || !EMAIL.test(to)) return false;
+      const fr = french(o.locale);
+      const say = fr ? WORDS.fr : WORDS.en;
+      const locale = fr ? "fr-CA" : "en-CA";
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const layout = { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop };
+      const tickets = o.tickets || [];
+      const event = await readEvent(o.eventId);
+      const where = [o.venue, o.address].filter(Boolean).join(", ");
+      const rows = tickets.map((t) => `<tr><td style="padding:6px 12px 6px 0;">${escapeHtml(t.name)}</td><td style="padding:6px 0;font-family:monospace;font-size:18px;letter-spacing:1px;"><strong>${escapeHtml(t.code)}</strong></td></tr>`).join("");
+      await sendEmail({
+        to,
+        subject: say.subject(tickets.length, o.eventTitle),
+        html: risoLayout(`
+          <h4 style="margin:0 0 8px;">${say.heading(tickets.length)}</h4>
+          <h2 style="margin:0 0 12px;">${escapeHtml(o.eventTitle)}</h2>
+          <p style="margin:0 0 16px;">${escapeHtml(say.intro(shop))}</p>
+          <p style="margin:0 0 4px;"><strong>${say.when}:</strong> ${escapeHtml(eventWhen(o.start, zone(), locale))}</p>
+          ${where ? `<p style="margin:0 0 4px;"><strong>${say.where}:</strong> ${escapeHtml(where)}</p>` : ""}
+          ${event?.onlineUrl && event.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>${say.online}:</strong> <a href="${escapeHtml(event.onlineUrl)}">${escapeHtml(event.onlineUrl)}</a></p>` : ""}
+          <p style="margin:0 0 4px;"><strong>${say.paid}:</strong> ${o.chargedMinor > 0 ? escapeHtml(moneyWords(o.chargedMinor, o.currency, locale)) : say.free}</p>
+          ${o.taxMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.tax}:</strong> ${escapeHtml(moneyWords(o.taxMinor, o.currency, locale))}</p>` : ""}
+          <table role="presentation" style="margin:16px 0;border-collapse:collapse;">${rows}</table>
+          <p style="margin:0 0 16px;">${say.keep}</p>
+          ${key ? risoButton(escapeHtml(orderUrl(id, key)), say.button, brand.accent, brand.theme) : ""}
+        `, layout),
+      });
+      const owner = toOwner ? ownerEmail() : "";
+      if (owner) {
+        await sendEmail({
+          to: owner,
+          subject: `[TICKETS] ${o.customer?.name || "A customer"}: ${tickets.length} for ${o.eventTitle}`,
+          html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(o.customer?.name || "")}: ${tickets.length} ${tickets.length === 1 ? "ticket" : "tickets"} for ${escapeHtml(o.eventTitle)}</h2>
+            <p style="margin:0 0 4px;">${escapeHtml(o.customer?.email || "")} · ${escapeHtml((o.lines || []).map((l) => `${l.qty} × ${l.name}`).join(", "))} · ${o.chargedMinor > 0 ? escapeHtml(moneyWords(o.chargedMinor, o.currency)) : "free"}</p>
+            ${risoButton(escapeHtml(siteLink("/admin#events")), "Open Events", brand.accent, brand.theme)}`, layout),
+        });
+      }
+      return true;
+    } catch (err) {
+      console.warn("events: the ticket email failed:", err?.message || err);
+      return false;
+    }
+  }
+
+  /**
+   * Marks a held order paid, once: its hold becomes sold tickets, each ticket gets its code, and the email goes out.
+   * Safe when the hold already ran out (the money was taken, so the tickets are honoured).
+   */
+  async function confirmPaid(id, o, { session = "", paymentIntent = null } = {}) {
+    const at = now().toISOString();
+    const tickets = newTickets(o.lines || []);
+    const changes = {
+      status: "paid", paidAt: at, paidSession: session || null, paymentIntent, holdUntil: null, updatedAt: at, pendingKey: null,
+      tickets, ticketCodes: tickets.map((t) => t.code),
+    };
+    const done = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(orders().doc(id));
+      // A hold the sweep let go a moment ago is still honoured when the page turns out paid.
+      if (!fresh.exists || !["held", "cancelled"].includes(fresh.data()?.status) || fresh.data()?.paidAt) return false;
+      const pSnap = await tx.get(placesRef(o.eventId));
+      const before = pSnap.exists ? pSnap.data() : null;
+      tx.set(placesRef(o.eventId), placesDoc(before, withSold(before, id, o.lines || []), { paidMinor: (before?.paidMinor || 0) + (o.chargedMinor || 0), orders: (before?.orders || 0) + 1 }));
+      tx.set(orders().doc(id), changes, { merge: true });
+      return true;
+    });
+    if (!done) return { ...o, ...((await orders().doc(id).get()).data() || {}) };
+    const next = { ...o, ...changes };
+    await tellTickets(id, next, o.pendingKey || "");
+    return next;
+  }
+
+  /** Reads a held order's card pages; the first one paid for the order's exact amount confirms it. */
+  async function refreshOrder(id, o, checkout) {
+    if (o.status !== "held" || !checkout) return o;
+    for (const sid of (o.sessions || []).slice(-5)) {
+      if (!SESSION_ID.test(sid)) continue;
+      const session = await checkout.read(sid).catch(() => null);
+      if (!session || (session.metadata?.eventOrder && session.metadata.eventOrder !== id) || session.payment_status !== "paid") continue;
+      if (Number.isFinite(session.amount_total) && session.amount_total !== o.chargedMinor) continue;
+      return confirmPaid(id, o, { session: sid, paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null });
+    }
+    return o;
+  }
+
+  /** Lets an unpaid order go: its places are free again and it is kept as cancelled (no email: nothing was bought). */
+  async function freeOrder(id, o, why) {
+    const at = now().toISOString();
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(orders().doc(id));
+      if (!fresh.exists || fresh.data()?.status !== "held") return;
+      const pSnap = await tx.get(placesRef(o.eventId));
+      const before = pSnap.exists ? pSnap.data() : null;
+      tx.set(placesRef(o.eventId), placesDoc(before, withoutHold(before, id, now().getTime())));
+      tx.set(orders().doc(id), { status: "cancelled", cancelledAt: at, cancelledBy: why, holdUntil: null, pendingKey: null, updatedAt: at }, { merge: true });
+    });
+  }
+
+  /** Confirms paid holds nobody came back to, and frees the ones whose time ran out unpaid. Runs whatever the switches say. */
+  async function sweep() {
+    const snap = await orders().where("status", "==", "held").limit(100).get();
+    if (snap.empty) return { confirmed: 0, freed: 0 };
+    const { checkout } = await standalone();
+    let confirmed = 0;
+    let freed = 0;
+    for (const doc of snap.docs) {
+      let o = await refreshOrder(doc.id, doc.data(), checkout);
+      if (o.status === "paid") { confirmed += 1; continue; }
+      if (Date.parse(o.holdUntil || "") > now().getTime()) continue;
+      // Close every page first, then read once more: a payment that landed just before the close still counts.
+      for (const sid of o.sessions || []) if (SESSION_ID.test(sid)) await checkout?.close(sid).catch(() => {});
+      o = await refreshOrder(doc.id, o, checkout);
+      if (o.status === "paid") { confirmed += 1; continue; }
+      await freeOrder(doc.id, o, "not paid in time");
+      freed += 1;
+    }
+    return { confirmed, freed };
+  }
+
+  // ── Customers (validateDiscountCode actions; no sign-in) ───────────────────────────────────────────────────────
+
+  async function handlePublic(req, res) {
+    const action = req.body?.action;
+    res.set("Cache-Control", "private, no-store");
+    if (!(await hitLimit(db, "event", req, LIMITS.event))) return fail(res, 429, "Too many tries. Please wait a few minutes and try again.");
+    try {
+      const nowMs = now().getTime();
+      if (action === "eventView") {
+        // The buyer's own page works even after the shop stops selling tickets: what was bought stays theirs.
+        const id = String(req.body?.orderId || "");
+        const snap = ID.test(id) ? await orders().doc(id).get() : null;
+        if (!snap?.exists || !keyFits(snap.data(), req.body?.key)) return fail(res, 404, "We couldn't find those tickets. Check the link in your email.", "not_found");
+        const o = await refreshOrder(id, snap.data(), snap.data().status === "held" ? (await standalone()).checkout : null);
+        return res.status(200).json({ order: publicOrder(id, o, await readEvent(o.eventId)), zone: zone() });
+      }
+      if (!(await featureOn())) return res.status(200).json({ on: false });
+      if (action === "eventsInfo") {
+        // Live events that haven't ended (one with no end shows until a few hours after it starts).
+        const coming = (await readEvents()).filter((e) => e.status === "live" && (Date.parse(e.end || "") || Date.parse(e.start) + 4 * 60 * MINUTE) > nowMs).slice(0, MAX_SHOWN);
+        const calc = coming.some((e) => e.chargeTax) && shopTax ? await shopTax().catch(() => null) : null;
+        const places = await Promise.all(coming.map((e) => readPlaces(e.id)));
+        return res.status(200).json({ on: true, zone: zone(), currency: currency(), events: coming.map((e, i) => publicEvent(e, places[i], nowMs, calc)) });
+      }
+      if (action === "eventStart") {
+        const eventId = String(req.body?.eventId || "");
+        if (!ID.test(eventId)) return fail(res, 404, TICKET_MESSAGES.closed, "closed");
+        const buyer = cleanBuyer(req.body);
+        if (buyer.problem) return fail(res, 400, buyer.problem);
+        const seen = await readEvent(eventId);
+        if (!seen || !salesOpen(seen, nowMs)) return fail(res, 409, TICKET_MESSAGES.closed, "closed");
+        const calc = await taxCalc(seen);
+        const { checkout, mode } = await standalone();
+        const id = randomId();
+        const key = randomKey();
+        const at = new Date(nowMs).toISOString();
+        const holdUntil = new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString();
+        // A free order sends an email nobody paid for, so it takes from the shop's email budget first.
+        const asked = orderLines(seen, req.body?.tickets, placesLeft(seen, await readPlaces(eventId), nowMs));
+        if (asked.problem) return fail(res, 409, asked.problem, "tickets");
+        if (asked.totalMinor === 0 && !(await claimEmailSend(db, "eventEmail", buyer.email))) return fail(res, 429, "Too many tries. Please wait a while and try again.");
+        if (asked.totalMinor > 0 && !checkout) return fail(res, 409, "This shop can't take card payments for tickets yet. Please contact the shop.", "not_available");
+        // The event and its places are read again inside the transaction: what is written is what was free then.
+        const made = await db.runTransaction(async (tx) => {
+          const eSnap = await tx.get(events().doc(eventId));
+          const event = eSnap.exists ? cleanEvent(eSnap.data(), eventId) : null;
+          if (!event || event.problem || !salesOpen(event, nowMs)) return { problem: TICKET_MESSAGES.closed, code: "closed" };
+          const pSnap = await tx.get(placesRef(eventId));
+          const before = pSnap.exists ? pSnap.data() : null;
+          const order = orderLines(event, req.body?.tickets, placesLeft(event, before, nowMs));
+          if (order.problem) return { problem: order.problem, code: "tickets" };
+          const tax = event.chargeTax && calc && order.totalMinor > 0 ? calc(order.totalMinor) : null;
+          const taxMinor = tax?.taxMinor > 0 ? tax.taxMinor : 0;
+          const free = order.totalMinor === 0;
+          const tickets = free ? newTickets(order.lines) : [];
+          const record = {
+            eventId, eventTitle: event.title, start: event.start, end: event.end, venue: event.venue, address: event.address,
+            customer: buyer, locale: french(req.body?.locale) ? "fr" : "en", lines: order.lines, ticketCount: order.tickets, totalMinor: order.totalMinor,
+            ...(taxMinor ? { taxMinor, taxLines: Array.isArray(tax.taxLines) ? tax.taxLines : [] } : {}),
+            chargedMinor: order.totalMinor + taxMinor, currency: currency(), mode, keyHashes: [hash(key)], sessions: [], createdAt: at, updatedAt: at,
+            ...(free
+              ? { status: "paid", paidAt: at, holdUntil: null, tickets, ticketCodes: tickets.map((t) => t.code) }
+              : { status: "held", holdUntil, pendingKey: key }),
+          };
+          const cleared = withoutHold(before, "", nowMs);
+          tx.set(placesRef(eventId), free
+            ? placesDoc(before, withSold(cleared, id, order.lines), { orders: (before?.orders || 0) + 1 })
+            : placesDoc(before, withHold(cleared, id, order.lines, holdUntil)));
+          tx.set(orders().doc(id), record);
+          return { record, free };
+        });
+        if (made.problem) return fail(res, 409, made.problem, made.code);
+        if (made.free) {
+          await tellTickets(id, made.record, key);
+          return res.status(200).json({ orderId: id, key, paid: true });
+        }
+        const o = made.record;
+        const description = `${shopName() ? `${shopName()}: ` : ""}${o.eventTitle}, ${o.lines.map((l) => `${l.qty} × ${l.name}`).join(", ")}`.slice(0, 250);
+        const metadata = { eventOrder: id };
+        let session;
+        try {
+          session = await checkout.open({
+            customer_email: buyer.email, metadata, mode: "payment", expires_at: Math.floor(nowMs / 1000) + PAGE_MINUTES * 60,
+            success_url: orderUrl(id, key),
+            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: o.chargedMinor, product_data: { name: description } } }],
+            payment_intent_data: { description, metadata },
+          }, `event-order-${id}`);
+        } catch (err) {
+          await freeOrder(id, o, "the card page didn't open");
+          if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+          if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments for tickets yet. Please contact the shop.", "not_available");
+          throw err;
+        }
+        await orders().doc(id).set({ sessions: [session.id] }, { merge: true });
+        return res.status(200).json({ url: session.url, orderId: id, holdUntil });
+      }
+      return fail(res, 400, "Unknown request.");
+    } catch (err) {
+      console.error("events: a customer action failed:", err?.message || err);
+      return fail(res, 500, "Something went wrong on our side. Please try again in a moment.");
+    }
+  }
+
+  // ── The owner (createStripeCheckoutSession action "eventsAdmin") ──────────────────────────────────────────────
+
+  /** An event as the admin lists it: what was made, plus tickets sold and money taken. */
+  function adminEvent(event, places, nowMs) {
+    const sold = soldCount(event, places);
+    const left = placesLeft(event, places, nowMs);
+    return { ...event, sold: sold.byKind, soldTotal: sold.total, placesTotal: sold.places, left, paidMinor: places?.paidMinor || 0, orders: places?.orders || 0 };
+  }
+  const adminOrder = (id, o) => ({
+    id, status: o.status, eventId: o.eventId, name: o.customer?.name || "", email: o.customer?.email || "", lines: o.lines || [], ticketCount: o.ticketCount || 0,
+    totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency, tickets: o.tickets || [],
+    createdAt: o.createdAt || "", paidAt: o.paidAt || "", test: o.mode === "test",
+  });
+
+  async function handleAdmin(req, res) {
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+    const op = req.body?.op;
+    const by = adminUser.email || "admin";
+    try {
+      if (!(await featureOn())) return fail(res, 403, "Events aren't turned on for this shop.", "off");
+      const nowMs = now().getTime();
+      if (op === "list") {
+        const list = await readEvents();
+        const places = await Promise.all(list.map((e) => readPlaces(e.id)));
+        return res.status(200).json({ zone: zone(), currency: currency(), events: list.map((e, i) => adminEvent(e, places[i], nowMs)) });
+      }
+      if (op === "saveEvent") {
+        const id = ID.test(String(req.body?.event?.id || "")) ? req.body.event.id : randomId();
+        const event = cleanEvent(req.body?.event, id);
+        if (event.problem) return fail(res, 400, event.problem);
+        const existing = await events().limit(MAX_EVENTS + 1).get();
+        const isNew = !existing.docs.some((d) => d.id === id);
+        if (isNew && existing.docs.length >= MAX_EVENTS) return fail(res, 400, `A shop can have up to ${MAX_EVENTS} events. Delete an old one first.`);
+        // Tickets already sold stay sold: a kind can't go, and can't have fewer places than were bought.
+        const places = isNew ? null : await readPlaces(id);
+        for (const [kindId, n] of Object.entries(places?.sold || {})) {
+          if (!(n > 0)) continue;
+          const kind = event.tickets.find((t) => t.id === kindId);
+          if (!kind) return fail(res, 409, "A ticket that people have bought can't be removed. Set its places to what was sold to stop selling it.", "sold");
+          if (kind.places < n) return fail(res, 409, `${n} "${kind.name}" ${n === 1 ? "ticket is" : "tickets are"} already sold, so it needs at least ${n} ${n === 1 ? "place" : "places"}.`, "sold");
+        }
+        await events().doc(id).set({ ...event, updatedAt: now().toISOString(), updatedBy: by });
+        return res.status(200).json({ ok: true, event: adminEvent(event, places, nowMs) });
+      }
+      if (op === "deleteEvent") {
+        const id = String(req.body?.id || "");
+        const event = await readEvent(id);
+        if (!event) return res.status(200).json({ ok: true });
+        const places = await readPlaces(id);
+        const stillPaying = Object.values(places?.held || {}).some((h) => Date.parse(h?.until || "") > nowMs);
+        if (soldCount(event, places).total > 0 || stillPaying) return fail(res, 409, "People have tickets for this event, so it can't be deleted. Mark it cancelled instead.", "sold");
+        await events().doc(id).delete();
+        await placesRef(id).delete();
+        return res.status(200).json({ ok: true });
+      }
+      if (op === "orders") {
+        // Who is coming: the paid orders of one event, newest first.
+        const eventId = String(req.body?.eventId || "");
+        if (!ID.test(eventId)) return fail(res, 400, "Unknown event.");
+        const snap = await orders().where("eventId", "==", eventId).limit(1000).get();
+        const list = snap.docs.map((d) => adminOrder(d.id, d.data())).filter((o) => o.status === "paid").sort((a, b) => String(b.paidAt).localeCompare(String(a.paidAt)));
+        return res.status(200).json({ orders: list });
+      }
+      if (op === "resendTickets") {
+        const id = String(req.body?.orderId || "");
+        const snap = ID.test(id) ? await orders().doc(id).get() : null;
+        if (!snap?.exists || snap.data().status !== "paid") return fail(res, 404, "That order has no tickets to send.");
+        // A fresh link for this email; the last five keys keep working.
+        const key = randomKey();
+        await orders().doc(id).set({ keyHashes: [...(snap.data().keyHashes || []), hash(key)].slice(-5), updatedAt: now().toISOString() }, { merge: true });
+        const sent = await tellTickets(id, snap.data(), key, { toOwner: false });
+        if (!sent) return fail(res, 502, "The email didn't go out. Check Settings › Notifications and try again.");
+        return res.status(200).json({ ok: true });
+      }
+      return fail(res, 400, "Unknown request.");
+    } catch (err) {
+      console.error("events: an owner action failed:", err?.message || err);
+      return fail(res, 500, err?.message || "Something went wrong.");
+    }
+  }
+
+  return { handlePublic, handleAdmin, sweep, featureOn };
+}
+
+module.exports = { eventActions, PUBLIC_EVENT_ACTIONS, HOLD_MINUTES, publicEvent, publicOrder };

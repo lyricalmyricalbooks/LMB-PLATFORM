@@ -3,7 +3,7 @@ import { MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, menuItemFor, navPages, side
 
 describe("admin navigation", () => {
   it("lists the primary modules in order", () => {
-    expect(NAV.map((n) => n.id)).toEqual(["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "bookings", "takePayment", "channels", "socialPosts", "design", "settings"]);
+    expect(NAV.map((n) => n.id)).toEqual(["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "bookings", "takePayment", "events", "channels", "socialPosts", "design", "settings"]);
   });
 
   it("has unique ids across modules and settings children", () => {
@@ -45,7 +45,7 @@ describe("the five-item admin menu (plan 1.27)", () => {
 
   it("lists an item's pages under it with their own names", () => {
     const orders = items.find((i) => i.label === "Orders")!;
-    expect(orders.children?.map((c) => c.label)).toEqual(["Orders", "Bookings", "Take a payment", "Customers", "Discounts", "Gift cards", "Social posts", "Messages"]);
+    expect(orders.children?.map((c) => c.label)).toEqual(["Orders", "Bookings", "Take a payment", "Events", "Customers", "Discounts", "Gift cards", "Social posts", "Messages"]);
     expect(items.find((i) => i.label === "Books")!.children?.map((c) => c.label)).toEqual(["Books", "Inventory", "Reviews", "Sales channels"]);
     const settings = items.find((i) => i.label === "Settings")!;
     expect(settings.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "notifications", "google", "apps", "team", "security", "plan", "billing"].map((id) => SETTINGS_ITEM_PREFIX + id));
@@ -83,5 +83,19 @@ describe("Settings in groups (redesign)", () => {
     const { settingsSections } = await import("./nav");
     const groups = settingsSections([{ id: SETTINGS_ITEM_PREFIX + "security", label: "Security" }, { id: SETTINGS_ITEM_PREFIX + "new", label: "New" }]);
     expect(groups).toEqual([{ label: "Safety", pages: [{ id: SETTINGS_ITEM_PREFIX + "security", label: "Security" }, { id: SETTINGS_ITEM_PREFIX + "new", label: "New" }] }]);
+  });
+});
+
+describe("Events in the menu (beta)", () => {
+  it("is marked Beta wherever it shows, and leaves with its switch", async () => {
+    const { WEBSITE_SIDE, SERVICES_MENU, withoutPages } = await import("./nav");
+    const own = sidebarItems(NAV, WEBSITE_SIDE).find((i) => i.id === "events")!;
+    expect(own).toMatchObject({ label: "Events", tag: "Beta" });
+    const underOrders = sidebarItems(NAV).find((i) => i.label === "Orders")!.children!.find((c) => c.id === "events")!;
+    expect(underOrders.tag).toBe("Beta");
+    expect(sidebarItems(NAV, SERVICES_MENU).some((i) => i.id === "events")).toBe(true);
+    const hidden = withoutPages(sidebarItems(NAV, WEBSITE_SIDE), new Set(["events"]));
+    expect(hidden.some((i) => i.id === "events")).toBe(false);
+    expect(withoutPages(sidebarItems(NAV), new Set(["events"])).find((i) => i.label === "Orders")!.children!.some((c) => c.id === "events")).toBe(false);
   });
 });

@@ -160,6 +160,7 @@ const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
 const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
 const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
+const { PUBLIC_EVENT_ACTIONS } = require("./events");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
@@ -1941,6 +1942,20 @@ const { handlePaymentLink, handleCustomerAddOn } = paymentLinkActions({ db, requ
 const { handleInvoicePay, handleInvoicePayOpen } = require("./invoicePay").invoicePayActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
 });
+// Sales tax on something done or held at the shop (a service, an event's tickets): the shop's own rate for where it
+// is, from Settings › Taxes. Null when the shop collects none.
+async function serviceTax() {
+  const settings = (await db.collection("settings").doc("website").get()).data() || {};
+  if (!taxCollectionOn(settings)) return null;
+  const place = settings.location || {};
+  const general = (settings.taxes?.rates || []).filter(rate => !(Array.isArray(rate?.kinds) && rate.kinds.length));
+  const rate = matchTaxRate(general, place.country, place.state);
+  if (!rate || !(Number(rate.rate) > 0)) return null;
+  return amountMinor => {
+    const taxLines = taxLinesFor([{ rate, amount: (amountMinor / 100) * (Number(rate.rate) / 100) }]);
+    return { taxMinor: taxLines.reduce((sum, line) => sum + line.cents, 0), taxLines };
+  };
+}
 // Bookings (beta, bookings.js): customers book a time from /book; off until the platform turns it on for the shop.
 const bookingDesk = require("./bookings").bookingActions({
   // Text-message reminders through the platform (PLATFORM_TEXTS_URL), billed to the shop at cost; none without the door.
@@ -1961,18 +1976,20 @@ const bookingDesk = require("./bookings").bookingActions({
   // Rebook reminders are marketing mail: the same opt-out list and one-click unsubscribe as review requests.
   optedOut: async email => (await db.collection("marketing-optout").doc(optOutId(email)).get()).exists,
   unsubscribeUrl: async email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, await marketingUnsubscribeKey())}`),
-  shopTax: async () => {
-    const settings = (await db.collection("settings").doc("website").get()).data() || {};
-    if (!taxCollectionOn(settings)) return null;
-    const place = settings.location || {};
-    const general = (settings.taxes?.rates || []).filter(rate => !(Array.isArray(rate?.kinds) && rate.kinds.length));
-    const rate = matchTaxRate(general, place.country, place.state);
-    if (!rate || !(Number(rate.rate) > 0)) return null;
-    return amountMinor => {
-      const taxLines = taxLinesFor([{ rate, amount: (amountMinor / 100) * (Number(rate.rate) / 100) }]);
-      return { taxMinor: taxLines.reduce((sum, line) => sum + line.cents, 0), taxLines };
-    };
+  shopTax: () => serviceTax(),
+  emailBrand: async () => {
+    const settings = await loadNotificationSettings();
+    const brand = settings.brand || {};
+    return { logoUrl: brand.logoUrl || "", accent: brand.brandColor || "", theme: brand.emailTheme || "light", shopName: String(settings.shopName || shopConfig.senderName || "") };
   },
+});
+
+// Events and tickets (beta, events.js): shoppers buy tickets from /events; on only while the platform allows it for
+// the shop and the owner switched it on. Tax on tickets is worked out like tax on a service.
+const eventDesk = require("./events").eventActions({
+  db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
+  zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
+  escapeHtml, risoLayout, risoButton, shopTax: () => serviceTax(),
   emailBrand: async () => {
     const settings = await loadNotificationSettings();
     const brand = settings.brand || {};
@@ -2062,6 +2079,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   paymentLink: handlePaymentLink,
   invoicePay: handleInvoicePay,
   bookingsAdmin: (req, res) => bookingDesk.handleAdmin(req, res),
+  eventsAdmin: (req, res) => eventDesk.handleAdmin(req, res),
   invoicePayOpen: handleInvoicePayOpen,
   addToOrder: handleCustomerAddOn,
   privacyRequest: handlePrivacyRequest,
@@ -4379,6 +4397,8 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   if (req.body?.action === "clientError") return handleClientError(req, res);
   // Bookings (beta): the Book a time page's own actions (bookings.js, rate limited there).
   if (typeof req.body?.action === "string" && PUBLIC_BOOKING_ACTIONS.includes(req.body.action)) return bookingDesk.handlePublic(req, res);
+  // Events and tickets (beta): the events page's own actions (events.js, rate limited there).
+  if (typeof req.body?.action === "string" && PUBLIC_EVENT_ACTIONS.includes(req.body.action)) return eventDesk.handlePublic(req, res);
 
   // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
   // the server will charge. Customer lists and usage counts stay private.
@@ -4786,6 +4806,9 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   if (thanks.thanked) console.log(`bookingSweep: ${thanks.thanked} thank-you emails sent`);
   const rebook = await bookingDesk.sweepRebook();
   if (rebook.reminded) console.log(`bookingSweep: ${rebook.reminded} rebook reminders sent`);
+  // Ticket orders (events.js) share this run: a paid hold is confirmed, an unpaid one frees its places.
+  const tickets = await eventDesk.sweep().catch(err => { console.warn("bookingSweep: the ticket orders sweep failed:", err?.message || err); return {}; });
+  if (tickets.confirmed || tickets.freed) console.log(`bookingSweep: ${tickets.confirmed} ticket orders confirmed, ${tickets.freed} freed`);
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

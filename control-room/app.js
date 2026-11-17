@@ -3661,6 +3661,7 @@ function waysBetaSection(shop) {
       !w.built && !w.on ? pill("neutral", "not built yet") : w.on ? pill("success", "on") : pill("neutral", "off"),
       w.asked ? pill("info", "asked for at sign-up") : null,
       w.built || w.on ? flipOf(w) : null,
+      w.use && w.id === "events" ? meta(`${w.use.events} ${w.use.events === 1 ? "event" : "events"}`, `${w.use.coming} coming`, `${w.use.ticketsSold} ${w.use.ticketsSold === 1 ? "ticket" : "tickets"} sold`) : null,
       w.on ? meta(w.ownerOn ? "owner switched it on" : "owner hasn't switched it on yet", w.changedAt ? `turned on ${dateOnly(w.changedAt)}${w.changedBy ? ` by ${w.changedBy}` : ""}` : null) : null)));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   show();

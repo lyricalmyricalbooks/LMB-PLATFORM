@@ -54,6 +54,10 @@ export const TOUR_STEPS: TourStep[] = [
   { id: "bookings", chapter: "website", combinedOnly: true, target: { nav: "bookings" },
     title: "Bookings",
     text: "Times customers book with you. Set what they can book and your hours, then switch Bookings on or off whenever you like." },
+  // Only in a shop with Events switched on (beta; the menu item is hidden otherwise, and its stop with it).
+  { id: "events", chapter: "website", combinedOnly: true, target: { nav: "events" },
+    title: "Events",
+    text: "Readings, launches and workshops. Add an event, set its tickets, and see who is coming." },
   { id: "messages", chapter: "website", target: { nav: "messages" },
     title: "Messages",
     text: "Notes shoppers send from your contact form. Reply here and your answer goes by email." },

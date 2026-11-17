@@ -26,6 +26,21 @@ import { WAYS, waysIn } from "../shared/ways/ways.js";
 /** Where the owner's own switches are kept (Settings › General › Ways to sell). */
 export const START_DOC = "firstWeek/start";
 
+/** How a shop uses Events: its events, how many are still to come, and tickets sold (eventPlaces/{eventId}.sold). */
+export function eventsUse(events, places, nowMs) {
+  const live = events.filter((e) => e && e.status !== "cancelled");
+  const count = (sold) => Object.values(sold ?? {}).reduce((sum, n) => sum + (Number.isFinite(n) && n > 0 ? n : 0), 0);
+  return {
+    events: events.length,
+    coming: live.filter((e) => Date.parse(e.start) > nowMs).length,
+    onSale: live.filter((e) => e.status === "live" && Date.parse(e.start) > nowMs).length,
+    ticketsSold: places.reduce((sum, p) => sum + count(p?.sold), 0),
+    paidMinor: places.reduce((sum, p) => sum + (Number.isFinite(p?.paidMinor) && p.paidMinor > 0 ? p.paidMinor : 0), 0),
+  };
+}
+/** The most events read for the use line (the shop's own cap, apps/shop/src/shared/eventTickets.ts MAX_EVENTS). */
+const MAX_EVENTS = 200;
+
 export function createWaysBeta({ admins, registry, auditLog, shopData, activity = null, ways = WAYS, now = () => new Date() }) {
   const at = () => now().toISOString();
   const ids = ways.map((way) => way.id);
@@ -65,11 +80,20 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
         const owner = onIn(start?.ways);
         const asked = Array.isArray(start?.alsoSells) ? start.alsoSells : [];
         const allowed = onIn(features.ways);
+        // How the shop uses what it has. A use that can't be read is left out: the switches still show.
+        const use = {};
+        if (allowed.includes("events") && shopData.find) {
+          try {
+            const [events, places] = await Promise.all(["events", "eventPlaces"].map((name) => shopData.find(shopId, name, { limit: MAX_EVENTS })));
+            use.events = eventsUse(events.map((d) => d.data), places.map((d) => d.data), now().getTime());
+          } catch { /* the line is left out */ }
+        }
         return {
           shopId,
           ways: ways.map((way) => ({
             id: way.id, label: way.label, built: way.built === true, on: allowed.includes(way.id), ownerOn: allowed.includes(way.id) && owner.includes(way.id), asked: asked.includes(way.id),
             changedAt: features.waysChanged?.[way.id]?.at ?? null, changedBy: features.waysChanged?.[way.id]?.by ?? null,
+            use: use[way.id] ?? null,
           })),
         };
       } catch (failure) {

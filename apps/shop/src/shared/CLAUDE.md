@@ -101,3 +101,7 @@ browsers may write (mirroring `firestore.rules`).
   profile's `timeZone`, the server `shopConfig.timeZone` (`SHOP_TIME_ZONE`) through `setShopTimeZoneSource` in
   `functions/shopConfig.js`. Never write "America/Toronto" for a shop's day (`functions/shopTimeZone.test.js` counts them).
   Still Eastern: the scheduled jobs' timetables (one server, one timetable).
+- Events and tickets (beta, 17 November 2026): `eventTickets.ts` is the one copy of what an event and a ticket kind are
+  (`cleanEvent`), when sales are open (`salesOpen`), places taken and left with holds (`placesLeft`, `withHold`,
+  `withSold`, `withoutHold`), an order's lines (`orderLines`), ticket codes and `eventWhen` (always given the shop's
+  zone). `eventTickets.test.ts` runs every rule against the shop's copy and the server's.
