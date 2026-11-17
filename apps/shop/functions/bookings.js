@@ -975,7 +975,8 @@ function bookingActions({
 
   /**
    * "Cancel this and the later visits" on a standing appointment: the run's later visits still on are cancelled too.
-   * A visit something was paid on by card since (the rest, a tip) is left for the shop to refund on its own (`skipped`).
+   * A visit something was paid on since (by card, the rest, a tip, or marked paid at the shop) is left for the shop to
+   * refund or keep on its own (`skipped`).
    */
   async function cancelLater(id, b, by, at) {
     let cancelled = 0;
@@ -983,7 +984,7 @@ function bookingActions({
     for (const v of await runVisits(b)) {
       if (v.id === id || v.status !== "confirmed" || Date.parse(v.start) <= Date.parse(b.start)) continue;
       const { id: vid, ...vb } = v;
-      if (cardTaken(vb) > 0 || tipTaken(vb) > 0 || vb.readerOpen || vb.restOpen) { skipped += 1; continue; }
+      if (vb.paid || vb.depositPaid || cardTaken(vb) > 0 || tipTaken(vb) > 0 || vb.readerOpen || vb.restOpen) { skipped += 1; continue; }
       const written = await freeTime(vid, vb, { status: "cancelled", cancelledAt: at, cancelledBy: by, updatedAt: at,
         history: [...(vb.history || []), { at, what: "cancelled with the rest of the run", by }].slice(-20) });
       await syncCalendar(vid, { ...vb, ...written });

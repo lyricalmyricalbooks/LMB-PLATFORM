@@ -2776,6 +2776,16 @@ describe("standing appointments", () => {
     expect(t.emails.at(-2).html).toContain("2 later visits are cancelled too");
   });
 
+  test("a later visit already paid at the shop stays on when the run is cancelled", async () => {
+    const t = await runSetup();
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, run: RUN });
+    const visits = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.runVisits;
+    expect((await t.adm({ op: "paidAtShop", id: visits[2].id })).statusCode).toBe(200);
+    const x = await t.adm({ op: "cancel", id: visits[1].id, andLater: true });
+    expect(x.body).toMatchObject({ ok: true, laterCancelled: 1, laterSkipped: 1 });
+    expect(visits.map((v) => t.db.store.get(`bookings/${v.id}`).status)).toEqual(["confirmed", "cancelled", "confirmed", "cancelled"]);
+  });
+
   test("the shop books a run for any one-to-one service, paid at each visit, at any hour", async () => {
     const t = await runSetup();
     // Portfolio review is paid by card online, so clients can't book a run; the shop can.
