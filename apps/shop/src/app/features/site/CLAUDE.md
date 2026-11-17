@@ -973,6 +973,10 @@ the service's own). `bookingCode`/`bookingGiftCard` send `staffId`, and changing
 (region `bookingsEarlier`, words `bookTimeSooner*` — `bookTimeEarlier` is the calendar's back arrow). `/book?earlier=…&ekey=…`
 opens `EarlierOffer` (region `bookingsEarlierOffer`): the held time, the current one, Take the earlier time.
 
+**Form before the first visit (17 November 2026).** A booking with `form` shows `FirstVisitForm` (region `bookingsIntake`,
+required): the shop's words, its questions, a typed name and an agree tick; `formSigned` shows a one-line date. Words:
+Text & labels › Bookings page › Form before the first visit (`bookTimeForm*`). The Studio sample booking has a form.
+
 **Text me reminders on the booking page (17 November 2026).** When `bookingInfo.texts` is true, `BookTime.tsx` shows a tick
 box after the phone field (region `bookingsTexts`, words Text & labels › Bookings page `bookTimeTextOk`,
 `bookTimeTextOkHint`, `bookTimeTextOkNeedsPhone`, French twins); it is disabled until a phone is typed and is sent as

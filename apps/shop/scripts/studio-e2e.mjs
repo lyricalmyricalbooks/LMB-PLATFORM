@@ -2200,7 +2200,7 @@ await check("each person's own price and length show on the Book a time page and
   if (process.env.STUDIO_SHOTS) await people.screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-person-prices.png` });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 
-await check("a booked client can ask to hear of an earlier time, and the earlier-time link moves the booking", desktop, async page => {
+await check("a booked client can sign the form before the first visit, ask to hear of an earlier time, and take one from its link", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[data-store-region=bookingsService]").first().waitFor({ timeout: 15000 });
@@ -2217,6 +2217,15 @@ await check("a booked client can ask to hear of an earlier time, and the earlier
   await tick.waitFor({ timeout: 15000 });
   await tick.check();
   if (!(await tick.isChecked())) throw new Error("the earlier-time tick didn't stay on");
+  // The form before the first visit: the name and the tick are needed, then it shows as signed.
+  const form = frame.locator("[data-store-region=bookingsIntake]");
+  await form.getByRole("button", { name: "Sign" }).click();
+  await form.getByText("Type your name to sign.").waitFor({ timeout: 5000 });
+  await form.locator("#bt-f-name").fill("Sample Client");
+  await form.getByText("I've read this and agree").click();
+  if (process.env.STUDIO_SHOTS) await form.screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-form.png` });
+  await form.getByRole("button", { name: "Sign" }).click();
+  await frame.getByText(/^Form signed /).waitFor({ timeout: 10000 });
   if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsEarlier]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-earlier-tick.png` });
   // The link in the email: the earlier time, the booking it replaces, one button.
   await frame.locator("body").evaluate(() => { history.pushState({}, "", `/book?earlier=sample-booking&ekey=${"a".repeat(48)}`); dispatchEvent(new PopStateEvent("popstate")); });

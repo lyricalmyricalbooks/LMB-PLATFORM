@@ -336,6 +336,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", ...(b.pack && body.packBack !== false ? { pack: { ...b.pack, returned: true } } : {}) } : b));
     if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
     if (op === "packs") return { packs: packRows };
+    // The form before the first visit: the fixture's first client signed it.
+    if (op === "clientForm") {
+      const form = (settings as { intakeForm?: { on: boolean; title: string; text: string } }).intakeForm;
+      const first = rows[0]?.customer?.email;
+      return { asks: !!form?.on, form: form?.on && body.email === first ? { signedName: rows[0].customer.name, signedAt: "2026-11-10T15:00:00.000Z", title: form.title, text: form.text, answers: [{ label: "Allergies", answer: "None" }], current: true } : null };
+    }
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };

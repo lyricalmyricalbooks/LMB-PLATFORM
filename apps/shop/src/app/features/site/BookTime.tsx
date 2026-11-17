@@ -1059,6 +1059,65 @@ function CheckInCode({ code, c }: { code: string; c: Copy }) {
   );
 }
 
+/** The shop's form before the first visit: its words, its questions, a typed name and a tick. Signed once per client. */
+function FirstVisitForm({ form, id, manageKey, onSigned, c }: {
+  form: NonNullable<BookingView["form"]>; id: string; manageKey: string; onSigned: (b: BookingView) => void; c: Copy;
+}) {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [name, setName] = useState("");
+  const [agree, setAgree] = useState(false);
+  const [problems, setProblems] = useState<{ name?: string; agree?: string; answers?: Record<string, string> }>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const sign = async (e: FormEvent) => {
+    e.preventDefault();
+    const missing = Object.fromEntries(form.questions.filter((q) => q.required && !(answers[q.id] || "").trim()).map((q) => [q.id, c("bookTimeNeedAnswer")]));
+    const found = { ...(name.trim() ? {} : { name: c("bookTimeFormNeedName") }), ...(agree ? {} : { agree: c("bookTimeFormNeedAgree") }), ...(Object.keys(missing).length ? { answers: missing } : {}) };
+    setProblems(found);
+    if (Object.keys(found).length) return;
+    setBusy(true);
+    setError("");
+    try {
+      onSigned((await ask("bookingForm", { id, key: manageKey, signedName: name.trim(), agree: true, answers })).booking);
+    } catch (err: any) {
+      setError(err?.message || c("bookTimeError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form {...regionProps("bookingsIntake")} className="fm-track-card p-5 sm:p-8 space-y-5" onSubmit={(e) => void sign(e)} noValidate>
+      <div className="space-y-2">
+        <h2 className="fm-track-display text-3xl">{form.title}</h2>
+        <p className="text-sm leading-6 fm-muted">{c("bookTimeFormIntro")}</p>
+      </div>
+      {form.text && <div className="fm-book-form-text">{form.text}</div>}
+      {form.questions.map((q) => {
+        const qid = `bt-f-${q.id}`;
+        const problem = problems.answers?.[q.id];
+        const props = { id: qid, className: "fm-track-input", value: answers[q.id] || "", "aria-invalid": !!problem, "aria-required": q.required, "aria-describedby": problem ? `${qid}-err` : undefined };
+        return (
+          <Field key={q.id} id={qid} label={q.required ? q.label : `${q.label} ${c("bookTimeOptional")}`} problem={problem}>
+            {q.long
+              ? <textarea {...props} maxLength={1000} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
+              : <input {...props} maxLength={200} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />}
+          </Field>
+        );
+      })}
+      <Field id="bt-f-name" label={c("bookTimeFormName")} problem={problems.name}>
+        <input id="bt-f-name" className="fm-track-input" autoComplete="name" value={name} maxLength={100} aria-invalid={!!problems.name} aria-describedby={problems.name ? "bt-f-name-err" : undefined} onChange={(e) => { setName(e.target.value); setProblems((p) => ({ ...p, name: undefined })); }} />
+      </Field>
+      <label className="fm-book-extra">
+        <input type="checkbox" checked={agree} aria-invalid={!!problems.agree} onChange={(e) => { setAgree(e.target.checked); setProblems((p) => ({ ...p, agree: undefined })); }} />
+        <span>{c("bookTimeFormAgree")}</span>
+        {problems.agree && <span className="fm-book-error w-full" role="alert">{problems.agree}</span>}
+      </label>
+      {error && <div className="fm-track-notice" data-tone="danger" role="alert"><p>{error}</p></div>}
+      <button type="submit" className="fm-track-btn" disabled={busy}>{busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeFormSign")}</button>
+    </form>
+  );
+}
+
 /** An earlier time held for a booking: the time, the booking it would replace, and one button that moves it. */
 function EarlierOffer({ id, ekey, c }: { id: string; ekey: string; c: Copy }) {
   const [offer, setOffer] = useState<EarlierOfferView | null>(null);
@@ -1341,6 +1400,8 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
             </div>
           ) : <p className="text-sm leading-6 fm-muted">{c("bookTimeTooLate")}</p>}
           {booking.canChange && <p className="text-sm leading-6 fm-muted">{c("bookTimeCancelRule", { hours: booking.cancelHours })}</p>}
+          {booking.form && <FirstVisitForm form={booking.form} id={id} manageKey={manageKey} onSigned={setBooking} c={c} />}
+          {booking.formSigned && <p className="text-sm leading-6 fm-muted">{c("bookTimeFormSigned", { date: new Date(booking.formSigned).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) })}</p>}
           {booking.canEarlier && (
             <label {...regionProps("bookingsEarlier")} className="fm-book-extra fm-book-earlier">
               <input type="checkbox" checked={!!booking.earlier} disabled={busy} onChange={(e) => void wantEarlier(e.target.checked)} />
