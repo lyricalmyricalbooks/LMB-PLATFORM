@@ -1513,7 +1513,12 @@ function bookingActions({
     // within five minutes, is taken over.
     if (claimFor && !(await claimIntro(who, claimFor))) return service;
     // Priced extras the client ticked still cost what they cost on top of the first-visit price.
-    return { ...service, priceMinor: service.introPriceMinor + (service.extrasMinor || 0), intro: true };
+    const intro = { ...service, priceMinor: service.introPriceMinor + (service.extrasMinor || 0), intro: true };
+    // A percentage deposit of the lower price can fall under what a card page takes (0.50): ask for that much instead
+    // (never more than the price, which is itself at least 0.50), so the first visit can always be booked.
+    const deposit = depositOf(intro);
+    if (intro.payment === "deposit" && deposit > 0 && deposit < MIN_CARD_MINOR) return { ...intro, depositMinor: Math.min(intro.priceMinor, MIN_CARD_MINOR) };
+    return intro;
   }
   async function claimIntro(email, bookingId) {
     const ref = db.collection("bookingIntros").doc(hash(email));
@@ -1898,10 +1903,11 @@ function bookingActions({
         const { service } = asked;
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         try {
-          const priced = await codeFor(await introFor(service, email), req.body?.code, email);
+          const offered = await introFor(service, email);
+          const priced = await codeFor(offered, req.body?.code, email);
           const tax = await taxOn(service, priced.priceMinor);
           const total = priced.priceMinor + (tax?.taxMinor || 0);
-          return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: total, ...(tax ? { taxMinor: tax.taxMinor } : {}), payNowMinor: depositOf({ ...service, priceMinor: total }) });
+          return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: total, ...(tax ? { taxMinor: tax.taxMinor } : {}), payNowMinor: depositOf({ ...offered, priceMinor: total }) });
         } catch (err) {
           if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
           throw err;
@@ -2073,7 +2079,7 @@ function bookingActions({
         const tax = await taxOn(service, before);
         const price = before + (tax?.taxMinor || 0);
         // What the card page takes now: the whole price, the deposit, or nothing (free, all paid at the visit, or a pack).
-        const upFront = pack ? 0 : depositOf({ ...service, priceMinor: price });
+        const upFront = pack ? 0 : depositOf({ ...offered, priceMinor: price });
         const deposit = upFront > 0 && service.payment === "deposit" && upFront < price;
         // A gift card pays part or all of what is paid now; the card page takes the rest.
         let gift = null;

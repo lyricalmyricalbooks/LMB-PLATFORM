@@ -1728,6 +1728,15 @@ describe("gift cards on bookings", () => {
     expect(await quote("back@example.com")).toEqual({ last4: "NP23", giftMinor: 2500, payNowMinor: 1500 });
   });
 
+  test("a first-visit price never asks for a deposit under what the card page takes", async () => {
+    const t = await ready();
+    await t.db.collection("bookingServices").doc("tiny").set({ name: "Taster", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 4000, depositPercent: 10, introPriceMinor: 200 });
+    const r = await t.pub({ action: "bookingStart", serviceId: "tiny", start: at("2026-11-18", "10:00"), ...CUSTOMER, email: "new@example.com" });
+    expect(r.body.status).toBe("held");
+    // 10% of 2.00 would be 0.20; the card page takes at least 0.50.
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(50);
+  });
+
   test("the booking form offers a gift card box once the shop has gift cards", async () => {
     const t = setup();
     await t.seed();
