@@ -9,7 +9,7 @@ import {
 import { cleanBookName, cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
 import { TAX_BOOK_NAMES, TAX_BOOK_NAME_MAX, suggestedTaxBookName } from "../../shared/taxBooks";
 import { useSettingsDirty } from "./settingsDirty";
-import { SettingsAnchor, jumpTo } from "./settingsLayout";
+import { HowTo, SettingsAnchor, jumpTo } from "./settingsLayout";
 import { applyTaxPreset, suggestedTaxPresetId, TAX_PRESETS } from "./taxPresets";
 import { useShopSells } from "./shopWords";
 import { registrationWords, answerTaxRegistration, provincialPlaces, provincialQuestion, taxRegistration } from "./taxRegistration";
@@ -111,9 +111,8 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
         </div>
       </SectionCard>
 
-      <SectionCard title="Duties on parcels abroad" description="A checkout note so buyers abroad aren't surprised.">
+      <SectionCard title="Duties on parcels abroad" description="Tells buyers abroad they may owe import tax on arrival.">
         <div style={{ display: "grid", gap: 12 }}>
-          <p className="rp-hint" style={{ margin: 0 }}>Buyers outside your country can owe duties and import tax when the parcel arrives. You don't collect or pay these; the note just tells them.</p>
           <Toggle label="Warn buyers abroad about duties and import tax" checked={settings.taxes?.duties?.on === true} onChange={(on: boolean) => setDuties({ on })} />
           {settings.taxes?.duties?.on === true && (
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "start" }}>
@@ -163,7 +162,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           </SelectField>
           <div><SecondaryButton onClick={usePreset}>Fill in missing rates</SecondaryButton></div>
         </div>
-        <p className="rp-hint" style={{ margin: "12px 0 0" }}>{preset.description} Rates as of October 2026.</p>
+        <HowTo summary="What this fills in"><p className="rp-hint" style={{ margin: 0 }}>{preset.description} Rates as of October 2026.</p></HowTo>
       </SectionCard>
       </SettingsAnchor>}
 
