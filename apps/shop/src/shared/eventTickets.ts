@@ -16,9 +16,13 @@ export const MAX_PER_ORDER = 20;
 /** The smallest amount a card page takes (the same floor as Bookings). */
 export const MIN_TICKET_MINOR = 50;
 export const MAX_TICKET_MINOR = 1_000_000;
+/** Small paid things sold with the tickets (a programme, a drink): up to this many per event. */
+export const MAX_EXTRAS = 8;
 
 export type EventStatus = "draft" | "live" | "cancelled";
 export type TicketKind = { id: string; name: string; priceMinor: number; places: number; maxPerOrder: number };
+/** An extra sold with the tickets. It takes no place and has no stock of its own. */
+export type EventExtra = { id: string; name: string; priceMinor: number; maxPerOrder: number };
 export type ShopEvent = {
   id: string; title: string; description: string;
   /** When it starts and ends, as ISO times; `end` may be "" for an event with no set end. */
@@ -31,10 +35,13 @@ export type ShopEvent = {
   /** Adds the shop's sales tax on top of each ticket's price. */
   chargeTax: boolean;
   tickets: TicketKind[];
+  /** Paid extras a buyer may add to a ticket order. Missing on events saved before extras. */
+  extras?: EventExtra[];
 };
 /** What is taken for one event: tickets sold per kind, and the orders still paying. */
 export type EventPlaces = { sold?: Record<string, number>; held?: Record<string, { until: string; lines: Record<string, number> }> };
 export type OrderLine = { ticketId: string; name: string; qty: number; priceMinor: number };
+export type ExtraLine = { extraId: string; name: string; qty: number; priceMinor: number };
 
 const text = (value: unknown, max: number): string => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const longText = (value: unknown, max: number): string => (typeof value === "string" ? value.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").trim().slice(0, max) : "");
@@ -66,6 +73,20 @@ export function cleanTicketKind(raw: unknown, fallbackId: string): TicketKind | 
   return { id, name, priceMinor, places, maxPerOrder };
 }
 
+/** An extra as saved, or the problem in plain words. `fallbackId` names one sent without an id. */
+export function cleanExtra(raw: unknown, fallbackId: string): EventExtra | { problem: string } {
+  const x = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const name = text(x.name, 60);
+  if (!name) return { problem: "Give each extra a name, like Programme." };
+  const priceMinor = Math.round(Number(x.priceMinor) || 0);
+  if (priceMinor < MIN_TICKET_MINOR) return { problem: `Give "${name}" a price of at least 0.50.` };
+  if (priceMinor > MAX_TICKET_MINOR) return { problem: "That price is too high for one extra." };
+  const most = Math.round(Number(x.maxPerOrder));
+  const maxPerOrder = Number.isFinite(most) && most >= 1 ? Math.min(most, MAX_PER_ORDER) : Math.min(10, MAX_PER_ORDER);
+  const id = typeof x.id === "string" && KIND_ID.test(x.id) ? x.id : fallbackId;
+  return { id, name, priceMinor, maxPerOrder };
+}
+
 /** An event as saved, or the problem in plain words. */
 export function cleanEvent(raw: unknown, id = ""): ShopEvent | { problem: string } {
   const e = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
@@ -85,10 +106,20 @@ export function cleanEvent(raw: unknown, id = ""): ShopEvent | { problem: string
     if (tickets.some((t) => t.id === kind.id)) return { problem: "Two tickets share an id. Remove one and add it again." };
     tickets.push(kind);
   }
+  const extraList = Array.isArray(e.extras) ? e.extras : [];
+  if (extraList.length > MAX_EXTRAS) return { problem: `An event can have up to ${MAX_EXTRAS} extras.` };
+  const extras: EventExtra[] = [];
+  for (const [i, item] of extraList.entries()) {
+    const extra = cleanExtra(item, `x${i + 1}`);
+    if ("problem" in extra) return extra;
+    if (extras.some((x) => x.id === extra.id)) return { problem: "Two extras share an id. Remove one and add it again." };
+    extras.push(extra);
+  }
   const status: EventStatus = e.status === "live" || e.status === "cancelled" ? e.status : "draft";
   return {
     id, title, description: longText(e.description, 4000), start, end, venue: text(e.venue, 120), address: text(e.address, 240),
     onlineUrl: webLink(e.onlineUrl), photo: webLink(e.photo), status, chargeTax: e.chargeTax === true, tickets,
+    ...(extras.length ? { extras } : {}),
   };
 }
 
@@ -126,6 +157,7 @@ export const TICKET_MESSAGES = Object.freeze({
   none: "Pick at least one ticket.",
   closed: "Tickets for this event aren't on sale right now.",
   unknown: "One of those tickets isn't offered any more. Refresh the page and try again.",
+  extraGone: "One of those extras isn't offered any more. Refresh the page and try again.",
 });
 
 /**
@@ -149,6 +181,26 @@ export function orderLines(event: ShopEvent, wanted: unknown, left: Record<strin
   // In the event's own order, whatever order the page sent them in.
   lines.sort((a, b) => event.tickets.findIndex((t) => t.id === a.ticketId) - event.tickets.findIndex((t) => t.id === b.ticketId));
   return { lines, totalMinor: lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0), tickets: lines.reduce((sum, l) => sum + l.qty, 0) };
+}
+
+/**
+ * The extras asked for with an order: its lines and what they add before tax, or why they can't be had. `wanted` is
+ * extra id → how many. Nothing asked for is an empty list, never a problem.
+ */
+export function extraLines(event: Pick<ShopEvent, "extras">, wanted: unknown): { lines: ExtraLine[]; totalMinor: number } | { problem: string } {
+  const asked = wanted && typeof wanted === "object" && !Array.isArray(wanted) ? (wanted as Record<string, unknown>) : {};
+  const offered = event.extras ?? [];
+  const lines: ExtraLine[] = [];
+  for (const [extraId, raw] of Object.entries(asked)) {
+    const qty = Math.round(Number(raw));
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    const extra = offered.find((x) => x.id === extraId);
+    if (!extra) return { problem: TICKET_MESSAGES.extraGone };
+    if (qty > extra.maxPerOrder) return { problem: `You can add up to ${extra.maxPerOrder} of "${extra.name}" to one order.` };
+    lines.push({ extraId: extra.id, name: extra.name, qty, priceMinor: extra.priceMinor });
+  }
+  lines.sort((a, b) => offered.findIndex((x) => x.id === a.extraId) - offered.findIndex((x) => x.id === b.extraId));
+  return { lines, totalMinor: lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0) };
 }
 
 /** An order's lines as the places record keeps them: ticket id → how many. */
@@ -222,11 +274,12 @@ export function movedLines(lines: OrderLine[], kinds: Record<string, string | nu
 
 /**
  * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the
- * tax. Giving back the last tickets returns everything still kept, so cents never go missing. `counts` is ticket id →
+ * tax. Giving back the last tickets returns everything still kept (extras too), so cents never go missing. Extras stay
+ * with the buyer while they keep a ticket. `counts` is ticket id →
  * how many are refunded now; `ticketsLeft` is how many the order keeps afterwards.
  */
 export function refundMinorFor(
-  order: { lines: OrderLine[]; totalMinor?: number; taxMinor?: number; chargedMinor?: number; refundedMinor?: number },
+  order: { lines: OrderLine[]; totalMinor?: number; taxMinor?: number; chargedMinor?: number; refundedMinor?: number; extrasMinor?: number },
   counts: Record<string, number>, ticketsLeft: number,
 ): number {
   const kept = Math.max(0, count(order.chargedMinor) - count(order.refundedMinor));
@@ -234,7 +287,10 @@ export function refundMinorFor(
   const prices = order.lines.reduce((sum, l) => sum + Math.min(count(counts[l.ticketId]), l.qty) * l.priceMinor, 0);
   // The share of what was paid: with a discount code, `totalMinor` is less than the tickets' own prices added up.
   const list = order.lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0);
-  const paid = count(order.totalMinor) + count(order.taxMinor);
+  // Extras are left out: only the tickets' part of the total (and of the tax on it) is shared between the tickets.
+  const total = count(order.totalMinor);
+  const forTickets = Math.max(0, total - count(order.extrasMinor));
+  const paid = total > 0 ? ((total + count(order.taxMinor)) * forTickets) / total : 0;
   return Math.min(kept, list > 0 ? Math.round((paid * prices) / list) : 0);
 }
 

@@ -14,11 +14,11 @@ import {
 } from "./riso/components";
 import { eventsAdmin, type AdminEvent, type CancelAnswer, type DoorAnswer, type MoveAnswer, type RefundAnswer, type TicketOrder } from "./eventsApi";
 import {
-  arrivedCount, blankForm, blankTicket, countsOfCodes, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
+  arrivedCount, blankExtra, blankForm, blankTicket, extrasText, countsOfCodes, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
   whenParts, withOrderChanged, withTicketUsed,
-  type EventForm, type TicketForm,
+  type EventForm, type ExtraForm, type TicketForm,
 } from "./eventsView";
-import { cleanTicketCode, MAX_TICKET_KINDS, moveKinds, refundMinorFor, type EventStatus } from "../../shared/eventTickets";
+import { cleanTicketCode, MAX_EXTRAS, MAX_TICKET_KINDS, moveKinds, refundMinorFor, type EventStatus } from "../../shared/eventTickets";
 import { ScanBarcodeButton } from "./ScanBarcodeButton";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -166,6 +166,7 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
   const [ask, confirmNode] = useConfirm();
   const set = (patch: Partial<EventForm>) => { setForm((f) => ({ ...f, ...patch })); setProblem(""); };
   const setTicket = (id: string, patch: Partial<TicketForm>) => set({ tickets: form.tickets.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+  const setExtra = (id: string, patch: Partial<ExtraForm>) => set({ extras: form.extras.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
   const soldAny = Object.values(sold).some((n) => n > 0);
 
   const save = async () => {
@@ -227,11 +228,27 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
           )}
         </fieldset>
 
+        <fieldset className="evt-tickets">
+          <legend>Extras</legend>
+          <p className="evt-extras-hint">Small things people can add when they get tickets, like a programme or a drink. They don't take a place.</p>
+          {form.extras.map((x) => (
+            <div key={x.id} className="evt-ticket evt-extra">
+              <TextField label="Extra" value={x.name} maxLength={60} onChange={(e) => setExtra(x.id, { name: e.target.value })} placeholder="Programme" />
+              <TextField label="Price" inputMode="decimal" value={x.price} onChange={(e) => setExtra(x.id, { price: e.target.value })} placeholder="5.00" />
+              <TextField label="Per order" inputMode="numeric" value={x.maxPerOrder} onChange={(e) => setExtra(x.id, { maxPerOrder: e.target.value })} />
+              <IconButton label={`Remove ${x.name || "this extra"}`} tone="danger" onClick={() => set({ extras: form.extras.filter((e) => e.id !== x.id) })}><Trash2 size={16} aria-hidden /></IconButton>
+            </div>
+          ))}
+          {form.extras.length < MAX_EXTRAS && (
+            <GhostButton icon={<Plus size={16} aria-hidden />} onClick={() => set({ extras: [...form.extras, blankExtra()] })}>{form.extras.length ? "Add another extra" : "Add an extra"}</GhostButton>
+          )}
+        </fieldset>
+
         <SelectField label="Where it stands" value={form.status} onChange={(e) => set({ status: e.target.value as EventStatus })}
           hint={STATUS_CHOICES.find((c) => c.id === form.status)?.hint}>
           {STATUS_CHOICES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
         </SelectField>
-        <Toggle label="Add sales tax to ticket prices" checked={form.chargeTax} onChange={(chargeTax) => set({ chargeTax })} />
+        <Toggle label={form.extras.length ? "Add sales tax to ticket and extra prices" : "Add sales tax to ticket prices"} checked={form.chargeTax} onChange={(chargeTax) => set({ chargeTax })} />
         {problem && <p className="rp-error-text" role="alert">{problem}</p>}
       </div>
       {confirmNode}
@@ -359,6 +376,7 @@ function GuestList({ event, door, zone, currency, others, onClose }: { event: Ad
                   {order.status === "refunded" && (
                     <p className="evt-guest-gone">{order.refundedTickets === 1 ? "Their ticket was" : `Their ${order.refundedTickets || ""} tickets were`.replace("  ", " ")} given back{order.refundedAt ? ` on ${whenParts(order.refundedAt, zone).day} ${whenParts(order.refundedAt, zone).month}` : ""}. The places are on sale again.</p>
                   )}
+                  {order.status === "paid" && !!extrasText(order) && <p className="evt-guest-extras"><span>Extras</span> {extrasText(order)}</p>}
                   <ul className="evt-codes">
                     {order.tickets.map((t) => (
                       <li key={t.code} data-used={t.usedAt ? "true" : undefined}>
@@ -585,6 +603,9 @@ function RefundDialog({ order, currency, onClose, onDone }: { order: TicketOrder
             : kept > 0 ? "No money is sent. The tickets stop working."
             : "These tickets were free, so no money moves. The tickets stop working."}
         </p>
+        {!!extrasText(order) && picked.length > 0 && (
+          <p className="evt-refund-note">{picked.length < order.tickets.length ? `Their extras (${extrasText(order)}) aren't refunded while they keep a ticket.` : `Their extras (${extrasText(order)}) are refunded too.`}</p>
+        )}
         <p className="evt-refund-note">{who} gets an email, and the {many ? "places go" : "place goes"} back on sale. This can't be undone.</p>
         {error && <p className="evt-refund-error" role="alert">{error}</p>}
       </div>

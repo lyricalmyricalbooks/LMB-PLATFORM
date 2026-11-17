@@ -25,6 +25,8 @@
 .rp .evt-ticket { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 40px; gap: 10px; align-items: start; }
 .rp .evt-ticket > .rp-icon-btn { margin-top: 26px; }
 .rp .evt-ticket-gap { width: 40px; }
+.rp .evt-extra { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) 40px; }
+.rp .evt-extras-hint { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
 .rp .evt-tickets > .rp-btn { justify-self: start; }
 
 .rp .evt-photo { display: grid; gap: 8px; }
@@ -64,6 +66,8 @@
 .rp .evt-guest[data-refunded="true"] { background: var(--rp-surface-sunken, transparent); }
 .rp .evt-guest[data-refunded="true"] strong { color: var(--rp-text-muted); }
 .rp .evt-guest-gone { margin: 0; font-size: 14px; color: var(--rp-text-muted); }
+.rp .evt-guest-extras { margin: 0; font-size: 14px; }
+.rp .evt-guest-extras > span { margin-right: 6px; font: 500 11px/1.3 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-muted); }
 .rp .evt-guest-actions { display: flex; flex-wrap: wrap; gap: 4px 8px; }
 .rp .evt-refund { display: grid; gap: 16px; }
 .rp .evt-refund-list { display: grid; gap: 4px; }

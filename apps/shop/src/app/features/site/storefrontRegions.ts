@@ -110,6 +110,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "eventsTickets", label: "Event: tickets and how many", required: true },
     { id: "eventsForm", label: "Event: your details and Pay button", required: true },
     { id: "eventsSummary", label: "Event: what you chose and the total" },
+    { id: "eventsExtras", label: "Event: extras to add to an order" },
     { id: "eventsCode", label: "Event: discount code box" },
     { id: "eventsConfirmation", label: "Your tickets: details", required: true },
     { id: "eventsCodes", label: "Your tickets: codes for the door", required: true },

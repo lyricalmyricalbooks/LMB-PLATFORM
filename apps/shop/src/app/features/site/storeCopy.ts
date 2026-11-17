@@ -603,6 +603,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "eventsFewer", label: "Minus button (read aloud)", default: "One fewer: {ticket}", hint: "Use {ticket} for the ticket's name." },
       { key: "eventsMore", label: "Plus button (read aloud)", default: "One more: {ticket}", hint: "Use {ticket} for the ticket's name." },
       { key: "eventsPlusTax", label: "Plus tax", default: "plus tax" },
+      { key: "eventsExtrasHeading", label: "Extras heading", default: "Add to your order" },
+      { key: "eventsExtrasChanged", label: "Extras changed while choosing", default: "One of the extras has changed. Take another look and try again." },
       { key: "eventsCodeOpen", label: "Discount code link", default: "Have a discount code?" },
       { key: "eventsCodeLabel", label: "Discount code box", default: "Discount code" },
       { key: "eventsCodeApply", label: "Apply code button", default: "Apply" },

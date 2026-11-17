@@ -74,11 +74,13 @@ describe("the list", () => {
       currency: "CAD", tickets: codes.map((code) => ({ code, ticketId: "gen", name: "General" })), createdAt: "", paidAt: "", test: false,
     });
     expect(guestCsv([order("Bo", ["BBBB-2222"]), order("=Ada", ["AAAA-2222", "AAAA-3333"])]).split("\n")).toEqual([
-      "Name,Email,Ticket,Code,Arrived", "'=Ada,=ada@example.com,General,AAAA-2222,".replace(",=ada", ",'=ada"), "'=Ada,'=ada@example.com,General,AAAA-3333,", "Bo,bo@example.com,General,BBBB-2222,",
+      "Name,Email,Ticket,Code,Arrived,Extras", "'=Ada,'=ada@example.com,General,AAAA-2222,,", "'=Ada,'=ada@example.com,General,AAAA-3333,,", "Bo,bo@example.com,General,BBBB-2222,,",
     ]);
     const list = withTicketUsed([order("Bo", ["BBBB-2222"]), order("Ada", ["AAAA-2222", "AAAA-3333"])], "AAAA-3333", "2026-12-05T23:50:00.000Z");
     expect(arrivedCount(list)).toBe(1);
-    expect(guestCsv(list).split("\n")[2]).toBe("Ada,ada@example.com,General,AAAA-3333,Yes");
+    expect(guestCsv(list).split("\n")[2]).toBe("Ada,ada@example.com,General,AAAA-3333,Yes,");
+    const extras = [{ extraId: "prog", name: "Programme", qty: 1, priceMinor: 500 }, { extraId: "drink", name: "Drink", qty: 2, priceMinor: 800 }];
+    expect(guestCsv([{ ...order("Cy", ["CCCC-2222"]), extras }]).split("\n")[1]).toBe('Cy,cy@example.com,General,CCCC-2222,,"1 × Programme, 2 × Drink"');
     expect(arrivedCount(withTicketUsed(list, "AAAA-3333", ""))).toBe(0);
     expect(findGuests(list, " ad").map((o) => o.name)).toEqual(["Ada"]);
     expect(findGuests(list, "bbbb 22").map((o) => o.name)).toEqual(["Bo"]);

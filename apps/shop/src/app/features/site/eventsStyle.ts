@@ -36,6 +36,8 @@ export const EVENTS_CSS = [
   `${S} .fm-evt-tickets{display:grid;gap:0;margin:0;padding:0;list-style:none;}`,
   `${S} .fm-evt-ticket{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:16px 0;border-bottom:1px dashed var(--t-rule);}`,
   `${S} .fm-evt-ticket:first-child{padding-top:0;}`,
+  `${S} .fm-evt-extras{margin-top:20px;}`,
+  `${S} .fm-evt-extras .fm-evt-ticket:last-child{padding-bottom:0;border-bottom:0;}`,
   `${S} .fm-evt-ticket h3{margin:0;font-size:17px;font-weight:700;line-height:1.3;overflow-wrap:anywhere;}`,
   `${S} .fm-evt-ticket p{margin:2px 0 0;font-family:var(--t-mono);font-size:13px;letter-spacing:.04em;color:var(--muted, currentColor);}`,
   `${S} .fm-evt-ticket p b{color:var(--warning, currentColor);font-weight:700;}`,

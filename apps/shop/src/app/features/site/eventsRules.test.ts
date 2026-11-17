@@ -1,6 +1,6 @@
 // The Events page's own sums and link reading (eventsRules.ts), and Studio's sample answers (eventsPreview.ts).
 import { describe, expect, it } from "vitest";
-import { cartOf, clampQty, codeText, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch, type EventView } from "./eventsRules";
+import { cartOf, clampQty, extrasOf, codeText, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch, type EventView } from "./eventsRules";
 import { previewEventsAnswer, SAMPLE_EVENT_KEY, SAMPLE_EVENT_ORDER } from "./eventsPreview";
 
 const ZONE = "America/Toronto";
@@ -67,6 +67,10 @@ describe("the picks", () => {
     expect(cartOf(event(), { gen: 2, free: 5, gone: 1, nope: 3 })).toEqual({ tickets: { gen: 2, free: 2 }, count: 4, totalMinor: 3000, taxed: true });
     expect(cartOf(event(), { free: 1 })).toEqual({ tickets: { free: 1 }, count: 1, totalMinor: 0, taxed: false });
     expect(cartOf(event(), {})).toEqual({ tickets: {}, count: 0, totalMinor: 0, taxed: false });
+    const withExtras = { extras: [{ id: "prog", name: "Programme", priceMinor: 500, maxPerOrder: 10, taxMinor: 65 }, { id: "drink", name: "Drink", priceMinor: 800, maxPerOrder: 2 }] };
+    expect(extrasOf(withExtras, { prog: 1, drink: 9, nope: 2 })).toEqual({ extras: { prog: 1, drink: 2 }, totalMinor: 2100, taxed: true });
+    expect(extrasOf(withExtras, { drink: -1 })).toEqual({ extras: {}, totalMinor: 0, taxed: false });
+    expect(extrasOf({}, { prog: 1 })).toEqual({ extras: {}, totalMinor: 0, taxed: false });
   });
   it("spaces a long code and leaves a dashed one alone", () => {
     expect(codeText("ABCD2345EFGH")).toBe("ABCD 2345 EFGH");

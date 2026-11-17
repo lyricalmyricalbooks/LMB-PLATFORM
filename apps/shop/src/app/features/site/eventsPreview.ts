@@ -19,7 +19,8 @@ export function sampleEvents(nowMs: number): EventView[] {
         { id: "general", name: "General", priceMinor: 1500, maxPerOrder: 6, left: 6, soldOut: false },
         { id: "supporter", name: "Supporter (with a signed print)", priceMinor: 4000, maxPerOrder: 4, left: 2, soldOut: false },
         { id: "student", name: "Student", priceMinor: 800, maxPerOrder: 2, left: 0, soldOut: true },
-      ] },
+      ],
+      extras: [{ id: "programme", name: "Printed programme", priceMinor: 500, maxPerOrder: 6 }, { id: "drink", name: "Welcome drink", priceMinor: 800, maxPerOrder: 6 }] },
     { id: "sample-talk", title: "In conversation: making things by hand", description: "A free evening talk, in the room or online.",
       start: at(20, 23), end: at(21, 0), venue: "The studio", address: "", photo: "", online: true, open: true, cancelled: false,
       tickets: [{ id: "seat", name: "A seat", priceMinor: 0, maxPerOrder: 4, left: 4, soldOut: false }] },
@@ -32,16 +33,17 @@ export function sampleEvents(nowMs: number): EventView[] {
 /** The sample order as last made in this preview. */
 let sample: EventOrderView | null = null;
 
-function sampleOrder(nowMs: number, currency: string, eventId?: string, picks?: Record<string, number>, name?: string): EventOrderView {
+function sampleOrder(nowMs: number, currency: string, eventId?: string, picks?: Record<string, number>, name?: string, extraPicks: Record<string, number> = {}): EventOrderView {
   const events = sampleEvents(nowMs);
   const event = events.find((e) => e.id === eventId) || events[0];
   const wanted = picks && Object.values(picks).some((n) => n > 0) ? picks : { [event.tickets[0].id]: 2 };
   const lines = event.tickets.filter((t) => wanted[t.id] > 0).map((t) => ({ ticketId: t.id, name: t.name, qty: Math.min(wanted[t.id], t.maxPerOrder), priceMinor: t.priceMinor }));
-  const totalMinor = lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0);
+  const extras = (event.extras ?? []).filter((x) => extraPicks[x.id] > 0).map((x) => ({ extraId: x.id, name: x.name, qty: Math.min(extraPicks[x.id], x.maxPerOrder), priceMinor: x.priceMinor }));
+  const totalMinor = lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0) + extras.reduce((sum, x) => sum + x.qty * x.priceMinor, 0);
   let n = 0;
   return {
     id: SAMPLE_EVENT_ORDER, status: "paid", eventId: event.id, title: event.title, start: event.start, end: event.end || "", venue: event.venue || "", address: event.address || "",
-    name: name || "Sample Customer", lines, totalMinor, taxMinor: 0, chargedMinor: totalMinor, currency, holdUntil: null,
+    name: name || "Sample Customer", lines, extras, totalMinor, taxMinor: 0, chargedMinor: totalMinor, currency, holdUntil: null,
     tickets: lines.flatMap((l) => Array.from({ length: l.qty }, () => ({ code: `SAMP-${String(++n).padStart(4, "0")}`, ticketId: l.ticketId, name: l.name }))),
     onlineUrl: event.online ? "https://example.com/watch" : "", eventCancelled: false,
   };
@@ -55,10 +57,11 @@ export function previewEventsAnswer(action: string, body: Record<string, any> = 
     const event = sampleEvents(nowMs).find((e) => e.id === body.eventId);
     const list = (event?.tickets || []).reduce((sum, t) => sum + (Number(body.tickets?.[t.id]) || 0) * t.priceMinor, 0);
     const amountMinor = Math.round(list / 10);
-    return { code: String(body.code || "").trim().toUpperCase(), amountMinor, totalMinor: list - amountMinor, taxMinor: 0, chargedMinor: list - amountMinor };
+    const due = list - amountMinor + (event?.extras || []).reduce((sum, x) => sum + (Number(body.extras?.[x.id]) || 0) * x.priceMinor, 0);
+    return { code: String(body.code || "").trim().toUpperCase(), amountMinor, totalMinor: due, taxMinor: 0, chargedMinor: due };
   }
   if (action === "eventStart") {
-    sample = sampleOrder(nowMs, currency, body.eventId, body.tickets, body.name);
+    sample = sampleOrder(nowMs, currency, body.eventId, body.tickets, body.name, body.extras);
     return { orderId: SAMPLE_EVENT_ORDER, key: SAMPLE_EVENT_KEY, paid: true };
   }
   sample ||= sampleOrder(nowMs, currency);

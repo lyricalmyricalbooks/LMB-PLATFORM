@@ -11,14 +11,16 @@
 // order still paying, each with the time its hold ends. The server reads and writes it in the same transaction as the
 // order, so the last ticket can't be sold twice.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TICKET_MESSAGES = exports.MAX_TICKET_MINOR = exports.MIN_TICKET_MINOR = exports.MAX_PER_ORDER = exports.MAX_PLACES = exports.MAX_TICKET_KINDS = exports.MAX_EVENTS = void 0;
+exports.TICKET_MESSAGES = exports.MAX_EXTRAS = exports.MAX_TICKET_MINOR = exports.MIN_TICKET_MINOR = exports.MAX_PER_ORDER = exports.MAX_PLACES = exports.MAX_TICKET_KINDS = exports.MAX_EVENTS = void 0;
 exports.cleanTicketKind = cleanTicketKind;
+exports.cleanExtra = cleanExtra;
 exports.cleanEvent = cleanEvent;
 exports.salesOpen = salesOpen;
 exports.placesTaken = placesTaken;
 exports.placesLeft = placesLeft;
 exports.soldCount = soldCount;
 exports.orderLines = orderLines;
+exports.extraLines = extraLines;
 exports.lineCounts = lineCounts;
 exports.withHold = withHold;
 exports.withSold = withSold;
@@ -38,6 +40,8 @@ exports.MAX_PER_ORDER = 20;
 /** The smallest amount a card page takes (the same floor as Bookings). */
 exports.MIN_TICKET_MINOR = 50;
 exports.MAX_TICKET_MINOR = 1_000_000;
+/** Small paid things sold with the tickets (a programme, a drink): up to this many per event. */
+exports.MAX_EXTRAS = 8;
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const longText = (value, max) => (typeof value === "string" ? value.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").trim().slice(0, max) : "");
 const KIND_ID = /^[A-Za-z0-9_-]{1,24}$/;
@@ -72,6 +76,22 @@ function cleanTicketKind(raw, fallbackId) {
     const id = typeof k.id === "string" && KIND_ID.test(k.id) ? k.id : fallbackId;
     return { id, name, priceMinor, places, maxPerOrder };
 }
+/** An extra as saved, or the problem in plain words. `fallbackId` names one sent without an id. */
+function cleanExtra(raw, fallbackId) {
+    const x = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const name = text(x.name, 60);
+    if (!name)
+        return { problem: "Give each extra a name, like Programme." };
+    const priceMinor = Math.round(Number(x.priceMinor) || 0);
+    if (priceMinor < exports.MIN_TICKET_MINOR)
+        return { problem: `Give "${name}" a price of at least 0.50.` };
+    if (priceMinor > exports.MAX_TICKET_MINOR)
+        return { problem: "That price is too high for one extra." };
+    const most = Math.round(Number(x.maxPerOrder));
+    const maxPerOrder = Number.isFinite(most) && most >= 1 ? Math.min(most, exports.MAX_PER_ORDER) : Math.min(10, exports.MAX_PER_ORDER);
+    const id = typeof x.id === "string" && KIND_ID.test(x.id) ? x.id : fallbackId;
+    return { id, name, priceMinor, maxPerOrder };
+}
 /** An event as saved, or the problem in plain words. */
 function cleanEvent(raw, id = "") {
     const e = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
@@ -98,10 +118,23 @@ function cleanEvent(raw, id = "") {
             return { problem: "Two tickets share an id. Remove one and add it again." };
         tickets.push(kind);
     }
+    const extraList = Array.isArray(e.extras) ? e.extras : [];
+    if (extraList.length > exports.MAX_EXTRAS)
+        return { problem: `An event can have up to ${exports.MAX_EXTRAS} extras.` };
+    const extras = [];
+    for (const [i, item] of extraList.entries()) {
+        const extra = cleanExtra(item, `x${i + 1}`);
+        if ("problem" in extra)
+            return extra;
+        if (extras.some((x) => x.id === extra.id))
+            return { problem: "Two extras share an id. Remove one and add it again." };
+        extras.push(extra);
+    }
     const status = e.status === "live" || e.status === "cancelled" ? e.status : "draft";
     return {
         id, title, description: longText(e.description, 4000), start, end, venue: text(e.venue, 120), address: text(e.address, 240),
         onlineUrl: webLink(e.onlineUrl), photo: webLink(e.photo), status, chargeTax: e.chargeTax === true, tickets,
+        ...(extras.length ? { extras } : {}),
     };
 }
 /** True while tickets can be bought: the event is live and hasn't started. */
@@ -136,6 +169,7 @@ exports.TICKET_MESSAGES = Object.freeze({
     none: "Pick at least one ticket.",
     closed: "Tickets for this event aren't on sale right now.",
     unknown: "One of those tickets isn't offered any more. Refresh the page and try again.",
+    extraGone: "One of those extras isn't offered any more. Refresh the page and try again.",
 });
 /**
  * What an order of tickets is: its lines and total before tax, or why it can't be made. `wanted` is ticket id → how
@@ -163,6 +197,28 @@ function orderLines(event, wanted, left) {
     // In the event's own order, whatever order the page sent them in.
     lines.sort((a, b) => event.tickets.findIndex((t) => t.id === a.ticketId) - event.tickets.findIndex((t) => t.id === b.ticketId));
     return { lines, totalMinor: lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0), tickets: lines.reduce((sum, l) => sum + l.qty, 0) };
+}
+/**
+ * The extras asked for with an order: its lines and what they add before tax, or why they can't be had. `wanted` is
+ * extra id → how many. Nothing asked for is an empty list, never a problem.
+ */
+function extraLines(event, wanted) {
+    const asked = wanted && typeof wanted === "object" && !Array.isArray(wanted) ? wanted : {};
+    const offered = event.extras ?? [];
+    const lines = [];
+    for (const [extraId, raw] of Object.entries(asked)) {
+        const qty = Math.round(Number(raw));
+        if (!Number.isFinite(qty) || qty <= 0)
+            continue;
+        const extra = offered.find((x) => x.id === extraId);
+        if (!extra)
+            return { problem: exports.TICKET_MESSAGES.extraGone };
+        if (qty > extra.maxPerOrder)
+            return { problem: `You can add up to ${extra.maxPerOrder} of "${extra.name}" to one order.` };
+        lines.push({ extraId: extra.id, name: extra.name, qty, priceMinor: extra.priceMinor });
+    }
+    lines.sort((a, b) => offered.findIndex((x) => x.id === a.extraId) - offered.findIndex((x) => x.id === b.extraId));
+    return { lines, totalMinor: lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0) };
 }
 /** An order's lines as the places record keeps them: ticket id → how many. */
 function lineCounts(lines) {
@@ -232,7 +288,8 @@ function movedLines(lines, kinds, to) {
 }
 /**
  * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the
- * tax. Giving back the last tickets returns everything still kept, so cents never go missing. `counts` is ticket id →
+ * tax. Giving back the last tickets returns everything still kept (extras too), so cents never go missing. Extras stay
+ * with the buyer while they keep a ticket. `counts` is ticket id →
  * how many are refunded now; `ticketsLeft` is how many the order keeps afterwards.
  */
 function refundMinorFor(order, counts, ticketsLeft) {
@@ -242,7 +299,10 @@ function refundMinorFor(order, counts, ticketsLeft) {
     const prices = order.lines.reduce((sum, l) => sum + Math.min(count(counts[l.ticketId]), l.qty) * l.priceMinor, 0);
     // The share of what was paid: with a discount code, `totalMinor` is less than the tickets' own prices added up.
     const list = order.lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0);
-    const paid = count(order.totalMinor) + count(order.taxMinor);
+    // Extras are left out: only the tickets' part of the total (and of the tax on it) is shared between the tickets.
+    const total = count(order.totalMinor);
+    const forTickets = Math.max(0, total - count(order.extrasMinor));
+    const paid = total > 0 ? ((total + count(order.taxMinor)) * forTickets) / total : 0;
     return Math.min(kept, list > 0 ? Math.round((paid * prices) / list) : 0);
 }
 // A ticket's code, shown at the door: eight letters and digits with nothing that reads two ways ("K7QM-2XPA").

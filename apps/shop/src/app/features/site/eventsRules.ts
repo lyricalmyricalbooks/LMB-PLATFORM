@@ -3,9 +3,11 @@
 // every place left and every total; these only show them and keep the pickers inside what it said.
 
 export type EventTicketView = { id: string; name: string; priceMinor: number; maxPerOrder: number; left: number; soldOut: boolean; taxMinor?: number };
+/** Something small a buyer may add to a ticket order (a programme, a drink). */
+export type EventExtraView = { id: string; name: string; priceMinor: number; maxPerOrder: number; taxMinor?: number };
 export type EventView = {
   id: string; title: string; description?: string; start: string; end?: string; venue?: string; address?: string; photo?: string;
-  online: boolean; open: boolean; cancelled: boolean; tickets: EventTicketView[];
+  online: boolean; open: boolean; cancelled: boolean; tickets: EventTicketView[]; extras?: EventExtraView[];
 };
 export type EventsInfo = { on: boolean; zone?: string; currency?: string; codes?: boolean; events?: EventView[] };
 /** A discount code the server accepted for the tickets picked: what comes off and what is left to pay. */
@@ -13,6 +15,7 @@ export type TicketCode = { code: string; amountMinor: number; totalMinor: number
 export type EventOrderView = {
   id: string; status: "held" | "paid" | "cancelled" | "refunded"; refundedMinor?: number; eventId: string; title: string; start: string; end: string; venue: string; address: string; name: string;
   lines: { ticketId: string; name: string; qty: number; priceMinor: number }[];
+  extras?: { extraId: string; name: string; qty: number; priceMinor: number }[];
   totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; holdUntil: string | null; discount?: { code: string; amountMinor: number } | null;
   tickets: { code: string; ticketId: string; name: string; used?: boolean }[]; onlineUrl: string; eventCancelled: boolean;
 };
@@ -82,6 +85,21 @@ export function cartOf(event: Pick<EventView, "tickets">, picks: Record<string, 
     if (t.taxMinor) taxed = true;
   }
   return { tickets, count, totalMinor, taxed };
+}
+
+/** The extras picked as the server wants them (extra id → how many, only the ones above zero), with what they add. */
+export function extrasOf(event: Pick<EventView, "extras">, picks: Record<string, number>): { extras: Record<string, number>; totalMinor: number; taxed: boolean } {
+  const extras: Record<string, number> = {};
+  let totalMinor = 0;
+  let taxed = false;
+  for (const x of event.extras ?? []) {
+    const qty = Math.max(0, Math.min(Math.round(Number(picks[x.id])) || 0, x.maxPerOrder));
+    if (!qty) continue;
+    extras[x.id] = qty;
+    totalMinor += qty * x.priceMinor;
+    if (x.taxMinor) taxed = true;
+  }
+  return { extras, totalMinor, taxed };
 }
 
 /** A ticket code in groups, easier to read out at the door ("TICK-2222" stays as it is). */
