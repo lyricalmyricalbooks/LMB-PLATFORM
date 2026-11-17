@@ -2295,12 +2295,87 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
             error={form.email && !EMAIL_SHAPE.test(form.email) ? "Check this email address." : undefined} />
           {person.id ? <PersonCalendar person={person} /> : <p className="bkg-questions-hint">Save first to make their own calendar link.</p>}
         </fieldset>
+        {person.id && (
+          <fieldset className="bkg-questions">
+            <legend>Their Google Calendar <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+            <PersonGoogle person={person} email={form.email} />
+          </fieldset>
+        )}
       </div>
     </Dialog>
   );
 }
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+type PersonLink = { linked: boolean; accountEmail?: string; needsReconnect?: boolean };
+/**
+ * A person's own Google Calendar (Beta, Services plan 2, B6): once they link it with their own Google account, clients
+ * can't book them when it shows them busy (only busy or free is shared). The owner sends them a one-use link.
+ */
+function PersonGoogle({ person, email }: { person: StaffMember; email: string }) {
+  const [state, setState] = useState<{ available: boolean; link?: PersonLink } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [url, setUrl] = useState("");
+  const [ask, confirmNode] = useConfirm();
+  const load = () => {
+    setFailed(false);
+    bookingsAdmin<{ available: boolean; people?: Record<string, PersonLink> }>("teamCalendar", { step: "status" })
+      .then((r) => setState({ available: r.available, link: r.people?.[person.id] }), () => setFailed(true));
+  };
+  useEffect(load, [person.id]);
+  const first = person.name.split(" ")[0] || person.name;
+  const link = async (send: boolean) => {
+    setBusy(send ? "send" : "copy");
+    try {
+      const r = await bookingsAdmin<{ available: boolean; url?: string; sent?: boolean }>("teamCalendar", { step: "link", staffId: person.id, send });
+      if (!r.available || !r.url) { setState({ available: false }); return; }
+      setUrl(r.url);
+      if (r.sent) toast.success(`Sent to ${email}`);
+      else await copyText(r.url, "Link");
+    } catch (e: any) {
+      toast.error(e?.message || "The link couldn't be made. Please try again.");
+    } finally { setBusy(""); }
+  };
+  const unlink = async () => {
+    if (!(await ask({ title: `Unlink ${first}'s calendar?`, message: `Clients can book ${first} by your hours again, even when their own calendar shows them busy.`, confirmLabel: "Unlink" }))) return;
+    setBusy("unlink");
+    try {
+      await bookingsAdmin("teamCalendar", { step: "unlink", staffId: person.id });
+      setState((s) => ({ available: s?.available ?? true, link: { linked: false } }));
+      setUrl("");
+      toast.success(`${first}'s calendar is unlinked`);
+    } catch (e: any) {
+      toast.error(e?.message || "That didn't work. Please try again.");
+    } finally { setBusy(""); }
+  };
+  if (failed) return <p className="bkg-questions-hint">Their calendar link couldn't be checked. <button type="button" className="bkg-inline-link" onClick={load}>Try again</button></p>;
+  if (!state) return <p className="bkg-questions-hint">Checking…</p>;
+  if (!state.available) return <p className="bkg-questions-hint">Coming soon: {first} will link their own Google Calendar, and clients won't be able to book them when it shows them busy.</p>;
+  const l = state.link;
+  return (
+    <div className="bkg-person-cal">
+      {l?.linked ? (<>
+        <p className="bkg-google-state"><StatusBadge tone={l.needsReconnect ? "warning" : "success"}>{l.needsReconnect ? "Needs linking again" : "Linked"}</StatusBadge> {l.accountEmail}</p>
+        <p className="bkg-questions-hint">{l.needsReconnect
+          ? `Google stopped sharing ${first}'s busy times. Send them a new link.`
+          : `Clients can't book ${first} when their Google Calendar shows them busy. Only busy or free is shared, never what their events are. Changes show within 15 minutes.`}</p>
+      </>) : (
+        <p className="bkg-questions-hint">{first} signs in with their own Google account and allows Colophon to see when they're busy. Clients then can't book them at those times. Only busy or free is shared.</p>
+      )}
+      <div className="bkg-due-actions">
+        {(!l?.linked || l.needsReconnect) && (<>
+          {EMAIL_SHAPE.test(email) && <SecondaryButton size="sm" icon={<Mail size={15} aria-hidden />} onClick={() => void link(true)} busy={busy === "send"} disabled={!!busy}>Email {first} a link</SecondaryButton>}
+          <SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void link(false)} busy={busy === "copy"} disabled={!!busy}>Copy a link</SecondaryButton>
+        </>)}
+        {l?.linked && <GhostButton size="sm" onClick={() => void unlink()} busy={busy === "unlink"} disabled={!!busy}>Unlink</GhostButton>}
+      </div>
+      {url && !l?.linked && <p className="bkg-cal-note">The link works once, for a day. Send it to {first} only.</p>}
+      {confirmNode}
+    </div>
+  );
+}
 
 /** One person's private calendar link: only their bookings, for their phone's calendar. A new link stops the old. */
 function PersonCalendar({ person }: { person: StaffMember }) {

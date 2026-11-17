@@ -14,12 +14,14 @@ import { createGoogleService } from "./service.js";
 import { createTokens } from "./tokens.js";
 import { createGmailSend } from "./gmail.js";
 
-export function createGoogleLink({ config, google, connections, states, registry, auditLog, shopFirebase, domainsCall, now = () => Date.now() }) {
+export function createGoogleLink({ config, google, connections, people: peopleStore = null, states, registry, auditLog, shopFirebase, domainsCall, now = () => Date.now() }) {
   const tokens = createTokens({ google, connections, config, now });
+  // A services shop's team members' own grants (their busy times only), sealed the same way, kept apart from the shop's.
+  const people = peopleStore ? createTokens({ google, connections: peopleStore, config, now }) : null;
   const connect = createGoogleConnect({ google, tokens, shopFirebase, domainsCall, registry, auditLog, config, now });
-  const teardown = createGoogleTeardown({ google, tokens, shopFirebase, domainsCall, registry, auditLog, now });
+  const teardown = createGoogleTeardown({ google, tokens, people, shopFirebase, domainsCall, registry, auditLog, now });
   const status = createGoogleStatus({ registry, connect, teardown, tokens, now });
-  const service = createGoogleService({ config, google, tokens, states, registry, connect, teardown, now });
+  const service = createGoogleService({ config, google, tokens, people, states, registry, connect, teardown, now });
   const gmailSend = createGmailSend({ google, tokens, registry, config, now });
-  return { tokens, connect, teardown, status, service, gmailSend };
+  return { tokens, people, connect, teardown, status, service, gmailSend };
 }

@@ -35,6 +35,7 @@ console when a permission is added. **Julian: read the label there and write it 
 | `https://www.googleapis.com/auth/spreadsheets.readonly` | launch (with the Drive box) | Read a Google Sheet the press pastes the link of, to bring books, customers, gift cards, codes or past orders into the shop | Read-only. `drive.file` only reaches sheets Colophon made, and a press's product list is a sheet they made themselves. Sensitive, not restricted | |
 | `https://www.googleapis.com/auth/youtube.readonly` | later | Show the press's own videos on its website | Read-only already | |
 | `https://www.googleapis.com/auth/calendar.app.created` | later | Keep an events calendar Colophon made | It only reaches calendars this app created | |
+| `https://www.googleapis.com/auth/calendar.freebusy` | later | Each person on a services shop's team, signing in with their own Google account, so clients can't book them when their own calendar says they are busy | It shows only when they are busy, never what an event is, who is in it or where. Asked of that person alone, never with the shop's own sign-in | |
 | `https://www.googleapis.com/auth/business.manage` | later | Find the press's Business Profile (nothing on it is changed yet) | The only permission Business Profile offers | |
 | `https://www.googleapis.com/auth/adwords` | later | Link the shop's product feed to the press's own Google Ads account | The only permission Google Ads offers | |
 

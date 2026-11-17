@@ -204,6 +204,13 @@ export function createGoogleApi({ fetch = globalThis.fetch, app, redirectUrl, no
         return call("POST", `${CALENDAR}/calendars/${enc(calendarId)}/events`, token, { body, query });
       }
     },
+    /** When the signed-in person is busy between two times (their main calendar): `[{ start, end }]` as ISO times. */
+    async freeBusy(token, timeMin, timeMax) {
+      const answer = await call("POST", `${CALENDAR}/freeBusy`, token, { body: { timeMin, timeMax, items: [{ id: "primary" }] } });
+      const cal = answer?.calendars?.primary;
+      if (cal?.errors?.length) throw new GoogleError(502, `Google couldn't read the calendar: ${cal.errors[0]?.reason || "unknown"}`);
+      return (cal?.busy ?? []).map((b) => ({ start: b.start, end: b.end }));
+    },
     deleteEvent: (token, calendarId, eventId) => call("DELETE", `${CALENDAR}/calendars/${enc(calendarId)}/events/${enc(eventId)}`, token, { query: { sendUpdates: "none" } }),
     listBusinessAccounts: async (token) => (await call("GET", `${BUSINESS_ACCOUNTS}/accounts`, token)).accounts ?? [],
     async listAdsCustomers(token) {

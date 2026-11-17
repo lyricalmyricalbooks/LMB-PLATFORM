@@ -171,6 +171,12 @@ const READER_ID = /^(tmr_[A-Za-z0-9_]{1,100}|sqdev_[A-Za-z0-9:_-]{1,192})$/;
 const FEE_CLAIM_MS = 2 * MINUTE;
 const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// A team member's own Google Calendar (Services plan 2, B6): their busy times are copied into the day records as items
+// keyed `gcal~<person>~<start>~<end>` (`g: true`, `p`: the person), so every free-time check closes those times for them
+// alone, the same way as their bookings. Read again at most every 15 minutes, 60 days ahead.
+const GCAL = "gcal~";
+const TEAM_BUSY_EVERY_MS = 15 * 60_000;
+const TEAM_BUSY_DAYS = 60;
 
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const hash = (key) => crypto.createHash("sha256").update(String(key)).digest("hex");
@@ -2495,6 +2501,43 @@ function bookingActions({
         await tellWebsite(settings.live);
         return res.status(200).json({ ok: true });
       }
+      if (op === "teamCalendar") {
+        // A person's own Google Calendar (Services plan 2, B6). step "status": who is linked (and busy times read again
+        // when a minute has passed); "link": a one-use link for them, emailed when `send` and they have an email;
+        // "unlink": their link is forgotten and their busy times cleared.
+        if (!calendar?.peopleStatus) return res.status(200).json({ available: false });
+        const step = String(req.body?.step || "");
+        if (step === "status") {
+          const ids = (settings.staff || []).map((p) => p.id);
+          const answer = ids.length ? await calendar.peopleStatus(ids) : { available: true, people: {} };
+          if (!answer?.available) return res.status(200).json({ available: false });
+          const mark = await db.collection("bookingSettings").doc("googleBusy").get();
+          const at = Date.parse(mark.exists ? mark.data()?.at || "" : "");
+          if (!Number.isFinite(at) || now().getTime() - at > 60_000) await sweepTeamCalendars({ force: true }).catch((err) => console.warn("Team calendars:", err?.message || err));
+          return res.status(200).json({ available: true, people: answer.people || {} });
+        }
+        const person = (settings.staff || []).find((p) => p.id === String(req.body?.staffId || ""));
+        if (!person) return fail(res, 400, "That person isn't on the team.");
+        if (step === "link") {
+          const answer = await calendar.personLink(person.id);
+          if (!answer) return fail(res, 502, "The link couldn't be made. Try again in a minute.");
+          if (!answer.available) return res.status(200).json({ available: false });
+          let sent = false;
+          if (req.body?.send === true) {
+            if (!EMAIL.test(person.email || "")) return fail(res, 400, `Add ${person.name}'s email first, or copy the link instead.`);
+            await sendCalendarLink(person, answer.url);
+            sent = true;
+          }
+          return res.status(200).json({ available: true, url: answer.url, sent });
+        }
+        if (step === "unlink") {
+          const answer = await calendar.personDisconnect(person.id);
+          if (!answer) return fail(res, 502, "Google didn't answer. Try again in a minute.");
+          await sweepTeamCalendars({ force: true }).catch((err) => console.warn("Team calendars:", err?.message || err));
+          return res.status(200).json({ ok: true });
+        }
+        return fail(res, 400, "Unknown step.");
+      }
       if (op === "calendarFeed") {
         // A private calendar link (frontDoor.js answers it): the owner's (every booking) or, with `staffId`, one person's
         // own bookings (`bookingFeed/p-<id>`). Kept server-only; a new one stops the old.
@@ -2519,6 +2562,12 @@ function bookingActions({
         const next = cleanBookingSettings(req.body?.settings);
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
         await tellWebsite(next.live);
+        // Someone taken off the team: their Google Calendar link goes too, so Colophon stops holding their access.
+        // Best effort: a link that can't be given back now stays listed in Google's own account page for them.
+        const kept = new Set((next.staff || []).map((p) => p.id));
+        for (const gone of (settings.staff || []).filter((p) => !kept.has(p.id))) {
+          await Promise.resolve().then(() => calendar.personDisconnect(gone.id)).catch((err) => console.warn("Team calendars:", err?.message || err));
+        }
         // Just switched on: the coming bookings go in too, and the owner learns whether Google is linked.
         const googleCalendar = next.googleCalendar && !settings.googleCalendar ? await fillCalendar() : undefined;
         return res.status(200).json({ ok: true, settings: next, ...(googleCalendar ? { googleCalendar } : {}) });
@@ -3144,6 +3193,87 @@ function bookingActions({
     return snap.docs.map((d) => d.data()).filter((b) => b.status === "confirmed" || b.status === "held");
   }
 
+  /** The day records' items for each person's busy times: day → { key: item }. */
+  function teamBusyItems(spans) {
+    const days = new Map();
+    for (const [id, list] of Object.entries(spans || {})) {
+      for (const x of Array.isArray(list) ? list : []) {
+        if (!Number.isFinite(x?.s) || !Number.isFinite(x?.e) || x.e <= x.s) continue;
+        for (const d of daysTouched(x.s, x.e, zone())) {
+          if (!days.has(d)) days.set(d, {});
+          days.get(d)[`${GCAL}${id}~${x.s}~${x.e}`] = { start: x.s, end: x.e, p: id, g: true };
+        }
+      }
+    }
+    return days;
+  }
+
+  /**
+   * Copies each person's busy times from their own Google Calendar into the day records (Services plan 2, B6), at most
+   * every 15 minutes unless `force`. Only active people are asked; someone off the team or unlinked has theirs cleared.
+   * A calendar the platform couldn't read keeps what it had. Only days whose busy times changed are written, each in a
+   * transaction that leaves every booking's item as it is. What was last written is kept in `bookingSettings/googleBusy`.
+   */
+  async function sweepTeamCalendars({ force = false } = {}) {
+    if (!calendar?.peopleBusy || !(await featureOn())) return { days: 0 };
+    const settings = await readSettings();
+    const ref = db.collection("bookingSettings").doc("googleBusy");
+    const snap = await ref.get();
+    const before = snap.exists ? snap.data() || {} : {};
+    const nowMs = now().getTime();
+    const last = Date.parse(before.at || "");
+    if (!force && Number.isFinite(last) && nowMs - last < TEAM_BUSY_EVERY_MS) return { days: 0 };
+    const team = (settings.staff || []).filter((p) => p.active).map((p) => p.id);
+    const old = before.spans && typeof before.spans === "object" ? before.spans : {};
+    const ids = [...new Set([...team, ...Object.keys(old)])];
+    if (!ids.length) return { days: 0 };
+    const from = zonedTime(dayOf(nowMs, zone()), "00:00", zone());
+    const to = from + TEAM_BUSY_DAYS * 24 * 3_600_000;
+    const answer = team.length ? await calendar.peopleBusy(team, new Date(from).toISOString(), new Date(to).toISOString()) : { available: true, busy: {} };
+    // The platform couldn't be reached: try again next time, change nothing.
+    if (!answer) return { days: 0 };
+    const busy = answer.available ? answer.busy || {} : {};
+    const next = {};
+    for (const id of ids) {
+      const got = team.includes(id) ? busy[id] : [];
+      if (got === null) { if (old[id]?.length) next[id] = old[id]; continue; }
+      const list = (Array.isArray(got) ? got : [])
+        .map((x) => ({ s: Math.max(from, Date.parse(x?.start)), e: Math.min(to, Date.parse(x?.end)) }))
+        .filter((x) => Number.isFinite(x.s) && Number.isFinite(x.e) && x.e > x.s)
+        .slice(0, 2000);
+      if (list.length) next[id] = list;
+    }
+    const was = teamBusyItems(old);
+    const will = teamBusyItems(next);
+    const keysOf = (items) => Object.keys(items || {}).sort().join("|");
+    const today = dayOf(nowMs, zone());
+    const changed = [...new Set([...was.keys(), ...will.keys()])].filter((d) => d >= today && keysOf(was.get(d)) !== keysOf(will.get(d))).sort();
+    for (const d of changed) {
+      await db.runTransaction(async (tx) => {
+        const daySnap = await tx.get(dayRef(d));
+        const items = Object.fromEntries(Object.entries((daySnap.exists ? daySnap.data()?.items : null) || {}).filter(([k]) => !k.startsWith(GCAL)));
+        tx.set(dayRef(d), { items: { ...items, ...(will.get(d) || {}) } });
+      });
+    }
+    await ref.set({ at: new Date(nowMs).toISOString(), spans: next, ...(answer.available ? {} : { off: true }) });
+    return { days: changed.length };
+  }
+
+  /** The email with a team member's own link to share their busy times. */
+  async function sendCalendarLink(person, url) {
+    const brand = await emailBrand();
+    const shop = brand.shopName || shopName() || "the shop";
+    await sendEmail({
+      to: person.email,
+      subject: `${shop}: link your calendar so clients can't book you when you're busy`,
+      html: risoLayout(`<h4 style="margin:0 0 8px;">${escapeHtml(person.name)}, link your calendar</h4>
+          <p style="margin:0 0 12px;">${escapeHtml(shop)} would like clients to book you only when you're free. Sign in with your own Google account and allow Colophon to see when you're busy. Only busy or free is shared, never what your events are.</p>
+          ${risoButton(escapeHtml(url), "Link my calendar", brand.accent, brand.theme)}
+          <p style="margin:16px 0 0;font-size:13px;opacity:.75;">The link works once, for a day. Ask ${escapeHtml(shop)} for a new one if it runs out. You can unlink at any time from your Google account.</p>`,
+        { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+    });
+  }
+
   /** One morning list email: the owner's (every booking, a link to the admin) or one person's own day. */
   async function sendDayList(to, day, list, { owner = false, person = "" } = {}) {
     const brand = await emailBrand();
@@ -3443,7 +3573,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */

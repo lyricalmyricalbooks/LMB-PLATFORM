@@ -505,3 +505,6 @@
   .rp .bkg-share-qr { grid-template-columns: 1fr; justify-items: center; }
   .rp .bkg-share-qr > div { justify-items: center; text-align: center; }
 }
+/* A person's own Google Calendar (Beta) */
+.rp .bkg-google-state { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text); overflow-wrap: anywhere; }
+.rp .bkg-inline-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }

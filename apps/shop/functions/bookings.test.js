@@ -2173,6 +2173,76 @@ describe("staff and rooms", () => {
     expect(t.db.store.get("bookingFeed/main").token).toBe(ownerToken);
   });
 
+  test("a person's own Google Calendar closes their busy times, for them alone, and clears when unlinked", async () => {
+    const busy = { ana: [{ start: at("2026-11-18", "10:00"), end: at("2026-11-18", "11:00") }], ben: [] };
+    const sent = [];
+    const calendar = {
+      ...fakeCalendar(),
+      async peopleBusy(people, from, to) { sent.push({ people, from, to }); return { available: true, busy: Object.fromEntries(people.map((p) => [p, busy[p] ?? []])) }; },
+      async peopleStatus(people) { return { available: true, people: Object.fromEntries(people.map((p) => [p, busy[p]?.length ? { linked: true, accountEmail: `${p}@example.com` } : { linked: false }])) }; },
+      async personLink(person) { return { available: true, url: `https://accounts.google.example/allow?state=${person}` }; },
+      async personDisconnect(person) { busy[person] = []; return { available: true, forgotten: true }; },
+    };
+    const t = setup({ calendar, now: "2026-11-17T12:00:00Z" });
+    await team(t, { staff: [{ id: "ana", name: "Ana", email: "ana@example.com" }, { id: "ben", name: "Ben" }] });
+    expect(await t.desk.sweepTeamCalendars()).toEqual({ days: 1 });
+    // 60 days from the start of the shop's day, active people only.
+    expect(sent[0].people).toEqual(["ana", "ben"]);
+    expect(Date.parse(sent[0].to) - Date.parse(sent[0].from)).toBe(60 * 24 * 3_600_000);
+    const times = async (staffId) => (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-18", days: 1, ...(staffId ? { staffId } : {}) })).body.days["2026-11-18"];
+    expect(await times("ana")).not.toContain(at("2026-11-18", "10:00"));
+    expect(await times("ben")).toContain(at("2026-11-18", "10:00"));
+    expect(await times()).toContain(at("2026-11-18", "10:00"));
+    expect((await book(t, at("2026-11-18", "10:00"), { staffId: "ana" })).statusCode).toBe(409);
+    // Read again only after 15 minutes; then nothing changed, so no day is written.
+    expect(await t.desk.sweepTeamCalendars()).toEqual({ days: 0 });
+    expect(sent).toHaveLength(1);
+    // A booking on the same day keeps its item when the busy times change.
+    const kept = await book(t, at("2026-11-18", "14:00"), { staffId: "ana" });
+    expect(kept.statusCode).toBe(200);
+    busy.ana = [{ start: at("2026-11-18", "16:00"), end: at("2026-11-18", "17:00") }];
+    t.clock.now = new Date(Date.parse("2026-11-17T12:16:00Z"));
+    expect(await t.desk.sweepTeamCalendars()).toEqual({ days: 1 });
+    const items = Object.entries(t.db.store.get("bookingDays/2026-11-18").items);
+    expect(items.filter(([k]) => k.startsWith("gcal~")).map(([, v]) => v)).toEqual([{ start: Date.parse(at("2026-11-18", "16:00")), end: Date.parse(at("2026-11-18", "17:00")), p: "ana", g: true }]);
+    expect(items.some(([k]) => k.startsWith(kept.body.id))).toBe(true);
+    expect(await times("ana")).toContain(at("2026-11-18", "10:00"));
+
+    // The admin: who is linked, a link to pass on (emailed when asked), and unlinking clears their busy times at once.
+    expect((await t.adm({ op: "teamCalendar", step: "status" })).body.people.ana).toMatchObject({ linked: true });
+    const link = await t.adm({ op: "teamCalendar", step: "link", staffId: "ana", send: true });
+    expect(link.body).toMatchObject({ available: true, sent: true });
+    expect(t.emails.at(-1)).toMatchObject({ to: "ana@example.com" });
+    expect(t.emails.at(-1).html).toContain("https://accounts.google.example/allow?state=ana");
+    expect((await t.adm({ op: "teamCalendar", step: "link", staffId: "ben", send: true })).statusCode).toBe(400);
+    expect((await t.adm({ op: "teamCalendar", step: "link", staffId: "nobody" })).statusCode).toBe(400);
+    expect((await t.adm({ op: "teamCalendar", step: "unlink", staffId: "ana" })).statusCode).toBe(200);
+    expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items).filter((k) => k.startsWith("gcal~"))).toEqual([]);
+  });
+
+  test("a calendar the platform couldn't read keeps its busy times, and a person taken off the team has theirs cleared", async () => {
+    let answer = { available: true, busy: { ana: [{ start: at("2026-11-18", "10:00"), end: at("2026-11-18", "11:00") }] } };
+    const unlinked = [];
+    const calendar = { ...fakeCalendar(), async peopleBusy() { return answer; }, async personDisconnect(person) { unlinked.push(person); throw new Error("Google is down"); } };
+    const t = setup({ calendar, now: "2026-11-17T12:00:00Z" });
+    await team(t, { staff: [{ id: "ana", name: "Ana" }] });
+    expect(unlinked).toEqual([]);
+    await t.desk.sweepTeamCalendars();
+    answer = { available: true, busy: { ana: null } };
+    expect(await t.desk.sweepTeamCalendars({ force: true })).toEqual({ days: 0 });
+    answer = null;
+    expect(await t.desk.sweepTeamCalendars({ force: true })).toEqual({ days: 0 });
+    expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items).some((k) => k.startsWith("gcal~ana~"))).toBe(true);
+    // Taken off the team in the admin: their Google link is given up too, and a failure there doesn't stop the save.
+    const saved = await t.adm({ op: "saveSettings", settings: { ...t.db.store.get("bookingSettings/main"), staff: [{ id: "ben", name: "Ben" }] } });
+    expect(saved.statusCode).toBe(200);
+    expect(unlinked).toEqual(["ana"]);
+    expect(t.db.store.get("bookingSettings/main").staff.map((p) => p.id)).toEqual(["ben"]);
+    answer = { available: true, busy: { ben: [] } };
+    expect(await t.desk.sweepTeamCalendars({ force: true })).toEqual({ days: 1 });
+    expect(Object.keys(t.db.store.get("bookingDays/2026-11-18")?.items || {}).filter((k) => k.startsWith("gcal~"))).toEqual([]);
+  });
+
   test("each person with an email gets their own day each morning, once, only on days they have bookings", async () => {
     const t = setup({ now: "2026-11-17T12:00:00Z" });
     await team(t, { staff: [{ id: "ana", name: "Ana", email: "ana@example.com" }, { id: "ben", name: "Ben", email: "ben@example.com" }, { id: "cy", name: "Cy" }] });
