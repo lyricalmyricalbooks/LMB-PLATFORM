@@ -727,3 +727,24 @@ export const PICKUP_MESSAGES: Record<PickupProblem, string> = {
   full: "That pickup time has just filled up. Please choose another.",
   too_far: "Pickup times can only be chosen up to two weeks ahead. Please choose an earlier one.",
 };
+
+// ── Check-in codes (17 November 2026) ──────────────────────────────────────────────────────────────────────────────
+// Each confirmed booking gets a short code (in its emails and on the customer's booking page, also as a QR code). The
+// shop types or scans it at the Fair till or Take a payment to mark the person as arrived. Letters and digits that can't
+// be mistaken for each other (no 0/O, 1/I).
+
+export const CHECK_IN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** A check-in code as typed, scanned or read aloud ("k7qm 2xpa", "K7QM-2XPA"): "K7QM-2XPA", or "" when it isn't one. */
+export function cleanCheckInCode(raw: unknown): string {
+  const text = String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (text.length !== 8 || [...text].some((ch) => !CHECK_IN_ALPHABET.includes(ch))) return "";
+  return `${text.slice(0, 4)}-${text.slice(4)}`;
+}
+
+/** A new code from eight random numbers (0 to 255 each), so both sides can make one with their own randomness. */
+export function checkInCodeFrom(bytes: ArrayLike<number>): string {
+  let text = "";
+  for (let i = 0; i < 8; i++) text += CHECK_IN_ALPHABET[(bytes[i] ?? 0) % CHECK_IN_ALPHABET.length];
+  return `${text.slice(0, 4)}-${text.slice(4)}`;
+}

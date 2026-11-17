@@ -19,7 +19,9 @@
 //                            debited when the time is taken, put back once on cancel unless the shop keeps it),
 //                            pack? { id, last4, visit, visits, returned? } with payment "pack" and priceMinor 0 (a visit booked with
 //                            a pack of visits: listPriceMinor is the service's price; the use is counted when the time is taken
-//                            and given back once on cancel unless the shop keeps it) }
+//                            and given back once on cancel unless the shop keeps it),
+//                            checkInCode? ("K7QM-2XPA", given once confirmed: in its emails and on its page) and checkedInAt? (the
+//                            shop typed or scanned it at the till, op checkIn) }
 //   bookingPacks/{id}      a pack of visits bought on the Book a time page (id = hash of its code; only the last four are kept):
 //                          { last4, serviceId, serviceName, visits, priceMinor, currency, customer: { name, email },
 //                          status: "held" | "active" | "closed", sessions, paymentIntent?, paidAt?, expiresOn (last shop day,
@@ -56,7 +58,7 @@ const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
-  pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
+  pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD, cleanCheckInCode, checkInCodeFrom,
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
@@ -153,6 +155,8 @@ function publicBooking(id, b, settings, nowMs) {
     // Tips: the choices (when the shop asks for them), whether a tip can be added on its own, and the tip given.
     tipPercents: settings.tips && (b.priceMinor || 0) > 0 ? settings.tipPercents : [], canTip: tipOpen(b, settings.tips, nowMs) && !restPayable(b),
     tipMinor: tipTaken(b), tipLimitMinor: tipLimitMinor(b.priceMinor || 0),
+    // The code to show at the desk, while the visit is still to come; and whether the shop has checked them in.
+    checkInCode: b.status === "confirmed" && Date.parse(b.end) > nowMs ? b.checkInCode || "" : "", checkedIn: !!b.checkedInAt,
   };
 }
 
@@ -279,6 +283,14 @@ function bookingActions({
   }
   const manageUrl = (id, key) => siteLink(`/book?booking=${encodeURIComponent(id)}&key=${key}`);
 
+  /** A confirmed booking's check-in code, made the first time it is needed (an email or the customer's page). */
+  async function withCheckInCode(id, b) {
+    if (!b || b.checkInCode || b.status !== "confirmed") return b;
+    const checkInCode = checkInCodeFrom(crypto.randomBytes(8));
+    await bookings().doc(id).set({ checkInCode }, { merge: true });
+    return { ...b, checkInCode };
+  }
+
   /** Emails the customer (and tells the owner) about a booking. `kind`: booked, moved, cancelled. Never throws. */
   async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop } = {}) {
     try {
@@ -290,6 +302,10 @@ function bookingActions({
       const when = whenWords(b);
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
       const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>Video call:</strong> <a href="${escapeHtml(b.meetUrl)}">Join with Google Meet</a></p>` : "";
+      const arriving = ["booked", "moved", "reminder", "soon"].includes(kind);
+      if (arriving) b = await withCheckInCode(id, b).catch(() => b);
+      const checkIn = arriving && b.checkInCode ? `<p style="margin:16px 0 4px;"><strong>Check-in code:</strong> <span style="font-family:'DM Mono',Menlo,Consolas,monospace;font-size:20px;letter-spacing:.12em;">${escapeHtml(b.checkInCode)}</span></p>
+        <p style="margin:0 0 4px;font-size:13px;">Show it at the desk when you arrive.${key ? " Your booking page has it as a code to scan." : ""}</p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
       const subject = { tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
@@ -332,6 +348,7 @@ function bookingActions({
         ${video}
         ${money}
         ${held}
+        ${checkIn}
         ${manage}
         ${calendar}
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
@@ -1450,6 +1467,7 @@ function bookingActions({
       if (action === "bookingView") {
         if (b.status === "held") b = await refreshHeld(id, b, (await standalone()).checkout);
         if (b.restOpen) b = await refreshRest(id, b, (await standalone()).checkout);
+        if (Date.parse(b.end) > nowMs) b = await withCheckInCode(id, b);
         return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs) });
       }
       if (action === "bookingPayRest") {
@@ -1515,6 +1533,54 @@ function bookingActions({
       console.error("booking action failed:", action, err?.message || err);
       return fail(res, 502, "Bookings couldn't be reached just now. Please try again.");
     }
+  }
+
+  // ── Check-in at the till ─────────────────────────────────────────────────────────────────────────────────────────
+
+  /** What the till shows about the person in front of it. */
+  const arrivalCard = (id, b) => ({
+    id, name: b.customer?.name || "", serviceName: b.serviceName, start: b.start, end: b.end, minutes: b.minutes,
+    status: b.status, dueMinor: b.status === "confirmed" ? balanceDue(b) : 0, currency: b.currency, note: b.note || "",
+    checkedInAt: b.checkedInAt || null, checkInCode: b.checkInCode || "",
+  });
+
+  /**
+   * Op checkIn: `code` (typed or scanned) or `id` (from the booking's own page in the admin) marks a confirmed booking for
+   * today as arrived, once; `value: false` takes it off. Answers the person's card, also when the code is refused, so the
+   * till can say who it was.
+   */
+  async function checkIn(req, res, by) {
+    const code = cleanCheckInCode(req.body?.code);
+    let id = String(req.body?.id || "");
+    let b;
+    if (code) {
+      const found = await bookings().where("checkInCode", "==", code).limit(5).get();
+      if (found.empty) return fail(res, 404, "No booking has that check-in code. Check the letters, or find them in Bookings.", "unknown_code");
+      const doc = found.docs.find((d) => d.data().status === "confirmed") || found.docs[0];
+      id = doc.id;
+      b = doc.data();
+    } else {
+      if (req.body?.code) return fail(res, 400, "A check-in code is eight letters and numbers, like K7QM-2XPA.", "bad_code");
+      if (!ID.test(id)) return fail(res, 400, "Type or scan a check-in code.", "no_code");
+      const snap = await bookings().doc(id).get();
+      if (!snap.exists) return fail(res, 404, "This booking is gone.");
+      b = snap.data();
+    }
+    const refuse = (error, why) => res.status(409).json({ error, code: why, booking: arrivalCard(id, b) });
+    const at = now().toISOString();
+    if (req.body?.value === false) {
+      if (!b.checkedInAt) return res.status(200).json({ ok: true, booking: arrivalCard(id, b) });
+      const changes = { checkedInAt: null, updatedAt: at, history: [...(b.history || []), { at, what: "check-in taken off", by }].slice(-20) };
+      await bookings().doc(id).set(changes, { merge: true });
+      return res.status(200).json({ ok: true, booking: arrivalCard(id, { ...b, ...changes }) });
+    }
+    if (b.status === "cancelled") return refuse("This booking was cancelled.", "cancelled");
+    if (b.status !== "confirmed") return refuse("This booking isn't confirmed: their payment hasn't gone through yet.", "held");
+    if (dayOf(Date.parse(b.start), zone()) !== dayOf(now().getTime(), zone())) return refuse(`This booking is for ${whenWords(b)}, not today.`, "not_today");
+    if (b.checkedInAt) return res.status(200).json({ ok: true, already: true, booking: arrivalCard(id, b) });
+    const changes = { checkedInAt: at, noShow: false, updatedAt: at, history: [...(b.history || []), { at, what: "checked in", by }].slice(-20) };
+    await bookings().doc(id).set(changes, { merge: true });
+    return res.status(200).json({ ok: true, booking: arrivalCard(id, { ...b, ...changes }) });
   }
 
   // ── The owner (createStripeCheckoutSession action "bookingsAdmin") ─────────────────────────────────────────────
@@ -1725,11 +1791,12 @@ function bookingActions({
           // Reminders and the second reminder are for visits still to come.
           reminderSentAt: at, reminder2SentAt: at,
           start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString(),
-          history: [{ at, what: "taken at the desk", by }], createdAt: at, updatedAt: at,
+          history: [{ at, what: "taken at the desk", by }], createdAt: at, updatedAt: at, checkedInAt: at,
         };
         await bookings().doc(id).set(record);
         return res.status(200).json({ ok: true, id, url: manageUrl(id, payKey), dueMinor: priceMinor });
       }
+      if (op === "checkIn") return checkIn(req, res, by);
       const id = String(req.body?.id || "");
       if (!ID.test(id)) return fail(res, 400, "Unknown booking.");
       const snap = await bookings().doc(id).get();

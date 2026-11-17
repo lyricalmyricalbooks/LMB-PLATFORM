@@ -1361,3 +1361,12 @@ calls `bookingDesk.pickupCheck(selection, orderId)` for pickup on every price, s
 `priceOrder` and `checkoutPayment.js` pass through with its code. The time is saved as `fulfillment.pickupAt` (ISO) and
 shown in the order emails (`pickupTimeLine`, shop time zone), the workbench and the tracking page. No rule change: it
 rides in `fulfillmentSelection.pickupAt`. Tests: bookings.test.js › pickup times at checkout, r2Payments.test.js.
+
+**Check-in at the desk (17 November 2026, Bookings plan phase 4).** A confirmed booking gets `checkInCode` (8 letters
+from `CHECK_IN_ALPHABET`, shown `XXXX-XXXX`; `withCheckInCode` sets it lazily from `crypto.randomBytes`) the first time
+an email (booked, moved, reminders) or the booking page needs it. `publicBooking` shows it only while confirmed and not
+yet over, plus `checkedIn`. Admin op `checkIn` takes `{ code }` (cleaned by the shared `cleanCheckInCode`, so spaces,
+lower case and a missing dash pass; looked up by `checkInCode`, no new index) or `{ id }`, and `value: false` takes it
+off. It sets `checkedInAt`, `noShow: false` and a history line, and answers `arrivalCard` (name, service, time, what is
+left to pay). Refusals: `bad_code`, `no_code`, `unknown_code` (404), and 409 with the booking for cancelled, held and
+`not_today`; a second scan answers `already`. A walk-in is saved checked in. Tests: bookings.test.js › check-in at the till.
