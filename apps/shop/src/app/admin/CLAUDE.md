@@ -1237,6 +1237,14 @@ falls back to Week otherwise) is `TeamDayView`: pure `teamDay(rows, settings, da
 Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` with `staffId`). Fixture:
 `admin-fixture.html?team=1&page=bookings`.
 
+**Team pay (Beta, 17 November 2026, Services plan 2 extras; `tasks/todo/2026-11-17-team-pay.md`):** Bookings › Team pay
+(shown once the shop lists people) is `PayPanel`: pure `teamPay(rows, staff, zone, month)` / `teamPayRows` in
+`bookingsView.ts` (tested). Takings before tax are `moneyKept` less `taxIn`; commission is each person's
+`commissionPercent` (`commissionOf` in `shared/bookingTimes.ts`: 0.5 to 100 in half steps, else none) of that; tips are
+`tipTaken`, never part of takings. Visits are confirmed and not no-shows; held bookings never count; the month is the
+shop's own day. Bookings with no person sit on a last line with no commission. The person dialog's Their pay field sets
+the share; the public booking page's staff list never includes it. Shown only, never paid. Classes `.bkg-pay*`.
+
 ## Client records (17 November 2026, services plan phase 5)
 
 Plan: `tasks/todo/2026-11-17-client-records.md`. Customers (Clients in a services shop) › a client › Summary leads with

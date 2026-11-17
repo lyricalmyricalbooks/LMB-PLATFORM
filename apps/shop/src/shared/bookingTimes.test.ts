@@ -5,7 +5,7 @@ import {
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
-  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue,
+  cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -486,6 +486,13 @@ describe("staff and rooms", () => {
     expect(cleanRooms(Array.from({ length: 12 }, (_, i) => ({ name: `R${i}` })))).toHaveLength(MAX_ROOMS);
     expect(cleanService({ name: "Facial", minutes: 60, roomId: "r 1!" })).toMatchObject({ roomId: "r1" });
     expect(cleanBookingSettings({})).toMatchObject({ staff: [], rooms: [] });
+  });
+
+  it("keeps a commission share from 0.5 to 100 in half steps, and drops anything else", () => {
+    expect([40, "12.5", 0.2, 0.3, 101, 33.3, -5, "", "abc", null, NaN].map(commissionOf)).toEqual([40, 12.5, 0, 0.5, 100, 33.5, 0, 0, 0, 0, 0]);
+    const [a, b] = cleanStaff([{ name: "Ana", commissionPercent: 40 }, { name: "Ben", commissionPercent: 0 }]);
+    expect(a.commissionPercent).toBe(40);
+    expect("commissionPercent" in b).toBe(false);
   });
 });
 

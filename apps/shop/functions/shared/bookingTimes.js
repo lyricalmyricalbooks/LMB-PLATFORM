@@ -42,6 +42,7 @@ exports.reviewLink = reviewLink;
 exports.thanksDue = thanksDue;
 exports.cleanRooms = cleanRooms;
 exports.cleanStaff = cleanStaff;
+exports.commissionOf = commissionOf;
 exports.cleanRates = cleanRates;
 exports.forPerson = forPerson;
 exports.zonedTime = zonedTime;
@@ -745,9 +746,18 @@ function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
             daysOff: cleanDaysOff(p.daysOff),
             email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
             rates: cleanRates(p.rates),
+            ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
         });
     }
     return out;
+}
+/** A commission share: a number from 0.5 to 100 in half steps; anything else is none (0). */
+function commissionOf(raw) {
+    const n = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+    if (!Number.isFinite(n))
+        return 0;
+    const half = Math.round(n * 2) / 2;
+    return half < 0.5 ? 0 : Math.min(100, half);
 }
 /** A person's own lengths and prices: one per service, at least one of the two set, lengths 5 minutes to 8 hours. */
 function cleanRates(raw) {
