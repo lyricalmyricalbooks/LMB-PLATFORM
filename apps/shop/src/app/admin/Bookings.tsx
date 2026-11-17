@@ -2104,7 +2104,7 @@ function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings;
             if (await save({ staff }, p.id ? `${p.name} saved` : `${p.name} added`)) setEditing(null);
           }}
           onRemove={editing.id ? async () => {
-            if (!(await ask({ title: `Remove ${editing.name}?`, message: "Clients can't pick them any more. Their bookings stay, with their name on them.", confirmLabel: "Remove" }))) return;
+            if (!(await ask({ title: `Remove ${editing.name}?`, message: editing.commissionPercent ? "Clients can't pick them any more. Their bookings stay, with their name on them, but Team pay will no longer know their commission. To keep it, turn off Taking bookings instead." : "Clients can't pick them any more. Their bookings stay, with their name on them.", confirmLabel: "Remove" }))) return;
             if (await save({ staff: settings.staff.filter((x) => x.id !== editing.id) }, `${editing.name} removed`)) setEditing(null);
           } : undefined} />
       )}
