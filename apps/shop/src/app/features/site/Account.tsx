@@ -44,6 +44,7 @@ import { accountRequestLine, REQUESTS_ANCHOR } from "./OrderRequests";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { YourDataCard } from "./YourDataCard";
+import { AccountLibrary } from "./AccountLibrary";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
@@ -775,6 +776,9 @@ function AccountContent() {
             </form>
           </section>
         )}
+
+        {/* Library (Digital D1b): every download from every paid order, in one place. */}
+        <AccountLibrary design={settings?.design} orders={orders} entriesByOrder={digitalItems} onDownload={handleDownloadDigitalAsset} />
 
         {/* Order History Details View */}
         <section {...regionProps("accountHistory")} className="glass-card border border-white/5 rounded-[2.5rem] p-10">

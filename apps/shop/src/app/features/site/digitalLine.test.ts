@@ -54,3 +54,30 @@ describe("round-2 PR 4: editions, box sets, limit", () => {
     expect(DOWNLOAD_LIMIT).toBe(createRequire(import.meta.url)("../../../../functions/digitalDelivery").DOWNLOAD_LIMIT);
   });
 });
+
+import { libraryEntries } from "./digitalLine";
+
+describe("Digital D1b: the account library", () => {
+  const entry = (itemId: string, file = 0, variantId = "") => ({ itemId, variantId, title: itemId, file });
+  it("lists each file once, through the newest paid order", () => {
+    const orders = [
+      { id: "new", paymentStatus: "paid" },
+      { id: "unpaid", paymentStatus: "pending" },
+      { id: "old", paymentStatus: "paid" },
+    ];
+    const rows = libraryEntries(orders, {
+      new: [entry("zine")],
+      unpaid: [entry("album")],
+      old: [entry("zine"), entry("zine", 1), entry("zine", 0, "hd")],
+    });
+    expect(rows.map((r) => [r.itemId, r.variantId, r.file, r.order.id])).toEqual([
+      ["zine", "", 0, "new"],
+      ["zine", "", 1, "old"],
+      ["zine", "hd", 0, "old"],
+    ]);
+  });
+  it("is empty with no paid downloads", () => {
+    expect(libraryEntries([], {})).toEqual([]);
+    expect(libraryEntries([{ id: "a", paymentStatus: "paid" }], {})).toEqual([]);
+  });
+});

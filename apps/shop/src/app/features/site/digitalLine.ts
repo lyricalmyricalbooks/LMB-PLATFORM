@@ -73,3 +73,27 @@ export function downloadBookIds(order: any): string[] {
   }
   return [...ids];
 }
+
+export interface LibraryEntry extends DigitalEntry {
+  /** The order the download runs through: the newest paid one that holds this file. */
+  order: any;
+}
+
+/**
+ * The account's Library (Digital D1b): every download across the shopper's paid orders, one row per product, edition and
+ * file. Bought twice, it is listed once, through the newest order (`orders` comes newest first, like the order history).
+ */
+export function libraryEntries(orders: any[], entriesByOrder: Record<string, DigitalEntry[]>): LibraryEntry[] {
+  const out: LibraryEntry[] = [];
+  const seen = new Set<string>();
+  for (const order of orders || []) {
+    if (order?.paymentStatus !== "paid") continue;
+    for (const entry of entriesByOrder[order.id] || []) {
+      const key = `${entry.itemId}|${entry.variantId}|${entry.file}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...entry, order });
+    }
+  }
+  return out;
+}
