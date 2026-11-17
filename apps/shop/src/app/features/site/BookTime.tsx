@@ -21,7 +21,7 @@ import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/booking
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
-  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, tipMinorOf, tipOk, type TipPick,
+  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
   peopleFor,
 } from "./bookTimeRules";
@@ -109,6 +109,9 @@ function NewBooking({ c }: { c: Copy }) {
     return () => { gone = true; };
   }, [service?.id, usePack]);
   useEffect(() => setGift(null), [service?.id, applied?.code]);
+  // A course is signed up for as a whole: its first date is the start, with nothing to pick.
+  const course = service?.courseStarts?.length ? service.courseStarts : null;
+  useEffect(() => { if (course && step === "time") setStart(course[0]); }, [service?.id, step]);
 
   const load = () => {
     setLoadFailed(false);
@@ -177,7 +180,7 @@ function NewBooking({ c }: { c: Copy }) {
       setBusy(false);
       // The person picked stopped doing this service meanwhile: back to anyone free and the times.
       if (err?.code === "staff") { setStaffId(""); setStart(""); setStep("time"); setError(c("bookTimeStaffProblem")); return; }
-      if (err?.code === "taken") { setStart(""); setStep("time"); setError(c("bookTimeTaken")); return; }
+      if (err?.code === "taken" || err?.code === "started") { setStart(""); setStep("time"); setError(c(course ? (err.code === "started" ? "bookTimeCourseStarted" : "bookTimeCourseFull") : "bookTimeTaken")); return; }
       // The code stopped working meanwhile (used up, ended): take it off so the right price shows, and say so.
       if (err?.code === "code") { setApplied(null); setError(c("bookTimeCodeProblem")); return; }
       // The gift card's balance changed meanwhile: take it off so the right amount shows, and say so.
@@ -223,6 +226,7 @@ function NewBooking({ c }: { c: Copy }) {
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
+                {!!s.courseStarts?.length && <span>{c("bookTimeCourseCount", { count: s.courseStarts.length })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(withTax(s)), currency), rest: moneyText(withTax(s).priceMinor - upFrontMinor(withTax(s)), currency) })}</span>}
                 {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
@@ -235,7 +239,14 @@ function NewBooking({ c }: { c: Copy }) {
 
       {step === "time" && service && (
         <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
-          {people.length > 0 && (
+          {course && (
+            <div className="fm-book-course">
+              <h2 className="fm-track-mono">{c("bookTimeCourseDates", { count: course.length })}</h2>
+              <ol>{courseDateLines(course, zone).map((line) => <li key={line}>{line}</li>)}</ol>
+              <p className="text-sm leading-6 fm-muted">{c("bookTimeCourseNote")}</p>
+            </div>
+          )}
+          {!course && people.length > 0 && (
             <div className="fm-book-people" role="group" aria-label={c("bookTimeWith")}>
               <p className="fm-track-mono w-full" aria-hidden="true">{c("bookTimeWith")}</p>
               {[{ id: "", name: c("bookTimeAnyone") }, ...people].map((p) => (
@@ -243,12 +254,12 @@ function NewBooking({ c }: { c: Copy }) {
               ))}
             </div>
           )}
-          <TimePicker serviceId={service.id} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
+          {!course && <TimePicker serviceId={service.id} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
             offer={service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : undefined}
-            waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />
+            waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />}
           <div className="fm-book-actions mt-2">
             <button type="button" className="fm-track-btn" disabled={!start} onClick={() => { setError(""); setStep("details"); }}>
-              {start ? `${c("bookTimeContinue")} · ${timeText(start, zone)}` : c("bookTimeContinue")}
+              {start && !course ? `${c("bookTimeContinue")} · ${timeText(start, zone)}` : c("bookTimeContinue")}
             </button>
             {steps[0] === "service" && (
               <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer" onClick={() => setStep("service")}>
@@ -343,6 +354,7 @@ function NewBooking({ c }: { c: Copy }) {
           </form>
           <aside {...regionProps("bookingsSummary")} className="fm-track-card p-6 fm-track-ledger">
             <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
+            {course && <Row label={c("bookTimeCourseDates", { count: course.length })} value={courseDateLines(course, zone).join(" · ")} />}
             {chosen && <Row label={c("bookTimeWith")} value={chosen.name} />}
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
             {applied && <Row label={c("bookTimeDiscount")} value={`${applied.code} −${moneyText(applied.discountMinor, currency)}`} />}
@@ -962,7 +974,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   const zone = info?.zone || shopTimeZone();
   const startMs = Date.parse(booking.start);
   const endMs = Date.parse(booking.end);
-  const canMove = booking.canChange && !!info?.on && !!info.today;
+  const canMove = booking.canChange && booking.canMove !== false && !!info?.on && !!info.today;
   const lastDay = info?.today ? addDays(info.today, Math.max(0, (info.maxDaysAhead || 60) - 1)) : "";
   const title = booking.status === "cancelled" ? c("bookTimeCancelledTitle") : booking.status === "held" ? c("bookTimeHeldTitle") : c("bookTimeConfirmedTitle");
   const stamp = booking.status === "cancelled" ? "ended" : booking.status === "held" ? "unpaid" : "paid";
@@ -1036,6 +1048,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       <div {...regionProps("bookingsConfirmation")} className="fm-track-card p-6 sm:p-8 fm-track-ledger">
         <Row label={c("bookTimeWhat")} value={`${booking.serviceName} · ${lengthText(booking.minutes)}`} />
         <Row label={c("bookTimeWhen")} value={whenText(booking.start, booking.end, zone)} />
+        {!!booking.courseStarts?.length && <Row label={c("bookTimeCourseDates", { count: booking.courseStarts.length })} value={courseDateLines(booking.courseStarts, zone).join(" · ")} />}
         {booking.staffName && <Row label={c("bookTimeWith")} value={booking.staffName} />}
         {booking.location && <Row label={c("bookTimeWhere")} value={booking.location} />}
         {booking.meetUrl && booking.status === "confirmed" && (

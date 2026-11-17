@@ -22,7 +22,8 @@ import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stock
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
 import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
-import { DEFAULT_BOOKING_SETTINGS, type BookingService } from "../shared/bookingTimes";
+import { DEFAULT_BOOKING_SETTINGS, addDays, zonedTime, type BookingService } from "../shared/bookingTimes";
+import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
 import { refundMinorFor } from "../shared/eventTickets";
@@ -204,6 +205,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", ...extra,
   });
   const CLASSES = (new URLSearchParams(window.location.search).get("ways") || "").split(",").includes("classes");
+  const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+  const COURSE_DAYS = [0, 7, 14, 21].map((n) => addDays(monday, 2 + n));
   let services: BookingService[] = mode === "new" ? [] : [
     service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000, meet: true }),
     service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
@@ -211,6 +214,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     service("binding", "Bookbinding class", 90, 3000, 2, { active: CLASSES, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25 }),
     ...(CLASSES ? [service("letterpress", "Letterpress evening", 120, 5500, 4, { places: 8, location: "Print room", classTimes: [{ weekday: 2, time: "18:30" }, { weekday: 4, time: "18:30" }] })] : []),
+    // A four-week course on Wednesday mornings, starting this week: one sign-up holds a place on every date.
+    ...(CLASSES ? [service("wheel", "Four-week wheel course", 120, 18000, 5, { places: 6, location: "Studio", courseDates: COURSE_DAYS.map((d) => `${d}T10:00`) })] : []),
   ];
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
   const TEAM = new URLSearchParams(window.location.search).get("team") === "1";
@@ -258,6 +263,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       booking("cl-b5", services[2], thisWeek(6, 14), "Flo Example", { status: "held", paid: false }),
       ...["Gus", "Hal", "Ivy"].map((n, i) => booking(`cl-t${i}`, services[4], thisWeek(2, 18, 30), `${n} Example`, i === 1 ? {} : { checkedInAt: thisWeek(2, 18, 24) })),
       ...["Jo", "Kai", "Lea", "Mo", "Ned"].map((n, i) => booking(`cl-h${i}`, services[4], thisWeek(4, 18, 30), `${n} Example`, i === 4 ? { payment: "atShop", paid: false } : {})),
+      ...["Oz", "Pia", "Quin", "Rae"].map((n, i) => { const starts = COURSE_DAYS.map((d) => new Date(zonedTime(d, "10:00", shopTimeZone())).toISOString()); return booking(`cl-c${i}`, services[5], starts[0], `${n} Example`, { course: { starts, days: COURSE_DAYS } }); }),
     ] : []),
     // A services shop (`?sells=…`): Ben is a regular, for the client card (Customers › Ben): visits, a missed one with a
     // saved card and its fee, answers and a pack.
@@ -313,6 +319,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     watchers.add(send); send();
     return () => void watchers.delete(send);
   };
+  bookingsData.courseRows = async (days) => rows.filter((b) => b.course?.days.some((d) => days.includes(d)));
   bookingsData.range = async (from, to) => [...rows, ...history].filter((b) => b.start >= from && b.start < to);
   bookingsData.admin = async (op, body) => {
     const id = String(body.id ?? "");

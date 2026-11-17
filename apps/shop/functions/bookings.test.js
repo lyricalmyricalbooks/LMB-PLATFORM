@@ -2392,3 +2392,92 @@ describe("reviews of visits on the shop's website", () => {
     expect((await off.pub({ action: "bookingInfo" })).body.reviews).toEqual([]);
   });
 });
+
+describe("courses: one sign-up, one price, a place on every date", () => {
+  const person = (n) => ({ name: `Person ${n}`, email: `p${n}@example.com` });
+  const DATES = ["2026-12-05T18:00", "2026-11-28T18:00", "2026-12-12T18:00", "2026-11-28T18:00"];
+  const first = at("2026-11-28", "18:00");
+  const all = [first, at("2026-12-05", "18:00"), at("2026-12-12", "18:00")];
+  async function withCourse(extra = {}) {
+    const t = setup();
+    await t.seed();
+    const saved = await t.adm({ op: "saveService", service: { name: "Six-week wheel course", minutes: 120, gapAfter: 0, places: 2, payment: "full", priceMinor: 18000, courseDates: DATES, classTimes: [{ weekday: 1, time: "10:00" }], ...extra } });
+    return { t, id: saved.body.service?.id, saved };
+  }
+  const items = async (t, day) => Object.keys((await t.db.collection("bookingDays").doc(day).get()).data()?.items || {}).sort();
+
+  test("a course keeps its dates in order, drops weekly times and packs, and needs two dates and two places", async () => {
+    const { saved } = await withCourse({ packVisits: 5, packPriceMinor: 5000 });
+    expect(saved.body.service).toMatchObject({ courseDates: ["2026-11-28T18:00", "2026-12-05T18:00", "2026-12-12T18:00"], classTimes: [], packVisits: 0 });
+    const t = setup();
+    await t.seed();
+    expect((await t.adm({ op: "saveService", service: { name: "One date", minutes: 60, places: 4, courseDates: ["2026-11-28T18:00"] } })).body.error).toMatch(/at least 2 dates/);
+    expect((await t.adm({ op: "saveService", service: { name: "One person", minutes: 60, places: 1, courseDates: DATES } })).body.error).toMatch(/at least 2 people/);
+  });
+
+  test("it is offered only on its first date, however far ahead, and the page gets every date", async () => {
+    const { t, id } = await withCourse();
+    await t.adm({ op: "saveSettings", settings: { live: true, maxDaysAhead: 3 } });
+    const info = (await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === id);
+    expect(info.courseStarts).toEqual(all);
+    const times = (await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-27", days: 10 })).body.days;
+    expect(Object.entries(times).filter(([, list]) => list.length)).toEqual([["2026-11-28", [first]]]);
+    // A later date can't be signed up for on its own.
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start: all[1], ...person(1) })).statusCode).toBe(409);
+  });
+
+  test("one paid sign-up holds every date, confirms them together, and cancelling frees them all", async () => {
+    const { t, id } = await withCourse();
+    const started = await t.pub({ action: "bookingStart", serviceId: id, start: first, ...person(1) });
+    expect(started.body).toMatchObject({ status: "held" });
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(18000);
+    const bid = started.body.id;
+    expect(await items(t, "2026-11-28")).toEqual([bid]);
+    expect(await items(t, "2026-12-05")).toEqual([`${bid}~1`]);
+    expect(await items(t, "2026-12-12")).toEqual([`${bid}~2`]);
+    // Paid: every date stops being a hold, and the email lists all three dates.
+    const sid = [...t.sessions.keys()][0];
+    Object.assign(t.sessions.get(sid), { payment_status: "paid", status: "complete", payment_intent: "pi_course" });
+    const view = (await t.pub({ action: "bookingView", id: bid, key: started.body.key })).body.booking;
+    expect(view).toMatchObject({ status: "confirmed", paid: true, courseStarts: all, canMove: false, canChange: true });
+    expect((await t.db.collection("bookingDays").doc("2026-12-12").get()).data().items[`${bid}~2`].held).toBe(false);
+    const mail = t.emails.find((m) => m.to === "p1@example.com" && /Booked/.test(m.subject));
+    expect(mail.html).toContain("All 3 dates");
+    expect(mail.html).toContain("December 12, 2026");
+    // It can't be moved, by the customer or the owner.
+    expect((await t.pub({ action: "bookingMove", id: bid, key: started.body.key, start: all[1] })).body.code).toBe("course");
+    expect((await t.adm({ op: "move", id: bid, start: all[1] })).body.code).toBe("course");
+    // Cancelling refunds the one price and frees every date.
+    expect((await t.pub({ action: "bookingCancel", id: bid, key: started.body.key })).statusCode).toBe(200);
+    expect(t.refunds).toHaveLength(1);
+    for (const day of ["2026-11-28", "2026-12-05", "2026-12-12"]) expect(await items(t, day)).toEqual([]);
+  });
+
+  test("a course is full when any date is, and something else in a later date's way stops the sign-up", async () => {
+    const { t, id } = await withCourse({ payment: "free", priceMinor: 0 });
+    for (const n of [1, 2]) expect((await t.pub({ action: "bookingStart", serviceId: id, start: first, ...person(n) })).body.status).toBe("confirmed");
+    const full = await t.pub({ action: "bookingStart", serviceId: id, start: first, ...person(3) });
+    expect(full.statusCode).toBe(409);
+    // Another shop: an ordinary booking sits on the second date, so nobody can take the course.
+    const other = await withCourse({ payment: "free", priceMinor: 0 });
+    expect((await other.t.adm({ op: "create", serviceId: "visit", start: at("2026-12-05", "18:30"), ...person(9) })).statusCode).toBe(200);
+    const blocked = await other.t.pub({ action: "bookingStart", serviceId: other.id, start: first, ...person(1) });
+    expect(blocked.body).toMatchObject({ code: "taken", error: expect.stringContaining("one of its dates") });
+    expect(await items(other.t, "2026-11-28")).toEqual([]);
+  });
+
+  test("the owner signs someone up for the whole course, and the Timetable lists it with the fewest places left", async () => {
+    const { t, id } = await withCourse({ payment: "free", priceMinor: 0 });
+    await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    expect((await t.adm({ op: "create", serviceId: id, ...person(1) })).statusCode).toBe(200);
+    const page = (await t.pub({ action: "classTimetable" })).body;
+    expect(page.sessions).toEqual([]);
+    expect(page.courses).toEqual([expect.objectContaining({ id, name: "Six-week wheel course", starts: all, left: 1, places: 2 })]);
+    // Once the first date has started it leaves the page and can't be signed up for.
+    t.clock.now = new Date(at("2026-11-28", "18:05"));
+    expect((await t.pub({ action: "classTimetable" })).body.courses).toEqual([]);
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start: first, ...person(2) })).body.code).toBe("started");
+    expect((await t.adm({ op: "create", serviceId: id, ...person(2) })).body.code).toBe("started");
+  });
+});

@@ -533,3 +533,36 @@ describe("a class's own starts on a day (the Classes timetable)", () => {
     expect(classStartsOn("16 Nov", cls, ZONE)).toEqual([]);
   });
 });
+
+describe("courses (one sign-up for every date)", () => {
+  // Top-level await would make the generated copy awkward; the names are read from the module in each test.
+  const load = () => import("./bookingTimes");
+  const course = { id: "wheel", minutes: 120, gapAfter: 0, places: 2, courseDates: ["2026-11-28T18:00", "2026-12-05T18:00", "2026-12-12T18:00"] };
+  it("cleans the dates: real moments, no repeats, earliest first, and a course needs two dates and two places", async () => {
+    const { cleanCourseDates, isCourse } = await load();
+    expect(cleanCourseDates(["2026-12-05T18:00", "2026-11-28T18:00:00", "2026-11-28T18:00", "2026-02-30T10:00", "T18:00", "2026-11-28T25:00", 7])).toEqual(["2026-11-28T18:00", "2026-12-05T18:00"]);
+    expect(isCourse(course)).toBe(true);
+    expect(isCourse({ places: 1, courseDates: course.courseDates })).toBe(false);
+    expect(isCourse({ places: 4, courseDates: ["2026-11-28T18:00"] })).toBe(false);
+    expect(cleanService({ name: "Course", minutes: 60, places: 4, courseDates: ["2026-11-28T18:00", ""] })).toEqual({ problem: expect.stringContaining("at least 2 dates") });
+    expect(cleanService({ name: "Class", minutes: 60, places: 4, courseDates: [] })).not.toHaveProperty("courseDates");
+  });
+  it("is offered on its first date only, outside the opening hours and past the last bookable day", async () => {
+    const { courseStarts } = await load();
+    const near = { ...settings, maxDaysAhead: 3 };
+    expect(courseStarts(course, ZONE)).toEqual([at("2026-11-28", "18:00"), at("2026-12-05", "18:00"), at("2026-12-12", "18:00")]);
+    expect(freeTimes({ service: course, settings: near, busy: [], day: "2026-11-28", zone: ZONE, nowMs: NOW })).toEqual([at("2026-11-28", "18:00")]);
+    expect(freeTimes({ service: course, settings: near, busy: [], day: "2026-12-05", zone: ZONE, nowMs: NOW })).toEqual([]);
+    // Once the first date has started there is nothing to sign up for.
+    expect(freeTimes({ service: course, settings: near, busy: [], day: "2026-11-28", zone: ZONE, nowMs: at("2026-11-28", "18:01") })).toEqual([]);
+  });
+  it("has as many places left as its fullest date", async () => {
+    const { coursePlacesLeft } = await load();
+    const taken = (day: string) => ({ start: at(day, "18:00"), end: at(day, "20:00"), serviceId: "wheel" });
+    expect(coursePlacesLeft(course, settings, [], ZONE)).toBe(2);
+    expect(coursePlacesLeft(course, settings, [taken("2026-12-05")], ZONE)).toBe(1);
+    expect(coursePlacesLeft(course, settings, [taken("2026-12-05"), taken("2026-12-05"), taken("2026-11-28")], ZONE)).toBe(0);
+    // Something else in a date's way takes every place.
+    expect(coursePlacesLeft(course, settings, [{ start: at("2026-12-12", "19:00"), end: at("2026-12-12", "19:30"), serviceId: "visit" }], ZONE)).toBe(0);
+  });
+});

@@ -32,6 +32,10 @@ export const CLASSES_CSS = [
   `${S} .fm-cls-session[data-state="full"] .fm-cls-time strong{opacity:.6;}`,
   `${S} .fm-cls-zone{margin:28px 0 0;}`,
   `${S} .fm-cls-empty{padding:28px 0;text-align:center;}`,
+  // Courses: a block above the week; each lists its dates under its name.
+  `${S} .fm-cls-courses{margin:0 0 44px;}`,
+  `${S} .fm-cls-main h3{margin:0;font-size:19px;font-weight:700;line-height:1.25;overflow-wrap:anywhere;}`,
+  `${S} .fm-cls-dates{margin:10px 0 0;padding-left:1.3em;display:grid;gap:3px;font-size:14px;line-height:1.5;opacity:.85;}`,
   `@media (max-width:640px){${S} .fm-cls-session{grid-template-columns:minmax(0,1fr);padding:16px;}${S} .fm-cls-time{display:flex;align-items:baseline;gap:10px;}${S} .fm-cls-side{justify-items:stretch;}${S} .fm-cls-side .fm-track-btn{width:100%;}${S} .fm-cls-day-head{font-size:21px;}}`,
   `@media (prefers-reduced-motion:reduce){${S} .fm-cls-days{transition:none;}}`,
 ].join("\n");

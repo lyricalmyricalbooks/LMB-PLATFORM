@@ -961,3 +961,8 @@ up and Join the waiting list are links to Book a time (`/book?service=…&day=�
 path here. Surface `classesPage`, regions `classes*`, words Text & labels › Classes page (English and French). The header
 cap icon (`hideHeaderClasses`), phone menu and footer links show while `settings.classesLive` (`classesLive.ts`).
 Studio check: "the Classes page opens in the designer" in `scripts/studio-e2e.mjs` (`?classes=1`).
+
+**Courses (17 November 2026):** the Timetable page lists `courses` from `classTimetable` in a block above the week
+(`Course` in `ClassesPage.tsx`, words `classesCourses`, `classesCourseDates`; it reuses the `classesDay` and
+`classesSession` regions). Book a time shows a course's dates in place of the time picker and starts it on its first
+date (`courseStarts` on the service; words `bookTimeCourse*`); the booking page lists the dates and hides Move.

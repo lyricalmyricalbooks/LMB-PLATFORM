@@ -1559,3 +1559,14 @@ It only reads: signing up is still `bookingStart`. `tellWebsite(live)` now also 
 (Classes on, bookings live, a class on the timetable) and runs after `saveService`, `deleteService`, the on/off switch
 and admin op `hint`, which Settings › Ways to sell sends when the owner flips Classes and which answers even while the
 engine is off. Classes is `built: true` in `shared/ways/ways.js`.
+
+**Courses (17 November 2026, `tasks/todo/2026-11-17-classes-courses.md`):** a class with `courseDates` (shop-clock
+"YYYY-MM-DDTHH:MM", 2 to `MAX_COURSE_DATES`; `isCourse`, `courseStarts`) is sold as a whole. `freeTimes` offers it on
+its first date only (any hour, past `maxDaysAhead`). `takeTime` checks and takes a place on every date in the one
+transaction: ledger items `<id>` (first date) and `<id>~<n>` (later ones, checked with `ownerBookingSettings` so the
+course's own dates decide), and the booking keeps `course { starts, days }`. `spansOf(id, b)` lists a booking's ledger
+items; `freeTime` and `confirmPaid` go through it, so every date is freed or confirmed together. Money is unchanged: one
+booking, one price. Refused: a pack with a course, `bookingMove` and the owner's `move` (code `course`), signing up once
+the first date has started (code `started`). `classTimetable` answers `courses` (open ones, with `coursePlacesLeft`), and
+`classesLive` counts an open course. Emails list all dates. Not yet per date: reminders, calendar entries, check-in and
+the waiting list (they follow the first date).

@@ -1,7 +1,7 @@
 // Admin › Classes (beta, ways to sell; tasks/todo/2026-11-17-classes-timetable-admin.md): the pure rules behind the
 // timetable. A class is a Bookings service with more than one place (shared/bookingTimes `isClass`), so every figure
 // here is read from the same services, settings and bookings the Bookings page shows; nothing is kept twice.
-import { booksByPerson, classStartsOn, dayOf, isClass, staffFor, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { booksByPerson, classStartsOn, courseStarts, dayOf, isClass, isCourse, staffFor, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 import { WEEKDAYS, weekDays } from "./bookingsView";
 
@@ -48,14 +48,22 @@ export function classWeek({ services, settings, rows, monday, zone, nowMs }: {
       return it;
     };
     if (!closed) for (const s of classes) if (s.active) for (const ms of classStartsOn(day, s, zone)) session(s, ms, true);
+    // A course runs on its own dates, a day off or not (the owner chose them).
+    for (const s of classes) if (s.active) for (const ms of courseStarts(s, zone)) if (dayOf(ms, zone) === day) session(s, ms, true);
+    const seen = new Set<string>();
     for (const b of rows) {
       const s = byId.get(b.serviceId);
-      const startMs = Date.parse(b.start);
-      if (!s || b.status === "cancelled" || !Number.isFinite(startMs) || dayOf(startMs, zone) !== day) continue;
-      const it = session(s, startMs, false);
-      it.people.push(b);
-      if (b.staffName) it.teacher = b.staffName;
-      if (b.roomName) it.room = b.roomName;
+      if (!s || b.status === "cancelled" || seen.has(b.id)) continue;
+      seen.add(b.id);
+      // Someone on a course holds a place on every one of its dates.
+      const starts = b.course?.starts?.length ? b.course.starts.map((iso) => Date.parse(iso)) : [Date.parse(b.start)];
+      for (const startMs of starts) {
+        if (!Number.isFinite(startMs) || dayOf(startMs, zone) !== day) continue;
+        const it = session(s, startMs, false);
+        it.people.push(b);
+        if (b.staffName) it.teacher = b.staffName;
+        if (b.roomName) it.room = b.roomName;
+      }
     }
     const sessions = [...found.values()].sort((a, b) => a.start.localeCompare(b.start) || a.name.localeCompare(b.name));
     for (const it of sessions) it.people.sort((a, b) => a.customer.name.localeCompare(b.customer.name));
@@ -83,7 +91,13 @@ const clock = (time: string): string => {
 };
 
 /** "Mondays 6:00 PM · Thursdays 6:00 PM", or what an untimed class does instead. */
-export function classTimesText(s: Pick<BookingService, "classTimes">): string {
+export function classTimesText(s: Pick<BookingService, "classTimes" | "places" | "courseDates">): string {
+  if (isCourse(s)) {
+    const first = s.courseDates![0];
+    const [y, m, d] = first.slice(0, 10).split("-").map(Number);
+    const day = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+    return `Course · ${s.courseDates!.length} dates from ${day}, ${clock(first.slice(11, 16))}`;
+  }
   if (!s.classTimes.length) return "Any free time in your hours";
   return s.classTimes.map((t) => `${WEEKDAYS[t.weekday]}s ${clock(t.time)}`).join(" · ");
 }

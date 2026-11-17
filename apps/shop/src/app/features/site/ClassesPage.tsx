@@ -18,8 +18,9 @@ import { askTimetable } from "./classesAsk";
 import { isBookingPreview } from "./bookTimePreview";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import { lengthText, moneyText, timeText } from "./bookTimeRules";
-import { dayHeading, placesState, signUpPath, timetableDays, weekFromSearch, weekRangeText, weekStep, type TimetableInfo, type TimetableSession } from "./classesRules";
+import { courseDateLines, lengthText, moneyText, timeText } from "./bookTimeRules";
+import { dayOf } from "../../../shared/bookingTimes";
+import { dayHeading, placesState, signUpPath, timetableDays, weekFromSearch, weekRangeText, weekStep, type CourseView, type TimetableInfo, type TimetableSession } from "./classesRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -106,8 +107,21 @@ function Timetable({ c }: { c: Copy }) {
   const later = weekStep(info.from, today, lastDay, 1);
   const days = timetableDays(info).filter((d) => d.sessions.length > 0);
 
+  const courses = info.courses || [];
+  // A shop that runs only courses shows no empty week under them.
+  const weekly = (info.classes || []).length > 0 || courses.length === 0;
+
   return (
     <div>
+      {courses.length > 0 && (
+        <section className="fm-cls-courses" aria-labelledby="cls-courses">
+          <h2 {...regionProps("classesDay")} id="cls-courses" className="fm-cls-day-head">{c("classesCourses")}</h2>
+          <ul className="fm-cls-list">
+            {courses.map((k) => <Course key={k.id} k={k} zone={zone} currency={currency} c={c} />)}
+          </ul>
+        </section>
+      )}
+      {weekly && <>
       <div {...regionProps("classesWeek")} className="fm-cls-week">
         {earlier ? <Link to={weekPath(earlier === today ? "" : earlier)} className="fm-cls-arrow" aria-label={c("classesEarlier")} title={c("classesEarlier")}><ChevronLeft size={18} aria-hidden="true" /></Link>
           : <span className="fm-cls-arrow" aria-hidden="true"><ChevronLeft size={18} /></span>}
@@ -134,8 +148,37 @@ function Timetable({ c }: { c: Copy }) {
           ))}
         </div>
       )}
+      </>}
       <p className="fm-cls-zone fm-track-mono">{c("classesZone", { zone: zone.replace(/_/g, " ") })}</p>
     </div>
+  );
+}
+
+/** A course: every date listed, one price, one Sign up for them all (Book a time takes it from its first date). */
+function Course({ k, zone, currency, c }: { k: CourseView; zone: string; currency: string; c: Copy }) {
+  const state = placesState(k.left, k.places);
+  const full = state === "full";
+  const price = k.priceMinor > 0 ? `${moneyText(k.priceMinor, currency)}${k.plusTax ? ` ${c("classesPlusTax")}` : ""}` : c("classesFree");
+  const lines = courseDateLines(k.starts, zone);
+  return (
+    <li {...regionProps("classesSession")} className="fm-cls-session" data-state={state}>
+      <div className="fm-cls-time"><strong>{c("classesCourseDates", { count: k.starts.length })}</strong><span>{lengthText(k.minutes)}</span></div>
+      <div className="fm-cls-main">
+        <h3>{k.name}</h3>
+        <p>{[price, k.location].filter(Boolean).join(" · ")}</p>
+        <ol className="fm-cls-dates">{lines.map((line) => <li key={line}>{line}</li>)}</ol>
+      </div>
+      <div className="fm-cls-side">
+        <span className="fm-cls-tag" data-state={state}>
+          {full ? c("classesFull") : state === "last" ? c("classesLastPlace") : c("classesPlacesLeft", { count: k.left })}
+        </span>
+        {!full && (
+          <Link to={kept(signUpPath(k.id, dayOf(Date.parse(k.starts[0]), zone)))} className="fm-track-btn" aria-label={c("classesSignUpAria", { name: k.name, when: lines[0] })}>
+            {c("classesSignUp")}
+          </Link>
+        )}
+      </div>
+    </li>
   );
 }
 

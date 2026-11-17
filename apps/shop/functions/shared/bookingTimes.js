@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -17,6 +17,9 @@ exports.cleanTipPercents = cleanTipPercents;
 exports.tipOpen = tipOpen;
 exports.feeChargeable = feeChargeable;
 exports.cleanService = cleanService;
+exports.cleanCourseDates = cleanCourseDates;
+exports.courseStarts = courseStarts;
+exports.coursePlacesLeft = coursePlacesLeft;
 exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
@@ -59,6 +62,11 @@ exports.MAX_CLASS_TIMES = 21;
 /** A service that takes more than one person at a time. */
 const isClass = (s) => Number(s?.places) > 1;
 exports.isClass = isClass;
+/** The most sessions one course can have. */
+exports.MAX_COURSE_DATES = 30;
+/** A course: a group class with its own dated sessions, signed up for as a whole. */
+const isCourse = (s) => (0, exports.isClass)(s) && (s?.courseDates?.length || 0) >= 2;
+exports.isCourse = isCourse;
 exports.MAX_QUESTIONS = 5;
 exports.MAX_STAFF = 20;
 exports.MAX_ROOMS = 10;
@@ -283,6 +291,13 @@ function cleanService(raw, id = "") {
         if (lateFeeMinor > (priceMinor || exports.MAX_FREE_LATE_FEE))
             return { problem: priceMinor ? "A missed-booking fee can't be more than the price." : "That missed-booking fee is too high." };
     }
+    const places = whole(s.places, 1, exports.MAX_PLACES, 1);
+    const rawDates = Array.isArray(s.courseDates) ? s.courseDates.filter((d) => d !== "" && d != null) : [];
+    const courseDates = cleanCourseDates(rawDates);
+    if (rawDates.length && courseDates.length < 2)
+        return { problem: "A course has at least 2 dates. For a single date, leave the course dates empty." };
+    if (courseDates.length && places < 2)
+        return { problem: "A course needs room for at least 2 people." };
     return {
         id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         name,
@@ -297,18 +312,57 @@ function cleanService(raw, id = "") {
         active: s.active !== false,
         order: whole(s.order, 0, 999, 0),
         questions: cleanQuestions(s.questions),
-        places: whole(s.places, 1, exports.MAX_PLACES, 1),
-        classTimes: cleanClassTimes(s.classTimes),
+        places,
+        // A course runs on its own dates, never at weekly times as well.
+        classTimes: courseDates.length ? [] : cleanClassTimes(s.classTimes),
+        ...(courseDates.length ? { courseDates } : {}),
         holdCard,
         lateFeeMinor,
         meet: s.meet === true,
-        packVisits,
-        packPriceMinor,
-        packDays,
+        // A pack pays for single visits; a course is one sign-up for all of its dates.
+        packVisits: courseDates.length ? 0 : packVisits,
+        packPriceMinor: courseDates.length ? 0 : packPriceMinor,
+        packDays: courseDates.length ? 0 : packDays,
         roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         chargeTax: payment !== "free" && s.chargeTax === true,
         rebookWeeks: whole(s.rebookWeeks, 0, exports.MAX_REBOOK_WEEKS, 0),
     };
+}
+/** A course's dates, cleaned: real shop-clock "YYYY-MM-DDTHH:MM" moments, no repeats, earliest first. */
+function cleanCourseDates(raw) {
+    const out = new Set();
+    for (const item of Array.isArray(raw) ? raw : []) {
+        if (typeof item !== "string")
+            continue;
+        const [day, time] = item.trim().slice(0, 16).split("T");
+        if (!(0, exports.isDay)(day) || !TIME.test(time || ""))
+            continue;
+        // A day the calendar doesn't have (30 February) is dropped.
+        if (new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) !== day)
+            continue;
+        out.add(`${day}T${time}`);
+    }
+    return [...out].sort().slice(0, exports.MAX_COURSE_DATES);
+}
+/** A course's session starts (milliseconds), earliest first; a clock change never lists one moment twice. */
+function courseStarts(service, zone) {
+    if (!(0, exports.isCourse)(service))
+        return [];
+    const out = [];
+    for (const d of service.courseDates) {
+        const ms = zonedTime(d.slice(0, 10), d.slice(11, 16), zone);
+        if (Number.isFinite(ms) && !out.includes(ms))
+            out.push(ms);
+    }
+    return out.sort((a, b) => a - b);
+}
+/**
+ * The fewest places left across a course's sessions (a sign-up needs one in each), for whoever could run each one.
+ * 0 when any session is full or something else is in its way.
+ */
+function coursePlacesLeft(service, settings, busy, zone) {
+    const starts = courseStarts(service, zone);
+    return starts.length ? Math.min(...starts.map((ms) => classPlacesLeft(ms, service, settings, busy))) : 0;
 }
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
 function cleanClassTimes(raw) {
@@ -668,10 +722,18 @@ function freeTimesFor({ service, settings, busy, day, zone, nowMs }, hours, staf
     if (!(0, exports.isDay)(day) || settings.daysOff.includes(day))
         return [];
     const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
-    if (day > lastDay || day < dayOf(nowMs, zone))
+    if (day < dayOf(nowMs, zone))
+        return [];
+    const open = (start) => placesLeft(start, service, busy, staffId) > 0;
+    // A course is signed up for at its first session only, however far ahead it starts and whatever the opening hours
+    // say. (The server checks a place in every later session when it takes the sign-up.)
+    if ((0, exports.isCourse)(service)) {
+        const first = courseStarts(service, zone)[0];
+        return dayOf(first, zone) === day && first >= earliest && open(first) ? [first] : [];
+    }
+    if (day > lastDay)
         return [];
     const out = [];
-    const open = (start) => placesLeft(start, service, busy, staffId) > 0;
     // A class with its own weekly times runs at those, whatever the opening hours say.
     if ((0, exports.isClass)(service) && service.classTimes?.length) {
         for (const t of service.classTimes) {

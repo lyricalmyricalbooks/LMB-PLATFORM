@@ -37,6 +37,11 @@ export type BookingService = {
   /** A class's own weekly start times ("Saturdays at 14:00"). Empty: every free time in the opening hours. */
   classTimes: ClassTime[];
   /**
+   * A course (Classes, 17 November 2026): its dated sessions as shop-clock "YYYY-MM-DDTHH:MM", earliest first. Set (two
+   * or more), the class is sold only as a whole: one sign-up, one price, a place in every session. Empty: not a course.
+   */
+  courseDates?: string[];
+  /**
    * Card on file: the customer saves a card when booking (nothing is taken for it), so the owner can charge `lateFeeMinor`
    * after a missed booking or a late cancellation. Not with payment "full" (all of it is already paid).
    */
@@ -73,6 +78,10 @@ export const MAX_PLACES = 100;
 export const MAX_CLASS_TIMES = 21;
 /** A service that takes more than one person at a time. */
 export const isClass = (s: { places?: number } | null | undefined): boolean => Number(s?.places) > 1;
+/** The most sessions one course can have. */
+export const MAX_COURSE_DATES = 30;
+/** A course: a group class with its own dated sessions, signed up for as a whole. */
+export const isCourse = (s: { places?: number; courseDates?: readonly string[] } | null | undefined): boolean => isClass(s) && (s?.courseDates?.length || 0) >= 2;
 
 /** A question the customer answers when booking this service ("What would you like to work on?"). */
 export type BookingQuestion = { id: string; label: string; /** A few lines instead of one. */ long: boolean; required: boolean };
@@ -170,7 +179,7 @@ export type BookingSettings = {
 export type Busy = { start: number; end: number; /** Whose booking it is, so a class can tell its own from another's. */ serviceId?: string; staffId?: string; roomId?: string };
 
 /** What the free-time rules need of a service. Without `id` and `places` it is one customer at a time. */
-export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId">>;
+export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId" | "courseDates">>;
 
 export const BOOKING_STEPS = [15, 30, 60] as const;
 export const MAX_SERVICES = 30;
@@ -381,6 +390,11 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     if (!Number.isFinite(lateFeeMinor) || lateFeeMinor < 50) return { problem: "Say what a missed booking costs: at least 0.50." };
     if (lateFeeMinor > (priceMinor || MAX_FREE_LATE_FEE)) return { problem: priceMinor ? "A missed-booking fee can't be more than the price." : "That missed-booking fee is too high." };
   }
+  const places = whole(s.places, 1, MAX_PLACES, 1);
+  const rawDates = Array.isArray(s.courseDates) ? s.courseDates.filter((d) => d !== "" && d != null) : [];
+  const courseDates = cleanCourseDates(rawDates);
+  if (rawDates.length && courseDates.length < 2) return { problem: "A course has at least 2 dates. For a single date, leave the course dates empty." };
+  if (courseDates.length && places < 2) return { problem: "A course needs room for at least 2 people." };
   return {
     id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     name,
@@ -395,18 +409,55 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     active: s.active !== false,
     order: whole(s.order, 0, 999, 0),
     questions: cleanQuestions(s.questions),
-    places: whole(s.places, 1, MAX_PLACES, 1),
-    classTimes: cleanClassTimes(s.classTimes),
+    places,
+    // A course runs on its own dates, never at weekly times as well.
+    classTimes: courseDates.length ? [] : cleanClassTimes(s.classTimes),
+    ...(courseDates.length ? { courseDates } : {}),
     holdCard,
     lateFeeMinor,
     meet: s.meet === true,
-    packVisits,
-    packPriceMinor,
-    packDays,
+    // A pack pays for single visits; a course is one sign-up for all of its dates.
+    packVisits: courseDates.length ? 0 : packVisits,
+    packPriceMinor: courseDates.length ? 0 : packPriceMinor,
+    packDays: courseDates.length ? 0 : packDays,
     roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     chargeTax: payment !== "free" && s.chargeTax === true,
     rebookWeeks: whole(s.rebookWeeks, 0, MAX_REBOOK_WEEKS, 0),
   };
+}
+
+/** A course's dates, cleaned: real shop-clock "YYYY-MM-DDTHH:MM" moments, no repeats, earliest first. */
+export function cleanCourseDates(raw: unknown): string[] {
+  const out = new Set<string>();
+  for (const item of Array.isArray(raw) ? raw : []) {
+    if (typeof item !== "string") continue;
+    const [day, time] = item.trim().slice(0, 16).split("T");
+    if (!isDay(day) || !TIME.test(time || "")) continue;
+    // A day the calendar doesn't have (30 February) is dropped.
+    if (new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) !== day) continue;
+    out.add(`${day}T${time}`);
+  }
+  return [...out].sort().slice(0, MAX_COURSE_DATES);
+}
+
+/** A course's session starts (milliseconds), earliest first; a clock change never lists one moment twice. */
+export function courseStarts(service: { places?: number; courseDates?: readonly string[] } | null | undefined, zone: string): number[] {
+  if (!isCourse(service)) return [];
+  const out: number[] = [];
+  for (const d of service!.courseDates!) {
+    const ms = zonedTime(d.slice(0, 10), d.slice(11, 16), zone);
+    if (Number.isFinite(ms) && !out.includes(ms)) out.push(ms);
+  }
+  return out.sort((a, b) => a - b);
+}
+
+/**
+ * The fewest places left across a course's sessions (a sign-up needs one in each), for whoever could run each one.
+ * 0 when any session is full or something else is in its way.
+ */
+export function coursePlacesLeft(service: Bookable, settings: Pick<BookingSettings, "staff">, busy: readonly Busy[], zone: string): number {
+  const starts = courseStarts(service, zone);
+  return starts.length ? Math.min(...starts.map((ms) => classPlacesLeft(ms, service, settings, busy))) : 0;
 }
 
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
@@ -777,9 +828,16 @@ function freeTimesFor({ service, settings, busy, day, zone, nowMs }: {
 }, hours: HoursWindow[][], staffId: string): number[] {
   if (!isDay(day) || settings.daysOff.includes(day)) return [];
   const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
-  if (day > lastDay || day < dayOf(nowMs, zone)) return [];
-  const out: number[] = [];
+  if (day < dayOf(nowMs, zone)) return [];
   const open = (start: number) => placesLeft(start, service, busy, staffId) > 0;
+  // A course is signed up for at its first session only, however far ahead it starts and whatever the opening hours
+  // say. (The server checks a place in every later session when it takes the sign-up.)
+  if (isCourse(service)) {
+    const first = courseStarts(service, zone)[0];
+    return dayOf(first, zone) === day && first >= earliest && open(first) ? [first] : [];
+  }
+  if (day > lastDay) return [];
+  const out: number[] = [];
   // A class with its own weekly times runs at those, whatever the opening hours say.
   if (isClass(service) && service.classTimes?.length) {
     for (const t of service.classTimes) {

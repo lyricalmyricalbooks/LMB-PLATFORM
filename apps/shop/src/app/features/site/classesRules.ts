@@ -7,7 +7,9 @@ export type ClassView = { id: string; name: string; description: string; minutes
   /** Sales tax is added on top of the price when signing up. */ plusTax?: boolean };
 export type ClassSessionView = { classId: string; /** The shop's own day, "2026-11-21". */ day: string; start: string; left: number };
 export type TimetableInfo = { on: boolean; zone?: string; currency?: string; today?: string; /** The first day of the week shown. */ from?: string; /** The last day customers can book. */ lastDay?: string;
-  classes?: ClassView[]; sessions?: ClassSessionView[] };
+  classes?: ClassView[]; sessions?: ClassSessionView[];
+  /** Courses still open for sign-up, earliest first: every date, and the fewest places left across them. */ courses?: CourseView[] };
+export type CourseView = ClassView & { starts: string[]; left: number };
 
 export type TimetableSession = ClassSessionView & { klass: ClassView };
 export type TimetableDay = { day: string; sessions: TimetableSession[] };

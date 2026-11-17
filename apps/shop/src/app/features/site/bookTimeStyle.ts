@@ -39,6 +39,10 @@ export const BOOK_TIME_CSS = [
   `@media (max-width:640px){${S} .fm-book-days{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;}${S} .fm-book-day{flex:0 0 64px;scroll-snap-align:start;}}`,
   `${S} .fm-book-group{margin:0 0 10px;}`,
   `${S} .fm-book-people{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px;}`,
+  // A course: its dates as a plain numbered list (one sign-up covers them all).
+  `${S} .fm-book-course{margin:0 0 22px;}`,
+  `${S} .fm-book-course h2{margin:0 0 10px;}`,
+  `${S} .fm-book-course ol{margin:0 0 12px;padding-left:1.4em;display:grid;gap:6px;line-height:1.5;}`,
   `${S} .fm-book-person{min-height:44px;padding:0 16px;border:var(--t-edge-w) solid var(--t-edge);background:transparent;color:inherit;border-radius:var(--rp-card-radius, 0px);font-weight:700;cursor:pointer;}`,
   `${S} .fm-book-person[aria-pressed="true"]{background:var(--accent);color:var(--on-accent, rgb(var(--fg-rgb)));box-shadow:4px 4px 0 rgb(var(--fg-rgb));}`,
   `${S} .fm-book-times{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-bottom:22px;}`,
