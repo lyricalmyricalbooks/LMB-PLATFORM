@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.isDay = exports.weekdayOf = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.giftCardPart = giftCardPart;
 exports.cleanTipPercents = cleanTipPercents;
@@ -36,6 +36,8 @@ exports.bookingIcs = bookingIcs;
 exports.bookingsFeedIcs = bookingsFeedIcs;
 exports.googleCalendarLink = googleCalendarLink;
 exports.packProblem = packProblem;
+exports.pickupSlots = pickupSlots;
+exports.pickupTimeProblem = pickupTimeProblem;
 exports.MAX_PLACES = 100;
 exports.MAX_CLASS_TIMES = 21;
 /** A service that takes more than one person at a time. */
@@ -63,6 +65,10 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     secondReminderHours: 0,
     dailySummary: false,
     googleCalendar: false,
+    pickupTimes: false,
+    pickupSlotMinutes: 30,
+    pickupPerSlot: 4,
+    pickupReadyHours: 2,
 };
 /** How long a freed place may be held for the first person on the waiting list. */
 exports.WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720];
@@ -348,8 +354,17 @@ function cleanBookingSettings(raw) {
         secondReminderHours: secondReminder(s.secondReminderHours, reminderHours),
         dailySummary: s.dailySummary === true,
         googleCalendar: s.googleCalendar === true,
+        pickupTimes: s.pickupTimes === true,
+        pickupSlotMinutes: exports.PICKUP_SLOT_MINUTES.includes(Number(s.pickupSlotMinutes)) ? Number(s.pickupSlotMinutes) : exports.DEFAULT_BOOKING_SETTINGS.pickupSlotMinutes,
+        pickupPerSlot: whole(s.pickupPerSlot, 1, exports.MAX_PICKUP_PER_SLOT, exports.DEFAULT_BOOKING_SETTINGS.pickupPerSlot),
+        pickupReadyHours: whole(s.pickupReadyHours, 0, 72, exports.DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
     };
 }
+/** How far apart pickup times are offered. */
+exports.PICKUP_SLOT_MINUTES = [15, 30, 60];
+exports.MAX_PICKUP_PER_SLOT = 20;
+/** Shoppers see this many days of pickup times. */
+exports.PICKUP_DAYS_AHEAD = 14;
 /** A second reminder only when it comes after the first one: one of the choices, and fewer hours before. */
 function secondReminder(value, first) {
     const hours = Number(value);
@@ -577,3 +592,57 @@ function packProblem(pack, serviceId, day) {
         return "used_up";
     return null;
 }
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+/** Every pickup slot start on one shop day inside its opening hours (a slot must end by closing), ignoring notice and taken. */
+function slotsOn(settings, day, zone) {
+    if (!(0, exports.isDay)(day) || settings.daysOff.includes(day))
+        return [];
+    const out = [];
+    for (const w of settings.hours[(0, exports.weekdayOf)(day)] || []) {
+        const close = minutesOf(w.end);
+        for (let m = minutesOf(w.start); m + settings.pickupSlotMinutes <= close; m += settings.pickupSlotMinutes) {
+            const start = zonedTime(day, hhmm(m), zone);
+            if (out[out.length - 1] !== start)
+                out.push(start);
+        }
+    }
+    return out;
+}
+/**
+ * The pickup times a shopper may choose, by shop day (YYYY-MM-DD → slot starts in milliseconds, earliest first), over
+ * the next PICKUP_DAYS_AHEAD days: inside opening hours, at least `pickupReadyHours` from now, and not yet full
+ * (`taken` counts orders per slot start). Days with no time left are left out.
+ */
+function pickupSlots({ settings, zone, nowMs, taken = {}, days = exports.PICKUP_DAYS_AHEAD }) {
+    const earliest = nowMs + settings.pickupReadyHours * 60 * MINUTE;
+    const first = dayOf(nowMs, zone);
+    const out = {};
+    for (let i = 0; i < days; i++) {
+        const day = addDays(first, i);
+        const free = slotsOn(settings, day, zone).filter((start) => start >= earliest && (taken[String(start)] || 0) < settings.pickupPerSlot);
+        if (free.length)
+            out[day] = free;
+    }
+    return out;
+}
+/** The server's check before it takes an order with a pickup time: null when the time is still free. */
+function pickupTimeProblem({ settings, zone, nowMs, start, taken = 0 }) {
+    if (!Number.isFinite(start))
+        return "closed";
+    const day = dayOf(start, zone);
+    if (!slotsOn(settings, day, zone).includes(start))
+        return "closed";
+    if (start < nowMs + settings.pickupReadyHours * 60 * MINUTE)
+        return "too_soon";
+    if (day > addDays(dayOf(nowMs, zone), exports.PICKUP_DAYS_AHEAD - 1))
+        return "too_far";
+    if (taken >= settings.pickupPerSlot)
+        return "full";
+    return null;
+}
+exports.PICKUP_MESSAGES = {
+    closed: "The shop isn't open for pickup at that time. Please choose another.",
+    too_soon: "That pickup time is too soon for the shop to have your order ready. Please choose a later one.",
+    full: "That pickup time has just filled up. Please choose another.",
+    too_far: "Pickup times can only be chosen up to two weeks ahead. Please choose an earlier one.",
+};

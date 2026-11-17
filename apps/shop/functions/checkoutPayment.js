@@ -57,7 +57,7 @@ function checkoutPaymentActions({
         ...(stockist ? { stockistId: stockist.id } : {}),
         customer: { name: contact.name.trim().slice(0, 200), email: contact.email.trim().toLowerCase().slice(0, 320), phone: typeof contact.phone === 'string' ? contact.phone.trim().slice(0, 80) : '', address: cleanAddress(contact.address), billingAddress: cleanAddress(contact.billingAddress) },
         items,
-        ...(selection ? { fulfillmentSelection: { method: selection.method, optionId: selection.optionId.slice(0, 200) } } : {}),
+        ...(selection ? { fulfillmentSelection: { method: selection.method, optionId: selection.optionId.slice(0, 200), ...(typeof selection.pickupAt === 'string' ? { pickupAt: selection.pickupAt.slice(0, 40) } : {}) } } : {}),
         ...(typeof source.shippingMethod === 'string' && source.shippingMethod ? { shippingMethod: source.shippingMethod.slice(0, 200) } : {}),
         ...(typeof source.cartId === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(source.cartId) ? { cartId: source.cartId } : {}),
         referralSource: typeof source.referralSource === 'string' ? source.referralSource.slice(0, 120) : 'direct',
@@ -96,7 +96,7 @@ function checkoutPaymentActions({
       }
       return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment, ...(stockist ? { invoice: true } : {}) });
     } catch (err) {
-      return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shop_paused", "shipping_rates_changed"].includes(err.code) ? { code: err.code } : {}) });
+      return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shop_paused", "shipping_rates_changed"].includes(err.code) || /^pickup_/.test(String(err.code || "")) ? { code: err.code } : {}) });
     }
   }
 
@@ -138,7 +138,7 @@ function checkoutPaymentActions({
       if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
       return res.status(200).json({ paid: true });
     } catch (err) {
-      return res.status(400).json({ error: publicErrorMessage(err, "We could not complete this order. Please check your details and try again."), ...(err.code && /^(gift_card|discount_|hold_limit|store_closed|shipping_rates_changed)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
+      return res.status(400).json({ error: publicErrorMessage(err, "We could not complete this order. Please check your details and try again."), ...(err.code && /^(gift_card|discount_|hold_limit|store_closed|shipping_rates_changed|pickup_)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
     }
   }
 

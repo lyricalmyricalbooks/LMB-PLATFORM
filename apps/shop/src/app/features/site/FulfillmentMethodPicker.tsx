@@ -1,7 +1,7 @@
 import type { LocalFulfillmentQuote } from './localFulfillment';
 import { regionProps } from './storefrontRegions';
 
-export type FulfillmentSelection = { method: 'shipping' | 'pickup' | 'local_delivery'; optionId: string };
+export type FulfillmentSelection = { method: 'shipping' | 'pickup' | 'local_delivery'; optionId: string; /** Pickup times: the chosen time (ISO), only for pickup at a shop that asks for one. */ pickupAt?: string };
 type ShippingChoice = { id: string; name: string; price: number; deliveryDays?: string; carrierEstimate?: boolean; durationTerms?: string };
 type Words = { group?: string; shipping: string; pickup: string; local_delivery: string; review: string; free: string; unavailable?: string; addressPrompt?: string; loading?: string; instructions?: string; hours?: string; estimate?: string; carrierTransit?: string; carrierUnavailable?: string; deliveryDays?: string };
 const transitDays = (c: ShippingChoice) => { const n = Number(c.deliveryDays); return c.deliveryDays && Number.isFinite(n) ? n : Infinity; };

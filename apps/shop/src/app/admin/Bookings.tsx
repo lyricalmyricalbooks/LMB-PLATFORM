@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -801,6 +801,30 @@ function TipsTile({ tips, percents, onChange }: { tips: boolean; percents: numbe
   );
 }
 
+/** Pickup times at checkout: shoppers choosing "Pick up" pick a time inside the opening hours below. */
+function PickupTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
+  return (
+    <section className="bkg-tile" data-pickup-tile>
+      <h2 className="bkg-tile-title">Pickup times</h2>
+      <div className="bkg-form">
+        <Toggle label="Let shoppers choose a pickup time" checked={form.pickupTimes} onChange={(v) => onChange({ pickupTimes: v })} />
+        <p className="bkg-cal-text">{form.pickupTimes ? "At checkout, shoppers who pick up choose a time from your opening hours and days off. The time shows on the order, in your emails and on their order page." : "Shoppers who pick up don't choose a time. They come when the order is ready."}</p>
+        {form.pickupTimes && <>
+          <SelectField label="A pickup time every" value={String(form.pickupSlotMinutes)} onChange={(e) => onChange({ pickupSlotMinutes: Number(e.target.value) })}>
+            {PICKUP_SLOT_MINUTES.map((m) => <option key={m} value={m}>{m === 60 ? "hour" : `${m} minutes`}</option>)}
+          </SelectField>
+          <SelectField label="Orders in one time" hint="Once this many orders choose a time, it's full." value={String(form.pickupPerSlot)} onChange={(e) => onChange({ pickupPerSlot: Number(e.target.value) })}>
+            {Array.from({ length: MAX_PICKUP_PER_SLOT }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} order{n === 1 ? "" : "s"}</option>)}
+          </SelectField>
+          <SelectField label="Ready after" hint="The earliest time a shopper can choose, counted from when they order." value={String(form.pickupReadyHours)} onChange={(e) => onChange({ pickupReadyHours: Number(e.target.value) })}>
+            {[0, 1, 2, 4, 12, 24, 48, 72].map((h) => <option key={h} value={h}>{h === 0 ? "Straight away" : h < 24 ? `${h} hour${h === 1 ? "" : "s"}` : `${h / 24} day${h === 24 ? "" : "s"}`}</option>)}
+          </SelectField>
+        </>}
+      </div>
+    </section>
+  );
+}
+
 /** The owner's private calendar link: Google or Apple Calendar subscribes to it and shows every booking. */
 function CalendarTile({ google, onGoogle }: { google: boolean; onGoogle: (on: boolean) => void }) {
   const [url, setUrl] = useState("");
@@ -1373,6 +1397,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
           </div>
         </section>
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
+        <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <section className="bkg-tile">
           <h2 className="bkg-tile-title">Days off</h2>
           <div className="bkg-dayoff-add">

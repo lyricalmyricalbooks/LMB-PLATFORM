@@ -99,6 +99,14 @@ export type BookingSettings = {
   dailySummary: boolean;
   /** Each confirmed booking goes into the shop's Colophon calendar in the owner's Google account (Connect Google's Calendar box). */
   googleCalendar: boolean;
+  /** Pickup times: shoppers who choose pickup at checkout pick a time inside these same opening hours. */
+  pickupTimes: boolean;
+  /** Pickup times are offered every this many minutes (PICKUP_SLOT_MINUTES). */
+  pickupSlotMinutes: number;
+  /** How many orders may be picked up in one slot (1 to MAX_PICKUP_PER_SLOT). */
+  pickupPerSlot: number;
+  /** The first pickup time is at least this many hours after the order (0 to 72), so there's time to pack it. */
+  pickupReadyHours: number;
 };
 
 /** A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. */
@@ -129,6 +137,10 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   secondReminderHours: 0,
   dailySummary: false,
   googleCalendar: false,
+  pickupTimes: false,
+  pickupSlotMinutes: 30,
+  pickupPerSlot: 4,
+  pickupReadyHours: 2,
 };
 
 /** How long a freed place may be held for the first person on the waiting list. */
@@ -397,8 +409,18 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     secondReminderHours: secondReminder(s.secondReminderHours, reminderHours),
     dailySummary: s.dailySummary === true,
     googleCalendar: s.googleCalendar === true,
+    pickupTimes: s.pickupTimes === true,
+    pickupSlotMinutes: (PICKUP_SLOT_MINUTES as readonly number[]).includes(Number(s.pickupSlotMinutes)) ? Number(s.pickupSlotMinutes) : DEFAULT_BOOKING_SETTINGS.pickupSlotMinutes,
+    pickupPerSlot: whole(s.pickupPerSlot, 1, MAX_PICKUP_PER_SLOT, DEFAULT_BOOKING_SETTINGS.pickupPerSlot),
+    pickupReadyHours: whole(s.pickupReadyHours, 0, 72, DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
   };
 }
+
+/** How far apart pickup times are offered. */
+export const PICKUP_SLOT_MINUTES = [15, 30, 60] as const;
+export const MAX_PICKUP_PER_SLOT = 20;
+/** Shoppers see this many days of pickup times. */
+export const PICKUP_DAYS_AHEAD = 14;
 
 /** A second reminder only when it comes after the first one: one of the choices, and fewer hours before. */
 function secondReminder(value: unknown, first: number): number {
@@ -643,3 +665,65 @@ export function packProblem(pack: BookingPack | null | undefined, serviceId: str
   if (packLeft(pack) <= 0) return "used_up";
   return null;
 }
+
+// ── Pickup times ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+export type PickupSettings = Pick<BookingSettings, "hours" | "daysOff" | "pickupSlotMinutes" | "pickupPerSlot" | "pickupReadyHours">;
+
+/** Why a pickup time can't be taken: closed then, too soon to pack, already full, or further ahead than shown. */
+export type PickupProblem = "closed" | "too_soon" | "full" | "too_far";
+
+const hhmm = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+/** Every pickup slot start on one shop day inside its opening hours (a slot must end by closing), ignoring notice and taken. */
+function slotsOn(settings: PickupSettings, day: string, zone: string): number[] {
+  if (!isDay(day) || settings.daysOff.includes(day)) return [];
+  const out: number[] = [];
+  for (const w of settings.hours[weekdayOf(day)] || []) {
+    const close = minutesOf(w.end);
+    for (let m = minutesOf(w.start); m + settings.pickupSlotMinutes <= close; m += settings.pickupSlotMinutes) {
+      const start = zonedTime(day, hhmm(m), zone);
+      if (out[out.length - 1] !== start) out.push(start);
+    }
+  }
+  return out;
+}
+
+/**
+ * The pickup times a shopper may choose, by shop day (YYYY-MM-DD → slot starts in milliseconds, earliest first), over
+ * the next PICKUP_DAYS_AHEAD days: inside opening hours, at least `pickupReadyHours` from now, and not yet full
+ * (`taken` counts orders per slot start). Days with no time left are left out.
+ */
+export function pickupSlots({ settings, zone, nowMs, taken = {}, days = PICKUP_DAYS_AHEAD }: {
+  settings: PickupSettings; zone: string; nowMs: number; taken?: Record<string, number>; days?: number;
+}): Record<string, number[]> {
+  const earliest = nowMs + settings.pickupReadyHours * 60 * MINUTE;
+  const first = dayOf(nowMs, zone);
+  const out: Record<string, number[]> = {};
+  for (let i = 0; i < days; i++) {
+    const day = addDays(first, i);
+    const free = slotsOn(settings, day, zone).filter((start) => start >= earliest && (taken[String(start)] || 0) < settings.pickupPerSlot);
+    if (free.length) out[day] = free;
+  }
+  return out;
+}
+
+/** The server's check before it takes an order with a pickup time: null when the time is still free. */
+export function pickupTimeProblem({ settings, zone, nowMs, start, taken = 0 }: {
+  settings: PickupSettings; zone: string; nowMs: number; start: number; taken?: number;
+}): PickupProblem | null {
+  if (!Number.isFinite(start)) return "closed";
+  const day = dayOf(start, zone);
+  if (!slotsOn(settings, day, zone).includes(start)) return "closed";
+  if (start < nowMs + settings.pickupReadyHours * 60 * MINUTE) return "too_soon";
+  if (day > addDays(dayOf(nowMs, zone), PICKUP_DAYS_AHEAD - 1)) return "too_far";
+  if (taken >= settings.pickupPerSlot) return "full";
+  return null;
+}
+
+export const PICKUP_MESSAGES: Record<PickupProblem, string> = {
+  closed: "The shop isn't open for pickup at that time. Please choose another.",
+  too_soon: "That pickup time is too soon for the shop to have your order ready. Please choose a later one.",
+  full: "That pickup time has just filled up. Please choose another.",
+  too_far: "Pickup times can only be chosen up to two weeks ahead. Please choose an earlier one.",
+};

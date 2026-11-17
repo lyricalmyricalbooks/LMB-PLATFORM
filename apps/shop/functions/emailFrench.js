@@ -168,6 +168,7 @@ const PHRASES_FR = Object.freeze({
   "We'll email you when your order is ready to collect.": "Nous vous écrirons quand votre commande sera prête à être récupérée.",
   "We'll email your tracking number as soon as it ships.": "Nous vous enverrons votre numéro de suivi dès l'expédition.",
   "Expected delivery:": "Livraison prévue :",
+  "Pickup time:": "Heure de cueillette :",
   "Digital Library Access": "Votre bibliothèque numérique",
   "Your downloads": "Vos téléchargements",
   "Your licence codes": "Vos codes de licence",

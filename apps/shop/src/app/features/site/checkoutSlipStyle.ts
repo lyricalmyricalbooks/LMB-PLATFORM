@@ -161,6 +161,18 @@ export function checkoutSlipCss(design: any): string {
     `${P} .fm-co-seg-btn{height:48px;padding:0 16px;background:transparent;color:${fg};border:2px solid rgba(var(--fg-rgb), .32);cursor:pointer;}`,
     `${P} .fm-co-seg-btn + .fm-co-seg-btn{border-left:0;}`,
     `${P} .fm-co-seg-btn[aria-pressed="true"]{background:${fg};color:var(--bg-color, Canvas);border-color:${fg};}`,
+    // Pickup time (PickupTimePicker): a sideways row of days, then that day's times as square chips
+    `${P} .fm-co-pickup-days{display:flex;overflow-x:auto;scrollbar-width:thin;}`,
+    `${P} .fm-co-pickup-day{flex:0 0 auto;min-width:84px;min-height:56px;padding:6px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:transparent;color:${fg};border:2px solid rgba(var(--fg-rgb), .32);cursor:pointer;}`,
+    `${P} .fm-co-pickup-day + .fm-co-pickup-day{border-left:0;}`,
+    `${P} .fm-co-pickup-day[aria-pressed="true"]{background:${fg};color:var(--bg-color, Canvas);border-color:${fg};}`,
+    `${P} .fm-co-pickup-day:focus-visible,${P} .fm-co-pickup-time:has(input:focus-visible){outline:2px solid var(--rp-focus, ${accent});outline-offset:2px;}`,
+    `${P} .fm-co-pickup-times{display:grid;grid-template-columns:repeat(auto-fill, minmax(96px, 1fr));gap:8px;}`,
+    `${P} .fm-co-pickup-time{position:relative;display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 8px;border:1px solid var(--co-rule);cursor:pointer;font-family:var(--co-meta);font-size:14px;letter-spacing:.04em;color:${fg};}`,
+    `${P} .fm-co-pickup-time:hover{background:rgba(var(--fg-rgb), .06);}`,
+    `${P} .fm-co-pickup-time:has(input:checked){background:${fg};color:var(--bg-color, Canvas);border-color:${fg};}`,
+    `${P} .fm-co-pickup-time input{position:absolute;opacity:0;width:1px;height:1px;}`,
+    `${P} .fm-co-pickup [data-pickup-missing]{color:var(--danger, #e8402a);}`,
     // Payment choices
     `${P} .fm-co-pay[data-pay-tabs="tabs"]{display:flex;flex-wrap:wrap;}`,
     `${P} .fm-co-pay[data-pay-tabs="tabs"] .fm-co-pay-tab{order:0;flex:1 1 0;min-width:120px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 16px;margin:0;border:2px solid rgba(var(--fg-rgb), .32);background:transparent;color:${fg};cursor:pointer;text-align:center;}`,

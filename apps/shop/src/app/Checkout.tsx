@@ -58,6 +58,7 @@ import { loadCatalog } from "./features/site/loadCatalog";
 import { currentStorefrontData, fetchStorefrontDataFile, shippingProfilesFrom } from "./features/site/storefrontDataFile";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
+import { isPickupTimeCode, loadPickupTimes, stillOffered, type PickupTimes } from "./features/site/pickupTimes";
 import { bagPreorder } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, emailDomainAllowed, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
@@ -604,6 +605,23 @@ export function Checkout() {
   // The physical free gift (if any) for the shipping quotes below; set once the discount is known.
   const freeGiftRef = useRef<null | { id: string; variantId?: string; price: number; quantity: number; shippingProfileId: string | null; weightGrams: number | null }>(null);
   const [fulfillmentSelection, setFulfillmentSelection] = useState<FulfillmentSelection>({ method: "shipping", optionId: "" });
+  // Pickup times (Bookings › Hours & rules › Pickup times): asked once pickup is chosen; the chosen time travels with the
+  // selection as `pickupAt` and the server checks it again (features/site/pickupTimes.ts).
+  const [pickupTimes, setPickupTimes] = useState<PickupTimes | null>(null);
+  const [pickupTimesAsked, setPickupTimesAsked] = useState(0);
+  const [pickupAt, setPickupAt] = useState("");
+  const [pickupTimeError, setPickupTimeError] = useState(false);
+  useEffect(() => {
+    if (fulfillmentSelection.method !== "pickup" || !pickupTimesAsked) return;
+    let live = true;
+    setPickupTimes(null);
+    void loadPickupTimes().then(times => { if (!live) return; setPickupTimes(times); setPickupAt(current => stillOffered(times, current)); });
+    return () => { live = false; };
+  }, [pickupTimesAsked]);
+  useEffect(() => { if (fulfillmentSelection.method === "pickup" && !pickupTimesAsked) setPickupTimesAsked(1); }, [fulfillmentSelection.method]);
+  const pickupTimesLoading = fulfillmentSelection.method === "pickup" && pickupTimes === null;
+  const pickupTimeNeeded = fulfillmentSelection.method === "pickup" && (pickupTimesLoading || pickupTimes?.on === true);
+  const sentSelection: FulfillmentSelection = fulfillmentSelection.method === "pickup" && pickupAt ? { ...fulfillmentSelection, pickupAt } : fulfillmentSelection;
 
   const shippingItemsForCart = () => cart.map((item) => {
     const book: any = booksMap.get(item.id);
@@ -1137,6 +1155,13 @@ export function Checkout() {
     }
     // Per-shopper hold cap (functions/stockHolds.js HOLD_LIMITS): the shop's own words.
     if (data?.code === "hold_limit") return new CopyError(checkoutDesign, "coHoldLimit");
+    // The pickup time filled up or passed while the shopper was paying: ask again and let them choose another.
+    if (isPickupTimeCode(data?.code)) {
+      setPickupAt("");
+      setPickupTimeError(true);
+      setPickupTimesAsked(n => n + 1);
+      return new CopyError(checkoutDesign, "coPickupTimeGone");
+    }
     // Settings › General › Store status › Maintenance: the server refuses every new checkout.
     // A paused or closed plan (plan 6.7, "shop_paused") reads the same to a shopper: checkout is closed for now.
     if (data?.code === "store_closed" || data?.code === "shop_paused") return new CopyError(checkoutDesign, "coStoreClosed");
@@ -1227,6 +1252,12 @@ export function Checkout() {
       setNotice({ tone: "error", text: c("coFulfillmentReview") });
       return;
     }
+    if (physicalItems.length && pickupTimeNeeded && !pickupAt) {
+      setPickupTimeError(true);
+      setNotice({ tone: "error", text: c("coPickupTimeChoose") });
+      setTimeout(() => document.querySelector<HTMLElement>("[data-pickup-times] input, [data-pickup-times] button")?.focus(), 0);
+      return;
+    }
     setNotice(null);
     const payingByCardForm = useCardForm && selectedPaymentMethod === "stripe" && finalTotal > 0;
     if (payingByCardForm) {
@@ -1312,7 +1343,7 @@ export function Checkout() {
         discount: discountAmount,
         shipping: finalShipping,
         shippingMethod: fulfillmentSelection.method === "shipping" ? (selectedShippingQuote?.name || null) : null,
-        ...(physicalItems.length ? { fulfillmentSelection } : {}),
+        ...(physicalItems.length ? { fulfillmentSelection: sentSelection } : {}),
         tax: taxCost,
         total: finalTotal,
         status: "pending_payment",
@@ -1331,7 +1362,7 @@ export function Checkout() {
       localStorage.setItem("last_customer_email", customer.email);
       
       // The code is part of the key: removing a refused code must make a fresh order, even when the total is unchanged.
-      const cardKey = cardAttemptKey({ items: orderData.items, total: orderData.total, customer: orderData.customer, currency, fulfillmentSelection, discountCode: orderData.appliedDiscount?.code || null, giftCardCodes: giftCards.map(card => card.code), orderNote: (orderData as any).orderNote, addressVerified });
+      const cardKey = cardAttemptKey({ items: orderData.items, total: orderData.total, customer: orderData.customer, currency, fulfillmentSelection: sentSelection, discountCode: orderData.appliedDiscount?.code || null, giftCardCodes: giftCards.map(card => card.code), orderNote: (orderData as any).orderNote, addressVerified });
       // Same bag = same order; its PaymentIntent only while the server's holds are still alive.
       const reuse = payingByCardForm ? reusableCardOrder(pendingCardOrder.current, cardKey) : null;
       let orderId: string;
@@ -1377,7 +1408,7 @@ export function Checkout() {
               items: cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity,
                 ...(item.addOns?.length ? { addOns: item.addOns.map(addOn => ({ id: addOn.id, ...(addOn.text ? { text: addOn.text } : {}) })) } : {}),
                 ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}) })),
-              ...(physicalItems.length ? { fulfillmentSelection } : {}),
+              ...(physicalItems.length ? { fulfillmentSelection: sentSelection } : {}),
               ...(orderData.shippingMethod ? { shippingMethod: orderData.shippingMethod } : {}),
               ...(checkoutCartId ? { cartId: checkoutCartId } : {}),
               referralSource: orderData.referralSource,
@@ -2055,7 +2086,8 @@ export function Checkout() {
             {!digitalOnly && (
             <CheckoutDeliveryStep c={c} mark={mark} checkoutDesign={checkoutDesign} physicalItems={physicalItems} fulfillmentSelection={fulfillmentSelection} selectFulfillment={selectFulfillment}
               availableRates={availableRates} localQuotes={localQuotes} availableFulfillmentMethods={availableFulfillmentMethods} shippoRatesLoading={shippoRatesLoading} formatPrice={formatPrice}
-              pickupNeedsAddress={pickupNeedsAddress} labelsAbove={labelsAbove} pinnedCountryCodes={pinnedCountryCodes} customer={customer} setCustomer={setCustomer} selectedLocalQuote={selectedLocalQuote} />
+              pickupNeedsAddress={pickupNeedsAddress} labelsAbove={labelsAbove} pinnedCountryCodes={pinnedCountryCodes} customer={customer} setCustomer={setCustomer} selectedLocalQuote={selectedLocalQuote}
+              pickupTime={{ times: pickupTimes, loading: pickupTimesLoading, value: pickupAt, invalid: pickupTimeError, onChange: (iso) => { setPickupAt(iso); if (iso) setPickupTimeError(false); } }} />
             )}
 
             {orderNoteBoxOn(checkoutDesign) && (

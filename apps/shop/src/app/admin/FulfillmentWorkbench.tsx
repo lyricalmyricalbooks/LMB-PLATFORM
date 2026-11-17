@@ -1,6 +1,8 @@
 import React from "react";
 import { Check, MapPin, Package, Truck, ExternalLink } from "lucide-react";
 import { useShopWords } from "./shopWords";
+import { pickupWhen } from "../features/site/pickupTimes";
+import { shopTimeZone } from "../../shared/shopTimeZone";
 import { canShipPart, partShipmentsOf } from "./partShipments";
 import {
   addressIssues,
@@ -643,6 +645,7 @@ export function FulfillmentWorkbench({
               </span>
             </div>
           </div>
+          {method === "pickup" && order.fulfillment?.pickupAt && <p className="fw-summary" data-pickup-at><strong>Picking up {pickupWhen(order.fulfillment.pickupAt, shopTimeZone())}</strong></p>}
           {order.fulfillment?.instructions && <p className="fw-summary">{order.fulfillment.instructions}</p>}
           {queue === "Ready for pickup" || queue === "Ready for local delivery" || (method === "local_delivery" && order.fulfillmentStatus === "out_for_delivery") ? (
             <div className="fw-actions">
