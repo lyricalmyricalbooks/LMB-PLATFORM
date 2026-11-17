@@ -1719,6 +1719,15 @@ describe("gift cards on bookings", () => {
   };
   const book = (t, extra = {}) => t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "10:00"), ...CUSTOMER, ...extra });
 
+  test("a gift card is quoted on the first-visit price for someone new, as the booking will charge", async () => {
+    const t = await ready();
+    await t.db.collection("bookingServices").doc("first").set({ name: "Trial", minutes: 60, gapAfter: 0, payment: "full", priceMinor: 4000, introPriceMinor: 1000 });
+    const quote = (email) => t.pub({ action: "bookingGiftCard", serviceId: "first", giftCard: CODE, email }).then((r) => r.body);
+    expect(await quote("new@example.com")).toEqual({ last4: "NP23", giftMinor: 1000, payNowMinor: 0 });
+    t.db.store.set("bookings/before", { customer: { email: "back@example.com" }, status: "confirmed" });
+    expect(await quote("back@example.com")).toEqual({ last4: "NP23", giftMinor: 2500, payNowMinor: 1500 });
+  });
+
   test("the booking form offers a gift card box once the shop has gift cards", async () => {
     const t = setup();
     await t.seed();

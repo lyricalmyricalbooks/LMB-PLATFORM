@@ -1736,9 +1736,11 @@ function bookingActions({
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
-        let upFront = depositOf(service);
+        // Someone new pays the first-visit price, as booking will: the gift card is quoted on that.
+        const offered = await introFor(service, email);
+        let upFront = depositOf(offered);
         if (String(req.body?.code || "").trim()) {
-          try { upFront = (await codeFor(service, req.body.code, email)).upFront; } catch (err) {
+          try { upFront = (await codeFor(offered, req.body.code, email)).upFront; } catch (err) {
             if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
             throw err;
           }

@@ -118,6 +118,11 @@ function NewBooking({ c }: { c: Copy }) {
     return () => { gone = true; };
   }, [service?.id, usePack]);
   useEffect(() => setGift(null), [service?.id, applied?.code, picked.join(",")]);
+  // A code or gift card is priced for the email typed when it was applied (someone new pays the first-visit price):
+  // a different email takes them off, so the amount shown is always what booking will charge.
+  const quotedFor = useRef("");
+  const who = form.email.trim().toLowerCase();
+  useEffect(() => { if ((applied || gift) && who !== quotedFor.current) { setApplied(null); setGift(null); } }, [who]);
   useEffect(() => { setApplied(null); setStart(""); if (pricedPicks(listed, picked)) setPack(null); }, [picked.join(",")]);
   // A course is signed up for as a whole: its first date is the start, with nothing to pick.
   const course = service?.courseStarts?.length ? service.courseStarts : null;
@@ -357,13 +362,13 @@ function NewBooking({ c }: { c: Copy }) {
               <ApplyBox region={regionProps("bookingsCode")} field="bt-code" c={c} words={{ open: "bookTimeCodeOpen", label: "bookTimeCodeLabel", problem: "bookTimeCodeProblem" }}
                 applied={applied ? `${c("bookTimeCodeApplied", { code: applied.code })} · −${moneyText(applied.discountMinor, currency)}` : ""}
                 onRemove={() => setApplied(null)} maxLength={40}
-                onTry={async (typed) => setApplied(await ask("bookingCode", { serviceId: service.id, extras: picked, code: typed, email: form.email.trim() }) as BookingCode)} />
+                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setApplied(await ask("bookingCode", { serviceId: service.id, extras: picked, code: typed, email: form.email.trim() }) as BookingCode); }} />
             )}
             {info.giftCards && paysUpFront(priced) && !pack && (
               <ApplyBox region={regionProps("bookingsGiftCard")} field="bt-gift" c={c} words={{ open: "bookTimeGiftOpen", label: "bookTimeGiftLabel", problem: "bookTimeGiftProblem" }}
                 applied={gift ? `${c("bookTimeGiftApplied", { last4: gift.last4 })} · −${moneyText(gift.giftMinor, currency)}` : ""}
                 onRemove={() => setGift(null)} maxLength={40}
-                onTry={async (typed) => setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, extras: picked, giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed })} />
+                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, extras: picked, giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed }); }} />
             )}
             {payNow > 0 && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
