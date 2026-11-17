@@ -1210,6 +1210,14 @@ move dialogs let the owner pick a person or anyone free (`staffId`). Server rule
 and rooms. Fixture: `admin-fixture.html?page=bookings&team=1` (Ana does all, Ben riso and workshops on his own hours, Cy
 not taking bookings; the riso service uses the print room).
 
+**Team day (17 November 2026, phase 4 part 2):** Calendar › Team day (shown once the shop lists people; the saved view
+falls back to Week otherwise) is `TeamDayView`: pure `teamDay(rows, settings, day, zone)` / `hourLabel` in
+`bookingsView.ts` (tested) give the columns, the grid's whole hours and each card's minutes, lanes for overlaps. Classes
+`bkg-tday-*` (not `bkg-team-*`, which is the Team & rooms tab); `--bkg-min` is one minute's height; short cards
+(`data-short`) are one line. Moving the day to another week moves the shared week (`showDay`). The person dialog has
+Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` with `staffId`). Fixture:
+`admin-fixture.html?team=1&page=bookings`.
+
 ## Shipping zones as a page (16 November 2026)
 Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,
 tokens only) in place of the old dialog; the pure picks live in `shipping/zonePlaces.ts` (tested). Quick picks (home

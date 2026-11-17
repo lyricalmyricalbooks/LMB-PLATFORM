@@ -15,6 +15,13 @@ const hash = (k) => crypto.createHash("sha256").update(k).digest("hex");
 function rootDb(docs) {
   const read = [];
   const col = (path) => ({
+    limit: () => ({
+      async get() {
+        read.push(path);
+        const rows = Object.entries(docs).filter(([k]) => k.startsWith(`${path}/`) && k.split("/").length === path.split("/").length + 1);
+        return { docs: rows.map(([k, d]) => ({ id: k.split("/").pop(), data: () => d })) };
+      },
+    }),
     doc: (id) => ({
       collection: (c) => col(`${path}/${id}/${c}`),
       async get() { read.push(`${path}/${id}`); const d = docs[`${path}/${id}`]; return { exists: !!d, data: () => d }; },
@@ -55,6 +62,34 @@ describe("the owner's calendar feed", () => {
     expect(await bookingsFeed({ db: rootDb(shop()).db, shopId: "s1", token: "c".repeat(48) })).toBeNull();
     expect(await bookingsFeed({ db: rootDb(shop({ "shops/s1/platform/features": {} })).db, shopId: "s1", token: TOKEN })).toBeNull();
     expect(await bookingsFeed({ db: rootDb(shop()).db, shopId: "s1", token: "not-a-token" })).toBeNull();
+  });
+});
+
+describe("each person's own calendar link", () => {
+  const PERSON = "d".repeat(48);
+  const team = () => shop({
+    "shops/s1/bookingFeed/p-ana": { token: PERSON, staffId: "ana", staffName: "Ana" },
+    "shops/s1/bookings/booking1": { status: "confirmed", serviceName: "Cut", staffId: "ana", staffName: "Ana", roomName: "Chair 1", start: "2026-11-20T15:00:00Z", end: "2026-11-20T15:30:00Z", customer: { name: "Ada" } },
+    "shops/s1/bookings/booking3": { status: "confirmed", serviceName: "Colour", staffId: "ben", staffName: "Ben", start: "2026-11-20T16:00:00Z", end: "2026-11-20T17:00:00Z", customer: { name: "Cy" } },
+  });
+
+  test("lists only that person's bookings, named for them, with the room", async () => {
+    const ics = await bookingsFeed({ db: rootDb(team()).db, shopId: "s1", token: PERSON, shopName: "Test Studio", nowMs: Date.parse("2026-11-14T12:00:00Z") });
+    expect(ics).toMatch(/X-WR-CALNAME:Test Studio bookings · Ana/);
+    expect(ics).toMatch(/SUMMARY:Ada: Cut/);
+    expect(ics).toMatch(/LOCATION:Chair 1/);
+    expect(ics).not.toMatch(/Colour|\(Ana\)/);
+  });
+
+  test("the owner's link still lists everyone, with each person's name", async () => {
+    const ics = await bookingsFeed({ db: rootDb(team()).db, shopId: "s1", token: TOKEN, nowMs: Date.parse("2026-11-14T12:00:00Z") });
+    expect(ics).toMatch(/SUMMARY:Ada: Cut \(Ana\)/);
+    expect(ics).toMatch(/SUMMARY:Cy: Colour \(Ben\)/);
+  });
+
+  test("a person's link with no person on it answers nothing", async () => {
+    const db = rootDb(shop({ "shops/s1/bookingFeed/p-x": { token: PERSON } })).db;
+    expect(await bookingsFeed({ db, shopId: "s1", token: PERSON })).toBeNull();
   });
 });
 

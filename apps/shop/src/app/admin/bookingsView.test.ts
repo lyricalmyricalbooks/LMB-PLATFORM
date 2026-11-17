@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY } from "./bookingsView";
+import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
 const ZONE = "America/Toronto";
@@ -117,5 +118,62 @@ describe("deposits", () => {
     expect(weekFigures([dep(), dep({ paid: true }), b({ payment: "atShop", priceMinor: 6000 })]).takenMinor).toBe(3500 + 14000);
     const figures = bookingFigures([dep({ status: "cancelled", refund: { amountMinor: 1000, at: "" } }), dep()], ZONE, ["2026-11"]);
     expect(figures.months.reduce((n, m) => n + m.takenMinor, 0)).toBe(2500 + 3500);
+  });
+});
+
+describe("the team's day", () => {
+  // Tuesday 17 November 2026 in Toronto: 10:00 there is 15:00Z.
+  const day = "2026-11-17";
+  const person = (over: Partial<StaffMember>): StaffMember => ({ id: "ana", name: "Ana", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "", ...over });
+  const settings = (staff: StaffMember[], over = {}) => ({ ...DEFAULT_BOOKING_SETTINGS, staff, ...over });
+
+  it("gives each active person a column, in team order, with their bookings placed by time", () => {
+    const rows = [
+      b({ id: "1", staffId: "ben", start: "2026-11-17T15:00:00.000Z", end: "2026-11-17T16:00:00.000Z" }),
+      b({ id: "2", staffId: "ana", start: "2026-11-17T16:30:00.000Z", end: "2026-11-17T17:00:00.000Z" }),
+      b({ id: "3", staffId: "ana", status: "cancelled" }),
+    ];
+    const t = teamDay(rows, settings([person({}), person({ id: "ben", name: "Ben" }), person({ id: "cy", name: "Cy", active: false })]), day, ZONE);
+    expect(t.columns.map((c) => c.name)).toEqual(["Ana", "Ben"]);
+    expect(t.count).toBe(2);
+    const ana = t.columns[0].blocks[0];
+    expect(ana.top + t.startMin).toBe(11 * 60 + 30);
+    expect(ana.height).toBe(30);
+    expect(t.columns[1].blocks[0].people.map((p) => p.id)).toEqual(["1"]);
+  });
+
+  it("shows a switched-off person who still has a booking, and a Not assigned column for bookings naming nobody", () => {
+    const rows = [b({ id: "1", staffId: "cy" }), b({ id: "2" }), b({ id: "3", staffId: "gone" })];
+    const t = teamDay(rows, settings([person({}), person({ id: "cy", name: "Cy", active: false })]), day, ZONE);
+    expect(t.columns.map((c) => [c.id, c.name])).toEqual([["ana", "Ana"], ["cy", "Cy"], [NOBODY, "Not assigned"]]);
+    expect(t.columns[2].blocks.flatMap((x) => x.people.map((p) => p.id))).toEqual(["2", "3"]);
+  });
+
+  it("marks a person off on their day off, the shop's day off, or with no hours that weekday", () => {
+    const own = DEFAULT_BOOKING_SETTINGS.hours.map((h, i) => (i === 2 ? [] : h));
+    const t = teamDay([], settings([person({ daysOff: [day] }), person({ id: "ben", name: "Ben", ownHours: true, hours: own }), person({ id: "cy", name: "Cy" })]), day, ZONE);
+    expect(t.columns.map((c) => c.off)).toEqual([true, true, false]);
+    expect(teamDay([], settings([person({})], { daysOff: [day] }), day, ZONE).columns[0].off).toBe(true);
+  });
+
+  it("puts a class's people on one card, and overlapping cards side by side", () => {
+    const rows = [
+      b({ id: "1", serviceId: "class", start: "2026-11-17T15:00:00.000Z" }),
+      b({ id: "2", serviceId: "class", start: "2026-11-17T15:00:00.000Z" }),
+      b({ id: "3", start: "2026-11-17T15:30:00.000Z", end: "2026-11-17T16:30:00.000Z" }),
+      b({ id: "4", start: "2026-11-17T18:00:00.000Z", end: "2026-11-17T19:00:00.000Z" }),
+    ];
+    const blocks = teamDay(rows, settings([]), day, ZONE).columns[0].blocks;
+    expect(blocks.map((x) => [x.people.length, x.lane, x.lanes])).toEqual([[2, 0, 2], [1, 1, 2], [1, 0, 1]]);
+  });
+
+  it("runs the grid in whole hours across every opening and booking", () => {
+    const early = person({ id: "ben", name: "Ben", ownHours: true, hours: DEFAULT_BOOKING_SETTINGS.hours.map(() => [{ start: "07:30", end: "12:00" }]) });
+    const t = teamDay([b({ start: "2026-11-18T00:00:00.000Z", end: "2026-11-18T00:45:00.000Z" })], settings([person({}), early]), day, ZONE);
+    expect(t.startMin).toBe(7 * 60);
+    expect(t.endMin).toBe(20 * 60);
+    expect(hourLabel(7 * 60)).toBe("7 AM");
+    expect(hourLabel(12 * 60)).toBe("12 PM");
+    expect(hourLabel(13 * 60 + 30)).toBe("1:30 PM");
   });
 });
