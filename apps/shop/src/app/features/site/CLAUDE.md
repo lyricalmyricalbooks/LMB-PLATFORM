@@ -907,6 +907,10 @@ takes `?events=1` to show the links; `scripts/studio-e2e.mjs` clicks the page th
 demand; words `eventsCodeQr`, `eventsTicketUsed`) and greys a ticket the door has used. The Events link follows
 `eventsLive` and `eventsLiveUntil` (`setEventsLive(on, until)`): it comes down when the last event ends, on an open page too.
 
+**Refunded tickets (E3a):** an order the shop gave back (`status: "refunded"`, or `refundedMinor` on a part refund)
+shows a Refunded row and its own heading and text (`eventsRefunded*`, `eventsTicketsCancelled*` in Text & labels ›
+Events, French twins in `frenchCopy.ts`); the Paid total is what the buyer still paid.
+
 ## Pickup times at checkout (17 November 2026)
 
 When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),

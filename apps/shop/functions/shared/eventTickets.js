@@ -23,6 +23,8 @@ exports.lineCounts = lineCounts;
 exports.withHold = withHold;
 exports.withSold = withSold;
 exports.withoutHold = withoutHold;
+exports.withReturned = withReturned;
+exports.refundMinorFor = refundMinorFor;
 exports.ticketCodeFrom = ticketCodeFrom;
 exports.cleanTicketCode = cleanTicketCode;
 exports.eventWhen = eventWhen;
@@ -179,6 +181,27 @@ function withSold(places, orderId, lines) {
 function withoutHold(places, orderId, nowMs) {
     const held = Object.fromEntries(Object.entries(places?.held ?? {}).filter(([id, hold]) => id !== orderId && Date.parse(hold?.until ?? "") > nowMs));
     return { sold: { ...(places?.sold ?? {}) }, held };
+}
+/** The places record after tickets are given back (a refund): that many fewer sold per kind, never below zero. */
+function withReturned(places, counts) {
+    const sold = { ...(places?.sold ?? {}) };
+    for (const [kind, n] of Object.entries(counts))
+        sold[kind] = Math.max(0, count(sold[kind]) - count(n));
+    return { sold, held: { ...(places?.held ?? {}) } };
+}
+/**
+ * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the
+ * tax. Giving back the last tickets returns everything still kept, so cents never go missing. `counts` is ticket id →
+ * how many are refunded now; `ticketsLeft` is how many the order keeps afterwards.
+ */
+function refundMinorFor(order, counts, ticketsLeft) {
+    const kept = Math.max(0, count(order.chargedMinor) - count(order.refundedMinor));
+    if (ticketsLeft <= 0)
+        return kept;
+    const prices = order.lines.reduce((sum, l) => sum + Math.min(count(counts[l.ticketId]), l.qty) * l.priceMinor, 0);
+    const total = count(order.totalMinor);
+    const tax = total > 0 ? Math.round((count(order.taxMinor) * prices) / total) : 0;
+    return Math.min(kept, prices + tax);
 }
 // A ticket's code, shown at the door: eight letters and digits with nothing that reads two ways ("K7QM-2XPA").
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

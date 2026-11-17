@@ -3,20 +3,21 @@
 // Events is on for the shop (the platform's switch and the owner's, Dashboard.tsx). Events, places and ticket orders
 // are server-only records, so every read and change goes through the server (eventsApi.ts): it never sells one place twice.
 // The guest list is also the door (E2): type or scan a ticket's code and the server marks it used, once.
+// Each order can be refunded from the list (E3): the server sends the money back and puts the places on sale again.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, Check, Download, ImagePlus, Mail, Pencil, Plus, ScanLine, Ticket, Trash2, Users } from "lucide-react";
+import { CalendarPlus, Check, Download, ImagePlus, Mail, Pencil, Plus, ScanLine, Ticket, Trash2, Undo2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import {
-  DestructiveButton, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField,
+  Checkbox, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField,
   StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { eventsAdmin, type AdminEvent, type DoorAnswer, type TicketOrder } from "./eventsApi";
+import { eventsAdmin, type AdminEvent, type DoorAnswer, type RefundAnswer, type TicketOrder } from "./eventsApi";
 import {
-  arrivedCount, blankForm, blankTicket, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
-  whenParts, withTicketUsed,
+  arrivedCount, blankForm, blankTicket, countsOfCodes, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
+  whenParts, withOrderChanged, withTicketUsed,
   type EventForm, type TicketForm,
 } from "./eventsView";
-import { cleanTicketCode, MAX_TICKET_KINDS, type EventStatus } from "../../shared/eventTickets";
+import { cleanTicketCode, MAX_TICKET_KINDS, refundMinorFor, type EventStatus } from "../../shared/eventTickets";
 import { ScanBarcodeButton } from "./ScanBarcodeButton";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -246,6 +247,7 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
   const [find, setFind] = useState("");
   const [busy, setBusy] = useState("");
   const [result, setResult] = useState<DoorResult | null>(null);
+  const [refunding, setRefunding] = useState<TicketOrder | null>(null);
   const load = () => eventsAdmin<{ orders: TicketOrder[] }>("orders", { eventId: event.id })
     .then((answer) => { setOrders(answer.orders || []); setError(""); })
     .catch((err) => setError(problemOf(err, "The guest list didn't load.")));
@@ -254,6 +256,7 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
   const tickets = (orders || []).reduce((sum, o) => sum + o.tickets.length, 0);
   const arrived = arrivedCount(orders || []);
   const shown = findGuests(orders || [], find);
+  const held = (orders || []).filter((o) => o.status === "paid").length;
   const canCheckIn = event.status !== "cancelled";
   const timeOf = (iso: string) => whenParts(iso, zone).time;
 
@@ -327,21 +330,29 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
             )}
 
             <div className="evt-guest-tools">
-              <p className="evt-guest-count">{tickets} {tickets === 1 ? "ticket" : "tickets"} in {orders.length} {orders.length === 1 ? "order" : "orders"}</p>
+              <p className="evt-guest-count">{tickets} {tickets === 1 ? "ticket" : "tickets"} in {held} {held === 1 ? "order" : "orders"}</p>
               {orders.length > 4 && <TextField label="Find a guest" hideLabel type="search" placeholder="Find by name, email or code" value={find} onChange={(e) => setFind(e.target.value)} />}
             </div>
             {shown.length === 0 && <p className="evt-guest-none">Nobody on the list matches “{find.trim()}”.</p>}
             <ul className="evt-guests">
               {shown.map((order) => (
-                <li key={order.id} className="evt-guest">
+                <li key={order.id} className="evt-guest" data-refunded={order.status === "refunded" ? "true" : undefined}>
                   <div className="evt-guest-head">
                     <div>
                       <strong>{order.name || "No name"}</strong>
                       {order.test && <StatusBadge tone="warning">Test</StatusBadge>}
+                      {order.status === "refunded" && <StatusBadge tone="neutral">{order.refundedMinor ? "Refunded" : "Cancelled"}</StatusBadge>}
                       <span className="evt-guest-mail">{order.email}</span>
                     </div>
-                    <span className="evt-guest-paid">{order.chargedMinor ? moneyText(order.chargedMinor, order.currency || currency) : "Free"}</span>
+                    <span className="evt-guest-paid">
+                      {order.status === "refunded" && order.refundedMinor ? null
+                        : order.chargedMinor ? moneyText(Math.max(0, order.chargedMinor - (order.refundedMinor || 0)), order.currency || currency) : "Free"}
+                      {!!order.refundedMinor && <small>{moneyText(order.refundedMinor, order.currency || currency)} sent back</small>}
+                    </span>
                   </div>
+                  {order.status === "refunded" && (
+                    <p className="evt-guest-gone">{order.refundedTickets === 1 ? "Their ticket was" : `Their ${order.refundedTickets || ""} tickets were`.replace("  ", " ")} given back{order.refundedAt ? ` on ${whenParts(order.refundedAt, zone).day} ${whenParts(order.refundedAt, zone).month}` : ""}. The places are on sale again.</p>
+                  )}
                   <ul className="evt-codes">
                     {order.tickets.map((t) => (
                       <li key={t.code} data-used={t.usedAt ? "true" : undefined}>
@@ -354,13 +365,80 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
                       </li>
                     ))}
                   </ul>
-                  <GhostButton icon={<Mail size={16} aria-hidden />} onClick={() => { void resend(order); }} busy={sending === order.id}>Send tickets again</GhostButton>
+                  {order.status === "paid" && (
+                    <div className="evt-guest-actions">
+                      <GhostButton icon={<Mail size={16} aria-hidden />} onClick={() => { void resend(order); }} busy={sending === order.id}>Send tickets again</GhostButton>
+                      <GhostButton icon={<Undo2 size={16} aria-hidden />} onClick={() => setRefunding(order)}>Refund</GhostButton>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           </>
         )}
+      {refunding && (
+        <RefundDialog order={refunding} currency={currency} onClose={() => setRefunding(null)}
+          onDone={(next) => { setOrders((list) => withOrderChanged(list || [], next)); setRefunding(null); }} />
+      )}
     </Drawer>
+  );
+}
+
+// Gives an order's tickets back: all of them or the ones ticked. The amount shown comes from the same rule the server
+// uses (shared/eventTickets.ts), and the server decides again before any money moves.
+function RefundDialog({ order, currency, onClose, onDone }: { order: TicketOrder; currency: string; onClose: () => void; onDone: (next: TicketOrder) => void }) {
+  const free = order.tickets.filter((t) => !t.usedAt);
+  const [picked, setPicked] = useState<string[]>(() => free.map((t) => t.code));
+  const [money, setMoney] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const kept = Math.max(0, order.chargedMinor - (order.refundedMinor || 0));
+  const amount = refundMinorFor(order, countsOfCodes(order, picked), order.tickets.length - picked.length);
+  const sending = money && amount > 0;
+  const cash = (minor: number) => moneyText(minor, order.currency || currency);
+  const who = order.name || order.email;
+  const many = picked.length !== 1;
+  const go = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const answer = await eventsAdmin<RefundAnswer>("refund", { orderId: order.id, codes: picked, money });
+      toast.success(answer.already ? "Those tickets were already given back."
+        : answer.amountMinor ? `${cash(answer.amountMinor)} is on its way back to ${who}.` : `${many ? "Tickets" : "Ticket"} cancelled. ${who} has an email.`);
+      onDone(answer.order);
+    } catch (err) {
+      setError(problemOf(err, "The refund didn't go through. Try again."));
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={busy ? () => {} : onClose} title="Refund tickets" description={`${who} · ${order.tickets.length} ${order.tickets.length === 1 ? "ticket" : "tickets"}`}
+      footer={<><GhostButton onClick={onClose} disabled={busy}>Keep the tickets</GhostButton>
+        <DestructiveButton onClick={() => { void go(); }} busy={busy} disabled={!picked.length}>
+          {sending ? `Refund ${cash(amount)}` : `Cancel ${many ? "tickets" : "ticket"}`}
+        </DestructiveButton></>}>
+      <div className="evt-refund">
+        <div className="evt-refund-list" role="group" aria-labelledby="evt-refund-which">
+          <p id="evt-refund-which">Which tickets?</p>
+          {order.tickets.map((t) => (
+            <div key={t.code} className="evt-refund-row" data-used={t.usedAt ? "true" : undefined}>
+              <Checkbox label={`${t.name} · ${t.code}`} checked={picked.includes(t.code)} disabled={!!t.usedAt || busy}
+                onChange={(e) => setPicked((list) => (e.target.checked ? [...list, t.code] : list.filter((c) => c !== t.code)))} />
+              {t.usedAt && <span>Checked in. Undo that first.</span>}
+            </div>
+          ))}
+        </div>
+        {kept > 0 && <Toggle label="Send the money back" checked={money} onChange={setMoney} disabled={busy} />}
+        <p className="evt-refund-sum" role="status">
+          {!picked.length ? "Pick at least one ticket."
+            : sending ? <><strong>{cash(amount)}</strong> goes back to the card they paid with. It can take a few days to show.</>
+            : kept > 0 ? "No money is sent. The tickets stop working."
+            : "These tickets were free, so no money moves. The tickets stop working."}
+        </p>
+        <p className="evt-refund-note">{who} gets an email, and the {many ? "places go" : "place goes"} back on sale. This can't be undone.</p>
+        {error && <p className="evt-refund-error" role="alert">{error}</p>}
+      </div>
+    </Dialog>
   );
 }
 

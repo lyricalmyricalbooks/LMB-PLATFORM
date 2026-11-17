@@ -354,7 +354,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
   "Events page": [
     { title: "What's on", match: /^events(Eyebrow|Title|Subtitle|Back|AllEvents|Loading|LoadError|Retry|None|NotFound|From|Free|SoldOut|SalesClosed|Cancelled|Online)/ },
     { title: "Choosing tickets & paying", match: /^events(TicketsHeading|Left|Fewer|More|PlusTax|YourDetails|Name$|Email|Need|Total|Pay|GetFree|Working|Error|TicketsChanged|NotAvailable|TooMany)/ },
-    { title: "Your tickets", match: /^events(Going|Held|Ended|OrderNotFound|When|Where|NameRow|Tax|Paid|YourTickets|TicketNumber|ShowCode|JoinOnline|AddCalendar|GoogleCalendar|TryAgain)/ },
+    { title: "Your tickets", match: /^events(Going|Held|Ended|Refunded|TicketsCancelled|CodeQr|TicketUsed|OrderNotFound|When|Where|NameRow|Tax|Paid|YourTickets|TicketNumber|ShowCode|JoinOnline|AddCalendar|GoogleCalendar|TryAgain)/ },
   ],
   "Bookings page": [
     { title: "Choosing a service and time", match: /^bookTime(Eyebrow|Title|Subtitle|Closed|Loading|LoadError|Retry|Step|Free|PayAtShop|Select|Change|Earlier|Later|NoTimes|ShowLater|Morning|Afternoon|Evening|Zone|Continue|Back)/ },

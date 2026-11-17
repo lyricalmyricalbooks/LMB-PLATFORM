@@ -354,6 +354,9 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
 
   const paid = order.status === "paid";
   const called = order.eventCancelled;
+  // Tickets the shop gave back: all of them (the order is "refunded") or some (still paid, with money sent back).
+  const back = order.status === "refunded";
+  const refunded = order.refundedMinor || 0;
   const startMs = Date.parse(order.start);
   const endMs = Date.parse(order.end) > startMs ? Date.parse(order.end) : startMs + DEFAULT_LENGTH_MS;
   const place = [order.venue, order.address].filter(Boolean).join(", ");
@@ -372,11 +375,11 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
       <div {...regionProps("eventsIntro")}>
         <p className="fm-track-mono mb-3">{c("eventsEyebrow")}</p>
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <h1 className="fm-track-display text-5xl sm:text-6xl">{c(called ? "eventsCancelled" : paid ? "eventsGoingTitle" : waiting ? "eventsHeldTitle" : "eventsEndedTitle")}</h1>
-          <span className="fm-track-stamp" data-state={called || order.status === "cancelled" ? "ended" : paid ? "paid" : "unpaid"}>{order.title}</span>
+          <h1 className="fm-track-display text-5xl sm:text-6xl">{c(back ? (refunded ? "eventsRefundedTitle" : "eventsTicketsCancelledTitle") : called ? "eventsCancelled" : paid ? "eventsGoingTitle" : waiting ? "eventsHeldTitle" : "eventsEndedTitle")}</h1>
+          <span className="fm-track-stamp" data-state={called || back || order.status === "cancelled" ? "ended" : paid ? "paid" : "unpaid"}>{order.title}</span>
         </div>
         <p className="mt-4 text-base leading-7 fm-muted" role="status">
-          {called ? c("eventsCancelledOrderText") : paid ? c("eventsGoingText") : waiting ? c("eventsHeldText") : c("eventsEndedText")}
+          {back ? c(refunded ? "eventsRefundedText" : "eventsTicketsCancelledText") : called ? c("eventsCancelledOrderText") : paid ? c("eventsGoingText") : waiting ? c("eventsHeldText") : c("eventsEndedText")}
         </p>
       </div>
 
@@ -389,9 +392,10 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
         {paid && order.onlineUrl && !called && (
           <div className="fm-track-row"><span className="fm-track-mono">{c("eventsOnlineRow")}</span><a className="text-right underline underline-offset-2" href={order.onlineUrl} target="_blank" rel="noopener noreferrer">{c("eventsJoinOnline")}</a></div>
         )}
+        {refunded > 0 && <Row label={c("eventsRefundedRow")} value={`−${moneyText(refunded, order.currency)}`} />}
         <div className="fm-track-total">
-          <span className="fm-track-mono">{c(paid ? "eventsPaid" : "eventsTotal")}</span>
-          <strong translate="no">{order.chargedMinor > 0 ? moneyText(order.chargedMinor, order.currency) : c("eventsFree")}</strong>
+          <span className="fm-track-mono">{c(paid || back ? "eventsPaid" : "eventsTotal")}</span>
+          <strong translate="no">{order.chargedMinor > 0 ? moneyText(Math.max(0, order.chargedMinor - refunded), order.currency) : c("eventsFree")}</strong>
         </div>
 
         {paid && !called && order.tickets.length > 0 && (
@@ -419,7 +423,7 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
           <a className="fm-track-link fm-track-mono underline underline-offset-4" href={googleCalendarLink({ title: order.title, start: startMs, end: endMs, location: place })} target="_blank" rel="noopener noreferrer">{c("eventsGoogleCalendar")}</a>
         </div>
       )}
-      {order.status === "cancelled" && !called && (
+      {(order.status === "cancelled" || back) && !called && (
         <Link to={within(`event=${order.eventId}`)} className="fm-track-btn">{c("eventsTryAgain")}</Link>
       )}
     </div>

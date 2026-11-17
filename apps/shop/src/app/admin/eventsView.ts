@@ -157,3 +157,16 @@ export function withTicketUsed(orders: TicketOrder[], code: string, usedAt: stri
   return orders.map((o) => (o.tickets.some((t) => t.code === code) ? { ...o, tickets: o.tickets.map((t) => (t.code === code ? { ...t, usedAt } : t)) } : o));
 }
 
+
+/** The guest list after a refund: the order as the server now has it, with fully refunded orders kept last. */
+export function withOrderChanged(orders: TicketOrder[], next: TicketOrder): TicketOrder[] {
+  const list = orders.map((o) => (o.id === next.id ? next : o));
+  return [...list.filter((o) => o.status !== "refunded"), ...list.filter((o) => o.status === "refunded")];
+}
+
+/** How many of each kind of ticket the picked codes come to (what the refund rules count with). */
+export function countsOfCodes(order: Pick<TicketOrder, "tickets">, codes: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const t of order.tickets) if (codes.includes(t.code)) counts[t.ticketId] = (counts[t.ticketId] || 0) + 1;
+  return counts;
+}
