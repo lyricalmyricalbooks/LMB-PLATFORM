@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -761,6 +761,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
             {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : "Cancelled"}
           </StatusBadge>
         </div>
+        {!!b.extras?.length && <p className="bkg-detail-line"><Plus size={16} aria-hidden /> Add-ons: {b.extras.map((x) => x.name).join(", ")}</p>}
         {b.series && <p className="bkg-detail-line"><CalendarPlus size={16} aria-hidden /> Standing appointment: visit {b.series.visit} of {b.series.visits}, {b.series.everyWeeks === 1 ? "every week" : `every ${b.series.everyWeeks} weeks`}</p>}
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
         {b.meetUrl && b.status === "confirmed" && <p className="bkg-detail-line"><Video size={16} aria-hidden /> <a href={b.meetUrl} target="_blank" rel="noopener noreferrer">Join the Google Meet call</a></p>}
@@ -1155,8 +1156,9 @@ function CancelDialog({ booking: b, laterVisits = 0, onClose, onCancel }: { book
 }
 
 /** Picks a day and one of its free times for a service. `onPick` throws to keep the dialog open. */
-function TimeDialog({ title, description, service, initialDay, except = "", staffId = "", confirmLabel, onClose, onPick, children, ready = true, after }: {
+function TimeDialog({ title, description, service, initialDay, except = "", staffId = "", extras = [], confirmLabel, onClose, onPick, children, ready = true, after }: {
   title: string; description?: string; service: BookingService; initialDay: string; except?: string;
+  /** The add-ons ticked (New booking): the free times fit the longer booking. */ extras?: string[];
   /** Only this person's free times ("" = anyone on the team, or the shop's one calendar). */ staffId?: string; confirmLabel: string;
   onClose: () => void; onPick: (startIso: string) => Promise<void>; children?: React.ReactNode; ready?: boolean;
   /** Shown under the times once one is picked (New booking › Repeat lists the run's dates). */ after?: (startIso: string) => React.ReactNode;
@@ -1169,9 +1171,9 @@ function TimeDialog({ title, description, service, initialDay, except = "", staf
   useEffect(() => {
     let live = true;
     setTimes(null); setPicked("");
-    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId }).then((r) => live && setTimes(r.times)).catch((e) => live && (setTimes([]), setProblem(e.message)));
+    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId, ...(extras.length ? { extras } : {}) }).then((r) => live && setTimes(r.times)).catch((e) => live && (setTimes([]), setProblem(e.message)));
     return () => { live = false; };
-  }, [day, service.id, staffId]);
+  }, [day, service.id, staffId, extras.join(",")]);
   const save = async () => {
     setSaving(true); setProblem("");
     try { await onPick(picked); } catch (e: any) { setProblem(e?.message || "That didn't save."); } finally { setSaving(false); }
@@ -1250,17 +1252,17 @@ function PersonPick({ settings, serviceId, value, onChange }: { settings: Bookin
 }
 
 /** The dates of a standing appointment, each marked free or taken (op runCheck), under New booking's times. */
-function RunDates({ serviceId, start, run, staffId, onFree }: { serviceId: string; start: string; run: { everyWeeks: number; visits: number }; staffId: string; onFree: (free: boolean) => void }) {
+function RunDates({ serviceId, start, run, staffId, extras = [], onFree }: { serviceId: string; start: string; run: { everyWeeks: number; visits: number }; staffId: string; extras?: string[]; onFree: (free: boolean) => void }) {
   const [visits, setVisits] = useState<{ start: string; free: boolean }[] | null>(null);
   const [problem, setProblem] = useState("");
   useEffect(() => {
     let live = true;
     setVisits(null); setProblem(""); onFree(false);
-    bookingsAdmin<{ visits: { start: string; free: boolean }[] }>("runCheck", { serviceId, start, run, staffId })
+    bookingsAdmin<{ visits: { start: string; free: boolean }[] }>("runCheck", { serviceId, start, run, staffId, ...(extras.length ? { extras } : {}) })
       .then((r) => { if (live) { setVisits(r.visits); onFree(r.visits.every((v) => v.free)); } })
       .catch((e) => live && setProblem(e?.message || "The dates couldn't be checked."));
     return () => { live = false; };
-  }, [serviceId, start, run.everyWeeks, run.visits, staffId]);
+  }, [serviceId, start, run.everyWeeks, run.visits, staffId, extras.join(",")]);
   if (problem) return <p className="bkg-error" role="alert">{problem}</p>;
   if (!visits) return <LoadingState label="Checking every date…" />;
   const taken = visits.filter((v) => !v.free).length;
@@ -1296,19 +1298,33 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { 
   const repeatable = service.places <= 1 && !(service.courseDates || []).length;
   const run = repeatable && everyWeeks ? { everyWeeks, visits } : null;
   const [runFree, setRunFree] = useState(false);
+  // Add-ons ticked for this booking (ids of the service's extras).
+  const [picked, setPicked] = useState<string[]>([]);
+  const extras = (service.extras || []).filter((e) => picked.includes(e.id)).map((e) => e.id);
+  const asBooked = withExtras(service, extras);
+  const length = "problem" in asBooked ? service.minutes : asBooked.service.minutes;
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
-    <TimeDialog key={service.id} title={initial ? "Book again" : "New booking"} service={service} initialDay={today()} staffId={staffId} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree)}
-      after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} onFree={setRunFree} /> : undefined}
+    <TimeDialog key={service.id} title={initial ? "Book again" : "New booking"} service={service} initialDay={today()} staffId={staffId} extras={extras} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
+      after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} extras={extras} onFree={setRunFree} /> : undefined}
       onPick={async (start) => {
-        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}) });
+        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}), ...(extras.length ? { extras } : {}) });
         toast.success(run ? `${who.name.trim()} is booked in for ${visits} visits` : `${who.name.trim()} is booked in`);
         onBooked?.();
         onClose();
       }}>
-      <SelectField label="Service" value={service.id} onChange={(e) => { setServiceId(e.target.value); if (!staffFor(settings, e.target.value).some((p) => p.id === staffId)) setStaffId(""); }}>
+      <SelectField label="Service" value={service.id} onChange={(e) => { setServiceId(e.target.value); setPicked([]); if (!staffFor(settings, e.target.value).some((p) => p.id === staffId)) setStaffId(""); }}>
         {services.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.minutes} min</option>)}
       </SelectField>
+      {(service.extras || []).length > 0 && (
+        <fieldset className="bkg-extras-pick">
+          <legend>Add-ons</legend>
+          {(service.extras || []).map((x) => (
+            <Toggle key={x.id} label={extraLabel(x)} checked={picked.includes(x.id)} onChange={(v) => setPicked((p) => (v ? [...p, x.id] : p.filter((id) => id !== x.id)))} />
+          ))}
+          <p className="bkg-questions-hint">{"problem" in asBooked ? asBooked.problem : `${length} minutes in all${asBooked.service.priceMinor ? `, ${moneyText(asBooked.service.priceMinor, SHOP_CURRENCY)}` : ""}.`}</p>
+        </fieldset>
+      )}
       <PersonPick settings={settings} serviceId={service.id} value={staffId} onChange={setStaffId} />
       <div className="bkg-two">
         <TextField label="Name" value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} autoComplete="off" />
@@ -1335,6 +1351,11 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { 
       <Toggle label="Email them the booking" checked={sendEmail} onChange={setSendEmail} />
     </TimeDialog>
   );
+}
+
+/** An add-on as the owner sees it: "Deep conditioning · +15 min · +$20.00". */
+function extraLabel(x: BookingExtra): string {
+  return [x.name, x.minutes ? `+${x.minutes} min` : "", x.priceMinor ? `+${moneyText(x.priceMinor, SHOP_CURRENCY)}` : ""].filter(Boolean).join(" · ");
 }
 
 /**
@@ -1365,7 +1386,7 @@ export function nextCourseDate(dates: readonly string[]): string {
   return `${addDays(last.slice(0, 10), 7)}T${last.slice(11, 16) || "18:00"}`;
 }
 
-export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0, repeats: false };
+export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0, repeats: false, extras: [] };
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -1445,6 +1466,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
     packCount: String(service.packVisits || 5),
     packPrice: service.packPriceMinor ? (service.packPriceMinor / 100).toFixed(2) : "",
     packLasts: String(service.packDays || 0),
+    // Add-ons and options as the owner types them: minutes and price as text until saved.
+    extraRows: (service.extras || []).map((e) => ({ id: e.id, name: e.name, minutes: e.minutes ? String(e.minutes) : "", price: e.priceMinor ? (e.priceMinor / 100).toFixed(2) : "" })),
   });
   // Card on file: only where something is left to charge (not paid in full), and only on Stripe.
   const paidInFull = Number(form.price) > 0 && form.pay === "full";
@@ -1461,11 +1484,13 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
   const group = form.places > 1;
   const setClassTime = (i: number, change: Partial<(typeof classTimes)[number]>) => set("classTimes", classTimes.map((t, j) => (j === i ? { ...t, ...change } : t)));
   const setQuestion = (i: number, change: Partial<(typeof questions)[number]>) => set("questions", questions.map((q, j) => (j === i ? { ...q, ...change } : q)));
+  const extraRows = form.extraRows;
+  const setExtra = (i: number, change: Partial<(typeof extraRows)[number]>) => set("extraRows", extraRows.map((x, j) => (j === i ? { ...x, ...change } : x)));
   const save = async () => {
     setSaving(true); setProblem("");
     try {
       const priceMinor = Math.round(Number(form.price || 0) * 100);
-      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, extraRows: rows, ...rest } = form;
       const sellPack = pack && priceMinor > 0;
       const holdCard = form.holdCard && !paidInFull && !square;
       const share = pay === "deposit" && priceMinor > 0;
@@ -1480,6 +1505,9 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
         packDays: sellPack ? Number(packLasts) || 0 : 0,
+        extras: rest.places > 1 || (rest.courseDates || []).length ? [] : rows.filter((x) => x.name.trim()).map((x) => ({
+          id: x.id, name: x.name.trim(), minutes: Math.round(Number(x.minutes || 0)), priceMinor: priceMinor > 0 ? Math.round(Number(x.price || 0) * 100) : 0,
+        })),
       } });
       toast.success(service.id ? "Service saved" : "Service added");
       onSaved();
@@ -1673,6 +1701,27 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
           )}
         </fieldset>
         <TextArea label="About it (optional)" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+        {!group && !course && (
+          <fieldset className="bkg-questions">
+            <legend>Add-ons and options <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+            <p className="bkg-questions-hint">{Number(form.price) > 0
+              ? "Extras clients can tick when they book, like a deep conditioning or long hair. Each adds its time and price, and the calendar keeps the longer time."
+              : "Extras clients can tick when they book. Each adds its time, and the calendar keeps the longer time. Add a price above to charge for them."}</p>
+            {extraRows.map((x, i) => (
+              <div key={x.id} className="bkg-question bkg-extra">
+                <TextField label={`Extra ${i + 1}`} placeholder="Deep conditioning" value={x.name} maxLength={80} onChange={(e) => setExtra(i, { name: e.target.value })} />
+                <div className="bkg-question-row">
+                  <TextField label="Adds minutes" type="number" inputMode="numeric" min={0} max={MAX_EXTRA_MINUTES} step={5} placeholder="0" value={x.minutes} onChange={(e) => setExtra(i, { minutes: e.target.value })} />
+                  {Number(form.price) > 0 && <TextField label="Adds to the price" type="number" inputMode="decimal" min={0} step="0.01" placeholder="0.00" value={x.price} onChange={(e) => setExtra(i, { price: e.target.value })} />}
+                  <button type="button" className="bkg-question-remove" aria-label={`Remove extra ${i + 1}`} onClick={() => set("extraRows", extraRows.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
+                </div>
+              </div>
+            ))}
+            {extraRows.length < MAX_EXTRAS
+              ? <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("extraRows", [...extraRows, { id: `x${Date.now().toString(36)}`, name: "", minutes: "", price: "" }])}>Add an extra</SecondaryButton>
+              : <p className="bkg-questions-hint">That's the most extras a service can have ({MAX_EXTRAS}).</p>}
+          </fieldset>
+        )}
         <fieldset className="bkg-questions">
           <legend>Questions to ask</legend>
           <p className="bkg-questions-hint">Customers answer these when they book, after their name and email.</p>

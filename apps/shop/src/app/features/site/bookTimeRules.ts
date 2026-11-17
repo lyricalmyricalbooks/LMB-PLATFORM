@@ -10,7 +10,23 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
   joining?: { missed: number; of: number; fullPriceMinor: number };
   /** Clients may book it as a standing appointment: the same time every few weeks, several visits at once. */ repeats?: boolean;
-  /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number };
+  /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number;
+  /** Add-ons and options the client may tick: each adds minutes and, on a paid service, money. */ extras?: BookingExtraView[] };
+/** An add-on or option of a one-to-one service. */
+export type BookingExtraView = { id: string; name: string; minutes: number; priceMinor: number };
+/** The service as the client picked it: its length and price with the ticked extras added (the tax grows in step).
+ *  Display only: the server works the same out again from the ids. */
+export function withPicked<S extends BookingServiceView>(service: S, ids: readonly string[]): S {
+  const picked = (service.extras || []).filter((x) => ids.includes(x.id));
+  if (!picked.length) return service;
+  const minutes = picked.reduce((n, x) => n + x.minutes, 0);
+  const money = picked.reduce((n, x) => n + x.priceMinor, 0);
+  const taxMinor = service.taxMinor && service.priceMinor > 0 ? Math.round((service.taxMinor * (service.priceMinor + money)) / service.priceMinor) : service.taxMinor;
+  return { ...service, minutes: service.minutes + minutes, priceMinor: service.priceMinor + money, ...(taxMinor !== undefined ? { taxMinor } : {}) };
+}
+/** The ticked extras that cost something (a pack can't pay for those). */
+export const pricedPicks = (service: Pick<BookingServiceView, "extras"> | null | undefined, ids: readonly string[]): boolean =>
+  (service?.extras || []).some((x) => ids.includes(x.id) && x.priceMinor > 0);
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
   hours?: Array<Array<{ start: string; end: string }>>;
@@ -62,6 +78,8 @@ export type BookingView = {
   staffId?: string; staffName?: string;
   /** A course: every date this sign-up holds a place on. `canMove` false: it can be cancelled online but not moved. */
   courseStarts?: string[]; canMove?: boolean;
+  /** Add-ons and options booked with it (minutes and priceMinor already include them). */
+  extras?: BookingExtraView[];
   /** A standing appointment: which visit of the run this is, how many there are and how often. */
   run?: { visit: number; visits: number; everyWeeks: number };
   status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;

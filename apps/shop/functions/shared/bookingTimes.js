@@ -9,8 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = void 0;
+exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = void 0;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -18,6 +18,8 @@ exports.cleanTipPercents = cleanTipPercents;
 exports.tipOpen = tipOpen;
 exports.feeChargeable = feeChargeable;
 exports.cleanService = cleanService;
+exports.cleanExtras = cleanExtras;
+exports.withExtras = withExtras;
 exports.cleanCourseDates = cleanCourseDates;
 exports.courseStarts = courseStarts;
 exports.runDecisionDue = runDecisionDue;
@@ -75,6 +77,9 @@ exports.MAX_COURSE_DATES = 30;
 const isCourse = (s) => (0, exports.isClass)(s) && (s?.courseDates?.length || 0) >= 2;
 exports.isCourse = isCourse;
 exports.MAX_QUESTIONS = 5;
+/** Add-ons and options on one service, and the most minutes one may add. */
+exports.MAX_EXTRAS = 8;
+exports.MAX_EXTRA_MINUTES = 240;
 exports.MAX_STAFF = 20;
 exports.MAX_ROOMS = 10;
 exports.BOOKING_STEPS = [15, 30, 60];
@@ -343,7 +348,43 @@ function cleanService(raw, id = "") {
         chargeTax: payment !== "free" && s.chargeTax === true,
         rebookWeeks: whole(s.rebookWeeks, 0, exports.MAX_REBOOK_WEEKS, 0),
         repeats: s.repeats === true && places === 1 && !courseDates.length,
+        // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
+        extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
     };
+}
+/** A service's add-ons and options, cleaned: named ones only, at most MAX_EXTRAS, each with its own id. */
+function cleanExtras(raw, priced = true) {
+    const out = [];
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const e = item && typeof item === "object" ? item : {};
+        const name = text(e.name, 80);
+        if (!name || out.length >= exports.MAX_EXTRAS)
+            continue;
+        let id = text(e.id, 24).replace(/[^A-Za-z0-9_-]/g, "") || `x${out.length + 1}`;
+        while (out.some((o) => o.id === id))
+            id += "x";
+        const minutes = whole(e.minutes, 0, exports.MAX_EXTRA_MINUTES, 0);
+        const price = Math.round(Number(e.priceMinor));
+        const priceMinor = priced && Number.isFinite(price) && price > 0 ? Math.min(price, 1_000_000) : 0;
+        out.push({ id, name, minutes, priceMinor });
+    }
+    return out;
+}
+/**
+ * The service as booked with the extras the client ticked (ids; unknown ones are ignored, each counts once): its minutes
+ * and price grow by theirs, so every rule that reads the service (free times, the card page, deposits, tax, codes) sees
+ * the booking's real length and price. A deposit given as an amount stays that amount; a share follows the new price.
+ * Refused past 8 hours in all.
+ */
+function withExtras(service, raw) {
+    const ids = new Set(Array.isArray(raw) ? raw.filter((x) => typeof x === "string").slice(0, exports.MAX_EXTRAS * 2) : []);
+    const extras = (service.extras || []).filter((e) => ids.has(e.id));
+    if (!extras.length)
+        return { service, extras };
+    const minutes = service.minutes + extras.reduce((n, e) => n + e.minutes, 0);
+    if (minutes > 8 * 60)
+        return { problem: "With those extras the booking is longer than 8 hours. Choose fewer." };
+    return { service: { ...service, minutes, priceMinor: service.priceMinor + extras.reduce((n, e) => n + e.priceMinor, 0) }, extras };
 }
 /** A course's dates, cleaned: real shop-clock "YYYY-MM-DDTHH:MM" moments, no repeats, earliest first. */
 function cleanCourseDates(raw) {

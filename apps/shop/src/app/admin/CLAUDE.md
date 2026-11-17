@@ -1335,3 +1335,8 @@ writes it. The customer page is `features/site/ClassesPage.tsx`.
 **Courses (17 November 2026):** the class editor's "When it runs" offers "A course with set dates" (`courseDates`,
 `nextCourseDate`). A course booking starts on its first date, so `Classes.tsx` also follows `followCourseRows(days)` live (a stand-in on a later date is `course.staff[n]`)
 (`course.days` array-contains-any the week's days) and `classWeek` puts each person on every date of theirs.
+
+**Add-ons and options (17 November 2026, Services plan 2 B2).** Bookings › Services › a one-to-one service's dialog has
+"Add-ons and options" (Beta): rows of name, adds minutes and, on a paid service, adds to the price (`MAX_EXTRAS` rows).
+New booking ticks them (`bkg-extras-pick`, total length and price from the shared `withExtras`) and sends their ids to
+the times, run check and create ops; the drawer shows "Add-ons: …". The server works it all out again.

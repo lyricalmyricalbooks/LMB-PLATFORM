@@ -2165,6 +2165,24 @@ await check("the Book a time form offers Text me reminders, which needs a phone 
   if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsForm]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-texts.png` });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 
+await check("ticking an add-on on the Book a time page lengthens the visit and shows it in the summary", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-store-region=bookingsService]").first().waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
+  // The sample one-to-one session has two add-ons.
+  await frame.locator("[data-store-region=bookingsService]").nth(1).click();
+  const extras = frame.locator("[data-store-region=bookingsExtras]");
+  await extras.waitFor({ timeout: 10000 });
+  await extras.locator("input[type=checkbox]").first().check();
+  await extras.getByText("1 h 30 min").waitFor({ timeout: 5000 });
+  await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().click({ timeout: 10000 });
+  if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsTimes]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-extras.png` });
+  await frame.locator("[data-store-region=bookingsTimes] button.fm-track-btn:not([disabled])").first().click();
+  await frame.locator("[data-store-region=bookingsSummary]").getByText("Longer session").waitFor({ timeout: 10000 });
+  if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsSummary]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-extras-summary.png` });
+}, "?bookings=1#designer?t=bookingsPage&tab=sections");
+
 await check("a Book a time section added to the home page shows sample services that link to the booking page", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

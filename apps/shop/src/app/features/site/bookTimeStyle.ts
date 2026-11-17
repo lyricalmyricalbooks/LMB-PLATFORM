@@ -44,6 +44,11 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-course h2{margin:0 0 10px;}`,
   `${S} .fm-book-course ol{margin:0 0 12px;padding-left:1.4em;display:grid;gap:6px;line-height:1.5;}`,
   // A standing appointment: how often and how many visits, then every date, taken ones struck through.
+  `${S} .fm-book-extras{display:grid;gap:10px;margin:0 0 22px;padding:0;border:0;min-width:0;}`,
+  `${S} .fm-book-extras legend{margin-bottom:8px;padding:0;}`,
+  `${S} .fm-book-extra{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;min-height:44px;padding:8px 12px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);cursor:pointer;}`,
+  `${S} .fm-book-extra input{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none;}`,
+  `${S} .fm-book-extra span:first-of-type{flex:1 1 140px;min-width:0;overflow-wrap:anywhere;}`,
   `${S} .fm-book-run{display:grid;gap:12px;margin:0 0 22px;}`,
   `${S} .fm-book-run-pick{display:flex;flex-wrap:wrap;gap:12px;}`,
   `${S} .fm-book-run-field{display:grid;gap:6px;flex:1 1 180px;}`,

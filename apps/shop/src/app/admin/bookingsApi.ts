@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import { cleanBookingSettings, cleanService, type BookingService, type BookingSettings, type SavedCard } from "../../shared/bookingTimes";
+import { cleanBookingSettings, cleanService, type BookingExtra, type BookingService, type BookingSettings, type SavedCard } from "../../shared/bookingTimes";
 
 export type BookingStatus = "held" | "confirmed" | "cancelled";
 export type Booking = {
@@ -37,6 +37,8 @@ export type Booking = {
   staffId?: string; staffName?: string; roomId?: string; roomName?: string;
   history?: { at: string; what: string; by: string }[]; createdAt?: string;
   /** A standing appointment: which visit of the run this is, how many there are and how often (each is its own booking). */
+  /** Add-ons and options the client ticked (each already in `minutes` and `priceMinor`). */
+  extras?: BookingExtra[] | null;
   series?: { id: string; visit: number; visits: number; everyWeeks: number } | null;
 };
 

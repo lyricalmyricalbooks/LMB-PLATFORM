@@ -86,6 +86,11 @@ export type BookingService = {
    * so every visit can stand alone. The shop can set up a run for any one-to-one service whatever this says.
    */
   repeats?: boolean;
+  /**
+   * Add-ons and options (Services plan 2, B2): extras the client may tick, like "Deep conditioning, +15 min, +20.00" or
+   * "Long hair, +30 min". Each adds its minutes to the booking's length and its price to the price. One-to-one only.
+   */
+  extras?: BookingExtra[];
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -104,6 +109,9 @@ export type BookingQuestion = { id: string; label: string; /** A few lines inste
 /** What the customer answered, kept with the question's words as they were asked. */
 export type BookingAnswer = { label: string; answer: string };
 export const MAX_QUESTIONS = 5;
+/** Add-ons and options on one service, and the most minutes one may add. */
+export const MAX_EXTRAS = 8;
+export const MAX_EXTRA_MINUTES = 240;
 
 export type HoursWindow = { start: string; end: string };
 
@@ -196,6 +204,9 @@ export type Busy = { start: number; end: number; /** Whose booking it is, so a c
   /** A class time cancelled for too few people: closes that class at that start, and nothing else. */ closed?: boolean };
 
 /** What the free-time rules need of a service. Without `id` and `places` it is one customer at a time. */
+/** An add-on or option on a service: its own name, the minutes it adds (0 to 240) and the price it adds (cents). */
+export type BookingExtra = { id: string; name: string; minutes: number; priceMinor: number };
+
 export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId" | "courseDates">>;
 
 export const BOOKING_STEPS = [15, 30, 60] as const;
@@ -449,7 +460,41 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     chargeTax: payment !== "free" && s.chargeTax === true,
     rebookWeeks: whole(s.rebookWeeks, 0, MAX_REBOOK_WEEKS, 0),
     repeats: s.repeats === true && places === 1 && !courseDates.length,
+    // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
+    extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
   };
+}
+
+/** A service's add-ons and options, cleaned: named ones only, at most MAX_EXTRAS, each with its own id. */
+export function cleanExtras(raw: unknown, priced = true): BookingExtra[] {
+  const out: BookingExtra[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const e = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const name = text(e.name, 80);
+    if (!name || out.length >= MAX_EXTRAS) continue;
+    let id = text(e.id, 24).replace(/[^A-Za-z0-9_-]/g, "") || `x${out.length + 1}`;
+    while (out.some((o) => o.id === id)) id += "x";
+    const minutes = whole(e.minutes, 0, MAX_EXTRA_MINUTES, 0);
+    const price = Math.round(Number(e.priceMinor));
+    const priceMinor = priced && Number.isFinite(price) && price > 0 ? Math.min(price, 1_000_000) : 0;
+    out.push({ id, name, minutes, priceMinor });
+  }
+  return out;
+}
+
+/**
+ * The service as booked with the extras the client ticked (ids; unknown ones are ignored, each counts once): its minutes
+ * and price grow by theirs, so every rule that reads the service (free times, the card page, deposits, tax, codes) sees
+ * the booking's real length and price. A deposit given as an amount stays that amount; a share follows the new price.
+ * Refused past 8 hours in all.
+ */
+export function withExtras<T extends Pick<BookingService, "minutes" | "priceMinor"> & { extras?: BookingExtra[] }>(service: T, raw: unknown): { service: T; extras: BookingExtra[] } | { problem: string } {
+  const ids = new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string").slice(0, MAX_EXTRAS * 2) : []);
+  const extras = (service.extras || []).filter((e) => ids.has(e.id));
+  if (!extras.length) return { service, extras };
+  const minutes = service.minutes + extras.reduce((n, e) => n + e.minutes, 0);
+  if (minutes > 8 * 60) return { problem: "With those extras the booking is longer than 8 hours. Choose fewer." };
+  return { service: { ...service, minutes, priceMinor: service.priceMinor + extras.reduce((n, e) => n + e.priceMinor, 0) }, extras };
 }
 
 /** A course's dates, cleaned: real shop-clock "YYYY-MM-DDTHH:MM" moments, no repeats, earliest first. */
