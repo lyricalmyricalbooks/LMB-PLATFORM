@@ -2863,6 +2863,15 @@ describe("classes: a class pass and a first-visit price", () => {
     expect(prices).toEqual([2000, 500].sort());
   });
 
+  test("a booking that doesn't go through gives the first-visit price back for the next try", async () => {
+    const { t, yoga } = await ready();
+    const refused = await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER, code: "NOSUCHCODE" });
+    expect(refused.body.code).toBe("code");
+    expect([...t.db.store.keys()].some((k) => k.startsWith("bookingIntros/"))).toBe(false);
+    await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(500);
+  });
+
   test("a first-visit price is below the price and at least 0.50", async () => {
     const t = setup();
     await t.seed();

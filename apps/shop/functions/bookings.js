@@ -1229,6 +1229,15 @@ function bookingActions({
     });
   }
 
+  /** Gives back a first-visit claim made for a booking that didn't go through (only that booking's own claim). */
+  async function releaseIntro(email, bookingId) {
+    const ref = db.collection("bookingIntros").doc(hash(String(email).trim().toLowerCase()));
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists && snap.data()?.bookingId === bookingId) tx.delete(ref);
+    }).catch((err) => console.error("First-visit claim not given back:", err?.message || err));
+  }
+
   async function codeFor(service, raw, email) {
     const typed = String(raw || "").trim().toUpperCase().slice(0, 40);
     if (!findDiscount || service.payment === "free" || !typed) throw new BookingCodeProblem("This code can't be used on bookings.");
@@ -1691,13 +1700,15 @@ function bookingActions({
         // Someone new to the shop pays the first-visit price (not with a pack); a code then comes off that.
         const id = randomId();
         const offered = pack ? service : await introFor(service, customer.email, id);
+        // A booking that doesn't go through gives its first-visit claim back, so trying again keeps the price.
+        const refuse = async (...args) => { if (offered.intro) await releaseIntro(customer.email, id); return fail(...args); };
         // A discount code comes off the price first; a deposit is then worked out on what is left.
         let priced = null;
         if (!pack && String(req.body?.code || "").trim()) {
           try {
             priced = await codeFor(offered, req.body.code, customer.email);
           } catch (err) {
-            if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
+            if (err instanceof BookingCodeProblem) return refuse(res, 400, err.message, "code");
             throw err;
           }
         }
@@ -1712,7 +1723,7 @@ function bookingActions({
         let gift = null;
         if (!pack && String(req.body?.giftCard || "").trim()) {
           try { gift = await giftFor(req.body.giftCard, upFront); } catch (err) {
-            if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "gift");
+            if (err instanceof BookingCodeProblem) return refuse(res, 400, err.message, "gift");
             throw err;
           }
         }
@@ -1723,7 +1734,7 @@ function bookingActions({
         if (cardDue > 0 || holdCard) {
           ({ checkout, mode } = await standalone());
           if (!checkout?.savedCard) holdCard = false;
-          if (!checkout && cardDue > 0) return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
+          if (!checkout && cardDue > 0) return refuse(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
         }
         // The customer goes to a card page to pay now, to save a card for the missed-booking fee, or both.
         const paid = cardDue > 0 || holdCard;
@@ -1748,11 +1759,11 @@ function bookingActions({
           source: "website", history: [{ at, what: "booked", by: "customer" }], createdAt: at, updatedAt: at,
         };
         const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs), staffId });
-        if (took === "code_used") return fail(res, 409, "This code has reached its usage limit.", "code");
-        if (took === "gift_short") return fail(res, 409, "This gift card's balance just changed. Please check it and try again.", "gift");
-        if (took === "pack_used") return fail(res, 409, "This pack can't book another visit just now. Please check it and try again.", "pack");
-        if (!took && isCourse(service)) return fail(res, 409, "This course just filled up, or one of its dates is no longer free. Please contact the shop.", "taken");
-        if (!took) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : staffId ? "That person was just booked then. Please pick another time or anyone free." : "Someone just took that time. Please pick another.", "taken");
+        if (took === "code_used") return refuse(res, 409, "This code has reached its usage limit.", "code");
+        if (took === "gift_short") return refuse(res, 409, "This gift card's balance just changed. Please check it and try again.", "gift");
+        if (took === "pack_used") return refuse(res, 409, "This pack can't book another visit just now. Please check it and try again.", "pack");
+        if (!took && isCourse(service)) return refuse(res, 409, "This course just filled up, or one of its dates is no longer free. Please contact the shop.", "taken");
+        if (!took) return refuse(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : staffId ? "That person was just booked then. Please pick another time or anyone free." : "Someone just took that time. Please pick another.", "taken");
         if (!paid) {
           const written = pack ? (await bookings().doc(id).get()).data() : record;
           const booked = await syncCalendar(id, { ...written, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
@@ -1788,12 +1799,13 @@ function bookingActions({
           return res.status(200).json({ id, key, status: "held", url: session.url, holdMinutes: HOLD_MINUTES });
         } catch (err) {
           await freeTime(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() }, { status: "cancelled", holdUntil: null, updatedAt: now().toISOString() });
-          if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+          if (err?.code === "currency_mismatch") return refuse(res, 409, err.message, "currency_mismatch");
           if (["test_only", "not_connected", "not_available"].includes(err?.code)) {
             console.error(`Booking ${id} card payment refused:`, err.code, err?.message || err);
-            return fail(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
+            return refuse(res, 409, "This shop can't take card payments for bookings yet. Please contact the shop.", "not_available");
           }
           console.error(`Booking ${id} payment page refused:`, err?.type || "", err?.code || "", err?.param || "", err?.message || err);
+          if (offered.intro) await releaseIntro(customer.email, id);
           throw err;
         }
       }
