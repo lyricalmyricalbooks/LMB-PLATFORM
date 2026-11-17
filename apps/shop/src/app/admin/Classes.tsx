@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, UserPlus, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
-import { checkInBooking, followBookings, readCourseRows, readBookingSetup, type Booking } from "./bookingsApi";
+import { checkInBooking, followBookings, followCourseRows, readBookingSetup, type Booking } from "./bookingsApi";
 import { classCount, dayText, moneyText, paymentText, timeText, weekDays, WEEKDAYS, weekStartOf, weekText } from "./bookingsView";
 import { classFigures, classTimesText, classWeek, personTag, sessionPlace, type ClassSession } from "./classesView";
 import { AddToClassDialog, EMPTY_SERVICE, ServiceDialog } from "./Bookings";
@@ -43,10 +43,9 @@ export function Classes() {
     setRows(null); setRowsError("");
     setCourseRows([]);
     // People on a course that started in an earlier week: found by the week's days.
-    let live = true;
-    readCourseRows(Array.from({ length: 7 }, (_, i) => addDays(monday, i))).then((list) => { if (live) setCourseRows(list); }).catch(() => { if (live) setRowsError("This week's course sign-ups couldn't be loaded just now."); });
+    const stopCourses = followCourseRows(Array.from({ length: 7 }, (_, i) => addDays(monday, i)), setCourseRows, () => setRowsError("This week's course sign-ups couldn't be loaded just now."));
     const stop = followBookings(startOf(monday), startOf(addDays(monday, 7)), (list) => { setRows(list); setNowMs(Date.now()); }, () => setRowsError("This week's bookings couldn't be loaded just now."));
-    return () => { live = false; stop(); };
+    return () => { stopCourses(); stop(); };
   }, [monday]);
 
   const classes = useMemo(() => (setup?.services || []).filter(isClass), [setup]);

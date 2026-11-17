@@ -34,3 +34,10 @@ several items for one booking (`spansOf`), taken, confirmed and freed together. 
 changed (the admin's `course.days` query uses the automatic single-field index). Checked with tests and with sample data
 in the admin fixture and Studio's preview; not tried on a real account. Known gaps, named in the release note: late
 joining, minimum numbers, reminders, calendar entries and check-in for the later dates, the waiting list for a course.
+
+## Follow-up: three review findings (same day)
+
+- [x] Course rows on the Classes week are followed live (`followCourseRows`), not read once.
+- [x] A stand-in on a later date is kept on the booking (`course.staff`) and shown on that date.
+- [x] The Timetable counts whole courses only (200 days in all, soonest first); a course that didn't fit goes out with no count.
+- [x] Tests for each; full checks before pushing (shop 7828 tests, root tests, type check, lint, build).

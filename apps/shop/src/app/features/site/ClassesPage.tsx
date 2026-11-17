@@ -156,7 +156,8 @@ function Timetable({ c }: { c: Copy }) {
 
 /** A course: every date listed, one price, one Sign up for them all (Book a time takes it from its first date). */
 function Course({ k, zone, currency, c }: { k: CourseView; zone: string; currency: string; c: Copy }) {
-  const state = placesState(k.left, k.places);
+  const left = k.left;
+  const state = left === undefined ? "open" : placesState(left, k.places);
   const full = state === "full";
   const price = k.priceMinor > 0 ? `${moneyText(k.priceMinor, currency)}${k.plusTax ? ` ${c("classesPlusTax")}` : ""}` : c("classesFree");
   const lines = courseDateLines(k.starts, zone);
@@ -169,9 +170,11 @@ function Course({ k, zone, currency, c }: { k: CourseView; zone: string; currenc
         <ol className="fm-cls-dates">{lines.map((line) => <li key={line}>{line}</li>)}</ol>
       </div>
       <div className="fm-cls-side">
-        <span className="fm-cls-tag" data-state={state}>
-          {full ? c("classesFull") : state === "last" ? c("classesLastPlace") : c("classesPlacesLeft", { count: k.left })}
-        </span>
+        {left !== undefined && (
+          <span className="fm-cls-tag" data-state={state}>
+            {full ? c("classesFull") : state === "last" ? c("classesLastPlace") : c("classesPlacesLeft", { count: left })}
+          </span>
+        )}
         {!full && (
           <Link to={kept(signUpPath(k.id, dayOf(Date.parse(k.starts[0]), zone)))} className="fm-track-btn" aria-label={c("classesSignUpAria", { name: k.name, when: lines[0] })}>
             {c("classesSignUp")}
