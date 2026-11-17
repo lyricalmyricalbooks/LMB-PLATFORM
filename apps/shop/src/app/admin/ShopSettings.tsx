@@ -40,7 +40,7 @@ import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
 import { saveSectionsInOrder } from "./settingsSave";
 import { SocialAccountsFields } from "./SocialAccountsFields";
-import { ProfilesWorkspace } from "./shipping/ProfilesWorkspace";
+import { ProfilesWorkspace } from "./shipping/ShippingProfilesWorkspace";
 
 /** Same cap as functions/liveRateExtra.js MAX_LIVE_RATE_EXTRA. */
 const MAX_LIVE_RATE_EXTRA = 50;
