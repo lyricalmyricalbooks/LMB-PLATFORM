@@ -844,6 +844,13 @@ order-confirmation email both use them. Emailed download links stay outside brow
   digital with Books › edit › **Digital product (Beta)** (`digital: true`), in every kind of shop. `priceOrder` refuses
   downloads to a buyer outside `settings/website.digitalDownloads.countries` (default CA and US, `"*"` = every other country)
   with `digital_country`; payment links skip it. D1b adds the account Library.
+- **Pay what you want and used-up downloads (Digital D2, Beta, 17 November 2026):** `src/shared/payWhatYouWant.ts` (server
+  copy `shared/payWhatYouWant.js`). A product with `payWhatYouWant: true`, no edition, not a gift card or box set: its price
+  is the lowest, the buyer's `chosenPrice` on the line (shop currency, ≤ max(1000, price)) is what `priceOrder` charges and
+  keeps on the line; anything lower, higher or not a number is refused with `pay_what_you_want`, a typed nothing charges the
+  price. Product page box: `extras/pdp-pay-what-you-want` (region `productPayWhatYouWant`; the buyer types in the shown
+  currency, `readAmount` converts back). A refused download notes `downloadLimitReached.<countKey>` once on the order; the
+  Alerts page shows `downloads-used-up` for paid orders, and Reset download limits clears it with the counts.
 
 ## Payments module (27 October 2026, code plans 1.11–1.12)
 

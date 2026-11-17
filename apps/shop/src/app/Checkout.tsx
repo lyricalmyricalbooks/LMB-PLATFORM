@@ -1339,6 +1339,7 @@ export function Checkout() {
           // The server re-prices extras from the catalog; only their ids and wording are used.
           ...(item.addOns?.length ? { addOns: item.addOns.map(addOn => ({ id: addOn.id, ...(addOn.text ? { text: addOn.text } : {}) })) } : {}),
           ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}),
+          ...(item.chosenPrice !== undefined ? { chosenPrice: item.chosenPrice } : {}),
         })),
         ...(giftCards.length ? { giftCards: giftCards.map(card => ({ code: card.code })) } : {}),
         subtotal: itemsSubtotal,
@@ -1409,7 +1410,8 @@ export function Checkout() {
               customer,
               items: cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity,
                 ...(item.addOns?.length ? { addOns: item.addOns.map(addOn => ({ id: addOn.id, ...(addOn.text ? { text: addOn.text } : {}) })) } : {}),
-                ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}) })),
+                ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}),
+                ...(item.chosenPrice !== undefined ? { chosenPrice: item.chosenPrice } : {}) })),
               ...(physicalItems.length ? { fulfillmentSelection: sentSelection } : {}),
               ...(orderData.shippingMethod ? { shippingMethod: orderData.shippingMethod } : {}),
               ...(checkoutCartId ? { cartId: checkoutCartId } : {}),

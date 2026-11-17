@@ -509,7 +509,7 @@ export function OrderDetail({
         await adminApi.updateOrder(orderId, { invoice: { ...order.invoice, paidAt: new Date().toISOString() } });
         toast.success("Invoice marked paid.");
       } else if (action === "resetDownloads") {
-        await adminApi.updateOrder(orderId, { downloadCounts: {} });
+        await adminApi.updateOrder(orderId, { downloadCounts: {}, downloadLimitReached: {} });
         toast.success("Download limits reset: the buyer can download each digital book again");
       } else {
         await adminApi.fulfillmentAction(orderId, "resend_confirmation_email");

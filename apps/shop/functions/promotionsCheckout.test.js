@@ -253,3 +253,35 @@ describe('tax collection switch (Settings › Taxes)', () => {
     expect(app.order.total).toBe(20);
   });
 });
+
+describe('pay what you want', () => {
+  const books = { zine: { status: 'published', title: 'Zine', format: 'E-book', digital: true, retailPrice: 5, payWhatYouWant: true } };
+  test('charges the amount the buyer chose and records it', async () => {
+    const app = harness({ books, items: [line('zine', { quantity: 2, price: 1, chosenPrice: 12.345 })] });
+    const r = await app.call('createStripeCheckoutSession');
+    expect(r.code).toBe(200);
+    expect(app.order.items[0]).toMatchObject({ price: 12.35, chosenPrice: 12.35 });
+    expect(app.order.total).toBe(24.7);
+    expect(app.stripeCalls[0].amount).toBe(2470);
+  });
+  test('charges the lowest amount when the buyer typed nothing', async () => {
+    const app = harness({ books, items: [line('zine')] });
+    await app.call('createStripeCheckoutSession');
+    expect(app.order.total).toBe(5);
+    expect(app.order.items[0].chosenPrice).toBeUndefined();
+  });
+  test('refuses less than the lowest amount, or an amount over the limit, before payment', async () => {
+    for (const chosenPrice of [4.99, 1000.01, 'lots']) {
+      const app = harness({ books, items: [line('zine', { chosenPrice })] });
+      const r = await app.call('createStripeCheckoutSession');
+      expect(r.code).toBe(400);
+      expect(app.stripeCalls).toHaveLength(0);
+    }
+  });
+  test('ignores a chosen amount on a product that does not allow it', async () => {
+    const app = harness({ items: [line('ebook', { chosenPrice: 1 })] });
+    await app.call('createStripeCheckoutSession');
+    expect(app.order.total).toBe(20);
+    expect(app.order.items[0].chosenPrice).toBeUndefined();
+  });
+});

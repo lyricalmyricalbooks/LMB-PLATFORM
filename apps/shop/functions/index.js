@@ -62,6 +62,7 @@ const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = re
 const { taxPartsByKind, discountedLineValues, chargesTax, untaxedValue } = require("./shared/taxByKind");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
+const { chosenUnitPrice } = require("./shared/payWhatYouWant");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
 const { paymentLinkFor, addOnParentClosed, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -1312,8 +1313,11 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
       if (available < quantity) throw new PricingError(`Insufficient stock for ${book.title || label}${variant?.name ? ` (${variant.name})` : ""}. Only ${available} left.`);
     }
-    const basePrice = catalogUnitPrice(book, variant);
-    if (!Number.isFinite(basePrice) || basePrice < 0) throw new PricingError(`"${book.title || label}" is temporarily unavailable for purchase (pricing error).`);
+    const listPrice = catalogUnitPrice(book, variant);
+    if (!Number.isFinite(listPrice) || listPrice < 0) throw new PricingError(`"${book.title || label}" is temporarily unavailable for purchase (pricing error).`);
+    // Pay what you want (Digital D2): the buyer's own amount, at least the product's price and at most the highest.
+    const basePrice = chosenUnitPrice(book, variant, listPrice, requested.chosenPrice);
+    if (basePrice === null) throw new PricingError(`Choose an amount of at least ${listPrice.toFixed(2)} for "${book.title || label}".`, "pay_what_you_want");
     let picked;
     try {
       picked = addOnSelection(book, requested.addOns);
@@ -1336,7 +1340,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       }
     }
     // Only fields the browser may describe are kept; everything that prices or ships comes from the catalog.
-    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, ...rest } = requested;
+    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, chosenPrice: _cp, ...rest } = requested;
     // Each part weighs what its chosen edition weighs (falling back to the book).
     const partWeights = components.map(part => {
       const partBook = booksById[part.id] || {};
@@ -1352,6 +1356,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       quantity,
       price: Math.round((unitBase + picked.price) * 100) / 100,
       ...(unitBase < basePrice ? { wholesale: true } : {}),
+      ...(basePrice !== listPrice ? { chosenPrice: basePrice } : {}),
       ...(picked.addOns.length ? { basePrice: unitBase, addOns: picked.addOns } : {}),
       ...(components.length ? { bundle: true, components } : {}),
       ...(giftCard ? { giftCard: true, giftCardDetails: giftCardInfo } : {}),

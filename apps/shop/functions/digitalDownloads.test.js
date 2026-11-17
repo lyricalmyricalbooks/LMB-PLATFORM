@@ -79,6 +79,18 @@ describe('#113 download count cap', () => {
     expect((await app.download({ itemId: 'b1' })).code).toBe(429);
     expect(app.signed).toHaveLength(2);
   });
+  test('a used-up download is noted once on the order for the Alerts page', async () => {
+    const w = world();
+    w.settings.website = { digitalDownloads: { limit: 1 } };
+    const app = harness(w);
+    await app.download({ itemId: 'b1' });
+    expect(app.docs.orders.o1.downloadLimitReached).toBeUndefined();
+    expect((await app.download({ itemId: 'b1' })).code).toBe(429);
+    const first = app.docs.orders.o1.downloadLimitReached;
+    expect(Object.keys(first)).toHaveLength(1);
+    await app.download({ itemId: 'b1' });
+    expect(app.docs.orders.o1.downloadLimitReached).toEqual(first);
+  });
   test('a missing or out-of-range limit keeps the default', () => {
     expect(dd.downloadLimitFrom(undefined)).toBe(dd.DOWNLOAD_LIMIT);
     expect(dd.downloadLimitFrom({ digitalDownloads: { limit: 0 } })).toBe(dd.DOWNLOAD_LIMIT);

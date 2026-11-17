@@ -129,6 +129,11 @@ function digitalDownloadEndpoint({
           return decision;
         });
         if (!claim.ok) {
+          // The owner sees it once on the Alerts page (Digital D2, `downloadLimitReached`); Reset downloads clears it.
+          if (!order.downloadLimitReached?.[key]) {
+            await orderRef.update({ downloadLimitReached: { ...(order.downloadLimitReached || {}), [key]: new Date().toISOString() } })
+              .catch(err => console.warn("Could not note the used-up download for the owner:", err?.message || err));
+          }
           res.status(429).send(`This download has been used ${claim.used} times, which is the limit. Please reply to your order email and we will reset it.`);
           return;
         }

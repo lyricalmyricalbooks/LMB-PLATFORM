@@ -1566,6 +1566,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <div><span>Charge tax</span><Toggle label="Charge sales tax" checked={!!formData.chargeTax} onChange={(v) => set("chargeTax", v)} /></div>
                 </div>
                 {activePrice > 0 && num(formData.costPrice) > activePrice && <p className="be-warn" role="status">⚠ Cost is higher than the selling price — you'd lose money on each copy.</p>}
+                {!isGiftCardProduct(formData) && !isBoxSet(formData) && !(formData.variants || []).length && (
+                  <div className="mt-4">
+                    <Toggle label={w("Buyers pay what they want (Beta)")} checked={formData.payWhatYouWant === true} onChange={(v) => set("payWhatYouWant", v)} />
+                    {formData.payWhatYouWant === true && <p className="rp-hint mt-2">{w("The price above is the lowest amount a buyer can pay. Set it to 0 to give it away and let buyers pay if they like.")}</p>}
+                  </div>
+                )}
               </SectionCard>
               <SectionCard title="Sale pricing" description="Show a struck-through original price with a discounted one — now, or between the dates you choose.">
                 <Toggle label={w("This book is on sale")} checked={!!formData.isOnSale} onChange={(v) => set("isOnSale", v)} />
