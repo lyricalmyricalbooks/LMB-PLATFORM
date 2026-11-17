@@ -3035,3 +3035,64 @@ describe("standing appointments", () => {
     expect(far.statusCode).toBeGreaterThanOrEqual(400);
   });
 });
+
+describe("add-ons and options", () => {
+  const EXTRAS = [
+    { id: "deep", name: "Deep conditioning", minutes: 15, priceMinor: 2000 },
+    { id: "long", name: "Long hair", minutes: 30, priceMinor: 0 },
+  ];
+  const extrasSetup = async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Haircut", minutes: 45, gapAfter: 0, payment: "atShop", priceMinor: 6000, extras: EXTRAS });
+    return t;
+  };
+
+  test("the owner saves extras on a one-to-one service; a class keeps none and a free service adds time only", async () => {
+    const t = await extrasSetup();
+    const one = await t.adm({ op: "saveService", service: { name: "Colour", minutes: 90, payment: "atShop", priceMinor: 9000, extras: [...EXTRAS, { name: "" }, { name: "Toner", minutes: 999, priceMinor: -5 }] } });
+    expect(one.body.service.extras).toEqual([...EXTRAS, { id: "x3", name: "Toner", minutes: 240, priceMinor: 0 }]);
+    const cls = await t.adm({ op: "saveService", service: { name: "Yoga", minutes: 60, places: 8, extras: EXTRAS } });
+    expect(cls.body.service.extras).toEqual([]);
+    const free = await t.adm({ op: "saveService", service: { name: "Consult", minutes: 30, extras: EXTRAS } });
+    expect(free.body.service.extras.map((e) => e.priceMinor)).toEqual([0, 0]);
+  });
+
+  test("ticking an extra makes the free times fit the longer booking", async () => {
+    const t = await extrasSetup();
+    expect((await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === "cut").extras).toEqual(EXTRAS);
+    const plain = await t.pub({ action: "bookingTimes", serviceId: "cut", from: "2026-11-17", days: 1 });
+    const longer = await t.pub({ action: "bookingTimes", serviceId: "cut", from: "2026-11-17", days: 1, extras: ["long"] });
+    expect(plain.body.days["2026-11-17"].at(-1)).toBe(at("2026-11-17", "16:00"));
+    expect(longer.body.days["2026-11-17"].at(-1)).toBe(at("2026-11-17", "15:30"));
+  });
+
+  test("a booking with extras keeps them, takes their time and adds their price", async () => {
+    const t = await extrasSetup();
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, extras: ["deep", "long", "nope", "deep"] });
+    expect(r.body.status).toBe("confirmed");
+    const b = t.db.store.get(`bookings/${r.body.id}`);
+    expect(b).toMatchObject({ minutes: 90, priceMinor: 8000, payment: "atShop", extras: EXTRAS });
+    // The time is held for the whole length: 11:00 is taken, 11:30 is free.
+    const times = (await t.pub({ action: "bookingTimes", serviceId: "cut", from: "2026-11-17", days: 1 })).body.days["2026-11-17"];
+    expect(times).not.toContain(at("2026-11-17", "11:00"));
+    expect(times).toContain(at("2026-11-17", "11:30"));
+    expect(t.emails[0].html).toContain("Deep conditioning, Long hair");
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking.extras.map((e) => e.id)).toEqual(["deep", "long"]);
+  });
+
+  test("too much time, a pack with paid extras, and the owner's own booking", async () => {
+    const t = await extrasSetup();
+    await t.db.collection("bookingServices").doc("long").set({ name: "Full day", minutes: 450, gapAfter: 0, payment: "atShop", priceMinor: 6000, extras: [{ id: "a", name: "Extra hour", minutes: 60, priceMinor: 0 }] });
+    const tooLong = await t.pub({ action: "bookingTimes", serviceId: "long", from: "2026-11-17", days: 1, extras: ["a"] });
+    expect(tooLong.statusCode).toBe(400);
+    expect(tooLong.body.code).toBe("extras");
+    const pack = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, extras: ["deep"], pack: "ABCD-EFGH-JKLM" });
+    expect(pack.statusCode).toBe(400);
+    expect(pack.body.code).toBe("pack");
+    const own = await t.adm({ op: "create", serviceId: "cut", start: at("2026-11-18", "09:00"), name: "Bo", email: "bo@example.com", extras: ["deep"] });
+    expect(own.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${own.body.id}`)).toMatchObject({ minutes: 60, priceMinor: 8000, extras: [EXTRAS[0]] });
+  });
+});

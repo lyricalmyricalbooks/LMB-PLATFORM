@@ -1464,6 +1464,16 @@ the manage key); `bookingCancel` and admin `cancel` with `andLater: true` also c
 one with card money, a tip or an open payment is left, admin answer `laterSkipped`). A pack can't pay for a run (400 `pack`).
 Tests: bookings.test.js › standing appointments.
 
+**Add-ons and options (17 November 2026, Services plan 2 B2, `tasks/todo/2026-11-17-booking-extras.md`).** A one-to-one
+service may hold `extras` (`{ id, name, minutes, priceMinor }`, at most `MAX_EXTRAS` 8, minutes 0 to `MAX_EXTRA_MINUTES`;
+`cleanExtras` in the shared rules: none on a class or course, no money on a free service). Every public action that
+works out times or money (`bookingTimes`, `bookingRunCheck`, `bookingCode`, `bookingGiftCard`, `bookingStart`) and the
+owner's `times`, `runCheck` and `create` take `extras` (ids) and run `withExtras(service, ids)` first: unknown ids are
+ignored, the minutes and price are added, past 8 hours it answers 400 code `extras`. Never trust a length or price
+from the page. `bookingStart` refuses a pack with priced extras (400 `pack`). The booking keeps `extras` and the total
+`minutes`/`priceMinor`, so moves, runs and refunds need nothing more. Emails, the calendar entry and the owner's feed
+say "Extras: …" (`extrasWords`). Tests: bookings.test.js › add-ons and options.
+
 **Text reminders (17 November 2026, Services plan phase 7, `tasks/todo/2026-11-17-text-reminders.md`).** Settings
 `textReminders` (Hours & rules › Text reminders, off by default). With `PLATFORM_TEXTS_URL` set (`shopConfig.platformTextsUrl`,
 written by the release runner), index.js gives `bookingActions` a `texts` sender (`textSender.js`: `status()` cached five

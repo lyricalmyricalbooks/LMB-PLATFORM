@@ -40,7 +40,7 @@ const TEST_STUDIO_STAFF = [
 
 const service = (id, order, name, minutes, priceMinor, extra = {}) => ({
   path: `bookingServices/${id}`,
-  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", depositMinor: 0, depositPercent: 0, holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, location: "Test Studio, 1 Test Street", active: true, order, questions: [], places: 1, classTimes: [], chargeTax: false, roomId: "", rebookWeeks: 0, repeats: false, ...extra },
+  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", depositMinor: 0, depositPercent: 0, holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, location: "Test Studio, 1 Test Street", active: true, order, questions: [], places: 1, classTimes: [], chargeTax: false, roomId: "", rebookWeeks: 0, repeats: false, extras: [], ...extra },
 });
 
 /** The Test Studio's services, hours and sample clients: [{ path, data }]. */
@@ -49,7 +49,9 @@ export function testStudioDocs() {
     // Free, so clients can book it as a standing appointment (every few weeks, several visits) to try that out.
     service("test-consultation", 0, "Test Consultation", 15, 0, { description: "A free chat about what you'd like.", gapAfter: 0, repeats: true }),
     // Sells a pack of five, so a test purchase of a pack and a visit booked with it can be tried.
-    service("test-cut", 1, "Test Cut and Style", 45, 6000, { description: "Wash, cut and blow-dry.", packVisits: 5, packPriceMinor: 27000, packDays: 365, questions: [{ id: "q1", label: "Anything we should know?", long: true, required: false }] }),
+    service("test-cut", 1, "Test Cut and Style", 45, 6000, { description: "Wash, cut and blow-dry.", packVisits: 5, packPriceMinor: 27000, packDays: 365,
+      // Add-ons a client may tick: one adds time and money, one only money.
+      extras: [{ id: "deep", name: "Deep conditioning", minutes: 15, priceMinor: 2000 }, { id: "long", name: "Long hair", minutes: 15, priceMinor: 1500 }], questions: [{ id: "q1", label: "Anything we should know?", long: true, required: false }] }),
     // A deposit when booking, the rest at the visit: what most salons do for a long appointment.
     service("test-colour", 2, "Test Colour", 120, 14000, { description: "Full colour with a toner.", gapAfter: 30, payment: "deposit", depositPercent: 25, roomId: "colour-chair" }),
     ...testStudioClients(),
