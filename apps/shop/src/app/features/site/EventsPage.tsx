@@ -375,11 +375,11 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
       <div {...regionProps("eventsIntro")}>
         <p className="fm-track-mono mb-3">{c("eventsEyebrow")}</p>
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <h1 className="fm-track-display text-5xl sm:text-6xl">{c(back ? (refunded ? "eventsRefundedTitle" : "eventsTicketsCancelledTitle") : called ? "eventsCancelled" : paid ? "eventsGoingTitle" : waiting ? "eventsHeldTitle" : "eventsEndedTitle")}</h1>
+          <h1 className="fm-track-display text-5xl sm:text-6xl">{c(called ? "eventsCancelled" : back ? (refunded ? "eventsRefundedTitle" : "eventsTicketsCancelledTitle") : paid ? "eventsGoingTitle" : waiting ? "eventsHeldTitle" : "eventsEndedTitle")}</h1>
           <span className="fm-track-stamp" data-state={called || back || order.status === "cancelled" ? "ended" : paid ? "paid" : "unpaid"}>{order.title}</span>
         </div>
         <p className="mt-4 text-base leading-7 fm-muted" role="status">
-          {back ? c(refunded ? "eventsRefundedText" : "eventsTicketsCancelledText") : called ? c("eventsCancelledOrderText") : paid ? c("eventsGoingText") : waiting ? c("eventsHeldText") : c("eventsEndedText")}
+          {called && back && refunded ? c("eventsCancelledRefundedText") : back ? c(refunded ? "eventsRefundedText" : "eventsTicketsCancelledText") : called ? c("eventsCancelledOrderText") : paid ? c("eventsGoingText") : waiting ? c("eventsHeldText") : c("eventsEndedText")}
         </p>
       </div>
 

@@ -488,5 +488,34 @@ describe("refunds", () => {
     expect(t.refunds).toHaveLength(0);
     expect((await t.doc("eventPlaces", "launch01")).sold.free).toBe(0);
   });
+  test("an event is called off: everyone is refunded and told why, even a checked-in ticket, and a second press changes nothing", async () => {
+    const t = setup();
+    await bought(t);
+    await t.adm({ op: "checkIn", code: "TCKT-222A" });
+    t.emails.length = 0;
+    const r = await t.adm({ op: "cancelEvent", id: "launch01" });
+    expect(r.body).toMatchObject({ ok: true, done: 1, amountMinor: 4500, failed: [], left: 0 });
+    expect((await t.doc("events", "launch01")).status).toBe("cancelled");
+    expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 0 }, paidMinor: 0, orders: 0, arrived: 0 });
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({ status: "refunded", refundedMinor: 4500, tickets: [] });
+    expect(t.emails).toHaveLength(1);
+    expect(t.emails[0].subject).toBe("Cancelled: Autumn launch");
+    expect(t.emails[0].html).toContain("This event has been cancelled");
+    const again = await t.adm({ op: "cancelEvent", id: "launch01" });
+    expect(again.body).toMatchObject({ ok: true, done: 0, left: 0 });
+    expect(t.refunds).toHaveLength(1);
+    expect(t.emails).toHaveLength(1);
+    const info = await t.pub({ action: "eventsInfo" });
+    expect((info.body.events || []).filter((e) => e.open)).toEqual([]);
+  });
+  test("a refund that fails while calling an event off leaves that order as it was and is named", async () => {
+    const t = setup({ refundFails: true });
+    await bought(t);
+    const r = await t.adm({ op: "cancelEvent", id: "launch01" });
+    expect(r.body).toMatchObject({ ok: true, done: 0, left: 0, failed: [{ id: "order0001", code: "refund_failed" }] });
+    expect((await t.doc("events", "launch01")).status).toBe("cancelled");
+    expect((await t.doc("eventOrders", "order0001")).status).toBe("paid");
+    expect((await t.adm({ op: "cancelEvent", id: "launch01", skip: ["order0001"] })).body).toMatchObject({ done: 0, failed: [], left: 0 });
+    expect((await t.adm({ op: "cancelEvent", id: "nothere1" })).statusCode).toBe(404);
+  });
 });
-

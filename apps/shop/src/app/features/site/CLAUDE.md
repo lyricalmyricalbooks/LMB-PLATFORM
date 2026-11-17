@@ -911,6 +911,9 @@ demand; words `eventsCodeQr`, `eventsTicketUsed`) and greys a ticket the door ha
 shows a Refunded row and its own heading and text (`eventsRefunded*`, `eventsTicketsCancelled*` in Text & labels ›
 Events, French twins in `frenchCopy.ts`); the Paid total is what the buyer still paid.
 
+**Cancelled and refunded (E3b):** a refunded order of a cancelled event keeps the Cancelled heading and reads
+`eventsCancelledRefundedText` (Text & labels › Events page, French twin).
+
 ## Pickup times at checkout (17 November 2026)
 
 When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),

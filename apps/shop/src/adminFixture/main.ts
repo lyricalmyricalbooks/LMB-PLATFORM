@@ -102,6 +102,18 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       events = events.map((e) => (e.id === "evt-launch" ? { ...e, arrived } : e));
       return { ok: true, already, arrived, ticket: { code, kind: ticket.name, usedAt: ticket.usedAt || "", orderId: order.id, eventId: order.eventId, eventTitle: "Autumn launch party", name: order.name, number: index + 1, of: order.tickets.length, arrivedOfOrder: order.tickets.filter((t) => t.usedAt).length } };
     }
+    if (op === "cancelEvent") {
+      events = events.map((e) => (e.id === body.id ? { ...e, status: "cancelled" as const } : e));
+      const open = guests.filter((g) => g.eventId === body.id && g.status === "paid").slice(0, 2);
+      let amountMinor = 0;
+      for (const g of open) {
+        const back = body.money === false ? 0 : Math.max(0, g.chargedMinor - (g.refundedMinor || 0));
+        amountMinor += back;
+        Object.assign(g, { refundedTickets: (g.refundedTickets || 0) + g.tickets.length, tickets: [], refundedMinor: (g.refundedMinor || 0) + back, status: "refunded", refundedAt: new Date().toISOString() });
+      }
+      await new Promise((r) => setTimeout(r, 500));
+      return { ok: true, done: open.length, amountMinor, failed: [], left: guests.filter((g) => g.eventId === body.id && g.status === "paid").length };
+    }
     if (op === "refund") {
       const order = guests.find((g) => g.id === body.orderId);
       if (!order || order.status !== "paid") throw Object.assign(new Error("That order has no tickets to refund."), { code: "not_found" });

@@ -1292,3 +1292,7 @@ an arrived count, per-ticket Check in / Undo and a find box (`findGuests`, `arri
 (checked-in ones are locked), choose whether money goes back, and the button names the amount from the shared
 `refundMinorFor`, the same rule the server decides with. The list follows the server's answer (`withOrderChanged`:
 refunded orders drop to the end with a badge). Fixture op `refund` in `adminFixture/main.ts`.
+
+**Cancel event (E3b):** the guest list's footer has **Cancel event** (or **Refund everyone** on an event already
+cancelled) while any order still holds tickets: `CancelEventDialog` loops op `cancelEvent`, shows "N of M orders given
+back", then the total and any orders that failed by name. Fixture op `cancelEvent` gives back two orders a call.

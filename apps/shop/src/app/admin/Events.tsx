@@ -11,7 +11,7 @@ import {
   Checkbox, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField,
   StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { eventsAdmin, type AdminEvent, type DoorAnswer, type RefundAnswer, type TicketOrder } from "./eventsApi";
+import { eventsAdmin, type AdminEvent, type CancelAnswer, type DoorAnswer, type RefundAnswer, type TicketOrder } from "./eventsApi";
 import {
   arrivedCount, blankForm, blankTicket, countsOfCodes, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
   whenParts, withOrderChanged, withTicketUsed,
@@ -29,7 +29,7 @@ type ListAnswer = { zone: string; currency: string; events: AdminEvent[] };
 const STATUS_CHOICES: { id: EventStatus; label: string; hint: string }[] = [
   { id: "draft", label: "Draft", hint: "Only you can see it." },
   { id: "live", label: "On sale", hint: "People can buy tickets until it starts." },
-  { id: "cancelled", label: "Cancelled", hint: "No more tickets are sold. Tickets already bought are kept on record." },
+  { id: "cancelled", label: "Cancelled", hint: "No more tickets are sold. To refund everyone as well, open Who's coming and press Cancel event." },
 ];
 const problemOf = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -248,6 +248,7 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
   const [busy, setBusy] = useState("");
   const [result, setResult] = useState<DoorResult | null>(null);
   const [refunding, setRefunding] = useState<TicketOrder | null>(null);
+  const [calling, setCalling] = useState(false);
   const load = () => eventsAdmin<{ orders: TicketOrder[] }>("orders", { eventId: event.id })
     .then((answer) => { setOrders(answer.orders || []); setError(""); })
     .catch((err) => setError(problemOf(err, "The guest list didn't load.")));
@@ -294,6 +295,7 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
 
   return (
     <Drawer open onClose={onClose} title={door ? "At the door" : "Who's coming"} description={`${event.title} · ${when.weekday} ${when.day} ${when.month}, ${when.time}`} size="lg"
+      footerStart={held > 0 ? <DestructiveButton onClick={() => setCalling(true)}>{event.status === "cancelled" ? "Refund everyone" : "Cancel event"}</DestructiveButton> : undefined}
       footer={<><GhostButton onClick={onClose}>Close</GhostButton>
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={download} disabled={!orders?.length}>Download guest list</SecondaryButton></>}>
       {error ? <ErrorState title="The guest list didn't load" description={error} onRetry={() => { void load(); }} />
@@ -376,11 +378,86 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
             </ul>
           </>
         )}
+      {calling && orders && (
+        <CancelEventDialog event={event} orders={orders.filter((o) => o.status === "paid")} currency={currency}
+          onClose={(changed) => { setCalling(false); if (changed) { setResult(null); void load(); } }} />
+      )}
       {refunding && (
         <RefundDialog order={refunding} currency={currency} onClose={() => setRefunding(null)}
           onDone={(next) => { setOrders((list) => withOrderChanged(list || [], next)); setRefunding(null); }} />
       )}
     </Drawer>
+  );
+}
+
+// Calls the whole event off: the server refunds a few orders per call, so this asks again until none are left and
+// shows how far it is. Safe to close and press again: orders already given back are skipped.
+function CancelEventDialog({ event, orders, currency, onClose }: { event: AdminEvent; orders: TicketOrder[]; currency: string; onClose: (changed: boolean) => void }) {
+  const [money, setMoney] = useState(true);
+  const [state, setState] = useState<"ask" | "busy" | "done">("ask");
+  const [done, setDone] = useState(0);
+  const [sent, setSent] = useState(0);
+  const [failed, setFailed] = useState<{ id: string; name: string }[]>([]);
+  const [error, setError] = useState("");
+  const tickets = orders.reduce((sum, o) => sum + o.tickets.length, 0);
+  const total = orders.reduce((sum, o) => sum + Math.max(0, o.chargedMinor - (o.refundedMinor || 0)), 0);
+  const cash = (minor: number) => moneyText(minor, currency);
+  const go = async () => {
+    setState("busy");
+    setError("");
+    const skip: { id: string; name: string }[] = [];
+    let count = 0; let amount = 0;
+    try {
+      for (let round = 0; round < 200; round += 1) {
+        const answer = await eventsAdmin<CancelAnswer>("cancelEvent", { id: event.id, money, skip: skip.map((f) => f.id) });
+        count += answer.done; amount += answer.amountMinor; skip.push(...answer.failed);
+        setDone(count); setSent(amount); setFailed([...skip]);
+        if (answer.left <= 0) break;
+      }
+      setState("done");
+    } catch (err) {
+      setError(problemOf(err, "That stopped part way. Press the button again to carry on; nobody is refunded twice."));
+      setState(count ? "done" : "ask");
+    }
+  };
+  const called = event.status === "cancelled";
+  return (
+    <Dialog open onClose={state === "busy" ? () => {} : () => onClose(state === "done" || done > 0)} title={called ? "Refund everyone" : "Cancel this event"} description={event.title}
+      footer={state === "done"
+        ? <PrimaryButton onClick={() => onClose(true)}>Done</PrimaryButton>
+        : <><GhostButton onClick={() => onClose(done > 0)} disabled={state === "busy"}>Keep the event</GhostButton>
+          <DestructiveButton onClick={() => { void go(); }} busy={state === "busy"}>{money && total > 0 ? `${called ? "Refund" : "Cancel and refund"} ${cash(total)}` : called ? "Cancel the tickets" : "Cancel the event"}</DestructiveButton></>}>
+      <div className="evt-refund">
+        {state === "done" ? (
+          <>
+            <p className="evt-refund-sum" role="status">
+              <strong>{done}</strong> {done === 1 ? "order" : "orders"} given back{sent > 0 ? <>, {cash(sent)} on its way to their cards</> : ""}. Every guest has an email.
+            </p>
+            {failed.length > 0 && (
+              <div className="evt-refund-error" role="alert">
+                <p>{failed.length === 1 ? "One order" : `${failed.length} orders`} couldn't be refunded and still {failed.length === 1 ? "holds its" : "hold their"} tickets:</p>
+                <ul>{failed.map((f) => <li key={f.id}>{f.name || "No name"}</li>)}</ul>
+                <p>Open each one in the guest list and press Refund to try again.</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="evt-refund-sum" role="status">
+              {state === "busy"
+                ? <><strong>{done}</strong> of {orders.length} {orders.length === 1 ? "order" : "orders"} given back…</>
+                : <><strong>{tickets}</strong> {tickets === 1 ? "ticket" : "tickets"} in {orders.length} {orders.length === 1 ? "order" : "orders"} {tickets === 1 ? "is" : "are"} given back, and ticket sales stop.</>}
+            </p>
+            {total > 0 && <Toggle label="Send the money back" checked={money} onChange={setMoney} disabled={state === "busy"} />}
+            <p className="evt-refund-note">
+              {money && total > 0 ? `${cash(total)} goes back to the cards they paid with. ` : total > 0 ? "No money is sent. " : ""}
+              Every guest gets an email saying the event is cancelled. This can't be undone.
+            </p>
+          </>
+        )}
+        {error && <p className="evt-refund-error" role="alert">{error}</p>}
+      </div>
+    </Dialog>
   );
 }
 
