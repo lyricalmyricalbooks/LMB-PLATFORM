@@ -519,3 +519,75 @@ describe("refunds", () => {
     expect((await t.adm({ op: "cancelEvent", id: "nothere1" })).statusCode).toBe(404);
   });
 });
+
+describe("moving an order to another event", () => {
+  const SECOND = { ...EVENT, title: "Winter launch", start: "2026-12-12T19:00:00-05:00", end: "2026-12-12T22:00:00-05:00", venue: "The Bindery", address: "4 Glue Street", tickets: [{ id: "std", name: "general", priceMinor: 2000, places: 4 }] };
+  const bought = async (t, second = SECOND) => {
+    await t.seed({ ...EVENT, tickets: [{ id: "gen", name: "General", priceMinor: 1500, places: 3 }] });
+    await t.db.collection("events").doc("second01").set(second);
+    await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 2 }, ...BUYER });
+    t.pay(0);
+    await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    t.emails.length = 0;
+  };
+  test("the tickets go to the new date with the same codes, the places follow, no money moves and the guest is told", async () => {
+    const t = setup();
+    await bought(t);
+    await t.adm({ op: "checkIn", code: "TCKT-222A" });
+    const r = await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "second01" });
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toMatchObject({ ok: true, told: true });
+    expect(r.body.order.tickets.map((x) => x.code)).toEqual(["TCKT-222A", "TCKT-222B"]);
+    expect(t.refunds).toHaveLength(0);
+    expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 0 }, paidMinor: 0, orders: 0, arrived: 0 });
+    expect(await t.doc("eventPlaces", "second01")).toMatchObject({ sold: { std: 2 }, paidMinor: 3000, orders: 1 });
+    const order = await t.doc("eventOrders", "order0001");
+    expect(order).toMatchObject({ status: "paid", eventId: "second01", eventTitle: "Winter launch", venue: "The Bindery", chargedMinor: 3000 });
+    expect(order.tickets).toEqual([{ code: "TCKT-222A", ticketId: "std", name: "general" }, { code: "TCKT-222B", ticketId: "std", name: "general" }]);
+    expect(order.lines).toEqual([{ ticketId: "std", name: "general", qty: 2, priceMinor: 1500 }]);
+    expect(order.moves).toHaveLength(1);
+    expect(order.moves[0]).toMatchObject({ from: "launch01", fromTitle: "Autumn launch", by: "owner@example.com" });
+    expect(t.emails.map((m) => m.to)).toEqual(["ada@example.com"]);
+    expect(t.emails[0].subject).toBe("Your tickets have moved: Winter launch");
+    expect(t.emails[0].html).toContain("Autumn launch");
+    expect(t.emails[0].html).toContain("TCKT-222A");
+    expect((await t.adm({ op: "orders", eventId: "launch01" })).body.orders).toEqual([]);
+    expect((await t.adm({ op: "orders", eventId: "second01" })).body.orders.map((o) => o.id)).toEqual(["order0001"]);
+    // The old link still opens the order, the code works at the new door and a later refund frees the new event's places.
+    const view = await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    expect(view.body.order).toMatchObject({ status: "paid", title: "Winter launch" });
+    expect((await t.adm({ op: "checkIn", code: "TCKT-222A" })).statusCode).toBe(200);
+    await t.adm({ op: "checkIn", code: "TCKT-222A", value: false });
+    await t.adm({ op: "refund", orderId: "order0001" });
+    expect(t.refunds[0].amountMinor).toBe(3000);
+    expect(await t.doc("eventPlaces", "second01")).toMatchObject({ sold: { std: 0 }, paidMinor: 0, orders: 0 });
+  });
+  test("a full, finished, cancelled or same event is refused and nothing changes", async () => {
+    const t = setup();
+    await bought(t, { ...SECOND, tickets: [{ id: "std", name: "General", priceMinor: 2000, places: 1 }] });
+    const full = await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "second01" });
+    expect(full.statusCode).toBe(409);
+    expect(full.body).toMatchObject({ code: "full", error: "Only 1 General place is left at that event." });
+    expect((await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "launch01" })).body.code).toBe("event");
+    expect((await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "nothere1" })).body.code).toBe("event");
+    expect((await t.adm({ op: "moveOrder", orderId: "nothere12", toEventId: "second01" })).statusCode).toBe(404);
+    await t.db.collection("events").doc("second01").set({ ...SECOND, status: "cancelled" });
+    expect((await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "second01" })).body.code).toBe("closed");
+    await t.db.collection("events").doc("second01").set({ ...SECOND, start: "2026-11-01T19:00:00-05:00", end: "2026-11-01T22:00:00-05:00" });
+    expect((await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "second01" })).body.code).toBe("closed");
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({ eventId: "launch01" });
+    expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 2 }, orders: 1 });
+    expect(t.emails).toHaveLength(0);
+  });
+  test("ticket kinds with other names need the owner's pick, and two presses at once move it once", async () => {
+    const t = setup();
+    await bought(t, { ...SECOND, tickets: [{ id: "floor", name: "Floor", priceMinor: 2000, places: 4 }, { id: "balc", name: "Balcony", priceMinor: 1000, places: 4 }] });
+    expect((await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "second01" })).body.code).toBe("kind");
+    expect((await t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "second01", kinds: { gen: "nope" } })).body.code).toBe("kind");
+    const both = await Promise.all([1, 2].map(() => t.adm({ op: "moveOrder", orderId: "order0001", toEventId: "second01", kinds: { gen: "balc" } })));
+    expect(both.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    expect(await t.doc("eventPlaces", "second01")).toMatchObject({ sold: { balc: 2 }, orders: 1 });
+    expect((await t.doc("eventOrders", "order0001")).tickets.map((x) => x.name)).toEqual(["Balcony", "Balcony"]);
+    expect(t.emails).toHaveLength(1);
+  });
+});

@@ -4,20 +4,21 @@
 // are server-only records, so every read and change goes through the server (eventsApi.ts): it never sells one place twice.
 // The guest list is also the door (E2): type or scan a ticket's code and the server marks it used, once.
 // Each order can be refunded from the list (E3): the server sends the money back and puts the places on sale again.
+// Or moved to another event: same ticket codes, no money moves, the guest gets an email with the new date.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, Check, Download, ImagePlus, Mail, Pencil, Plus, ScanLine, Ticket, Trash2, Undo2, Users } from "lucide-react";
+import { ArrowRightLeft, CalendarPlus, Check, Download, ImagePlus, Mail, Pencil, Plus, ScanLine, Ticket, Trash2, Undo2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Checkbox, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField,
   StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { eventsAdmin, type AdminEvent, type CancelAnswer, type DoorAnswer, type RefundAnswer, type TicketOrder } from "./eventsApi";
+import { eventsAdmin, type AdminEvent, type CancelAnswer, type DoorAnswer, type MoveAnswer, type RefundAnswer, type TicketOrder } from "./eventsApi";
 import {
   arrivedCount, blankForm, blankTicket, countsOfCodes, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
   whenParts, withOrderChanged, withTicketUsed,
   type EventForm, type TicketForm,
 } from "./eventsView";
-import { cleanTicketCode, MAX_TICKET_KINDS, refundMinorFor, type EventStatus } from "../../shared/eventTickets";
+import { cleanTicketCode, MAX_TICKET_KINDS, moveKinds, refundMinorFor, type EventStatus } from "../../shared/eventTickets";
 import { ScanBarcodeButton } from "./ScanBarcodeButton";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -125,7 +126,8 @@ export function Events() {
 
       {form && <EventEditor key={form.id || "new"} start={form} zone={zone} sold={data.events.find((e) => e.id === form.id)?.sold || {}}
         onClose={() => setForm(null)} onSaved={() => { setForm(null); void reload(); }} />}
-      {guestsOf && <GuestList event={guestsOf.event} door={guestsOf.door} zone={zone} currency={currency} onClose={() => { setGuestsOf(null); void reload(); }} />}
+      {guestsOf && <GuestList event={guestsOf.event} door={guestsOf.door} zone={zone} currency={currency}
+        others={lists.coming.filter((e) => e.id !== guestsOf.event.id && e.status !== "cancelled")} onClose={() => { setGuestsOf(null); void reload(); }} />}
     </div>
   );
 }
@@ -239,7 +241,7 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
 
 type DoorResult = { state: "in" | "already" | "refused"; name?: string; what?: string; say: string; code?: string };
 
-function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent; door: boolean; zone: string; currency: string; onClose: () => void }) {
+function GuestList({ event, door, zone, currency, others, onClose }: { event: AdminEvent; door: boolean; zone: string; currency: string; others: AdminEvent[]; onClose: () => void }) {
   const [orders, setOrders] = useState<TicketOrder[] | null>(null);
   const [error, setError] = useState("");
   const [sending, setSending] = useState("");
@@ -249,6 +251,7 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
   const [result, setResult] = useState<DoorResult | null>(null);
   const [refunding, setRefunding] = useState<TicketOrder | null>(null);
   const [calling, setCalling] = useState(false);
+  const [moving, setMoving] = useState<TicketOrder | null>(null);
   const load = () => eventsAdmin<{ orders: TicketOrder[] }>("orders", { eventId: event.id })
     .then((answer) => { setOrders(answer.orders || []); setError(""); })
     .catch((err) => setError(problemOf(err, "The guest list didn't load.")));
@@ -370,6 +373,7 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
                   {order.status === "paid" && (
                     <div className="evt-guest-actions">
                       <GhostButton icon={<Mail size={16} aria-hidden />} onClick={() => { void resend(order); }} busy={sending === order.id}>Send tickets again</GhostButton>
+                      {others.length > 0 && <GhostButton icon={<ArrowRightLeft size={16} aria-hidden />} onClick={() => setMoving(order)} aria-label={`Move ${order.name || "this order"} to another event`}>Move</GhostButton>}
                       <GhostButton icon={<Undo2 size={16} aria-hidden />} onClick={() => setRefunding(order)}>Refund</GhostButton>
                     </div>
                   )}
@@ -385,6 +389,10 @@ function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent
       {refunding && (
         <RefundDialog order={refunding} currency={currency} onClose={() => setRefunding(null)}
           onDone={(next) => { setOrders((list) => withOrderChanged(list || [], next)); setRefunding(null); }} />
+      )}
+      {moving && (
+        <MoveDialog order={moving} others={others} zone={zone} onClose={() => setMoving(null)}
+          onDone={() => { setOrders((list) => (list || []).filter((o) => o.id !== moving.id)); setResult(null); setMoving(null); }} />
       )}
     </Drawer>
   );
@@ -455,6 +463,70 @@ function CancelEventDialog({ event, orders, currency, onClose }: { event: AdminE
             </p>
           </>
         )}
+        {error && <p className="evt-refund-error" role="alert">{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+// Puts an order's tickets on another event: the same codes, no money either way. The owner picks the event and, where
+// the ticket names differ, which ticket each one becomes. The server checks the places again before anything moves.
+function MoveDialog({ order, others, zone, onClose, onDone }: { order: TicketOrder; others: AdminEvent[]; zone: string; onClose: () => void; onDone: () => void }) {
+  // Starts on the first event with room for the whole order.
+  const fits = (e: AdminEvent) => { const k = moveKinds(order.tickets, e.tickets); return order.tickets.every((t) => !k[t.ticketId] || order.tickets.filter((x) => k[x.ticketId] === k[t.ticketId]).length <= (e.left[k[t.ticketId]!] || 0)); };
+  const [toId, setToId] = useState(() => (others.find(fits) || others[0])?.id || "");
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const target = others.find((e) => e.id === toId);
+  const olds = order.tickets.filter((t, i, all) => all.findIndex((x) => x.ticketId === t.ticketId) === i);
+  const kinds = target ? moveKinds(order.tickets, target.tickets, picks) : {};
+  const arriving: Record<string, number> = {};
+  for (const t of order.tickets) { const k = kinds[t.ticketId]; if (k) arriving[k] = (arriving[k] || 0) + 1; }
+  const short = target?.tickets.find((k) => (arriving[k.id] || 0) > Math.max(0, target.left[k.id] || 0));
+  const unpicked = olds.some((t) => !kinds[t.ticketId]);
+  const who = order.name || order.email;
+  const count = order.tickets.length;
+  const arrived = order.tickets.some((t) => t.usedAt);
+  const dayOf = (e: AdminEvent) => { const w = whenParts(e.start, zone); return `${w.weekday} ${w.day} ${w.month}, ${w.time}`; };
+  const go = async () => {
+    if (!target) return;
+    setBusy(true);
+    setError("");
+    try {
+      const answer = await eventsAdmin<MoveAnswer>("moveOrder", { orderId: order.id, toEventId: target.id, kinds });
+      toast.success(answer.told ? `Moved to ${target.title}. ${who} has an email with the new date.` : `Moved to ${target.title}. The email didn't go out: send the tickets again from that event's guest list.`);
+      onDone();
+    } catch (err) {
+      setError(problemOf(err, "The move didn't go through. Try again."));
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={busy ? () => {} : onClose} title="Move to another event" description={`${who} · ${count} ${count === 1 ? "ticket" : "tickets"}`}
+      footer={<><GhostButton onClick={onClose} disabled={busy}>Leave them here</GhostButton>
+        <PrimaryButton onClick={() => { void go(); }} busy={busy} disabled={!target || unpicked || !!short}>Move {count === 1 ? "ticket" : "tickets"}</PrimaryButton></>}>
+      <div className="evt-refund">
+        <SelectField label="Move to" value={toId} disabled={busy} onChange={(e) => { setToId(e.target.value); setPicks({}); setError(""); }}>
+          {others.map((e) => <option key={e.id} value={e.id}>{e.title} · {dayOf(e)}{e.status === "draft" ? " (draft)" : ""}</option>)}
+        </SelectField>
+        {target && (target.tickets.length > 1 || unpicked) && olds.map((t) => (
+          <SelectField key={t.ticketId} label={`“${t.name}” becomes`} value={kinds[t.ticketId] || ""} disabled={busy}
+            onChange={(e) => { setPicks((p) => ({ ...p, [t.ticketId]: e.target.value })); setError(""); }}>
+            {!kinds[t.ticketId] && <option value="">Choose a ticket</option>}
+            {target.tickets.map((k) => { const left = Math.max(0, target.left[k.id] || 0); return <option key={k.id} value={k.id}>{k.name} · {left ? `${left} left` : "sold out"}</option>; })}
+          </SelectField>
+        ))}
+        <p className="evt-refund-sum" role="status">
+          {!target ? "Choose an event."
+            : short ? <>{Math.max(0, target.left[short.id] || 0) ? `Only ${Math.max(0, target.left[short.id] || 0)} “${short.name}” ${Math.max(0, target.left[short.id] || 0) === 1 ? "place is" : "places are"} left there.` : `“${short.name}” is sold out there.`} Add places to that event first, or pick another.</>
+            : unpicked ? "Choose which ticket they get at the new event."
+            : <><strong>{count}</strong> {count === 1 ? "ticket moves" : "tickets move"} to {target.title} ({dayOf(target)})</>}
+        </p>
+        <p className="evt-refund-note">
+          No money changes hands, and {count === 1 ? "the ticket code stays" : "the ticket codes stay"} the same. {who} gets an email with the new date, and {count === 1 ? "the place here goes" : "the places here go"} back on sale.
+          {arrived ? " Check-ins on these tickets are cleared." : ""}
+        </p>
         {error && <p className="evt-refund-error" role="alert">{error}</p>}
       </div>
     </Dialog>

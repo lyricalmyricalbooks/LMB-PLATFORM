@@ -88,7 +88,27 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       return { ok: true, event: next };
     }
     if (op === "deleteEvent") { events = events.filter((x) => x.id !== body.id); return { ok: true }; }
-    if (op === "orders") return { orders: body.eventId === "evt-launch" ? guests : [] };
+    if (op === "orders") return { orders: guests.filter((g) => g.eventId === body.eventId) };
+    if (op === "moveOrder") {
+      const order = guests.find((g) => g.id === body.orderId);
+      const target = events.find((e) => e.id === body.toEventId);
+      if (!order || !target) throw Object.assign(new Error("Choose another event to move them to."), { code: "event" });
+      const kinds = body.kinds as Record<string, string>;
+      const nameOf = (id: string) => target.tickets.find((k) => k.id === id)?.name || "";
+      const shift = (e: AdminEvent, counts: Record<string, number>, sign: number) => {
+        const sold = { ...e.sold }; const left = { ...e.left };
+        for (const [id, n] of Object.entries(counts)) { sold[id] = (sold[id] || 0) + sign * n; left[id] = (left[id] || 0) - sign * n; }
+        const n = Object.values(counts).reduce((a, b) => a + b, 0);
+        return { ...e, sold, left, soldTotal: e.soldTotal + sign * n, orders: e.orders + sign, paidMinor: e.paidMinor + sign * order.chargedMinor };
+      };
+      const leaving: Record<string, number> = {}; const arriving: Record<string, number> = {};
+      for (const t of order.tickets) { leaving[t.ticketId] = (leaving[t.ticketId] || 0) + 1; arriving[kinds[t.ticketId]] = (arriving[kinds[t.ticketId]] || 0) + 1; }
+      const from = order.eventId;
+      events = events.map((e) => (e.id === from ? shift(e, leaving, -1) : e.id === target.id ? shift(e, arriving, 1) : e));
+      Object.assign(order, { eventId: target.id, tickets: order.tickets.map((t) => ({ code: t.code, ticketId: kinds[t.ticketId], name: nameOf(kinds[t.ticketId]) })) });
+      await new Promise((r) => setTimeout(r, 400));
+      return { ok: true, told: true, order: { ...order } };
+    }
     if (op === "checkIn") {
       const code = String(body.code || "");
       const order = guests.find((g) => g.tickets.some((t) => t.code === code));

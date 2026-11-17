@@ -24,6 +24,9 @@ exports.withHold = withHold;
 exports.withSold = withSold;
 exports.withoutHold = withoutHold;
 exports.withReturned = withReturned;
+exports.withArrived = withArrived;
+exports.moveKinds = moveKinds;
+exports.movedLines = movedLines;
 exports.refundMinorFor = refundMinorFor;
 exports.ticketCodeFrom = ticketCodeFrom;
 exports.cleanTicketCode = cleanTicketCode;
@@ -188,6 +191,44 @@ function withReturned(places, counts) {
     for (const [kind, n] of Object.entries(counts))
         sold[kind] = Math.max(0, count(sold[kind]) - count(n));
     return { sold, held: { ...(places?.held ?? {}) } };
+}
+/** The places record after tickets arrive from another event (a moved order): that many more sold per kind. */
+function withArrived(places, counts) {
+    const sold = { ...(places?.sold ?? {}) };
+    for (const [kind, n] of Object.entries(counts))
+        sold[kind] = count(sold[kind]) + count(n);
+    return { sold, held: { ...(places?.held ?? {}) } };
+}
+/**
+ * Which kind of ticket each of an order's kinds becomes at another event: the owner's pick, else the kind with the
+ * same name, else the only kind there is. `null` for a kind nothing fits (the owner must pick).
+ */
+function moveKinds(from, to, picks = {}) {
+    const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    const out = {};
+    for (const t of from) {
+        const picked = to.find((k) => k.id === picks[t.ticketId]);
+        out[t.ticketId] = (picked ?? to.find((k) => same(k.name, t.name)) ?? (to.length === 1 ? to[0] : null))?.id ?? null;
+    }
+    return out;
+}
+/** An order's lines after a move: each line under its new kind, what was paid per ticket kept (kinds that merge share an average). */
+function movedLines(lines, kinds, to) {
+    const out = [];
+    for (const l of lines) {
+        const kind = to.find((k) => k.id === kinds[l.ticketId]);
+        if (!kind)
+            continue;
+        const have = out.find((x) => x.ticketId === kind.id);
+        if (!have)
+            out.push({ ...l, ticketId: kind.id, name: kind.name });
+        else {
+            const qty = have.qty + l.qty;
+            have.priceMinor = qty ? Math.round((have.priceMinor * have.qty + l.priceMinor * l.qty) / qty) : have.priceMinor;
+            have.qty = qty;
+        }
+    }
+    return out;
 }
 /**
  * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the

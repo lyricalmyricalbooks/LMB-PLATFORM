@@ -182,6 +182,44 @@ export function withReturned(places: EventPlaces | null | undefined, counts: Rec
   return { sold, held: { ...(places?.held ?? {}) } };
 }
 
+/** The places record after tickets arrive from another event (a moved order): that many more sold per kind. */
+export function withArrived(places: EventPlaces | null | undefined, counts: Record<string, number>): EventPlaces {
+  const sold = { ...(places?.sold ?? {}) };
+  for (const [kind, n] of Object.entries(counts)) sold[kind] = count(sold[kind]) + count(n);
+  return { sold, held: { ...(places?.held ?? {}) } };
+}
+
+/**
+ * Which kind of ticket each of an order's kinds becomes at another event: the owner's pick, else the kind with the
+ * same name, else the only kind there is. `null` for a kind nothing fits (the owner must pick).
+ */
+export function moveKinds(from: { ticketId: string; name: string }[], to: Pick<TicketKind, "id" | "name">[], picks: Record<string, string> = {}): Record<string, string | null> {
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const out: Record<string, string | null> = {};
+  for (const t of from) {
+    const picked = to.find((k) => k.id === picks[t.ticketId]);
+    out[t.ticketId] = (picked ?? to.find((k) => same(k.name, t.name)) ?? (to.length === 1 ? to[0] : null))?.id ?? null;
+  }
+  return out;
+}
+
+/** An order's lines after a move: each line under its new kind, what was paid per ticket kept (kinds that merge share an average). */
+export function movedLines(lines: OrderLine[], kinds: Record<string, string | null>, to: Pick<TicketKind, "id" | "name">[]): OrderLine[] {
+  const out: OrderLine[] = [];
+  for (const l of lines) {
+    const kind = to.find((k) => k.id === kinds[l.ticketId]);
+    if (!kind) continue;
+    const have = out.find((x) => x.ticketId === kind.id);
+    if (!have) out.push({ ...l, ticketId: kind.id, name: kind.name });
+    else {
+      const qty = have.qty + l.qty;
+      have.priceMinor = qty ? Math.round((have.priceMinor * have.qty + l.priceMinor * l.qty) / qty) : have.priceMinor;
+      have.qty = qty;
+    }
+  }
+  return out;
+}
+
 /**
  * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the
  * tax. Giving back the last tickets returns everything still kept, so cents never go missing. `counts` is ticket id →

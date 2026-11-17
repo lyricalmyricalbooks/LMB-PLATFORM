@@ -92,5 +92,17 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
       expect(lib.withReturned({ sold: { gen: 3, sup: 1 }, held: { o9: { until: "2026-12-01T00:00:00Z", lines: { gen: 1 } } } }, { gen: 2, sup: 5 }))
         .toEqual({ sold: { gen: 1, sup: 0 }, held: { o9: { until: "2026-12-01T00:00:00Z", lines: { gen: 1 } } } });
     });
+
+    test("a moved order lands on the kind with the same name, the only kind, or the owner's pick, and keeps what was paid", () => {
+      const from = [{ ticketId: "gen", name: "General" }, { ticketId: "sup", name: "Supporter" }];
+      const to = [{ id: "a", name: " general " }, { id: "b", name: "Balcony" }];
+      expect(lib.moveKinds(from, to)).toEqual({ gen: "a", sup: null });
+      expect(lib.moveKinds(from, to, { sup: "b", gen: "nope" })).toEqual({ gen: "a", sup: "b" });
+      expect(lib.moveKinds(from, [{ id: "one", name: "Entry" }])).toEqual({ gen: "one", sup: "one" });
+      const lines = [{ ticketId: "gen", name: "General", qty: 3, priceMinor: 1000 }, { ticketId: "sup", name: "Supporter", qty: 1, priceMinor: 2500 }];
+      expect(lib.movedLines(lines, { gen: "a", sup: "b" }, to)).toEqual([{ ticketId: "a", name: " general ", qty: 3, priceMinor: 1000 }, { ticketId: "b", name: "Balcony", qty: 1, priceMinor: 2500 }]);
+      expect(lib.movedLines(lines, { gen: "one", sup: "one" }, [{ id: "one", name: "Entry" }])).toEqual([{ ticketId: "one", name: "Entry", qty: 4, priceMinor: 1375 }]);
+      expect(lib.withArrived({ sold: { a: 2 }, held: {} }, { a: 3, b: 1 })).toEqual({ sold: { a: 5, b: 1 }, held: {} });
+    });
   });
 }

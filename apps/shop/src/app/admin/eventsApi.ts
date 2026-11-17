@@ -21,8 +21,9 @@ export type TicketOrder = {
 /** One round of calling an event off: orders given back this call, the money sent, the ones that failed, and how many wait. */
 export type CancelAnswer = { ok: true; done: number; amountMinor: number; failed: { id: string; name: string; code?: string }[]; left: number };
 /** What a refund answers: the money sent back and the order as it now stands (`already`: a second tap, nothing new). */
+export type MoveAnswer = { ok: true; told: boolean; order: TicketOrder };
 export type RefundAnswer = { ok: true; already?: boolean; amountMinor: number; order: TicketOrder };
-export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets" | "hint" | "checkIn" | "refund" | "cancelEvent";
+export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets" | "hint" | "checkIn" | "refund" | "cancelEvent" | "moveOrder";
 /** What the door hears back for one code: whose ticket it is, and whether it was already used. */
 export type DoorAnswer = {
   ok: true; already: boolean; arrived: number;

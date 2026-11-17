@@ -105,3 +105,4 @@ browsers may write (mirroring `firestore.rules`).
   (`cleanEvent`), when sales are open (`salesOpen`), places taken and left with holds (`placesLeft`, `withHold`,
   `withSold`, `withoutHold`), an order's lines (`orderLines`), ticket codes and `eventWhen` (always given the shop's
   zone). `eventTickets.test.ts` runs every rule against the shop's copy and the server's.
+  Moving an order to another event (E3c): `moveKinds`, `movedLines`, `withArrived`; refunds: `refundMinorFor`, `withReturned`.
