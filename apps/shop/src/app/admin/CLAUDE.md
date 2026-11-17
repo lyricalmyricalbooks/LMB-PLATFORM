@@ -1200,3 +1200,6 @@ checkout). The name follows `suggestName` until the owner types one; a new zone 
 ("Standard shipping"). Zones save ISO codes only (`zoneFromPicks`, `continents: []`). The profile lists each zone by
 `zoneSummary` and, when no zone catches everywhere else (`lacksEverywhereElse`), offers **Add Everywhere else**.
 Fixture: `admin-fixture.html?shipping=1&page=settings/shipping` › Fix profile › Add a zone.
+
+## Shipping profiles workspace (17 November 2026)
+Settings › Shipping › Profiles is one workspace (`shipping/ShippingProfilesWorkspace.tsx`, Julian's "Shipping Profiles v2" mockup): profile rail, books, zones with an in-card place picker (quick picks, continents, countries, CA/US provinces and states; no search), Try it (`tryIt` uses `matchShippingZone`/`computeShippingCost` on the draft) and a fixed Save bar. Every edit is a draft; `savePlan` (`shipping/profilesWorkspace.ts`) turns it into creates, deletes, updates and book moves. New profiles come from the 3-step wizard (books first). The old list, profile editor and NewShippingProfileDialog are gone from this tab; the zone/rate editor code below the workspace is still reached by nothing else and can be removed next.
