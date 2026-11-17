@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
 const ZONE = "America/Toronto";
+const AFTER = Date.parse("2027-01-01T00:00:00.000Z");
 const b = (over: Partial<Booking>): Booking => ({
   id: "x", serviceId: "s", serviceName: "Visit", minutes: 60, start: "2026-11-17T15:00:00.000Z", end: "2026-11-17T16:00:00.000Z",
   customer: { name: "Ada", email: "ada@example.com" }, status: "confirmed", payment: "free", priceMinor: 0, currency: "CAD", paid: false, ...over,
@@ -175,5 +176,56 @@ describe("the team's day", () => {
     expect(hourLabel(7 * 60)).toBe("7 AM");
     expect(hourLabel(12 * 60)).toBe("12 PM");
     expect(hourLabel(13 * 60 + 30)).toBe("1:30 PM");
+  });
+});
+
+describe("team pay", () => {
+  const person = (over: Partial<StaffMember>): StaffMember => ({ id: "ana", name: "Ana", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "", ...over });
+  const paid = (over: Partial<Booking>) => b({ payment: "card", priceMinor: 11_300, taxMinor: 1_300, paid: true, ...over } as Partial<Booking>);
+
+  it("adds up each person's takings before tax, commission at their share and tips", () => {
+    const staff = [person({ commissionPercent: 40 }), person({ id: "ben", name: "Ben" }), person({ id: "cy", name: "Cy", active: false })];
+    const rows = [
+      paid({ id: "1", staffId: "ana", tip: { amountMinor: 2_000 } } as Partial<Booking>),
+      paid({ id: "2", staffId: "ana", noShow: true }),
+      paid({ id: "3", staffId: "ana", status: "cancelled", refund: { amountMinor: 11_300 } } as Partial<Booking>),
+      paid({ id: "4", staffId: "ben", tip: { amountMinor: 500 } } as Partial<Booking>),
+      paid({ id: "5" }),
+      paid({ id: "6", staffId: "gone", staffName: "Dee" }),
+      paid({ id: "7", staffId: "ana", status: "held" }),
+      paid({ id: "8", staffId: "ana", start: "2026-12-01T15:00:00.000Z", end: "2026-12-01T16:00:00.000Z" }),
+    ];
+    const pay = teamPay(rows, staff, ZONE, "2026-11", AFTER);
+    expect(pay.people.map((l) => [l.id, l.name, l.visits, l.takenMinor, l.percent, l.commissionMinor, l.tipsMinor])).toEqual([
+      // Two kept visits' worth (the no-show still paid), the refunded one counts nothing; a held one and December don't count.
+      ["ana", "Ana", 1, 20_000, 40, 8_000, 2_000],
+      ["ben", "Ben", 1, 10_000, 0, 0, 500],
+      ["gone", "Dee", 1, 10_000, 0, 0, 0],
+      [NOBODY, "Not given to anyone", 1, 10_000, 0, 0, 0],
+    ]);
+    // Cy is off the team and had nothing this month, so is left out.
+    expect(pay).toMatchObject({ takenMinor: 50_000, commissionMinor: 8_000, tipsMinor: 2_500 });
+  });
+
+  it("keeps the month by the shop's own day", () => {
+    // 2 a.m. UTC on 1 December is still 30 November in Toronto.
+    const late = paid({ staffId: "ana", start: "2026-12-01T02:00:00.000Z", end: "2026-12-01T03:00:00.000Z" });
+    expect(teamPay([late], [person({})], ZONE, "2026-11", AFTER).people[0].visits).toBe(1);
+    expect(teamPay([late], [person({})], ZONE, "2026-12", AFTER).people[0].visits).toBe(0);
+  });
+
+  it("counts a visit only once it has started", () => {
+    const later = paid({ staffId: "ana", start: "2026-11-20T15:00:00.000Z", end: "2026-11-20T16:00:00.000Z" });
+    expect(teamPay([later], [person({})], ZONE, "2026-11", Date.parse("2026-11-17T12:00:00.000Z")).people[0].visits).toBe(0);
+    expect(teamPay([later], [person({})], ZONE, "2026-11", Date.parse("2026-11-20T15:00:00.000Z")).people[0].visits).toBe(1);
+  });
+
+  it("writes a spreadsheet with a total row", () => {
+    const pay = teamPay([paid({ staffId: "ana", tip: { amountMinor: 1_050 } } as Partial<Booking>)], [person({ commissionPercent: 12.5 })], ZONE, "2026-11");
+    expect(teamPayRows(pay)).toEqual([
+      ["Person", "Visits", "Taken before tax", "Commission %", "Commission", "Tips", "Commission and tips"],
+      ["Ana", "1", "100.00", "12.5", "12.50", "10.50", "23.00"],
+      ["Total", "1", "100.00", "", "12.50", "10.50", "23.00"],
+    ]);
   });
 });

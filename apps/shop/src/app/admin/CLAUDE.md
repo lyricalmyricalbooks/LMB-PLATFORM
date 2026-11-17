@@ -1237,6 +1237,14 @@ falls back to Week otherwise) is `TeamDayView`: pure `teamDay(rows, settings, da
 Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` with `staffId`). Fixture:
 `admin-fixture.html?team=1&page=bookings`.
 
+**Team pay (Beta, 17 November 2026, Services plan 2 extras; `tasks/todo/2026-11-17-team-pay.md`):** Bookings › Team pay
+(shown once the shop lists people) is `PayPanel`: pure `teamPay(rows, staff, zone, month)` / `teamPayRows` in
+`bookingsView.ts` (tested). Takings before tax are `moneyKept` less `taxIn`; commission is each person's
+`commissionPercent` (`commissionOf` in `shared/bookingTimes.ts`: 0.5 to 100 in half steps, else none) of that; tips are
+`tipTaken`, never part of takings. Visits are confirmed and not no-shows; held bookings never count; the month is the
+shop's own day. Bookings with no person sit on a last line with no commission. The person dialog's Their pay field sets
+the share; the public booking page's staff list never includes it. Shown only, never paid. Classes `.bkg-pay*`.
+
 ## Client records (17 November 2026, services plan phase 5)
 
 Plan: `tasks/todo/2026-11-17-client-records.md`. Customers (Clients in a services shop) › a client › Summary leads with
@@ -1352,3 +1360,14 @@ opens" (`earlierWanted`) shows a line in the drawer. Nothing to set: offers are 
 **Form before the first visit (17 November 2026, Services plan 2 B4).** Bookings › Hours & rules › `FormTile` (Beta)
 edits `settings.intakeForm`. `clientForm.tsx` (`ClientFormFacts`, op `clientForm`) adds a Form row to the booking drawer
 and the client card (Customers).
+
+**Visit notes and photos (17 November 2026, Services plan 2 extras, `tasks/todo/2026-11-17-client-visit-photos.md`).** A
+services shop's client card (Customers › a client › Summary) has `ClientVisits.tsx` (Beta): one entry per visit with a
+note and before/after photos. Records `clientVisits` (`client` = `emailHash`, `email`, `day`, `note` ≤ 4000, `photos` ≤ 8
+`{ path, kind }`), rules `isAdmin()` only (no look-only support, no accountant). Photos live in `client-photos/<client>/`
+(storage.rules: admin only, images under 12 MB), are shrunk by `prepareProductImage`, read with `getBlob` into an object
+URL and never get a download link; `imageCopies.js` skips the folder. Pure rules `clientVisits.ts` (`cleanVisit` keeps only
+the client's own folder), calls `clientVisitsApi.ts` (`clientVisitsData`, swapped by the fixture). `emailHash` moved to
+`emailHash.ts` (Customers re-exports it). Privacy: functions/CLAUDE.md › Privacy and newsletter. Fixture:
+`admin-fixture.html?page=customers&sells=hair` › ben@example.com.
+

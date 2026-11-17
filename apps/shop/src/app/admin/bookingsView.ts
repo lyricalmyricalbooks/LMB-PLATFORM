@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, balanceDue, cardAsk, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow } from "../../shared/bookingTimes";
+import { addDays, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
 
@@ -435,3 +435,48 @@ export function hourLabel(min: number): string {
   const m = min % 60;
   return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`;
 }
+
+/**
+ * Team pay (Services plan 2, extras): for one month (YYYY-MM, the shop's own days), each person's visits, what their
+ * bookings took before tax (`moneyKept` less the tax in it, so a kept fee or deposit counts and refunds come off), their
+ * commission on that at their own share, and their tips. Worked out to show, never paid from here. A booking with no
+ * person goes on an "Not given to anyone" line; a person removed since keeps their name from the booking.
+ */
+export type PayLine = { id: string; name: string; visits: number; takenMinor: number; percent: number; commissionMinor: number; tipsMinor: number };
+export type TeamPay = { month: string; people: PayLine[]; takenMinor: number; commissionMinor: number; tipsMinor: number };
+
+export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[], zone: string, month: string, now = Date.now()): TeamPay {
+  const lines = new Map<string, PayLine>();
+  const line = (id: string, name: string, percent: number) => {
+    if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, percent, commissionMinor: 0, tipsMinor: 0 });
+    return lines.get(id)!;
+  };
+  for (const p of staff) line(p.id, p.name, commissionOf(p.commissionPercent));
+  for (const b of rows) {
+    if (b.status === "held" || dayOf(Date.parse(b.start), zone).slice(0, 7) !== month) continue;
+    const id = b.staffId || NOBODY;
+    const l = line(id, id ? b.staffName || "Someone no longer listed" : "Not given to anyone", 0);
+    const kept = moneyKept(b);
+    l.takenMinor += kept - taxIn(b, kept);
+    l.tipsMinor += tipTaken(b);
+    // A visit counts once it has started; later ones this month aren't visits yet.
+    if (b.status === "confirmed" && !b.noShow && Date.parse(b.start) <= now) l.visits += 1;
+  }
+  const people = [...lines.values()]
+    .filter((l) => l.visits || l.takenMinor || l.tipsMinor || staff.some((p) => p.id === l.id && p.active))
+    .map((l) => ({ ...l, commissionMinor: l.id ? Math.round((l.takenMinor * l.percent) / 100) : 0 }))
+    .sort((a, b) => Number(!a.id) - Number(!b.id) || b.takenMinor - a.takenMinor || a.name.localeCompare(b.name));
+  const sum = (k: "takenMinor" | "commissionMinor" | "tipsMinor") => people.reduce((n, l) => n + l[k], 0);
+  return { month, people, takenMinor: sum("takenMinor"), commissionMinor: sum("commissionMinor"), tipsMinor: sum("tipsMinor") };
+}
+
+/** The pay report as spreadsheet rows (amounts as plain numbers in the shop's currency). */
+export function teamPayRows(pay: TeamPay): string[][] {
+  const money = (minor: number) => (minor / 100).toFixed(2);
+  return [
+    ["Person", "Visits", "Taken before tax", "Commission %", "Commission", "Tips", "Commission and tips"],
+    ...pay.people.map((l) => [l.name, String(l.visits), money(l.takenMinor), l.id ? String(l.percent) : "", money(l.commissionMinor), money(l.tipsMinor), money(l.commissionMinor + l.tipsMinor)]),
+    ["Total", String(pay.people.reduce((n, l) => n + l.visits, 0)), money(pay.takenMinor), "", money(pay.commissionMinor), money(pay.tipsMinor), money(pay.commissionMinor + pay.tipsMinor)],
+  ];
+}
+

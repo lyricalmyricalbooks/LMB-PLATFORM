@@ -155,6 +155,8 @@ describe("runCacheControl", () => {
       "hero/h": { body: Buffer.from("h"), metadata: { contentType: "image/png", cacheControl: "private, max-age=0" } },
       "backups/2026-10-14/backup.json": { body: Buffer.from("{}"), metadata: { contentType: "image/png" } },
       "digital-assets/book.pdf": { body: Buffer.from("%PDF"), metadata: { contentType: "application/pdf" } },
+      // Client before/after photos are private: never a public cache header.
+      "client-photos/abc/before-1.jpg": { body: Buffer.from("c"), metadata: { contentType: "image/jpeg" } },
     });
     const db = fakeDb({});
     const out = await runCacheControl({ db, bucket, deadline: Date.now() + 10_000 });
@@ -163,6 +165,7 @@ describe("runCacheControl", () => {
     expect(bucket.store.get("hero/h").metadata.cacheControl).toBe(IMMUTABLE);
     expect(bucket.store.get("backups/2026-10-14/backup.json").metadata.cacheControl).toBeUndefined();
     expect(bucket.store.get("digital-assets/book.pdf").metadata.cacheControl).toBeUndefined();
+    expect(bucket.store.get("client-photos/abc/before-1.jpg").metadata.cacheControl).toBeUndefined();
     expect((await runCacheControl({ db, bucket, deadline: Date.now() + 10_000 })).skipped).toBe(true);
   });
 

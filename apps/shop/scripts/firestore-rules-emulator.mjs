@@ -301,6 +301,18 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("this shop's owner can't write a client's phone in another shop", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "customerNotes/p"), { email: "c@b.co", note: "", tags: [], phone: "416 555 0100", updatedAt: "now" })));
   await check("admin note phone too long refused", assertFails(setDoc(doc(admin, "customerNotes/p2"), { email: "c@b.co", note: "", tags: [], phone: "1".repeat(41), updatedAt: "now" })));
   await check("admin note extra key refused", assertFails(setDoc(doc(admin, "customerNotes/y"), { email: "a@b.co", note: "", tags: [], updatedAt: "now", junk: 1 })));
+  // Visit notes and before/after photos (Services plan 2): the team's only, bounded shape.
+  const visit = { client: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", email: "c@b.co", day: "2026-11-17", note: "6N + 20 vol", photos: [{ path: "client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg", kind: "before" }], createdAt: "now", updatedAt: "now" };
+  await check("admin keeps a visit note", assertSucceeds(setDoc(doc(admin, "clientVisits/v1"), visit)));
+  await check("admin reads a visit note", assertSucceeds(getDoc(doc(admin, "clientVisits/v1"))));
+  await check("anon can't read a visit note", assertFails(getDoc(doc(anon, "clientVisits/v1"))));
+  await check("anon can't write a visit note", assertFails(setDoc(doc(anon, "clientVisits/v2"), visit)));
+  await check("visit note with a bad client refused", assertFails(setDoc(doc(admin, "clientVisits/v3"), { ...visit, client: "x" })));
+  await check("visit note too long refused", assertFails(setDoc(doc(admin, "clientVisits/v4"), { ...visit, note: "x".repeat(4001) })));
+  await check("visit note with nine photos refused", assertFails(setDoc(doc(admin, "clientVisits/v5"), { ...visit, photos: Array(9).fill(visit.photos[0]) })));
+  await check("visit note extra key refused", assertFails(setDoc(doc(admin, "clientVisits/v6"), { ...visit, junk: 1 })));
+  await check("this shop's owner can't read a visit note in another shop", assertFails(getDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "clientVisits/v1"))));
+  await check("this shop's owner can't write a visit note in another shop", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "clientVisits/v7"), visit)));
   await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
   await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
   // Overview › Your first week (plan 3.3)
@@ -425,6 +437,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("bookkeeper reads a gift card balance", assertSucceeds(getDoc(doc(bookkeeper, "giftCards/g1"))));
   await check("bookkeeper reads the daily figures", assertSucceeds(getDoc(doc(bookkeeper, "analytics/seeded"))));
   await check("unverified bookkeeper reads no order", assertFails(getDoc(doc(unverifiedBookkeeper, "orders/BK-1"))));
+  await check("bookkeeper reads no visit note", assertFails(getDoc(doc(bookkeeper, "clientVisits/v1"))));
   await check("bookkeeper can't change an order", assertFails(setDoc(doc(bookkeeper, "orders/BK-1"), { paymentStatus: "refunded" }, { merge: true })));
   await check("bookkeeper can't delete an order", assertFails(deleteDoc(doc(bookkeeper, "orders/BK-1"))));
   // Past orders brought over from the old shop (plan 23.7) are history only: the owner may delete one to undo an import.
@@ -458,6 +471,7 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("support can't read keys", assertFails(getDoc(doc(support, "adminSecrets/stripe"))));
   await check("support after its time can't", assertFails(getDoc(doc(lateSupport, "books/draft"))));
   await check("a Google sign-in can't claim support", assertFails(getDoc(doc(fakeSupport, "books/draft"))));
+  await check("a look-only support visit reads no visit note", assertFails(getDoc(doc(viewer, "clientVisits/v1"))));
   await check("an edit visit changes a book", assertSucceeds(setDoc(doc(support, "books/draft"), { status: "draft", title: "Unannounced" })));
   await check("a view visit reads a draft book", assertSucceeds(getDoc(doc(viewer, "books/draft"))));
   await check("a view visit reads the audit log", assertSucceeds(getDocs(collection(viewer, "audit-log"))));

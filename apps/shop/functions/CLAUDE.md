@@ -752,6 +752,10 @@ TTL 30 days on `expiresAt`). Admin: Settings › General › Tools & records ›
   phone, note and answers; any other loses every detail (name becomes "Details removed"). Both lose their link keys and get
   `reminderSentAt`, so no link works and no reminder goes. The time is never freed: the owner keeps or cancels it. Tests:
   `privacyBookings.test.js`.
+- **Privacy and visit notes (17 November 2026):** the owner's export lists `clientVisitNotes` (`clientVisits` by `email`);
+  erase deletes those records and their photos (`admin.storage()` scoped to the shop, only `client-photos/<64 hex>/<name>`
+  paths, a file already gone counts; one that won't delete is listed in `photosNotDeleted`). The shopper's own copy
+  (`scan: false`) never reads them: they are the team's notes. Tests: `privacyBookings.test.js`.
 - **Privacy export/erase** (`functions/privacyData.js`, `personalDataFor` / `handlePrivacyAdmin`): addresses match in any
   capitalisation (exact lower-case query plus a bounded field-only scan for older mixed-case rows); browser writes of contact
   messages, review contacts and saved carts now lower-case the email. Export and erase also cover `giftCards` (purchaser/recipient;
@@ -1666,3 +1670,9 @@ class then and nothing else (`placesLeft`, `fullClassTimes`); each confirmed sig
 (shared with the admin's cancel: full refund, gift card and pack visit back, calendar, email saying too few signed up,
 `cancelledFor: "minimum"`), and the owner gets one email. A time with a sign-up still paying waits for the next sweep.
 
+
+**Repeat-booking fixes (17 November 2026, review of #889):** `zonedTime` (shared `bookingTimes.ts`) puts a wall time the
+clocks skip in spring after the jump (2:30 is 3:30), so `runStarts`, classes and free times never land an hour early; a
+time that happens twice in autumn is the first one. `cancelLater` passes `still: untouched` to `freeTime`, which checks
+the booking again inside its transaction and writes nothing (returns null) when it was paid for since it was read; that
+visit counts as skipped.

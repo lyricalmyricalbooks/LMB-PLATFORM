@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   rebookDue,
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
-  cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
+  cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime, runStarts,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
-  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue,
+  cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -21,6 +21,14 @@ describe("the shop's clock", () => {
     expect(new Date(at("2026-11-16", "10:00")).toISOString()).toBe("2026-11-16T15:00:00.000Z");
     expect(new Date(at("2026-07-16", "10:00")).toISOString()).toBe("2026-07-16T14:00:00.000Z");
     expect(new Date(zonedTime("2026-11-16", "10:00", "America/Los_Angeles")).toISOString()).toBe("2026-11-16T18:00:00.000Z");
+    // Spring forward: 2:30 doesn't happen, so it is 3:30 after the jump, never 1:30 (an hour early).
+    expect(new Date(zonedTime("2027-03-14", "02:30", "America/Toronto")).toISOString()).toBe("2027-03-14T07:30:00.000Z");
+    expect(new Date(zonedTime("2027-03-14", "01:30", "America/Toronto")).toISOString()).toBe("2027-03-14T06:30:00.000Z");
+    // Fall back: 1:30 happens twice; the first one.
+    expect(new Date(zonedTime("2026-11-01", "01:30", "America/Toronto")).toISOString()).toBe("2026-11-01T05:30:00.000Z");
+    // A weekly run booked at 2:30 keeps its later visit on the clock-change day at 3:30, never an hour early.
+    const run = runStarts(zonedTime("2027-03-07", "02:30", "America/Toronto"), { everyWeeks: 1, visits: 3 }, "America/Toronto");
+    expect(run.map((ms) => new Date(ms).toISOString())).toEqual(["2027-03-07T07:30:00.000Z", "2027-03-14T07:30:00.000Z", "2027-03-21T06:30:00.000Z"]);
   });
   it("names the shop's day, not the server's", () => {
     expect(dayOf(Date.parse("2026-11-17T03:00:00Z"), ZONE)).toBe("2026-11-16");
@@ -486,6 +494,13 @@ describe("staff and rooms", () => {
     expect(cleanRooms(Array.from({ length: 12 }, (_, i) => ({ name: `R${i}` })))).toHaveLength(MAX_ROOMS);
     expect(cleanService({ name: "Facial", minutes: 60, roomId: "r 1!" })).toMatchObject({ roomId: "r1" });
     expect(cleanBookingSettings({})).toMatchObject({ staff: [], rooms: [] });
+  });
+
+  it("keeps a commission share from 0.5 to 100 in half steps, and drops anything else", () => {
+    expect([40, "12.5", 0.2, 0.3, 101, 33.3, -5, "", "abc", null, NaN].map(commissionOf)).toEqual([40, 12.5, 0, 0.5, 100, 33.5, 0, 0, 0, 0, 0]);
+    const [a, b] = cleanStaff([{ name: "Ana", commissionPercent: 40 }, { name: "Ben", commissionPercent: 0 }]);
+    expect(a.commissionPercent).toBe(40);
+    expect("commissionPercent" in b).toBe(false);
   });
 });
 
