@@ -94,11 +94,11 @@ describe("each person's own calendar link", () => {
 });
 
 describe("a course in the calendars", () => {
-  const course = () => shop({
+  const course = (extra = {}) => shop({ ...extra,
     "shops/s1/bookings/booking5": {
       status: "confirmed", serviceName: "Wheel course", staffName: "Ana", start: "2026-11-28T23:00:00Z", end: "2026-11-29T01:00:00Z", gapAfter: 30,
       customer: { name: "Oz" }, manageKeyHash: hash(KEY),
-      course: { starts: ["2026-11-28T23:00:00Z", "2026-12-05T23:00:00Z"], days: ["2026-11-28", "2026-12-05"], staff: ["Ana", "Ben"] },
+      staffId: "ana", course: { starts: ["2026-11-28T23:00:00Z", "2026-12-05T23:00:00Z"], days: ["2026-11-28", "2026-12-05"], staff: ["Ana", "Ben"], staffIds: ["ana", "ben"] },
     },
   });
 
@@ -109,6 +109,13 @@ describe("a course in the calendars", () => {
     expect(ics).toMatch(/DTSTART:20261205T230000Z\r\nDTEND:20261206T010000Z/);
     expect(ics).toMatch(/UID:booking5@bookings/);
     expect(ics).toMatch(/UID:booking5-2@bookings/);
+  });
+
+  test("each person's own link has only the dates they take", async () => {
+    const db = rootDb(course({ "shops/s1/bookingFeed/p-ben": { token: "e".repeat(48), staffId: "ben", staffName: "Ben" } })).db;
+    const ics = await bookingsFeed({ db, shopId: "s1", token: "e".repeat(48), nowMs: Date.parse("2026-11-14T12:00:00Z") });
+    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(ics).toMatch(/DTSTART:20261205T230000Z/);
   });
 
   test("the customer's file has every date too", async () => {
