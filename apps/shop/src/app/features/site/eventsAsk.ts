@@ -7,7 +7,7 @@ import { previewEventsAnswer } from "./eventsPreview";
 
 export type EventsAnswer = Record<string, any> & { error?: string; code?: string };
 
-export async function askEvents(action: "eventsInfo" | "eventStart" | "eventView", body: Record<string, unknown> = {}): Promise<EventsAnswer> {
+export async function askEvents(action: "eventsInfo" | "eventStart" | "eventView" | "eventCode", body: Record<string, unknown> = {}): Promise<EventsAnswer> {
   if (isBookingPreview()) return previewEventsAnswer(action, body, shopCurrency());
   const response = await functionFetch("validateDiscountCode", {
     method: "POST",

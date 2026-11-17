@@ -240,9 +240,10 @@ function refundMinorFor(order, counts, ticketsLeft) {
     if (ticketsLeft <= 0)
         return kept;
     const prices = order.lines.reduce((sum, l) => sum + Math.min(count(counts[l.ticketId]), l.qty) * l.priceMinor, 0);
-    const total = count(order.totalMinor);
-    const tax = total > 0 ? Math.round((count(order.taxMinor) * prices) / total) : 0;
-    return Math.min(kept, prices + tax);
+    // The share of what was paid: with a discount code, `totalMinor` is less than the tickets' own prices added up.
+    const list = order.lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0);
+    const paid = count(order.totalMinor) + count(order.taxMinor);
+    return Math.min(kept, list > 0 ? Math.round((paid * prices) / list) : 0);
 }
 // A ticket's code, shown at the door: eight letters and digits with nothing that reads two ways ("K7QM-2XPA").
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

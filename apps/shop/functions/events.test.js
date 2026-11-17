@@ -22,7 +22,8 @@ function fakeDb() {
     where: (f, op, v) => query(c, [...filters, [f, v, op]], n),
     limit: (m) => query(c, filters, m),
     async get() {
-      const docs = list(c).filter((d) => filters.every(([f, v, op]) => (op === "array-contains" ? (d.data()[f] || []).includes(v) : d.data()[f] === v))).slice(0, n);
+      const at = (data, f) => f.split(".").reduce((o, k) => o?.[k], data);
+      const docs = list(c).filter((d) => filters.every(([f, v, op]) => (op === "array-contains" ? (d.data()[f] || []).includes(v) : at(d.data(), f) === v))).slice(0, n);
       return { docs, empty: docs.length === 0 };
     },
   });
@@ -54,7 +55,7 @@ const EVENT = {
 };
 const BUYER = { name: "Ada Reader", email: "ada@example.com" };
 
-function setup({ platform = true, owner = true, checkout = "card", now = "2026-11-17T13:00:00Z", admin = true, shopTax = null, budget = true, openFails = null, refundFails = false } = {}) {
+function setup({ platform = true, owner = true, checkout = "card", now = "2026-11-17T13:00:00Z", admin = true, shopTax = null, budget = true, openFails = null, refundFails = false, codeBox = true } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -77,6 +78,12 @@ function setup({ platform = true, owner = true, checkout = "card", now = "2026-1
   let codes = 0;
   const desk = eventActions({
     db, shopTax,
+    // The shop's own checks, as index.js does them: the code exists and is on; anything else is the customer's words.
+    findDiscount: codeBox ? async (code) => {
+      const snap = await db.collection("discounts").where("code", "==", code).limit(1).get();
+      if (snap.empty || snap.docs[0].data().isActive === false) throw new Error("That code isn't valid.");
+      return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    } : null,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
     payments: {
       provider: "stripe", standaloneCheckout: async () => card,
@@ -589,5 +596,99 @@ describe("moving an order to another event", () => {
     expect(await t.doc("eventPlaces", "second01")).toMatchObject({ sold: { balc: 2 }, orders: 1 });
     expect((await t.doc("eventOrders", "order0001")).tickets.map((x) => x.name)).toEqual(["Balcony", "Balcony"]);
     expect(t.emails).toHaveLength(1);
+  });
+});
+
+describe("discount codes on tickets", () => {
+  const CODE = { code: "EARLY", type: "percentage", value: 20, forTickets: true, usageCount: 0 };
+  const TAX = async () => (minor) => ({ taxMinor: Math.round(minor * 0.13), taxLines: [{ name: "HST", cents: Math.round(minor * 0.13) }] });
+  const withCode = async (t, code = CODE, event = { ...EVENT, tickets: [{ id: "gen", name: "General", priceMinor: 1500, places: 5 }] }) => {
+    await t.seed(event);
+    await t.db.collection("discounts").doc("disc0001").set(code);
+  };
+  test("the page offers a code box only when a code works on tickets, and trying one holds nothing", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.pub({ action: "eventsInfo" })).body.codes).toBe(false);
+    await t.db.collection("discounts").doc("disc0001").set(CODE);
+    expect((await t.pub({ action: "eventsInfo" })).body.codes).toBe(true);
+    const tried = await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, code: " early " });
+    expect(tried.body).toEqual({ code: "EARLY", amountMinor: 600, totalMinor: 2400, taxMinor: 0, chargedMinor: 2400 });
+    expect((await t.doc("discounts", "disc0001")).usageCount).toBe(0);
+    expect(t.db.store.has("eventPlaces/launch01")).toBe(false);
+    expect((await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, code: "NOPE" })).body).toMatchObject({ code: "code", error: "That code isn't valid." });
+    expect((await t.pub({ action: "eventCode", eventId: "launch01", tickets: { free: 1 }, code: "EARLY" })).body.code).toBe("code");
+    const off = setup({ codeBox: false });
+    await off.seed();
+    await off.db.collection("discounts").doc("disc0001").set(CODE);
+    expect((await off.pub({ action: "eventsInfo" })).body.codes).toBe(false);
+  });
+  test("a code comes off before tax, the card page asks for the lower amount, and the code is counted once", async () => {
+    const t = setup({ shopTax: TAX });
+    await withCode(t, CODE, { ...EVENT, chargeTax: true, tickets: [{ id: "gen", name: "General", priceMinor: 1500, places: 5 }] });
+    const r = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 2 }, code: "early", ...BUYER });
+    expect(r.statusCode).toBe(200);
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(2712);
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({ totalMinor: 2400, listMinor: 3000, taxMinor: 312, chargedMinor: 2712, discount: { id: "disc0001", code: "EARLY", amountMinor: 600 } });
+    expect((await t.doc("discounts", "disc0001")).usageCount).toBe(1);
+    t.pay(0);
+    const view = await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    expect(view.body.order).toMatchObject({ status: "paid", chargedMinor: 2712, discount: { code: "EARLY", amountMinor: 600 } });
+    expect(view.body.order.discount.id).toBeUndefined();
+    expect(t.emails[0].html).toContain("Discount (EARLY)");
+    expect((await t.adm({ op: "orders", eventId: "launch01" })).body.orders[0].discount).toEqual({ code: "EARLY", amountMinor: 600 });
+    // One ticket back is its share of what was really paid; the last one returns the rest and frees the code's use.
+    const one = await t.adm({ op: "refund", orderId: "order0001", codes: ["TCKT-222A"] });
+    expect(one.body.amountMinor).toBe(1356);
+    expect((await t.doc("discounts", "disc0001")).usageCount).toBe(1);
+    const rest = await t.adm({ op: "refund", orderId: "order0001" });
+    expect(rest.body.amountMinor).toBe(1356);
+    expect((await t.doc("discounts", "disc0001")).usageCount).toBe(0);
+    expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 0 }, paidMinor: 0 });
+  });
+  test("an unpaid order gives the code's use back, and it is counted again if the payment turns up after all", async () => {
+    const t = setup();
+    await withCode(t, { ...CODE, usageLimit: 1 });
+    await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY", ...BUYER });
+    const second = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY", name: "Bo", email: "bo@example.com" });
+    expect(second.statusCode).toBe(409);
+    expect(second.body).toMatchObject({ code: "code", error: "This code has been used up." });
+    expect(t.db.store.has("eventOrders/order0002")).toBe(false);
+    t.clock.now = new Date("2026-11-17T13:30:00Z");
+    expect(await t.desk.sweep()).toEqual({ confirmed: 0, freed: 1 });
+    expect((await t.doc("discounts", "disc0001")).usageCount).toBe(0);
+    expect((await t.doc("eventOrders", "order0001")).discount.returned).toBe(true);
+    t.pay(0);
+    await t.db.collection("eventOrders").doc("order0001").set({ status: "held" }, { merge: true });
+    await t.desk.sweep();
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({ status: "paid", discount: { returned: false } });
+    expect((await t.doc("discounts", "disc0001")).usageCount).toBe(1);
+  });
+  test("a code that covers everything makes the tickets free at once, and one that leaves a few cents is refused", async () => {
+    const t = setup();
+    await withCode(t, { ...CODE, value: 100 });
+    const r = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY", ...BUYER });
+    expect(r.body).toMatchObject({ paid: true });
+    expect(t.opened).toHaveLength(0);
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({ status: "paid", chargedMinor: 0, totalMinor: 0, listMinor: 1500 });
+    const cents = setup();
+    await withCode(cents, { ...CODE, type: "fixed", value: 14.8 });
+    expect((await cents.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY" })).body.code).toBe("code");
+    const start = await cents.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY", ...BUYER });
+    expect(start.statusCode).toBe(400);
+    expect(cents.db.store.has("eventOrders/order0001")).toBe(false);
+  });
+  test("codes for the shop only, for some products, or already used by this customer don't work on tickets", async () => {
+    const t = setup();
+    await withCode(t, { ...CODE, forTickets: false });
+    expect((await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY" })).body.error).toBe("This code can't be used on tickets.");
+    await t.db.collection("discounts").doc("disc0001").set({ ...CODE, appliesTo: "products" });
+    expect((await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY", ...BUYER })).body.code).toBe("code");
+    await t.db.collection("discounts").doc("disc0001").set({ ...CODE, minOrderAmount: 20 });
+    expect((await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY" })).body.error).toBe("This code needs tickets worth at least 20.00.");
+    await t.db.collection("discounts").doc("disc0001").set({ ...CODE, onePerCustomer: true });
+    await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY", ...BUYER });
+    const again = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, code: "EARLY", ...BUYER, email: "ADA@example.com" });
+    expect(again.body).toMatchObject({ code: "code", error: "You have already used this code." });
   });
 });

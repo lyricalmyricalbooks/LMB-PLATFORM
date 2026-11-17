@@ -914,6 +914,13 @@ Events, French twins in `frenchCopy.ts`); the Paid total is what the buyer still
 **Cancelled and refunded (E3b):** a refunded order of a cancelled event keeps the Cancelled heading and reads
 `eventsCancelledRefundedText` (Text & labels › Events page, French twin).
 
+**Discount code on tickets (E3d):** when `eventsInfo.codes` is true the checkout form has a "Have a code?" box (`CodeBox`
+in `EventsPage.tsx`, region `eventsCode`, styles `.fm-evt-code-row` / `.fm-evt-applied` from theme variables). Apply asks
+the server (`eventCode`); the summary then shows a discount row and the new total, and the code is asked again whenever
+the picks change (dropped with the server's own words when it no longer fits). The buyer's page shows the same row.
+Words: Text & labels › Events page › **Choosing tickets & paying** (`eventsCode*`, `eventsDiscountRow`, French twins).
+The preview's sample code takes 10% off.
+
 ## Pickup times at checkout (17 November 2026)
 
 When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),

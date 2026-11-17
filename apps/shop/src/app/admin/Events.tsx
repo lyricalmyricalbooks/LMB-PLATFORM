@@ -353,6 +353,7 @@ function GuestList({ event, door, zone, currency, others, onClose }: { event: Ad
                       {order.status === "refunded" && order.refundedMinor ? null
                         : order.chargedMinor ? moneyText(Math.max(0, order.chargedMinor - (order.refundedMinor || 0)), order.currency || currency) : "Free"}
                       {!!order.refundedMinor && <small>{moneyText(order.refundedMinor, order.currency || currency)} sent back</small>}
+                      {!!order.discount?.amountMinor && <small>Code {order.discount.code}, {moneyText(order.discount.amountMinor, order.currency || currency)} off</small>}
                     </span>
                   </div>
                   {order.status === "refunded" && (

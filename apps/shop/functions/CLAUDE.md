@@ -1512,3 +1512,16 @@ details, `tickets` (same codes, check-ins cleared), `lines` (`movedLines`: what 
 refunds stay right) and `moves[]`. A fresh key is added (old links keep working) and the buyer gets the tickets email
 with "Your tickets have moved" wording (`tellTickets` `movedFrom`).
 
+**Discount codes on tickets (E3d, `tasks/todo/2026-11-17-events-codes.md`):** a code works on tickets only when it is a
+plain code (`plainCode` in `bookingDiscount.js`: no free shipping, buy-X, automatic or product-bound codes) and the owner
+ticked `forTickets` on it (`eventDiscount.js`: `worksOnTickets`, `ticketDiscountMinor`, refusal 400 code `code`).
+`eventsInfo` returns `codes: true` when the shop has such a code, so the box only shows where it can work. Public action
+`eventCode` (`{ eventId, tickets, code, email }`) prices the picks with the code and writes nothing. `eventStart` takes
+`code`: the code comes off before tax (`priceOf`), the order keeps `listMinor` (before the code) and
+`discount { id, code, amountMinor }`, and the code's `usageCount` goes up in the same transaction as the places (409 when
+used up). One use per customer counts held and paid `eventOrders` with that `discount.id` and the buyer's email. A total
+of zero after the code is a free order; a total under the card minimum is refused (`tooSmallForCard`). The use goes back
+once (`discount.returned`) when a held order is freed or the whole order is given back, and is counted again if a freed
+order turns out paid. Refunds use `refundMinorFor`, which gives back the share really paid. `eventDesk` gets the checkout's
+own code checks through dep `findDiscount` (`index.js`), so a code's dates, limits and customer rules have one source.
+

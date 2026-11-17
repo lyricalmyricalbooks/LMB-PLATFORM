@@ -7,11 +7,13 @@ export type EventView = {
   id: string; title: string; description?: string; start: string; end?: string; venue?: string; address?: string; photo?: string;
   online: boolean; open: boolean; cancelled: boolean; tickets: EventTicketView[];
 };
-export type EventsInfo = { on: boolean; zone?: string; currency?: string; events?: EventView[] };
+export type EventsInfo = { on: boolean; zone?: string; currency?: string; codes?: boolean; events?: EventView[] };
+/** A discount code the server accepted for the tickets picked: what comes off and what is left to pay. */
+export type TicketCode = { code: string; amountMinor: number; totalMinor: number; taxMinor: number; chargedMinor: number };
 export type EventOrderView = {
   id: string; status: "held" | "paid" | "cancelled" | "refunded"; refundedMinor?: number; eventId: string; title: string; start: string; end: string; venue: string; address: string; name: string;
   lines: { ticketId: string; name: string; qty: number; priceMinor: number }[];
-  totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; holdUntil: string | null;
+  totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; holdUntil: string | null; discount?: { code: string; amountMinor: number } | null;
   tickets: { code: string; ticketId: string; name: string; used?: boolean }[]; onlineUrl: string; eventCancelled: boolean;
 };
 

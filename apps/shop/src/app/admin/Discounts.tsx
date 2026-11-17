@@ -20,6 +20,7 @@ import {
 } from "./riso/components";
 import { MONEY_SIGN } from "./moneySign";
 import { useBookingsOn } from "./bookingsApi";
+import { useWaysOn } from "./waysApi";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
   const automatic = form.method === "automatic";
   // Discount codes on bookings: a plain % or amount off everything, shown only while the shop takes bookings.
   const bookingsOn = useBookingsOn(true);
+  const eventsOn = useWaysOn(true).includes("events");
   const bookable = !automatic && (form.type === "percentage" || form.type === "fixed") && (form.appliesTo || "all") === "all";
   const giftBook = (books || []).find(b => b.id === form.giftBookId);
   const setMethod = (method: "code" | "automatic") => setForm((f: any) => ({
@@ -104,6 +106,7 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
         giftVariantId: form.type === "gift" ? form.giftVariantId || null : null,
         onePerCustomer: automatic ? false : !!form.onePerCustomer,
         forBookings: bookable && !!form.forBookings,
+        forTickets: bookable && !!form.forTickets,
         value: form.type === "freeship" || form.type === "gift" ? 0 : Number(form.value) || 0,
         minOrderAmount: form.minOrderAmount !== "" ? Number(form.minOrderAmount) : null,
         minQuantity: form.minQuantity !== "" ? Number(form.minQuantity) : null,
@@ -311,6 +314,7 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
         </FormRow>
         {!automatic && <FormToggle label="One use per customer" hint="Checked by email address." checked={!!form.onePerCustomer} onChange={v => set("onePerCustomer", v)} />}
         {bookingsOn && bookable && <FormToggle label="Works on bookings too" hint="Customers can type it on your booking page." checked={!!form.forBookings} onChange={v => set("forBookings", v)} />}
+        {eventsOn && bookable && <FormToggle label="Works on event tickets too" hint="Customers can type it when they get tickets on your Events page." checked={!!form.forTickets} onChange={v => set("forTickets", v)} />}
         <FormToggle label={automatic ? "Offer is on" : "Code is on"} hint="Turn off to pause it without deleting it." checked={!!form.isActive} onChange={v => set("isActive", v)} />
         {!automatic && <FormRow>
           <FormField label="Only these email endings" hint="Comma separated, e.g. .edu. Empty means everyone.">
