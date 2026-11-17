@@ -1156,7 +1156,7 @@ function TimeDialog({ title, description, service, initialDay, except = "", staf
 }
 
 /** Books someone into a class start that still has room: someone who rang, or signed up at the counter. */
-function AddToClassDialog({ service, start, left, onClose }: { service: BookingService; start: string; left: number; onClose: () => void }) {
+export function AddToClassDialog({ service, start, left, onClose }: { service: BookingService; start: string; left: number; onClose: () => void }) {
   const [who, setWho] = useState({ name: "", email: "", phone: "", note: "" });
   const [sendEmail, setSendEmail] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1262,7 +1262,7 @@ export function BookAgainDialog({ initial, onClose, onBooked }: { initial: BookA
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0 };
+export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0 };
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -1326,7 +1326,7 @@ function depositHint(price: string, deposit: string, unit: "amount" | "percent")
   return `${moneyText(now, SHOP_CURRENCY)} when they book, ${moneyText(priceMinor - now, SHOP_CURRENCY)} at the visit.`;
 }
 
-function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingService; rooms: BookingRoom[]; onClose: () => void; onSaved: () => void }) {
+export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingService; rooms: BookingRoom[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     ...service, price: service.priceMinor ? (service.priceMinor / 100).toFixed(2) : "",
     // When they pay (only asked once there is a price), and the deposit as the owner types it: an amount or a percent.

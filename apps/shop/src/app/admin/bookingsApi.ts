@@ -1,6 +1,7 @@
 // Bookings (beta): what the admin reads and the changes it asks the server for (functions/bookings.js). The admin reads
 // services, hours and bookings straight from the shop's folder (firestore.rules: admin read, no browser write); every
 // change goes through the server's bookingsAdmin action, which checks the time is still free.
+import { useWaysOn } from "./waysApi";
 import { useEffect, useState } from "react";
 import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
@@ -50,14 +51,19 @@ export const bookingsData = {
   admin: adminFromServer as (op: AdminOp, body: Record<string, unknown>) => Promise<unknown>,
 };
 
-/** Whether the platform turned Bookings on for this shop. */
+/**
+ * Whether the booking engine is on for this shop: the platform turned Bookings on, or Classes (a way to sell, which
+ * runs on the same engine) is allowed by the platform and switched on by the owner. The server's `engineOn`
+ * (functions/bookings.js) reads the same switches.
+ */
 export function useBookingsOn(enabled: boolean): boolean {
   const [on, setOn] = useState(false);
+  const classesOn = useWaysOn(enabled).includes("classes");
   useEffect(() => {
     if (!enabled) return;
     return bookingsData.watchOn(setOn);
   }, [enabled]);
-  return on;
+  return on || classesOn;
 }
 
 export const readBookingSetup = () => bookingsData.readSetup();

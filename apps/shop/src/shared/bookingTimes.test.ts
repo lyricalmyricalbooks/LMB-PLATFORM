@@ -5,7 +5,7 @@ import {
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
-  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS,
+  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -511,5 +511,25 @@ describe("rebook reminders", () => {
     expect((cleanService({ ...base, rebookWeeks: 6 }) as { rebookWeeks: number }).rebookWeeks).toBe(6);
     expect((cleanService({ ...base, rebookWeeks: 99 }) as { rebookWeeks: number }).rebookWeeks).toBe(52);
     expect((cleanService(base) as { rebookWeeks: number }).rebookWeeks).toBe(0);
+  });
+});
+
+describe("a class's own starts on a day (the Classes timetable)", () => {
+  const cls = { places: 8, classTimes: [{ weekday: 1, time: "18:00" }, { weekday: 1, time: "09:30" }, { weekday: 4, time: "18:00" }] };
+  it("lists that weekday's class times, earliest first, booked or not", () => {
+    expect(classStartsOn("2026-11-16", cls, ZONE).map(hhmm)).toEqual(["09:30", "18:00"]);
+    expect(classStartsOn("2026-11-19", cls, ZONE).map(hhmm)).toEqual(["18:00"]);
+    expect(classStartsOn("2026-11-17", cls, ZONE)).toEqual([]);
+  });
+  it("keeps 18:00 at 18:00 on the shop's clock either side of a clock change", () => {
+    // Clocks go back on Sunday 1 November 2026 and forward on Sunday 14 March 2027 in Toronto.
+    expect(new Date(classStartsOn("2026-10-26", cls, ZONE)[1]).toISOString()).toBe("2026-10-26T22:00:00.000Z");
+    expect(new Date(classStartsOn("2026-11-02", cls, ZONE)[1]).toISOString()).toBe("2026-11-02T23:00:00.000Z");
+    expect(new Date(classStartsOn("2027-03-15", cls, ZONE)[1]).toISOString()).toBe("2027-03-15T22:00:00.000Z");
+  });
+  it("has nothing for a one-customer service, a class with no weekly times or a day that isn't one", () => {
+    expect(classStartsOn("2026-11-16", { places: 1, classTimes: cls.classTimes }, ZONE)).toEqual([]);
+    expect(classStartsOn("2026-11-16", { places: 8, classTimes: [] }, ZONE)).toEqual([]);
+    expect(classStartsOn("16 Nov", cls, ZONE)).toEqual([]);
   });
 });

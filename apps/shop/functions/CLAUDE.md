@@ -1542,3 +1542,11 @@ whole, and `priceOf` returns the `feeMinor` really asked for: a code that makes 
 The order keeps `feeMinor`; `publicEvent`, `eventCode`, both order views and the ticket email show it. It is part of the
 tickets' share in `refundMinorFor`, so it goes back with the tickets it was paid for.
 
+## Classes (beta, 17 November 2026)
+
+Classes (a way to sell, `tasks/todo/2026-11-17-classes-timetable-admin.md`) has no server module of its own: a class is a
+Bookings service with more than one place, so places, waiting lists, packs, deposits, reminders and money all stay in
+`bookings.js`. `engineOn(shop)` there is the one switch check: true when `platform/features.bookings` is on, or when
+Classes is allowed by the platform and switched on by the owner (`waysAllowed` / `waysOn`). `featureOn()` and both
+calendar feeds read it. Never add a second places ledger or payment path for classes; add to the booking engine.
+`built` stays false in `shared/ways/ways.js` until the website's Timetable page ships (C1b).

@@ -1,0 +1,34 @@
+/* Admin › Classes (beta). Tiles, the week grid and the day pills come from bookings.css; this file holds only what a
+   class card and the class list add. Tokens only (riso/adminThemes.css): no colour is named here. */
+.rp .cls-bento { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+.rp .cls-session { display: grid; gap: 4px; width: 100%; min-width: 0; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--rp-tile-sky); color: var(--rp-on-tile); text-align: left; cursor: pointer; font: inherit; }
+.rp .cls-session:hover { filter: brightness(0.97); }
+.rp .cls-session:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+.rp .cls-session[data-full] { background: var(--rp-tile-mint); }
+.rp .cls-session[data-past] { opacity: 0.72; }
+.rp .cls-session-place { font: 500 12px/1.35 var(--rp-font-body); overflow-wrap: anywhere; }
+.rp .cls-classes { display: grid; gap: 12px; }
+.rp .cls-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.rp .cls-class { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.rp .cls-class[data-off] { opacity: 0.72; }
+.rp .cls-class-main { min-width: 0; display: grid; gap: 4px; }
+.rp .cls-class h3 { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 600 17px/1.3 var(--rp-font-body); letter-spacing: -0.01em; text-transform: none; overflow-wrap: anywhere; }
+.rp .cls-class-when { margin: 0; font-size: 14px; }
+.rp .cls-class-meta { margin: 0; font: 500 12px/1.4 var(--rp-font-mono); letter-spacing: 0.02em; color: var(--rp-text-muted); }
+.rp .cls-note { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
+.rp .cls-roster { display: grid; gap: 14px; }
+.rp .cls-roster-count { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 14px; }
+.rp .cls-roster-count span { font: 500 12px/1.4 var(--rp-font-mono); letter-spacing: 0.02em; color: var(--rp-text-muted); }
+.rp .cls-people { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp .cls-people li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 0; border-top: 1px solid var(--rp-border); }
+.rp .cls-people li:first-child { border-top: 0; }
+.rp .cls-person { min-width: 0; display: grid; gap: 2px; }
+.rp .cls-person-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font: 600 15px/1.3 var(--rp-font-body); overflow-wrap: anywhere; }
+.rp .cls-person-name em { font: 500 10px/1.5 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; font-style: normal; color: var(--rp-text-muted); }
+.rp .cls-person-pay { font-size: 13px; color: var(--rp-text-muted); }
+@media (max-width: 767px) {
+  .rp .cls-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp .cls-bento > :first-child { grid-column: 1 / -1; }
+  .rp .cls-class { flex-direction: column; }
+}
+@media (pointer: coarse) { .rp .cls-session { min-height: var(--rp-touch); } }

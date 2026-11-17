@@ -28,7 +28,7 @@ export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
  * it does once the shop opens), so the admin a press meets in setup is the one it keeps. Help is in the rail's foot.
  * Pages the platform turns on shop by shop (Bookings, in beta) aren't promised before the shop exists.
  */
-const NOT_IN_SETUP: ReadonlySet<string> = new Set(["bookings", "events"]);
+const NOT_IN_SETUP: ReadonlySet<string> = new Set(["bookings", "events", "classes"]);
 export function setupMenu(side: AdminSide = "website", nav: NavEntry[] = NAV): NavEntry[] {
   return withoutPages(sidebarItems(nav, sideMenu(side)), NOT_IN_SETUP);
 }

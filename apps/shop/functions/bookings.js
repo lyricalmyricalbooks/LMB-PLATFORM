@@ -63,6 +63,7 @@ const {
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
 } = require("./shared/bookingTimes");
+const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
 const { findCountry, regionCode } = require("./shared/shippingZones");
@@ -73,6 +74,20 @@ const HOLD_MINUTES = 10;
 const PACK_PAGE_MINUTES = 60;
 /** A pack's code: 12 letters and digits with nothing that reads two ways, as "ABCD-EFGH-JKLM". */
 const PACK_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+/**
+ * Whether the booking engine runs for a shop (`shop`: anything with `.collection`, the shop's own folder): Bookings is on
+ * (`platform/features.bookings`), or Classes is (the platform's switch and the owner's, shared/waysToSell). The owner's
+ * record is read only when the platform allows Classes.
+ */
+async function engineOn(shop) {
+  const features = await shop.collection("platform").doc("features").get().catch(() => null);
+  const data = features?.exists === true ? features.data() : null;
+  if (data?.bookings === true) return true;
+  if (!waysAllowed(data).includes("classes")) return false;
+  const start = await shop.collection("firstWeek").doc("start").get().catch(() => null);
+  return waysOn(data, start?.exists === true ? start.data() : null).includes("classes");
+}
+
 function newPackCode() {
   const bytes = crypto.randomBytes(12);
   let raw = "";
@@ -216,9 +231,10 @@ function bookingActions({
   const waitlist = () => db.collection("bookingWaitlist");
   const packs = () => db.collection("bookingPacks");
 
+  // On when the platform turned Bookings on for the shop, or when the shop sells Classes (a way to sell, both of its
+  // switches on): classes run on this same engine, so they bring its hours, team, rooms and Book a time page with them.
   async function featureOn() {
-    const snap = await db.collection("platform").doc("features").get().catch(() => null);
-    return snap?.exists === true && snap.data()?.bookings === true;
+    return engineOn(db);
   }
   async function readSettings() {
     const snap = await settingsRef().get();
@@ -2522,8 +2538,8 @@ const whenMs = (v) => {
 async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now() }) {
   if (!KEY.test(String(token || ""))) return null;
   const shop = db.collection("shops").doc(shopId);
-  const [features, feeds] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookingFeed").limit(200).get()]);
-  if (features.data()?.bookings !== true) return null;
+  const [on, feeds] = await Promise.all([engineOn(shop), shop.collection("bookingFeed").limit(200).get()]);
+  if (!on) return null;
   // The owner's link (`main`) or one person's (`p-<staffId>`); every token is compared, so the time taken never says which.
   let feed = null;
   for (const d of feeds.docs) if (sameHash(d.data()?.token, token) && !feed) feed = { id: d.id, ...d.data() };
@@ -2547,9 +2563,9 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
 async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = Date.now() }) {
   if (!ID.test(String(id || "")) || !KEY.test(String(key || ""))) return null;
   const shop = db.collection("shops").doc(shopId);
-  const [features, snap] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookings").doc(id).get()]);
+  const [on, snap] = await Promise.all([engineOn(shop), shop.collection("bookings").doc(id).get()]);
   const b = snap.exists ? snap.data() : null;
-  if (features.data()?.bookings !== true || !b || b.status !== "confirmed") return null;
+  if (!on || !b || b.status !== "confirmed") return null;
   if (!keyFits(b, key)) return null;
   return bookingIcs({ id, title: shopName ? `${b.serviceName} · ${shopName}` : b.serviceName, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "", nowMs });
 }
