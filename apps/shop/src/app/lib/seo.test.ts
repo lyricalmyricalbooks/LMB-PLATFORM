@@ -21,3 +21,12 @@ describe('og:locale', () => {
     expect(ogLocale(null, '')).toBe('en_CA');
   });
 });
+
+describe('the shop address in canonicals', () => {
+  it("uses the profile's main address, else the page's own", async () => {
+    const { shopOrigin } = await import('./canonicalUrl');
+    expect(shopOrigin('https://press.example')).toBe('https://press.example');
+    expect(shopOrigin('http://press.example')).toBe(''); // no page here (node): nothing but a real https address
+    expect(shopOrigin('https://press.example/shop')).toBe('');
+  });
+});

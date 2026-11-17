@@ -17,6 +17,8 @@ describe('book search metadata', () => {
     expect(canonicalUrl('https://example.com/shop/page/about/?x=1')).toBe('https://example.com/shop/page/about');
     expect(canonicalUrl('https://example.com/shop/collections/art/')).toBe('https://example.com/shop/collections/art');
     expect(canonicalUrl('https://example.com/shop/')).toBe('https://example.com/shop/');
+    // Opened on another of the shop's addresses, it still names the main one.
+    expect(canonicalUrl('https://press.shops.example/books/one/?x=1', 'https://press.example')).toBe('https://press.example/books/one');
   });
   it('emits Product and Book markup using the displayed currency and price', () => {
     const data = bookStructuredData(book, { currency: 'EUR', price: 19.2, url: 'https://example.com/shop/books/one' });

@@ -3,7 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { getCopy } from "../features/site/storeCopy";
 import { inThemePreview } from "../features/site/themePreview";
 
-import { canonicalUrl } from "./canonicalUrl";
+import { canonicalUrl, shopOrigin } from "./canonicalUrl";
 import { shopLanguageOf } from "../features/site/shopLanguage";
 import { shopCountry } from "../../lib/shopProfile";
 
@@ -91,7 +91,7 @@ export function useSEO(seo: SEO) {
     const description = seo.description || getCopy(design, "siteDefaultDescription");
     const rawImage = seo.image || design?.shareImageUrl || "";
     const image = rawImage ? new URL(rawImage, window.location.href).href : "";
-    const url = canonicalUrl(seo.url || window.location.href);
+    const url = canonicalUrl(seo.url || window.location.href, shopOrigin());
     let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!canonical) {
       canonical = document.createElement("link");

@@ -29,7 +29,10 @@ are made with `onDocument*` from `shopEntry.trigger` (the path you write, e.g. `
   no drawn copy is checked by `frontDoorRoutes.js` (`routeCheck`, products, pages, policies and URL redirects read inside
   `shops/<id>/`, five minutes per shop): missing → 404 with noindex, or the owner's redirect as a 301; live or unsure →
   the shell made the shop's own (`shopShell`). Its slug and redirect rules mirror `findProduct` and `redirects.ts`
-  (parity-tested in `frontDoorRoutes.test.js`); change them together. The fallback robots.txt names the sitemap.
+  (parity-tested in `frontDoorRoutes.test.js`); change them together. The fallback robots.txt names the sitemap. A
+  storefront page with a trailing slash 301s to the one without. Hosting passes this function's answers on unsqueezed,
+  so `send` compresses text bodies of 1 KB or more itself (`squeeze`: brotli, else gzip, by `Accept-Encoding`; `Vary`
+  set); the usage meter counts the bytes sent.
 - The older handler tests run one shop with the folders off (`SHOP_FOLDERS: "off"`, `vite.config.ts`). New tests of
   shop-crossing behaviour turn them on (`shopScope.test.js`, `shopEntry.test.js`).
 

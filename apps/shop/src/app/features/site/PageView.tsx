@@ -15,6 +15,7 @@ import { getCopy } from "./storeCopy";
 import { StoreHeader } from "./StoreHeader";
 import { googleFontHref } from "./fonts";
 import { useSEO } from "../../lib/seo";
+import { shopOrigin } from "../../lib/canonicalUrl";
 import { breadcrumbData } from "../../lib/bookSeo";
 import { firstBodyImage } from "./pageBody";
 import { contentMaxWidth, isFullWidth } from "./headerNav";
@@ -78,7 +79,7 @@ export function PageView() {
     // The page's own sharing image, else its first uploaded picture; seo.ts falls back to the shop's share image.
     image: seoPage ? seoPage.seoImage || firstBodyImage(String(seoPage.body || "")) || undefined : undefined,
     jsonLd: seoPage ? (() => {
-      const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+      const siteBase = new URL(import.meta.env.BASE_URL, shopOrigin()).href;
       return breadcrumbData([
         { name: getCopy(settings?.design, "breadcrumbHome"), url: siteBase },
         { name: seoPage.title || seoPage.seoTitle || "", url: new URL(`page/${encodeURIComponent(slug || seoPage.slug || "")}`, siteBase).href },

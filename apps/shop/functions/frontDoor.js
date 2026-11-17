@@ -18,6 +18,7 @@
 //                                                  for on another of the shop's addresses, 301 to its main address
 // An address that names no shop, or a closed shop, gets a short page saying so. Nothing here writes.
 
+const zlib = require("node:zlib");
 const { usageLine } = require("./usageLog");
 const { isShopId } = require("./shopScope");
 
@@ -140,6 +141,27 @@ function pathOf(req, pathname) {
   return raw.startsWith("/") && !raw.startsWith("//") ? raw : pathname;
 }
 
+// Hosting passes this function's answers on as they are, so it squeezes its own: a drawn page of about 80 KB goes out
+// as about 15 KB. Brotli where the browser or crawler takes it (Googlebot does), else gzip; small or binary bodies as is.
+const SQUEEZE_MIN = 1024;
+const SQUEEZABLE = /^(text\/|application\/(json|xml|javascript))/;
+function squeeze(req, type, body) {
+  if (body == null || !SQUEEZABLE.test(type)) return null;
+  const raw = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+  if (raw.length < SQUEEZE_MIN) return null;
+  const accepts = String(req.get?.("accept-encoding") || req.headers?.["accept-encoding"] || "").toLowerCase();
+  const takes = (name) => accepts.split(",").some((part) => {
+    const [coding, ...params] = part.split(";").map((x) => x.trim());
+    const q = params.find((x) => x.startsWith("q="));
+    return coding === name && !(q && Number(q.slice(2)) === 0);
+  });
+  if (takes("br")) {
+    return { encoding: "br", body: zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } }) };
+  }
+  if (takes("gzip")) return { encoding: "gzip", body: zlib.gzipSync(raw, { level: 6 }) };
+  return null;
+}
+
 /** robots.txt for a shop that hasn't published its own yet: the same lines its publish run writes (scripts/sitemapData.mjs). */
 function defaultRobots(site) {
   return "User-agent: *\nAllow: /\n" + ["admin", "checkout", "account", "wishlist", "track"].map((route) => `Disallow: /${route}\n`).join("") + `\nSitemap: ${site}/sitemap.xml\n`;
@@ -185,11 +207,15 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
     // Cached an hour, not for ever: an owner who makes another address main later must not meet an old answer.
     const moved = (to) => res.status(301).set("Location", to).set("Cache-Control", "private, max-age=3600").send("");
     const send = (status, type, body, cache = "no-cache") => {
-      // The shop's web traffic, by size (usageLog.js): what each shop's meter counts for the pages it serves.
+      const squeezed = squeeze(req, type, body);
+      if (squeezed) res.set("Content-Encoding", squeezed.encoding);
+      if (SQUEEZABLE.test(type)) res.set("Vary", "Accept-Encoding");
+      const out = squeezed ? squeezed.body : body;
+      // The shop's web traffic, by size (usageLog.js): what each shop's meter counts for the pages it serves, as sent.
       if (metered) {
-        try { usage({ shop: metered, kind: "page", bytes: req.method === "HEAD" ? 0 : Buffer.byteLength(body ?? "") }); } catch { /* never breaks the answer */ }
+        try { usage({ shop: metered, kind: "page", bytes: req.method === "HEAD" ? 0 : Buffer.byteLength(out ?? "") }); } catch { /* never breaks the answer */ }
       }
-      return res.status(status).set("Content-Type", type).set("Cache-Control", cache).send(body);
+      return res.status(status).set("Content-Type", type).set("Cache-Control", cache).send(out);
     };
     if (req.method !== "GET" && req.method !== "HEAD") return send(405, TYPES[".txt"], "Only reading is possible here.");
     const host = hostOf(req);
@@ -244,9 +270,17 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
     // The owner's own previews (Studio's frame, Preview page from the book editor) stay on the address the admin is
     // open on, and a draft they preview is never answered "not found".
     const ownerView = /[?&]preview=/.test(pathOf(req, "")) || String(req.get?.("sec-fetch-dest") || req.headers?.["sec-fetch-dest"] || "") === "iframe";
-    if (snapshot && site && !ownerView) {
-      const main = new URL(site).hostname;
-      if (main !== host && (await shopIdFor(main)) === shop.id) return moved(site + pathOf(req, pathname));
+    // A page asked for with a trailing slash (/books/x/) moves to the one without, the address the sitemap and
+    // canonical name, so the two never compete.
+    if (snapshot && !ownerView) {
+      const main = site ? new URL(site).hostname : host;
+      const away = main !== host && (await shopIdFor(main)) === shop.id;
+      const slash = pathname !== "/" && pathname.endsWith("/");
+      if (away || slash) {
+        const asked = pathOf(req, pathname);
+        const query = asked.includes("?") ? asked.slice(asked.indexOf("?")) : "";
+        return moved((away ? site : `https://${host}`) + (slash ? pathname.replace(/\/+$/, "") : pathname) + query);
+      }
     }
     const body = snapshot ? await siteFile(shop.id, snapshot) : null;
     if (body) return send(200, TYPES[".html"], body);

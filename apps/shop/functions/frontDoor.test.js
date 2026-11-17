@@ -1,5 +1,6 @@
 // The front door (frontDoor.js, LMB-PLATFORM docs/shared-system.md step 5): one site for every shop's address, each
 // address answered with its own shop's profile, files and pages, never another's.
+import { gunzipSync, brotliDecompressSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 const { frontDoor, hostOf, snapshotFile, safeSlug, SITE_FILES } = require("./frontDoor");
 import { PER_SHOP_FILES, frontDoorHosting } from "../scripts/deployConfig.mjs";
@@ -50,7 +51,7 @@ function door({ files = FILES, usage = () => {}, shell = "<html>blank app</html>
     const res = {
       status(code) { out.status = code; return this; },
       set(k, v) { out.headers[k] = v; return this; },
-      send(body) { out.body = String(body); return this; },
+      send(body) { out.raw = body; out.body = String(body); return this; },
     };
     await answer({ method, path, url: url ?? path, headers: { host, ...headers }, hostname: host, get: h => headers[h] }, res);
     return out;
@@ -212,7 +213,7 @@ describe("pages not drawn yet", () => {
     ADDRESSES["press-e.example"] = "press-e";
     try {
       const { ask } = door({ shell: SHELL, routeCheck: live });
-      const out = await ask("press-e.example", "/books/new-one/");
+      const out = await ask("press-e.example", "/books/new-one");
       expect(out.status).toBe(200);
       expect(out.body).toContain('<meta property="og:url" content="https://press-e.example/books/new-one" />');
       expect(out.body).toContain('<link rel="canonical" href="https://press-e.example/books/new-one" />');
@@ -256,5 +257,45 @@ describe("pages not drawn yet", () => {
     const robots = (await ask("press-a.example", "/robots.txt")).body;
     for (const route of ["admin", "checkout", "account", "wishlist", "track"]) expect(robots).toContain(`Disallow: /${route}\n`);
     expect(robots).toContain("Sitemap: https://press-a.example/sitemap.xml");
+  });
+});
+
+describe("one address per page", () => {
+  it("moves a page asked for with a trailing slash to the one without, keeping the query", async () => {
+    const { ask } = door();
+    const out = await ask("press-a.example", "/books/night-buses/", "GET", { url: "/books/night-buses/?ref=ig" });
+    expect(out.status).toBe(301);
+    expect(out.headers.Location).toBe("https://press-a.example/books/night-buses?ref=ig");
+    // On another of the shop's addresses: one hop, straight to the main address without the slash.
+    expect((await ask("press-a.shops.example", "/books/night-buses/")).headers.Location).toBe("https://press-a.example/books/night-buses");
+    expect((await ask("press-a.example", "/")).status).toBe(200);
+    expect((await ask("press-a.example", "/books/night-buses/", "GET", { url: "/books/night-buses/?preview=true" })).status).toBe(200);
+  });
+});
+
+describe("page size", () => {
+  const BIG = `<html><head><title>A</title></head><body>${"<p>A book about night buses.</p>".repeat(200)}</body></html>`;
+  const files = { ...FILES, "shops/press-a/site/books/big.html": BIG };
+  it("sends pages squeezed with brotli or gzip when the visitor takes it, and says so", async () => {
+    const { ask } = door({ files });
+    const br = await ask("press-a.example", "/books/big", "GET", { headers: { "accept-encoding": "gzip, deflate, br" } });
+    expect(br.headers["Content-Encoding"]).toBe("br");
+    expect(br.headers.Vary).toBe("Accept-Encoding");
+    expect(br.raw.length).toBeLessThan(BIG.length / 10);
+    expect(brotliDecompressSync(br.raw).toString()).toBe(BIG);
+    const gz = await ask("press-a.example", "/books/big", "GET", { headers: { "accept-encoding": "gzip" } });
+    expect(gz.headers["Content-Encoding"]).toBe("gzip");
+    expect(gunzipSync(gz.raw).toString()).toBe(BIG);
+  });
+  it("sends it as is to a visitor that can't take it, and small answers always as is", async () => {
+    const { ask } = door({ files });
+    for (const enc of [undefined, "identity", "br;q=0, gzip;q=0"]) {
+      const out = await ask("press-a.example", "/books/big", "GET", { headers: enc ? { "accept-encoding": enc } : {} });
+      expect(out.headers["Content-Encoding"]).toBeUndefined();
+      expect(out.body).toBe(BIG);
+    }
+    const small = await ask("press-a.example", "/books/night-buses", "GET", { headers: { "accept-encoding": "br" } });
+    expect(small.headers["Content-Encoding"]).toBeUndefined();
+    expect(small.body).toBe("<html>A book</html>");
   });
 });

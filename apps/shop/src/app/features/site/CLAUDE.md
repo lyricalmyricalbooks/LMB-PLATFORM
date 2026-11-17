@@ -191,6 +191,8 @@ index.html, so the shell names no shop: title and site name are the template nam
 profile's, points `og:url` and canonical at the page on the main address, drops the static JSON-LD and sets `og:locale`
 `en_US` for USD shops; a page `functions/frontDoorRoutes.js` knows is missing gets 404 + noindex (or the owner's 301).
 Keep `Your Press` in index.html (`scripts/indexShell.test.ts`). `useSEO` sets `og:locale` from `ogLocale` (fr_CA, en_US, en_CA).
+Canonical, `og:url` and JSON-LD links are built on `shopOrigin()` (`lib/canonicalUrl.ts`: the profile's `siteUrl`), never
+`window.location.origin`, so a page opened on another of the shop's addresses still names the main one.
 
 **Rich results (October 2026):** pages emit one JSON-LD `@graph` — home BookStore+WebSite, book Product/Book + breadcrumb + star rating from approved reviews only (`reviewsApi.listApproved`, shared with the reviews section), collection CollectionPage/ItemList, page breadcrumbs (`lib/bookSeo.ts`, `docs/SEO_CRAWLABILITY.md`). The sitemap lists book photos as `image:image`.
 
