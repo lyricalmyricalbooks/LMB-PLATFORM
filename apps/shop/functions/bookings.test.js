@@ -810,6 +810,11 @@ describe("group classes", () => {
     // Next week's class is open again; a week long past reads as this week.
     expect((await t.pub({ action: "classTimetable", from: "2026-11-23" })).body.sessions).toEqual([{ classId: id, day: "2026-11-28", start: at("2026-11-28", "14:00"), left: 3 }]);
     expect((await t.pub({ action: "classTimetable", from: "2020-01-01" })).body.from).toBe("2026-11-16");
+    // Nothing is listed past the last day Book a time offers: with 6 days ahead that is Saturday the 21st, with 5 it is Friday.
+    await t.adm({ op: "saveSettings", settings: { live: true, maxDaysAhead: 6 } });
+    expect((await t.pub({ action: "classTimetable", from: "2026-11-16" })).body).toMatchObject({ lastDay: "2026-11-21", sessions: [{ day: "2026-11-21" }] });
+    await t.adm({ op: "saveSettings", settings: { live: true, maxDaysAhead: 5 } });
+    expect((await t.pub({ action: "classTimetable", from: "2026-11-16" })).body).toMatchObject({ lastDay: "2026-11-20", sessions: [] });
     // Bookings paused: nothing to show.
     await t.adm({ op: "setLive", live: false });
     expect((await t.pub({ action: "classTimetable" })).body).toEqual({ on: false });

@@ -1306,7 +1306,8 @@ function bookingActions({
         if (!settings.live || !(await classesOn(db))) return res.status(200).json({ on: false });
         const list = (await readServices()).filter(onTimetable);
         const today = dayOf(nowMs, zone());
-        const lastDay = addDays(today, settings.maxDaysAhead);
+        // The last day Book a time's picker offers (BookTime.tsx), so every class listed can be signed up for from its button.
+        const lastDay = addDays(today, Math.max(0, settings.maxDaysAhead - 1));
         const asked = isDay(req.body?.from) ? req.body.from : today;
         const from = asked < addDays(today, -6) ? today : asked > lastDay ? lastDay : asked;
         const days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
@@ -1314,6 +1315,7 @@ function bookingActions({
         const busy = busyFrom(snaps, nowMs, "");
         const sessions = [];
         for (const day of days) for (const s of list) {
+          if (day > lastDay) continue;
           for (const ms of freeTimes({ service: s, settings, busy, day, zone: zone(), nowMs })) sessions.push({ classId: s.id, day, start: new Date(ms).toISOString(), left: classPlacesLeft(ms, s, settings, busy) });
           for (const ms of fullClassTimes(s, settings, busy, day, nowMs)) sessions.push({ classId: s.id, day, start: new Date(ms).toISOString(), left: 0 });
         }
