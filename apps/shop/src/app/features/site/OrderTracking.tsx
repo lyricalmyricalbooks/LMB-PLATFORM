@@ -19,6 +19,8 @@ import { useSiteData } from "./useSiteData";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy, CopyError, copyErrorText } from "./storeCopy";
+import { pickupWhen } from "./pickupTimes";
+import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox, REQUESTS_ANCHOR } from "./OrderRequests";
@@ -428,6 +430,7 @@ function OrderTrackingContent() {
                   {(isPickup ? fulfillment.address : fulfillment.destination) && <address className="not-italic text-sm leading-6 fm-muted">
                     {(() => { const a = isPickup ? fulfillment.address : fulfillment.destination; return [a.street, a.unit, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "); })()}
                   </address>}
+                  {isPickup && fulfillment.pickupAt && <p className="text-sm" data-pickup-at>{getCopy(settings?.design, "trackPickupTime")}: <span translate="no">{pickupWhen(fulfillment.pickupAt, shopTimeZone())}</span></p>}
                   {fulfillment.hours && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackFulfillmentHours")}: {fulfillment.hours}</p>}
                   {fulfillment.estimate && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackFulfillmentEstimate")}: {fulfillment.estimate}</p>}
                   {fulfillment.instructions && <p className="whitespace-pre-wrap text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackFulfillmentInstructions")}: {fulfillment.instructions}</p>}

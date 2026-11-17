@@ -1045,12 +1045,19 @@ function shippingEstimateOf(days, terms) {
 // charges the one the customer selected (order.shippingMethod), else the
 // cheapest. Profiles without zones keep the legacy flat calculation. Returns
 // { cost, method } or throws when the destination can't be served.
-async function resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical) {
+async function resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical, orderId = "") {
   const address = order.customer && order.customer.address;
   const selection = order.fulfillmentSelection;
   const physicalItems = items.filter(isPhysicalItem);
   if (selection && selection.method !== 'shipping') {
-    return resolveLocalSelection(settings.localFulfillment, selection, address, discountedPhysical, physicalItems, freeShipping);
+    const local = resolveLocalSelection(settings.localFulfillment, selection, address, discountedPhysical, physicalItems, freeShipping);
+    // Pickup times (Bookings › Hours & rules › Pickup times): the chosen time is checked against the shop's hours and
+    // what is taken, and kept on the order's fulfillment. A shop that doesn't ask for times gets nothing added.
+    if (selection.method === 'pickup' && local.fulfillment) {
+      const time = await bookingDesk.pickupCheck(selection, orderId);
+      if (time.pickupAt) local.fulfillment = { ...local.fulfillment, pickupAt: time.pickupAt };
+    }
+    return local;
   }
   if (!physicalItems.length) {
     if (selection && selection.method !== 'shipping') throw new Error('That fulfillment option is unavailable for digital orders.');
@@ -1446,9 +1453,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
     // A payment link ships for the amount the owner set, or nothing when there is nothing to ship.
     shipResult = link
       ? { cost: link.shipping != null && items.some(isPhysicalItem) ? Math.round(Number(link.shipping) * 100) / 100 : 0, method: link.shipping != null && items.some(isPhysicalItem) ? "Shipping" : null, fulfillment: null }
-      : await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
+      : await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical, orderId);
   } catch (err) {
-    throw new PricingError(err.message, err.code === "shipping_rates_changed" ? err.code : undefined);
+    throw new PricingError(err.message, err.code === "shipping_rates_changed" || err.pickupTime ? err.code : undefined);
   }
   const shipping = shipResult.cost;
   let tax, taxLines;
@@ -3307,6 +3314,15 @@ function escapeHtml(value) {
 const localMethodOf = order => order?.fulfillment?.method || order?.fulfillmentSelection?.method || "";
 const isLocalOrder = order => ["pickup", "local_delivery"].includes(localMethodOf(order));
 
+// Pickup times (bookings.js pickupCheck): "Pickup time: Tuesday, November 17, 2:30 p.m." in the shop's time zone.
+function pickupTimeLine(pickupAt, say = text => text) {
+  const at = new Date(String(pickupAt || ""));
+  if (!pickupAt || !Number.isFinite(at.getTime())) return "";
+  const locale = say("Shipping") !== "Shipping" ? "fr-CA" : "en-CA";
+  const when = new Intl.DateTimeFormat(locale, { timeZone: shopTimeZone(), weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+  return `${say("Pickup time:")} ${when}`;
+}
+
 function deliveryDetails(order, say = text => text) {
   const local = order.fulfillment || {};
   if (local.method === "pickup") {
@@ -3315,7 +3331,7 @@ function deliveryDetails(order, say = text => text) {
       heading: say("Pickup"),
       method: local.name || say("Pickup"),
       estimate: local.estimate || "",
-      lines: [local.name, [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "), local.hours, local.estimate, say("We'll email you when your order is ready to collect.")].filter(Boolean),
+      lines: [local.name, [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "), pickupTimeLine(local.pickupAt, say), local.hours, local.estimate, say("We'll email you when your order is ready to collect.")].filter(Boolean),
     };
   }
   if (local.method === "local_delivery") {
@@ -3793,6 +3809,7 @@ async function handleOrderUpdated(event) {
           ${risoButton(adminOrderUrl, "Fulfil this order &rarr;", notificationSettings.brand?.brandColor, notificationSettings.brand?.emailTheme)}
           <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;${order.customer.phone ? ` · ${escapeHtml(order.customer.phone)}` : ""}</p>
           <p><strong>Ship to:</strong> ${escapeHtml(adminAddr)}</p>
+          ${order.fulfillment?.method === "pickup" && order.fulfillment.pickupAt ? `<p><strong>${escapeHtml(pickupTimeLine(order.fulfillment.pickupAt))}</strong></p>` : ""}
           <p><strong>Payment:</strong> ${escapeHtml(paymentMethodLabel(order.paymentMethod))}</p>
           ${preorderLines.length ? `<p><strong>Pre-order:</strong> ${preorderLines.map(escapeHtml).join(" ")} It waits in Orders › Awaiting release until then.</p>` : ""}
           ${itemsTable}

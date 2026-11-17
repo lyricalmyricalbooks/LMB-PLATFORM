@@ -730,3 +730,31 @@ test('payment links: a card order to the rest of the shop, the owner sets the qu
   expect(free.code).toBe(400);
   expect(free.value.error).toMatch(/0\.50/);
 });
+
+// ── Pickup times (Bookings › Hours & rules › Pickup times) ─────────────────────────────────────────────────────────────
+test('pickup times: checkout keeps a free time on the order and refuses a missing or closed one with a code', async () => {
+  const { zonedTime, dayOf } = realRequire('./shared/bookingTimes');
+  const zone = 'America/Toronto';
+  const day = dayOf(Date.now() + 36 * 3600 * 1000, zone);
+  const open = Array.from({ length: 7 }, () => [{ start: '09:00', end: '21:00' }]);
+  const app = harness({ docs: {
+    settings: baseSettings(),
+    platform: { features: { bookings: true } },
+    bookingSettings: { main: { hours: open, pickupTimes: true, pickupSlotMinutes: 30, pickupPerSlot: 1, pickupReadyHours: 0 } },
+  } });
+  const physical = [{ id: 'book', quantity: 1, price: 30, format: 'Paperback' }];
+  const order = (pickupAt) => ({ customer: { billingAddress: { country: 'Canada', state: 'ON' } }, fulfillmentSelection: { method: 'pickup', optionId: 'pickup:shop', ...(pickupAt ? { pickupAt } : {}) } });
+  const noon = new Date(zonedTime(day, '12:00', zone)).toISOString();
+  const kept = await app.resolveShipping(physical, order(noon), [], false, app.docs.settings.website, 30, 'o1');
+  expect(kept.fulfillment).toMatchObject({ method: 'pickup', name: 'Shop', pickupAt: noon });
+  await expect(app.resolveShipping(physical, order(''), [], false, app.docs.settings.website, 30)).rejects.toMatchObject({ code: 'pickup_time' });
+  const late = new Date(zonedTime(day, '22:00', zone)).toISOString();
+  await expect(app.resolveShipping(physical, order(late), [], false, app.docs.settings.website, 30)).rejects.toMatchObject({ code: 'pickup_closed' });
+  // A paid order already holds noon (one per slot): the next shopper is told it's full.
+  app.docs.orders = { o1: { paymentStatus: 'paid', status: 'processing', fulfillment: { method: 'pickup', pickupAt: noon } } };
+  await expect(app.resolveShipping(physical, order(noon), [], false, app.docs.settings.website, 30, 'o2')).rejects.toMatchObject({ code: 'pickup_full' });
+  // With the switch off, pickup works as before and nothing is added.
+  app.docs.bookingSettings.main.pickupTimes = false;
+  const plain = await app.resolveShipping(physical, order(''), [], false, app.docs.settings.website, 30);
+  expect(plain.fulfillment.pickupAt).toBeUndefined();
+});

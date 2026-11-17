@@ -56,6 +56,7 @@ const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isFreeTime, placesLeft, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
+  pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
 } = require("./shared/bookingTimes");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
@@ -984,6 +985,49 @@ function bookingActions({
 
   // ── Customers (validateDiscountCode actions; no sign-in) ───────────────────────────────────────────────────────
 
+  // ── Pickup times at checkout (phase 4) ─────────────────────────────────────────────────────────────────────────────
+  // With Hours & rules › Pickup times on, a shopper who picks up chooses a time inside the opening hours. The order keeps
+  // it as `fulfillment.pickupAt` (ISO), set by index.js resolveShipping through `pickupCheck`, so no new record or rule.
+  // A slot counts the paid, uncancelled orders in it plus unpaid ones started in the last PICKUP_UNPAID_HOURS (a checkout
+  // still under way), so two shoppers rarely race for the last place and an abandoned bag never blocks one for long.
+  async function pickupTaken(fromMs, toMs, skipOrderId = "") {
+    const snap = await db.collection("orders")
+      .where("fulfillment.pickupAt", ">=", new Date(fromMs).toISOString())
+      .where("fulfillment.pickupAt", "<", new Date(toMs).toISOString())
+      .limit(2000).get();
+    const nowMs = now().getTime();
+    const taken = {};
+    for (const d of snap.docs) {
+      if (d.id === skipOrderId) continue;
+      const o = d.data() || {};
+      if (o.status === "cancelled" || /refund/.test(String(o.paymentStatus || ""))) continue;
+      if (o.paymentStatus !== "paid" && !(nowMs - whenMs(o.createdAt) < PICKUP_UNPAID_HOURS * HOUR)) continue;
+      const start = Date.parse(o.fulfillment.pickupAt);
+      if (Number.isFinite(start)) taken[String(start)] = (taken[String(start)] || 0) + 1;
+    }
+    return taken;
+  }
+  /** Whether this shop asks for pickup times, and its rules: null when Bookings or the switch is off. */
+  async function pickupRules() {
+    if (!(await featureOn())) return null;
+    const settings = await readSettings();
+    return settings.pickupTimes ? settings : null;
+  }
+  /**
+   * The checkout's check (index.js resolveShipping, pickup only): `{ pickupAt }` to keep on the order's fulfillment, `{}`
+   * when the shop doesn't ask for times, or throws PickupTimeProblem with the shopper's words.
+   */
+  async function pickupCheck(selection, orderId = "") {
+    const settings = await pickupRules();
+    if (!settings) return {};
+    const start = Date.parse(String(selection?.pickupAt || ""));
+    if (!selection?.pickupAt) throw new PickupTimeProblem("Please choose a pickup time.", "pickup_time");
+    const taken = Number.isFinite(start) ? (await pickupTaken(start, start + 1, orderId))[String(start)] || 0 : 0;
+    const problem = pickupTimeProblem({ settings, zone: zone(), nowMs: now().getTime(), start, taken });
+    if (problem) throw new PickupTimeProblem(PICKUP_MESSAGES[problem], `pickup_${problem}`);
+    return { pickupAt: new Date(start).toISOString() };
+  }
+
   async function handlePublic(req, res) {
     const action = req.body?.action;
     res.set("Cache-Control", "private, no-store");
@@ -992,6 +1036,16 @@ function bookingActions({
       if (!(await featureOn())) return res.status(200).json({ on: false });
       const settings = await readSettings();
       const nowMs = now().getTime();
+      if (action === "pickupTimes") {
+        // Checkout's pickup times: on with the switch alone (the Book a time page may stay closed).
+        if (!settings.pickupTimes) return res.status(200).json({ on: false });
+        const today = dayOf(nowMs, zone());
+        const taken = await pickupTaken(zonedTime(today, "00:00", zone()), zonedTime(addDays(today, PICKUP_DAYS_AHEAD + 1), "00:00", zone()));
+        const slots = pickupSlots({ settings, zone: zone(), nowMs, taken });
+        const days = {};
+        for (const [day, list] of Object.entries(slots)) days[day] = list.map((ms) => new Date(ms).toISOString());
+        return res.status(200).json({ on: true, zone: zone(), slotMinutes: settings.pickupSlotMinutes, days });
+      }
       if (action === "bookingInfo") {
         if (!settings.live) return res.status(200).json({ on: false });
         const list = (await readServices()).filter((s) => s.active);
@@ -1862,8 +1916,23 @@ function bookingActions({
     return { asked };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, sweepTips, featureOn };
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, sweepTips, featureOn, pickupCheck };
 }
+
+/** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
+class PickupTimeProblem extends Error {
+  constructor(message, code) { super(message); this.name = "PickupTimeProblem"; this.code = code; this.pickupTime = true; }
+}
+/** How long an unpaid checkout keeps its place in a pickup slot. */
+const PICKUP_UNPAID_HOURS = 2;
+/** A stored time (Firestore Timestamp, Date, ISO text or milliseconds) in milliseconds; 0 when unreadable. */
+const whenMs = (v) => {
+  if (!v) return 0;
+  if (typeof v.toMillis === "function") return v.toMillis();
+  if (v instanceof Date) return v.getTime();
+  const n = typeof v === "number" ? v : Date.parse(String(v));
+  return Number.isFinite(n) ? n : 0;
+};
 
 /**
  * The owner's calendar feed for frontDoor.js: every booking from a month back, as one calendar Google or Apple Calendar
@@ -1910,6 +1979,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingPackBuy", "bookingPackView", "bookingPack"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
-module.exports = { bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
+module.exports = { PickupTimeProblem, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

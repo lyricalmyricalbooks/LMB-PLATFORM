@@ -1337,3 +1337,16 @@ at }` from the same paid page and sends `restPaid` (naming the tip) or `tipPaid`
 kind `tip` once, `TIP_ASK_HOURS` (2) after a visit ends, with its own key (`tipKeyHash` in `keyFits`); it queries only the
 `end` range (no extra index) and checks the rest in code. `tipTaken` is never in `cardTaken`/`moneyTaken`, so refunds
 leave a tip alone (the rest's refund is capped at `restTaken` even when the same payment carried the tip).
+
+**Pickup times at checkout (17 November 2026, Bookings plan phase 4).** Settings `pickupTimes`, `pickupSlotMinutes`
+(`PICKUP_SLOT_MINUTES`), `pickupPerSlot` (1 to `MAX_PICKUP_PER_SLOT`) and `pickupReadyHours` (0 to 72) in
+`bookingSettings/main` (Bookings › Hours & rules › Pickup times); they work only with the `platform/features.bookings`
+switch on, and need no `live`. Slots come from the opening hours and days off (`pickupSlots` / `pickupTimeProblem` in the
+shared `bookingTimes`, `PICKUP_DAYS_AHEAD` days). Public action `pickupTimes` lists the open ones; a slot is full when
+`pickupPerSlot` orders hold it: paid, uncancelled, unrefunded orders, and unpaid ones created in the last
+`PICKUP_UNPAID_HOURS` (`pickupTaken`, two range filters on `fulfillment.pickupAt`, no new index). `resolveShipping`
+calls `bookingDesk.pickupCheck(selection, orderId)` for pickup on every price, skipping the order itself, and throws a
+`PickupTimeProblem` (`pickup_time`, `pickup_closed`, `pickup_too_soon`, `pickup_full`, `pickup_too_far`), which
+`priceOrder` and `checkoutPayment.js` pass through with its code. The time is saved as `fulfillment.pickupAt` (ISO) and
+shown in the order emails (`pickupTimeLine`, shop time zone), the workbench and the tracking page. No rule change: it
+rides in `fulfillmentSelection.pickupAt`. Tests: bookings.test.js › pickup times at checkout, r2Payments.test.js.

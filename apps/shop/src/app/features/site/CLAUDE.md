@@ -854,3 +854,13 @@ sits above the Pay button: each percent with its amount, **No tip** (only when p
 Pay button adds the tip. With nothing left to pay but `canTip` (the "Add a tip" email's link), it starts on the middle
 choice and the button is `bookTimeTipAdd`. A given tip shows `bookTimeTipPaid`. Words `bookTimeTip*` (Text & labels ›
 Bookings page › Payments, tips & card on file; French twins).
+
+## Pickup times at checkout (17 November 2026)
+
+When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),
+checkout asks `pickupTimes` once the shopper picks a pickup option (`pickupTimes.ts` `loadPickupTimes`; any failure means
+"no time asked", so checkout never blocks on it; the Studio preview shows `samplePickupTimes`). `PickupTimePicker.tsx`
+(region `checkoutFulfillment`, styles in `checkoutSlipStyle.ts` `fm-co-pickup-*`, words Text & labels › Checkout
+`coPickupTime*`) shows days, then that day's times; the chosen time goes out as `fulfillmentSelection.pickupAt`. Pay
+refuses without one, and a server refusal with a pickup code clears the time, reloads the list and says
+`coPickupTimeGone`. The tracking page shows the time (`trackPickupTime`).

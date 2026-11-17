@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
-  secondReminderDue, summaryDue,
+  secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -340,5 +340,45 @@ describe("packs of visits", () => {
     const { balanceDue, cardAsk, moneyTaken, restPayable } = await import("./bookingTimes");
     const b = { payment: "pack", priceMinor: 0, status: "confirmed" };
     expect([balanceDue(b), cardAsk(b), moneyTaken(b), restPayable(b)]).toEqual([0, 0, 0, false]);
+  });
+});
+
+describe("pickup times", () => {
+  const zone = "America/Toronto";
+  // Monday 2026-11-23, 08:00 in Toronto. Default hours: Monday to Friday, ten to five.
+  const now = zonedTime("2026-11-23", "08:00", zone);
+  const settings = cleanBookingSettings({ pickupTimes: true, pickupSlotMinutes: 60, pickupPerSlot: 2, pickupReadyHours: 3 });
+
+  it("cleans the pickup settings and keeps them off by default", () => {
+    expect(cleanBookingSettings({}).pickupTimes).toBe(false);
+    const odd = cleanBookingSettings({ pickupTimes: "yes", pickupSlotMinutes: 20, pickupPerSlot: 99, pickupReadyHours: -4 });
+    expect(odd).toMatchObject({ pickupTimes: false, pickupSlotMinutes: 30, pickupPerSlot: MAX_PICKUP_PER_SLOT, pickupReadyHours: 0 });
+  });
+
+  it("offers slots inside opening hours, after the ready time, for two weeks", () => {
+    const slots = pickupSlots({ settings, zone, nowMs: now });
+    // Ready from 11:00; hourly slots ending by 17:00 → 11, 12, 13, 14, 15, 16.
+    expect(slots["2026-11-23"]).toEqual(["11:00", "12:00", "13:00", "14:00", "15:00", "16:00"].map((t) => zonedTime("2026-11-23", t, zone)));
+    expect(slots["2026-11-28"]).toBeUndefined(); // Saturday, closed
+    expect(Object.keys(slots).every((d) => d <= addDays("2026-11-23", PICKUP_DAYS_AHEAD - 1))).toBe(true);
+    expect(Object.keys(slots)).toHaveLength(10);
+  });
+
+  it("drops full slots and days off", () => {
+    const eleven = zonedTime("2026-11-23", "11:00", zone);
+    const slots = pickupSlots({ settings: { ...settings, daysOff: ["2026-11-24"] }, zone, nowMs: now, taken: { [String(eleven)]: 2 } });
+    expect(slots["2026-11-23"][0]).toBe(zonedTime("2026-11-23", "12:00", zone));
+    expect(slots["2026-11-24"]).toBeUndefined();
+  });
+
+  it("explains why a time can't be taken", () => {
+    const at = (day: string, t: string) => zonedTime(day, t, zone);
+    expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-11-23", "12:00") })).toBeNull();
+    expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-11-23", "12:30") })).toBe("closed");
+    expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-11-28", "12:00") })).toBe("closed");
+    expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-11-23", "10:00") })).toBe("too_soon");
+    expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-12-09", "12:00") })).toBe("too_far");
+    expect(pickupTimeProblem({ settings, zone, nowMs: now, start: at("2026-11-23", "12:00"), taken: 2 })).toBe("full");
+    expect(pickupTimeProblem({ settings, zone, nowMs: now, start: NaN })).toBe("closed");
   });
 });

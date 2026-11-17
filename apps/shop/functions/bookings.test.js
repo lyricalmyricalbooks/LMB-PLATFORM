@@ -1591,3 +1591,59 @@ describe("packs of visits", () => {
     expect((await t.adm({ op: "packClose", id: list[0].id })).statusCode).toBe(409);
   });
 });
+
+describe("pickup times at checkout", () => {
+  const pickupOn = async (t, extra = {}) => {
+    const s = (await t.db.collection("bookingSettings").doc("main").get()).data();
+    await t.db.collection("bookingSettings").doc("main").set({ ...s, pickupTimes: true, pickupSlotMinutes: 60, pickupPerSlot: 2, pickupReadyHours: 2, ...extra });
+  };
+  const order = (id, day, hhmm, fields = {}) => ({ id, data: { paymentStatus: "paid", status: "processing", createdAt: "2026-11-16T12:00:00Z", fulfillment: { method: "pickup", pickupAt: at(day, hhmm) }, ...fields } });
+
+  test("answers off until the owner turns pickup times on, even with Bookings on", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.pub({ action: "pickupTimes" })).body).toEqual({ on: false });
+    expect(await t.desk.pickupCheck({ method: "pickup", optionId: "pickup:shop" })).toEqual({});
+    const off = setup({ on: false });
+    await off.seed();
+    await pickupOn(off);
+    expect(await off.desk.pickupCheck({ method: "pickup", optionId: "pickup:shop" })).toEqual({});
+  });
+
+  test("lists the free times by day, leaving out full ones and counting only live orders", async () => {
+    const t = setup({ live: false });
+    await t.seed();
+    await pickupOn(t);
+    for (const o of [
+      order("o1", "2026-11-16", "11:00"),
+      order("o2", "2026-11-16", "11:00", { paymentStatus: "unpaid", createdAt: "2026-11-16T12:30:00Z" }), // a checkout under way
+      order("o3", "2026-11-16", "12:00", { status: "cancelled" }),
+      order("o4", "2026-11-16", "12:00", { paymentStatus: "refunded" }),
+      order("o5", "2026-11-16", "12:00", { paymentStatus: "unpaid", createdAt: "2026-11-16T09:00:00Z" }), // abandoned
+      order("o6", "2026-11-16", "12:00"),
+    ]) await t.db.collection("orders").doc(o.id).set(o.data);
+    const r = await t.pub({ action: "pickupTimes" });
+    expect(r.body).toMatchObject({ on: true, zone: ZONE, slotMinutes: 60 });
+    // 08:00 now, ready from 10:00; 11:00 holds two orders (full), 12:00 only one counts.
+    expect(r.body.days["2026-11-16"]).toEqual(["10:00", "12:00", "13:00", "14:00", "15:00", "16:00"].map((h) => at("2026-11-16", h)));
+    expect(r.body.days["2026-11-21"]).toBeUndefined();
+  });
+
+  test("checkout keeps a free time and refuses a closed, full or missing one in plain words", async () => {
+    const t = setup();
+    await t.seed();
+    await pickupOn(t);
+    await t.db.collection("orders").doc("o1").set(order("o1", "2026-11-16", "14:00").data);
+    await t.db.collection("orders").doc("o2").set(order("o2", "2026-11-16", "14:00").data);
+    const sel = (pickupAt) => ({ method: "pickup", optionId: "pickup:shop", pickupAt });
+    expect(await t.desk.pickupCheck(sel(at("2026-11-17", "15:00")))).toEqual({ pickupAt: at("2026-11-17", "15:00") });
+    await expect(t.desk.pickupCheck(sel(""))).rejects.toMatchObject({ code: "pickup_time", pickupTime: true });
+    await expect(t.desk.pickupCheck(sel(at("2026-11-16", "14:00")))).rejects.toMatchObject({ code: "pickup_full" });
+    await expect(t.desk.pickupCheck(sel(at("2026-11-16", "09:00")))).rejects.toMatchObject({ code: "pickup_closed" });
+    await expect(t.desk.pickupCheck(sel(at("2026-11-16", "09:00")))).rejects.toMatchObject({ code: "pickup_closed" });
+    await expect(t.desk.pickupCheck(sel(at("2026-11-16", "10:00")))).resolves.toEqual({ pickupAt: at("2026-11-16", "10:00") });
+    await expect(t.desk.pickupCheck(sel(at("2026-11-16", "09:30")))).rejects.toMatchObject({ code: "pickup_closed" });
+    // The order being re-priced never counts against its own time.
+    expect(await t.desk.pickupCheck(sel(at("2026-11-16", "14:00")), "o1")).toEqual({ pickupAt: at("2026-11-16", "14:00") });
+  });
+});
