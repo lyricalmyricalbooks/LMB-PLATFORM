@@ -787,6 +787,67 @@ describe("group classes", () => {
     expect((await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-21", days: 1 })).body.days["2026-11-21"]).toEqual([]);
   });
 
+  test("the website's Timetable lists a week of classes with places left, only while the shop sells Classes", async () => {
+    const { t, id } = await withClass();
+    const sell = async () => {
+      await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
+      await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    };
+    // Bookings alone is not Classes: the page answers off.
+    expect((await t.pub({ action: "classTimetable" })).body).toEqual({ on: false });
+    await sell();
+    const week = (await t.pub({ action: "classTimetable", from: "2026-11-16" })).body;
+    expect(week).toMatchObject({ on: true, today: "2026-11-16", from: "2026-11-16", zone: expect.any(String), currency: expect.any(String) });
+    // Only the class is listed (not the ordinary services), once, on its Saturday.
+    expect(week.classes).toEqual([expect.objectContaining({ id, name: "Riso workshop", minutes: 120, places: 3 })]);
+    const start = at("2026-11-21", "14:00");
+    expect(week.sessions).toEqual([{ classId: id, day: "2026-11-21", start, left: 3 }]);
+    // Places go down as people sign up, and a full class stays listed with none left (for the waiting list).
+    for (const n of [1, 2]) await t.pub({ action: "bookingStart", serviceId: id, start, ...person(n) });
+    expect((await t.pub({ action: "classTimetable", from: "2026-11-16" })).body.sessions).toEqual([{ classId: id, day: "2026-11-21", start, left: 1 }]);
+    await t.pub({ action: "bookingStart", serviceId: id, start, ...person(3) });
+    expect((await t.pub({ action: "classTimetable", from: "2026-11-16" })).body.sessions).toEqual([{ classId: id, day: "2026-11-21", start, left: 0 }]);
+    // Next week's class is open again; a week long past reads as this week.
+    expect((await t.pub({ action: "classTimetable", from: "2026-11-23" })).body.sessions).toEqual([{ classId: id, day: "2026-11-28", start: at("2026-11-28", "14:00"), left: 3 }]);
+    expect((await t.pub({ action: "classTimetable", from: "2020-01-01" })).body.from).toBe("2026-11-16");
+    // Bookings paused: nothing to show.
+    await t.adm({ op: "setLive", live: false });
+    expect((await t.pub({ action: "classTimetable" })).body).toEqual({ on: false });
+  });
+
+  test("the website learns when to show its Classes links: Classes on, bookings on, and a class with weekly times", async () => {
+    const t = setup();
+    await t.seed();
+    const site = async () => (await t.db.collection("settings").doc("website").get()).data();
+    await t.db.collection("settings").doc("website").set({ design: {} });
+    await t.adm({ op: "setLive", live: true });
+    expect((await site()).classesLive).toBeUndefined();
+    // The owner switches Classes on in Ways to sell (the page then sends `hint`): still no class to show.
+    await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    await t.adm({ op: "hint" });
+    expect((await site()).classesLive).toBeUndefined();
+    const saved = await t.adm({ op: "saveService", service: { name: "Riso workshop", minutes: 120, places: 3, classTimes: [{ weekday: 6, time: "14:00" }] } });
+    expect((await site()).classesLive).toBe(true);
+    // Pausing bookings, deleting the class or switching Classes off each take the link down.
+    await t.adm({ op: "setLive", live: false });
+    expect(await site()).toMatchObject({ classesLive: false, bookingsLive: false });
+    await t.adm({ op: "setLive", live: true });
+    expect((await site()).classesLive).toBe(true);
+    await t.db.collection("firstWeek").doc("start").set({ ways: {} });
+    await t.adm({ op: "hint" });
+    expect(await site()).toMatchObject({ classesLive: false, bookingsLive: true });
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    await t.adm({ op: "hint" });
+    expect((await site()).classesLive).toBe(true);
+    await t.adm({ op: "deleteService", id: saved.body.service.id });
+    expect((await site()).classesLive).toBe(false);
+    // With the engine off altogether the hint still answers, and both links come down.
+    await t.db.collection("platform").doc("features").set({});
+    expect((await t.adm({ op: "hint" })).statusCode).toBe(200);
+    expect(await site()).toMatchObject({ classesLive: false, bookingsLive: false });
+  });
+
   test("the last place goes to one of two people asking at once", async () => {
     const { t, id } = await withClass({ places: 2 });
     const start = at("2026-11-21", "14:00");

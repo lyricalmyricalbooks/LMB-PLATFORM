@@ -1550,3 +1550,12 @@ Bookings service with more than one place, so places, waiting lists, packs, depo
 Classes is allowed by the platform and switched on by the owner (`waysAllowed` / `waysOn`). `featureOn()` and both
 calendar feeds read it. Never add a second places ledger or payment path for classes; add to the booking engine.
 `built` stays false in `shared/ways/ways.js` until the website's Timetable page ships (C1b).
+
+**The website's Timetable (C1b, `tasks/todo/2026-11-17-classes-timetable-website.md`):** public action `classTimetable`
+(`{ from }`, always seven days) answers `{ on, zone, currency, today, from, lastDay, classes, sessions }`; `on` is false
+unless the shop takes bookings (`settings.live`) and `classesOn(shop)` (both Classes switches). Only classes that are
+active and have weekly times are listed (`onTimetable`); a full time stays listed with `left: 0` for the waiting list.
+It only reads: signing up is still `bookingStart`. `tellWebsite(live)` now also keeps `settings/website.classesLive`
+(Classes on, bookings live, a class on the timetable) and runs after `saveService`, `deleteService`, the on/off switch
+and admin op `hint`, which Settings › Ways to sell sends when the owner flips Classes and which answers even while the
+engine is off. Classes is `built: true` in `shared/ways/ways.js`.

@@ -71,6 +71,7 @@ export function healthRoutes(i: RouteInput): { routes: HealthRoute[]; skipped: n
     { id: "track", label: "Order tracking", group: "Other", path: "/track" },
     { id: "book", label: "Book a time", group: "Other", path: "/book" },
     { id: "events", label: "Events", group: "Other", path: "/events" },
+    { id: "classes", label: "Classes", group: "Other", path: "/classes" },
     { id: "404", label: "Missing page (404)", group: "Other", path: "/studio-missing-page" },
   );
   return { routes, skipped };

@@ -156,7 +156,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Header layout", keys: ["headerLayout", "headerStyle", "logoPosition", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSocialInMobileMenu", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
     { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds", "announcementCountdown", "announcementCountdownWithin", "announcementDismissible"] },
-    { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderBookings", "hideHeaderEvents", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
+    { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderBookings", "hideHeaderEvents", "hideHeaderClasses", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
   ],
   navlinks: [
     { title: "Link look", keys: ["navLinkColor", "navLinkActiveColor", "navLinkSize", "navLinkWeight", "navLinkSpacing", "navLinkTransform", "navLinkOpacity"] },
@@ -286,7 +286,7 @@ export function changedCounts(groups: StyleGroup[], design: any, defaults: any):
 export const TEXT_HEADINGS: { id: string; title: string; groups: string[] }[] = [
   { id: "everywhere", title: "Across the whole shop", groups: ["Site & sharing", "Header", "Footer", "Newsletter", "Cookie banner", "Sections"] },
   { id: "shop", title: "Shop & book pages", groups: ["Catalog & empty states", "Collection & wishlist pages", "Search & filters", "Product page", "Reviews"] },
-  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Events page", "Customer account"] },
+  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Events page", "Classes page", "Customer account"] },
   { id: "special", title: "Special pages & messages", groups: ["Custom pages & 404", "Loading screen", "Under construction", "Maintenance page"] },
 ];
 
@@ -307,6 +307,7 @@ export const TEXT_BLURBS: Record<string, string> = {
   "Order tracking": "The order-tracking page and its status messages.",
   "Bookings page": "The page where customers book an appointment, and their booking link.",
   "Events page": "The page where customers see your events, get tickets and find their ticket codes.",
+  "Classes page": "The page where customers see your class timetable and pick a class to sign up for.",
   "Customer account": "Sign-in, account pages and their messages.",
   "Custom pages & 404": "Missing-page message and custom-page helper words.",
   "Loading screen": "Words on the loading splash.",

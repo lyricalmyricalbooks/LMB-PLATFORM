@@ -2130,6 +2130,24 @@ await check("the Events page opens in the designer with sample events, its heade
   if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/events-tickets.png` });
 }, "?events=1#designer?t=eventsPage&tab=sections");
 
+await check("the Classes page opens in the designer with a sample week, its header and footer links, and Sign up leads to Book a time", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  // A sample week stands in for the shop's own classes, so the timetable can be designed before a class exists.
+  await frame.locator("[data-store-region=classesSession]").first().waitFor({ timeout: 15000 });
+  await frame.locator("header[data-section=navigation] [data-header-classes]").first().waitFor({ state: "attached", timeout: 5000 });
+  await frame.locator("footer a[href$='/classes'], footer a[href*='/classes?']").first().waitFor({ state: "attached", timeout: 5000 });
+  await frame.locator("[data-store-region=classesSession]").first().click();
+  await expectText(page, "Class: time, places and Sign up");
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/classes-timetable.png` });
+  // In Browse mode: the next week loads, and Sign up hands over to the Book a time page. Nothing reaches a server.
+  await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
+  await frame.locator("[data-store-region=classesWeek] a.fm-cls-arrow").last().click();
+  await frame.locator("[data-store-region=classesWeek] a.fm-cls-arrow").first().waitFor({ timeout: 10000 });
+  await frame.locator("[data-store-region=classesSession] a.fm-track-btn").first().click();
+  await frame.locator("[data-store-region=bookingsIntro], [data-store-region=bookingsTimes], [data-store-region=bookingsServices]").first().waitFor({ timeout: 10000 });
+}, "?classes=1#designer?t=classesPage&tab=sections");
+
 await check("the Book a time form offers Text me reminders, which needs a phone number first", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();

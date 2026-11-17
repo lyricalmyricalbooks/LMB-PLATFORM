@@ -951,3 +951,13 @@ Take a payment or the Fair till (`admin/CheckInDialog.tsx`).
 box after the phone field (region `bookingsTexts`, words Text & labels › Bookings page `bookTimeTextOk`,
 `bookTimeTextOkHint`, `bookTimeTextOkNeedsPhone`, French twins); it is disabled until a phone is typed and is sent as
 `textOk` only with one. Studio's preview shows it (`bookTimePreview.ts` `texts: true`).
+
+## Classes timetable page
+
+`/classes` (`ClassesPage.tsx`, Classes beta, 17 November 2026): the week's classes day by day from the server's
+`classTimetable` (`classesAsk.ts`; Studio's preview gets `classesPreview.ts`). Pure rules in `classesRules.ts`
+(`timetableDays`, `placesState`, `weekStep`, `signUpPath`), look in `classesStyle.ts` on the order slip's classes. Sign
+up and Join the waiting list are links to Book a time (`/book?service=…&day=…`): never add a second sign-up or payment
+path here. Surface `classesPage`, regions `classes*`, words Text & labels › Classes page (English and French). The header
+cap icon (`hideHeaderClasses`), phone menu and footer links show while `settings.classesLive` (`classesLive.ts`).
+Studio check: "the Classes page opens in the designer" in `scripts/studio-e2e.mjs` (`?classes=1`).

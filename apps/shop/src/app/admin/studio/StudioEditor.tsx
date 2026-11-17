@@ -1045,6 +1045,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "trackingPage": return withQ("/track");
       case "bookingsPage": return withQ("/book");
       case "eventsPage": return withQ("/events");
+      case "classesPage": return withQ("/classes");
       case "page": return withQ(`/page/${(sharedPageSlug && pages.some((p) => p.slug === sharedPageSlug) ? sharedPageSlug : pages.find((p) => p.status === "published")?.slug) || ""}`);
       default: {
         const alt = parseAltSurface(template.id);
@@ -1103,7 +1104,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const path = id === "productPage" && productSlug ? productHref(productSlug)
       : id === "collectionPage" && collectionSlug ? `/collections/${collectionSlug}`
       : id === "storefront" ? "/?catalog=true"
-      : ["wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage"].includes(id) ? ({ wishlistPage: "/wishlist", accountPage: "/account", trackingPage: "/track", bookingsPage: "/book", eventsPage: "/events" } as Record<string, string>)[id]
+      : ["wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage"].includes(id) ? ({ wishlistPage: "/wishlist", accountPage: "/account", trackingPage: "/track", bookingsPage: "/book", eventsPage: "/events", classesPage: "/classes" } as Record<string, string>)[id]
       : id === "page" || template.pageSlug ? (new URL(previewUrl).pathname.replace(import.meta.env.BASE_URL.replace(/\/$/, ""), "") || "/")
       : "/";
     return `${base}${path}${path.includes("?") ? "&" : "?"}preview=true`;

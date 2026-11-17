@@ -118,6 +118,15 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "eventsNotice", label: "No events and sold out messages", required: true },
     { id: "eventsGlow", label: "Events page top strip" },
   ] },
+  { id: "classesLayout", title: "Classes · layout & elements", copy: "Classes page", files: ["features/site/ClassesPage.tsx"], regions: [
+    { id: "classesHeader", label: "Classes page navigation" },
+    { id: "classesIntro", label: "Classes heading & description" },
+    { id: "classesWeek", label: "Week and its arrows", required: true },
+    { id: "classesDay", label: "Day heading" },
+    { id: "classesSession", label: "Class: time, places and Sign up", required: true },
+    { id: "classesNotice", label: "No classes and closed messages", required: true },
+    { id: "classesGlow", label: "Classes page top strip" },
+  ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
     { id: "stripePaymentPanel", label: "Stripe payment panel", required: true },
     { id: "stripePaymentHeader", label: "Stripe payment method selector", required: true },

@@ -88,6 +88,17 @@ async function engineOn(shop) {
   return waysOn(data, start?.exists === true ? start.data() : null).includes("classes");
 }
 
+/** Whether the shop sells Classes: the platform allows it and the owner switched it on (shared/waysToSell). */
+async function classesOn(shop) {
+  const features = await shop.collection("platform").doc("features").get().catch(() => null);
+  const data = features?.exists === true ? features.data() : null;
+  if (!waysAllowed(data).includes("classes")) return false;
+  const start = await shop.collection("firstWeek").doc("start").get().catch(() => null);
+  return waysOn(data, start?.exists === true ? start.data() : null).includes("classes");
+}
+/** A class the website's Timetable lists: customers can book it, it has places for a group, and it runs at set weekly times. */
+const onTimetable = (s) => s.active && isClass(s) && s.classTimes.length > 0;
+
 function newPackCode() {
   const bytes = crypto.randomBytes(12);
   let raw = "";
@@ -244,11 +255,19 @@ function bookingActions({
   // the public website settings they already read (`bookingsLive`), so no page asks this server on every visit. Only a
   // hint for showing a link: every booking action above still checks the real switch. A shop with no website settings
   // yet is left alone (a record holding only this would stand in for the starting design).
+  // `classesLive` is the same hint for the Timetable page (/classes): bookings are on, the shop sells Classes and at
+  // least one class runs at set weekly times.
   async function tellWebsite(live) {
     try {
       const ref = db.collection("settings").doc("website");
       const snap = await ref.get();
-      if (snap.exists && (snap.data()?.bookingsLive === true) !== (live === true)) await ref.set({ bookingsLive: live === true }, { merge: true });
+      if (!snap.exists) return;
+      const had = snap.data() || {};
+      const classes = live === true && (await classesOn(db)) && (await readServices()).some(onTimetable);
+      const changes = {};
+      if ((had.bookingsLive === true) !== (live === true)) changes.bookingsLive = live === true;
+      if ((had.classesLive === true) !== classes) changes.classesLive = classes;
+      if (Object.keys(changes).length) await ref.set(changes, { merge: true });
     } catch (err) {
       console.warn("bookings: the website link wasn't updated:", err?.message || err);
     }
@@ -1281,6 +1300,30 @@ function bookingActions({
           })),
         });
       }
+      if (action === "classTimetable") {
+        // The Timetable page (/classes): one week of dated classes with the places left in each. Only while the shop
+        // sells Classes; signing up goes through Book a time (bookingStart), so this only reads.
+        if (!settings.live || !(await classesOn(db))) return res.status(200).json({ on: false });
+        const list = (await readServices()).filter(onTimetable);
+        const today = dayOf(nowMs, zone());
+        const lastDay = addDays(today, settings.maxDaysAhead);
+        const asked = isDay(req.body?.from) ? req.body.from : today;
+        const from = asked < addDays(today, -6) ? today : asked > lastDay ? lastDay : asked;
+        const days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
+        const snaps = await Promise.all([addDays(from, -1), ...days, addDays(from, 7)].map((d) => dayRef(d).get()));
+        const busy = busyFrom(snaps, nowMs, "");
+        const sessions = [];
+        for (const day of days) for (const s of list) {
+          for (const ms of freeTimes({ service: s, settings, busy, day, zone: zone(), nowMs })) sessions.push({ classId: s.id, day, start: new Date(ms).toISOString(), left: classPlacesLeft(ms, s, settings, busy) });
+          for (const ms of fullClassTimes(s, settings, busy, day, nowMs)) sessions.push({ classId: s.id, day, start: new Date(ms).toISOString(), left: 0 });
+        }
+        sessions.sort((a, b) => a.start.localeCompare(b.start) || a.classId.localeCompare(b.classId));
+        return res.status(200).json({
+          on: true, zone: zone(), currency: currency(), today, from, lastDay,
+          classes: list.map(({ id, name, description, minutes, priceMinor, payment, location, places, chargeTax }) => ({ id, name, description, minutes, priceMinor, payment, location, places, ...(chargeTax ? { plusTax: true } : {}) })),
+          sessions,
+        });
+      }
       if (action === "bookingTimes") {
         if (!settings.live) return res.status(200).json({ on: false });
         const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
@@ -1757,6 +1800,13 @@ function bookingActions({
     const op = req.body?.op;
     const by = adminUser.email || "admin";
     try {
+      // The owner flipped a Ways to sell switch (Settings › General): the website's links follow. Answered whether the
+      // engine is on or not, so switching Classes off takes its link down too.
+      if (op === "hint") {
+        const live = (await featureOn()) && (await readSettings()).live === true;
+        await tellWebsite(live);
+        return res.status(200).json({ ok: true });
+      }
       if (!(await featureOn())) return fail(res, 403, "Bookings aren't turned on for this shop.", "off");
       const settings = await readSettings();
       if (op === "saveService") {
@@ -1766,12 +1816,14 @@ function bookingActions({
         const existing = await services().limit(MAX_SERVICES + 1).get();
         if (!existing.docs.some((d) => d.id === id) && existing.docs.length >= MAX_SERVICES) return fail(res, 400, `A shop can have up to ${MAX_SERVICES} services.`);
         await services().doc(id).set({ ...service, updatedAt: now().toISOString(), updatedBy: by });
+        await tellWebsite(settings.live);
         return res.status(200).json({ ok: true, service });
       }
       if (op === "deleteService") {
         const id = String(req.body?.id || "");
         if (!ID.test(id)) return fail(res, 400, "Unknown service.");
         await services().doc(id).delete();
+        await tellWebsite(settings.live);
         return res.status(200).json({ ok: true });
       }
       if (op === "calendarFeed") {
