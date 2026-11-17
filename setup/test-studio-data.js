@@ -40,7 +40,7 @@ const TEST_STUDIO_STAFF = [
 
 const service = (id, order, name, minutes, priceMinor, extra = {}) => ({
   path: `bookingServices/${id}`,
-  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", depositMinor: 0, depositPercent: 0, holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, location: "Test Studio, 1 Test Street", active: true, order, questions: [], places: 1, classTimes: [], chargeTax: false, roomId: "", ...extra },
+  data: { id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor > 0 ? "full" : "free", depositMinor: 0, depositPercent: 0, holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, location: "Test Studio, 1 Test Street", active: true, order, questions: [], places: 1, classTimes: [], chargeTax: false, roomId: "", rebookWeeks: 0, ...extra },
 });
 
 /** The Test Studio's services, hours and sample clients: [{ path, data }]. */
