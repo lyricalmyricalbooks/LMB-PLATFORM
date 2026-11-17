@@ -1680,6 +1680,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
     packCount: String(service.packVisits || 5),
     packPrice: service.packPriceMinor ? (service.packPriceMinor / 100).toFixed(2) : "",
     packLasts: String(service.packDays || 0),
+    // A first-visit price for someone new to the shop, as typed ("" for none).
+    intro: service.introPriceMinor ? (service.introPriceMinor / 100).toFixed(2) : "",
     // Add-ons and options as the owner types them: minutes and price as text until saved.
     extraRows: (service.extras || []).map((e) => ({ id: e.id, name: e.name, minutes: e.minutes ? String(e.minutes) : "", price: e.priceMinor ? (e.priceMinor / 100).toFixed(2) : "" })),
   });
@@ -1704,7 +1706,7 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
     setSaving(true); setProblem("");
     try {
       const priceMinor = Math.round(Number(form.price || 0) * 100);
-      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, extraRows: rows, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, ...rest } = form;
       const sellPack = pack && priceMinor > 0;
       const holdCard = form.holdCard && !paidInFull && !square;
       const share = pay === "deposit" && priceMinor > 0;
@@ -1719,6 +1721,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
         packDays: sellPack ? Number(packLasts) || 0 : 0,
+        packAnyClass: sellPack && !!rest.packAnyClass,
+        introPriceMinor: priceMinor > 0 ? Math.round(Number(intro || 0) * 100) : 0,
         extras: rest.places > 1 || (rest.courseDates || []).length ? [] : rows.filter((x) => x.name.trim()).map((x) => ({
           id: x.id, name: x.name.trim(), minutes: Math.round(Number(x.minutes || 0)), priceMinor: priceMinor > 0 ? Math.round(Number(x.price || 0) * 100) : 0,
         })),
@@ -1765,12 +1769,20 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
           </fieldset>
         )}
         {Number(form.price) > 0 && (
+          <TextField label={`First-visit price (${SHOP_CURRENCY}, optional)`} inputMode="decimal" placeholder="0.00" value={form.intro}
+            hint={Number(form.intro) > 0 ? `People who have never booked with you pay this the first time, then ${moneyText(Math.round(Number(form.price) * 100), SHOP_CURRENCY)}.` : "An intro offer for people who have never booked with you."}
+            onChange={(e) => set("intro", e.target.value.replace(/[^\d.]/g, ""))} />
+        )}
+        {Number(form.price) > 0 && (
           <fieldset className="bkg-questions">
             <legend>Pack of visits</legend>
             <Toggle label="Sell a pack of visits" checked={form.pack} onChange={(v) => set("pack", v)} />
             <p className="bkg-questions-hint">{form.pack
               ? packHint(form.price, form.packCount, form.packPrice)
               : "Customers pay once for several visits, get a code by email and book each visit with it."}</p>
+            {form.pack && group && !course && (
+              <Toggle label="A class pass: use it for any weekly class" checked={!!form.packAnyClass} onChange={(v) => set("packAnyClass", v)} />
+            )}
             {form.pack && (
               <div className="bkg-three">
                 <SelectField label="Visits" value={form.packCount} onChange={(e) => set("packCount", e.target.value)}>

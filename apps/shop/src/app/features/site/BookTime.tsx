@@ -125,12 +125,17 @@ function NewBooking({ c }: { c: Copy }) {
     return () => { gone = true; };
   }, [service?.id, usePack]);
   useEffect(() => setGift(null), [service?.id, applied?.code, picked.join(","), staffId]);
+  // A code or gift card is priced for the email typed when it was applied (someone new pays the first-visit price):
+  // a different email takes them off, so the amount shown is always what booking will charge.
+  const quotedFor = useRef("");
+  const who = form.email.trim().toLowerCase();
+  useEffect(() => { if ((applied || gift) && who !== quotedFor.current) { setApplied(null); setGift(null); } }, [who]);
   useEffect(() => { setApplied(null); setStart(""); if (pricedPicks(listed, picked)) setPack(null); }, [picked.join(",")]);
   // Another person may cost something else: a code is tried again for their price.
   useEffect(() => setApplied(null), [staffId]);
   // A course is signed up for as a whole: its first date is the start, with nothing to pick.
   const course = service?.courseStarts?.length ? service.courseStarts : null;
-  useEffect(() => { if (course && step === "time") setStart(course[0]); }, [service?.id, step]);
+  useEffect(() => { if (course && step === "time") setStart(course[0]); }, [service?.id, step, course?.[0]]);
 
   const load = () => {
     setLoadFailed(false);
@@ -201,7 +206,10 @@ function NewBooking({ c }: { c: Copy }) {
       // Someone took one of the run's dates meanwhile: back to the time, where the dates are checked again.
       if (err?.code === "run_taken") { setStep("time"); setError(c("bookTimeRunGone")); return; }
       if (err?.code === "staff") { setStaffId(""); setStart(""); setStep("time"); setError(c("bookTimeStaffProblem")); return; }
-      if (err?.code === "taken" || err?.code === "started") { setStart(""); setStep("time"); setError(c(course ? (err.code === "started" ? "bookTimeCourseStarted" : "bookTimeCourseFull") : "bookTimeTaken")); return; }
+      if (err?.code === "taken" || err?.code === "started") {
+        // A course past its first date (or full) may now start later: show the fresh dates, not the old first one.
+        if (course) ask("bookingInfo").then((a) => { const fresh = (a as BookingInfo).services?.find((sv) => sv.id === service?.id); if (fresh) { setInfo(a as BookingInfo); setListed(fresh); } }).catch(() => {});
+        setStart(""); setStep("time"); setError(c(course ? (err.code === "started" ? "bookTimeCourseStarted" : "bookTimeCourseFull") : "bookTimeTaken")); return; }
       // The code stopped working meanwhile (used up, ended): take it off so the right price shows, and say so.
       if (err?.code === "code") { setApplied(null); setError(c("bookTimeCodeProblem")); return; }
       // The gift card's balance changed meanwhile: take it off so the right amount shows, and say so.
@@ -247,12 +255,13 @@ function NewBooking({ c }: { c: Copy }) {
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
+                {!!s.introPriceMinor && s.introPriceMinor < s.priceMinor && <span translate="no">{c("bookTimeIntroPrice", { price: moneyText(s.introPriceMinor, currency) })}</span>}
                 {!!s.minPlaces && <span>{c("bookTimeClassMinimum", { count: s.minPlaces })}</span>}
                 {!!s.courseStarts?.length && <span>{s.joining ? c("bookTimeCourseLate", { count: s.courseStarts.length, of: s.joining.of }) : c("bookTimeCourseCount", { count: s.courseStarts.length })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(withTax(s)), currency), rest: moneyText(withTax(s).priceMinor - upFrontMinor(withTax(s)), currency) })}</span>}
                 {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
-                {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: `${moneyText(s.packPriceMinor || 0, currency)}${s.taxMinor ? ` ${c("bookTimePlusTax")}` : ""}` })}</span>}
+                {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: `${moneyText(s.packPriceMinor || 0, currency)}${s.taxMinor ? ` ${c("bookTimePlusTax")}` : ""}` })}{s.packAnyClass ? ` · ${c("bookTimePackAnyClass")}` : ""}</span>}
               </span>
             </button>
           ))}
@@ -309,6 +318,13 @@ function NewBooking({ c }: { c: Copy }) {
         const taxMinor = applied ? applied.taxMinor || 0 : service.taxMinor || 0;
         // What the card page asks for now: what is paid when booked, less any gift card; nothing with a pack.
         const payNow = pack ? 0 : gift ? gift.payNowMinor : upFrontMinor(priced);
+        // A first-visit price is decided by the server from the email (an applied code's quote already has it), so the
+        // page says it may apply instead of naming a total the card page might not ask for.
+        // Like the server: the first-visit price replaces the visit's own price (the chosen person's, if they have one)
+        // and the ticked extras still cost what they cost on top.
+        const ownPrice = listed ? asPerson(listed, peopleFor(info, listed.id).find((p) => p.id === staffId)).priceMinor : service.priceMinor;
+        const extrasMoney = Math.max(0, service.priceMinor - ownPrice);
+        const maybeIntro = !!service.introPriceMinor && service.introPriceMinor < ownPrice && !pack && !applied;
         return (
         <div className="grid gap-8 lg:grid-cols-[1fr_280px] items-start">
           <form {...regionProps("bookingsForm")} onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">
@@ -366,13 +382,13 @@ function NewBooking({ c }: { c: Copy }) {
               <ApplyBox region={regionProps("bookingsCode")} field="bt-code" c={c} words={{ open: "bookTimeCodeOpen", label: "bookTimeCodeLabel", problem: "bookTimeCodeProblem" }}
                 applied={applied ? `${c("bookTimeCodeApplied", { code: applied.code })} · −${moneyText(applied.discountMinor, currency)}` : ""}
                 onRemove={() => setApplied(null)} maxLength={40}
-                onTry={async (typed) => setApplied(await ask("bookingCode", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), code: typed, email: form.email.trim() }) as BookingCode)} />
+                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setApplied(await ask("bookingCode", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), code: typed, email: form.email.trim() }) as BookingCode); }} />
             )}
             {info.giftCards && paysUpFront(priced) && !pack && (
               <ApplyBox region={regionProps("bookingsGiftCard")} field="bt-gift" c={c} words={{ open: "bookTimeGiftOpen", label: "bookTimeGiftLabel", problem: "bookTimeGiftProblem" }}
                 applied={gift ? `${c("bookTimeGiftApplied", { last4: gift.last4 })} · −${moneyText(gift.giftMinor, currency)}` : ""}
                 onRemove={() => setGift(null)} maxLength={40}
-                onTry={async (typed) => setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed })} />
+                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed }); }} />
             )}
             {payNow > 0 && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
@@ -381,6 +397,7 @@ function NewBooking({ c }: { c: Copy }) {
                 : pack ? (service.holdCard ? c("bookTimeSaveCard") : c("bookTimePackBook"))
                 : paysUpFront(priced) && !payNow ? c("bookTimeGiftBook")
                 : takesDeposit(priced) ? c("bookTimePayDeposit", { amount: moneyText(payNow, currency) })
+                : paysUpFront(priced) && maybeIntro ? c("bookTimePayIntro")
                 : paysUpFront(priced) ? c("bookTimePay", { amount: moneyText(payNow, currency) })
                 : service.holdCard ? c("bookTimeSaveCard") : c("bookTimeBook")}
             </button>
@@ -400,6 +417,7 @@ function NewBooking({ c }: { c: Copy }) {
               <span className="fm-track-mono">{c("bookTimePaid")}</span>
               <strong translate="no">{pack ? c("bookTimePackPaid") : priced.priceMinor > 0 ? moneyText(priced.priceMinor, currency) : c("bookTimeFree")}</strong>
             </div>
+            {maybeIntro && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeIntroNote", { price: moneyText((service.introPriceMinor || 0) + extrasMoney, currency) })}</p>}
             {!pack && takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
             {!pack && priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
             {run && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimeRunNote")}</p>}
@@ -601,7 +619,7 @@ function PackOffer({ service, currency, c }: { service: BookingServiceView; curr
   };
   return (
     <section {...regionProps("bookingsPack")} className="fm-track-card fm-book-pack p-5 sm:p-8 mt-6" aria-labelledby="bt-pack-title">
-      <p className="fm-track-mono mb-2" translate="no">{c("bookTimePackOffer", { visits: service.packVisits || 0, price })}</p>
+      <p className="fm-track-mono mb-2" translate="no">{c("bookTimePackOffer", { visits: service.packVisits || 0, price })}{service.packAnyClass ? ` · ${c("bookTimePackAnyClass")}` : ""}</p>
       <h2 id="bt-pack-title" className="fm-track-display text-3xl">{c("bookTimePackTitle")}</h2>
       <p className="mt-3 text-base leading-7" translate="no">
         {c("bookTimePackText", { visits: service.packVisits || 0, price })}
