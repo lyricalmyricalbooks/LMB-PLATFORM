@@ -10,13 +10,17 @@ export type AdminEvent = ShopEvent & {
   /** Tickets checked in at the door so far. */
   arrived?: number;
 };
-/** One paid order of tickets: who bought, what, and each ticket's code for the door. */
+/** One paid order of tickets: who bought, what, and each ticket's code for the door. A refunded order has no tickets left. */
 export type TicketOrder = {
-  id: string; status: "paid"; eventId: string; name: string; email: string; lines: OrderLine[]; ticketCount: number;
+  id: string; status: "paid" | "refunded"; eventId: string; name: string; email: string; lines: OrderLine[]; ticketCount: number;
   totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; tickets: { code: string; ticketId: string; name: string; usedAt?: string }[];
   createdAt: string; paidAt: string; test: boolean;
+  /** Money already sent back, tickets already given back, and when the last one went (a fully refunded order). */
+  refundedMinor?: number; refundedTickets?: number; refundedAt?: string;
 };
-export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets" | "hint" | "checkIn";
+/** What a refund answers: the money sent back and the order as it now stands (`already`: a second tap, nothing new). */
+export type RefundAnswer = { ok: true; already?: boolean; amountMinor: number; order: TicketOrder };
+export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets" | "hint" | "checkIn" | "refund";
 /** What the door hears back for one code: whose ticket it is, and whether it was already used. */
 export type DoorAnswer = {
   ok: true; already: boolean; arrived: number;

@@ -1487,3 +1487,12 @@ later sales). A second scan answers `already: true` and changes nothing; `value:
 and never `usedBy`. `tellWebsite` also writes `eventsLiveUntil` (the end of the last coming event), which the pages use
 to take the Events link down by themselves (`eventsLive.ts` `eventsLiveNow`): still no scheduled job.
 
+**Refunds (E3a, 17 November 2026, `tasks/todo/2026-11-17-events-refunds.md`):** admin op `refund` (`{ orderId, codes?,
+money? }`) gives a paid order's tickets back, all or the ones named; a checked-in ticket is refused (`used`). The amount
+is the shared `refundMinorFor` (ticket prices plus their share of tax; the last tickets return everything still kept),
+sent through `payments.refund` with a key made from the order and its codes, so a second tap is the same refund. Only
+after the money moves does one transaction drop the tickets and `ticketCodes`, free the places (`withReturned`), lower
+`paidMinor` and add to `refunds[]` / `refundedMinor`; with no tickets left the order becomes `refunded` (still listed
+by `orders`, last). A refused refund changes nothing (`refund_failed`); `money: false` cancels without sending money.
+The buyer gets one email (`tellRefund`) and their page shows the refund.
+

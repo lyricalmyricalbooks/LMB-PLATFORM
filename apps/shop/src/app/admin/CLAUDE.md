@@ -1287,3 +1287,8 @@ on-sale event with tickets sold): code box, `ScanBarcodeButton` (QR, `cleanTicke
 an arrived count, per-ticket Check in / Undo and a find box (`findGuests`, `arrivedCount`, `withTicketUsed` in
 `eventsView.ts`). The server decides (`eventsAdmin` op `checkIn`); the list only follows its answer. Fixture:
 `admin-fixture.html?ways=events&page=events` (codes `KRTW-2345`, `MPQZ-2345`).
+
+**Refunds (E3a):** each paid order in the guest list has **Refund** (`RefundDialog` in `Events.tsx`): tick the tickets
+(checked-in ones are locked), choose whether money goes back, and the button names the amount from the shared
+`refundMinorFor`, the same rule the server decides with. The list follows the server's answer (`withOrderChanged`:
+refunded orders drop to the end with a badge). Fixture op `refund` in `adminFixture/main.ts`.

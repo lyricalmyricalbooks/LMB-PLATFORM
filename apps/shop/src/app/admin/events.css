@@ -60,6 +60,20 @@
 .rp .evt-guest-head > div { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .rp .evt-guest-mail { flex-basis: 100%; font-size: 13px; color: var(--rp-text-muted); overflow-wrap: anywhere; }
 .rp .evt-guest-paid { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp .evt-guest-paid small { display: block; margin-top: 2px; font: 400 12px/1.3 var(--rp-font-body, inherit); color: var(--rp-text-muted); text-align: right; }
+.rp .evt-guest[data-refunded="true"] { background: var(--rp-surface-sunken, transparent); }
+.rp .evt-guest[data-refunded="true"] strong { color: var(--rp-text-muted); }
+.rp .evt-guest-gone { margin: 0; font-size: 14px; color: var(--rp-text-muted); }
+.rp .evt-guest-actions { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.rp .evt-refund { display: grid; gap: 16px; }
+.rp .evt-refund-list { display: grid; gap: 4px; }
+.rp .evt-refund-list > p { margin: 0 0 6px; font: 500 11px/1.3 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .evt-refund-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; min-height: 40px; }
+.rp .evt-refund-row > span { font-size: 13px; color: var(--rp-text-muted); }
+.rp .evt-refund-sum { margin: 0; padding: 14px 16px; border: 1px solid var(--rp-border); border-radius: 14px; font-size: 15px; line-height: 1.45; }
+.rp .evt-refund-sum strong { font-size: 20px; font-variant-numeric: tabular-nums; margin-right: 4px; }
+.rp .evt-refund-note { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
+.rp .evt-refund-error { margin: 0; font-size: 14px; color: var(--rp-danger, var(--rp-text)); }
 .rp .evt-codes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .rp .evt-codes li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(150px, auto); align-items: center; gap: 12px; min-height: 36px; font-size: 14px; }
 .rp .evt-codes li[data-used="true"] > span:first-child, .rp .evt-codes li[data-used="true"] > code { color: var(--rp-text-muted); }

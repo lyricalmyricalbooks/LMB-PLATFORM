@@ -80,5 +80,17 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
       expect(lib.eventWhen(event.start, "UTC")).toMatch(/Dec.* 6.*12:00/);
       expect(lib.eventWhen("nonsense", "America/Toronto")).toBe("");
     });
+
+    test("a refund gives back the tickets' prices with their share of tax, and the last one returns what is left", () => {
+      const order = { lines: [{ ticketId: "gen", name: "General", qty: 3, priceMinor: 1000 }, { ticketId: "sup", name: "Supporter", qty: 1, priceMinor: 2500 }], totalMinor: 5500, taxMinor: 715, chargedMinor: 6215 };
+      expect(lib.refundMinorFor(order, { gen: 1 }, 3)).toBe(1130);
+      expect(lib.refundMinorFor(order, { gen: 2, sup: 1 }, 1)).toBe(4500 + 585);
+      expect(lib.refundMinorFor({ ...order, refundedMinor: 1130 }, { gen: 2, sup: 1 }, 0)).toBe(5085);
+      expect(lib.refundMinorFor(order, { gen: 9 }, 1)).toBe(3390);
+      expect(lib.refundMinorFor({ lines: order.lines, totalMinor: 0, chargedMinor: 0 }, { gen: 1 }, 2)).toBe(0);
+      expect(lib.refundMinorFor({ ...order, refundedMinor: 6000 }, { gen: 1 }, 2)).toBe(215);
+      expect(lib.withReturned({ sold: { gen: 3, sup: 1 }, held: { o9: { until: "2026-12-01T00:00:00Z", lines: { gen: 1 } } } }, { gen: 2, sup: 5 }))
+        .toEqual({ sold: { gen: 1, sup: 0 }, held: { o9: { until: "2026-12-01T00:00:00Z", lines: { gen: 1 } } } });
+    });
   });
 }

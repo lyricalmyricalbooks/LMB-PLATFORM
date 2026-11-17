@@ -25,6 +25,7 @@ import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsA
 import { DEFAULT_BOOKING_SETTINGS, type BookingService } from "../shared/bookingTimes";
 import { waysData } from "../app/admin/waysApi";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
+import { refundMinorFor } from "../shared/eventTickets";
 import { waysIn } from "../shared/waysToSell";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
@@ -100,6 +101,20 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       const arrived = guests.reduce((sum, g) => sum + g.tickets.filter((t) => t.usedAt).length, 0);
       events = events.map((e) => (e.id === "evt-launch" ? { ...e, arrived } : e));
       return { ok: true, already, arrived, ticket: { code, kind: ticket.name, usedAt: ticket.usedAt || "", orderId: order.id, eventId: order.eventId, eventTitle: "Autumn launch party", name: order.name, number: index + 1, of: order.tickets.length, arrivedOfOrder: order.tickets.filter((t) => t.usedAt).length } };
+    }
+    if (op === "refund") {
+      const order = guests.find((g) => g.id === body.orderId);
+      if (!order || order.status !== "paid") throw Object.assign(new Error("That order has no tickets to refund."), { code: "not_found" });
+      const codes = (body.codes as string[] | undefined) || order.tickets.map((t) => t.code);
+      const counts: Record<string, number> = {};
+      for (const t of order.tickets) if (codes.includes(t.code)) counts[t.ticketId] = (counts[t.ticketId] || 0) + 1;
+      const tickets = order.tickets.filter((t) => !codes.includes(t.code));
+      const amountMinor = body.money === false ? 0 : refundMinorFor(order, counts, tickets.length);
+      Object.assign(order, {
+        tickets, refundedMinor: (order.refundedMinor || 0) + amountMinor, refundedTickets: (order.refundedTickets || 0) + codes.length,
+        ...(tickets.length ? {} : { status: "refunded", refundedAt: new Date().toISOString() }),
+      });
+      return { ok: true, amountMinor, order: { ...order } };
     }
     return { ok: true };
   };

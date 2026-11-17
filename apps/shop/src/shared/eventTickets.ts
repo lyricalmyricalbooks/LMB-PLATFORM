@@ -175,6 +175,30 @@ export function withoutHold(places: EventPlaces | null | undefined, orderId: str
   return { sold: { ...(places?.sold ?? {}) }, held };
 }
 
+/** The places record after tickets are given back (a refund): that many fewer sold per kind, never below zero. */
+export function withReturned(places: EventPlaces | null | undefined, counts: Record<string, number>): EventPlaces {
+  const sold = { ...(places?.sold ?? {}) };
+  for (const [kind, n] of Object.entries(counts)) sold[kind] = Math.max(0, count(sold[kind]) - count(n));
+  return { sold, held: { ...(places?.held ?? {}) } };
+}
+
+/**
+ * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the
+ * tax. Giving back the last tickets returns everything still kept, so cents never go missing. `counts` is ticket id →
+ * how many are refunded now; `ticketsLeft` is how many the order keeps afterwards.
+ */
+export function refundMinorFor(
+  order: { lines: OrderLine[]; totalMinor?: number; taxMinor?: number; chargedMinor?: number; refundedMinor?: number },
+  counts: Record<string, number>, ticketsLeft: number,
+): number {
+  const kept = Math.max(0, count(order.chargedMinor) - count(order.refundedMinor));
+  if (ticketsLeft <= 0) return kept;
+  const prices = order.lines.reduce((sum, l) => sum + Math.min(count(counts[l.ticketId]), l.qty) * l.priceMinor, 0);
+  const total = count(order.totalMinor);
+  const tax = total > 0 ? Math.round((count(order.taxMinor) * prices) / total) : 0;
+  return Math.min(kept, prices + tax);
+}
+
 // A ticket's code, shown at the door: eight letters and digits with nothing that reads two ways ("K7QM-2XPA").
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 /** A new code from eight random numbers (0 to 255 each). */

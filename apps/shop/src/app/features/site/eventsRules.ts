@@ -9,7 +9,7 @@ export type EventView = {
 };
 export type EventsInfo = { on: boolean; zone?: string; currency?: string; events?: EventView[] };
 export type EventOrderView = {
-  id: string; status: "held" | "paid" | "cancelled"; eventId: string; title: string; start: string; end: string; venue: string; address: string; name: string;
+  id: string; status: "held" | "paid" | "cancelled" | "refunded"; refundedMinor?: number; eventId: string; title: string; start: string; end: string; venue: string; address: string; name: string;
   lines: { ticketId: string; name: string; qty: number; priceMinor: number }[];
   totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; holdUntil: string | null;
   tickets: { code: string; ticketId: string; name: string; used?: boolean }[]; onlineUrl: string; eventCancelled: boolean;

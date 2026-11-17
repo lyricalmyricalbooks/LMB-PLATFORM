@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { arrivedCount, blankForm, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, withTicketUsed, priceMinorOf, soldLine, splitEvents, whenParts } from "./eventsView";
+import { arrivedCount, blankForm, eventFigures, eventFromForm, eventState, countsOfCodes, findGuests, formFromEvent, guestCsv, withOrderChanged, withTicketUsed, priceMinorOf, soldLine, splitEvents, whenParts } from "./eventsView";
 import type { AdminEvent, TicketOrder } from "./eventsApi";
 
 const ZONE = "America/Toronto";
@@ -85,5 +85,16 @@ describe("the list", () => {
     expect(findGuests(list, "bo@example").map((o) => o.name)).toEqual(["Bo"]);
     expect(findGuests(list, "")).toHaveLength(2);
     expect(findGuests(list, "zed")).toEqual([]);
+  });
+
+  test("a refunded order moves to the end of the list, and picked codes are counted by kind", () => {
+    const order = (name: string, codes: string[]): TicketOrder => ({
+      id: name, status: "paid", eventId: "ev1", name, email: "", lines: [], ticketCount: codes.length, totalMinor: 0, taxMinor: 0, chargedMinor: 0,
+      currency: "CAD", tickets: codes.map((code) => ({ code, ticketId: "gen", name: "General" })), createdAt: "", paidAt: "", test: false,
+    });
+    const ada = order("Ada", ["AAAA-2222", "AAAA-3333"]);
+    const list = withOrderChanged([ada, order("Bo", ["BBBB-2222"])], { ...ada, status: "refunded", tickets: [], refundedMinor: 3000 });
+    expect(list.map((o) => o.name)).toEqual(["Bo", "Ada"]);
+    expect(countsOfCodes(ada, ["AAAA-3333", "ZZZZ-9999"])).toEqual({ gen: 1 });
   });
 });

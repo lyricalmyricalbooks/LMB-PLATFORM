@@ -54,12 +54,13 @@ const EVENT = {
 };
 const BUYER = { name: "Ada Reader", email: "ada@example.com" };
 
-function setup({ platform = true, owner = true, checkout = "card", now = "2026-11-17T13:00:00Z", admin = true, shopTax = null, budget = true, openFails = null } = {}) {
+function setup({ platform = true, owner = true, checkout = "card", now = "2026-11-17T13:00:00Z", admin = true, shopTax = null, budget = true, openFails = null, refundFails = false } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
   const opened = [];
   const closed = [];
+  const refunds = [];
   const sessions = new Map();
   const card = checkout === null ? null : {
     async open(params, idem) {
@@ -77,7 +78,15 @@ function setup({ platform = true, owner = true, checkout = "card", now = "2026-1
   const desk = eventActions({
     db, shopTax,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
-    payments: { provider: "stripe", standaloneCheckout: async () => card },
+    payments: {
+      provider: "stripe", standaloneCheckout: async () => card,
+      async refund(args) {
+        if (refundFails) throw new Error("declined");
+        const same = refunds.find((r) => r.idempotencyKey === args.idempotencyKey);
+        if (!same) refunds.push(args);
+        return { refundId: `re_${refunds.indexOf(same || args)}`, amountMinor: args.amountMinor };
+      },
+    },
     shopTestMode: async () => true,
     hitLimit: async () => true,
     LIMITS: {},
@@ -105,7 +114,7 @@ function setup({ platform = true, owner = true, checkout = "card", now = "2026-1
   const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
   const pay = (i = 0) => { const s = sessions.get(`cs_test_${String(i).padStart(8, "0")}`); s.payment_status = "paid"; s.status = "complete"; s.payment_intent = `pi_${i}`; };
   const doc = async (c, id) => (await db.collection(c).doc(id).get()).data();
-  return { db, desk, clock, emails, opened, closed, sessions, seed, pub, adm, pay, doc };
+  return { db, desk, clock, emails, opened, closed, refunds, sessions, seed, pub, adm, pay, doc };
 }
 
 describe("on only while both switches are", () => {
@@ -410,3 +419,74 @@ describe("at the door", () => {
     expect((await out.adm({ op: "checkIn", code: "TCKT-222A" })).statusCode).toBe(401);
   });
 });
+
+describe("refunds", () => {
+  const bought = async (t) => {
+    await t.seed({ ...EVENT, tickets: [{ id: "gen", name: "General", priceMinor: 1500, places: 3 }] });
+    await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 3 }, ...BUYER });
+    t.pay(0);
+    await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    t.emails.length = 0;
+  };
+  test("one ticket goes back: its money, its place and its code, and the buyer is told", async () => {
+    const t = setup();
+    await bought(t);
+    const r = await t.adm({ op: "refund", orderId: "order0001", codes: ["tckt-222b"] });
+    expect(r.body).toMatchObject({ ok: true, amountMinor: 1500, order: { status: "paid", refundedMinor: 1500, refundedTickets: 1 } });
+    expect(r.body.order.tickets.map((x) => x.code)).toEqual(["TCKT-222A", "TCKT-222C"]);
+    expect(t.refunds).toHaveLength(1);
+    expect(t.refunds[0]).toMatchObject({ mode: "test", paymentIntentId: "pi_0", amountMinor: 1500, metadata: { eventOrder: "order0001" } });
+    expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 2 }, paidMinor: 3000, orders: 1 });
+    expect((await t.adm({ op: "checkIn", code: "TCKT-222B" })).statusCode).toBe(404);
+    expect(t.emails.map((m) => m.to)).toEqual(["ada@example.com"]);
+    expect(t.emails[0].subject).toBe("Your refund: Autumn launch");
+    expect(t.emails[0].html).toContain("TCKT-222B");
+    expect(t.emails[0].html).toContain("You still have 2 tickets");
+    const info = await t.pub({ action: "eventsInfo" });
+    expect(info.body.events[0].tickets[0].left).toBe(1);
+  });
+  test("the whole order goes back and stays on the list as refunded; a second tap changes nothing", async () => {
+    const t = setup();
+    await bought(t);
+    const both = await Promise.all([t.adm({ op: "refund", orderId: "order0001" }), t.adm({ op: "refund", orderId: "order0001" })]);
+    expect(both.map((r) => r.statusCode)).toEqual([200, 200]);
+    expect(t.refunds).toHaveLength(1);
+    expect(t.refunds[0].amountMinor).toBe(4500);
+    expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 0 }, paidMinor: 0, orders: 0 });
+    const order = await t.doc("eventOrders", "order0001");
+    expect(order).toMatchObject({ status: "refunded", refundedMinor: 4500, tickets: [], ticketCodes: [] });
+    expect(order.refunds).toHaveLength(1);
+    expect(t.emails).toHaveLength(1);
+    expect((await t.adm({ op: "orders", eventId: "launch01" })).body.orders.map((o) => o.status)).toEqual(["refunded"]);
+    expect((await t.adm({ op: "refund", orderId: "order0001" })).statusCode).toBe(404);
+    const view = await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    expect(view.body.order).toMatchObject({ status: "refunded", refundedMinor: 4500, tickets: [], onlineUrl: "" });
+  });
+  test("tickets can be cancelled with the money kept, a used ticket is refused, and a refused refund changes nothing", async () => {
+    const t = setup();
+    await bought(t);
+    await t.adm({ op: "checkIn", code: "TCKT-222A" });
+    expect((await t.adm({ op: "refund", orderId: "order0001" })).body.code).toBe("used");
+    expect((await t.adm({ op: "refund", orderId: "order0001", codes: ["ZZZZ-ZZZZ"] })).body.code).toBe("none");
+    const kept = await t.adm({ op: "refund", orderId: "order0001", codes: ["TCKT-222C"], money: false });
+    expect(kept.body).toMatchObject({ ok: true, amountMinor: 0 });
+    expect(t.refunds).toHaveLength(0);
+    expect(await t.doc("eventPlaces", "launch01")).toMatchObject({ sold: { gen: 2 }, paidMinor: 4500, arrived: 1 });
+    expect(t.emails[0].html).toContain("Your ticket was cancelled");
+    const bad = setup({ refundFails: true });
+    await bought(bad);
+    expect((await bad.adm({ op: "refund", orderId: "order0001" })).statusCode).toBe(502);
+    expect((await bad.doc("eventOrders", "order0001")).tickets).toHaveLength(3);
+    expect(bad.emails).toHaveLength(0);
+  });
+  test("free tickets are cancelled with no payment call", async () => {
+    const t = setup();
+    await t.seed();
+    await t.pub({ action: "eventStart", eventId: "launch01", tickets: { free: 2 }, ...BUYER });
+    const r = await t.adm({ op: "refund", orderId: "order0001" });
+    expect(r.body).toMatchObject({ ok: true, amountMinor: 0, order: { status: "refunded" } });
+    expect(t.refunds).toHaveLength(0);
+    expect((await t.doc("eventPlaces", "launch01")).sold.free).toBe(0);
+  });
+});
+

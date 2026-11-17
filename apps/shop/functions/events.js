@@ -17,12 +17,17 @@
 // hold nobody came back to and frees an unpaid one.
 //
 // At the door (E2): owner op `checkIn` marks one ticket used by its code (`usedAt` on the ticket inside its order, and
-// `arrived` on the event's places record, in one transaction), so a code gets one person in. Refunds and moves are E3.
+// `arrived` on the event's places record, in one transaction), so a code gets one person in.
+//
+// Refunds (E3): owner op `refund` gives back an order's tickets, all or some. The money goes back through the payments
+// module first (same key for the same tickets, so a second tap can't refund twice), then one transaction takes the
+// tickets off the order, frees their places and takes the money off the event's figures. An order with no tickets left
+// is `refunded`. Moves, extras and codes come later.
 "use strict";
 
 const crypto = require("crypto");
 const {
-  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, withHold, withSold, withoutHold, ticketCodeFrom, cleanTicketCode, eventWhen,
+  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, withHold, withSold, withoutHold, withReturned, refundMinorFor, ticketCodeFrom, cleanTicketCode, eventWhen,
   TICKET_MESSAGES, MAX_EVENTS,
 } = require("./shared/eventTickets");
 const { waysOn } = require("./shared/waysToSell");
@@ -64,6 +69,12 @@ const WORDS = {
     intro: (shop) => `Thank you. Here is what you need for the door, from ${shop}. Show each code when you arrive.`,
     when: "When", where: "Where", online: "Join online", paid: "Paid", free: "Free", tax: "Includes tax", button: "See your tickets",
     keep: "Keep this email: anyone with a code can use that ticket.",
+    refundSubject: (title) => `Your refund: ${title}`,
+    refundHeading: (n) => (n === 1 ? "Your ticket was refunded" : "Your tickets were refunded"),
+    cancelHeading: (n) => (n === 1 ? "Your ticket was cancelled" : "Your tickets were cancelled"),
+    refundIntro: (shop) => `${shop} has cancelled the tickets below. Their codes no longer work at the door.`,
+    refunded: "Refunded", refundWhen: "The money goes back to the card you paid with, usually within 5 to 10 business days.",
+    stillYours: (n) => (n === 1 ? "You still have 1 ticket for this event." : `You still have ${n} tickets for this event.`),
   },
   fr: {
     subject: (n, title) => `${n === 1 ? "Votre billet" : "Vos billets"} : ${title}`,
@@ -71,6 +82,12 @@ const WORDS = {
     intro: (shop) => `Merci. Voici ce qu'il vous faut à l'entrée, de la part de ${shop}. Présentez chaque code à votre arrivée.`,
     when: "Quand", where: "Où", online: "Participer en ligne", paid: "Payé", free: "Gratuit", tax: "Taxes incluses", button: "Voir vos billets",
     keep: "Conservez ce courriel : toute personne ayant un code peut utiliser ce billet.",
+    refundSubject: (title) => `Votre remboursement : ${title}`,
+    refundHeading: (n) => (n === 1 ? "Votre billet a été remboursé" : "Vos billets ont été remboursés"),
+    cancelHeading: (n) => (n === 1 ? "Votre billet a été annulé" : "Vos billets ont été annulés"),
+    refundIntro: (shop) => `${shop} a annulé les billets ci-dessous. Leurs codes ne sont plus valides à l'entrée.`,
+    refunded: "Remboursé", refundWhen: "L'argent est remis sur la carte utilisée pour le paiement, habituellement en 5 à 10 jours ouvrables.",
+    stillYours: (n) => (n === 1 ? "Il vous reste 1 billet pour cet événement." : `Il vous reste ${n} billets pour cet événement.`),
   },
 };
 
@@ -92,7 +109,7 @@ function publicEvent(event, places, nowMs, taxOf) {
 function publicOrder(id, o, event) {
   const paid = o.status === "paid";
   return {
-    id, status: o.status, eventId: o.eventId, title: o.eventTitle, start: o.start, end: o.end || "", venue: o.venue || "", address: o.address || "",
+    id, status: o.status, refundedMinor: o.refundedMinor || 0, eventId: o.eventId, title: o.eventTitle, start: o.start, end: o.end || "", venue: o.venue || "", address: o.address || "",
     name: o.customer?.name || "", lines: o.lines || [], totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
     holdUntil: o.status === "held" ? o.holdUntil || null : null,
     // The codes and the online link only once the order is paid, and never for an event the shop called off.
@@ -217,6 +234,36 @@ function eventActions({
       return true;
     } catch (err) {
       console.warn("events: the ticket email failed:", err?.message || err);
+      return false;
+    }
+  }
+
+  /** Tells the buyer which tickets were given back and what was refunded. Never throws. */
+  async function tellRefund(o, gone, amountMinor, left) {
+    try {
+      const to = o.customer?.email;
+      if (!to || !EMAIL.test(to)) return false;
+      const fr = french(o.locale);
+      const say = fr ? WORDS.fr : WORDS.en;
+      const locale = fr ? "fr-CA" : "en-CA";
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const rows = gone.map((t) => `<tr><td style="padding:6px 12px 6px 0;">${escapeHtml(t.name)}</td><td style="padding:6px 0;font-family:monospace;text-decoration:line-through;">${escapeHtml(t.code)}</td></tr>`).join("");
+      await sendEmail({
+        to,
+        subject: say.refundSubject(o.eventTitle),
+        html: risoLayout(`
+          <h4 style="margin:0 0 8px;">${amountMinor > 0 ? say.refundHeading(gone.length) : say.cancelHeading(gone.length)}</h4>
+          <h2 style="margin:0 0 12px;">${escapeHtml(o.eventTitle)}</h2>
+          <p style="margin:0 0 16px;">${escapeHtml(say.refundIntro(shop))}</p>
+          <table role="presentation" style="margin:0 0 16px;border-collapse:collapse;">${rows}</table>
+          ${amountMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.refunded}:</strong> ${escapeHtml(moneyWords(amountMinor, o.currency, locale))}</p><p style="margin:0 0 16px;">${say.refundWhen}</p>` : ""}
+          ${left > 0 ? `<p style="margin:0;">${say.stillYours(left)}</p>` : ""}
+        `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+      });
+      return true;
+    } catch (err) {
+      console.warn("events: the refund email failed:", err?.message || err);
       return false;
     }
   }
@@ -411,6 +458,7 @@ function eventActions({
     totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
     tickets: (o.tickets || []).map((t) => ({ code: t.code, ticketId: t.ticketId, name: t.name, usedAt: t.usedAt || "" })),
     createdAt: o.createdAt || "", paidAt: o.paidAt || "", test: o.mode === "test",
+    refundedMinor: o.refundedMinor || 0, refundedTickets: (o.refunds || []).reduce((sum, r) => sum + (r.tickets || []).length, 0), refundedAt: o.refundedAt || "",
   });
 
   async function handleAdmin(req, res) {
@@ -464,7 +512,9 @@ function eventActions({
         const eventId = String(req.body?.eventId || "");
         if (!ID.test(eventId)) return fail(res, 400, "Unknown event.");
         const snap = await orders().where("eventId", "==", eventId).limit(1000).get();
-        const list = snap.docs.map((d) => adminOrder(d.id, d.data())).filter((o) => o.status === "paid").sort((a, b) => String(b.paidAt).localeCompare(String(a.paidAt)));
+        // Refunded orders stay on the list, after the ones still coming, so the owner can see what went back.
+        const list = snap.docs.map((d) => adminOrder(d.id, d.data())).filter((o) => o.status === "paid" || o.status === "refunded")
+          .sort((a, b) => Number(a.status === "refunded") - Number(b.status === "refunded") || String(b.paidAt).localeCompare(String(a.paidAt)));
         return res.status(200).json({ orders: list });
       }
       if (op === "resendTickets") {
@@ -477,6 +527,59 @@ function eventActions({
         const sent = await tellTickets(id, snap.data(), key, { toOwner: false });
         if (!sent) return fail(res, 502, "The email didn't go out. Check Settings › Notifications and try again.");
         return res.status(200).json({ ok: true });
+      }
+      if (op === "refund") {
+        // Gives back an order's tickets: every one, or the ones named by code. `money: false` cancels them and keeps the money.
+        const id = String(req.body?.orderId || "");
+        const snap = ID.test(id) ? await orders().doc(id).get() : null;
+        const seen = snap?.exists ? snap.data() : null;
+        if (!seen || seen.status !== "paid") return fail(res, 404, "That order has no tickets to refund.", "not_found");
+        const asked = Array.isArray(req.body?.codes) ? new Set(req.body.codes.map(cleanTicketCode).filter(Boolean)) : null;
+        const gone = (seen.tickets || []).filter((t) => !asked || asked.has(t.code));
+        if (!gone.length) return fail(res, 400, "Pick at least one ticket to refund.", "none");
+        if (gone.some((t) => t.usedAt)) return fail(res, 409, "A ticket that was checked in at the door can't be refunded. Undo its check-in first.", "used");
+        const counts = {};
+        for (const t of gone) counts[t.ticketId] = (counts[t.ticketId] || 0) + 1;
+        const left = (seen.tickets || []).length - gone.length;
+        const amountMinor = req.body?.money === false ? 0 : refundMinorFor(seen, counts, left);
+        const codes = gone.map((t) => t.code).sort();
+        let refundId = null;
+        if (amountMinor > 0) {
+          if (!seen.paymentIntent) return fail(res, 409, "This order has no card payment on record to refund. Refund it from your payment account, then cancel the tickets here without a refund.", "no_payment");
+          try {
+            const refund = await payments.refund({
+              mode: seen.mode === "test" ? "test" : "live", paymentIntentId: seen.paymentIntent, amountMinor, metadata: { eventOrder: id },
+              idempotencyKey: `event-refund-${id}-${hash(codes.join(",")).slice(0, 24)}`,
+            });
+            refundId = refund.refundId || null;
+          } catch (err) {
+            console.error("events: a refund was refused:", err?.message || err);
+            return fail(res, 502, "The refund didn't go through, so nothing was changed. Try again in a moment.", "refund_failed");
+          }
+        }
+        const at = now().toISOString();
+        const done = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(orders().doc(id));
+          const o = fresh.exists ? fresh.data() : null;
+          // A second tap finds the tickets already gone (the payment key above made its refund the same one).
+          if (!o || o.status !== "paid" || !codes.every((c) => (o.tickets || []).some((t) => t.code === c))) return null;
+          const tickets = o.tickets.filter((t) => !codes.includes(t.code));
+          const pSnap = await tx.get(placesRef(o.eventId));
+          const before = pSnap.exists ? pSnap.data() : null;
+          tx.set(placesRef(o.eventId), placesDoc(before, withReturned(before, counts), {
+            paidMinor: Math.max(0, (before?.paidMinor || 0) - amountMinor), orders: Math.max(0, (before?.orders || 0) - (tickets.length ? 0 : 1)),
+          }));
+          const changes = {
+            tickets, ticketCodes: tickets.map((t) => t.code), refundedMinor: (o.refundedMinor || 0) + amountMinor, updatedAt: at,
+            refunds: [...(o.refunds || []), { at, by, amountMinor, refundId, tickets: gone.map((t) => ({ code: t.code, ticketId: t.ticketId, name: t.name })) }].slice(-50),
+            ...(tickets.length ? {} : { status: "refunded", refundedAt: at }),
+          };
+          tx.set(orders().doc(id), changes, { merge: true });
+          return { ...o, ...changes };
+        });
+        if (!done) return res.status(200).json({ ok: true, already: true, amountMinor: 0, order: adminOrder(id, (await orders().doc(id).get()).data() || seen) });
+        await tellRefund(done, gone, amountMinor, done.tickets.length);
+        return res.status(200).json({ ok: true, amountMinor, order: adminOrder(id, done) });
       }
       if (op === "checkIn") {
         // At the door: one ticket by its code (typed, or scanned from the buyer's page). `value: false` takes it back.
