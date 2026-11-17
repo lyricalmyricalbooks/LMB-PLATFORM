@@ -9,8 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = void 0;
+exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = void 0;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -20,6 +20,7 @@ exports.feeChargeable = feeChargeable;
 exports.cleanService = cleanService;
 exports.cleanCourseDates = cleanCourseDates;
 exports.courseStarts = courseStarts;
+exports.runDecisionDue = runDecisionDue;
 exports.joinableCourse = joinableCourse;
 exports.coursePlacesLeft = coursePlacesLeft;
 exports.cleanClassTimes = cleanClassTimes;
@@ -300,6 +301,12 @@ function cleanService(raw, id = "") {
         return { problem: "A course has at least 2 dates. For a single date, leave the course dates empty." };
     if (courseDates.length && places < 2)
         return { problem: "A course needs room for at least 2 people." };
+    const classTimes = courseDates.length ? [] : cleanClassTimes(s.classTimes);
+    // A minimum only for a group at set times: a weekly class or a course (a class at any free time has no session to decide).
+    const atSetTimes = places >= 2 && (courseDates.length > 0 || classTimes.length > 0);
+    const minPlaces = atSetTimes ? whole(s.minPlaces, 0, exports.MAX_PLACES, 0) : 0;
+    if (minPlaces > places)
+        return { problem: "The minimum to run can't be more than the places." };
     return {
         id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         name,
@@ -316,9 +323,11 @@ function cleanService(raw, id = "") {
         questions: cleanQuestions(s.questions),
         places,
         // A course runs on its own dates, never at weekly times as well.
-        classTimes: courseDates.length ? [] : cleanClassTimes(s.classTimes),
+        classTimes,
         ...(courseDates.length ? { courseDates } : {}),
         ...(courseDates.length && s.lateJoin === true ? { lateJoin: true } : {}),
+        // A minimum of 1 is no minimum: anyone signed up is enough.
+        ...(minPlaces >= 2 ? { minPlaces, decideHours: whole(s.decideHours, 1, exports.MAX_DECIDE_HOURS, exports.DECIDE_HOURS) } : {}),
         holdCard,
         lateFeeMinor,
         meet: s.meet === true,
@@ -358,6 +367,18 @@ function courseStarts(service, zone) {
             out.push(ms);
     }
     return out.sort((a, b) => a - b);
+}
+/** How long before a class with a minimum it is decided whether it runs: by default, and at most (a week). */
+exports.DECIDE_HOURS = 24;
+exports.MAX_DECIDE_HOURS = 168;
+/**
+ * Whether a class time with a minimum is due to be decided now: from `decideHours` before `start` until it starts. A
+ * course is decided on its first date. false for a service without a minimum.
+ */
+function runDecisionDue(start, service, nowMs) {
+    if (!service.minPlaces || !Number.isFinite(start))
+        return false;
+    return nowMs >= start - (service.decideHours || exports.DECIDE_HOURS) * 60 * MINUTE && nowMs < start;
 }
 /** A course joined late needs at least this many dates still to come. */
 exports.MIN_LATE_DATES = 2;
@@ -699,6 +720,11 @@ function placesLeft(start, service, busy, staffId = "") {
     const room = service.roomId || "";
     let taken = 0;
     for (const b of busy) {
+        if (b.closed) {
+            if (b.serviceId === service.id && b.start === start)
+                return 0;
+            continue;
+        }
         if (!(start < b.end && end > b.start))
             continue;
         // With people, a stretch matters when it is this person's, the whole shop's, or in the room this service needs.

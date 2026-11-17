@@ -5,7 +5,7 @@ import {
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
-  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse,
+  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -585,5 +585,25 @@ describe("joining a course late", () => {
   test("anything that isn't a course comes back as it is", () => {
     const visit = { places: 1, priceMinor: 100 };
     expect(joinableCourse(visit, Z, 0)).toBe(visit);
+  });
+});
+
+describe("a class's minimum number to run", () => {
+  const HOUR = 3_600_000;
+  const start = Date.parse("2026-11-18T19:00:00Z");
+  it("is due from its decide time until it starts, and never without a minimum", () => {
+    const klass = { minPlaces: 3, decideHours: 24 };
+    expect(runDecisionDue(start, klass, start - 25 * HOUR)).toBe(false);
+    expect(runDecisionDue(start, klass, start - 24 * HOUR)).toBe(true);
+    expect(runDecisionDue(start, klass, start - 1)).toBe(true);
+    expect(runDecisionDue(start, klass, start)).toBe(false);
+    expect(runDecisionDue(start, {}, start - HOUR)).toBe(false);
+  });
+  it("a closed class time has no places, and holds up nothing else", () => {
+    const klass = { id: "draw", minutes: 60, gapAfter: 0, places: 6 };
+    const busy = [{ start, end: start + HOUR, serviceId: "draw", closed: true }];
+    expect(placesLeft(start, klass, busy)).toBe(0);
+    expect(placesLeft(start + 24 * HOUR, klass, busy)).toBe(6);
+    expect(placesLeft(start, { id: "visit", minutes: 30, gapAfter: 0, places: 1 }, busy)).toBe(1);
   });
 });

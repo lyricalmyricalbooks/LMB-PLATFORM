@@ -8,7 +8,8 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number;
   /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[];
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
-  joining?: { missed: number; of: number; fullPriceMinor: number } };
+  joining?: { missed: number; of: number; fullPriceMinor: number };
+  /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
   hours?: Array<Array<{ start: string; end: string }>>;
