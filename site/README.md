@@ -8,6 +8,10 @@ The platform's live web site, https://lmb-platform-prod.web.app, put live by Git
   (`/control/`) and setup mode (`/app/`) and the designer before a store (`/design/`), both from `pnpm run build:setup` in `apps/shop`. Only files a page loads are copied;
   a page that reaches a server file stops the build. `--api` sends `/api/**` to the server and turns on the pages'
   plans and sign-up links; the deploy adds it only once the server (`server/`) is live.
+- `seo.js` is what search engines and link previews see: every page Google may list gets its one real address (the
+  front page's copy at `/waitlist/` points at `/`), a share preview with `share.png`, and the front page Colophon's
+  business label. The build writes `robots.txt` and `sitemap.xml` from the same list. Moving to Colophon's own
+  domain means changing `SITE_URL` there.
 - `check-live.js` opens every page on the live site after a deploy and fails the run if one is missing.
 - `github-access.sh` lets GitHub deploy, once (below).
 

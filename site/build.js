@@ -20,6 +20,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { canonicalPath, isListed, robotsTxt, SHARE_IMAGE, sitemapXml, withSeo } from "./seo.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -194,6 +195,7 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
   const publicDir = join(out, "public");
   mkdirSync(publicDir, { recursive: true });
   const files = [];
+  const listed = [];
   const needed = neededFiles({ root });
   for (const [mount, folder] of Object.entries(SITE_MOUNTS)) {
     for (const file of needed.filter((f) => f.startsWith(`${folder}/`))) {
@@ -202,7 +204,11 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
       mkdirSync(dirname(target), { recursive: true });
       const kind = extname(file);
       if (kind === ".js") writeFileSync(target, liveConfig(file, readFileSync(join(root, file), "utf8"), { api, app }));
-      else cpSync(join(root, file), target);
+      else if (kind === ".html") {
+        const html = readFileSync(join(root, file), "utf8");
+        if (isListed(published, html)) listed.push(canonicalPath(published));
+        writeFileSync(target, withSeo(published, html));
+      } else cpSync(join(root, file), target);
       files.push(published);
     }
   }
@@ -214,6 +220,11 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
     cpSync(designerDir, join(publicDir, "design"), { recursive: true });
     for (const path of listFiles(designerDir)) files.push(`/design/${relative(designerDir, path).split(sep).join("/")}`);
   }
+  // What search engines read: the share picture, which pages to skip, and the map of the ones to list (site/seo.js).
+  cpSync(join(root, "site", "share.png"), join(publicDir, SHARE_IMAGE));
+  writeFileSync(join(publicDir, "robots.txt"), robotsTxt());
+  writeFileSync(join(publicDir, "sitemap.xml"), sitemapXml(listed));
+  files.push(SHARE_IMAGE, "/robots.txt", "/sitemap.xml");
   writeFileSync(join(out, "firebase.json"), `${JSON.stringify(firebaseJson({ api, app, designer }), null, 2)}\n`);
   cpSync(join(root, "waitlist", "firestore.rules"), join(out, "firestore.rules"));
   return { files: files.sort(), api, app, designer };
