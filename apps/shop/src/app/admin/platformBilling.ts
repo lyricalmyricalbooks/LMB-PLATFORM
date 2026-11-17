@@ -267,7 +267,19 @@ export type CostTracker = {
   trend: Array<{ month: string; words: string; now: boolean; cents: number | null; text: string }>;
   lastMonth: (Money & { month: string; monthWords: string }) | null; average: Money | null; change: number | null;
   alert: { cents: number; text: string; on: boolean; watched: Money | null; passing: boolean; used: number | null; sent: boolean };
+  /** Booking reminders sent by text this month, when any went: billed at cost as their own line on the next bill. */
+  texts?: { count: number; cents: number; text: string };
 };
+
+/** The tracker's line about text reminders, or "" when none went this month. */
+export function textsWords(costs: CostTracker): string {
+  const t = costs.texts;
+  if (!t || !(t.count > 0)) return "";
+  const many = `${t.count.toLocaleString("en-CA")} ${t.count === 1 ? "text" : "texts"}`;
+  return costs.estimate.freeTrial
+    ? `Text reminders: ${many} this month, free during your trial.`
+    : `Text reminders: ${many} this month, ${t.text} so far. They go on next month's bill at cost.`;
+}
 /** The next bill's cents, when the platform sends them: the tracker taxes its estimate at that bill's rate. */
 export type BillCents = { beforeTax: number; tax: number };
 

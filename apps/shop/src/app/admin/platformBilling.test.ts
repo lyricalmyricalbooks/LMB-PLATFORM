@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null } }));
-const { BillingCallError, alertCents, alertWords, billCoversWords, billEstimate, billState, billingCall, callAddress, moneyLike, previewWords, priceWords, statusBadge, trendWords } = await import("./platformBilling");
+const { BillingCallError, alertCents, alertWords, billCoversWords, billEstimate, billState, billingCall, callAddress, moneyLike, previewWords, priceWords, statusBadge, textsWords, trendWords } = await import("./platformBilling");
 
 const PLAN = { hub: "https://platform.example/api/shop-billing/", shopId: "moth-press" };
 const answer = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body }) as Response;
@@ -88,6 +88,13 @@ describe("the running-cost tracker's words", () => {
     plusTax: true, monthEnd: $(321),
     estimate: { fee: $(500), discount: null, percentOff: null, running: $(321), beforeTax: $(821), freeTrial: false }, ...over,
   }) as any;
+
+  it("says how many text reminders went and what they cost, free in the trial, nothing when none went", () => {
+    expect(textsWords(costs())).toBe("");
+    expect(textsWords(costs({ texts: { count: 0, ...$(0) } }))).toBe("");
+    expect(textsWords(costs({ texts: { count: 1, ...$(2) } }))).toBe("Text reminders: 1 text this month, $0.02 so far. They go on next month's bill at cost.");
+    expect(textsWords(costs({ texts: { count: 1200, ...$(1920) }, estimate: { ...costs().estimate, freeTrial: true } }))).toBe("Text reminders: 1,200 texts this month, free during your trial.");
+  });
 
   it("taxes the estimate at the next bill's own rate, and says so when there is no bill to go by", () => {
     expect(billEstimate(costs(), { beforeTax: 768, tax: 100 })).toEqual({ total: "$9.28", parts: ["$5.00 fee", "$3.21 running cost", "$1.07 tax"], taxLater: false, free: false });

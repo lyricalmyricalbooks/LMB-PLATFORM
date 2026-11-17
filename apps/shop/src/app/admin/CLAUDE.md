@@ -1078,6 +1078,7 @@ the tracker, the control room and the heads-up email. When the email goes, billi
 `shopPlan.js` copies to `platform/plan` as `headsUp`; `billHeadsUpAlert` (adminAlerts.ts) turns it into an Alerts tile
 (action `billing`) for the rest of that month; raising the amount past the month end takes it off. No extra reads: the
 admin already watches `platform/plan`. Fixture: `admin-fixture.html?plan=open&costs=over&page=alerts`.
+**Text reminders line (17 November 2026):** when the platform's `costs` answer has `texts` (`accounts/billingRoutes.js` `textsLine`, from `services/texts` `forShop`), `textsWords` in `platformBilling.ts` puts one hint under Where it goes: the month's texts and cost so far, or "free during your trial". Control room: Costs › Each shop's use › Texts. Fixture: `&texts=sent`.
 
 ## Bookings (beta, 14 November 2026)
 Orders › **Bookings** (`Bookings.tsx`, `bookings.css`, pure `bookingsView.ts`, calls in `bookingsApi.ts`) shows only while

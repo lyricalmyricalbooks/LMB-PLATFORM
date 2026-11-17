@@ -1,4 +1,5 @@
 /* GENERATED from shared/admin-look/platform-pages.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/* GENERATED from shared/admin-look/platform-pages.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /*
  * Platform pages — the Colophon pages around the shop (waitlist, sign-up, start your shop, your shops, plan & billing,
  * help, status, terms, trust, the walkthrough start page), in the Colophon bento look (colophon.css, 9 November 2026):
@@ -691,3 +692,47 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
   .cp-front.cp-pricing .plans .cp-pick { order: 0; }
 }
 
+
+/* Services page (/services, Services plan phase 7): the front page's parts, with a day of bookings, a booking page and
+   an "everything included" list. Tokens only. */
+.cp-front .cp-sv-day { display: grid; gap: 0.5em; padding: 1em 1.1em; border: 1px solid var(--cl-track); border-radius: 1em; }
+.cp-front .cp-sv-day > div { display: grid; grid-template-columns: 3.6em minmax(0, 1fr) auto; gap: 0.8em; align-items: center; padding: 0.5em 0; border-top: 1px solid var(--cl-track); }
+.cp-front .cp-sv-day > div:first-child { border-top: 0; }
+.cp-front .cp-sv-day time { font: 500 0.85em/1 var(--rp-font-mono); color: var(--rp-text-subtle); font-variant-numeric: tabular-nums; }
+.cp-front .cp-sv-day span { display: grid; font: 600 1em/1.25 var(--rp-font-body); }
+.cp-front .cp-sv-day small { text-transform: none; font-family: var(--rp-font-body); letter-spacing: 0; }
+.cp-front .cp-sv-day em { font: normal 600 0.75em/1 var(--rp-font-body); padding: 0.45em 0.8em; border-radius: 999px; background: var(--cl-mint); color: var(--cl-on-tile); }
+.cp-front .cp-sv-day em.cp-sv-due { background: var(--cl-apricot); }
+.cp-front .cp-sv-book { display: grid; grid-template-columns: 1.1fr 1fr; gap: 0; min-height: 300px; }
+.cp-front .cp-sv-services, .cp-front .cp-sv-times { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; }
+.cp-front .cp-sv-services { background: var(--cl-stripe-b); }
+.cp-front .cp-sv-book small { font: 500 9px/1.2 var(--rp-font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--rp-text-subtle); }
+.cp-front .cp-sv-services span { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; background: var(--rp-surface); font: 600 12px/1.2 var(--rp-font-body); }
+.cp-front .cp-sv-services em { font: normal 400 10px/1.2 var(--rp-font-body); color: var(--rp-text-muted); }
+.cp-front .cp-sv-services .cp-sv-on { box-shadow: inset 0 0 0 2px var(--cl-dark-tile); }
+.cp-front .cp-sv-times > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cp-front .cp-sv-times i { display: grid; place-items: center; min-height: 34px; border: 1px solid var(--cl-track); border-radius: 8px; font: normal 600 12px/1 var(--rp-font-body); font-variant-numeric: tabular-nums; }
+.cp-front .cp-sv-times i.cp-sv-on { background: var(--cl-dark-tile); border-color: var(--cl-dark-tile); color: var(--cl-on-dark-tile); }
+.cp-front .cp-sv-times .cp-fp-add { margin-top: auto; }
+.cp-front .cp-sv-list { list-style: none; margin: 32px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.cp-front .cp-sv-list li { display: grid; gap: 6px; align-content: start; padding: 20px 22px; border-radius: 20px; background: var(--rp-surface); border: 1px solid var(--cl-track); }
+.cp-front .cp-sv-list b { font: 600 17px/1.2 var(--rp-font-display); letter-spacing: -0.02em; }
+.cp-front .cp-sv-list span { font-size: 13.5px; line-height: 1.5; color: var(--rp-text-muted); }
+.cp-front .cp-sv-art-hours { grid-auto-flow: column; justify-content: center; gap: 6px; }
+.cp-front .cp-sv-art-hours i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--cl-sky); font: normal 500 10px/1 var(--rp-font-mono); }
+.cp-front .cp-sv-art-hours i:nth-child(odd) { background: var(--cl-mint); }
+.cp-front .cp-sv-art-hours b { margin-left: 8px; padding: 8px 12px; border-radius: 4px; background: var(--cl-dark-tile); color: var(--cl-on-dark-tile); font: 500 11px/1 var(--rp-font-mono); }
+.cp-front .cp-sv-go { display: grid; justify-items: start; gap: 4px; }
+.cp-front .cp-sv-go .button.primary.cp-fp-go { background: var(--cl-on-dark-tile); color: var(--cl-dark-tile); }
+@media (max-width: 900px) {
+  .cp-front .cp-sv-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cp-front .cp-sv-book { min-height: 240px; }
+  .cp-front .cp-sv-go { justify-items: stretch; text-align: center; }
+  .cp-front .cp-sv-go .button.primary.cp-fp-go { justify-content: center; }
+}
+@media (max-width: 359px) { .cp-front .cp-sv-list { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) {
+  .cp-front .cp-sv-list li { padding: 16px; }
+  .cp-front .cp-sv-book { grid-template-columns: minmax(0, 1fr); }
+  .cp-front .cp-sv-services span:nth-child(n+4) { display: none; }
+}

@@ -96,6 +96,9 @@ function nearMiss(a: string, b: string): boolean {
  * centre's answers stay as written. An answer with none is found by its own words only.
  */
 export const ALSO_ASKED: Record<string, string> = {
+  "booking-reminders": "sms text message reminder appointment remind client phone mobile",
+  "booking-no-shows": "no show missed appointment late cancel deposit fee card on file",
+  "packs-of-visits": "package bundle prepaid sessions classes punch card series",
   "refund-order": "refund cancel money back return charge customer undo order",
   "add-a-book": "add new product item listing create",
   "shipping": "postage rates delivery prices cost ship send",

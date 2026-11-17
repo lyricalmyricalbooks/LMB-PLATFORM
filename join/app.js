@@ -187,6 +187,7 @@ let plans = null;
 api("GET", "/plans").then((answer) => {
   plans = answer;
   showTypes(answer?.servicesOpen === true || servicesShown);
+  pickWantedType();
   termsVersion = plans?.termsVersion ?? "";
   if (Number.isInteger(plans?.trialDays)) {
     $("#new-days").textContent = `${plans.trialDays} days`;
@@ -204,6 +205,16 @@ api("GET", "/plans").then((answer) => {
 // The Services kind (a salon, a studio, a tutor) shows only while the control room has it on (`plans.servicesOpen`),
 // or for a press that already picked it; it then asks what the business does.
 let servicesShown = false;
+// The services page (/services) links here with ?type=services: that card starts picked, when it is shown and nothing
+// else is picked yet. Runs once the plans answered, so the card is there.
+const WANTED_TYPE = /^[a-z]{1,20}$/.test(new URLSearchParams(location.search).get("type") ?? "") ? new URLSearchParams(location.search).get("type") : "";
+function pickWantedType() {
+  if (!WANTED_TYPE || startForm.querySelector("input[name=shopType]:checked")) return;
+  const input = startForm.querySelector(`input[name=shopType][value="${WANTED_TYPE}"]`);
+  if (!input) return;
+  input.checked = true;
+  showKind();
+}
 function showTypes(withServices) {
   if (withServices === servicesShown && $("#type-choices").childElementCount) return;
   servicesShown = withServices;

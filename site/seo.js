@@ -21,6 +21,7 @@ export const NO_CRAWL_PATHS = Object.freeze(["/control/", "/app/", "/design/"]);
 export function canonicalPath(published) {
   if (published === "/waitlist/index.html") return "/";
   if (published === "/waitlist/pricing.html" || published === "/pricing.html") return "/pricing";
+  if (published === "/waitlist/services.html" || published === "/services.html") return "/services";
   return published.replace(/index\.html$/, "");
 }
 

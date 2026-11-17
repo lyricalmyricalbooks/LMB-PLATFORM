@@ -37,3 +37,12 @@ and shop-and-stockroom plans, "or 2% of your website sales, never more than $29 
 is over 0% (the percent and cap come from the answer). Proven by `pricing.test.js`.
 
 Copy rules: never name a rival shop platform; prices and trial lengths only from `/api/plans`, never typed into the page.
+
+## Services page (Services plan phase 7)
+
+`/services` (`services.html`, served by `site/build.js` `EXTRA_PAGES`, canonical `/services`) is the front door for salons,
+studios, tutors and teachers: booking page, desk and clients bento, what's included, three steps. `servicesPage.js`
+reads `/api/plans`: every `data-start` button leads to the waitlist (`/#start`) until both `signupOpen` and
+`servicesOpen` (control room switch) are on, then to `SIGNUP_URL?type=services`, which `join/app.js` uses to pick the
+Services card. Styles are `.cp-sv-*` in `look/platform-pages.css` (tokens only). Proven by `servicesPage.test.js`;
+`site/check-live.js` checks the page after deploy.

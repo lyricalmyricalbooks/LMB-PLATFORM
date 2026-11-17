@@ -66,7 +66,7 @@ export function usageRow(row, record, { month = null, now = null } = {}) {
   };
 }
 
-export function createSharedSystemDesk({ admins, registry, meters = null, now = () => new Date() }) {
+export function createSharedSystemDesk({ admins, registry, meters = null, texts = null, now = () => new Date() }) {
   return {
     /** The newest shared release runs. */
     async releases(claims) {
@@ -86,14 +86,23 @@ export function createSharedSystemDesk({ admins, registry, meters = null, now = 
       if (typeof wanted !== "string" || !MONTH.test(wanted)) throw new ControlError(400, "The month must look like 2026-11.");
       if (!meters?.get) return { month: wanted, connected: false, shops: [] };
       const rows = (await registry.listShops()).filter((row) => row.shared === true && row.status !== "abandoned");
+      // Text reminders (services/texts) are billed on their own line at cost, so they sit beside the use, not in it.
+      const sent = texts ? await texts.monthTexts(wanted).catch(() => ({})) : {};
       const shops = [];
-      for (const row of rows) shops.push(usageRow(row, await meters.get(row.shopId, wanted), { month: wanted, now: now().getTime() }));
+      for (const row of rows) {
+        const mine = sent[row.shopId];
+        shops.push({
+          ...usageRow(row, await meters.get(row.shopId, wanted), { month: wanted, now: now().getTime() }),
+          texts: mine ? mine.texts : 0,
+          textCents: mine ? texts.cents("CAD", mine.parts) : 0,
+        });
+      }
       shops.sort((a, b) => (b.computeGbSeconds ?? -1) - (a.computeGbSeconds ?? -1) || a.shopId.localeCompare(b.shopId));
       const sum = (key) => shops.reduce((total, s) => total + (s[key] ?? 0), 0);
       return {
         month: wanted, connected: true, shops,
         reconciled: shops.length > 0 && shops.every((s) => s.reconciled),
-        totals: { invocations: sum("invocations"), computeGbSeconds: sum("computeGbSeconds"), egressGb: sum("egressGb"), storageGb: sum("storageGb"), emails: sum("emails"), costCents: sum("costCents"), soFarCents: sum("soFarCents"), monthEndCents: sum("monthEndCents") },
+        totals: { invocations: sum("invocations"), computeGbSeconds: sum("computeGbSeconds"), egressGb: sum("egressGb"), storageGb: sum("storageGb"), emails: sum("emails"), texts: sum("texts"), textCents: sum("textCents"), costCents: sum("costCents"), soFarCents: sum("soFarCents"), monthEndCents: sum("monthEndCents") },
       };
     },
   };
