@@ -25,6 +25,7 @@ import { BankFeed } from "./BankFeed";
 import { yearFigures, yearReportCsv } from "./yearReport";
 import type { NativePageProps } from "./nativePages";
 import { RecordsGate } from "./RecordsGate";
+import { loadMoneyRecords } from "./moneyRecords";
 import { useRatedRecords } from "./taxRates";
 import { LogExpenseCard, type Prefill } from "./LogExpense";
 import { LogSeveralCard } from "./LogSeveral";
@@ -175,7 +176,7 @@ export function TaxCenterView({ records, now, onTaxCenter, onState, orders: give
         </Dialog>
   ) : null;
   const switcher = <YearSwitch years={years} year={moneyYear} onYear={(y) => { setMoneyYear(y); setPage(1); }} />;
-  const taxInput = { books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache };
+  const taxInput = { books: records.books as Record<string, any>[], states: records.states as Record<string, Record<string, any>>, taxCenter: records.taxCenter as Record<string, any> | null, fxRateCache: sources.fxRateCache, serviceSales: records.serviceSales };
   const rateNote = model.notes.missing > 0
     ? <p className="rp-money-note" role="status">{model.notes.missing} {model.notes.missing === 1 ? "line has" : "lines have"} no exchange rate yet and {model.notes.missing === 1 ? "is" : "are"} counted at 1 to 1, so these totals may be off. Rates fill in by themselves while you're online.</p>
     : null;
@@ -383,6 +384,7 @@ function BookOverview({ model, year, money, figures: f, publisher, onCategory, w
   publisher: boolean; onCategory: (name: string) => void; w: (s: string) => string;
 }) {
   const s = model.summary;
+  const services = f.services;
   const list = [...model.categories.list].sort((a, b) => b.spent - a.spent).slice(0, 8);
   const most = Math.max(1, ...list.map((c) => c.spent));
   const tile = (label: string, value: number, foot: string | null, tone?: string) => (
@@ -405,7 +407,10 @@ function BookOverview({ model, year, money, figures: f, publisher, onCategory, w
         <SectionCard title={`Profit and loss · ${year}`}>
           <table className="rp-bk-pl">
             <tbody>
-              <tr><td>Sales</td><td>{money(f.revenue)}</td></tr>
+              {services ? <>
+                <tr><td>Product sales</td><td>{money(f.revenue - services)}</td></tr>
+                <tr><td>Bookings</td><td>{money(services)}</td></tr>
+              </> : <tr><td>Sales</td><td>{money(f.revenue)}</td></tr>}
               <tr><td>{publisher ? "Cost of copies sold" : "Cost of goods sold"}</td><td>-{money(f.cogs)}</td></tr>
               <tr data-total=""><td>Gross profit</td><td>{money(f.revenue - f.cogs)}</td></tr>
               <tr><td>Expenses</td><td>-{money(f.opex)}</td></tr>
@@ -472,7 +477,8 @@ function LedgerCard({ rows, shown, filter, onFilter, onDownload, note, onNote, t
 
 type PageProps = { load?: () => Promise<StockroomRecords>; onOpen?: NativePageProps["onOpen"]; isPage?: unknown };
 const taxPage = (part: TaxPart) => function TaxPartPage({ load = stockroomApi.load, onOpen }: PageProps) {
-  return <RecordsGate load={load} what={part === "tax" ? "the Tax centre" : "your bookkeeping"}>{(records) => <TaxCenterLive initial={records} part={part} onOpen={onOpen} />}</RecordsGate>;
+  const withServices = useMemo(() => () => loadMoneyRecords(load), [load]);
+  return <RecordsGate load={withServices} what={part === "tax" ? "the Tax centre" : "your bookkeeping"}>{(records) => <TaxCenterLive initial={records} part={part} onOpen={onOpen} />}</RecordsGate>;
 };
 /** Tax centre (one page) and Bookkeeping's five tabs (mockup, 12 November 2026). */
 export const TaxCenterPage = taxPage("tax");

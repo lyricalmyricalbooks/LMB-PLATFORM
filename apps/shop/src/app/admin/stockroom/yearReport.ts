@@ -9,13 +9,15 @@ import { fileStem } from "@stockroom/shop-profile.js";
 import { getBookCurrencyCode } from "@stockroom/money.js";
 
 import { mileageYear } from "./mileage";
+import { SERVICE_SOURCE, serviceLedgerRows } from "./serviceSales";
 import { stockValue } from "./stockValue";
 import { artistEarningsInYear, isExpenseAwaitingRate, type TaxSeasonInput } from "./taxSeason";
 import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
 export type BookYear = { title: string; units: number; revenue: number; unitCost: number; cogs: number; shares: number; net: number };
-export type YearFigures = { revenue: number; cogs: number; opex: number; shares: number; profit: number; bookStats: BookYear[]; missingReceiptsCount: number; fxWaitingCount: number };
+/** `services`: the part of `revenue` that came from bookings. */
+export type YearFigures = { revenue: number; services: number; cogs: number; opex: number; shares: number; profit: number; bookStats: BookYear[]; missingReceiptsCount: number; fxWaitingCount: number };
 
 /** One of the title's currency in Canadian dollars, at the saved rate (as the Tax season file converts). */
 const rateOf = (input: TaxSeasonInput, book: Row): number => {
@@ -27,7 +29,7 @@ const stateOf = (input: TaxSeasonInput, book: Row): Row => ({ hist: [], expenses
 
 export function yearFigures(input: TaxSeasonInput, year: number | string): YearFigures {
   const y = String(year);
-  const r: YearFigures = { revenue: 0, cogs: 0, opex: 0, shares: 0, profit: 0, bookStats: [], missingReceiptsCount: 0, fxWaitingCount: 0 };
+  const r: YearFigures = { revenue: 0, services: 0, cogs: 0, opex: 0, shares: 0, profit: 0, bookStats: [], missingReceiptsCount: 0, fxWaitingCount: 0 };
   const amt = (e: Row) => (isExpenseAwaitingRate(e) ? (r.fxWaitingCount++, 0) : e.baseAmount || e.amountCAD || e.amount || 0);
   const expense = (e: Row) => {
     if (e.voided || !String(e.date || "").startsWith(y)) return;
@@ -54,6 +56,14 @@ export function yearFigures(input: TaxSeasonInput, year: number | string): YearF
     (s.expenses || []).forEach(expense);
   }
   (input.taxCenter?.businessExpenses || []).forEach(expense);
+  // Bookings: each visit's takings (tips are money in but not sales). No cost of goods and no artist share.
+  const visits = serviceLedgerRows(input.serviceSales, y, SHOP_CURRENCY).filter((row) => row.sourceType === SERVICE_SOURCE);
+  if (visits.length) {
+    const revenue = visits.reduce((sum, row) => sum + row.baseAmount, 0);
+    r.revenue += revenue;
+    r.services = revenue;
+    r.bookStats.push({ title: "Bookings", units: visits.length, revenue, unitCost: 0, cogs: 0, shares: 0, net: revenue });
+  }
   r.profit = r.revenue - r.cogs - r.opex - r.shares;
   return r;
 }
@@ -78,6 +88,11 @@ export function yearReportCsv(input: TaxSeasonInput, year: number | string): { t
       csv += csvRow([e.date, "Expense", book.title, e.cat, e.desc, e.receipt || "", 0, 0, a.toFixed(2), 0, -a.toFixed(2)]) + "\n";
     }
   }
+  for (const row of serviceLedgerRows(input.serviceSales, y, SHOP_CURRENCY)) {
+    if (row.sourceType !== SERVICE_SOURCE) continue;
+    const gross = row.baseAmount.toFixed(2);
+    csv += csvRow([row.date, "Booking", "Bookings", "Sale", row.desc, "", gross, 0, 0, 0, gross]) + "\n";
+  }
   // Business drives at the shop's mileage rate (mileage.ts), one line each.
   const drives = mileageYear(input.taxCenter || null, y);
   for (const d of drives.drives) {
@@ -86,6 +101,7 @@ export function yearReportCsv(input: TaxSeasonInput, year: number | string): { t
   }
   csv += `\nSUMMARY FOR ${y},,,,,,,,,\n`;
   for (const bs of fin.bookStats) {
+    if (bs.title === "Bookings" && !bs.cogs && !bs.shares) continue;
     csv += csvRow([`${y}-12-31`, "COGS Summary", bs.title, "COGS", "Inventory Recovery", "", 0, bs.cogs.toFixed(2), 0, 0, -bs.cogs.toFixed(2)]) + "\n";
     csv += csvRow([`${y}-12-31`, "Artist Share", bs.title, "Royalty", "Tiered Payout", "", 0, 0, 0, bs.shares.toFixed(2), -bs.shares.toFixed(2)]) + "\n";
   }

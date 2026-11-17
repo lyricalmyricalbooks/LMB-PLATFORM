@@ -1144,6 +1144,17 @@ visits, an amount, or nothing; op `packClose`). A booking made with a pack says 
 (`paymentText`), and Cancel asks **Put the visit back on their pack** (off = `packBack: false`, a late cancel). Fixture:
 "Risograph printing session" sells a pack, "Kai Example" booked with one, six sample packs. Tests: `bookingsPacks.test.ts`.
 
+**Service sales in the money pages (17 November 2026, Bookings plan phase 4).** The Tax centre, Bookkeeping and Reports
+load through `stockroom/moneyRecords.ts` `loadMoneyRecords`: the stockroom's records plus `serviceSales` (pure rules in
+`stockroom/serviceSales.ts`), read with `readBookingsBetween` (a failed read leaves bookings out, never fails the page).
+A booking counts on its visit day in the shop's zone once that day has come, with `moneyKept` (card, gift card, at the
+shop, fee, less refunds); a tip is its own `Tip` row (money in, not a sale, not taxed); held bookings and ones that kept
+nothing are left out. `taxCenterModel` adds the rows (`sourceType` `booking` / `bookingTip`, `sourceId` `bookings`) to the
+ledger and its totals (`MoneySources`); `taxPeriodModel` gives them a **Bookings** channel and rate line ("No tax
+charged"); `yearFigures` adds them to revenue (`services`, P&L shows Product sales and Bookings) and the tax report CSV.
+Never saved anywhere: the stockroom knows nothing of them. The accountant's desk doesn't read bookings yet.
+Fixture: `admin-fixture.html?page=stockroom/taxcenter` (and `stockroom/books`). Tests: `stockroom/serviceSales.test.ts`.
+
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,
 studio, services) gets `MenuKind` "services" (`riso/nav.ts` `adminMenu` / `sideMenu`: Calendar, Clients, Messages, Sales,

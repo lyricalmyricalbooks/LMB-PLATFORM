@@ -20,7 +20,7 @@ import type { StockroomRecords } from "./stockroomData";
 import { pendingList } from "./taxPending";
 import { dueOf, filingsOf, taxPeriodModel, taxReportRows, type TaxPeriod } from "./taxPeriods";
 import { yearFigures } from "./yearReport";
-import type { TaxSources } from "@stockroom/tax-ledger.js";
+import type { MoneySources } from "./moneyReports";
 import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
@@ -86,7 +86,7 @@ export type BalanceSheet = {
 };
 
 export type StatementInput = {
-  records: StockroomRecords; sources: TaxSources; orders: BookkeepingOrder[] | null; today: string;
+  records: StockroomRecords; sources: MoneySources; orders: BookkeepingOrder[] | null; today: string;
 };
 
 const firstYearOf = (rows: Row[], today: string) => {
@@ -361,7 +361,7 @@ export function taxPackFiles(input: StatementInput & { pressName: string; year: 
   const csv = (rows: unknown[][]) => toCsv(rows, { bom: true, eol: "\r\n" });
   const m = (n: number) => n.toFixed(2);
 
-  const figures = yearFigures({ books: records.books as Row[], states: sources.states, taxCenter: sources.taxCenter, fxRateCache: sources.fxRateCache }, year);
+  const figures = yearFigures({ books: records.books as Row[], states: sources.states, taxCenter: sources.taxCenter, fxRateCache: sources.fxRateCache, serviceSales: sources.serviceSales }, year);
   const pl = csv([
     [`${pressName} profit and loss`, year],
     [],
