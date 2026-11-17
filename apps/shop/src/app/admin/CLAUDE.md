@@ -1126,7 +1126,10 @@ with the tip once `rest` lands, or **Paid another way** (`paidAtShop`). Fixture:
 code and a name → `readerAdd`, **Remove** behind a confirm). With readers, the QR dialog leads with **Send to card reader**
 (a picker when there are several) → `readerCharge`; while `readerOpen` it shows the amount and *Waiting for the card…*,
 asks `readerCheck` every 2 s, and offers **Cancel payment** and, in test mode, **Pay with a test card**. A decline shows
-the reader's words and **Try again**. Fixture: `&readers=none` (Square), `&readers=empty`, `&reader=decline`.
+the reader's words and **Try again**. Fixture: `&readers=none` (no card payments), `&readers=empty`, `&readers=square`,
+`&reader=decline`. **Square Terminals (17 November 2026):** when `readers.pairsWithCode`, Add a reader opens
+`PairTerminal` (name → **Get a code** → the code in a mint box, **New code** / **Done**, which re-reads `readers`). Add
+and Remove re-read the list (the server answers them with `ok`, not the list). `online: null` shows no badge.
 
 **Discount codes on bookings (16 November 2026):** Discounts › edit › **Works on bookings too** (`forBookings`, only while
 `useBookingsOn` and for a manual percentage or amount code on the whole order; saved false otherwise). The booking drawer

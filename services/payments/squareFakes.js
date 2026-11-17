@@ -16,7 +16,7 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
   const world = {
     merchants: new Map(), codes: new Map(), tokens: new Map(), refreshTokens: new Map(),
     links: new Map(), orders: new Map(), payments: new Map(), refunds: new Map(), disputes: [], byKey: new Map(), revoked: [],
-    payouts: new Map(),
+    payouts: new Map(), deviceCodes: new Map(), terminalCheckouts: new Map(), noTerminalScope: new Set(),
   };
   const nowIso = () => "2026-10-28T12:00:00Z";
 
@@ -54,6 +54,25 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
       entries: entries.map((e, i) => ({ id: `${id}-e${i}`, payout_id: id, effective_at: nowIso(), ...e })),
       merchant: merchantId,
     });
+    return id;
+  };
+
+  // The owner types the code on a Terminal: the code turns PAIRED with a device id.
+  world.pairTerminal = (codeId, deviceId = `DEV${next++}`) => {
+    const code = world.deviceCodes.get(codeId);
+    Object.assign(code, { status: "PAIRED", device_id: deviceId, status_changed_at: nowIso() });
+    return deviceId;
+  };
+  // The customer taps a card on the Terminal (with an optional tip): the checkout completes with one payment.
+  world.tapTerminal = (checkoutId, { tipMinor = 0 } = {}) => {
+    const checkout = world.terminalCheckouts.get(checkoutId);
+    const id = `PAY${next++}`;
+    const currency = checkout.amount_money.currency;
+    world.payments.set(id, {
+      id, status: "COMPLETED", amount_money: { ...checkout.amount_money }, total_money: { amount: checkout.amount_money.amount + tipMinor, currency },
+      ...(tipMinor ? { tip_money: { amount: tipMinor, currency } } : {}), location_id: checkout.location_id, created_at: nowIso(), refund_ids: [], merchant: checkout.merchant,
+    });
+    Object.assign(checkout, { status: "COMPLETED", payment_ids: [id] });
     return id;
   };
 
@@ -160,6 +179,41 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
       // Two to a page, so the shop's paging is exercised.
       const start = query.cursor ? Number(query.cursor) : 0;
       return { status: 200, body: { payout_entries: found.entries.slice(start, start + 2), ...(start + 2 < found.entries.length ? { cursor: String(start + 2) } : {}) } };
+    }
+    if (path.startsWith("/v2/devices/codes") || path.startsWith("/v2/terminals/")) {
+      if (world.noTerminalScope.has(merchantId)) return { status: 403, body: { errors: [{ category: "AUTHENTICATION_ERROR", code: "INSUFFICIENT_SCOPES", detail: "The merchant has not given your application sufficient permissions." }] } };
+    }
+    if (path === "/v2/devices/codes" && method === "POST") {
+      const key = `${merchantId}/${body.idempotency_key}`;
+      if (world.byKey.has(key)) return world.byKey.get(key);
+      if (body.device_code.location_id !== merchant.location.id) return notFound("Location");
+      const code = { id: `DC${next++}`, code: `EBCARJ${next}`, name: body.device_code.name, product_type: body.device_code.product_type, location_id: body.device_code.location_id, status: "UNPAIRED", pair_by: "2026-10-28T12:05:00Z", created_at: nowIso(), merchant: merchantId };
+      world.deviceCodes.set(code.id, code);
+      const result = { status: 200, body: { device_code: clean(code) } };
+      world.byKey.set(key, result);
+      return result;
+    }
+    if (path === "/v2/devices/codes" && method === "GET") {
+      const all = [...world.deviceCodes.values()].filter((c) => c.merchant === merchantId && (!query.status || c.status === query.status) && (!query.location_id || c.location_id === query.location_id));
+      return { status: 200, body: { device_codes: all.map(clean) } };
+    }
+    if (path === "/v2/terminals/checkouts" && method === "POST") {
+      const key = `${merchantId}/${body.idempotency_key}`;
+      if (world.byKey.has(key)) return world.byKey.get(key);
+      const checkout = { id: `TC${next++}`, status: "PENDING", amount_money: { ...body.checkout.amount_money }, reference_id: body.checkout.reference_id, note: body.checkout.note, device_options: structuredClone(body.checkout.device_options), location_id: merchant.location.id, created_at: nowIso(), merchant: merchantId };
+      world.terminalCheckouts.set(checkout.id, checkout);
+      const result = { status: 200, body: { checkout: clean(checkout) } };
+      world.byKey.set(key, result);
+      return result;
+    }
+    if ((m = path.match(/^\/v2\/terminals\/checkouts\/([^/]+)(\/cancel)?$/))) {
+      const checkout = world.terminalCheckouts.get(m[1]);
+      if (!mine(checkout)) return notFound("Checkout");
+      if (m[2] && method === "POST") {
+        if (checkout.status === "COMPLETED") return { status: 400, body: { errors: [{ category: "INVALID_REQUEST_ERROR", code: "BAD_REQUEST", detail: "Checkout is already completed" }] } };
+        Object.assign(checkout, { status: "CANCELED", cancel_reason: "SELLER_CANCELED" });
+      }
+      return { status: 200, body: { checkout: clean(checkout) } };
     }
     if (path === "/v2/disputes" && method === "GET") {
       const all = world.disputes.filter((d) => d.merchant === merchantId && (!query.location_id || d.location_id === query.location_id));

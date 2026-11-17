@@ -32,6 +32,9 @@ export const SQUARE_SCOPES = Object.freeze([
   "MERCHANT_PROFILE_READ", "PAYMENTS_READ", "PAYMENTS_WRITE", "PAYMENTS_WRITE_ADDITIONAL_RECIPIENTS", "ORDERS_READ", "ORDERS_WRITE", "DISPUTES_READ",
   // Each order's payout and the fees in it (code plan 7.10): the Payouts API, and its payout.paid event.
   "PAYOUTS_READ", "SETTLEMENTS_READ",
+  // Card readers at the desk (Services plan 2, A4): pairing a Square Terminal to the shop's location. A press connected
+  // before this has no such grant: the terminal calls then answer `reconnect`, and connecting again asks for it.
+  "DEVICE_CREDENTIAL_MANAGEMENT",
 ]);
 
 const STATE_MS = 15 * 60 * 1000;
@@ -158,10 +161,17 @@ export const SQUARE_OP_NAMES = Object.freeze([
   "square.refunds.create", "square.refunds.retrieve", "square.refunds.forPayment",
   "square.disputes.forPayment",
   "square.payouts.retrieve", "square.payouts.entries",
+  "square.terminal.pair", "square.terminal.readers",
+  "square.terminal.checkout.create", "square.terminal.checkout.retrieve", "square.terminal.checkout.cancel",
 ]);
 
 /** The calls that start a new sale: only the shop's current account takes them, never one it switched away from. */
-export const SQUARE_CREATE_OPS = Object.freeze(new Set(["square.checkout.create"]));
+export const SQUARE_CREATE_OPS = Object.freeze(new Set(["square.checkout.create", "square.terminal.checkout.create", "square.terminal.pair"]));
+
+// Square's Sandbox has no real Terminal to pair: this device id answers a checkout as if a card was tapped
+// (Square's Terminal API sandbox test values). The shop lists it as "Test reader" in test mode only.
+export const SQUARE_SANDBOX_TERMINAL = "9fa747a2-25ff-48ee-b078-04381f7c828f";
+const DEVICE_ID = /^[A-Za-z0-9:_-]{1,192}$/;
 
 /**
  * @param {object} deps see the header comment
@@ -272,6 +282,16 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     return Math.min(books, lines - (params.giftCardMinor || 0));
   };
 
+  // A press connected before card readers has no grant for them: say how to fix it rather than "Square refused".
+  async function terminal(call) {
+    try { return await call(); } catch (err) {
+      if (err instanceof SquareApiError && (err.code === "INSUFFICIENT_SCOPES" || err.statusCode === 403)) {
+        throw refuse(409, "reconnect", "Connect Square again in Settings › Payments to use card readers.");
+      }
+      throw err;
+    }
+  }
+
   const keyFrom = (row, args) => {
     if (typeof args.idempotencyKey !== "string" || !args.idempotencyKey || args.idempotencyKey.length > 200) throw bad("an idempotency key is needed");
     return squareKey(row.shopId, args.idempotencyKey);
@@ -361,6 +381,66 @@ export function createSquareService({ square, registry, tokens, states, deliver,
       const query = { limit: 100, ...(args.cursor !== undefined ? { cursor: args.cursor } : {}) };
       const answer = await square.call(mode, "GET", `/v2/payouts/${idOf(args.id, "payout")}/payout-entries`, { accessToken: token, query });
       return { data: (answer.payout_entries ?? []).map(payoutEntryShape), cursor: answer.cursor || null };
+    },
+    // ── Card readers (Square Terminal) ──
+    // A pairing code the owner types on the Terminal's sign-in screen; it works for five minutes.
+    async "square.terminal.pair"(row, mode, token, args) {
+      if (!row.payments.locationId) throw refuse(409, "not_connected", "This shop hasn't connected Square yet.");
+      const name = typeof args.name === "string" && args.name.trim() ? args.name.trim().slice(0, 60) : "Card reader";
+      const { device_code: code } = await terminal(() => square.call(mode, "POST", "/v2/devices/codes", { accessToken: token, body: {
+        idempotency_key: keyFrom(row, args), device_code: { name, product_type: "TERMINAL_API", location_id: row.payments.locationId },
+      } }));
+      return { id: code?.id ?? null, code: code?.code ?? null, name: code?.name ?? name, status: code?.status ?? null, pairBy: code?.pair_by ?? null };
+    },
+    // The Terminals paired to the shop's location (a few pages at most), newest first.
+    async "square.terminal.readers"(row, mode, token) {
+      const found = [];
+      let cursor;
+      for (let page = 0; page < 3; page += 1) {
+        const answer = await terminal(() => square.call(mode, "GET", "/v2/devices/codes", { accessToken: token, query: { cursor, location_id: row.payments.locationId, product_type: "TERMINAL_API", status: "PAIRED" } }));
+        for (const code of answer.device_codes ?? []) if (code.device_id) found.push({ id: code.device_id, name: code.name ?? "", pairedAt: code.status_changed_at ?? null });
+        cursor = answer.cursor;
+        if (!cursor) break;
+      }
+      return { data: found };
+    },
+    // Sends an amount to one Terminal; with `tipPercents` the Terminal asks for a tip first (the tip is added on top).
+    async "square.terminal.checkout.create"(row, mode, token, args) {
+      const deviceId = typeof args.deviceId === "string" && DEVICE_ID.test(args.deviceId) ? args.deviceId : null;
+      if (!deviceId) throw bad("a card reader is needed");
+      if (mode !== "test" && deviceId === SQUARE_SANDBOX_TERMINAL) throw bad("the test reader works in test mode only");
+      const upper = String(args.currency ?? "").toUpperCase();
+      if (!CURRENCY.test(upper)) throw bad("currency must be a three-letter code");
+      if (row.payments.currency && upper !== row.payments.currency) throw refuse(400, "currency_mismatch", `This press's Square account takes ${row.payments.currency} only.`);
+      if (!Number.isInteger(args.amountMinor) || args.amountMinor < 1) throw bad("amountMinor must be a whole number above 0");
+      const tips = Array.isArray(args.tipPercents) ? args.tipPercents.filter((p) => Number.isInteger(p) && p > 0 && p <= 100).slice(0, 3) : [];
+      const body = {
+        idempotency_key: keyFrom(row, args),
+        checkout: {
+          amount_money: { amount: args.amountMinor, currency: upper },
+          ...(typeof args.referenceId === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(args.referenceId) ? { reference_id: args.referenceId } : {}),
+          ...(typeof args.note === "string" && args.note ? { note: args.note.slice(0, 250) } : {}),
+          device_options: { device_id: deviceId, skip_receipt_screen: false, tip_settings: tips.length ? { allow_tipping: true, separate_tip_screen: true, tip_percentages: tips } : { allow_tipping: false } },
+        },
+      };
+      const { checkout } = await terminal(() => square.call(mode, "POST", "/v2/terminals/checkouts", { accessToken: token, body }));
+      return { id: checkout?.id ?? null, status: checkout?.status ?? null };
+    },
+    // A checkout's state; once COMPLETED, its payment (with any tip the customer added on the Terminal).
+    async "square.terminal.checkout.retrieve"(row, mode, token, args) {
+      const { checkout } = await terminal(() => square.call(mode, "GET", `/v2/terminals/checkouts/${idOf(args.id, "checkout")}`, { accessToken: token }));
+      const paymentId = Array.isArray(checkout?.payment_ids) ? checkout.payment_ids[0] ?? null : null;
+      let payment = null;
+      if (checkout?.status === "COMPLETED" && paymentId) payment = (await square.call(mode, "GET", `/v2/payments/${idOf(paymentId, "payment")}`, { accessToken: token })).payment ?? null;
+      return {
+        id: checkout?.id ?? args.id, status: checkout?.status ?? null, cancelReason: checkout?.cancel_reason ?? null,
+        deviceId: checkout?.device_options?.device_id ?? null, amountMinor: money(checkout?.amount_money),
+        paymentId, totalMinor: payment ? money(payment.total_money) || money(payment.amount_money) : 0, tipMinor: payment ? money(payment.tip_money) : 0,
+      };
+    },
+    async "square.terminal.checkout.cancel"(row, mode, token, args) {
+      const { checkout } = await terminal(() => square.call(mode, "POST", `/v2/terminals/checkouts/${idOf(args.id, "checkout")}/cancel`, { accessToken: token, body: {} }));
+      return { id: checkout?.id ?? args.id, status: checkout?.status ?? null };
     },
     async "square.disputes.forPayment"(row, mode, token, args) {
       const paymentId = idOf(args.paymentId, "payment");

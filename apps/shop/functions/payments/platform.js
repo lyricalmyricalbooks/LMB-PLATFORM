@@ -85,6 +85,12 @@ function platformStripeClient(call, mode) {
       locations: {
         list: (p) => call("terminal.locations.list", mode, { ...params(p) }),
         create: (p) => call("terminal.locations.create", mode, { params: p }),
+        update: (id, p) => call("terminal.locations.update", mode, { id, params: p }),
+      },
+      // Tip choices on the reader (Services plan 2, A4).
+      configurations: {
+        create: (p) => call("terminal.configurations.create", mode, { params: p }),
+        update: (id, p) => call("terminal.configurations.update", mode, { id, params: p }),
       },
       readers: {
         list: (p) => call("terminal.readers.list", mode, { ...params(p) }),

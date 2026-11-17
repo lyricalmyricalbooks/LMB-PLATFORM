@@ -544,7 +544,7 @@ describe("card readers at the desk (Services plan phase 3)", () => {
     const create = calls.find((c) => c.op === "paymentIntents.create");
     expect(create).toMatchObject({ mode: "test", args: { idempotencyKey: "booking-reader-b1-4500-1", params: { amount: 4500, currency: "cad", payment_method_types: ["card_present", "interac_present"], capture_method: "automatic" } } });
     expect(calls.find((c) => c.op === "terminal.readers.processPaymentIntent")).toMatchObject({ args: { id: "tmr_1", params: { payment_intent: "pi_card_1" } } });
-    expect(await reader.payment("pi_card_1")).toEqual({ status: "succeeded", amountMinor: 4500, error: "" });
+    expect(await reader.payment("pi_card_1")).toEqual({ status: "succeeded", amountMinor: 4500, tipMinor: 0, error: "" });
     await reader.testCard("tmr_1");
     expect(calls.at(-1)).toMatchObject({ op: "testHelpers.terminal.readers.presentPaymentMethod", args: { id: "tmr_1" } });
   });

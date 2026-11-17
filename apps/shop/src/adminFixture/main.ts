@@ -308,7 +308,9 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   const readerMode = new URLSearchParams(window.location.search).get("readers") || "";
   const textsSoon = new URLSearchParams(window.location.search).get("texts") === "soon";
   const DECLINE = new URLSearchParams(window.location.search).get("reader") === "decline";
-  let readerList = readerMode === "empty" ? [] : [
+  let readerList: { id: string; label: string; online: boolean | null; device: string }[] = readerMode === "empty" ? [] : readerMode === "square" ? [
+    { id: "sqdev_fixture1", label: "Test reader", online: true, device: "Square Terminal" },
+  ] : [
     { id: "tmr_fixture1", label: "Front desk", online: true, device: "WisePOS E" },
     { id: "tmr_fixture2", label: "Back room", online: false, device: "Reader S700" },
   ];
@@ -346,12 +348,19 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       changed();
       return { ok: true, id: walk.id, url: `https://press.example/book?booking=${walk.id}&key=${"e".repeat(48)}`, dueMinor: walk.priceMinor };
     }
-    // Card readers (?readers=none for a Square shop, ?readers=empty for none added yet, ?reader=decline to decline the test card).
+    // Card readers (?readers=none for no card payments, ?readers=empty for none added yet, ?readers=square for Square
+    // Terminals paired by code, ?reader=decline to decline the test card). Add and Remove answer as the server does.
     if (op === "readers" || op === "readerAdd" || op === "readerRemove") {
       if (readerMode === "none") return { available: false, readers: [] };
-      if (op === "readerAdd") readerList = [...readerList, { id: `tmr_fixture${readerList.length + 1}`, label: String(body.label || "Front desk"), online: true, device: "WisePOS E" }];
-      if (op === "readerRemove") readerList = readerList.filter((r) => r.id !== body.readerId);
-      return { available: true, testMode: true, readers: readerList };
+      const square = readerMode === "square";
+      if (op === "readerAdd") {
+        readerList = [...readerList, square
+          ? { id: `sqdev_fixture${readerList.length + 1}`, label: String(body.label || "Front desk"), online: null, device: "Square Terminal" }
+          : { id: `tmr_fixture${readerList.length + 1}`, label: String(body.label || "Front desk"), online: true, device: "WisePOS E" }];
+        return square ? { ok: true, pairing: { code: "EBCARJ", pairBy: new Date(Date.now() + 5 * 60_000).toISOString() } } : { ok: true, reader: readerList.at(-1) };
+      }
+      if (op === "readerRemove") { readerList = readerList.filter((r) => r.id !== body.readerId); return { ok: true }; }
+      return { available: true, testMode: true, pairsWithCode: square, readers: readerList };
     }
     if (op === "readerCharge" || op === "readerCheck" || op === "readerCancel" || op === "readerTest") {
       const b = rows.find((x) => x.id === id);

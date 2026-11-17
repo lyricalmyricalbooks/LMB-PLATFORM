@@ -114,9 +114,13 @@ export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsD
 export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus";
 
 /** A card reader that connects over the internet (Take a payment). */
-export type CardReader = { id: string; label: string; online: boolean; device?: string };
-/** What the shop's card readers answer: none on a Square shop yet; `testMode` offers a test card. */
-export type CardReaders = { available: boolean; testMode?: boolean; readers: CardReader[] };
+export type CardReader = { id: string; label: string; online: boolean | null; device?: string };
+/**
+ * What the shop's card readers answer: none without card payments; `testMode` offers a test card. A Square shop
+ * `pairsWithCode`: Add a reader gives a code to type on the Terminal (op `readerAdd` answers `pairing`).
+ */
+export type CardReaders = { available: boolean; testMode?: boolean; pairsWithCode?: boolean; readers: CardReader[] };
+export type ReaderPairing = { code: string; pairBy: string | null };
 /** A payment on a card reader: still on the reader, paid, or not (with the reader's words). */
 export type ReaderState = { state: "waiting" | "paid" | "idle"; error: string; dueMinor: number };
 

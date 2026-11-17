@@ -525,3 +525,41 @@ test("a payment's shape carries what Square said about the card, for the shop's 
   assert.deepEqual(shaped.risk, { level: "MODERATE", cvvStatus: "CVV_REJECTED", avsStatus: "AVS_ACCEPTED", cardCountry: "GB" });
   assert.deepEqual(paymentShape({ id: "P2", status: "COMPLETED" }).risk, { level: null, cvvStatus: null, avsStatus: null, cardCountry: null });
 });
+
+test("card readers (Services plan 2, A4): pair a Square Terminal, send it an amount with tips, read the payment and the tip", async () => {
+  const w = await world();
+  await w.connect("MERCHANT1");
+  assert.ok(SQUARE_SCOPES.includes("DEVICE_CREDENTIAL_MANAGEMENT"));
+  const pair = await w.call("square.terminal.pair", { name: "Front desk", idempotencyKey: "pair-1" });
+  assert.equal(pair.status, 200, JSON.stringify(pair.body));
+  assert.match(pair.body.code, /^[A-Z0-9]+$/);
+  assert.equal((await w.call("square.terminal.readers")).body.data.length, 0);
+  const device = w.sq.world.pairTerminal(pair.body.id);
+  assert.deepEqual((await w.call("square.terminal.readers")).body.data.map((r) => [r.id, r.name]), [[device, "Front desk"]]);
+
+  const sent = await w.call("square.terminal.checkout.create", { deviceId: device, amountMinor: 4520, currency: "cad", referenceId: "booking001", note: "Cut", tipPercents: [15, 18, 20, 25, 0], idempotencyKey: "reader-1" });
+  assert.equal(sent.status, 200, JSON.stringify(sent.body));
+  const made = w.sq.world.terminalCheckouts.get(sent.body.id);
+  assert.deepEqual(made.device_options.tip_settings, { allow_tipping: true, separate_tip_screen: true, tip_percentages: [15, 18, 20] });
+  assert.deepEqual(made.amount_money, { amount: 4520, currency: "CAD" });
+  assert.equal((await w.call("square.terminal.checkout.retrieve", { id: sent.body.id })).body.status, "PENDING");
+  const paymentId = w.sq.world.tapTerminal(sent.body.id, { tipMinor: 900 });
+  const read = await w.call("square.terminal.checkout.retrieve", { id: sent.body.id });
+  assert.deepEqual({ ...read.body }, { id: sent.body.id, status: "COMPLETED", cancelReason: null, deviceId: device, amountMinor: 4520, paymentId, totalMinor: 5420, tipMinor: 900 });
+
+  const second = await w.call("square.terminal.checkout.create", { deviceId: device, amountMinor: 1000, currency: "CAD", idempotencyKey: "reader-2" });
+  assert.deepEqual(w.sq.world.terminalCheckouts.get(second.body.id).device_options.tip_settings, { allow_tipping: false });
+  assert.equal((await w.call("square.terminal.checkout.cancel", { id: second.body.id })).body.status, "CANCELED");
+  assert.equal((await w.call("square.terminal.checkout.create", { deviceId: device, amountMinor: 1000, currency: "USD", idempotencyKey: "reader-3" })).status, 400);
+  assert.equal((await w.call("square.terminal.checkout.create", { deviceId: "bad id!", amountMinor: 1000, currency: "CAD", idempotencyKey: "reader-4" })).status, 400);
+});
+
+test("card readers on a Square connection made before them say to connect again", async () => {
+  const w = await world();
+  await w.connect("MERCHANT1");
+  w.sq.world.noTerminalScope.add("MERCHANT1");
+  const answer = await w.call("square.terminal.readers");
+  assert.equal(answer.status, 409);
+  assert.equal(answer.body.error.code, "reconnect");
+  assert.match(answer.body.error.message, /Connect Square again/);
+});
