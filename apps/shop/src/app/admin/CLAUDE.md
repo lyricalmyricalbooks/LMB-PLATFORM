@@ -1121,6 +1121,11 @@ pure `deskPayment.ts`), its own menu item in the services menus and beside Booki
 *Someone at the desk* (service, name, optional email, amount) calls op `walkIn`; *Still to pay today* lists today's
 `restPayable` bookings and calls `payLink`. Both open one QR dialog that follows the booking live (`deskState`): Paid
 with the tip once `rest` lands, or **Paid another way** (`paidAtShop`). Fixture: `admin-fixture.html?page=takePayment`.
+**Card readers (17 November 2026):** a *Card readers* tile (op `readers`: Online/Offline, **Add a reader** with the pairing
+code and a name → `readerAdd`, **Remove** behind a confirm). With readers, the QR dialog leads with **Send to card reader**
+(a picker when there are several) → `readerCharge`; while `readerOpen` it shows the amount and *Waiting for the card…*,
+asks `readerCheck` every 2 s, and offers **Cancel payment** and, in test mode, **Pay with a test card**. A decline shows
+the reader's words and **Try again**. Fixture: `&readers=none` (Square), `&readers=empty`, `&reader=decline`.
 
 **Discount codes on bookings (16 November 2026):** Discounts › edit › **Works on bookings too** (`forBookings`, only while
 `useBookingsOn` and for a manual percentage or amount code on the whole order; saved false otherwise). The booking drawer

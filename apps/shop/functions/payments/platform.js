@@ -80,6 +80,22 @@ function platformStripeClient(call, mode) {
     events: { retrieve: (id) => call("events.retrieve", mode, { id }) },
     // What a payout paid in (code plan 7.10).
     balanceTransactions: { list: (p) => call("balanceTransactions.list", mode, { params: p }) },
+    // Card readers at the desk (Services plan phase 3): the shop's place and the readers registered to it.
+    terminal: {
+      locations: {
+        list: (p) => call("terminal.locations.list", mode, { ...params(p) }),
+        create: (p) => call("terminal.locations.create", mode, { params: p }),
+      },
+      readers: {
+        list: (p) => call("terminal.readers.list", mode, { ...params(p) }),
+        create: (p) => call("terminal.readers.create", mode, { params: p }),
+        retrieve: (id) => call("terminal.readers.retrieve", mode, { id }),
+        del: (id) => call("terminal.readers.del", mode, { id }),
+        processPaymentIntent: (id, p) => call("terminal.readers.processPaymentIntent", mode, { id, params: p }),
+        cancelAction: (id) => call("terminal.readers.cancelAction", mode, { id }),
+      },
+    },
+    testHelpers: { terminal: { readers: { presentPaymentMethod: (id) => call("testHelpers.terminal.readers.presentPaymentMethod", mode, { id }) } } },
   });
 }
 

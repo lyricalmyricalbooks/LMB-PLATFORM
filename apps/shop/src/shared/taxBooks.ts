@@ -71,8 +71,10 @@ export function taxLinesFor(parts: { rate: TaxRateLike | null | undefined; amoun
     const name = taxBookName(part.rate);
     byName.set(name, (byName.get(name) || 0) + amount);
   }
-  const lines = [...byName].map(([name, amount]) => ({ name, cents: Math.round(amount * 100) })).filter((l) => l.cents !== 0);
+  // Lines that round to nothing still count until the rounding cent is placed: several fractions of a cent can add up
+  // to one (found by the random tax check, 17 November 2026), and that cent goes to the largest unrounded line.
+  const lines = [...byName].map(([name, amount]) => ({ name, amount, cents: Math.round(amount * 100) }));
   const drift = Math.round(sum * 100) - lines.reduce((total, l) => total + l.cents, 0);
-  if (drift && lines.length) lines.reduce((big, l) => (Math.abs(l.cents) > Math.abs(big.cents) ? l : big)).cents += drift;
-  return lines;
+  if (drift && lines.length) lines.reduce((big, l) => (Math.abs(l.amount) > Math.abs(big.amount) ? l : big)).cents += drift;
+  return lines.filter((l) => l.cents !== 0).map(({ name, cents }) => ({ name, cents }));
 }

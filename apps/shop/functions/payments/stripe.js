@@ -488,6 +488,58 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
       chargeSaved: ({ customer, paymentMethod, amountMinor, currency, description, metadata }, idempotencyKey) => stripe.paymentIntents.create({
         amount: amountMinor, currency, customer, payment_method: paymentMethod, off_session: true, confirm: true, description, metadata,
       }, { ...requestOptions, idempotencyKey }),
+      reader: cardReader(stripe, requestOptions, mode === "test"),
+    });
+  }
+
+  // Card readers at the desk (Stripe Terminal smart readers, Services plan phase 3). The shop has one place (a Terminal
+  // location, the caller keeps its id) and the readers registered to it. A charge is a card-present payment sent to one
+  // reader; the caller reads the payment to learn whether it went through.
+  function cardReader(stripe, requestOptions, testMode) {
+    const readerOf = (r) => ({ id: r.id, label: String(r.label || ""), online: r.status === "online", device: String(r.device_type || ""), action: r.action ? { status: r.action.status, error: r.action.failure_message || "", intent: r.action.process_payment_intent?.payment_intent || null } : null });
+    return Object.freeze({
+      testMode,
+      async makePlace({ name, address }) {
+        const place = await stripe.terminal.locations.create({ display_name: name, address }, requestOptions);
+        return place.id;
+      },
+      async list(place) {
+        const page = await stripe.terminal.readers.list({ location: place, limit: 20 }, requestOptions);
+        return (page?.data || []).map(readerOf);
+      },
+      async add({ code, label, place }) {
+        return readerOf(await stripe.terminal.readers.create({ registration_code: code, label, location: place }, requestOptions));
+      },
+      remove: (id) => stripe.terminal.readers.del(id, {}, requestOptions),
+      read: async (id) => readerOf(await stripe.terminal.readers.retrieve(id, {}, requestOptions)),
+      // Canadian debit cards pay through Interac on the reader, so a CAD payment takes both.
+      async charge({ readerId, amountMinor, currency, description, metadata }, idempotencyKey) {
+        const types = String(currency).toLowerCase() === "cad" ? ["card_present", "interac_present"] : ["card_present"];
+        const intent = await stripe.paymentIntents.create({
+          amount: amountMinor, currency: String(currency).toLowerCase(), payment_method_types: types, capture_method: "automatic", description, metadata,
+        }, { ...requestOptions, idempotencyKey });
+        try {
+          await stripe.terminal.readers.processPaymentIntent(readerId, { payment_intent: intent.id }, requestOptions);
+        } catch (err) {
+          // The reader never got it (offline, busy): stop the payment so it can't be taken later.
+          await stripe.paymentIntents.cancel(intent.id, {}, requestOptions).catch(() => {});
+          throw err;
+        }
+        return { intent: intent.id };
+      },
+      async payment(intentId) {
+        const intent = await stripe.paymentIntents.retrieve(intentId, {}, requestOptions);
+        return { status: intent.status, amountMinor: intent.amount_received || 0, error: intent.last_payment_error?.message || "" };
+      },
+      async cancel(readerId, intentId) {
+        await stripe.terminal.readers.cancelAction(readerId, {}, requestOptions).catch(() => {});
+        if (intentId) await stripe.paymentIntents.cancel(intentId, {}, requestOptions).catch(() => {});
+      },
+      // Stripe's simulated reader taps a test card (test mode only).
+      testCard: (readerId) => {
+        if (!testMode) throw Object.assign(new Error("Test cards work in test mode only."), { code: "test_only" });
+        return stripe.testHelpers.terminal.readers.presentPaymentMethod(readerId, {}, requestOptions);
+      },
     });
   }
 

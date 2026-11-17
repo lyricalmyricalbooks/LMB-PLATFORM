@@ -66,7 +66,8 @@ browsers may write (mirroring `firestore.rules`).
   never negative, cheapest first, unique ids, bag order never matters, Free-for-all is free) and tax (shop = server, the
   tax sits between the lowest and highest rate used, no kinds means one rate as before, bookkeeping cents add up). It
   found that two shipping profiles with equal bases charged by bag order: `quoteShipping` now breaks the leader tie by
-  the bigger waived extra, then profile id.
+  the bigger waived extra, then profile id. On 17 November 2026 it found `taxLinesFor` dropping a cent made of fractions
+  on several lines that each rounded to nothing; the rounding cent now goes to the largest unrounded line.
 - The shop's own currency (13 November 2026, `tasks/todo/2026-11-13-shop-currency.md`): `shopCurrency.ts` (`shopCurrencyOf`,
   `currencySign`, `currencyName`, `shopMoney`). The server reads `shopConfig.currency` (the record's `SHOP_CURRENCY`,
   written by the platform's setup from sign-up's country), the pages `shopCurrency()` in `lib/shopProfile` (the

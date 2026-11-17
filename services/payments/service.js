@@ -89,7 +89,7 @@ export class ServiceError extends Error {
 }
 
 const ACCOUNT_ID = /^acct_[A-Za-z0-9]+$/;
-const ids = { pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
+const ids = { tml: /^tml_[A-Za-z0-9_]+$/, tmr: /^tmr_[A-Za-z0-9_]+$/, pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
 
 // Parameters that would move money anywhere but the press's own account, or set the platform's fee. A shop never
 // sets them: the service adds the fee itself, and any of these from a shop is refused, at any depth.
@@ -173,6 +173,37 @@ function sessionAmount(params) {
   return total;
 }
 
+// Card readers (Stripe Terminal, Services plan phase 3): the shop's one place, and the readers registered to it.
+const ADDRESS_KEYS = ["line1", "line2", "city", "state", "postal_code", "country"];
+const locationParams = (params) => {
+  const out = only(params, ["display_name", "address"]);
+  if (typeof out.display_name !== "string" || !out.display_name.trim() || out.display_name.length > 100) throw bad("display_name is needed");
+  if (!plainObject(out.address)) throw bad("an address is needed");
+  for (const [key, value] of Object.entries(out.address)) {
+    if (!ADDRESS_KEYS.includes(key)) throw bad(`address.${key} can't be sent here`);
+    if (typeof value !== "string" || value.length > 200) throw bad(`address.${key} must be text`);
+  }
+  return out;
+};
+const readerListParams = (params) => {
+  const out = only(params, ["location", "limit"]);
+  if (out.location !== undefined) idFor("tml", out.location);
+  limitOk(out.limit);
+  return out;
+};
+const readerParams = (params) => {
+  const out = only(params, ["registration_code", "label", "location"]);
+  if (typeof out.registration_code !== "string" || !/^[A-Za-z0-9-]{3,60}$/.test(out.registration_code)) throw bad("registration_code is needed");
+  if (out.label !== undefined && (typeof out.label !== "string" || out.label.length > 60)) throw bad("label must be short text");
+  idFor("tml", out.location);
+  return out;
+};
+const processParams = (params) => {
+  const out = only(params, ["payment_intent"]);
+  idFor("pi", out.payment_intent);
+  return out;
+};
+
 /** The Stripe calls a shop may ask for. Each names Stripe's path and checks the shop's parameters. */
 const SHOP_OPS = Object.freeze({
   "paymentIntents.create": { method: "POST", path: () => "/v1/payment_intents", create: "top" },
@@ -188,6 +219,16 @@ const SHOP_OPS = Object.freeze({
   "disputes.list": { method: "GET", path: () => "/v1/disputes", params: listParams },
   "events.retrieve": { method: "GET", path: (a) => `/v1/events/${idFor("evt", a.id)}`, params: (p) => only(p, []) },
   "balanceTransactions.list": { method: "GET", path: () => "/v1/balance_transactions", params: payoutListParams },
+  "terminal.locations.list": { method: "GET", path: () => "/v1/terminal/locations", params: (p) => { const out = only(p, ["limit"]); limitOk(out.limit); return out; } },
+  "terminal.locations.create": { method: "POST", path: () => "/v1/terminal/locations", params: locationParams },
+  "terminal.readers.list": { method: "GET", path: () => "/v1/terminal/readers", params: readerListParams },
+  "terminal.readers.create": { method: "POST", path: () => "/v1/terminal/readers", params: readerParams },
+  "terminal.readers.retrieve": { method: "GET", path: (a) => `/v1/terminal/readers/${idFor("tmr", a.id)}`, params: (p) => only(p, []) },
+  "terminal.readers.del": { method: "DELETE", path: (a) => `/v1/terminal/readers/${idFor("tmr", a.id)}`, params: (p) => only(p, []) },
+  "terminal.readers.processPaymentIntent": { method: "POST", path: (a) => `/v1/terminal/readers/${idFor("tmr", a.id)}/process_payment_intent`, params: processParams },
+  "terminal.readers.cancelAction": { method: "POST", path: (a) => `/v1/terminal/readers/${idFor("tmr", a.id)}/cancel_action`, params: (p) => only(p, []) },
+  // Stripe's simulated reader takes a test card: test mode only, so it can never stand in for a real payment.
+  "testHelpers.terminal.readers.presentPaymentMethod": { method: "POST", testOnly: true, path: (a) => `/v1/test_helpers/terminal/readers/${idFor("tmr", a.id)}/present_payment_method`, params: (p) => only(p, []) },
 });
 
 export const SHOP_OP_NAMES = Object.freeze([...Object.keys(SHOP_OPS), "account.status", "account.onboardingLink", "account.connectLink", "account.paymentDomain", "account.switch", ...SQUARE_OP_NAMES]);
@@ -567,6 +608,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (!op) throw bad(`unknown call ${String(name).slice(0, 60)}`);
     if (op.create && !sells) throw switchedAway("Stripe");
     const mode = modeFor(row, body.mode);
+    if (op.testOnly && mode !== "test") throw bad("this call works in test mode only");
     // The account switched to was checked before the switch could start (nextReady).
     if (op.create && mode === "live" && found.slot === "current") await liveChargesAllowed(whole);
     const path = op.path(args);

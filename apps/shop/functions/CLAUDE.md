@@ -1284,6 +1284,17 @@ starting now with `walkIn: true`, `source: "desk"`, `gapAfter: 0` and both remin
 (`payKey` kept). It takes no `bookingDays` time (the client is already there), sends no email and never holds a card;
 the client pays and tips from the usual pay-the-rest page.
 
+**Card readers at the desk (17 November 2026, phase 3 part 2):** Stripe smart readers (server-driven Terminal). The
+provider's `checkout.reader` (`payments/stripe.js` `cardReader`; Square has none, so ops answer "Card readers work with
+Stripe for now") makes one Terminal location per mode from `settings/website.location` (kept in `bookingReaders/main`
+`place_<mode>`; no street/city/country → `readerCode: "address"`). Admin ops `readers`/`readerAdd`/`readerRemove`; booking
+ops `readerCharge` (closes open pay pages first, refuses `reader_busy`/`nothing_due`, counts `readerTries` before asking
+so a retry never reuses a stopped payment), `readerCheck`, `readerCancel` (reads once more: a tap just before still
+counts), `readerTest` (test mode only). A paid reader charge is saved as `rest` with `reader: true` (refunds, figures and
+receipts unchanged); `payPage` and `paidAtShop` refuse while `readerOpen`. `sweepHolds` stops a charge left on a reader
+after `READER_MINUTES` (15). Platform shops reach Terminal through services/payments SHOP_OPS (`terminal.*`, the test
+card `testOnly`). Known gap: Interac (Canadian debit) payments refund only in person on the reader.
+
 **Discount codes (16 November 2026, plan phase 3).** Pure `bookingDiscount.js`: a code works on bookings only with
 `forBookings: true` (Discounts › **Works on bookings too**, shown while Bookings is on), not automatic, type percentage or
 fixed, `appliesTo` all (`worksOnBookings`); `bookingDiscountMinor` never takes more than the price, applies

@@ -16,7 +16,9 @@ export type Booking = {
   /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */
   cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
   /** What was left, paid later by card from the client's booking page; `restOpen` while a page to pay it is open. */
-  rest?: { amountMinor: number; at: string } | null; restOpen?: boolean;
+  rest?: { amountMinor: number; at: string; reader?: boolean } | null; restOpen?: boolean;
+  /** A payment sent to the shop's card reader and not finished yet; `readerError` what the reader said last time. */
+  readerOpen?: boolean; readerError?: string; readerCharge?: { readerId: string; amountMinor: number; at: string } | null;
   /** A discount code the customer typed: what it took off (`priceMinor` is already after it; `listPriceMinor` before). */
   discount?: { id: string; code: string; amountMinor: number; returned?: boolean } | null; listPriceMinor?: number;
   /** A gift card that paid part or all of what was paid when booked (`returned` once put back on the card). */
@@ -82,7 +84,14 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn";
+export type AdminOp = "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest";
+
+/** A card reader that connects over the internet (Take a payment). */
+export type CardReader = { id: string; label: string; online: boolean; device?: string };
+/** What the shop's card readers answer: none on a Square shop yet; `testMode` offers a test card. */
+export type CardReaders = { available: boolean; testMode?: boolean; readers: CardReader[] };
+/** A payment on a card reader: still on the reader, paid, or not (with the reader's words). */
+export type ReaderState = { state: "waiting" | "paid" | "idle"; error: string; dueMinor: number };
 
 /** Someone who asked to hear when a full class time (start) or a booked-up day (no start) has room again. */
 export type Waiting = { id: string; serviceId: string; serviceName: string; day: string; start: string | null; name: string; email: string; createdAt: string;
