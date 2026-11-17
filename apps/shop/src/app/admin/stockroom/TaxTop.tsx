@@ -1,5 +1,6 @@
 // The Tax centre's sales tax parts (11 November 2026; v4 split them over three pages, `part`): period pills, four tiles
 // (tax to remit, sales, fees, before you file), tax by rate and place, tax by channel and past filings. Figures from taxPeriods.ts.
+import { fmt } from "@stockroom/money.js";
 import { useState, type ReactNode } from "react";
 import { downloadCsv } from "@stockroom/download.js";
 
@@ -27,7 +28,7 @@ export function TaxTop({ periods, period, onPeriod, orders, ledgerRows, states, 
 }) {
   const ready = Array.isArray(orders);
   const model = taxPeriodModel({ orders: ready ? orders : [], ledgerRows, states, period, currency });
-  const money = (cents: number) => new Intl.NumberFormat("en-CA", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(cents / 100);
+  const money = (cents: number) => fmt(cents / 100, currency);
   const pending = ready ? null : orders === "loading" ? "Counting…" : "Couldn't load website orders";
   const download = () => downloadCsv(csvText(taxReportRows(model, period, currency)), `Tax_report_${period.id}.csv`);
 
