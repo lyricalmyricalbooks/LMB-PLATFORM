@@ -460,3 +460,11 @@
 .rp .bkg-tday-block[data-short] { grid-auto-flow: column; justify-content: start; align-items: baseline; gap: 6px; padding: 4px 8px; }
 .rp .bkg-tday-block[data-short] .bkg-slot-what, .rp .bkg-tday-block[data-short] .bkg-slot-tag { display: none; }
 .rp .bkg-texts-soon { margin: -8px 0 12px; }
+
+/* Standing appointment (New booking › Repeat): the run's dates, each free or taken. */
+.rp .bkg-run { display: grid; gap: 8px; padding: 14px; border-radius: 16px; background: var(--rp-surface); }
+.rp .bkg-run-head { margin: 0; font: 600 var(--rp-text-sm)/1.4 var(--rp-font-body); color: var(--rp-text); }
+.rp .bkg-run-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.rp .bkg-run-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--rp-text-sm); color: var(--rp-text); }
+.rp .bkg-run-list li > span:first-child { min-width: 64px; color: var(--rp-text-subtle); }
+.rp .bkg-run-list li.is-taken > span:nth-child(2) { text-decoration: line-through; color: var(--rp-text-subtle); }

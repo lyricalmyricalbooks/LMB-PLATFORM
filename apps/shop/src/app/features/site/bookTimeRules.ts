@@ -1,6 +1,6 @@
 // Book a time page (features/site/BookTime.tsx): the pure rules. Days and times are the shop's own (the server sends its
 // time zone), so a shopper abroad sees the times the shop keeps, with the zone named under the picker.
-import { addDays, depositOf } from "../../../shared/bookingTimes";
+import { addDays, depositOf, MAX_RUN_DAYS, MAX_RUN_VISITS, MAX_RUN_WEEKS } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
@@ -9,6 +9,7 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[];
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
   joining?: { missed: number; of: number; fullPriceMinor: number };
+  /** Clients may book it as a standing appointment: the same time every few weeks, several visits at once. */ repeats?: boolean;
   /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
@@ -61,6 +62,8 @@ export type BookingView = {
   staffId?: string; staffName?: string;
   /** A course: every date this sign-up holds a place on. `canMove` false: it can be cancelled online but not moved. */
   courseStarts?: string[]; canMove?: boolean;
+  /** A standing appointment: which visit of the run this is, how many there are and how often. */
+  run?: { visit: number; visits: number; everyWeeks: number };
   status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;
   /** With payment "deposit": what was asked by card when booking, whether it is paid, and what is left for the visit. */
   depositMinor?: number; depositPaid?: boolean; dueMinor?: number;
@@ -232,3 +235,22 @@ export function sectionServices(info: BookingInfo | null, max: unknown): Booking
 
 /** An approved review of a visit, as the website shows it (first name and initial only). */
 export type VisitReview = { authorName: string; rating: number; body: string; serviceName: string; date: string; reply?: string };
+
+/** A standing appointment the client picked: every `everyWeeks` weeks, `visits` times. */
+export type BookingRun = { everyWeeks: number; visits: number };
+/** One visit of a run as the booking page lists it (`current`: the booking on screen). */
+export type RunVisit = { id: string; start: string; status: "held" | "confirmed" | "cancelled"; current?: boolean };
+
+/** The "how often" choices: 1 to 12 weeks apart. */
+export const RUN_WEEK_CHOICES = Array.from({ length: MAX_RUN_WEEKS }, (_, i) => i + 1);
+
+/** How many visits a run may have at that gap: 2 to 12, all within a year of the first. */
+export function runVisitChoices(everyWeeks: number): number[] {
+  return Array.from({ length: MAX_RUN_VISITS - 1 }, (_, i) => i + 2).filter((n) => (n - 1) * everyWeeks * 7 <= MAX_RUN_DAYS);
+}
+
+/** Keeps the number of visits allowed when the gap changes (the most that still fits, if it no longer does). */
+export function fitRun(run: BookingRun): BookingRun {
+  const choices = runVisitChoices(run.everyWeeks);
+  return choices.includes(run.visits) ? run : { ...run, visits: choices[choices.length - 1] ?? 2 };
+}

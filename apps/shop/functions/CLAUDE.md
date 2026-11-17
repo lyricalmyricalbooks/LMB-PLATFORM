@@ -1449,6 +1449,21 @@ name shortened to "Ada R.") writes, in one transaction, `reviews/{id}` (`source:
 try is 409 `reviewed`. The owner gets a `[REVIEW]` email and approves it in Reviews. `bookingInfo.reviews` lists the newest 12
 approved ones (`visitReviews`: one `source ==` query, no index) only while `siteReviews` is on, for the Client reviews section.
 
+**Standing appointments (17 November 2026, Services plan 2 B1, `tasks/todo/2026-11-17-standing-appointments.md`).** A
+one-to-one service may set `repeats` (`cleanService`: never a class or course; Bookings › Services › edit › **Clients can book a
+standing appointment**). Clients can book a run only when `runsOnline` (shared: repeats, free or paid at the visit, no card on
+file): `bookingInfo` lists `repeats: true` then. `cleanRun` allows 2–12 visits, every 1–12 weeks, all within 364 days;
+`runStarts` keeps the same shop-clock time across clock changes. Public `bookingRunCheck` and admin op `runCheck` answer each
+date `{ start, free }` (`runPlan`; the shop's own check uses owner rules, any hour). `bookingStart` / admin `create` with `run`
+take the first visit as usual (record `series: { id: "run_<firstId>", everyWeeks, visits, visit: 1 }`), then `bookRun` takes
+each later date as its own booking (same manage key, full price, paid at the visit, no discount, gift card or pack, same person
+else anyone free); if any date fails, every visit made and the first are dropped and the answer is 409 `run_taken` with
+`taken`. One booked email lists every date (`tellCustomer` `run`). Each visit is a normal booking: its own reminders, moves
+alone, rebook reminders skip it while later visits exist. `bookingView` / `bookingCancel` add `runVisits` (`runOf`, only with
+the manage key); `bookingCancel` and admin `cancel` with `andLater: true` also cancel later confirmed visits (`cancelLater`;
+one with card money, a tip or an open payment is left, admin answer `laterSkipped`). A pack can't pay for a run (400 `pack`).
+Tests: bookings.test.js › standing appointments.
+
 **Text reminders (17 November 2026, Services plan phase 7, `tasks/todo/2026-11-17-text-reminders.md`).** Settings
 `textReminders` (Hours & rules › Text reminders, off by default). With `PLATFORM_TEXTS_URL` set (`shopConfig.platformTextsUrl`,
 written by the release runner), index.js gives `bookingActions` a `texts` sender (`textSender.js`: `status()` cached five
