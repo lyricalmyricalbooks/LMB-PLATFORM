@@ -1912,6 +1912,51 @@ describe("staff and rooms", () => {
     const snap = (items) => ({ exists: true, data: () => ({ items }) });
     expect(busyFrom([snap({ a: { start: 1, end: 2, held: false, s: "x", p: "ana", r: "studio" } })], 0)).toEqual([{ start: 1, end: 2, serviceId: "x", staffId: "ana", roomId: "studio" }]);
   });
+
+  test("each person gets their own private calendar link, and a new one stops the old", async () => {
+    const t = setup();
+    await team(t);
+    expect((await t.adm({ op: "calendarFeed", staffId: "nobody" })).statusCode).toBe(400);
+    const first = await t.adm({ op: "calendarFeed", staffId: "ana" });
+    expect(first.body.path).toMatch(/^\/calendar\/[a-f0-9]{48}\.ics$/);
+    expect(t.db.store.get("bookingFeed/p-ana")).toMatchObject({ staffId: "ana", staffName: "Ana" });
+    expect((await t.adm({ op: "calendarFeed", staffId: "ana" })).body.path).toBe(first.body.path);
+    await t.adm({ op: "calendarFeed" });
+    expect(t.db.store.get("bookingFeed/main").staffId).toBeUndefined();
+    const ownerToken = t.db.store.get("bookingFeed/main").token;
+    await t.db.collection("bookingFeed").doc("p-ana").set({ token: "c".repeat(48), staffId: "ana" });
+    expect((await t.adm({ op: "calendarFeed", staffId: "ana", renew: true })).body.path).not.toContain("c".repeat(48));
+    expect(t.db.store.get("bookingFeed/main").token).toBe(ownerToken);
+  });
+
+  test("each person with an email gets their own day each morning, once, only on days they have bookings", async () => {
+    const t = setup({ now: "2026-11-17T12:00:00Z" });
+    await team(t, { staff: [{ id: "ana", name: "Ana", email: "ana@example.com" }, { id: "ben", name: "Ben", email: "ben@example.com" }, { id: "cy", name: "Cy" }] });
+    await book(t, at("2026-11-18", "14:00"), { staffId: "ana" });
+    await book(t, at("2026-11-18", "10:00"), { staffId: "ana", name: "Bo Lin", email: "bo@example.com" });
+    await book(t, at("2026-11-18", "11:00"), { staffId: "cy", name: "Di", email: "di@example.com" });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "06:55")));
+    expect(await t.desk.sweepStaffDays()).toEqual({ sent: 0 });
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "07:05")));
+    const before = t.emails.length;
+    expect(await t.desk.sweepStaffDays()).toEqual({ sent: 1 });
+    expect(await t.desk.sweepStaffDays()).toEqual({ sent: 0 });
+    expect(t.emails.length).toBe(before + 1);
+    const mail = t.emails[before];
+    expect(mail.to).toBe("ana@example.com");
+    expect(mail.subject).toMatch(/: 2 bookings, first at 10:00/);
+    expect(mail.html.indexOf("Bo Lin")).toBeLessThan(mail.html.indexOf("Ada Reader"));
+    expect(mail.html).not.toContain("Di");
+    expect(mail.html).not.toContain("/admin");
+    expect(t.db.store.get("bookingSettings/staffSummary").days).toEqual({ ana: "2026-11-18", ben: "2026-11-18" });
+  });
+
+  test("no one with an email: nothing is claimed or sent", async () => {
+    const t = setup({ now: "2026-11-18T13:00:00Z" });
+    await team(t);
+    expect(await t.desk.sweepStaffDays()).toEqual({ sent: 0 });
+    expect(t.db.store.get("bookingSettings/staffSummary")).toBeUndefined();
+  });
 });
 
 describe("sales tax on a service", () => {

@@ -132,8 +132,8 @@ export function ProfilesWorkspace({ profiles, books, refreshProfiles, reloadBook
       <aside className="spw-rail" aria-label="Shipping profiles">
         <div className="spw-railhead">
           <span className="spw-mono">Profiles</span>
-          <button type="button" className="spw-pill ink" onClick={() => setWizard(true)}>+ New profile</button>
         </div>
+        <div className="spw-strip">
         {draft.map((p) => {
           const zs = p.zones || [];
           const n = booksOn(p.id).length;
@@ -145,6 +145,8 @@ export function ProfilesWorkspace({ profiles, books, refreshProfiles, reloadBook
             </button>
           );
         })}
+        <button type="button" className="spw-newcard" onClick={() => setWizard(true)}>+ New profile</button>
+        </div>
         <p className="spw-foot">{w("Every book is on exactly one profile. Books you haven't moved use General.")}</p>
       </aside>
 
@@ -212,12 +214,14 @@ export function ProfilesWorkspace({ profiles, books, refreshProfiles, reloadBook
               <button type="button" className="spw-pill ink" onClick={() => addZone(true)}>Add “Everywhere else”</button>
             </div>
           )}
+          <div className="spw-zones">
           {zones.map((z: any) => (
             <ZoneCard key={z.id} zone={z} others={zones.filter((o: any) => o.id !== z.id)} picking={pickingZone === z.id} showProblems={triedSave}
               onPick={() => setPickingZone(pickingZone === z.id ? null : z.id)}
               onChange={(fn) => patchZone(z.id, fn)}
               onDelete={() => { patch((p) => ({ ...p, zones: p.zones.filter((x: any) => x.id !== z.id) })); if (pickingZone === z.id) setPickingZone(null); }} />
           ))}
+          </div>
           <label className="spw-field" style={{ maxWidth: 240 }}>Free shipping over ($)
             <input inputMode="decimal" placeholder="Optional" value={profile.freeShippingOver ?? ""} onChange={(e) => patch((p) => ({ ...p, freeShippingOver: e.target.value }))} />
           </label>

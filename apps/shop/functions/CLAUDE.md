@@ -1374,6 +1374,15 @@ the service and are free; the owner may name another. The owner books with `owne
 Emails say "With: <name>" and the owner's feed puts the name in the title. No people listed: no `p`/`r`, no staff fields,
 times as before. Tests: bookings.test.js › staff and rooms.
 
+**Each person's day (17 November 2026, Services plan phase 4 part 2, `tasks/todo/2026-11-17-team-day.md`):** op
+`calendarFeed` with `staffId` makes that person's private link (`bookingFeed/p-<id>` with `staffId`, `staffName`; the
+owner's stays `main`). `bookingsFeed` reads the `bookingFeed` docs (limit 200), compares every token with `sameHash`, and
+for a person's link lists only bookings with their `staffId` (room as the place, the calendar named "… · <name>").
+`sweepStaffDays` (in `bookingSweep`) emails each active person with an email their own day from DAILY_SUMMARY_HOUR,
+claimed per person per day in `bookingSettings/staffSummary.days`, only on days they have bookings; no switch (an email
+on the person is the choice). The owner's list and theirs share `dayBookings` / `sendDayList`. Tests: bookings.test.js ›
+staff and rooms, bookingsCalendar.test.js › each person's own calendar link.
+
 **Check-in at the desk (17 November 2026, Bookings plan phase 4).** A confirmed booking gets `checkInCode` (8 letters
 from `CHECK_IN_ALPHABET`, shown `XXXX-XXXX`; `withCheckInCode` sets it lazily from `crypto.randomBytes`) the first time
 an email (booked, moved, reminders) or the booking page needs it. `publicBooking` shows it only while confirmed and not

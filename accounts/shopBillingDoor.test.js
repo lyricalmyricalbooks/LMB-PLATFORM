@@ -173,3 +173,32 @@ test("the bank feed add-on: shown once the platform has opened it, added by the 
   assert.deepEqual([off.body.addOns.bankFeed.on, off.body.addOns.bankFeed.banks, plaid.banks.size], [false, 0, 0]);
   assert.ok(logged().some((e) => e.what === "billing-add-on" && e.outcome === "done"));
 });
+
+test("a test shop with no real plan shows sample billing in its own currency, and refuses every change", async () => {
+  const { door, registry } = await world();
+  await registry.createShop("test-press-us", { shopId: "test-press-us", projectId: "lmb-test-shop", pressName: "Test Press US", plan: "both", status: "live", ownerEmail: "owner@example.com", testShop: true, currency: "USD" });
+  const owner = { ...OWNER, aud: "lmb-test-shop" };
+  const ask = (call, body = {}) => door({ method: "POST", path: `/api/shop-billing/${call}`, body: { shopId: "test-press-us", ...body }, headers: { authorization: `Bearer ${pass(owner)}` } });
+  const status = await ask("status");
+  assert.equal(status.status, 200);
+  assert.equal(status.body.billing.status, "active");
+  assert.equal(status.body.billing.currency, "USD");
+  assert.equal(status.body.changesNeedTwoStep, false);
+  const bills = await ask("invoices");
+  assert.equal(bills.body.invoices.length, 4);
+  assert.ok(bills.body.invoices.every((b) => b.amount.startsWith("US$") && b.paper && b.status === "paid"));
+  assert.equal((await ask("payment-methods")).body.cards[0].primary, true);
+  assert.ok((await ask("costs")).body.costs.measured);
+  assert.match((await ask("upcoming")).body.bill.total, /^US\$/);
+  const card = await ask("card");
+  assert.equal(card.status, 409);
+  assert.match(card.body.message, /test shop/);
+});
+
+test("a press's own shop never gets the sample, even with no plan", async () => {
+  const { door } = await world();
+  const two = { aud: "press-two", uid: "uid-2", email: "two@example.com", email_verified: true };
+  const answer = await door({ method: "POST", path: "/api/shop-billing/status", body: { shopId: "press-two" }, headers: { authorization: `Bearer ${pass(two)}` } });
+  assert.equal(answer.status, 200);
+  assert.equal(answer.body.billing, null);
+});

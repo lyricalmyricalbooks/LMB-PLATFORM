@@ -1215,6 +1215,14 @@ move dialogs let the owner pick a person or anyone free (`staffId`). Server rule
 and rooms. Fixture: `admin-fixture.html?page=bookings&team=1` (Ana does all, Ben riso and workshops on his own hours, Cy
 not taking bookings; the riso service uses the print room).
 
+**Team day (17 November 2026, phase 4 part 2):** Calendar › Team day (shown once the shop lists people; the saved view
+falls back to Week otherwise) is `TeamDayView`: pure `teamDay(rows, settings, day, zone)` / `hourLabel` in
+`bookingsView.ts` (tested) give the columns, the grid's whole hours and each card's minutes, lanes for overlaps. Classes
+`bkg-tday-*` (not `bkg-team-*`, which is the Team & rooms tab); `--bkg-min` is one minute's height; short cards
+(`data-short`) are one line. Moving the day to another week moves the shared week (`showDay`). The person dialog has
+Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` with `staffId`). Fixture:
+`admin-fixture.html?team=1&page=bookings`.
+
 ## Shipping zones as a page (16 November 2026)
 Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,
 tokens only) in place of the old dialog; the pure picks live in `shipping/zonePlaces.ts` (tested). Quick picks (home
@@ -1227,4 +1235,4 @@ checkout). The name follows `suggestName` until the owner types one; a new zone 
 Fixture: `admin-fixture.html?shipping=1&page=settings/shipping` › Fix profile › Add a zone.
 
 ## Shipping profiles workspace (17 November 2026)
-Settings › Shipping › Profiles is one workspace (`shipping/ShippingProfilesWorkspace.tsx`, Julian's "Shipping Profiles v2" mockup): profile rail, books, zones with an in-card place picker (quick picks, continents, countries, CA/US provinces and states; no search), Try it (`tryIt` uses `matchShippingZone`/`computeShippingCost` on the draft) and a fixed Save bar. Every edit is a draft; `savePlan` (`shipping/profilesWorkspace.ts`) turns it into creates, deletes, updates and book moves. New profiles come from the 3-step wizard (books first). The old list, profile editor and NewShippingProfileDialog are gone from this tab; the zone/rate editor code below the workspace is still reached by nothing else and can be removed next.
+Settings › Shipping › Profiles is one workspace (`shipping/ShippingProfilesWorkspace.tsx`, Julian's "Shipping Profiles v2" mockup; since 17 November the profiles are a row of cards across the top, his option A, and the workspace fills the width with zones side by side): profile cards, books, zones with an in-card place picker (quick picks, continents, countries, CA/US provinces and states; no search), Try it (`tryIt` uses `matchShippingZone`/`computeShippingCost` on the draft) and a fixed Save bar. Every edit is a draft; `savePlan` (`shipping/profilesWorkspace.ts`) turns it into creates, deletes, updates and book moves. New profiles come from the 3-step wizard (books first). The old list, profile editor and NewShippingProfileDialog are gone from this tab; the zone/rate editor code below the workspace is still reached by nothing else and can be removed next.

@@ -1,5 +1,5 @@
 /* Shipping › Profiles workspace (mockup "Shipping Profiles v2"). Colours are admin tokens only. */
-.spw { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; padding-bottom: 96px; }
+.spw { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; padding-bottom: 96px; }
 .spw-rail { display: grid; gap: 10px; }
 .spw-railhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .spw-mono { font: 500 11px/1.2 var(--rp-font-mono, ui-monospace, monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--rp-text-subtle); }
@@ -94,3 +94,15 @@
   .spw-tiles, .spw-tiles.small, .spw-books { grid-template-columns: minmax(0, 1fr); }
   .spw-savebar { left: 16px; right: 16px; transform: none; bottom: 92px; }
 }
+
+/* Profiles across the top (Julian, 17 November 2026: option A), the workspace full width below. */
+.spw-railhead { order: 0; }
+.spw-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.spw-strip .spw-prof { flex: 0 0 250px; width: auto; }
+.spw-newcard { flex: 0 0 160px; border: 1.5px dashed var(--rp-border-strong); border-radius: 18px; background: transparent; color: var(--rp-text); font: 600 15px var(--rp-font-body); cursor: pointer; }
+.spw-zones { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 12px; align-items: start; }
+.spw-zone:has(.spw-picker) { grid-column: 1 / -1; }
+@media (max-width: 900px) { .spw-zones { grid-template-columns: minmax(0, 1fr); } .spw-strip .spw-prof { flex-basis: 220px; } }
+.spw-zones .spw-zone { min-width: 0; }
+.spw-field input { min-width: 0; box-sizing: border-box; }
+.spw-zonehead .spw-del { flex: none; }

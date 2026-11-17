@@ -686,6 +686,14 @@ test("your test shop: the card finds it, and Reset the sample books is admin onl
   assert.equal(reset.status, 200);
   assert.equal(reset.body.reset, 7, "six sample products and the shipping zone");
   assert.equal((await w.services.shopData.get(ID, "books/test-book-one")).stockLevel, 5);
+  // Sample billing: the plan copy that opens Settings › Plan and Billing on the test shop.
+  const plan = await w.services.shopData.get(ID, "platform/plan");
+  assert.equal(plan.sample, true);
+  assert.match(plan.hub, /\/api\/shop-billing\/$/);
+  // A real plan's copy is never written over.
+  await w.services.shopData.set(ID, "platform/plan", { state: "trial", hub: "https://platform.example/api/shop-billing/" });
+  await w.ask(ADMIN, "POST", "/api/control/test-shop/reset", { shopId: ID });
+  assert.equal((await w.services.shopData.get(ID, "platform/plan")).state, "trial");
   assert.ok(w.events().some((e) => e.what === "test-shop-reset" && e.by === "admin@example.com"));
   assert.ok((await w.activity.list()).some((e) => e.what === "test-shop-reset"));
 });

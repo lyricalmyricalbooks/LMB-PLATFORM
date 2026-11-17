@@ -5,7 +5,8 @@
 // server may write, so appointments are made by booking on the test shop itself.
 // Five sample clients, as a salon brings its client list over from an old system: customer notes (the shop's
 // `customerNotes/{sha256 of the lowercased email}`, apps/shop/firestore.rules) marked as brought over, so Clients lists
-// them before they book. Made-up example.com people only. Sample staff wait for staff calendars (phase 4).
+// them before they book. Made-up example.com people only. Two sample people and one chair (Services plan phase 4), so the Team day view and
+// the With picker have something to show; no emails, so nobody is sent a morning list.
 import { createHash } from "node:crypto";
 
 /** The mark Clients looks for (apps/shop/src/app/admin/customerInsights.ts MOVED_MARK). */
@@ -28,6 +29,14 @@ export function testStudioClients() {
 }
 
 const HOURS = Object.freeze({ start: "10:00", end: "18:00" });
+const LATE = Object.freeze({ start: "12:00", end: "20:00" });
+const SHOP_WEEK = () => [[], [], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }]];
+
+/** Sam does everything in the shop's hours; Riya does colour and cuts, later in the day, Wednesday to Saturday. */
+const TEST_STUDIO_STAFF = [
+  { id: "sam", name: "Sam Example", active: true, serviceIds: [], ownHours: false, hours: SHOP_WEEK(), daysOff: [], email: "" },
+  { id: "riya", name: "Riya Example", active: true, serviceIds: ["test-cut", "test-colour"], ownHours: true, hours: [[], [], [], [{ ...LATE }], [{ ...LATE }], [{ ...LATE }], [{ ...LATE }]], daysOff: [], email: "" },
+];
 
 const service = (id, order, name, minutes, priceMinor, extra = {}) => ({
   path: `bookingServices/${id}`,
@@ -41,12 +50,12 @@ export function testStudioDocs() {
     // Sells a pack of five, so a test purchase of a pack and a visit booked with it can be tried.
     service("test-cut", 1, "Test Cut and Style", 45, 6000, { description: "Wash, cut and blow-dry.", packVisits: 5, packPriceMinor: 27000, packDays: 365, questions: [{ id: "q1", label: "Anything we should know?", long: true, required: false }] }),
     // A deposit when booking, the rest at the visit: what most salons do for a long appointment.
-    service("test-colour", 2, "Test Colour", 120, 14000, { description: "Full colour with a toner.", gapAfter: 30, payment: "deposit", depositPercent: 25 }),
+    service("test-colour", 2, "Test Colour", 120, 14000, { description: "Full colour with a toner.", gapAfter: 30, payment: "deposit", depositPercent: 25, roomId: "colour-chair" }),
     ...testStudioClients(),
     {
       path: "bookingSettings/main",
       // Tuesday to Saturday, ten to six. Live, so the Book a time page answers.
-      data: { live: true, hours: [[], [], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }]], daysOff: [], minNoticeHours: 2, maxDaysAhead: 60, cancelHours: 24, step: 30, reminderHours: 24, secondReminderHours: 0, dailySummary: false, googleCalendar: false, waitHoldMinutes: 60, tips: true, tipPercents: [15, 18, 20], pickupTimes: false, pickupSlotMinutes: 30, pickupPerSlot: 4, pickupReadyHours: 2, staff: [], rooms: [], thankYou: false, reviewUrl: "" },
+      data: { live: true, hours: SHOP_WEEK(), daysOff: [], minNoticeHours: 2, maxDaysAhead: 60, cancelHours: 24, step: 30, reminderHours: 24, secondReminderHours: 0, dailySummary: false, googleCalendar: false, waitHoldMinutes: 60, tips: true, tipPercents: [15, 18, 20], pickupTimes: false, pickupSlotMinutes: 30, pickupPerSlot: 4, pickupReadyHours: 2, staff: TEST_STUDIO_STAFF, rooms: [{ id: "colour-chair", name: "Colour chair" }], thankYou: false, reviewUrl: "" },
     },
   ];
 }

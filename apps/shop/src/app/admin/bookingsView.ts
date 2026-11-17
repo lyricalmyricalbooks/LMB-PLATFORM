@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, balanceDue, cardAsk, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf } from "../../shared/bookingTimes";
+import { addDays, balanceDue, cardAsk, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 
 /** One card in a day's column: a single booking, or a group class with everyone booked into it. */
@@ -353,4 +353,83 @@ export function packList(rows: readonly PackRow[], { query = "", today }: { quer
   return rows
     .filter((p) => !q || [p.name, p.email, p.serviceName, p.last4].some((v) => plain(v || "").includes(q)))
     .sort((a, b) => Number(open(b)) - Number(open(a)) || (open(a) ? a.left - b.left : String(b.paidAt || "").localeCompare(String(a.paidAt || ""))));
+}
+
+// ── The team's day (Services plan phase 4 part 2): one column per person ─────────────────────────────────────────
+
+/** One card in a person's column: a visit, or everyone in one start of a class. `top`/`height` are minutes from the grid's start. */
+export type TeamBlock = { key: string; start: string; end: string; serviceName: string; people: Booking[]; top: number; height: number; lane: number; lanes: number };
+/** One column: a person (off that day or not), or the bookings nobody is named on. */
+export type TeamColumn = { id: string; name: string; off: boolean; hours: HoursWindow[]; blocks: TeamBlock[] };
+export type TeamDay = { startMin: number; endMin: number; columns: TeamColumn[]; count: number };
+/** The column for bookings with no person on them (made before the team was listed, or by the owner for nobody). */
+export const NOBODY = "";
+
+const minutesOf = (hhmm: string): number => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + (m || 0); };
+
+/**
+ * A day laid out for the team view. Columns: every active person in team order, anyone switched off who still has
+ * bookings that day, then "Not assigned" when a booking names nobody (or someone no longer listed). The grid runs from
+ * the earliest opening (the shop's or a person's) to the latest close, stretched to fit every booking, in whole hours.
+ * Cards that overlap in one column sit side by side (`lane` of `lanes`).
+ */
+export function teamDay(rows: readonly Booking[], settings: Pick<BookingSettings, "staff" | "hours" | "daysOff">, day: string, zone: string): TeamDay {
+  const wd = weekdayOf(day);
+  const shopOff = settings.daysOff.includes(day);
+  const dayStart = zonedTime(day, "00:00", zone);
+  const list = (byDay(rows, zone).get(day) || []);
+  const staff = settings.staff || [];
+  const known = new Set(staff.map((p) => p.id));
+  const whose = (b: Booking) => (b.staffId && known.has(b.staffId) ? b.staffId : NOBODY);
+  const columns: TeamColumn[] = staff
+    .filter((p) => p.active || list.some((b) => b.staffId === p.id))
+    .map((p) => {
+      const hours = shopOff || p.daysOff.includes(day) ? [] : (p.ownHours ? p.hours[wd] : settings.hours[wd]) || [];
+      return { id: p.id, name: p.name, off: hours.length === 0, hours, blocks: [] };
+    });
+  if (list.some((b) => whose(b) === NOBODY)) columns.push({ id: NOBODY, name: "Not assigned", off: false, hours: [], blocks: [] });
+  const minute = (iso: string) => Math.round((Date.parse(iso) - dayStart) / 60_000);
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const c of columns) for (const w of c.hours) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
+  if (!shopOff) for (const w of settings.hours[wd] || []) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
+  for (const b of list) { lo = Math.min(lo, minute(b.start)); hi = Math.max(hi, minute(b.end)); }
+  if (!Number.isFinite(lo)) { lo = 9 * 60; hi = 17 * 60; }
+  const startMin = Math.max(0, Math.floor(lo / 60) * 60);
+  const endMin = Math.min(24 * 60, Math.max(startMin + 60, Math.ceil(hi / 60) * 60));
+  for (const c of columns) {
+    const mine = list.filter((b) => whose(b) === c.id);
+    const groups = new Map<string, TeamBlock>();
+    for (const b of mine) {
+      const key = `${b.serviceId}|${b.start}`;
+      const found = groups.get(key);
+      if (found) { found.people.push(b); continue; }
+      const top = Math.max(0, minute(b.start) - startMin);
+      groups.set(key, { key, start: b.start, end: b.end, serviceName: b.serviceName, people: [b], top, height: Math.max(15, minute(b.end) - startMin - top), lane: 0, lanes: 1 });
+    }
+    const blocks = [...groups.values()].sort((x, y) => x.top - y.top);
+    // Side by side when they overlap: each card takes the first lane free at its start; a cluster shares one width.
+    let cluster: TeamBlock[] = [];
+    let clusterEnd = -1;
+    const close = () => { const lanes = Math.max(1, ...cluster.map((x) => x.lane + 1)); for (const x of cluster) x.lanes = lanes; cluster = []; };
+    for (const blk of blocks) {
+      if (blk.top >= clusterEnd) { close(); clusterEnd = -1; }
+      const busy = new Set(cluster.filter((x) => x.top + x.height > blk.top).map((x) => x.lane));
+      let lane = 0;
+      while (busy.has(lane)) lane += 1;
+      blk.lane = lane;
+      cluster.push(blk);
+      clusterEnd = Math.max(clusterEnd, blk.top + blk.height);
+    }
+    close();
+    c.blocks = blocks;
+  }
+  return { startMin, endMin, columns, count: list.length };
+}
+
+/** "9 AM", "12 PM", "1:30 PM" for a minute of the day on the grid's edge. */
+export function hourLabel(min: number): string {
+  const h = Math.floor(min / 60) % 24;
+  const m = min % 60;
+  return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`;
 }
