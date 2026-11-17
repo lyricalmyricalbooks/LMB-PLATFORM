@@ -26,7 +26,7 @@ import { sellsServices } from "../../shared/shopSells";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./clientCard.css";
 import { ClientFormFacts } from "./clientForm";
-import { ClientVisits } from "./ClientVisits";
+import { ClientVisits } from "./ClientVisits.tsx";
 import { emailHash } from "./emailHash";
 import { dayOf } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
