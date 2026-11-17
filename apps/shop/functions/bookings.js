@@ -1112,7 +1112,7 @@ function bookingActions({
     const rules = runSettings(settings, owner);
     const tax = await taxOn(service, service.priceMinor);
     const price = service.priceMinor + (tax?.taxMinor || 0);
-    const { discount: _d, listPriceMinor: _l, giftCard: _g, pack: _p, depositMinor: _dm, depositPaid: _dp, taxMinor: _t, taxLines: _tl, ...base } = first;
+    const { discount: _d, listPriceMinor: _l, intro: _i, giftCard: _g, pack: _p, depositMinor: _dm, depositPaid: _dp, taxMinor: _t, taxLines: _tl, ...base } = first;
     const made = [];
     const taken = [];
     for (let n = 1; n < starts.length; n++) {

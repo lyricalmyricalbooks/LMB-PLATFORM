@@ -3093,6 +3093,21 @@ describe("standing appointments", () => {
     const far = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2027-02-16", "10:00"), ...CUSTOMER, email: "bo@example.com", run: LONG });
     expect(far.statusCode).toBeGreaterThanOrEqual(400);
   });
+
+  test("a first-visit price covers only the run's first visit; the later ones are plain visits at the full price", async () => {
+    const t = await runSetup();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Haircut", minutes: 45, gapAfter: 0, payment: "atShop", priceMinor: 6000, repeats: true, introPriceMinor: 2000 });
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, email: "new@example.com", run: RUN });
+    expect(r.body).toMatchObject({ status: "confirmed" });
+    const visits = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.runVisits;
+    const [first, ...later] = visits.map((v) => t.db.store.get(`bookings/${v.id}`));
+    expect(first).toMatchObject({ intro: true, priceMinor: 2000 });
+    for (const b of later) {
+      expect(b.priceMinor).toBe(6000);
+      expect(b.intro).toBeUndefined();
+      expect(b.listPriceMinor).toBeUndefined();
+    }
+  });
 });
 
 describe("add-ons and options", () => {
