@@ -96,7 +96,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     ...(TEAM ? {
       rooms: [{ id: "printroom", name: "Print room" }, { id: "chair1", name: "Chair by the window" }],
       staff: [
-        { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
+        { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "ana@example.com" },
         { id: "ben", name: "Ben Example", active: true, serviceIds: ["riso", "workshop"], ownHours: true, hours: [[], [{ start: "12:00", end: "18:00" }], [{ start: "12:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }], [], []], daysOff: [], email: "" },
         { id: "cy", name: "Cy Example", active: false, serviceIds: ["review"], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
       ],
@@ -115,6 +115,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-1", services[0], at(0, 11), "Ada Example", { meetUrl: "https://meet.google.com/abc-defg-hij", checkInCode: "K7QM-2XPA" }),
     booking("bk-2", services[1], at(0, 14, 30), "Ben Example", { tip: { amountMinor: 800, at: at(0, 15, 40) }, note: "First time on a riso.", answers: [{ label: "What are you printing?", answer: "A two-colour zine, 16 pages, A5." }, { label: "How many copies?", answer: "60" }] }),
     booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin" }),
+    // Made before the team was listed: names nobody, so the Team day shows its Not assigned column.
+    ...(TEAM ? [booking("bk-14", services[0], at(0, 12), "Nia Example", { staffId: undefined, staffName: undefined })] : []),
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
     booking("bk-6", services[3], at(0, 9), "Flo Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false, checkInCode: "FLQW-HERE", checkedInAt: at(0, 8, 52) }),

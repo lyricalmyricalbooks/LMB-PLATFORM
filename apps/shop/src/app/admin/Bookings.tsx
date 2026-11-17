@@ -10,8 +10,8 @@ import {
   SaveBar, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -23,7 +23,7 @@ import { saveFile } from "./xlsxWriter";
 import "./bookings.css";
 
 type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures";
-type CalendarView = "week" | "list";
+type CalendarView = "week" | "day" | "list";
 const VIEW_KEY = "colophon.bookings.view";
 const ZONE = shopTimeZone();
 const today = () => dayOf(Date.now(), ZONE);
@@ -43,7 +43,10 @@ export function Bookings() {
   const [creating, setCreating] = useState(false);
   const [switching, setSwitching] = useState(false);
   // Week or list, remembered on this computer.
-  const [view, setView] = useState<CalendarView>(() => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "week"; } catch { return "week"; } });
+  const [view, setView] = useState<CalendarView>(() => { try { const v = localStorage.getItem(VIEW_KEY); return v === "list" || v === "day" ? v : "week"; } catch { return "week"; } });
+  // The team's day: one column per person (shown once the shop lists people). Moving it to another week moves the week.
+  const [teamDayShown, setTeamDayShown] = useState(today);
+  const showDay = (d: string) => { setTeamDayShown(d); if (weekStartOf(d) !== monday) setMonday(weekStartOf(d)); };
   const pickView = (v: CalendarView) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* private window: not remembered */ } };
 
   const reloadSetup = () => readBookingSetup().then((s) => { setSetup(s); setSetupError(""); }).catch((e) => setSetupError(e?.message || "Couldn't load your bookings."));
@@ -70,6 +73,8 @@ export function Bookings() {
   const next = nextUp(upcoming, Date.now());
   const noServices = setup.services.length === 0;
   const live = setup.settings.live;
+  const hasTeam = booksByPerson(setup.settings);
+  const shownView: CalendarView = view === "day" && !hasTeam ? "week" : view;
   // The Packs tab shows once any service sells a pack of visits (or did: a pack stays on the service until it is taken off).
   const sellsPacks = setup.services.some((s) => (s.packVisits || 0) > 0);
   // The owner's on/off switch: one tap, saved at once, nothing else about the hours changes.
@@ -147,11 +152,14 @@ export function Bookings() {
             action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setAdding(true); setTab("services"); }}>Add a service</PrimaryButton>} />
         ) : (<>
           <div className="bkg-view-switch">
-            <Tabs<CalendarView> label="Show bookings as" idPrefix="bkg-view-" value={view} onChange={pickView} tabs={[{ id: "week", label: "Week" }, { id: "list", label: "List" }]} />
+            <Tabs<CalendarView> label="Show bookings as" idPrefix="bkg-view-" value={shownView} onChange={pickView}
+              tabs={[{ id: "week", label: "Week" }, ...(hasTeam ? [{ id: "day" as const, label: "Team day" }] : []), { id: "list", label: "List" }]} />
           </div>
-          {view === "week"
+          {shownView === "week"
             ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} />
-            : <ListView services={setup.services} onOpen={setOpen} />}
+            : shownView === "day"
+              ? <TeamDayView day={teamDayShown} setDay={showDay} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} />
+              : <ListView services={setup.services} onOpen={setOpen} />}
         </>)}
       </TabPanel>
       <TabPanel tabId="services" active={tab === "services"}>
@@ -302,6 +310,85 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
     </div>
   );
 }
+
+/**
+ * The team's day (Services plan phase 4 part 2): one column per person across the opening hours, each booking placed by
+ * its time, a person who isn't working that day shaded, and the bookings that name nobody in a column of their own.
+ */
+function TeamDayView({ day, setDay, rows, error, settings, onOpen }: {
+  day: string; setDay: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; onOpen: (b: Booking) => void;
+}) {
+  const t = useMemo(() => teamDay(rows || [], settings, day, ZONE), [rows, settings, day]);
+  const now = today();
+  const span = t.endMin - t.startMin;
+  const hours = Array.from({ length: span / 60 }, (_, i) => t.startMin + i * 60);
+  // The red line for now, on today only.
+  const [nowMin, setNowMin] = useState(() => Math.round((Date.now() - zonedTime(day, "00:00", ZONE)) / 60_000));
+  useEffect(() => {
+    const tick = () => setNowMin(Math.round((Date.now() - zonedTime(day, "00:00", ZONE)) / 60_000));
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, [day]);
+  const showNow = day === now && nowMin >= t.startMin && nowMin <= t.endMin;
+  const at = (min: number) => `calc(var(--bkg-min) * ${min})`;
+  return (
+    <div className="bkg-tday">
+      <div className="bkg-week-head">
+        <h2 className="bkg-week-title">{dayText(day, "long")}</h2>
+        <div className="bkg-week-nav">
+          <IconButton label="Previous day" onClick={() => setDay(addDays(day, -1))}><ChevronLeft size={18} aria-hidden /></IconButton>
+          <SecondaryButton size="sm" onClick={() => setDay(now)} disabled={day === now}>Today</SecondaryButton>
+          <IconButton label="Next day" onClick={() => setDay(addDays(day, 1))}><ChevronRight size={18} aria-hidden /></IconButton>
+        </div>
+      </div>
+      {error && <p className="bkg-error" role="alert">{error}</p>}
+      {rows === null ? <div className="bkg-skeleton" aria-hidden /> : (
+        <div className="bkg-tday-scroll">
+          <div className="bkg-tday-grid" style={{ ["--bkg-cols" as string]: t.columns.length }}>
+            <div className="bkg-tday-corner" aria-hidden>{t.count ? `${t.count} booked` : "Nothing booked"}</div>
+            {t.columns.map((c) => (
+              <div key={c.id || "nobody"} className="bkg-tday-head" data-off={c.off || undefined} data-nobody={c.id === "" || undefined}>
+                <span className="bkg-tday-name">{c.name}</span>
+                <span className="bkg-tday-hours">{c.id === "" ? "Pick someone in each booking" : c.off ? "Not working" : hoursLine(c.hours)}</span>
+              </div>
+            ))}
+            <div className="bkg-tday-times" aria-hidden style={{ height: at(span) }}>
+              {hours.map((h) => <span key={h} style={{ top: at(h - t.startMin) }}>{hourLabel(h)}</span>)}
+            </div>
+            {t.columns.map((c) => (
+              <section key={c.id || "nobody"} className="bkg-tday-col" aria-label={`${c.name}: ${c.blocks.length ? `${c.blocks.length} booked` : c.off ? "not working" : "nothing booked"}`}
+                data-off={c.off || undefined} data-nobody={c.id === "" || undefined} style={{ height: at(span) }}>
+                {!c.off && c.id !== "" && c.hours.map((w) => (
+                  <i key={w.start} className="bkg-tday-open" aria-hidden style={{ top: at(Math.max(0, minutesText(w.start) - t.startMin)), height: at(minutesText(w.end) - Math.max(t.startMin, minutesText(w.start))) }} />
+                ))}
+                {c.blocks.map((blk) => {
+                  const first = blk.people[0];
+                  const many = blk.people.length > 1;
+                  return (
+                    <button key={blk.key} type="button" className="bkg-tday-block" data-status={first.status} data-noshow={(!many && first.noShow) || undefined} data-short={blk.height < 45 || undefined}
+                      style={{ top: at(blk.top), height: at(blk.height), left: `calc(${(blk.lane / blk.lanes) * 100}% + 3px)`, width: `calc(${100 / blk.lanes}% - 6px)` }}
+                      aria-label={`${timeText(blk.start, ZONE)}, ${many ? `${blk.serviceName}, ${blk.people.length} people` : `${first.customer.name}, ${blk.serviceName}`}`}
+                      onClick={() => onOpen(first)}>
+                      <span className="bkg-slot-time">{timeText(blk.start, ZONE)}</span>
+                      <span className="bkg-slot-who">{many ? `${blk.serviceName} · ${blk.people.length}` : first.customer.name}</span>
+                      {!many && <span className="bkg-slot-what">{blk.serviceName}{first.roomName ? ` · ${first.roomName}` : ""}</span>}
+                      {!many && first.status === "held" && <span className="bkg-slot-tag">{first.clearing ? "Clearing" : "Paying"}</span>}
+                      {!many && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
+                    </button>
+                  );
+                })}
+                {showNow && <i className="bkg-tday-now" aria-hidden style={{ top: at(nowMin - t.startMin) }} />}
+              </section>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const minutesText = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + (m || 0); };
 
 /** Every booking as one list: still to come, past or cancelled, with a search and a service filter. */
 function ListView({ services, onOpen }: { services: BookingService[]; onOpen: (b: Booking) => void }) {
@@ -1485,7 +1572,7 @@ const shortId = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.r
 /** What one person does, in a line: their services and whose hours. */
 function personLine(p: StaffMember, services: BookingService[]): string {
   const does = !p.serviceIds.length ? "Every service" : services.filter((s) => p.serviceIds.includes(s.id)).map((s) => s.name).join(", ") || "No services yet";
-  return `${does} · ${p.ownHours ? "Their own hours" : "Your opening hours"}`;
+  return `${does} · ${p.ownHours ? "Their own hours" : "Your opening hours"}${p.email ? " · Gets their day by email" : ""}`;
 }
 
 /**
@@ -1594,7 +1681,7 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
   return (
     <Dialog open onClose={onClose} title={person.id ? `Edit ${person.name}` : "Add a person"}
       footerStart={onRemove ? <DestructiveButton onClick={() => void onRemove()} disabled={saving}>Remove</DestructiveButton> : undefined}
-      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving} disabled={!form.name.trim()}>Save</PrimaryButton></>}>
+      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving} disabled={!form.name.trim() || (!!form.email && !EMAIL_SHAPE.test(form.email))}>Save</PrimaryButton></>}>
       <div className="bkg-form">
         <TextField label="Name" placeholder="Sam" hint="Clients see it when they book." value={form.name} maxLength={60} onChange={(e) => set("name", e.target.value)} />
         <Toggle label="Taking bookings" checked={form.active} onChange={(v) => set("active", v)} />
@@ -1620,7 +1707,53 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
           <p className="bkg-questions-hint">On top of the shop's days off.</p>
           <DaysOffEditor days={form.daysOff} onChange={(days) => set("daysOff", days)} label="Add a day off for them" />
         </fieldset>
+        <fieldset className="bkg-questions">
+          <legend>Their own day</legend>
+          <TextField label="Email" type="email" placeholder="sam@example.com" value={form.email} maxLength={320} onChange={(e) => set("email", e.target.value.trim())}
+            hint="Each morning they have bookings, they get their day by email. Leave empty for none."
+            error={form.email && !EMAIL_SHAPE.test(form.email) ? "Check this email address." : undefined} />
+          {person.id ? <PersonCalendar person={person} /> : <p className="bkg-questions-hint">Save first to make their own calendar link.</p>}
+        </fieldset>
       </div>
     </Dialog>
+  );
+}
+
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** One person's private calendar link: only their bookings, for their phone's calendar. A new link stops the old. */
+function PersonCalendar({ person }: { person: StaffMember }) {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState("");
+  const [ask, confirmNode] = useConfirm();
+  const fetchLink = async (renew: boolean) => {
+    setBusy(renew ? "renew" : "get");
+    try {
+      const r = await bookingsAdmin<{ path: string }>("calendarFeed", { staffId: person.id, renew });
+      setUrl(new URL(r.path, window.location.origin).toString());
+      if (renew) toast.success("New link made. The old one has stopped working.");
+    } catch (e: any) {
+      toast.error(e?.message || "The calendar link couldn't be made. Please try again.");
+    } finally { setBusy(""); }
+  };
+  const renew = async () => {
+    if (!(await ask({ title: `Make a new link for ${person.name}?`, message: "Their old link stops working. Send them the new one.", confirmLabel: "Make new link" }))) return;
+    await fetchLink(true);
+  };
+  return (
+    <div className="bkg-person-cal">
+      <p className="bkg-questions-hint">Their calendar: only their bookings, in Google or Apple Calendar on their phone.</p>
+      {!url ? (
+        <SecondaryButton size="sm" icon={<CalendarPlus size={16} aria-hidden />} onClick={() => void fetchLink(false)} busy={busy === "get"}>Get their calendar link</SecondaryButton>
+      ) : (<>
+        <div className="bkg-link">
+          <code>{url}</code>
+          <IconButton label={`Copy ${person.name}'s calendar link`} onClick={() => void copyText(url, "Calendar link")}><Copy size={16} aria-hidden /></IconButton>
+        </div>
+        <p className="bkg-cal-note">Send it to {person.name} only: anyone with it can see their bookings.</p>
+        <GhostButton size="sm" onClick={() => void renew()} busy={busy === "renew"}>Make a new link</GhostButton>
+      </>)}
+      {confirmNode}
+    </div>
   );
 }

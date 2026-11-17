@@ -1660,13 +1660,17 @@ function bookingActions({
         return res.status(200).json({ ok: true });
       }
       if (op === "calendarFeed") {
-        // The owner's private calendar link (frontDoor.js answers it). Kept server-only; a new one stops the old.
-        const ref = db.collection("bookingFeed").doc("main");
+        // A private calendar link (frontDoor.js answers it): the owner's (every booking) or, with `staffId`, one person's
+        // own bookings (`bookingFeed/p-<id>`). Kept server-only; a new one stops the old.
+        const staffId = String(req.body?.staffId || "");
+        const person = staffId ? (settings.staff || []).find((p) => p.id === staffId) : null;
+        if (staffId && !person) return fail(res, 400, "That person isn't on the team.");
+        const ref = db.collection("bookingFeed").doc(staffId ? `p-${staffId}` : "main");
         const snap = await ref.get();
         let token = snap.exists ? snap.data()?.token : "";
         if (!KEY.test(String(token || "")) || req.body?.renew === true) {
           token = randomKey();
-          await ref.set({ token, madeAt: now().toISOString(), madeBy: by });
+          await ref.set({ token, madeAt: now().toISOString(), madeBy: by, ...(person ? { staffId, staffName: person.name } : {}) });
         }
         return res.status(200).json({ path: `/calendar/${token}.ics` });
       }
@@ -2165,37 +2169,88 @@ function bookingActions({
       return due;
     });
     if (!day) return { sent: false };
-    const from = new Date(zonedTime(day, "00:00", zone())).toISOString();
-    const to = new Date(zonedTime(addDays(day, 1), "00:00", zone())).toISOString();
-    const snap = await bookings().where("start", ">=", from).where("start", "<", to).orderBy("start").limit(300).get();
-    const list = snap.docs.map((d) => d.data()).filter((b) => b.status === "confirmed" || b.status === "held");
+    const list = await dayBookings(day);
     if (!list.length) return { sent: false, day };
     try {
-      const brand = await emailBrand();
-      const shop = brand.shopName || shopName() || "the shop";
-      const time = (iso) => new Date(iso).toLocaleTimeString("en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
-      const dayWords = new Date(`${day}T12:00:00Z`).toLocaleDateString("en-CA", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
-      const rows = list.map((b) => {
-        const due = balanceDue(b);
-        const extra = [withWhom(b), b.status === "held" ? "not confirmed yet" : "", due ? `${moneyWords(due, b.currency)} to pay at the visit` : "", b.customer?.phone || ""].filter(Boolean).join(" · ");
-        return `<tr><td style="padding:8px 12px 8px 0;vertical-align:top;white-space:nowrap;"><strong>${escapeHtml(time(b.start))}</strong></td>
-          <td style="padding:8px 0;vertical-align:top;"><strong>${escapeHtml(b.customer?.name || "")}</strong> · ${escapeHtml(b.serviceName || "")}${extra ? `<br><span style="opacity:.75;">${escapeHtml(extra)}</span>` : ""}${b.note ? `<br><em>“${escapeHtml(b.note)}”</em>` : ""}</td></tr>`;
-      }).join("");
-      await sendEmail({
-        to: owner,
-        subject: `[BOOKINGS] Today: ${list.length} ${list.length === 1 ? "booking" : "bookings"}, first at ${time(list[0].start)}`,
-        html: risoLayout(`<h4 style="margin:0 0 8px;">Today's bookings</h4>
-          <h2 style="margin:0 0 12px;">${escapeHtml(dayWords)}</h2>
-          <table role="presentation" style="border-collapse:collapse;width:100%;">${rows}</table>
-          ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}
-          <p style="margin:16px 0 0;font-size:13px;opacity:.75;">You get this each morning there are bookings. Turn it off in Bookings › Hours &amp; rules.</p>`,
-          { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
-      });
+      await sendDayList(owner, day, list, { owner: true });
       return { sent: true, day, count: list.length };
     } catch (err) {
       console.warn("Bookings day summary failed:", err?.message || err);
       return { sent: false, day };
     }
+  }
+
+  /** The day's confirmed and held bookings, in time order. */
+  async function dayBookings(day) {
+    const from = new Date(zonedTime(day, "00:00", zone())).toISOString();
+    const to = new Date(zonedTime(addDays(day, 1), "00:00", zone())).toISOString();
+    const snap = await bookings().where("start", ">=", from).where("start", "<", to).orderBy("start").limit(300).get();
+    return snap.docs.map((d) => d.data()).filter((b) => b.status === "confirmed" || b.status === "held");
+  }
+
+  /** One morning list email: the owner's (every booking, a link to the admin) or one person's own day. */
+  async function sendDayList(to, day, list, { owner = false, person = "" } = {}) {
+    const brand = await emailBrand();
+    const shop = brand.shopName || shopName() || "the shop";
+    const time = (iso) => new Date(iso).toLocaleTimeString("en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
+    const dayWords = new Date(`${day}T12:00:00Z`).toLocaleDateString("en-CA", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+    const rows = list.map((b) => {
+      const due = balanceDue(b);
+      const extra = [owner ? withWhom(b) : "", b.roomName ? `in ${b.roomName}` : "", b.status === "held" ? "not confirmed yet" : "", due ? `${moneyWords(due, b.currency)} to pay at the visit` : "", b.customer?.phone || ""].filter(Boolean).join(" · ");
+      return `<tr><td style="padding:8px 12px 8px 0;vertical-align:top;white-space:nowrap;"><strong>${escapeHtml(time(b.start))}</strong></td>
+          <td style="padding:8px 0;vertical-align:top;"><strong>${escapeHtml(b.customer?.name || "")}</strong> · ${escapeHtml(b.serviceName || "")}${extra ? `<br><span style="opacity:.75;">${escapeHtml(extra)}</span>` : ""}${b.note ? `<br><em>“${escapeHtml(b.note)}”</em>` : ""}</td></tr>`;
+    }).join("");
+    const count = `${list.length} ${list.length === 1 ? "booking" : "bookings"}`;
+    await sendEmail({
+      to,
+      subject: owner ? `[BOOKINGS] Today: ${count}, first at ${time(list[0].start)}` : `Your day at ${shop}: ${count}, first at ${time(list[0].start)}`,
+      html: risoLayout(`<h4 style="margin:0 0 8px;">${owner ? "Today's bookings" : `${escapeHtml(person)}, your bookings today`}</h4>
+          <h2 style="margin:0 0 12px;">${escapeHtml(dayWords)}</h2>
+          <table role="presentation" style="border-collapse:collapse;width:100%;">${rows}</table>
+          ${owner ? risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme) : ""}
+          <p style="margin:16px 0 0;font-size:13px;opacity:.75;">${owner ? "You get this each morning there are bookings. Turn it off in Bookings › Hours &amp; rules." : `${escapeHtml(shop)} sends you this each morning you have bookings. Ask them to take your email off the team list to stop it.`}</p>`,
+        { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+    });
+  }
+
+  /**
+   * Each person's own morning list (phase 4 part 2): every active person on the team with an email gets their own day's
+   * bookings from DAILY_SUMMARY_HOUR, on days they have any. Claimed per person per day in `bookingSettings/staffSummary`
+   * (`days { <staffId>: day }`) first, so two sweeps never send twice. Needs no switch: adding an email is the choice.
+   */
+  async function sweepStaffDays() {
+    if (!(await featureOn())) return { sent: 0 };
+    const settings = await readSettings();
+    const people = (settings.staff || []).filter((p) => p.active && EMAIL.test(p.email || ""));
+    if (!people.length) return { sent: 0 };
+    const nowMs = now().getTime();
+    const mark = db.collection("bookingSettings").doc("staffSummary");
+    const due = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(mark);
+      const days = { ...(snap.exists ? snap.data()?.days || {} : {}) };
+      const out = [];
+      for (const p of people) {
+        const day = summaryDue(nowMs, zone(), String(days[p.id] || ""));
+        if (day) { days[p.id] = day; out.push({ p, day }); }
+      }
+      if (out.length) tx.set(mark, { days, at: new Date(nowMs).toISOString() });
+      return out;
+    });
+    if (!due.length) return { sent: 0 };
+    const byDay = new Map();
+    let sent = 0;
+    for (const { p, day } of due) {
+      if (!byDay.has(day)) byDay.set(day, await dayBookings(day));
+      const list = byDay.get(day).filter((b) => b.staffId === p.id);
+      if (!list.length) continue;
+      try {
+        await sendDayList(p.email, day, list, { person: p.name });
+        sent += 1;
+      } catch (err) {
+        console.warn("Bookings staff day failed:", err?.message || err);
+      }
+    }
+    return { sent };
   }
 
   /**
@@ -2223,7 +2278,7 @@ function bookingActions({
     return { asked };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepWaitlist, sweepTips, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
@@ -2248,18 +2303,25 @@ const whenMs = (v) => {
 async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now() }) {
   if (!KEY.test(String(token || ""))) return null;
   const shop = db.collection("shops").doc(shopId);
-  const [features, feed] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookingFeed").doc("main").get()]);
-  if (features.data()?.bookings !== true || !sameHash(feed.data()?.token, token)) return null;
+  const [features, feeds] = await Promise.all([shop.collection("platform").doc("features").get(), shop.collection("bookingFeed").limit(200).get()]);
+  if (features.data()?.bookings !== true) return null;
+  // The owner's link (`main`) or one person's (`p-<staffId>`); every token is compared, so the time taken never says which.
+  let feed = null;
+  for (const d of feeds.docs) if (sameHash(d.data()?.token, token) && !feed) feed = { id: d.id, ...d.data() };
+  if (!feed) return null;
+  const staffId = feed.id === "main" ? "" : String(feed.staffId || "");
+  if (feed.id !== "main" && !staffId) return null;
   const snap = await shop.collection("bookings").where("status", "in", ["confirmed", "held"]).limit(2000).get();
   const from = nowMs - 31 * 24 * HOUR;
   const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-    .filter((b) => Date.parse(b.end || "") >= from)
+    .filter((b) => Date.parse(b.end || "") >= from && (!staffId || b.staffId === staffId))
     .map((b) => ({
-      id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "",
-      title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.staffName ? ` (${b.staffName})` : ""}${b.status === "held" ? " (not paid yet)" : ""}`,
+      id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.roomName ? [b.roomName, b.location].filter(Boolean).join(", ") : b.location || "",
+      title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.staffName && !staffId ? ` (${b.staffName})` : ""}${b.status === "held" ? " (not paid yet)" : ""}`,
       details: [b.customer?.email, b.customer?.phone, b.meetUrl ? `Video call: ${b.meetUrl}` : "", b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
     }));
-  return bookingsFeedIcs(shopName ? `${shopName} bookings` : "Bookings", events, nowMs);
+  const person = staffId ? feed.staffName || "" : "";
+  return bookingsFeedIcs(shopName ? `${shopName} bookings${person ? ` · ${person}` : ""}` : "Bookings", events, nowMs);
 }
 
 /** One booking as a calendar file, for the customer's "Add to Apple Calendar" link. null for a wrong link or a cancelled booking. */
