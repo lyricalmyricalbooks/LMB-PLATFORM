@@ -124,7 +124,7 @@ function privacyActions({
   // shopper's own copy) uses indexed lookups only, so a signed-in visitor can never make the shop read whole collections.
   async function personalDataFor(email, { scan = true } = {}) {
     const find = (collection, field, options = {}) => findByEmailData(db, collection, field, email, { ...options, scan });
-    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms] = await Promise.all([
+    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, visits] = await Promise.all([
       find("orders", "customer.email"), find("stockAlerts", "email"),
       find("abandoned-carts", "email"), find("reviewContacts", "email"),
       find("contactMessages", "email"), db.collection("newsletter").doc(email).get(),
@@ -143,6 +143,9 @@ function privacyActions({
       find("eventOrders", "customer.email"),
       // The form they signed before their first visit (bookings.js, health answers).
       find("bookingForms", "email"),
+      // The team's visit notes and before/after photos (admin-only clientVisits). The owner's export and erase cover them;
+      // the shopper's own copy leaves them out: they are the team's private notes, not something the shopper gave.
+      scan ? find("clientVisits", "email") : Promise.resolve(Object.assign([], { truncated: false })),
     ]);
     // Private fulfilment notes kept about the person's orders (admin-only order-operations).
     const operations = orders.length ? (await db.getAll(...orders.map(o => db.collection("order-operations").doc(o.id)))).filter(d => d.exists) : [];
@@ -152,8 +155,8 @@ function privacyActions({
     const reviews = contacts.length
       ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
       : [];
-    const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows], ["bookings", bookings], ["bookingWaitlist", waiting], ["bookingPacks", packs], ["eventOrders", ticketOrders], ["bookingForms", forms]].filter(([, d]) => d.truncated).map(([n]) => n);
-    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, operations, incompleteScan };
+    const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows], ["bookings", bookings], ["bookingWaitlist", waiting], ["bookingPacks", packs], ["eventOrders", ticketOrders], ["bookingForms", forms], ["clientVisits", visits]].filter(([, d]) => d.truncated).map(([n]) => n);
+    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, visits, operations, incompleteScan };
   }
 
   // The personal-data file for one person: what the admin downloads, and what a signed-in shopper downloads for themselves.
@@ -176,6 +179,7 @@ function privacyActions({
       bookings: rows(data.bookings).map(({ manageKeyHash, pendingKey, sessions, paidSession, paymentIntent, ...booking }) => booking),
       bookingWaitingList: rows(data.waiting),
       bookingForms: rows(data.forms),
+      ...(data.visits.length ? { clientVisitNotes: rows(data.visits) } : {}),
       // A pack's code is the customer's key: never in the file (only its last four are kept anyway).
       bookingPacks: rows(data.packs).map(({ pendingCode, sessions, paidSession, paymentIntent, mode, ...pack }) => pack),
       // Event tickets: the codes are theirs; the link keys and payment ids stay out.
@@ -246,7 +250,9 @@ function privacyActions({
       const reviewMode = ["unpublish", "remove-text"].includes(req.body?.reviewAction) ? req.body.reviewAction : "anonymize";
       const now = new Date().toISOString();
       const ops = [];
-      for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows, ...data.waiting, ...data.forms]) ops.push(b => b.delete(d.ref));
+      // The visit photos named by the notes about to go (only paths inside the client-photos folder).
+      const photoPaths = data.visits.flatMap(d => (d.data()?.photos || []).map(p => p?.path)).filter(p => typeof p === "string" && /^client-photos\/[0-9a-f]{64}\/[A-Za-z0-9._-]{1,120}$/.test(p));
+      for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows, ...data.waiting, ...data.forms, ...data.visits]) ops.push(b => b.delete(d.ref));
       // A pack never paid for is just a card page that was opened: it goes. A paid one is a payment record, kept like a
       // card-paid booking (its name and email; it holds nothing else about the person).
       const unpaidPacks = data.packs.filter(d => d.data()?.status === "held");
@@ -277,10 +283,15 @@ function privacyActions({
         for (const op of ops.slice(i, i + 400)) op(batch);
         await batch.commit();
       }
+      // The visit photos go with their notes. A file already gone counts as removed; one that won't delete is reported.
+      const photosLeft = [];
+      for (const path of photoPaths) {
+        try { await admin.storage().bucket().file(path).delete({ ignoreNotFound: true }); } catch { photosLeft.push(path); }
+      }
       if (data.user) await admin.auth().deleteUser(data.user.uid);
       await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now, source: "privacy-erase" }).catch(() => {});
       const summary = {
-        deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, waitingList: data.waiting.length, bookingForms: data.forms.length, unpaidPacks: unpaidPacks.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
+        deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, waitingList: data.waiting.length, bookingForms: data.forms.length, clientVisits: data.visits.length, clientPhotos: photoPaths.length - photosLeft.length, unpaidPacks: unpaidPacks.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
         anonymizedReviews: data.reviews.length,
         reviewAction: reviewMode,
         redactedUnpaidOrders: redactedOrders.map(d => d.id),
@@ -289,6 +300,7 @@ function privacyActions({
         keptBookings: data.bookings.filter(d => bookingPaid(d.data())).map(d => d.id),
         redactedBookings: data.bookings.filter(d => !bookingPaid(d.data())).map(d => d.id),
         ticketOrders: data.ticketOrders.length,
+        ...(photosLeft.length ? { photosNotDeleted: photosLeft } : {}),
         ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
       };
       if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "erased", handledAt: now, handledBy: adminUser.email, summary }, { merge: true });

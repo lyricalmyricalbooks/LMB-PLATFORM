@@ -2894,6 +2894,26 @@ describe("standing appointments", () => {
     expect(visits.map((v) => t.db.store.get(`bookings/${v.id}`).status)).toEqual(["confirmed", "cancelled", "confirmed", "cancelled"]);
   });
 
+  test("a later visit paid for while the run is being cancelled stays on", async () => {
+    const t = await runSetup();
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-17", "10:00"), ...CUSTOMER, run: RUN });
+    const visits = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.runVisits;
+    // The rest of visit 3 is paid by card just after the run's visits were read, before its cancel is written.
+    const run = t.db.runTransaction.bind(t.db);
+    let calls = 0;
+    t.db.runTransaction = (fn) => {
+      calls += 1;
+      if (calls === 2) t.db.store.set(`bookings/${visits[2].id}`, { ...t.db.store.get(`bookings/${visits[2].id}`), paid: true });
+      return run(fn);
+    };
+    const x = await t.adm({ op: "cancel", id: visits[1].id, andLater: true });
+    expect(x.body).toMatchObject({ ok: true, laterCancelled: 1, laterSkipped: 1 });
+    expect(visits.map((v) => t.db.store.get(`bookings/${v.id}`).status)).toEqual(["confirmed", "cancelled", "confirmed", "cancelled"]);
+    // Its time stays taken.
+    const items = [...t.db.store.entries()].filter(([k]) => k.startsWith("bookingDays/")).flatMap(([, d]) => Object.keys(d.items || {}));
+    expect(items.some((k) => k.startsWith(visits[2].id))).toBe(true);
+  });
+
   test("the shop books a run for any one-to-one service, paid at each visit, at any hour", async () => {
     const t = await runSetup();
     // Portfolio review is paid by card online, so clients can't book a run; the shop can.

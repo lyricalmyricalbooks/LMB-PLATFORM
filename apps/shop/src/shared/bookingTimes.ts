@@ -138,6 +138,8 @@ export type StaffMember = {
   email: string;
   /** Their own length or price for a service, when it differs from the service's (Services plan 2, B3). */
   rates?: PersonRate[];
+  /** Their share of what their visits take, 0.5 to 100 (Services plan 2, team pay). Shown on the pay report, never paid out. */
+  commissionPercent?: number;
 };
 /** A room or chair that only one booking can use at a time. */
 export type BookingRoom = { id: string; name: string };
@@ -873,9 +875,18 @@ export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BO
       daysOff: cleanDaysOff(p.daysOff),
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
       rates: cleanRates(p.rates),
+      ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
     });
   }
   return out;
+}
+
+/** A commission share: a number from 0.5 to 100 in half steps; anything else is none (0). */
+export function commissionOf(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+  if (!Number.isFinite(n)) return 0;
+  const half = Math.round(n * 2) / 2;
+  return half < 0.5 ? 0 : Math.min(100, half);
 }
 
 /** A person's own lengths and prices: one per service, at least one of the two set, lengths 5 minutes to 8 hours. */
@@ -941,12 +952,18 @@ function offsetAt(zone: string, ms: number): number {
   return Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second) - Math.floor(ms / 1000) * 1000;
 }
 
-/** The moment a wall-clock time on a day in the shop's zone happens ("2026-11-20", "14:30"). */
+/**
+ * The moment a wall-clock time on a day in the shop's zone happens ("2026-11-20", "14:30"). A time the clocks skip in
+ * spring (2:30 when 2:00 jumps to 3:00) is the same time after the jump (3:30), never an hour early; a time that
+ * happens twice in autumn is the first one.
+ */
 export function zonedTime(day: string, hhmm: string, zone: string): number {
   const guess = Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)), Number(hhmm.slice(0, 2)), Number(hhmm.slice(3, 5)));
   const first = guess - offsetAt(zone, guess);
   const second = guess - offsetAt(zone, first);
-  return second;
+  const p = partsIn(zone, second);
+  const wall = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute);
+  return wall === guess ? second : Math.max(first, second);
 }
 
 /** The shop's day (YYYY-MM-DD) a moment falls on. */
