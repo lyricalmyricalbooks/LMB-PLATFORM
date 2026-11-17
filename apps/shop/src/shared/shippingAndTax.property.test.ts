@@ -147,6 +147,17 @@ describe("tax, checked against random orders and tax settings", () => {
   });
 });
 
+describe("tax regressions the random checks found", () => {
+  it("fractions of a cent on several rates that add up to a cent still give a bookkeeping line (17 November 2026)", () => {
+    const exempt = { country: "Canada", region: "ON", rate: 0 };
+    const gst = { country: "Canada", region: "ON", rate: 5 };
+    const parts = [{ rate: exempt, amount: 0.0012 }, { rate: exempt, amount: 0.0008 }, { rate: exempt, amount: 0.0017 }, { rate: gst, amount: 0.0013 }];
+    const lines = taxBooks.taxLinesFor(parts);
+    expect(lines.reduce((s, l) => s + l.cents, 0)).toBe(Math.round(parts.reduce((s, p) => s + p.amount, 0) * 100));
+    expect(lines).toEqual(serverTaxBooks.taxLinesFor(parts));
+  });
+});
+
 describe("shipping regressions the random checks found", () => {
   it("two profiles with the same base charge the same whichever was added to the bag first (3 November 2026)", () => {
     // Before: the first profile in the bag led, so a book then a poster cost $15, and a poster then a book $12.
