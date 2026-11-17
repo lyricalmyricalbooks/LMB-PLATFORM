@@ -15,6 +15,16 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
       expect(lib.filesOf({})).toEqual([]);
       expect(lib.filesOf({ digitalFiles: Array.from({ length: 30 }, (_, i) => ({ file: `${i}.zip` })) })).toHaveLength(lib.MAX_DIGITAL_FILES);
     });
+    test("a new version keeps the name and place, counts up, and starts the first file's downloads afresh", () => {
+      const first = { file: "1-a.pdf", name: "Pattern", size: 10 };
+      const v2 = lib.newVersionOf(first, { file: "2-a.pdf", size: 12 }, "2026-11-17");
+      expect(v2).toEqual({ file: "2-a.pdf", name: "Pattern", size: 12, version: 2, updated: "2026-11-17" });
+      expect(lib.newVersionOf(v2, { file: "3-a.pdf", size: 9 }, "2026-11-18").version).toBe(3);
+      expect(lib.filesOf({ digitalFiles: [v2] })).toEqual([v2]);
+      expect(lib.filesOf({ digitalFiles: [{ file: "x.pdf", version: 1, updated: "soon" }] })).toEqual([{ file: "x.pdf" }]);
+      expect(lib.fileCountKey("b1__base", [first], 0)).toBe("b1__base");
+      expect(lib.fileCountKey("b1__base", [v2], 0)).toBe("b1__base__v2");
+    });
     test("an edition's own files win over the product's", () => {
       const book = { digitalFiles: [{ file: "book.pdf" }], variants: [{ id: "v", digitalFiles: [{ file: "v.zip" }] }, { id: "w" }] };
       expect(lib.filesFor(book, "v").map((f) => f.file)).toEqual(["v.zip"]);

@@ -2146,6 +2146,20 @@ export const adminApi = {
     return result as { ok?: boolean; audience?: number; id?: string; to?: string };
   },
 
+  // Books › edit › Digital product › Tell buyers about a new version (Digital D2b): the server emails each buyer their links.
+  digitalUpdate: async (op: "status" | "send" | "cancel" | "resume", bookId: string, payload: Record<string, string> = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "digitalUpdate", op, bookId, ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "That didn't go through. Try again in a minute.");
+    return result as import("./digitalUpdate").DigitalUpdateAnswer;
+  },
+
   // Set up your shop (plan 6.9, was Your first week 3.3): admin-only `firstWeek/start`, written once by the platform's
   // setup with the sign-up answers. Null when the shop has none (the Overview then shows no welcome and no guide).
   getFirstWeek: async () => {

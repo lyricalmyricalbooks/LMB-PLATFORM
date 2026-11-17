@@ -56,6 +56,7 @@ import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
 import { LicenceKeysCard } from "./LicenceKeysCard";
 import { DigitalFilesEditor } from "./DigitalFilesEditor";
+import { DigitalUpdateCard } from "./DigitalUpdateCard";
 import { filesPatch } from "../../shared/digitalFiles";
 import { CardsAsSections, PageActions, PageHead, ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import { FormChoice, StatusBar, SummaryRail, formStatus } from "./riso/FormKit";
@@ -1704,6 +1705,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </SectionCard>
               )}
               {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <LicenceKeysCard bookId={book?.id} />}
+              {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <DigitalUpdateCard bookId={book?.id} form={formData} unsaved={isDirty} />}
             </>
           </div>
           )}

@@ -855,6 +855,17 @@ order-confirmation email both use them. Emailed download links stay outside brow
   price. Product page box: `extras/pdp-pay-what-you-want` (region `productPayWhatYouWant`; the buyer types in the shown
   currency, `readAmount` converts back). A refused download notes `downloadLimitReached.<countKey>` once on the order; the
   Alerts page shows `downloads-used-up` for paid orders, and Reset download limits clears it with the counts.
+- **Stamped PDFs, new versions, Tell buyers (Digital D2b, Beta, 17 November 2026):** `stampPdf: true` on a product makes
+  `downloadDigitalAsset` hand out a copy of a PDF (≤ `MAX_STAMP_BYTES` 50 MB, `pdfStamp.js`, pdf-lib) with the buyer's name,
+  email and order number at the foot of each page, kept at `digital-stamped/<order>/<file>`; any failure sends the original.
+  **New version** (Books › edit, `DigitalFilesEditor`) swaps a file's stored name and size for a new upload and keeps its name
+  and place, with `version` (2+) and `updated` (shop day) (`newVersionOf`); the first file's count key gains `__v<n>`, so
+  buyers get fresh downloads. **Tell buyers** (`DigitalUpdateCard`, admin action `digitalUpdate`: `status`, `send`, `cancel`,
+  `resume`; `functions/digitalUpdates.js`) queues `digitalUpdates/{id}` (server only, no rule: browsers can't read it), one
+  active per product. The sweep (`runDigitalUpdates` in `unpaidPaymentSweep`) walks orders by id (200 a page, 150 emails a
+  run, a 10-minute lease), emails each paid, live, non-test order holding a downloading line of the product
+  (`updateLines`: the order email's own rule, box-set parts by the catalog) its download links, claimed first in
+  `digitalUpdates/{id}/sent/{orderId}`, so nothing goes twice. Emails are `bulk` (never the press's Gmail).
 
 ## Payments module (27 October 2026, code plans 1.11–1.12)
 

@@ -16,6 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EVERY_OTHER_COUNTRY = exports.DEFAULT_DIGITAL_COUNTRIES = exports.MAX_DIGITAL_FILE_BYTES = exports.MAX_DIGITAL_FILES = void 0;
 exports.filesOf = filesOf;
 exports.filesFor = filesFor;
+exports.newVersionOf = newVersionOf;
 exports.fileLabel = fileLabel;
 exports.fileCountKey = fileCountKey;
 exports.filesPatch = filesPatch;
@@ -37,7 +38,13 @@ function cleanFile(raw) {
         return null;
     const name = String((raw && raw.name) || "").replace(/\s+/g, " ").trim().slice(0, 120);
     const size = Math.floor(Number(raw && raw.size));
-    return { file, ...(name ? { name } : {}), ...(Number.isFinite(size) && size > 0 ? { size } : {}) };
+    // A file replaced by a newer version (Digital D2b) carries its version number and the day it changed.
+    const version = Math.floor(Number(raw && raw.version));
+    const updated = String((raw && raw.updated) || "");
+    return {
+        file, ...(name ? { name } : {}), ...(Number.isFinite(size) && size > 0 ? { size } : {}),
+        ...(version > 1 && version < 1000 ? { version } : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(updated) ? { updated } : {}),
+    };
 }
 /** The files on one product or edition, in order: its list, else its single older file, else none. */
 function filesOf(holder) {
@@ -64,12 +71,25 @@ function filesFor(book, variantId) {
     const own = variant ? filesOf(variant) : [];
     return own.length ? own : filesOf(book);
 }
+/**
+ * A file swapped for a new version: the new stored file and size, the same name and place in the list, the version
+ * number one up and today's day. Pure.
+ */
+function newVersionOf(f, upload, today) {
+    return { ...f, file: upload.file, size: upload.size, version: (f.version || 1) + 1, updated: today };
+}
 /** What a buyer sees for a file: its name, else the stored name without the upload's time prefix. */
 function fileLabel(f) {
     return (f.name || String(f.file || "").replace(/^\d{10,}-/, "")).trim() || "Download";
 }
-/** The download-count key for file `index` of a line whose old key is `lineKey` (the first file keeps the old key). */
+/**
+ * The download-count key for file `index` of a line whose old key is `lineKey` (the first file keeps the old key). A new
+ * version of the first file starts a fresh count (`__v2`), so buyers who used up their downloads can get it; later files
+ * are counted by stored name, which a new version changes anyway.
+ */
 function fileCountKey(lineKey, files, index) {
+    if (index <= 0 && files[0]?.version)
+        return `${lineKey}__v${files[0].version}`;
     if (index <= 0 || !files[index])
         return lineKey;
     return `${lineKey}__${files[index].file}`.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 300);
