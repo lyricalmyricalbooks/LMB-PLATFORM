@@ -2188,3 +2188,60 @@ describe("rebook reminders", () => {
     expect(rebooks(again).length + rebooks(out).length + rebooks(missed).length + rebooks(off).length + rebooks(old).length).toBe(0);
   });
 });
+
+describe("reviews of visits on the shop's website", () => {
+  const seedReviews = async (t, extra = {}) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, thankYou: true, siteReviews: true, ...extra });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const keyFrom = (html) => /key=([a-z0-9]+)#review/.exec(html)?.[1];
+
+  test("the thank-you email links to the booking page, where one review is taken and waits for the owner", async () => {
+    const t = setup();
+    await seedReviews(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), name: "Ada Reader", email: "ada@example.com" });
+    const id = r.body.id;
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "15:00")) + 3 * 3_600_000);
+    expect(await t.desk.sweepThanks()).toEqual({ thanked: 1 });
+    const email = t.emails.find((e) => /^Thank you for coming/.test(e.subject));
+    const key = keyFrom(email.html);
+    expect(key).toBeTruthy();
+    const view = await t.pub({ action: "bookingView", id, key });
+    expect(view.body.booking.canReview).toBe(true);
+    expect((await t.pub({ action: "bookingReview", id, key, rating: 9, body: "Lovely" })).statusCode).toBe(400);
+    const done = await t.pub({ action: "bookingReview", id, key, rating: 5, body: "Lovely cut, thank you." });
+    expect(done.statusCode).toBe(200);
+    expect(done.body.booking).toMatchObject({ canReview: false, reviewed: true });
+    const reviewId = t.db.store.get(`bookings/${id}`).reviewId;
+    expect(t.db.store.get(`reviews/${reviewId}`)).toMatchObject({ status: "pending", rating: 5, authorName: "Ada R.", serviceId: "cut", source: "booking", verified: true });
+    expect(t.db.store.get(`reviews/${reviewId}`).email).toBeUndefined();
+    expect(t.db.store.get(`reviewContacts/${reviewId}`).email).toBe("ada@example.com");
+    expect((await t.pub({ action: "bookingReview", id, key, rating: 4, body: "Again" })).body.code).toBe("reviewed");
+    expect(t.emails.some((e) => /^\[REVIEW\]/.test(e.subject))).toBe(true);
+    // Only approved reviews reach the website.
+    expect((await t.pub({ action: "bookingInfo" })).body.reviews).toEqual([]);
+    await t.db.collection("reviews").doc(reviewId).set({ status: "approved" }, { merge: true });
+    expect((await t.pub({ action: "bookingInfo" })).body.reviews).toEqual([expect.objectContaining({ authorName: "Ada R.", rating: 5, serviceName: "Cut" })]);
+  });
+
+  test("a visit still to come, a no-show, or a shop that doesn't take reviews can't be reviewed", async () => {
+    const t = setup();
+    await seedReviews(t);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    const { id, key } = r.body;
+    expect((await t.pub({ action: "bookingView", id, key })).body.booking.canReview).toBe(false);
+    expect((await t.pub({ action: "bookingReview", id, key, rating: 5, body: "Too early" })).body.code).toBe("no_review");
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "15:00")) + 3 * 3_600_000);
+    await t.db.collection("bookings").doc(id).set({ noShow: true }, { merge: true });
+    expect((await t.pub({ action: "bookingReview", id, key, rating: 5, body: "Never came" })).body.code).toBe("no_review");
+
+    const off = setup();
+    await seedReviews(off, { siteReviews: false });
+    await off.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    off.clock.now = new Date(Date.parse(at("2026-11-18", "15:00")) + 3 * 3_600_000);
+    await off.desk.sweepThanks();
+    expect(off.emails.find((e) => /^Thank you for coming/.test(e.subject)).html).not.toContain("#review");
+    expect((await off.pub({ action: "bookingInfo" })).body.reviews).toEqual([]);
+  });
+});

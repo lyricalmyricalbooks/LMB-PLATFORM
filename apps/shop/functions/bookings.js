@@ -59,7 +59,7 @@ const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
-  secondReminderDue, summaryDue, thanksDue, rebookDue, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
+  secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
 } = require("./shared/bookingTimes");
@@ -181,6 +181,8 @@ function publicBooking(id, b, settings, nowMs) {
     tipMinor: tipTaken(b), tipLimitMinor: tipLimitMinor(b.priceMinor || 0),
     // The code to show at the desk, while the visit is still to come; and whether the shop has checked them in.
     checkInCode: b.status === "confirmed" && Date.parse(b.end) > nowMs ? b.checkInCode || "" : "", checkedIn: !!b.checkedInAt,
+    // A review of the visit on the shop's website: whether one can be written here, and whether it was.
+    canReview: reviewOpen(b, settings, nowMs), reviewed: !!b.reviewId,
   };
 }
 
@@ -248,6 +250,13 @@ function bookingActions({
     return `<p style="margin:0 0 4px;"><strong>Includes tax${names ? ` (${escapeHtml(names)})` : ""}:</strong> ${escapeHtml(moneyWords(b.taxMinor, b.currency))}</p>`;
   };
 
+  /** Approved reviews of visits for the website, newest first (at most 12; a source filter needs no extra index). */
+  async function visitReviews() {
+    const snap = await db.collection("reviews").where("source", "==", "booking").limit(300).get();
+    return snap.docs.map((d) => d.data()).filter((r) => r.status === "approved")
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 12)
+      .map((r) => ({ authorName: r.authorName || "", rating: r.rating, body: r.body || "", serviceName: r.serviceName || "", date: String(r.createdAt || "").slice(0, 10), reply: r.reply?.body || "" }));
+  }
   async function readServices() {
     const snap = await services().limit(MAX_SERVICES).get();
     return snap.docs.map((d) => cleanService(d.data(), d.id)).filter((s) => !s.problem).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
@@ -341,7 +350,7 @@ function bookingActions({
   }
 
   /** Emails the customer (and tells the owner) about a booking. `kind`: booked, moved, cancelled. Never throws. */
-  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "" } = {}) {
+  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "", siteReview = false } = {}) {
     try {
       const to = b.customer?.email;
       if (!to || !EMAIL.test(to)) return;
@@ -362,8 +371,8 @@ function bookingActions({
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
         restPaid: `Thank you. You paid ${escapeHtml(moneyWords(restTaken(b), b.currency))} by card${tipTaken(b) ? `, with a ${escapeHtml(tipText)} tip` : ""}, so your booking with ${escapeHtml(shop)} is paid in full.`,
-        thanks: `Thank you for visiting ${escapeHtml(shop)}. We hope to see you again soon.${reviewUrl ? " If you have a moment, a short review helps others find us." : ""}`,
-        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.${reviewUrl ? " And if you have a moment, a short review helps others find us." : ""}`,
+        thanks: `Thank you for visiting ${escapeHtml(shop)}. We hope to see you again soon.${reviewUrl || siteReview ? " If you have a moment, a short review helps others find us." : ""}`,
+        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.${reviewUrl || siteReview ? " And if you have a moment, a short review helps others find us." : ""}`,
         tipPaid: `Thank you! Your ${escapeHtml(tipText)} tip for your visit to ${escapeHtml(shop)} has gone through.`,
         reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
         soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
@@ -390,7 +399,10 @@ function bookingActions({
       const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? "Add a tip" : kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
       // After the visit: leave a review (the shop's own link) and book the same service again.
-      const review = reviewUrl && (kind === "thanks" || kind === "tip") ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : "";
+      // On the shop's own website (Client reviews) when it takes them, through the booking page; else the shop's link.
+      const afterVisit = kind === "thanks" || kind === "tip";
+      const own = afterVisit && siteReview && key ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(manageUrl(id, key))}#review">Leave a review</a></p>` : "";
+      const review = own || (reviewUrl && afterVisit ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : "");
       const again = kind === "thanks" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
       const html = risoLayout(`
         <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
@@ -1233,6 +1245,8 @@ function bookingActions({
           // The shop's opening hours, Sunday first, for the Hours & where to find us section.
           hours: settings.hours,
           codes: await codesOffered(), giftCards: await giftCardsOffered(),
+          // Approved reviews of visits, newest first, for the Client reviews section (only while the shop takes them).
+          reviews: settings.siteReviews ? await visitReviews() : [],
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
           services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }, i) => ({
@@ -1586,6 +1600,39 @@ function bookingActions({
         const tip = Number(req.body?.tipMinor);
         if (!tipFits(tip, b.priceMinor || 0)) return fail(res, 400, "That tip can't be added. Please choose another amount.", "bad_tip");
         return payPage(res, b, { amountMinor: 0, tipMinor: tip, label: "a tip" });
+      }
+      if (action === "bookingReview") {
+        // A review of the visit (Services plan phase 7): once per kept visit, waiting for the owner's yes.
+        if (b.reviewId) return fail(res, 409, "You already reviewed this visit. Thank you!", "reviewed");
+        if (!reviewOpen(b, settings, nowMs)) return fail(res, 409, "This visit can't be reviewed here.", "no_review");
+        const review = cleanVisitReview(req.body, b.customer?.name || "");
+        if (review.problem) return fail(res, 400, review.problem, "bad_review");
+        const reviewRef = db.collection("reviews").doc(randomId());
+        const createdAt = new Date(nowMs).toISOString();
+        const claimed = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(bookings().doc(id));
+          if (!fresh.exists || fresh.data().reviewId) return false;
+          tx.set(reviewRef, {
+            bookId: "", serviceId: b.serviceId || "", serviceName: b.serviceName || "", staffName: b.staffName || "", source: "booking",
+            authorName: review.authorName, rating: review.rating, title: "", body: review.body, status: "pending", createdAt, verified: true,
+          });
+          // The client's email stays in the admin-only contacts, as for any review (and goes with a privacy erase).
+          if (b.customer?.email) tx.set(db.collection("reviewContacts").doc(reviewRef.id), { email: String(b.customer.email).toLowerCase(), createdAt });
+          tx.set(bookings().doc(id), { reviewId: reviewRef.id }, { merge: true });
+          return true;
+        });
+        if (!claimed) return fail(res, 409, "You already reviewed this visit. Thank you!", "reviewed");
+        const owner = ownerEmail();
+        if (owner) {
+          await sendEmail({
+            to: owner, subject: `[REVIEW] ${"★".repeat(review.rating)} ${b.serviceName}`,
+            html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(review.authorName)} reviewed ${escapeHtml(b.serviceName)}</h2>
+              <p style="margin:0 0 12px;">${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)}</p>
+              <p style="margin:0 0 12px;">“${escapeHtml(review.body)}”</p>
+              <p style="margin:0;">It shows on your website once you approve it in Reviews.</p>`, { shopName: shopName() }),
+          }).catch(() => {});
+        }
+        return res.status(200).json({ booking: publicBooking(id, { ...b, reviewId: reviewRef.id }, settings, nowMs) });
       }
       if (action === "bookingCancel") {
         if (b.status === "cancelled") return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs) });
@@ -2320,7 +2367,7 @@ function bookingActions({
       if (b.tipAskedAt || !tipOpen(b, true, nowMs)) continue;
       const key = randomKey();
       await bookings().doc(doc.id).set({ tipAskedAt: new Date(nowMs).toISOString(), tipKeyHash: hash(key) }, { merge: true });
-      await tellCustomer(doc.id, b, "tip", { byShop: true, toOwner: false, key, reviewUrl: settings.thankYou ? settings.reviewUrl : "" });
+      await tellCustomer(doc.id, b, "tip", { byShop: true, toOwner: false, key, reviewUrl: settings.thankYou ? settings.reviewUrl : "", siteReview: !!settings.siteReviews });
       asked += 1;
     }
     return { asked };
@@ -2343,8 +2390,10 @@ function bookingActions({
     for (const doc of snap.docs) {
       const b = doc.data();
       if (!thanksDue(b, settings, nowMs)) continue;
-      await bookings().doc(doc.id).set({ thanksSentAt: new Date(nowMs).toISOString() }, { merge: true });
-      await tellCustomer(doc.id, b, "thanks", { byShop: true, toOwner: false, reviewUrl: settings.reviewUrl });
+      // A review on the shop's own website goes through the booking page, so the email carries its own key.
+      const key = settings.siteReviews ? randomKey() : "";
+      await bookings().doc(doc.id).set({ thanksSentAt: new Date(nowMs).toISOString(), ...(key ? { reviewKeyHash: hash(key) } : {}) }, { merge: true });
+      await tellCustomer(doc.id, b, "thanks", { byShop: true, toOwner: false, reviewUrl: settings.reviewUrl, key, siteReview: !!key });
       thanked += 1;
     }
     return { thanked };
@@ -2466,7 +2515,7 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 /** The booking's own link, the reminder's, the tip email's or the owner's pay link: each opens the customer's booking page. */
-const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
+const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.reviewKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
 /** How long a page to pay the rest stays open, and how long before its end a fresh one is opened instead. */
 const REST_PAGE_MINUTES = 60;
 /** A payment sent to a card reader and left waiting is stopped after this long (the sweep). */
@@ -2479,6 +2528,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
 module.exports = { PickupTimeProblem, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

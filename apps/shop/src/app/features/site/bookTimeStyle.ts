@@ -7,6 +7,7 @@
 //   fm-book-time[data-full]   a full class time (opens the waiting list form, fm-book-wait)
 //   fm-book-summary           the chosen service + time slip      fm-book-actions  a row of buttons
 //   fm-book-checkin           the check-in code (QR + letters) on a confirmed booking; -done once checked in
+//   fm-book-stars / -star     the review's five star buttons (data-on: filled up to the chosen one)
 //   fm-book-code              the discount code box (applied: a ruled slip line; -row: the field + Apply button)
 const S = ".fm-track";
 
@@ -56,6 +57,11 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-tips{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));margin-bottom:0;}`,
   `${S} .fm-book-time[aria-pressed="true"]{background:rgb(var(--fg-rgb));color:var(--bg-color, var(--surface, transparent));}`,
   `${S} .fm-book-day:focus-visible,${S} .fm-book-time:focus-visible,${S} .fm-book-service:focus-visible,${S} .fm-book-arrow:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:3px;}`,
+  `${S} .fm-book-stars{display:flex;gap:4px;}`,
+  `${S} .fm-book-star{display:grid;place-items:center;width:48px;height:48px;padding:0;border:0;background:transparent;color:inherit;cursor:pointer;opacity:.45;}`,
+  `${S} .fm-book-star[data-on]{opacity:1;color:var(--accent);}`,
+  `${S} .fm-book-star[data-on] svg{fill:currentColor;}`,
+  `${S} .fm-book-star:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:2px;}`,
   `${S} .fm-book-summary{display:grid;gap:0;}`,
   `${S} .fm-book-actions{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;}`,
   // The check-in code on the customer's booking page: the QR code (black on white, so any till reads it) beside the letters.

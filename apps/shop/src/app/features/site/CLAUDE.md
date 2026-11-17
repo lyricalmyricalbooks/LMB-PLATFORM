@@ -879,6 +879,12 @@ us), roots `.fm-svc-menu/-team/-call/-hours`. All read `bookingInfo` through `us
 Words that aren't section fields: Text & labels › Bookings page › Team, video calls & website sections
 (`bookTimeHoursClosed`, `bookTimeHoursToday`, `bookTimeTeamAll`). The map is a lazy Google Maps embed of the typed
 address (Show the map off = no third-party frame).
+**Reviews of visits (17 November 2026):** a past visit's booking page shows `ReviewBox` (BookTime.tsx, region
+`bookingsReview`, `id="review"`, stars as a radio group `.fm-book-star`) while `canReview`, then a thank-you; words in Text &
+labels › Bookings page › Reviews of visits (`bookTimeReview*`). Add section › Engagement › **Client reviews**
+(`ClientReviewsSection`, root `.fm-svc-reviews`) draws `bookingInfo.reviews` (stars in the accent or Star colour, service,
+date, the owner's reply) and nothing while there are none. The preview uses `SAMPLE_REVIEWS`. Reviews of visits never show
+on book pages: those queries filter by `bookId`.
 
 ## Pickup times at checkout (17 November 2026)
 

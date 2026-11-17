@@ -99,7 +99,8 @@ function Queue() {
     getOrdersCached().then(setOrders).catch(() => {});
   }, []);
   const purchases = useMemo(() => purchaseIndex(orders), [orders]);
-  const verified = (r: Review) => isVerifiedPurchase(r, purchases);
+  // A review of a visit came from the client's own booking link, so it is always a real client.
+  const verified = (r: Review) => r.source === "booking" || isVerifiedPurchase(r, purchases);
   const bookUrl = (id: string) => `${import.meta.env.BASE_URL}${productSegment()}/${encodeURIComponent(slugs[id] || id)}`;
   const stats = useMemo(() => reviewStats(reviews), [reviews]);
 
@@ -234,13 +235,13 @@ function Queue() {
                         <div className="rp-row-meta" style={{ marginBottom: 8 }}>
                           <Stars rating={r.rating} />
                           <StatusBadge tone={TONE[r.status as Review["status"]]}>{STATUS_WORD[r.status as Review["status"]] || r.status}</StatusBadge>
-                          {verified(r) && <StatusBadge tone="success">✓ Verified purchase</StatusBadge>}
+                          {verified(r) && <StatusBadge tone="success">{r.source === "booking" ? "✓ Real visit" : "✓ Verified purchase"}</StatusBadge>}
                           {r.featured && <StatusBadge tone="info">Pinned to top</StatusBadge>}
                           <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleString()}</time>
                         </div>
                         {r.title && <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{r.title}</h3>}
                         <p style={{ margin: "0 0 8px", lineHeight: 1.55, overflowWrap: "anywhere" }}>{r.body}</p>
-                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{emails[r.id] ? ` · ${emails[r.id]}` : ""} · on <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></p>
+                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{emails[r.id] ? ` · ${emails[r.id]}` : ""} · {r.source === "booking" ? <>visit: {r.serviceName || "a booking"}{r.staffName ? ` with ${r.staffName}` : ""}</> : <>on <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></>}</p>
                         {r.reply?.body && <p className="rp-hint" style={{ margin: "8px 0 0", borderLeft: "2px solid var(--rp-border-strong)", paddingLeft: 8 }}>Your reply: {r.reply.body}</p>}
                       </div>
                     </div>

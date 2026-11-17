@@ -1427,3 +1427,12 @@ email, no `rebookSentAt`). A client with any later booking that isn't cancelled 
 is one in `marketing-optout` (`"unsubscribed"`); both are still marked `rebookSentAt`. It is marketing mail: index.js passes
 `optedOut` and `unsubscribeUrl` (the review requests' signed `/track?unsubscribe=1` link) and without them nothing is sent.
 Book again opens `/book?service=<id>&with=<staffId>`. At most 50 a sweep.
+**Reviews of visits (17 November 2026, Services plan phase 7).** Bookings › Hours & rules › After the visit ›
+**Collect reviews for your website** saves `siteReviews`. With it on, `reviewOpen` (shared) lets a confirmed, started visit
+that wasn't a no-show be reviewed once from its booking page (`publicBooking.canReview` / `reviewed`). The thank-you and
+tip emails' Leave a review then goes to `/book?booking=<id>&key=<reviewKey>#review` (`reviewKeyHash`, in `keyFits`) and the
+`reviewUrl` link is not used. Public action `bookingReview` (`cleanVisitReview`: 1–5 whole stars, 3–2,000 characters, the
+name shortened to "Ada R.") writes, in one transaction, `reviews/{id}` (`source: "booking"`, `bookId: ""`, `serviceName`,
+`staffName`, `status: "pending"`, `verified: true`), admin-only `reviewContacts/{id}` and the booking's `reviewId`; a second
+try is 409 `reviewed`. The owner gets a `[REVIEW]` email and approves it in Reviews. `bookingInfo.reviews` lists the newest 12
+approved ones (`visitReviews`: one `source ==` query, no index) only while `siteReviews` is on, for the Client reviews section.

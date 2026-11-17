@@ -360,6 +360,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Payments, tips & card on file", match: /^bookTime(Deposit|PayDeposit|Card|SaveCard|FeeCharged|PayRest|RestPaid|Tip)/ },
     { title: "Check-in code", match: /^bookTime(CheckIn|CheckedIn)/ },
     { title: "Team, video calls & website sections", match: /^bookTime(With|Anyone|StaffProblem|Video|Join|HoursClosed|HoursToday|TeamAll)/ },
+    { title: "Reviews of visits", match: /^bookTimeReview/ },
     { title: "Your booking link", match: /^bookTime(Confirmed|Held|CheckAgain|Cancelled|Refunded|Missing|What|When|Where|Paid|AddCalendar|Google|Move|Keep|Cancel|TooLate|Another)/ },
   ],
   "Customer account": [
