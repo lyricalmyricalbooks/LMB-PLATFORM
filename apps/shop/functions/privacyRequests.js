@@ -134,7 +134,9 @@ function privacyActions({
       find("emailLog", "to", { contains: true }),
       giftCardsFor(db, email),
       // Times they booked and waiting lists they joined (bookings.js).
-      find("bookings", "customer.email"), find("bookingWaitlist", "email"),
+      find("bookings", "customer.email"),
+      // Both waiting lists: a full day or class (bookingWaitlist) and "tell me if an earlier time opens" (bookingEarlier).
+      Promise.all([find("bookingWaitlist", "email"), find("bookingEarlier", "email")]).then(([days, earlier]) => Object.assign([...days, ...earlier], { truncated: !!(days.truncated || earlier.truncated) })),
       // Packs of visits they bought (bookings.js).
       find("bookingPacks", "customer.email"),
       // Event tickets they bought (events.js).

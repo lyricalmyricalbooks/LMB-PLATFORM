@@ -1480,6 +1480,15 @@ one-to-one service. `forPerson(service, settings, staffId)` applies it only when
 course or a free service's money); every action calls `withExtras(forPerson(…), extras)`, so add-ons go on top and the
 booking stores the result. `bookingInfo` lists each person's `rates`. Tests: bookings.test.js › prices by person.
 
+**Tell me if an earlier time opens (17 November 2026, Services plan 2 B5, `tasks/todo/2026-11-17-earlier-times.md`).**
+`bookingEarlier/{bookingId}` (server-only) lists clients who asked (`bookingEarlier` action, booking key; `earlierWanted`
+on the booking). `tellWaitlist(days, opened)` now takes the starts that opened and, after the day waiting list, calls
+`tellEarlier(opened)`: each opened start goes to the first who asked whose booking is later and who fits it (their booked
+length, `keptPerson`), held `EARLIER_HOLD_MINUTES` (30) through `holdOffer` (item `offer_e_<id>`), emailed (and texted)
+with `/book?earlier=<id>&ekey=<key>`. `bookingEarlierView`/`bookingEarlierTake` check the hold's key hash; taking calls
+`moveTime(..., { alsoFree })`, which ignores and drops the hold in the same transaction. `sweepWaitlist` forgets past
+visits and passes lapsed holds on (the time joins `passed`). Cancelling drops the wish. Privacy export/erase include it.
+
 **Text reminders (17 November 2026, Services plan phase 7, `tasks/todo/2026-11-17-text-reminders.md`).** Settings
 `textReminders` (Hours & rules › Text reminders, off by default). With `PLATFORM_TEXTS_URL` set (`shopConfig.platformTextsUrl`,
 written by the release runner), index.js gives `bookingActions` a `texts` sender (`textSender.js`: `status()` cached five
