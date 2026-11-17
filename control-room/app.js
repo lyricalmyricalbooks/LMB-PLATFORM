@@ -227,6 +227,7 @@ async function load() {
     await loadCosts();
     await loadUsage();
     await loadSetup();
+    await loadBookingsBeta();
   } catch (failure) {
     status.textContent = failure.message;
     // A listed admin without two-step sign-in yet (plan 9.1): offer to set up the authenticator app.
@@ -3620,6 +3621,62 @@ function bookingsBetaSection(shop) {
   show();
   return slot;
 }
+
+// Shops › Bookings (beta) (control-room/bookingsBeta.js `overview`): every live shop with a website, this month's bookings
+// for those that have it on, and one button for the test shops. The switch for one shop stays in its record.
+const moneyWords = (byCurrency) => Object.entries(byCurrency).map(([cur, cents]) => money(cents, cur)).join(" + ") || money(0, "CAD");
+async function loadBookingsBeta() {
+  try {
+    const view = await api("GET", "/control/bookings/overview");
+    const t = view.totals;
+    const monthName = new Date(`${view.month}-01T12:00:00Z`).toLocaleDateString(undefined, { month: "long", timeZone: "UTC" });
+    setBadge("bookings-beta", view.needsLook.length);
+    const figure = (label, value, foot, tone) => el("div", { className: "rp-card rp-metric" },
+      el("div", { className: "rp-metric-label", textContent: label }),
+      el("div", { className: "rp-metric-value", textContent: String(value), dataset: tone ? { tone } : {} }),
+      foot ? el("div", { className: "rp-metric-foot", textContent: foot }) : null);
+    fill($("#bookings-beta-numbers"),
+      figure("Shops with it on", `${t.on} of ${t.shops}`, "live shops with a website"),
+      figure(`Bookings in ${monthName}`, t.bookings, `${moneyWords(t.money)} kept${t.noShows ? ` · ${plural(t.noShows, "no-show")}` : ""}`),
+      figure("Needs a look", view.needsLook.length, view.needsLook.length ? "see below" : "nothing", view.needsLook.length ? "warn" : null));
+    $("#bookings-beta-needs").replaceChildren(view.needsLook.length ? el("div", { className: "rp-alerts" }, ...view.needsLook.map((n) => el("a", { className: "rp-alert", href: `#shop/${encodeURIComponent(n.shopId)}`, dataset: { tone: "warning" } },
+      el("span", { className: "rp-alert-glyph", ariaHidden: "true", textContent: "!" }),
+      el("span", { className: "rp-alert-text" }, el("strong", { className: "rp-alert-title", textContent: n.pressName }), el("span", { textContent: ` ${n.why}` }))))) : el("span"));
+    const tests = $("#bookings-beta-tests");
+    tests.hidden = !view.testShops.off;
+    $("#bookings-beta-shops").replaceChildren(view.shops.length ? table({
+      caption: "Every live shop with a website",
+      rows: view.shops,
+      open: (row) => {
+        const shop = allShops.find((s) => s.shopId === row.shopId);
+        if (shop) openShop(shop);
+      },
+      columns: [
+        { header: "Shop", lead: true, render: (s) => el("div", {}, el("p", { className: "cr-title", textContent: s.pressName }), meta(s.testShop ? "test shop" : null)) },
+        { header: "Switch", render: (s) => (s.on ? pill("success", "On") : pill("neutral", "Off")) },
+        { header: "On the website", render: (s) => (!s.on ? "" : s.problem ? pill("danger", "Couldn't read") : s.live ? "Yes" : el("span", { className: "rp-hint", textContent: "Not yet" })) },
+        { header: "Bookings", render: (s) => (s.month ? el("div", {}, el("span", { className: "rp-mono", textContent: String(s.month.bookings) }), meta(Object.keys(s.month.money).length ? `${moneyWords(s.month.money)} kept` : null, s.month.cancelled ? `${s.month.cancelled} cancelled` : null)) : "") },
+        { header: "No-shows", render: (s) => (s.month ? el("span", { className: "rp-mono", textContent: String(s.month.noShows) }) : "") },
+        { header: "Google Calendar", render: (s) => (!s.month ? "" : s.google ? pill("success", "On") : el("span", { className: "rp-hint", textContent: "Off" })) },
+      ],
+    }) : emptyState("No live shops with a website yet."));
+  } catch (failure) {
+    $("#bookings-beta-shops").replaceChildren(emptyState(failure.message));
+  }
+}
+$("#bookings-beta-refresh").addEventListener("click", loadBookingsBeta);
+$("#bookings-beta-tests").addEventListener("click", async (event) => {
+  const sure = await askBox("Turn Bookings on for every test shop? Each one gets Bookings under Orders and can open a Book a time page. Real shops are left alone.", { yes: "Turn on" });
+  if (sure === null) return;
+  event.currentTarget.disabled = true;
+  try {
+    await api("POST", "/control/bookings/test-shops", { on: true });
+  } catch (failure) {
+    $("#bookings-beta-needs").append(el("p", { className: "rp-hint", role: "alert", textContent: failure.message }));
+  }
+  event.currentTarget.disabled = false;
+  await loadBookingsBeta();
+});
 
 // Newsletters the press sent, its morning emails (orders digest, running low) and orders shipped in parts or added to.
 const ISSUE_WORDS = { queued: "waiting to send", sending: "sending", sent: "sent", paused: "stopped part-way", cancelled: "cancelled", failed: "failed" };
