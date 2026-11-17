@@ -46,3 +46,5 @@ reads `/api/plans`: every `data-start` button leads to the waitlist (`/#start`) 
 `servicesOpen` (control room switch) are on, then to `SIGNUP_URL?type=services`, which `join/app.js` uses to pick the
 Services card. Styles are `.cp-sv-*` in `look/platform-pages.css` (tokens only). Proven by `servicesPage.test.js`;
 `site/check-live.js` checks the page after deploy.
+The front page points to it twice: a line under the hero buttons and the full-width "For services" bento tile
+(`#services`, `.cp-fp-svtile`).
