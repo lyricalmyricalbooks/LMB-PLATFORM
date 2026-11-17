@@ -9,8 +9,9 @@ export const PARTS = Object.freeze([
   { id: "backup", name: "Backups" },
 ]);
 
-// Checks run every five minutes; a summary older than this means the checks themselves have stopped.
-export const STALE_MINUTES = 20;
+// Checks run every 15 minutes (17 November 2026, to cut shops' running costs); a summary older than this means the
+// checks themselves have stopped (two runs missed).
+export const STALE_MINUTES = 40;
 
 /** "working" | "some" (some shops affected) | "most" (half or more affected) | "none" (no shop uses it yet). */
 function partState(failing, total) {

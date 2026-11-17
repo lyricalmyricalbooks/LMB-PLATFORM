@@ -12,7 +12,7 @@
 // same thing a switch change does) is fixed once and checked again; anything else goes to the repair queue for a
 // person. A check that passes closes its earlier repair items. Each run is logged in the registry.
 //
-// Services/health (every five minutes) watches whether the pages and checkout answer; this watches whether the shop is
+// Services/health (every 15 minutes) watches whether the pages and checkout answer; this watches whether the shop is
 // set up the way the platform thinks it is.
 //
 // Clients passed in: registry (getShop, getProfile, saveProfile, listShops, recordEvent), profileFiles (read, write),

@@ -53,8 +53,25 @@ function fakeBucket(initial = {}) {
     async list(_p, folder) { return [...objects.keys()].filter((k) => k.startsWith(folder)); },
     async upload(_p, folder, name, body, type) { objects.set(folder + name, { body: String(body), type }); },
     async remove(_p, folder, name) { assert.ok(name.startsWith(folder)); objects.delete(name); },
+    async label(_p, folder, name, labels) { objects.set(folder + name, { ...objects.get(folder + name), labels }); },
   };
 }
+
+test("the catalogue file carries its snapshot time as a label, so the page refresh needn't fetch it", async () => {
+  const dist = await builtApp();
+  const bucket = fakeBucket();
+  const scripts = fakeScripts();
+  const run = async (script, options) => {
+    await scripts.run(script, options);
+    if (basename(script) === "build-storefront-data.mjs") await writeFile(join(options.env.SHOP_BUILD_DIR, "storefront-data.json"), JSON.stringify({ v: 1, readTime: "2026-11-17T01:02:03.456789Z" }));
+  };
+  await buildAndPublish({ shop: SHOP("press-a"), siteFiles: bucket, projectId: "lmb-test-shop", distDir: dist, run });
+  assert.deepEqual(bucket.objects.get("shops/press-a/site/storefront-data.json").labels, { readTime: "2026-11-17T01:02:03.456789Z" });
+  // A file with no snapshot time (or a bucket client without labels) is published as before, with no label.
+  const plain = fakeBucket();
+  await buildAndPublish({ shop: SHOP("press-a"), siteFiles: plain, projectId: "lmb-test-shop", distDir: dist, run: fakeScripts().run });
+  assert.equal(plain.objects.get("shops/press-a/site/storefront-data.json").labels, undefined);
+});
 
 test("the profile the pages read is the shop's own, with its sign-in list", () => {
   assert.deepEqual(publishedProfile(SHOP("press-a")), { ...PROFILE("press-a"), tenant: "press-a-abc123" });
@@ -125,6 +142,11 @@ test("the bucket client reads and writes only inside a shop's site folder", asyn
   assert.match(calls.at(-1).url, /name=shops%2Fpress-a%2Fsite%2Fbooks%2Fx\.html/);
   await siteFiles.remove("p", "shops/press-a/site/", "shops/press-a/site/books/x.html");
   assert.match(calls.at(-1).url, /\/o\/shops%2Fpress-a%2Fsite%2Fbooks%2Fx\.html$/);
+  await siteFiles.label("p", "shops/press-a/site/", "storefront-data.json", { readTime: "2026-11-17T01:02:03Z" });
+  assert.equal(calls.at(-1).method, "PATCH");
+  assert.match(calls.at(-1).url, /\/o\/shops%2Fpress-a%2Fsite%2Fstorefront-data\.json\?fields=metadata$/);
+  assert.deepEqual(await siteFiles.labels("p", "shops/press-a/site/", "storefront-data.json"), {});
+  await assert.rejects(siteFiles.labels("p", "shops/press-b/", "x"), /isn't a/);
   for (const [folder, name] of [["shops/press-a/", "x"], ["shops/press-a/site/../", "x"], ["shops/Press/site/", "x"], ["shops/press-a/site/", "../b/site/x"], ["shops/press-a/site/", "a//b"], ["shops/press-a/site/", ""]]) {
     await assert.rejects(siteFiles.upload("p", folder, name, "", "text/plain"), /isn't a/);
   }

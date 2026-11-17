@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupOutcome, backupStatusRecord } = require("./shopSettings");
+const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupOutcome, backupStatusRecord, ownCopyDue } = require("./shopSettings");
 
 describe("shopOrigin", () => {
   it("never invents an origin when General › Location is blank (no other shop's street or phone)", () => {
@@ -32,5 +32,21 @@ describe("store switches", () => {
     const both = backupOutcome({ exportResult: { ok: false, error: "denied" }, copyResult: { ok: false, error: "bucket" } });
     expect(both).toEqual({ ok: false, error: "Firestore export: denied · Document copy: bucket" });
     expect(backupOutcome({}).error).toBe("Unknown error");
+  });
+});
+
+describe("ownCopyDue (shared shops copy their folder weekly)", () => {
+  const now = Date.parse("2026-11-17T08:17:00Z");
+  const daysAgo = (d) => ({ lastSuccessAt: new Date(now - d * 24 * 3600 * 1000).toISOString() });
+  it("a shared shop's nightly run copies only once the last good copy is about a week old", () => {
+    expect(ownCopyDue({ trigger: "nightly", shared: true, previous: daysAgo(1), now })).toBe(false);
+    expect(ownCopyDue({ trigger: "nightly", shared: true, previous: daysAgo(6), now })).toBe(false);
+    expect(ownCopyDue({ trigger: "nightly", shared: true, previous: daysAgo(6.6), now })).toBe(true);
+    expect(ownCopyDue({ trigger: "nightly", shared: true, previous: null, now })).toBe(true);
+    expect(ownCopyDue({ trigger: "nightly", shared: true, previous: { lastSuccessAt: "" }, now })).toBe(true);
+  });
+  it("Back up now always runs, and a shop in its own project still copies every night", () => {
+    expect(ownCopyDue({ trigger: "manual", shared: true, previous: daysAgo(0.1), now })).toBe(true);
+    expect(ownCopyDue({ trigger: "nightly", shared: false, previous: daysAgo(0.9), now })).toBe(true);
   });
 });

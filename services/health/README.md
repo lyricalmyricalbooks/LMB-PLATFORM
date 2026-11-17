@@ -6,7 +6,7 @@ answers and documents (`health.test.js`); nothing here reaches Google from a tes
 Shops come only from the registry (live rows), so the owner's own original shop, which is not on the platform, is never
 checked. The checks only read.
 
-## Every five minutes (`runner.js`, `checks.js`)
+## Every 15 minutes (`runner.js`, `checks.js`)
 
 | Check | Passes when | Alerts after |
 | --- | --- | --- |
@@ -93,7 +93,7 @@ watch. A new budget month brings the level back to normal by itself.
 Needs the platform project (`docs/test-shop.md`, steps 1–2) and a schedule. Nothing is scheduled yet.
 
 ```
-HEALTH_ALERT_TO=<alert address> node services/health/run.js checks   # every 5 minutes
+HEALTH_ALERT_TO=<alert address> node services/health/run.js checks   # every 15 minutes
 node services/health/run.js nightly                                   # once a night, after the shops' own backups
 ```
 

@@ -17,10 +17,18 @@ export function whenWords(iso: string | null | undefined, now = Date.now()): str
   return `${new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" })}, ${clock(t)}`;
 }
 
-/** The nightly backup's row: when it last worked, and what it holds. */
-export function nightlyRow(record: BackupRecord | null | undefined, now = Date.now()) {
+/** The words for how often the downloadable copy runs: weekly in the shared system, with Colophon's copy every night. */
+export function backupCadence(weekly: boolean) {
+  return weekly
+    ? { name: "Every week", sub: "Every week · kept 30 days · Colophon also backs up every night", card: "Weekly at 3:17 am. Kept 30 days. Colophon also backs up your shop every night.", drawer: "Every week. Kept 30 days. Colophon also backs up your shop every night." }
+    : { name: "Every night", sub: "Every night · kept 30 days", card: "Nightly at 3:17 am. Kept 30 days.", drawer: "Every night. Kept 30 days." };
+}
+
+/** The backup's row: when it last worked, and what it holds. */
+export function nightlyRow(record: BackupRecord | null | undefined, now = Date.now(), weekly = false) {
   const last = whenWords(record?.lastSuccessAt, now);
-  return { name: last || "Every night", sub: last ? "Every night · kept 30 days" : "The first one runs tonight" };
+  const words = backupCadence(weekly);
+  return { name: last || words.name, sub: last ? words.sub : "The first one runs tonight" };
 }
 
 /** The folder row: where the last copy went on this computer, or what it does. */

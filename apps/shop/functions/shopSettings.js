@@ -77,6 +77,19 @@ function backupOutcome({ exportResult, copyResult }) {
   return { ok: false, error: parts.join(" · ") || "Unknown error" };
 }
 
+/**
+ * In the shared system a shop's own copy of its folder runs once a week (Julian, 17 November 2026: running cost cut 2).
+ * The platform's export of the whole shared database is the nightly safety net for every shop (LMB-PLATFORM
+ * services/health/nightly.js). The nightly run makes the copy only once the last good one is about a week old, so a
+ * failed copy is tried again the next night. A shop in its own project still copies every night. Back up now always runs.
+ */
+const SHARED_COPY_EVERY_MS = 6.5 * 24 * 60 * 60 * 1000;
+function ownCopyDue({ trigger, shared, previous, now }) {
+  if (trigger !== "nightly" || !shared) return true;
+  const last = Date.parse(previous?.lastSuccessAt || "");
+  return !Number.isFinite(last) || now - last >= SHARED_COPY_EVERY_MS;
+}
+
 /** What the nightly backup writes to the admin-only systemStatus/backup doc. `extra` = export/copy details. */
 function backupStatusRecord({ ok, day, at, operation = "", error = "", previous = null, extra = {} }) {
   const record = { ...extra, lastAttemptAt: at, lastDay: day, ok: ok === true, runningSince: "" };
@@ -96,4 +109,4 @@ function backupStatusRecord({ ok, day, at, operation = "", error = "", previous 
   return record;
 }
 
-module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, planPaused, shopPrivate, dailyDigestEnabled, backupOutcome, backupStatusRecord };
+module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, planPaused, shopPrivate, dailyDigestEnabled, backupOutcome, backupStatusRecord, ownCopyDue };

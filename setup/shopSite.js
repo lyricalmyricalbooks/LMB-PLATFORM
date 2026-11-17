@@ -71,6 +71,19 @@ export async function buildShopSite({ shop, appDir = SHOP_APP, distDir = join(ap
   return { workDir: dir, files };
 }
 
+/** The catalogue file shoppers' pages read (apps/shop/src/app/features/site/storefrontDataFile.ts). */
+export const CATALOGUE_FILE = "storefront-data.json";
+
+/** The Firestore snapshot time a built catalogue file was read at, or null when the file has none. */
+export async function catalogueReadTime(file) {
+  try {
+    const readTime = JSON.parse(await readFile(file, "utf8"))?.readTime;
+    return typeof readTime === "string" && readTime ? readTime : null;
+  } catch {
+    return null;
+  }
+}
+
 const typeOf = (name) => TYPES[name.slice(name.lastIndexOf("."))] ?? "application/octet-stream";
 
 /**
@@ -81,6 +94,10 @@ export async function publishShopSite({ siteFiles, projectId, shopId, workDir, f
   const folder = siteFolder(shopId);
   if (!files.includes("index.html")) throw new Error(`Shop ${shopId}: the build drew no home page, so nothing was published.`);
   for (const name of files) await siteFiles.upload(projectId, folder, name, await readFile(join(workDir, name)), typeOf(name));
+  // The catalogue file's snapshot time goes on the file as a label, so the page refresh (services/release-runner/
+  // pageRefresh.js) can tell whether the shop changed since without fetching the file.
+  const readTime = files.includes(CATALOGUE_FILE) ? await catalogueReadTime(join(workDir, CATALOGUE_FILE)) : null;
+  if (readTime && typeof siteFiles.label === "function") await siteFiles.label(projectId, folder, CATALOGUE_FILE, { readTime });
   const keep = new Set(files.map((name) => folder + name));
   const removed = [];
   for (const name of await siteFiles.list(projectId, folder)) {

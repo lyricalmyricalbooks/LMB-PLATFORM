@@ -94,7 +94,8 @@ needed a Google organization before any shop could be made ("In the queue") and 
   Stripe and Square events there; the health checks call the checkout there). `ownAddress` (services/domains/names.js)
   is the free address for a shared shop. A shared shop is live for health, backups and team sync
   (`rings.js` `notLive`), but gets no per-project release (`leftOut`). The nightly backup exports the shared project's
-  two databases once for all its shops. The monthly restore drill restores that export into a scratch database and counts
+  two databases once for all its shops, every night: it is each shared shop's nightly backup, since a shared shop copies
+  its own folder only once a week (17 November 2026, running cost cut 2; the shop's `ownCopyDue`). The monthly restore drill restores that export into a scratch database and counts
   one shop's own folder there and in the live database (`restoreDrill.js` `placeOf`), a different shop each month.
 - **Staged updates.** A release goes to a project, not a shop (`services/release-runner/shared.js`,
   `node services/release-runner/run-shared.js <version>`): the shared test project first, then the live one

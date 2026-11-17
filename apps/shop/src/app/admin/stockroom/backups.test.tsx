@@ -30,6 +30,9 @@ describe("backup row words", () => {
     const now = at("2026-11-11T12:00:00");
     expect(nightlyRow({ lastSuccessAt: "2026-11-11T03:17:00" }, now)).toMatchObject({ sub: "Every night · kept 30 days" });
     expect(nightlyRow(null, now)).toEqual({ name: "Every night", sub: "The first one runs tonight" });
+    // In the shared system the downloadable copy is weekly, and Colophon's own copy covers every night.
+    expect(nightlyRow({ lastSuccessAt: "2026-11-11T03:17:00" }, now, true).sub).toBe("Every week · kept 30 days · Colophon also backs up every night");
+    expect(nightlyRow(null, now, true)).toEqual({ name: "Every week", sub: "The first one runs tonight" });
   });
 
   it("tells the folder row's state", () => {

@@ -31,7 +31,7 @@ const DAY = 24 * 60;
 
 /** Every scheduled job in the platform's code. `every` is the intended gap, in minutes. */
 export const JOBS = Object.freeze([
-  { name: "health-checks", words: "Health checks of every shop, and the status page", every: 5, code: "services/health/run.js checks" },
+  { name: "health-checks", words: "Health checks of every shop, and the status page", every: 15, code: "services/health/run.js checks" },
   { name: "shop-maker", words: "Make the shops waiting in the sign-up line", every: 1, code: "signup/shopMaker.js sweep" },
   { name: "web-addresses", words: "Check web addresses: new ones until they work, and each one once a day (still working, and when it runs out)", every: 10, code: "services/domains/domains.js checkAll" },
   { name: "nightly-backups", words: "Nightly backups of every shop and the stockroom", every: DAY, code: "services/health/run.js nightly" },

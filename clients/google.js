@@ -580,6 +580,17 @@ export function googleClients({ fetch, token, sleep, today = () => new Date().to
         const bucket = await needBucket(projectId);
         await orNull(call("DELETE", `${GCS}/b/${bucket}/o/${encodeURIComponent(inFolder(folder, name))}`));
       },
+      // A published file's own labels (the catalogue file's `readTime`, setup/shopSite.js), read and written without
+      // sending the file itself: { [key]: text }, or null when the file isn't there.
+      async labels(projectId, folder, name) {
+        const bucket = await needBucket(projectId);
+        const object = await orNull(call("GET", `${GCS}/b/${bucket}/o/${encodeURIComponent(inFolder(folder, name))}`, { query: { fields: "metadata" } }));
+        return object ? (object.metadata ?? {}) : null;
+      },
+      async label(projectId, folder, name, labels) {
+        const bucket = await needBucket(projectId);
+        await call("PATCH", `${GCS}/b/${bucket}/o/${encodeURIComponent(inFolder(folder, name))}`, { query: { fields: "metadata" }, body: { metadata: labels } });
+      },
     },
     storageProbe: {
       async hasTestFile(projectId) {
