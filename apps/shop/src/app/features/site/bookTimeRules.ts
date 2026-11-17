@@ -7,6 +7,8 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** A pack of visits sold with it: `packVisits` visits for `packPriceMinor`, to use within `packDays` (0: no end). */ packVisits?: number; packPriceMinor?: number; packDays?: number;
   /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
+  /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
+  hours?: Array<Array<{ start: string; end: string }>>;
   /** The shop has a discount code that works on bookings, so the form offers a code box. */
   codes?: boolean;
   /** The shop has gift cards, so the form offers a gift card box on paid services. */
@@ -187,9 +189,11 @@ export function manageFromSearch(search: string): { id: string; key: string } | 
 }
 
 /** The service and day a waiting-list email links to (`/book?service=…&day=…`), each empty when missing or misshapen. */
-export function wantedFromSearch(search: string): { service: string; day: string; offer: string; offerKey: string } {
+export function wantedFromSearch(search: string): { service: string; day: string; offer: string; offerKey: string; person: string } {
   const q = new URLSearchParams(search);
   const service = q.get("service") || "";
+  // Someone picked already (the team section's "Book with …" button).
+  const person = q.get("with") || "";
   const day = q.get("day") || "";
   // A place held for this person from the waiting list (the email's link): both parts or neither.
   const offer = q.get("offer") || "";
@@ -198,6 +202,7 @@ export function wantedFromSearch(search: string): { service: string; day: string
   return {
     service: /^[A-Za-z0-9_-]{1,60}$/.test(service) ? service : "", day: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "",
     offer: held ? offer : "", offerKey: held ? offerKey : "",
+    person: /^[A-Za-z0-9_-]{1,60}$/.test(person) ? person : "",
   };
 }
 

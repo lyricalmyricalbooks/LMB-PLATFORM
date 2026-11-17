@@ -165,6 +165,9 @@ describe("customers book", () => {
     expect(body.on).toBe(true);
     expect(body.services.map((s) => s.id).sort()).toEqual(["review", "visit"]);
     expect(Object.keys(body.services[0]).sort()).toEqual(["depositMinor", "depositPercent", "description", "id", "location", "minutes", "name", "payment", "places", "priceMinor", "questions"]);
+    // The opening hours, Sunday first, for the website's hours section.
+    expect(body.hours).toHaveLength(7);
+    expect(body.hours.flat().every((w) => /^\d\d:\d\d$/.test(w.start) && /^\d\d:\d\d$/.test(w.end))).toBe(true);
   });
 
   test("a free booking is confirmed at once, emailed, and its time is gone for the next customer", async () => {

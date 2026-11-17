@@ -16,6 +16,7 @@ import { regionProps } from "./storefrontRegions";
 import { askBooking } from "./bookTimeAsk";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { BOOK_TIME_CSS } from "./bookTimeStyle";
+import { servicesFor } from "./serviceSections";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
@@ -95,7 +96,11 @@ function NewBooking({ c }: { c: Copy }) {
   // "Book a visit" on a pack's own page links here with the pack, so it is applied once the service is chosen.
   const usePack = useMemo(() => packFromSearch(search, "usepack"), [search]);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { setApplied(null); setStaffId(""); }, [service?.id]);
+  // Opened from the team section (`?with=`): that person stays picked for any service they do.
+  useEffect(() => {
+    setApplied(null);
+    setStaffId(service && wanted.person && peopleFor(info, service.id).some((p) => p.id === wanted.person) ? wanted.person : "");
+  }, [service?.id]);
   useEffect(() => {
     setPack(null);
     if (!service || !usePack) return;
@@ -113,8 +118,9 @@ function NewBooking({ c }: { c: Copy }) {
       setInfo(next);
       // One service: straight to its times.
       const asked = next.on ? next.services?.find((sv) => sv.id === wanted.service) : undefined;
+      const offered = wanted.person ? servicesFor(next, wanted.person) : next.services || [];
       if (asked) { setService(asked); setStep("time"); }
-      else if (next.on && next.services?.length === 1) { setService(next.services[0]); setStep("time"); }
+      else if (next.on && offered.length === 1) { setService(offered[0]); setStep("time"); }
     }).catch(() => setLoadFailed(true));
   };
   useEffect(load, []);
@@ -138,7 +144,9 @@ function NewBooking({ c }: { c: Copy }) {
   const currency = info.currency || "CAD";
   const today = info.today || "";
   const lastDay = addDays(today, Math.max(0, (info.maxDaysAhead || 60) - 1));
-  const steps: Step[] = info.services.length > 1 ? ["service", "time", "details"] : ["time", "details"];
+  // With someone picked (`?with=`), only what they do.
+  const offered = wanted.person ? servicesFor(info, wanted.person) : info.services;
+  const steps: Step[] = offered.length > 1 ? ["service", "time", "details"] : ["time", "details"];
   const end = start && service ? new Date(Date.parse(start) + service.minutes * 60_000).toISOString() : "";
   // The people who do this service (none when the shop lists nobody), and the one picked.
   const people = service ? peopleFor(info, service.id) : [];
@@ -206,7 +214,7 @@ function NewBooking({ c }: { c: Copy }) {
 
       {step === "service" && (
         <div {...regionProps("bookingsServices")} className="fm-book-list">
-          {info.services.map((s) => (
+          {offered.map((s) => (
             <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" onClick={() => { setService(s); setStart(""); setAnswers({}); setProblems({}); setError(""); setStep("time"); }}>
               <h2>{s.name}</h2>
               <span className="fm-book-price" translate="no">{s.priceMinor > 0 ? moneyText(s.priceMinor, currency) : c("bookTimeFree")}{!!s.taxMinor && <small> {c("bookTimePlusTax")}</small>}</span>

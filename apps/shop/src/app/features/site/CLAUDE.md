@@ -870,6 +870,15 @@ refusal goes back to anyone free with Text & labels › `bookTimeStaffProblem`. 
 "With <name>" (`bookTimeWith`); Change time asks for the same person's times. Words: `bookTimeWith`, `bookTimeAnyone`,
 `bookTimeStaffProblem` (French twins). The Studio preview lists two sample people.
 
+**Services sections (17 November 2026):** Add section › Engagement has `ServiceMenuSection` (Price list),
+`BookingTeamSection` (Your team), `BookCallSection` (Big Book button) and `BookingHoursSection` (Hours & where to find
+us), roots `.fm-svc-menu/-team/-call/-hours`. All read `bookingInfo` through `useBookingInfo()` (shared with
+`BookTimeSection`, `bookingInfoOnce`) and render nothing while bookings are off; the Studio preview uses
+`bookTimePreview.ts` (sample hours too). Pure rules in `serviceSections.ts`. A team card links `/book?with=<id>`:
+`wantedFromSearch` reads `person`, and BookTime starts on that person and offers only their services (`servicesFor`).
+Words that aren't section fields: Text & labels › Bookings page › Team, video calls & website sections
+(`bookTimeHoursClosed`, `bookTimeHoursToday`, `bookTimeTeamAll`). The map is a lazy Google Maps embed of the typed
+address (Show the map off = no third-party frame).
 
 ## Pickup times at checkout (17 November 2026)
 
