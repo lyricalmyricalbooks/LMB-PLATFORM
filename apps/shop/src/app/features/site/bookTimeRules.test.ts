@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit, peopleFor } from "./bookTimeRules";
+import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit, peopleFor, asPerson, ratesDiffer, withPicked } from "./bookTimeRules";
 
 const ZONE = "America/Toronto";
 
@@ -91,5 +91,28 @@ describe("the With picker", () => {
     expect(peopleFor({ staff }, "tour").map((p) => p.id)).toEqual(["ana", "cy"]);
     expect(peopleFor({}, "riso")).toEqual([]);
     expect(peopleFor(null, "riso")).toEqual([]);
+  });
+});
+
+describe("prices by person", () => {
+  const cut = { id: "cut", name: "Cut", description: "", minutes: 45, priceMinor: 6000, payment: "full" as const, location: "", taxMinor: 780, extras: [{ id: "x", name: "Long hair", minutes: 15, priceMinor: 1500 }] };
+  const riya = { id: "riya", name: "Riya", serviceIds: [], rates: [{ serviceId: "cut", minutes: 60, priceMinor: 7500 }] };
+  const sam = { id: "sam", name: "Sam", serviceIds: [] };
+  it("uses the person's own length and price, with the tax in step", () => {
+    expect(asPerson(cut, riya)).toMatchObject({ minutes: 60, priceMinor: 7500, taxMinor: 975 });
+    expect(asPerson(cut, sam)).toBe(cut);
+    expect(asPerson(cut, null)).toBe(cut);
+  });
+  it("puts the ticked extras on top of the person's price", () => {
+    expect(withPicked(asPerson(cut, riya), ["x"])).toMatchObject({ minutes: 75, priceMinor: 9000 });
+  });
+  it("never changes a class, a course or a free service's price", () => {
+    expect(asPerson({ ...cut, places: 6 }, riya).priceMinor).toBe(6000);
+    expect(asPerson({ ...cut, courseStarts: ["2026-12-01T10:00:00.000Z"] }, riya).minutes).toBe(45);
+    expect(asPerson({ ...cut, payment: "free" as const, priceMinor: 0, taxMinor: 0 }, riya)).toMatchObject({ minutes: 60, priceMinor: 0 });
+  });
+  it("tells when anyone has their own", () => {
+    expect(ratesDiffer(cut, [sam, riya])).toBe(true);
+    expect(ratesDiffer(cut, [sam])).toBe(false);
   });
 });

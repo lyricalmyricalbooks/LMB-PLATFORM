@@ -41,7 +41,22 @@ export type BookingInfo = { on: boolean; zone?: string; currency?: string; cance
   /** The people who take bookings (none when the shop lists nobody): who does which service (no services listed = all). */
   staff?: BookingPerson[] };
 /** Someone who takes bookings, as the Book a time page sees them. */
-export type BookingPerson = { id: string; name: string; serviceIds: string[] };
+export type BookingPerson = { id: string; name: string; serviceIds: string[];
+  /** Their own length and price for some one-to-one services (null = the service's own). */
+  rates?: Array<{ serviceId: string; minutes: number | null; priceMinor: number | null }> };
+/** The service as this person does it: their own length and price for a one-to-one service (the tax grows in step).
+ *  Display only: the server works the same out again from the person's id. Never a class, a course or a free service's price. */
+export function asPerson<S extends BookingServiceView>(service: S, person: BookingPerson | null | undefined): S {
+  if (!person || (service.places || 1) > 1 || service.courseStarts?.length) return service;
+  const rate = person.rates?.find((r) => r.serviceId === service.id);
+  if (!rate) return service;
+  const priceMinor = service.payment === "free" ? service.priceMinor : rate.priceMinor ?? service.priceMinor;
+  const taxMinor = service.taxMinor && service.priceMinor > 0 ? Math.round((service.taxMinor * priceMinor) / service.priceMinor) : service.taxMinor;
+  return { ...service, minutes: rate.minutes ?? service.minutes, priceMinor, ...(taxMinor !== undefined ? { taxMinor } : {}) };
+}
+/** True when anyone who does this service has their own length or price for it (the picker then shows each one's). */
+export const ratesDiffer = (service: BookingServiceView, people: readonly BookingPerson[]): boolean =>
+  people.some((p) => { const s = asPerson(service, p); return s.minutes !== service.minutes || s.priceMinor !== service.priceMinor; });
 /** The people a client may pick for a service: those who do it (an empty list of services means every one). */
 export const peopleFor = (info: Pick<BookingInfo, "staff"> | null | undefined, serviceId: string): BookingPerson[] =>
   (info?.staff || []).filter((p) => !p.serviceIds.length || p.serviceIds.includes(serviceId));

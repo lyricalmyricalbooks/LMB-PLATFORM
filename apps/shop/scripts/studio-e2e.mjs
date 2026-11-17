@@ -2183,6 +2183,23 @@ await check("ticking an add-on on the Book a time page lengthens the visit and s
   if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsSummary]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-extras-summary.png` });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 
+await check("each person's own price and length show on the Book a time page and follow the person picked", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-store-region=bookingsService]").first().waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
+  // The sample one-to-one session: Ana has her own (75 minutes, more money), anyone free keeps the hour.
+  await frame.locator("[data-store-region=bookingsService]").nth(1).click();
+  const people = frame.locator(".fm-book-people");
+  await people.waitFor({ timeout: 10000 });
+  const ana = people.locator("button", { hasText: "Ana" });
+  await ana.locator(".fm-book-person-rate", { hasText: "1 h 15 min" }).waitFor({ timeout: 5000 });
+  await people.locator("button", { hasText: "1 h" }).first().waitFor({ timeout: 5000 });
+  await ana.click();
+  if (await ana.getAttribute("aria-pressed") !== "true") throw new Error("Ana isn't picked");
+  if (process.env.STUDIO_SHOTS) await people.screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-person-prices.png` });
+}, "?bookings=1#designer?t=bookingsPage&tab=sections");
+
 await check("a Book a time section added to the home page shows sample services that link to the booking page", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();
