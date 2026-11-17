@@ -921,6 +921,12 @@ the picks change (dropped with the server's own words when it no longer fits). T
 Words: Text & labels › Events page › **Choosing tickets & paying** (`eventsCode*`, `eventsDiscountRow`, French twins).
 The preview's sample code takes 10% off.
 
+**Ticket extras (E3e):** an event with `extras` shows an "Add to your order" card under the tickets (region
+`eventsExtras`, the tickets' own list and stepper styles). `extrasOf` (eventsRules.ts) keeps the picks inside each
+extra's limit; they count and are sent only once a ticket is picked, and the summary and the buyer's page list them. A
+refused extra (code `extras`) reloads the event and clears the picks. Words: Text & labels › Events page › **Choosing
+tickets & paying** (`eventsExtrasHeading`, `eventsExtrasChanged`, French twins). The preview's launch party has two.
+
 ## Pickup times at checkout (17 November 2026)
 
 When the shop asks for a pickup time (Bookings › Hours & rules › Pickup times; server rules in `functions/CLAUDE.md`),

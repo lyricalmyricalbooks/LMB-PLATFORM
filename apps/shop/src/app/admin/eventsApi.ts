@@ -2,7 +2,7 @@
 // orders are server-only records, so every read and change goes through the `eventsAdmin` action.
 import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import type { OrderLine, ShopEvent } from "../../shared/eventTickets";
+import type { ExtraLine, OrderLine, ShopEvent } from "../../shared/eventTickets";
 
 /** An event as the admin lists it: what was made, plus tickets sold, places left and money taken. */
 export type AdminEvent = ShopEvent & {
@@ -19,6 +19,8 @@ export type TicketOrder = {
   refundedMinor?: number; refundedTickets?: number; refundedAt?: string;
   /** A discount code the buyer used: what they typed and what it took off. */
   discount?: { code: string; amountMinor: number } | null;
+  /** Extras bought with the tickets, and what they came to before tax. */
+  extras?: ExtraLine[]; extrasMinor?: number;
 };
 /** One round of calling an event off: orders given back this call, the money sent, the ones that failed, and how many wait. */
 export type CancelAnswer = { ok: true; done: number; amountMinor: number; failed: { id: string; name: string; code?: string }[]; left: number };

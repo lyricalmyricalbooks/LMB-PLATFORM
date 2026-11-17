@@ -1,15 +1,17 @@
 // Events and tickets (beta): the pure rules behind Admin › Events (Events.tsx): the editor's form and what it sends,
 // how an event reads in the list, and the figures at the top. Times are typed and shown in the shop's own time zone.
 import { zonedTime, dayOf, addDays } from "../../shared/bookingTimes";
-import { salesOpen, type EventStatus } from "../../shared/eventTickets";
+import { MIN_TICKET_MINOR, salesOpen, type EventStatus } from "../../shared/eventTickets";
 import type { AdminEvent, TicketOrder } from "./eventsApi";
 
 export type TicketForm = { id: string; name: string; price: string; places: string; maxPerOrder: string };
+/** One extra in the editor (a programme, a drink): a name, a price and how many one order may add. */
+export type ExtraForm = { id: string; name: string; price: string; maxPerOrder: string };
 export type EventForm = {
   id: string; title: string; description: string; day: string; time: string; endTime: string; venue: string; address: string;
   onlineUrl: string;
   /** Kept as saved: the picture is chosen with the website page (not in this form yet). */
-  photo: string; status: EventStatus; chargeTax: boolean; tickets: TicketForm[];
+  photo: string; status: EventStatus; chargeTax: boolean; tickets: TicketForm[]; extras: ExtraForm[];
 };
 
 /** "19:00" on the shop's clock for an ISO time. */
@@ -31,11 +33,14 @@ let ticketSeq = 0;
 /** A new ticket row with an id of its own (ids must stay the same once people have bought that ticket). */
 export const blankTicket = (name = ""): TicketForm => ({ id: `t${Date.now().toString(36)}${(ticketSeq++).toString(36)}`, name, price: "", places: "", maxPerOrder: "10" });
 
+/** A new extra row, with an id of its own like a ticket's. */
+export const blankExtra = (): ExtraForm => ({ id: `x${Date.now().toString(36)}${(ticketSeq++).toString(36)}`, name: "", price: "", maxPerOrder: "10" });
+
 /** A new event's form: two weeks from today at 7 in the evening, one General ticket. */
 export function blankForm(zone: string, nowMs: number): EventForm {
   return {
     id: "", title: "", description: "", day: addDays(dayOf(nowMs, zone), 14), time: "19:00", endTime: "", venue: "", address: "", onlineUrl: "", photo: "",
-    status: "draft", chargeTax: false, tickets: [blankTicket("General")],
+    status: "draft", chargeTax: false, tickets: [blankTicket("General")], extras: [],
   };
 }
 
@@ -45,6 +50,7 @@ export function formFromEvent(event: AdminEvent, zone: string): EventForm {
     endTime: event.end ? clockOf(event.end, zone) : "", venue: event.venue, address: event.address, onlineUrl: event.onlineUrl, photo: event.photo || "", status: event.status,
     chargeTax: event.chargeTax,
     tickets: event.tickets.map((t) => ({ id: t.id, name: t.name, price: priceText(t.priceMinor), places: String(t.places), maxPerOrder: String(t.maxPerOrder) })),
+    extras: (event.extras ?? []).map((x) => ({ id: x.id, name: x.name, price: priceText(x.priceMinor), maxPerOrder: String(x.maxPerOrder) })),
   };
 }
 
@@ -71,12 +77,22 @@ export function eventFromForm(form: EventForm, zone: string): { event: Record<st
     if (!Number.isInteger(places) || places < 1) return { problem: `Say how many places "${name}" has.` };
     tickets.push({ id: t.id, name, priceMinor, places, maxPerOrder: Number(t.maxPerOrder) || 10 });
   }
+  const extras = [];
+  for (const x of form.extras) {
+    const name = x.name.trim();
+    // A row left empty is dropped, so adding one by mistake never blocks the save.
+    if (!name && !x.price.trim()) continue;
+    if (!name) return { problem: "Give each extra a name, like Programme." };
+    const priceMinor = priceMinorOf(x.price);
+    if (!Number.isFinite(priceMinor) || priceMinor < MIN_TICKET_MINOR) return { problem: `Give "${name}" a price of at least 0.50, like 5 or 7.50.` };
+    extras.push({ id: x.id, name, priceMinor, maxPerOrder: Number(x.maxPerOrder) || 10 });
+  }
   const link = form.onlineUrl.trim();
   if (link && !/^https:\/\/\S+$/i.test(link)) return { problem: "The online link starts with https://" };
   return {
     event: {
       ...(form.id ? { id: form.id } : {}), title: form.title, description: form.description, start: new Date(start).toISOString(), end,
-      venue: form.venue, address: form.address, onlineUrl: link, photo: form.photo, status: form.status, chargeTax: form.chargeTax, tickets,
+      venue: form.venue, address: form.address, onlineUrl: link, photo: form.photo, status: form.status, chargeTax: form.chargeTax, tickets, extras,
     },
   };
 }
@@ -134,10 +150,14 @@ export function soldLine(event: Pick<AdminEvent, "soldTotal" | "placesTotal">): 
 }
 
 /** The guest list as spreadsheet rows, one per ticket, by name. Cells that could run as a formula are made plain. */
+/** "1 × Programme, 2 × Drink" for an order's extras, or "" when it has none. */
+export const extrasText = (order: Pick<TicketOrder, "extras">): string => (order.extras ?? []).map((x) => `${x.qty} × ${x.name}`).join(", ");
+
 export function guestCsv(orders: TicketOrder[]): string {
   const safe = (value: string) => { const v = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value; return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const rows = orders.flatMap((o) => o.tickets.map((t) => [o.name, o.email, t.name, t.code, t.usedAt ? "Yes" : ""])).sort((a, b) => a[0].localeCompare(b[0]) || a[3].localeCompare(b[3]));
-  return [["Name", "Email", "Ticket", "Code", "Arrived"], ...rows].map((r) => r.map(safe).join(",")).join("\n");
+  // An order's extras are written on each of its tickets' rows, so whoever is at the door sees them whichever ticket is shown.
+  const rows = orders.flatMap((o) => o.tickets.map((t) => [o.name, o.email, t.name, t.code, t.usedAt ? "Yes" : "", extrasText(o)])).sort((a, b) => a[0].localeCompare(b[0]) || a[3].localeCompare(b[3]));
+  return [["Name", "Email", "Ticket", "Code", "Arrived", "Extras"], ...rows].map((r) => r.map(safe).join(",")).join("\n");
 }
 
 /** How many of an event's tickets have been checked in, from its guest list. */

@@ -1306,3 +1306,8 @@ list. Fixture op `moveOrder` moves the order and both events' counts.
 `discountRecord.ts`) when the shop offers Events (`useWaysOn`) and the code is a plain one; it is cleared when the code
 stops being plain. Who's coming shows "Code EARLY, $9.00 off" on an order that used one (`TicketOrder.discount`). The
 fixture gives one guest a code.
+
+**Ticket extras (E3e):** the event editor has an **Extras** box under Tickets (`ExtraForm`, `blankExtra`; an empty row
+is dropped on save, a price under 0.50 is refused in plain words). Who's coming shows an order's extras (`extrasText`),
+the guest list CSV has an Extras column, and the refund dialog says whether the extras are refunded (only with the last
+ticket). The fixture's launch party has two extras and one order with them.

@@ -97,6 +97,30 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
         .toEqual({ sold: { gen: 1, sup: 0 }, held: { o9: { until: "2026-12-01T00:00:00Z", lines: { gen: 1 } } } });
     });
 
+    test("extras are tidied on the event, priced on the order and left out of a ticket's refund", () => {
+      const withExtras = lib.cleanEvent({ ...EVENT, extras: [{ id: "prog", name: " Programme ", priceMinor: 500 }, { name: "Drink", priceMinor: 800, maxPerOrder: 2 }] }, "ev000001") as shop.ShopEvent;
+      expect(withExtras.extras).toEqual([{ id: "prog", name: "Programme", priceMinor: 500, maxPerOrder: 10 }, { id: "x2", name: "Drink", priceMinor: 800, maxPerOrder: 2 }]);
+      expect(event.extras).toBeUndefined();
+      expect(lib.cleanEvent({ ...EVENT, extras: [{ name: "Free thing", priceMinor: 0 }] })).toHaveProperty("problem");
+      expect(lib.cleanEvent({ ...EVENT, extras: [{ name: "" }] })).toEqual({ problem: "Give each extra a name, like Programme." });
+      expect(lib.cleanEvent({ ...EVENT, extras: Array.from({ length: 9 }, (_, i) => ({ name: `E${i}`, priceMinor: 500 })) })).toHaveProperty("problem");
+      expect(lib.extraLines(withExtras, { x2: 2, prog: 1, nothing: 0 })).toEqual({
+        lines: [{ extraId: "prog", name: "Programme", qty: 1, priceMinor: 500 }, { extraId: "x2", name: "Drink", qty: 2, priceMinor: 800 }], totalMinor: 2100,
+      });
+      expect(lib.extraLines(withExtras, undefined)).toEqual({ lines: [], totalMinor: 0 });
+      expect(lib.extraLines(withExtras, { x2: 3 })).toEqual({ problem: 'You can add up to 2 of "Drink" to one order.' });
+      expect(lib.extraLines(withExtras, { gone: 1 })).toEqual({ problem: lib.TICKET_MESSAGES.extraGone });
+      expect(lib.extraLines(event, { prog: 1 })).toEqual({ problem: lib.TICKET_MESSAGES.extraGone });
+      // Two 10.00 tickets and a 5.00 extra, 13% tax: one ticket back is 11.30, never a share of the extra.
+      const order = { lines: [{ ticketId: "gen", name: "General", qty: 2, priceMinor: 1000 }], totalMinor: 2500, extrasMinor: 500, taxMinor: 325, chargedMinor: 2825 };
+      expect(lib.refundMinorFor(order, { gen: 1 }, 1)).toBe(1130);
+      expect(lib.refundMinorFor({ ...order, refundedMinor: 1130 }, { gen: 1 }, 0)).toBe(1695);
+      // Free tickets with a paid extra: one ticket back returns nothing, the last returns the extra's money.
+      const free = { lines: [{ ticketId: "gen", name: "General", qty: 2, priceMinor: 0 }], totalMinor: 500, extrasMinor: 500, chargedMinor: 500 };
+      expect(lib.refundMinorFor(free, { gen: 1 }, 1)).toBe(0);
+      expect(lib.refundMinorFor(free, { gen: 1 }, 0)).toBe(500);
+    });
+
     test("a moved order lands on the kind with the same name, the only kind, or the owner's pick, and keeps what was paid", () => {
       const from = [{ ticketId: "gen", name: "General" }, { ticketId: "sup", name: "Supporter" }];
       const to = [{ id: "a", name: " general " }, { id: "b", name: "Balcony" }];

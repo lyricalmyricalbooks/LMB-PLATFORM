@@ -1014,6 +1014,8 @@ export const FRENCH_COPY: Record<string, string> = {
   eventsFewer: "Un de moins : {ticket}",
   eventsMore: "Un de plus : {ticket}",
   eventsPlusTax: "plus taxes",
+  eventsExtrasHeading: "Ajouter à votre commande",
+  eventsExtrasChanged: "Un des suppléments a changé. Regardez de nouveau et réessayez.",
   eventsCodeOpen: "Vous avez un code de rabais?",
   eventsCodeLabel: "Code de rabais",
   eventsCodeApply: "Appliquer",

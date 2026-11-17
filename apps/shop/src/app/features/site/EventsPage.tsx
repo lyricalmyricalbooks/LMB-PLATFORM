@@ -22,7 +22,7 @@ import { bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { moneyText } from "./bookTimeRules";
 import {
-  cartOf, clampQty, codeText, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch,
+  cartOf, clampQty, codeText, extrasOf, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch,
   type EventOrderView, type EventView, type EventsInfo, type TicketCode,
 } from "./eventsRules";
 
@@ -241,20 +241,24 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
   const [error, setError] = useState("");
   const [applied, setApplied] = useState<TicketCode | null>(null);
   const state = eventState(event);
+  const [extraPicks, setExtraPicks] = useState<Record<string, number>>({});
   const cart = cartOf(event, picks);
+  // Extras ride along with tickets: with no ticket picked they are neither shown in the sums nor sent.
+  const added = extrasOf(event, cart.count ? extraPicks : {});
+  const taxed = cart.taxed || added.taxed;
   // With a code, the server's own figures are shown (the code comes off before any tax).
-  const due = applied ? applied.totalMinor : cart.totalMinor;
+  const due = applied ? applied.totalMinor : cart.totalMinor + added.totalMinor;
   const amount = moneyText(due, currency);
   const tryCode = async (code: string, tickets = cart.tickets) => {
-    setApplied(await askEvents("eventCode", { eventId: event.id, tickets, code, email: form.email.trim() }) as TicketCode);
+    setApplied(await askEvents("eventCode", { eventId: event.id, tickets, extras: added.extras, code, email: form.email.trim() }) as TicketCode);
   };
   // Other tickets, another amount: the code is asked about again, and dropped when it no longer fits.
-  const picked = JSON.stringify(cart.tickets);
+  const picked = JSON.stringify([cart.tickets, added.extras]);
   useEffect(() => {
     if (!applied) return;
     if (!cart.totalMinor) { setApplied(null); return; }
     let live = true;
-    askEvents("eventCode", { eventId: event.id, tickets: cart.tickets, code: applied.code, email: form.email.trim() })
+    askEvents("eventCode", { eventId: event.id, tickets: cart.tickets, extras: added.extras, code: applied.code, email: form.email.trim() })
       .then((answer) => { if (live) setApplied(answer as TicketCode); }).catch(() => { if (live) setApplied(null); });
     return () => { live = false; };
   }, [picked]);
@@ -273,7 +277,7 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
     setBusy(true);
     setError("");
     try {
-      const answer = await askEvents("eventStart", { eventId: event.id, name: form.name.trim(), email: form.email.trim(), locale: navigator.language || "en", tickets: cart.tickets, ...(applied ? { code: applied.code } : {}) });
+      const answer = await askEvents("eventStart", { eventId: event.id, name: form.name.trim(), email: form.email.trim(), locale: navigator.language || "en", tickets: cart.tickets, ...(Object.keys(added.extras).length ? { extras: added.extras } : {}), ...(applied ? { code: applied.code } : {}) });
       if (answer.on === false) { setBusy(false); setError(c("eventsSalesClosed")); return; }
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(within(`order=${encodeURIComponent(answer.orderId)}&key=${answer.key}`));
@@ -281,6 +285,7 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
       setBusy(false);
       // Someone else got there first: show what is left now, with the picks trimmed to it.
       if (err?.code === "code") { setApplied(null); setError(c("eventsCodeProblem")); return; }
+      if (err?.code === "extras") { await onStale(); setExtraPicks({}); setError(c("eventsExtrasChanged")); return; }
       if (err?.code === "tickets" || err?.code === "closed") {
         await onStale();
         setError(c(err.code === "tickets" ? "eventsTicketsChanged" : "eventsSalesClosed"));
@@ -335,6 +340,30 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
             </ul>
             {problems.tickets && <p className="fm-evt-error" role="alert">{problems.tickets}</p>}
           </section>
+          {state === "open" && !!event.extras?.length && (
+            <section {...regionProps("eventsExtras")} className="fm-track-card p-5 sm:p-8 fm-evt-extras" aria-labelledby="evt-extras">
+              <h2 id="evt-extras" className="fm-track-mono mb-5">{c("eventsExtrasHeading")}</h2>
+              <ul className="fm-evt-tickets">
+                {event.extras.map((x) => {
+                  const qty = Math.max(0, Math.min(extraPicks[x.id] || 0, x.maxPerOrder));
+                  const set = (next: number) => setExtraPicks({ ...extraPicks, [x.id]: Math.max(0, Math.min(next, x.maxPerOrder)) });
+                  return (
+                    <li key={x.id} className="fm-evt-ticket">
+                      <div>
+                        <h3>{x.name}</h3>
+                        <p translate="no">{moneyText(x.priceMinor, currency)}{!!x.taxMinor && <> {c("eventsPlusTax")}</>}</p>
+                      </div>
+                      <div className="fm-evt-qty" role="group" aria-label={x.name}>
+                        <button type="button" className="fm-evt-step" aria-label={c("eventsFewer", { ticket: x.name })} disabled={qty <= 0} onClick={() => set(qty - 1)}><Minus size={16} aria-hidden="true" /></button>
+                        <output aria-live="polite">{qty}</output>
+                        <button type="button" className="fm-evt-step" aria-label={c("eventsMore", { ticket: x.name })} disabled={qty >= x.maxPerOrder} onClick={() => set(qty + 1)}><Plus size={16} aria-hidden="true" /></button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         </div>
 
         {state === "open" ? (
@@ -353,10 +382,13 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
               {event.tickets.filter((t) => cart.tickets[t.id]).map((t) => (
                 <Row key={t.id} label={`${cart.tickets[t.id]} × ${t.name}`} value={t.priceMinor > 0 ? moneyText(cart.tickets[t.id] * t.priceMinor, currency) : c("eventsFree")} />
               ))}
+              {(event.extras ?? []).filter((x) => added.extras[x.id]).map((x) => (
+                <Row key={x.id} label={`${added.extras[x.id]} × ${x.name}`} value={moneyText(added.extras[x.id] * x.priceMinor, currency)} />
+              ))}
               {applied && <Row label={c("eventsDiscountRow", { code: applied.code })} value={`−${moneyText(applied.amountMinor, currency)}`} />}
               <div className="fm-track-total">
                 <span className="fm-track-mono">{c("eventsTotal")}</span>
-                <strong translate="no">{cart.count && !due ? c("eventsFree") : amount}{cart.taxed && due > 0 && <small className="fm-track-mono"> {c("eventsPlusTax")}</small>}</strong>
+                <strong translate="no">{cart.count && !due ? c("eventsFree") : amount}{taxed && due > 0 && <small className="fm-track-mono"> {c("eventsPlusTax")}</small>}</strong>
               </div>
             </div>
             {codes && cart.totalMinor > 0 && (
@@ -365,7 +397,7 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
             {due > 0 && <p className="text-sm leading-6 fm-muted">{c("eventsPayNote", { minutes: HOLD_MINUTES })}</p>}
             <button type="submit" className="fm-track-btn w-full" disabled={busy}>
               {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("eventsWorking")}</>
-                : due > 0 ? c(cart.taxed ? "eventsPayTax" : "eventsPay", { amount }) : c("eventsGetFree")}
+                : due > 0 ? c(taxed ? "eventsPayTax" : "eventsPay", { amount }) : c("eventsGetFree")}
             </button>
           </form>
         ) : (
@@ -449,6 +481,7 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
         {place && <Row label={c("eventsWhere")} value={place} />}
         {order.name && <Row label={c("eventsNameRow")} value={order.name} />}
         {order.lines.map((l) => <Row key={l.ticketId} label={`${l.qty} × ${l.name}`} value={l.priceMinor > 0 ? moneyText(l.qty * l.priceMinor, order.currency) : c("eventsFree")} />)}
+        {(order.extras ?? []).map((x) => <Row key={x.extraId} label={`${x.qty} × ${x.name}`} value={moneyText(x.qty * x.priceMinor, order.currency)} />)}
         {!!order.discount?.amountMinor && <Row label={c("eventsDiscountRow", { code: order.discount.code })} value={`−${moneyText(order.discount.amountMinor, order.currency)}`} />}
         {order.taxMinor > 0 && <Row label={c("eventsTax")} value={moneyText(order.taxMinor, order.currency)} />}
         {paid && order.onlineUrl && !called && (

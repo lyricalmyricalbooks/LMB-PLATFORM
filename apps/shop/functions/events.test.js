@@ -692,3 +692,63 @@ describe("discount codes on tickets", () => {
     expect(again.body).toMatchObject({ code: "code", error: "You have already used this code." });
   });
 });
+
+describe("extras with a ticket order", () => {
+  const TAX = async () => (minor) => ({ taxMinor: Math.round(minor * 0.13), taxLines: [{ name: "HST", cents: Math.round(minor * 0.13) }] });
+  const WITH = { ...EVENT, chargeTax: true, tickets: [{ id: "gen", name: "General", priceMinor: 1000, places: 5 }], extras: [{ id: "prog", name: "Programme", priceMinor: 500 }, { id: "drink", name: "Drink", priceMinor: 800, maxPerOrder: 2 }] };
+  test("the page lists an event's extras with their tax, and an event without any lists none", async () => {
+    const t = setup({ shopTax: TAX });
+    await t.seed(WITH);
+    const info = (await t.pub({ action: "eventsInfo" })).body.events[0];
+    expect(info.extras).toEqual([{ id: "prog", name: "Programme", priceMinor: 500, maxPerOrder: 10, taxMinor: 65 }, { id: "drink", name: "Drink", priceMinor: 800, maxPerOrder: 2, taxMinor: 104 }]);
+    const plain = setup();
+    await plain.seed();
+    expect((await plain.pub({ action: "eventsInfo" })).body.events[0].extras).toEqual([]);
+  });
+  test("extras are priced by the server, taxed with the tickets, kept on the order and named in the email", async () => {
+    const t = setup({ shopTax: TAX });
+    await t.seed(WITH);
+    const r = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 2 }, extras: { prog: 1, drink: 2 }, ...BUYER });
+    expect(r.statusCode).toBe(200);
+    // 20.00 of tickets + 5.00 + 16.00 of extras = 41.00, plus 13%.
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(4633);
+    expect(t.opened[0].params.line_items[0].price_data.product_data.name).toContain("1 × Programme, 2 × Drink");
+    expect(await t.doc("eventOrders", "order0001")).toMatchObject({
+      totalMinor: 4100, extrasMinor: 2100, taxMinor: 533, chargedMinor: 4633,
+      extras: [{ extraId: "prog", name: "Programme", qty: 1, priceMinor: 500 }, { extraId: "drink", name: "Drink", qty: 2, priceMinor: 800 }],
+    });
+    t.pay(0);
+    const view = await t.pub({ action: "eventView", orderId: "order0001", key: "1".padStart(48, "a") });
+    expect(view.body.order.extras).toHaveLength(2);
+    expect(t.emails[0].html).toContain("Extras:</strong> 1 × Programme, 2 × Drink");
+    expect((await t.adm({ op: "orders", eventId: "launch01" })).body.orders[0]).toMatchObject({ extrasMinor: 2100, extras: [{ name: "Programme" }, { name: "Drink" }] });
+    // One ticket back is that ticket and its tax; the last one returns the rest, extras included.
+    const one = await t.adm({ op: "refund", orderId: "order0001", codes: ["TCKT-222A"] });
+    expect(one.body.amountMinor).toBe(1130);
+    const rest = await t.adm({ op: "refund", orderId: "order0001" });
+    expect(rest.body.amountMinor).toBe(4633 - 1130);
+  });
+  test("an extra that isn't offered, or too many of one, is refused before anything is held", async () => {
+    const t = setup();
+    await t.seed(WITH);
+    const gone = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, extras: { tote: 1 }, ...BUYER });
+    expect(gone.statusCode).toBe(409);
+    expect(gone.body.code).toBe("extras");
+    const many = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, extras: { drink: 3 }, ...BUYER });
+    expect(many.body).toMatchObject({ code: "extras", error: 'You can add up to 2 of "Drink" to one order.' });
+    expect(t.db.store.has("eventOrders/order0001")).toBe(false);
+    expect(t.db.store.has("eventPlaces/launch01")).toBe(false);
+    // Extras alone are never an order: a ticket is still needed.
+    expect((await t.pub({ action: "eventStart", eventId: "launch01", tickets: {}, extras: { prog: 1 }, ...BUYER })).body.code).toBe("tickets");
+  });
+  test("a free ticket with a paid extra goes to the card page, and a code takes its share off the tickets only", async () => {
+    const t = setup();
+    await t.seed({ ...EVENT, extras: WITH.extras });
+    const r = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { free: 1 }, extras: { prog: 1 }, ...BUYER });
+    expect(r.body.paid).toBeUndefined();
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(500);
+    await t.db.collection("discounts").doc("disc0001").set({ code: "HALF", type: "percentage", value: 50, forTickets: true, usageCount: 0 });
+    const tried = await t.pub({ action: "eventCode", eventId: "launch01", tickets: { gen: 2 }, extras: { prog: 2 }, code: "HALF" });
+    expect(tried.body).toMatchObject({ amountMinor: 1500, totalMinor: 2500 });
+  });
+});

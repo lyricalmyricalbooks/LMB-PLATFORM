@@ -1525,3 +1525,13 @@ once (`discount.returned`) when a held order is freed or the whole order is give
 order turns out paid. Refunds use `refundMinorFor`, which gives back the share really paid. `eventDesk` gets the checkout's
 own code checks through dep `findDiscount` (`index.js`), so a code's dates, limits and customer rules have one source.
 
+**Ticket extras (E3e, `tasks/todo/2026-11-17-events-extras.md`):** an event may hold up to `MAX_EXTRAS` `extras`
+(`{ id, name, priceMinor ≥ 50, maxPerOrder }`, `cleanExtra`; the key is left off an event with none). They take no place
+and have no stock. `publicEvent` lists them (with `taxMinor` when the event adds tax). `askedOf(event, body, left)` is the
+one reader of what a buyer asked for in `eventCode` and both reads of `eventStart`: tickets (`orderLines`) plus
+`body.extras` (`extraLines`, refusal 409 code `extras`); an order needs a ticket, extras alone are code `tickets`. The
+order keeps `extras` (`{ extraId, name, qty, priceMinor }`) and `extrasMinor`; `totalMinor` includes them, tax is worked
+out on the whole, and a discount code comes off the tickets only (`ticketsMinor`). Refunds: `refundMinorFor` leaves extras
+out of a ticket's share, and the last tickets return everything kept. A moved order keeps its extras as bought. The ticket
+email, the card page's description and the owner's email name them.
+
