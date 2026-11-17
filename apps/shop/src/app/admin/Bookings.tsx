@@ -9,9 +9,10 @@ import {
   Checkbox, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
+import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom } from "../../shared/bookingTimes";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -177,7 +178,7 @@ export function Bookings() {
         {tab === "figures" && <FiguresPanel />}
       </TabPanel>
       <TabPanel tabId="hours" active={tab === "hours"}>
-        <HoursPanel settings={setup.settings} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
+        <HoursPanel settings={setup.settings} services={setup.services} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
       </TabPanel>
 
       {open && <BookingDrawer booking={open} services={setup.services} settings={setup.settings} onClose={() => setOpen(null)} />}
@@ -762,6 +763,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
           </StatusBadge>
         </div>
         {!!b.extras?.length && <p className="bkg-detail-line"><Plus size={16} aria-hidden /> Add-ons: {b.extras.map((x) => x.name).join(", ")}</p>}
+        {b.earlierWanted && b.status === "confirmed" && <p className="bkg-detail-line"><Clock size={16} aria-hidden /> Wants an earlier time if one opens. They're emailed when someone cancels.</p>}
         {b.series && <p className="bkg-detail-line"><CalendarPlus size={16} aria-hidden /> Standing appointment: visit {b.series.visit} of {b.series.visits}, {b.series.everyWeeks === 1 ? "every week" : `every ${b.series.everyWeeks} weeks`}</p>}
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
         {b.meetUrl && b.status === "confirmed" && <p className="bkg-detail-line"><Video size={16} aria-hidden /> <a href={b.meetUrl} target="_blank" rel="noopener noreferrer">Join the Google Meet call</a></p>}
@@ -769,6 +771,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
           {b.staffName && <div><dt>With</dt><dd>{b.staffName}{b.roomName ? `, ${b.roomName}` : ""}</dd></div>}
           {!b.staffName && b.roomName && <div><dt>Room</dt><dd>{b.roomName}</dd></div>}
           <div><dt>Email</dt><dd><a href={`mailto:${b.customer.email}`}>{b.customer.email}</a></dd></div>
+          <ClientFormFacts email={b.customer.email} wrap />
           {b.customer.phone && <div><dt>Phone</dt><dd><a href={`tel:${b.customer.phone}`}>{b.customer.phone}</a></dd></div>}
           <div><dt>Payment</dt><dd>{paymentText(b)}</dd></div>
           {b.giftCard && <div><dt>Gift card</dt><dd>Ending {b.giftCard.last4}, {moneyText(b.giftCard.amountMinor, b.currency)}{b.giftCard.returned ? " (put back on the card)" : ""}</dd></div>}
@@ -946,6 +949,59 @@ function TextsTile({ on, reminders, onChange }: { on: boolean; reminders: boolea
             : !reminders ? "Turn on the reminder email above: texts go out at the same times."
             : `Clients who give a mobile number and tick "Text me reminders" get each reminder by text too. Each text costs ${status.price}, added to your monthly bill at cost. Long texts count as two.`}
         </p>
+      </div>
+    </section>
+  );
+}
+
+const NO_FORM: IntakeForm = { on: false, title: "Before your first visit", text: "", questions: [], serviceIds: [] };
+
+/** A form clients fill in once before their first visit (Services plan 2, B4): its words, questions and services. */
+function FormTile({ form: saved, services, onChange }: { form?: IntakeForm; services: BookingService[]; onChange: (form: IntakeForm) => void }) {
+  const form = saved || NO_FORM;
+  const set = (patch: Partial<IntakeForm>) => onChange({ ...form, ...patch });
+  const setQuestion = (i: number, change: Partial<IntakeForm["questions"][number]>) => set({ questions: form.questions.map((q, j) => (j === i ? { ...q, ...change } : q)) });
+  const every = form.serviceIds.length === 0;
+  const pick = (id: string, on: boolean) => {
+    const next = on ? [...form.serviceIds, id] : form.serviceIds.filter((x) => x !== id);
+    set({ serviceIds: next.length === services.length ? [] : next });
+  };
+  return (
+    <section className="bkg-tile" data-form-tile>
+      <h2 className="bkg-tile-title">Form before the first visit <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+      <div className="bkg-form">
+        <Toggle label="Ask clients to fill in a form" checked={form.on} onChange={(on) => set({ on })} />
+        <p className="bkg-cal-text">{form.on
+          ? "Clients fill it in once on their booking page, signed with their typed name and a tick. The confirmation and reminder ask until they do. You see it on their booking and client card. Changing the words asks everyone again."
+          : "Like a health or consent form. Clients fill it in once, before their first visit."}</p>
+        {form.on && (<>
+          <TextField label="Name of the form" placeholder="Health form" value={form.title} maxLength={80} onChange={(e) => set({ title: e.target.value })} />
+          <TextArea label="What it says" rows={6} maxLength={MAX_FORM_TEXT} placeholder="Please tell us about anything that could affect your visit, like allergies or a recent treatment." value={form.text} onChange={(e) => set({ text: e.target.value })} />
+          <fieldset className="bkg-questions">
+            <legend>Questions on it</legend>
+            {form.questions.map((q, i) => (
+              <div key={q.id} className="bkg-question">
+                <TextField label={`Question ${i + 1}`} placeholder="Any allergies?" value={q.label} maxLength={140} onChange={(e) => setQuestion(i, { label: e.target.value })} />
+                <div className="bkg-question-row">
+                  <Toggle label="Must answer" checked={q.required} onChange={(v) => setQuestion(i, { required: v })} />
+                  <Toggle label="Long answer" checked={q.long} onChange={(v) => setQuestion(i, { long: v })} />
+                  <button type="button" className="bkg-question-remove" aria-label={`Remove question ${i + 1}`} onClick={() => set({ questions: form.questions.filter((_, j) => j !== i) })}><Trash2 size={16} aria-hidden /></button>
+                </div>
+              </div>
+            ))}
+            {form.questions.length < MAX_QUESTIONS
+              ? <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set({ questions: [...form.questions, { id: `q${Date.now().toString(36)}`, label: "", long: false, required: false }] })}>Add a question</SecondaryButton>
+              : <p className="bkg-questions-hint">That's the most a form can ask ({MAX_QUESTIONS}).</p>}
+          </fieldset>
+          {services.length > 1 && (
+            <fieldset className="bkg-questions">
+              <legend>Which services ask for it</legend>
+              <Toggle label="Every service" checked={every} onChange={(v) => set({ serviceIds: v ? [] : services.slice(0, 1).map((s) => s.id) })} />
+              {!every && <div className="bkg-person-services">{services.map((s) => <Checkbox key={s.id} label={s.name} checked={form.serviceIds.includes(s.id)} onChange={(e) => pick(s.id, e.target.checked)} />)}</div>}
+            </fieldset>
+          )}
+          {!form.text.trim() && !form.questions.some((q) => q.label.trim()) && <p className="bkg-questions-hint">Add the words or a question: a form with neither isn't saved.</p>}
+        </>)}
       </div>
     </section>
   );
@@ -1767,7 +1823,7 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
 
 const ORDERED_DAYS = [1, 2, 3, 4, 5, 6, 0];
 
-function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSettings; saved: boolean; onSaved: () => void; active: boolean }) {
+function HoursPanel({ settings, services, saved, onSaved, active }: { settings: BookingSettings; services: BookingService[]; saved: boolean; onSaved: () => void; active: boolean }) {
   const [form, setForm] = useState<BookingSettings>(settings);
   const [saving, setSaving] = useState(false);
   // The on/off switch lives at the top of the page and saves by itself, so flipping it never throws away hours being edited.
@@ -1826,6 +1882,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
         <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} onChange={(textReminders) => setForm({ ...form, textReminders })} />
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+        <FormTile form={form.intakeForm} services={services} onChange={(intakeForm) => setForm({ ...form, intakeForm })} />
         <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <section className="bkg-tile">
           <h2 className="bkg-tile-title">Days off</h2>

@@ -3186,3 +3186,126 @@ describe("prices by person", () => {
     expect(t.db.store.get(`bookings/${own.body.id}`)).toMatchObject({ minutes: 60, priceMinor: 9000 });
   });
 });
+
+describe("tell me if an earlier time opens", () => {
+  const person = (n) => ({ name: `Person ${n}`, email: `p${n}@example.com` });
+  const earlierEmails = (t) => t.emails.filter((m) => /An earlier time is free/.test(m.subject));
+  const linkIn = (m) => { const [, id, ekey] = m.html.match(/earlier=([A-Za-z0-9_-]+)&#38;ekey=([a-f0-9]{48})/) || []; return { id, ekey }; };
+  // Wednesday 10:00 is booked by someone else; two clients hold Friday times and ask for earlier.
+  async function booked() {
+    const t = setup();
+    await t.seed();
+    const early = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...person(1) })).body;
+    const a = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "15:00"), ...person(2) })).body;
+    t.clock.now = new Date("2026-11-16T13:05:00Z");
+    const b = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "13:00"), ...person(3) })).body;
+    return { t, early, a, b };
+  }
+
+  test("the first who asked gets the freed earlier time held, and the link moves their booking", async () => {
+    const { t, early, a, b } = await booked();
+    const on = await t.pub({ action: "bookingEarlier", id: a.id, key: a.key, on: true });
+    expect(on.body.booking).toMatchObject({ earlier: true, canEarlier: true });
+    t.clock.now = new Date("2026-11-16T13:10:00Z");
+    await t.pub({ action: "bookingEarlier", id: b.id, key: b.key, on: true });
+    t.emails.length = 0;
+    expect((await t.pub({ action: "bookingCancel", id: early.id, key: early.key })).statusCode).toBe(200);
+    const told = earlierEmails(t);
+    // Wednesday opens: the earliest free time before their own goes to the first who asked, held 30 minutes.
+    expect(told.map((m) => m.to)).toEqual(["p2@example.com"]);
+    expect(told[0].html).toMatch(/holding it for you until 8:40/);
+    const link = linkIn(told[0]);
+    expect(link.id).toBe(a.id);
+    const view = await t.pub({ action: "bookingEarlierView", ...link });
+    // The time that opened (Wednesday 10:00), not just any free time.
+    const offered = at("2026-11-18", "10:00");
+    expect(view.body.offer).toMatchObject({ serviceName: "Studio visit", start: at("2026-11-20", "15:00"), offerStart: offered, offerUntil: "2026-11-16T13:40:00.000Z" });
+    // Nobody else can book the held time; a wrong key is no help.
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: offered, ...person(9) })).statusCode).toBe(409);
+    expect((await t.pub({ action: "bookingEarlierTake", id: a.id, ekey: "b".repeat(48) })).statusCode).toBe(404);
+    const took = await t.pub({ action: "bookingEarlierTake", ...link });
+    expect(took.body.offer).toMatchObject({ start: offered, taken: true });
+    expect(t.db.store.get(`bookings/${a.id}`)).toMatchObject({ start: offered, earlierWanted: false });
+    expect(t.db.store.has(`bookingEarlier/${a.id}`)).toBe(false);
+    expect(Object.keys(t.db.store.get(`bookingDays/${offered.slice(0, 10)}`).items).filter((k) => k.startsWith("offer_"))).toEqual([]);
+    // Used up: the link can't move it again.
+    expect((await t.pub({ action: "bookingEarlierTake", ...link })).statusCode).toBe(404);
+  });
+
+  test("a hold that runs out passes to the next who asked, and never comes back to the first", async () => {
+    const { t, early, a, b } = await booked();
+    await t.pub({ action: "bookingEarlier", id: a.id, key: a.key, on: true });
+    t.clock.now = new Date("2026-11-16T13:10:00Z");
+    await t.pub({ action: "bookingEarlier", id: b.id, key: b.key, on: true });
+    await t.adm({ op: "cancel", id: early.id });
+    const first = linkIn(earlierEmails(t)[0]);
+    t.clock.now = new Date("2026-11-16T13:45:00Z");
+    const swept = await t.desk.sweepWaitlist();
+    expect(swept.passedOn).toBe(1);
+    expect(earlierEmails(t).map((m) => m.to)).toEqual(["p2@example.com", "p3@example.com"]);
+    expect((await t.pub({ action: "bookingEarlierTake", ...first })).statusCode).toBe(404);
+    expect(t.db.store.get(`bookingEarlier/${a.id}`).passed).toHaveLength(1);
+    expect((await t.pub({ action: "bookingEarlierTake", ...linkIn(earlierEmails(t)[1]) })).statusCode).toBe(200);
+  });
+
+  test("turning it off, cancelling, or a class drops the wish", async () => {
+    const { t, a, b } = await booked();
+    await t.pub({ action: "bookingEarlier", id: a.id, key: a.key, on: true });
+    const off = await t.pub({ action: "bookingEarlier", id: a.id, key: a.key, on: false });
+    expect(off.body.booking.earlier).toBe(false);
+    expect(t.db.store.has(`bookingEarlier/${a.id}`)).toBe(false);
+    await t.pub({ action: "bookingEarlier", id: b.id, key: b.key, on: true });
+    await t.pub({ action: "bookingCancel", id: b.id, key: b.key });
+    expect(t.db.store.has(`bookingEarlier/${b.id}`)).toBe(false);
+    const saved = await t.adm({ op: "saveService", service: { name: "Riso workshop", minutes: 120, gapAfter: 0, places: 4, classTimes: [{ weekday: 6, time: "14:00" }] } });
+    const c = (await t.pub({ action: "bookingStart", serviceId: saved.body.service.id, start: at("2026-11-21", "14:00"), ...person(4) })).body;
+    expect((await t.pub({ action: "bookingView", id: c.id, key: c.key })).body.booking.canEarlier).toBe(false);
+    expect((await t.pub({ action: "bookingEarlier", id: c.id, key: c.key, on: true })).statusCode).toBe(409);
+  });
+});
+
+describe("a form before the first visit", () => {
+  const FORM = { on: true, title: "Health form", text: "I have told the studio about anything that matters.", questions: [{ id: "allergies", label: "Allergies", long: false, required: true }], serviceIds: [] };
+  const withForm = async (form = FORM) => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, intakeForm: form });
+    const b = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "15:00"), name: "Ada", email: "Ada@Example.com" })).body;
+    return { t, b };
+  };
+
+  test("the settings keep a form only with words, and say which services ask", () => {
+    expect(cleanBookingSettings({ intakeForm: { on: true, text: "  " } }).intakeForm).toBeUndefined();
+    expect(cleanBookingSettings({ intakeForm: { on: true, text: "Hi", serviceIds: ["visit", "bad id", "visit"] } }).intakeForm).toEqual({ on: true, title: "Before your first visit", text: "Hi", questions: [], serviceIds: ["visit"] });
+  });
+
+  test("the booking page asks for it, the confirmation says so, and signing keeps the name, tick, date and answers", async () => {
+    const { t, b } = await withForm();
+    expect(t.emails.find((m) => /^Booked/.test(m.subject)).html).toContain("please fill in \"Health form\" on your booking page");
+    const view = (await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking;
+    expect(view.form).toEqual({ title: "Health form", text: FORM.text, questions: FORM.questions });
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", agree: true, answers: {} })).body.code).toBe("answer");
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", answers: { allergies: "None" } })).body.code).toBe("no_agree");
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: "f".repeat(48), signedName: "Ada L", agree: true, answers: { allergies: "None" } })).statusCode).toBe(404);
+    const signed = await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", agree: true, answers: { allergies: "None" } });
+    expect(signed.body.booking).toMatchObject({ formSigned: "2026-11-16T13:00:00.000Z" });
+    expect(signed.body.booking.form).toBeUndefined();
+    // Once per client: the next booking with the same email doesn't ask, and the owner sees it on their card.
+    const again = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-27", "15:00"), name: "Ada", email: "ada@example.com" })).body;
+    expect((await t.pub({ action: "bookingView", id: again.id, key: again.key })).body.booking).toMatchObject({ formSigned: "2026-11-16T13:00:00.000Z" });
+    const card = (await t.adm({ op: "clientForm", email: "ADA@example.com" })).body;
+    expect(card.form).toMatchObject({ signedName: "Ada L", title: "Health form", answers: [{ label: "Allergies", answer: "None" }], current: true });
+    // New words ask again.
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, intakeForm: { ...FORM, text: "New words." } });
+    expect((await t.pub({ action: "bookingView", id: again.id, key: again.key })).body.booking.form.text).toBe("New words.");
+    expect((await t.adm({ op: "clientForm", email: "ada@example.com" })).body.form.current).toBe(false);
+  });
+
+  test("a service the form isn't for, or a form turned off, asks nothing", async () => {
+    const { t, b } = await withForm({ ...FORM, serviceIds: ["review"] });
+    expect((await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking.form).toBeUndefined();
+    expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada", agree: true, answers: { allergies: "x" } })).statusCode).toBe(409);
+    const off = await withForm({ ...FORM, on: false });
+    expect((await off.t.pub({ action: "bookingView", id: off.b.id, key: off.b.key })).body.booking.form).toBeUndefined();
+  });
+});
