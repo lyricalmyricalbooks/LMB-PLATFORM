@@ -1134,6 +1134,29 @@ describe("paying the rest by link", () => {
     expect((await t.adm({ op: "paidAtShop", id: r.body.id })).body).toMatchObject({ code: "paid_by_card" });
   });
 
+  test("a payment at the desk for someone with no booking pays by the same link, and takes no time", async () => {
+    const t = setup();
+    await seedMore(t);
+    expect((await t.adm({ op: "walkIn", serviceId: "nope", name: "Gil Example" })).statusCode).toBe(404);
+    expect((await t.adm({ op: "walkIn", serviceId: "cut", name: "" })).statusCode).toBe(400);
+    expect((await t.adm({ op: "walkIn", serviceId: "cut", name: "Gil Example", email: "not-an-email" })).statusCode).toBe(400);
+    expect((await t.adm({ op: "walkIn", serviceId: "cut", name: "Gil Example", priceMinor: 20 })).body.code).toBe("amount");
+    const w = await t.adm({ op: "walkIn", serviceId: "cut", name: "Gil Example", priceMinor: 4500 });
+    expect(w.body).toMatchObject({ ok: true, dueMinor: 4500 });
+    const saved = t.db.store.get(`bookings/${w.body.id}`);
+    expect(saved).toMatchObject({ status: "confirmed", payment: "atShop", priceMinor: 4500, listPriceMinor: 6000, source: "desk", walkIn: true, customer: { name: "Gil Example", email: "" } });
+    expect(saved.start).toBe(t.clock.now.toISOString());
+    // No calendar time was taken and no email went out.
+    expect([...t.db.store.keys()].some((k) => k.startsWith("bookingDays/"))).toBe(false);
+    expect(t.emails).toHaveLength(0);
+    // The QR code's link is the owner's pay link, the same every time, and the client pays from it.
+    expect((await t.adm({ op: "payLink", id: w.body.id })).body.url).toBe(w.body.url);
+    const key = new URL(w.body.url).searchParams.get("key");
+    expect((await t.pub({ action: "bookingView", id: w.body.id, key })).body.booking).toMatchObject({ canPayRest: true, dueMinor: 4500 });
+    // At the shop's price when none is typed.
+    expect((await t.adm({ op: "walkIn", serviceId: "cut", name: "Hal Example", email: "hal@example.com" })).body.dueMinor).toBe(6000);
+  });
+
   test("marking it paid at the shop closes the open pay page", async () => {
     const t = setup();
     await seedMore(t);
