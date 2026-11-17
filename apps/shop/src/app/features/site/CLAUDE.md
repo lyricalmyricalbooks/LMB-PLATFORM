@@ -964,6 +964,11 @@ picked, so the heading, money lines and button follow; the ids go to `bookingTim
 and hide the pack. Summary and booking page show an Add-ons row. Change time asks with the booking's own extras. Words:
 Text & labels › Bookings page › Add-ons (`bookTimeExtras*`, French twins). Studio's sample session has two.
 
+**Prices by person on the booking page (17 November 2026).** `asPerson(service, person)` (bookTimeRules.ts) gives the
+picked person's length and price (display only; the server works it out again). When anyone who does the service has
+their own (`ratesDiffer`), each With button shows a `.fm-book-person-rate` line ("1 h 15 min · CA$60.00"; anyone free =
+the service's own). `bookingCode`/`bookingGiftCard` send `staffId`, and changing the person clears an applied code.
+
 **Text me reminders on the booking page (17 November 2026).** When `bookingInfo.texts` is true, `BookTime.tsx` shows a tick
 box after the phone field (region `bookingsTexts`, words Text & labels › Bookings page `bookTimeTextOk`,
 `bookTimeTextOkHint`, `bookTimeTextOkNeedsPhone`, French twins); it is disabled until a phone is typed and is sent as

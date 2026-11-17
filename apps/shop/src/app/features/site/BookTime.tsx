@@ -23,7 +23,7 @@ import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
-  peopleFor, withPicked, pricedPicks, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
+  peopleFor, withPicked, pricedPicks, asPerson, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -80,11 +80,16 @@ function NewBooking({ c }: { c: Copy }) {
   const [listed, setListed] = useState<BookingServiceView | null>(null);
   // Add-ons and options ticked for a one-to-one service: they lengthen the visit and add to its price.
   const [picked, setPicked] = useState<string[]>([]);
-  const service = useMemo(() => (listed ? withPicked(listed, picked) : null), [listed, picked.join(",")]);
   const [step, setStep] = useState<Step>("service");
   const [start, setStart] = useState("");
-  // Who takes it when the shop lists people: one of them, or "" for anyone free.
+  // Who takes it when the shop lists people: one of them, or "" for anyone free. Someone may have their own price
+  // and length for it, and the ticked extras go on top.
   const [staffId, setStaffId] = useState("");
+  const service = useMemo(() => {
+    if (!listed) return null;
+    const person = peopleFor(info, listed.id).find((p) => p.id === staffId);
+    return withPicked(asPerson(listed, person), picked);
+  }, [listed, info, staffId, picked.join(",")]);
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
@@ -117,8 +122,10 @@ function NewBooking({ c }: { c: Copy }) {
     ask("bookingPack", { serviceId: service.id, pack: usePack }).then((a) => { if (!gone) setPack({ ...(a as Omit<BookingPackUse, "code">), code: usePack }); }).catch(() => {});
     return () => { gone = true; };
   }, [service?.id, usePack]);
-  useEffect(() => setGift(null), [service?.id, applied?.code, picked.join(",")]);
+  useEffect(() => setGift(null), [service?.id, applied?.code, picked.join(","), staffId]);
   useEffect(() => { setApplied(null); setStart(""); if (pricedPicks(listed, picked)) setPack(null); }, [picked.join(",")]);
+  // Another person may cost something else: a code is tried again for their price.
+  useEffect(() => setApplied(null), [staffId]);
   // A course is signed up for as a whole: its first date is the start, with nothing to pick.
   const course = service?.courseStarts?.length ? service.courseStarts : null;
   useEffect(() => { if (course && step === "time") setStart(course[0]); }, [service?.id, step]);
@@ -265,9 +272,16 @@ function NewBooking({ c }: { c: Copy }) {
           {!course && people.length > 0 && (
             <div className="fm-book-people" role="group" aria-label={c("bookTimeWith")}>
               <p className="fm-track-mono w-full" aria-hidden="true">{c("bookTimeWith")}</p>
-              {[{ id: "", name: c("bookTimeAnyone") }, ...people].map((p) => (
-                <button key={p.id || "anyone"} type="button" className="fm-book-person" aria-pressed={staffId === p.id} onClick={() => { setStaffId(p.id); setStart(""); }}>{p.name}</button>
-              ))}
+              {[{ id: "", name: c("bookTimeAnyone"), serviceIds: [] }, ...people].map((p) => {
+                // Each person's own price and length, when anyone here has one (anyone free: the service's own).
+                const own = listed && ratesDiffer(listed, people) ? asPerson(listed, p.id ? p : null) : null;
+                return (
+                  <button key={p.id || "anyone"} type="button" className="fm-book-person" aria-pressed={staffId === p.id} onClick={() => { setStaffId(p.id); setStart(""); }}>
+                    {p.name}
+                    {own && <span className="fm-book-person-rate" translate="no">{[lengthText(own.minutes), own.priceMinor > 0 ? moneyText(own.priceMinor, currency) : ""].filter(Boolean).join(" · ")}</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
           {!course && <TimePicker serviceId={service.id} extras={picked} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
@@ -350,13 +364,13 @@ function NewBooking({ c }: { c: Copy }) {
               <ApplyBox region={regionProps("bookingsCode")} field="bt-code" c={c} words={{ open: "bookTimeCodeOpen", label: "bookTimeCodeLabel", problem: "bookTimeCodeProblem" }}
                 applied={applied ? `${c("bookTimeCodeApplied", { code: applied.code })} · −${moneyText(applied.discountMinor, currency)}` : ""}
                 onRemove={() => setApplied(null)} maxLength={40}
-                onTry={async (typed) => setApplied(await ask("bookingCode", { serviceId: service.id, extras: picked, code: typed, email: form.email.trim() }) as BookingCode)} />
+                onTry={async (typed) => setApplied(await ask("bookingCode", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), code: typed, email: form.email.trim() }) as BookingCode)} />
             )}
             {info.giftCards && paysUpFront(priced) && !pack && (
               <ApplyBox region={regionProps("bookingsGiftCard")} field="bt-gift" c={c} words={{ open: "bookTimeGiftOpen", label: "bookTimeGiftLabel", problem: "bookTimeGiftProblem" }}
                 applied={gift ? `${c("bookTimeGiftApplied", { last4: gift.last4 })} · −${moneyText(gift.giftMinor, currency)}` : ""}
                 onRemove={() => setGift(null)} maxLength={40}
-                onTry={async (typed) => setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, extras: picked, giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed })} />
+                onTry={async (typed) => setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed })} />
             )}
             {payNow > 0 && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
