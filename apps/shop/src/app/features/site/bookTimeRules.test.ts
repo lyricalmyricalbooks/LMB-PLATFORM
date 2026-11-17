@@ -116,3 +116,11 @@ describe("prices by person", () => {
     expect(ratesDiffer(cut, [sam])).toBe(false);
   });
 });
+
+describe("tax on a picked visit", () => {
+  it("rounds once on the whole amount, as the server does", () => {
+    const s = { id: "s", name: "S", description: "", minutes: 30, priceMinor: 104, payment: "full" as const, location: "", taxMinor: 14, taxPpm: 130000, extras: [{ id: "x", name: "X", minutes: 0, priceMinor: 104 }] };
+    expect(withPicked(s, ["x"]).taxMinor).toBe(27);
+    expect(asPerson(s, { id: "p", name: "P", serviceIds: [], rates: [{ serviceId: "s", minutes: null, priceMinor: 208 }] }).taxMinor).toBe(27);
+  });
+});

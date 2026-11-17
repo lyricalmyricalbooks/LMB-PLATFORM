@@ -2203,7 +2203,7 @@ describe("sales tax on a service", () => {
     const t = setup({ shopTax: hst });
     await seedTaxed(t);
     const info = await t.pub({ action: "bookingInfo" });
-    expect(info.body.services.find((s) => s.id === "review")).toMatchObject({ priceMinor: 4000, taxMinor: 520 });
+    expect(info.body.services.find((s) => s.id === "review")).toMatchObject({ priceMinor: 4000, taxMinor: 520, taxPpm: 130000 });
     expect(info.body.services.find((s) => s.id === "visit").taxMinor).toBeUndefined();
     const r = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), ...CUSTOMER });
     expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(4520);

@@ -1544,6 +1544,9 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active).map((s) => joinableCourse(s, zone(), nowMs) ?? s);
         const calc = list.some((s) => s.chargeTax) && shopTax ? await shopTax() : null;
         const taxes = await Promise.all(list.map((s) => taxOn(s, s.priceMinor, calc)));
+        // The rate as tax on a million cents, so the page works out the tax on a price with add-ons or a person's own
+        // price the way the server will (one rounding on the whole amount).
+        const taxPpm = calc ? (await taxOn({ chargeTax: true }, 1_000_000, calc))?.taxMinor || 0 : 0;
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
           // The shop's opening hours, Sunday first, for the Hours & where to find us section.
@@ -1567,7 +1570,7 @@ function bookingActions({
             ...(joining ? { joining } : {}),
             ...(minPlaces ? { minPlaces } : {}),
             // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
-            ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
+            ...(taxes[i] ? { taxMinor: taxes[i].taxMinor, ...(taxPpm ? { taxPpm } : {}) } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
             ...(offersPack({ packVisits, packPriceMinor }) ? { packVisits, packPriceMinor, packDays } : {}),
           })),

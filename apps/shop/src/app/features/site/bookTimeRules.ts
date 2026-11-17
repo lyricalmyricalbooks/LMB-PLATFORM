@@ -6,6 +6,7 @@ import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
   /** A pack of visits sold with it: `packVisits` visits for `packPriceMinor`, to use within `packDays` (0: no end). */ packVisits?: number; packPriceMinor?: number; packDays?: number;
   /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number;
+  /** The tax rate as tax on a million cents, for working out the tax on another price (add-ons, a person's own). */ taxPpm?: number;
   /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[];
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
   joining?: { missed: number; of: number; fullPriceMinor: number };
@@ -21,8 +22,14 @@ export function withPicked<S extends BookingServiceView>(service: S, ids: readon
   if (!picked.length) return service;
   const minutes = picked.reduce((n, x) => n + x.minutes, 0);
   const money = picked.reduce((n, x) => n + x.priceMinor, 0);
-  const taxMinor = service.taxMinor && service.priceMinor > 0 ? Math.round((service.taxMinor * (service.priceMinor + money)) / service.priceMinor) : service.taxMinor;
+  const taxMinor = taxAt(service, service.priceMinor + money);
   return { ...service, minutes: service.minutes + minutes, priceMinor: service.priceMinor + money, ...(taxMinor !== undefined ? { taxMinor } : {}) };
+}
+/** The tax on another price of this service, rounded once on the whole amount as the server does. */
+function taxAt(service: Pick<BookingServiceView, "taxMinor" | "taxPpm" | "priceMinor">, priceMinor: number): number | undefined {
+  if (!service.taxMinor) return service.taxMinor;
+  if (service.taxPpm) return Math.round((priceMinor * service.taxPpm) / 1_000_000);
+  return service.priceMinor > 0 ? Math.round((service.taxMinor * priceMinor) / service.priceMinor) : service.taxMinor;
 }
 /** The ticked extras that cost something (a pack can't pay for those). */
 export const pricedPicks = (service: Pick<BookingServiceView, "extras"> | null | undefined, ids: readonly string[]): boolean =>
@@ -51,7 +58,7 @@ export function asPerson<S extends BookingServiceView>(service: S, person: Booki
   const rate = person.rates?.find((r) => r.serviceId === service.id);
   if (!rate) return service;
   const priceMinor = service.payment === "free" ? service.priceMinor : rate.priceMinor ?? service.priceMinor;
-  const taxMinor = service.taxMinor && service.priceMinor > 0 ? Math.round((service.taxMinor * priceMinor) / service.priceMinor) : service.taxMinor;
+  const taxMinor = taxAt(service, priceMinor);
   return { ...service, minutes: rate.minutes ?? service.minutes, priceMinor, ...(taxMinor !== undefined ? { taxMinor } : {}) };
 }
 /** True when anyone who does this service has their own length or price for it (the picker then shows each one's). */
