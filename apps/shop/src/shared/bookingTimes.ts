@@ -55,6 +55,11 @@ export type BookingService = {
   packDays: number;
   /** The room or chair the service needs (Services plan phase 4): "" for none. Two bookings never share a room. */
   roomId: string;
+  /**
+   * Charge sales tax (17 November 2026): the shop's own tax rate for where it is (Settings › Taxes, matched to Settings ›
+   * General › Location) is added on top of the price when someone books. Only for a priced service.
+   */
+  chargeTax: boolean;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -137,6 +142,10 @@ export type BookingSettings = {
   staff: StaffMember[];
   /** Rooms and chairs services can need. */
   rooms: BookingRoom[];
+  /** A thank-you email a couple of hours after each visit, with Book again (and `reviewUrl` when set). */
+  thankYou: boolean;
+  /** Where clients leave a review (a Google review link, say): https only, "" for none. */
+  reviewUrl: string;
 };
 
 /**
@@ -174,6 +183,8 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   pickupSlotMinutes: 30,
   pickupPerSlot: 4,
   pickupReadyHours: 2,
+  thankYou: false,
+  reviewUrl: "",
   staff: [],
   rooms: [],
 };
@@ -203,6 +214,19 @@ export function depositOf(s: { payment?: string; priceMinor?: number; depositMin
   const amount = Math.round(Number(s.depositMinor) || 0);
   if (amount > 0) return Math.min(amount, price);
   return Math.min(price, Math.round((price * (Number(s.depositPercent) || 0)) / 100));
+}
+
+/**
+ * Sales tax on a booking (17 November 2026). A service with `chargeTax` adds the shop's rate on top of its price when it
+ * is booked: the booking's `priceMinor` is then the whole amount with the tax, `taxMinor` the tax in it and `taxLines`
+ * the tax by its name in the books ([{ name, cents }]). The tax in `amountMinor` of what was paid or kept: the same share
+ * of the tax as of the price, so a deposit, a part refund or a kept fee each carry their own part.
+ */
+export function taxIn(b: { priceMinor?: number; taxMinor?: number } | null | undefined, amountMinor: number): number {
+  const price = Math.round(Number(b?.priceMinor) || 0);
+  const tax = Math.round(Number(b?.taxMinor) || 0);
+  if (!(tax > 0) || !(price > 0) || !(amountMinor > 0)) return 0;
+  return Math.min(tax, Math.round((tax * Math.min(amountMinor, price)) / price));
 }
 
 /**
@@ -363,6 +387,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     packPriceMinor,
     packDays,
     roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
+    chargeTax: payment !== "free" && s.chargeTax === true,
   };
 }
 
@@ -439,7 +464,31 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     pickupReadyHours: whole(s.pickupReadyHours, 0, 72, DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
     rooms: cleanRooms(s.rooms),
     staff: cleanStaff(s.staff, hours),
+    thankYou: s.thankYou === true,
+    reviewUrl: reviewLink(s.reviewUrl),
   };
+}
+
+/** A review link as typed: an https address of at most 500 characters, else "". */
+export function reviewLink(raw: unknown): string {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text || text.length > 500) return "";
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" && url.hostname.includes(".") ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Should the visit get the thank-you email? The shop sends them, the visit happened (confirmed, not a no-show, started)
+ * and none went yet. A visit that gets the "Add a tip" email (`tipOpen`) is thanked in that email instead.
+ */
+export function thanksDue(b: BookingMoney & { noShow?: boolean; tip?: unknown; start?: string; end?: string; thanksSentAt?: string | null; tipAskedAt?: string | null }, settings: Pick<BookingSettings, "thankYou" | "tips">, nowMs: number): boolean {
+  if (!settings.thankYou || b.thanksSentAt || b.tipAskedAt || b.status !== "confirmed" || b.noShow) return false;
+  if (!(Date.parse(b.start || "") <= nowMs)) return false;
+  return !tipOpen(b, settings.tips, nowMs);
 }
 
 /** A week of opening hours, cleaned (7 days, up to 4 windows each, in order, no overlaps); `fallback` when broken. */

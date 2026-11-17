@@ -1154,6 +1154,11 @@ ledger and its totals (`MoneySources`); `taxPeriodModel` gives them a **Bookings
 charged"); `yearFigures` adds them to revenue (`services`, P&L shows Product sales and Bookings) and the tax report CSV.
 Never saved anywhere: the stockroom knows nothing of them. The accountant's desk doesn't read bookings yet.
 Fixture: `admin-fixture.html?page=stockroom/taxcenter` (and `stockroom/books`). Tests: `stockroom/serviceSales.test.ts`.
+**Tax on a service (17 November 2026):** the service dialog's **Charge sales tax** (`chargeTax`, priced services only;
+the card shows "Plus tax") and the drawer's Tax row ("$5.85 included (HST ON)"). `serviceSales` keeps `taxMinor` and
+`taxLines` (scaled to what was kept); the ledger's Sale row is net of tax with `taxAmount` and `taxes { name: cents }`;
+`taxPeriodModel` puts booking tax on its own rate lines (note "Bookings"), untaxed visits on "No tax charged", and adds
+it to `taxCents`. `yearFigures` revenue is net of tax. Fixture: the riso session charges HST ("Ben Example").
 
 ## Services shops (14 November 2026, phase 1)
 A shop whose sign-up answer is a service one (`sellsServices` in `shared/shopSells.ts`: hair, wellness, lessons, fitness,

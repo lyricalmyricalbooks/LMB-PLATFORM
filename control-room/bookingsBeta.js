@@ -25,6 +25,43 @@ const DAY = 86_400_000;
 export const USE_DAYS = 30;
 const MAX_BOOKINGS = 2000;
 const MAX_SERVICES = 100;
+/** The shop's own Bookings settings (Hours & rules): `live` = the Book a time page is open, `googleCalendar` = bookings go into Google Calendar. */
+export const BOOKING_SETTINGS_DOC = "bookingSettings/main";
+
+/**
+ * What the shop kept from one booking, in cents: what was paid towards the price (all of it once marked paid, else the
+ * card and gift card parts), plus a missed-booking fee, less refunds and what went back on a gift card. The same rule as
+ * the shop's `moneyKept` (apps/shop src/shared/bookingTimes.ts); bookingsBeta.test.js checks the two agree.
+ */
+export function keptMinor(b) {
+  const n = (v) => Math.max(0, Number(v) || 0);
+  const asked = b.payment === "card" ? n(b.priceMinor) : b.payment === "deposit" ? n(b.depositMinor) : 0;
+  const bookedPaid = b.payment === "card" ? !!b.paid : b.payment === "deposit" ? !!b.depositPaid : false;
+  const gift = Math.min(n(b.giftCard?.amountMinor), asked);
+  const giftTaken = bookedPaid ? gift : 0;
+  const cardTaken = (bookedPaid ? Math.max(0, asked - gift) : 0) + n(b.rest?.amountMinor);
+  const price = b.paid ? n(b.priceMinor) : cardTaken + giftTaken;
+  const giftBack = b.giftCard?.returned ? giftTaken : 0;
+  return Math.max(0, price + n(b.fee?.amountMinor) - n(b.refund?.amountMinor) - giftBack);
+}
+
+/** A shop's month of bookings for the Bookings (beta) page: visits booked (held ones left out), no-shows and money kept by currency. */
+export function monthUse(bookings, currency) {
+  const counted = bookings.filter((b) => b && b.status !== "held");
+  const money = {};
+  for (const b of counted) {
+    const kept = keptMinor(b);
+    if (!kept) continue;
+    const cur = String(b.currency || currency || "CAD").toUpperCase();
+    money[cur] = (money[cur] || 0) + kept;
+  }
+  return {
+    bookings: counted.filter((b) => b.status === "confirmed").length,
+    noShows: counted.filter((b) => b.noShow === true).length,
+    cancelled: counted.filter((b) => b.status === "cancelled").length,
+    money,
+  };
+}
 
 /** How the shop uses Bookings: services, and bookings either side of now (held ones are still being paid for). */
 export function bookingsUse(services, bookings, nowMs) {
@@ -96,6 +133,61 @@ export function createBookingsBeta({ admins, registry, auditLog, shopData, activ
       }
     },
 
+    /**
+     * Every live shop with a website, for Shops › Bookings (beta): whether it is on, and for those that have it, whether
+     * the Book a time page is open, this month's bookings, no-shows, money kept and whether Google Calendar is on. A
+     * shop whose records can't be read shows why and counts as needing a look; it never fails the page.
+     */
+    async overview(claims) {
+      adminOf(claims, admins, now().getTime());
+      if (!shopData?.find) throw new ControlError(503, "The control room can't read the shops' own records yet.");
+      const today = now();
+      const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1));
+      const rows = (await registry.listShops()).filter((row) => !notHere(row))
+        .sort((a, b) => (b.bookingsBeta === true) - (a.bookingsBeta === true) || String(a.pressName ?? a.shopId).localeCompare(String(b.pressName ?? b.shopId)));
+      const shops = [];
+      for (const row of rows) {
+        const shop = { shopId: row.shopId, pressName: row.pressName ?? row.shopId, testShop: row.testShop === true, on: row.bookingsBeta === true };
+        if (!shop.on) { shops.push(shop); continue; }
+        try {
+          const settings = (await shopData.get(row.shopId, BOOKING_SETTINGS_DOC)) ?? {};
+          const where = [["start", ">=", from.toISOString()], ["start", "<", to.toISOString()]];
+          const bookings = (await shopData.find(row.shopId, "bookings", { where, limit: MAX_BOOKINGS })).map((d) => d.data);
+          shops.push({ ...shop, live: settings.live === true, google: settings.googleCalendar === true, month: monthUse(bookings, row.currency) });
+        } catch (failure) {
+          shops.push({ ...shop, problem: `Couldn't read its bookings: ${failure.message}` });
+        }
+      }
+      const on = shops.filter((s) => s.on);
+      const money = {};
+      for (const s of on) for (const [cur, cents] of Object.entries(s.month?.money ?? {})) money[cur] = (money[cur] || 0) + cents;
+      const needsLook = on.filter((s) => s.problem || !s.live).map((s) => ({ shopId: s.shopId, pressName: s.pressName, why: s.problem ?? "Turned on, but its Book a time page isn't open yet." }));
+      return {
+        month: from.toISOString().slice(0, 7),
+        totals: { on: on.length, shops: shops.length, bookings: on.reduce((sum, s) => sum + (s.month?.bookings ?? 0), 0), noShows: on.reduce((sum, s) => sum + (s.month?.noShows ?? 0), 0), money },
+        needsLook,
+        testShops: { total: shops.filter((s) => s.testShop).length, off: shops.filter((s) => s.testShop && !s.on).length },
+        shops,
+      };
+    },
+
+    /** Turns Bookings on or off for every live test shop at once (each change logged like a single one). */
+    async setTestShops(claims, { on } = {}) {
+      adminOf(claims, admins, now().getTime());
+      if (typeof on !== "boolean") throw new ControlError(400, "Say whether Bookings should be on or off.");
+      const rows = (await registry.listShops()).filter((row) => row.testShop === true && !notHere(row));
+      const results = [];
+      for (const row of rows) {
+        try {
+          results.push(await this.set(claims, { shopId: row.shopId, on }));
+        } catch (failure) {
+          results.push({ shopId: row.shopId, on: row.bookingsBeta === true, changed: false, problem: failure.message });
+        }
+      }
+      return { on, shops: results, changed: results.filter((r) => r.changed).length };
+    },
+
     /** Turns Bookings on or off for one shop. Safe to repeat: the same answer writes nothing new. */
     async set(claims, { shopId, on } = {}) {
       const { by, row } = await liveShop(claims, shopId);
@@ -116,9 +208,13 @@ export function createBookingsBeta({ admins, registry, auditLog, shopData, activ
 
 //   POST /api/control/bookings      { shopId }: whether Bookings is on and how the shop uses it
 //   POST /api/control/bookings/set  { shopId, on }: turn it on or off for that shop
+//   GET  /api/control/bookings/overview: every shop's Bookings for Shops › Bookings (beta)
+//   POST /api/control/bookings/test-shops { on }: turn it on or off for every test shop
 export function bookingsBetaRoutes(desk) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   return {
+    "GET /api/control/bookings/overview": (claims) => desk.overview(claims),
+    "POST /api/control/bookings/test-shops": (claims, request) => desk.setTestShops(claims, body(request)),
     "POST /api/control/bookings": (claims, request) => desk.forShop(claims, body(request)),
     "POST /api/control/bookings/set": (claims, request) => desk.set(claims, body(request)),
   };

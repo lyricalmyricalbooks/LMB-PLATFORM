@@ -4,7 +4,8 @@ import { addDays, depositOf } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
-  /** A pack of visits sold with it: `packVisits` visits for `packPriceMinor`, to use within `packDays` (0: no end). */ packVisits?: number; packPriceMinor?: number; packDays?: number };
+  /** A pack of visits sold with it: `packVisits` visits for `packPriceMinor`, to use within `packDays` (0: no end). */ packVisits?: number; packPriceMinor?: number; packDays?: number;
+  /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop has a discount code that works on bookings, so the form offers a code box. */
   codes?: boolean;
@@ -34,7 +35,11 @@ export const longDayText = (day: string) => new Date(`${day}T12:00:00Z`).toLocal
 /** A gift card the server accepted: its last four, what it pays now and what is left for the card page. */
 export type BookingGift = { code: string; last4: string; giftMinor: number; payNowMinor: number };
 /** A discount code the server accepted for one service: what it takes off, the price after it and what is paid now. */
-export type BookingCode = { code: string; discountMinor: number; priceMinor: number; payNowMinor: number };
+export type BookingCode = { code: string; discountMinor: number; priceMinor: number; /** The sales tax in priceMinor. */ taxMinor?: number; payNowMinor: number };
+/** The service as booked: its price with the sales tax added (the server works the deposit out on that too). */
+export function withTax<S extends BookingServiceView>(service: S): S {
+  return service.taxMinor ? { ...service, priceMinor: service.priceMinor + service.taxMinor } : service;
+}
 /** The service as priced with a code (the server's figures), so every line and button shows what will really be asked. */
 export function withCode<S extends BookingServiceView>(service: S, code: BookingCode | null): S {
   if (!code) return service;
@@ -54,6 +59,7 @@ export type BookingView = {
   canPayRest?: boolean; restPaidMinor?: number;
   /** A discount code used when booking, and what it took off (priceMinor is after it). */
   discountCode?: string; discountMinor?: number;
+  /** Sales tax: the part of priceMinor that is tax. */ taxMinor?: number;
   /** A gift card that paid part or all of it when booked, and whether that went back onto the card. */
   giftCardLast4?: string; giftMinor?: number; giftReturned?: boolean;
   /** A visit booked with a pack: its last four, which visit of how many, and whether it went back on the pack. */

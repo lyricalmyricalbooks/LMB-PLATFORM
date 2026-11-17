@@ -26,6 +26,8 @@ export type Booking = {
   giftCard?: { id: string; last4: string; amountMinor: number; returned?: boolean } | null;
   /** A pack of visits that paid for it: which visit of the pack it is (`returned` once the visit went back on the pack). */
   pack?: { id: string; last4: string; visit?: number; visits?: number; returned?: boolean } | null;
+  /** Sales tax (a service that charges it): the part of `priceMinor` that is tax, by its name in the books. */
+  taxMinor?: number; taxLines?: { name: string; cents: number }[];
   /** A tip the client added by card (never part of the price or a refund). */
   tip?: { amountMinor: number; at: string } | null;
   /** Who takes it (when the shop lists people) and the room it uses, named as they were when booked or moved. */

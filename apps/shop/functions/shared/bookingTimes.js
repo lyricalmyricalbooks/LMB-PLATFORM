@@ -11,6 +11,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
+exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
 exports.cleanTipPercents = cleanTipPercents;
 exports.tipOpen = tipOpen;
@@ -20,6 +21,8 @@ exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
+exports.reviewLink = reviewLink;
+exports.thanksDue = thanksDue;
 exports.cleanRooms = cleanRooms;
 exports.cleanStaff = cleanStaff;
 exports.zonedTime = zonedTime;
@@ -80,6 +83,8 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     pickupSlotMinutes: 30,
     pickupPerSlot: 4,
     pickupReadyHours: 2,
+    thankYou: false,
+    reviewUrl: "",
     staff: [],
     rooms: [],
 };
@@ -108,6 +113,19 @@ function depositOf(s) {
     if (amount > 0)
         return Math.min(amount, price);
     return Math.min(price, Math.round((price * (Number(s.depositPercent) || 0)) / 100));
+}
+/**
+ * Sales tax on a booking (17 November 2026). A service with `chargeTax` adds the shop's rate on top of its price when it
+ * is booked: the booking's `priceMinor` is then the whole amount with the tax, `taxMinor` the tax in it and `taxLines`
+ * the tax by its name in the books ([{ name, cents }]). The tax in `amountMinor` of what was paid or kept: the same share
+ * of the tax as of the price, so a deposit, a part refund or a kept fee each carry their own part.
+ */
+function taxIn(b, amountMinor) {
+    const price = Math.round(Number(b?.priceMinor) || 0);
+    const tax = Math.round(Number(b?.taxMinor) || 0);
+    if (!(tax > 0) || !(price > 0) || !(amountMinor > 0))
+        return 0;
+    return Math.min(tax, Math.round((tax * Math.min(amountMinor, price)) / price));
 }
 /** What the card page asks for when this booking is made. */
 const cardAsk = (b) => Math.max(0, bookedAsk(b) - giftMinor(b));
@@ -282,6 +300,7 @@ function cleanService(raw, id = "") {
         packPriceMinor,
         packDays,
         roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
+        chargeTax: payment !== "free" && s.chargeTax === true,
     };
 }
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
@@ -360,7 +379,33 @@ function cleanBookingSettings(raw) {
         pickupReadyHours: whole(s.pickupReadyHours, 0, 72, exports.DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
         rooms: cleanRooms(s.rooms),
         staff: cleanStaff(s.staff, hours),
+        thankYou: s.thankYou === true,
+        reviewUrl: reviewLink(s.reviewUrl),
     };
+}
+/** A review link as typed: an https address of at most 500 characters, else "". */
+function reviewLink(raw) {
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text || text.length > 500)
+        return "";
+    try {
+        const url = new URL(text);
+        return url.protocol === "https:" && url.hostname.includes(".") ? url.href : "";
+    }
+    catch {
+        return "";
+    }
+}
+/**
+ * Should the visit get the thank-you email? The shop sends them, the visit happened (confirmed, not a no-show, started)
+ * and none went yet. A visit that gets the "Add a tip" email (`tipOpen`) is thanked in that email instead.
+ */
+function thanksDue(b, settings, nowMs) {
+    if (!settings.thankYou || b.thanksSentAt || b.tipAskedAt || b.status !== "confirmed" || b.noShow)
+        return false;
+    if (!(Date.parse(b.start || "") <= nowMs))
+        return false;
+    return !tipOpen(b, settings.tips, nowMs);
 }
 /** A week of opening hours, cleaned (7 days, up to 4 windows each, in order, no overlaps); `fallback` when broken. */
 function cleanHours(raw, fallback) {

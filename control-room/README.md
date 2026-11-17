@@ -481,3 +481,14 @@ ask a styled yes or no (`askBox`/`askYes` in `app.js`), never a browser prompt. 
 person keep a text box: sending an app back to (or off the store for) its maker, and the account-move card (how the
 person was checked, and the reason a move is denied), which guards against someone taking over a shop.
 `noReasonPrompts.test.js` fails the build if a browser prompt, a "Why?" field or a minimum length comes back.
+
+## Bookings (beta) page (`bookingsBeta.js`, 17 November 2026)
+
+Shops › **Bookings (beta)** shows the beta across every live shop: tiles for shops with it on (N of M), bookings this
+month (count, money kept, no-shows) and what needs a look (switch on but the Book a time page still closed, or a shop
+whose bookings couldn't be read, each linking to the shop's record), then one row per shop (Switch, On the website,
+Bookings, No-shows, Google Calendar). `GET /api/control/bookings/overview` (`overview`) reads each shop's
+`bookingSettings/main` and this month's bookings; money kept follows the shop's `moneyKept` rule (`keptMinor`, checked
+against the shop's copy in the test). **Turn on for all test shops** (`POST /api/control/bookings/test-shops`,
+`setTestShops`) asks a plain yes or no, then turns the switch on for each live test shop through the same `set` as a
+shop's record, so every change is logged the same way. Real shops are only ever switched one at a time from their record.

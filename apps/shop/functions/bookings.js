@@ -59,7 +59,7 @@ const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
-  secondReminderDue, summaryDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
+  secondReminderDue, summaryDue, thanksDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
 } = require("./shared/bookingTimes");
@@ -160,6 +160,8 @@ function publicBooking(id, b, settings, nowMs) {
     staffId: b.staffId || "", staffName: b.staffName || "",
     meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
+    // Sales tax: the part of priceMinor that is tax.
+    taxMinor: b.taxMinor || 0,
     // A discount code: what it took off the service's price (priceMinor is already after it).
     discountCode: b.discount?.code || "", discountMinor: b.discount?.amountMinor || 0,
     // A gift card: its last four and what it paid (never its id), and whether that went back onto it.
@@ -192,6 +194,9 @@ function bookingActions({
   // Discount codes on bookings: (code, email) → the shop's discount, checked like checkout's (on, dates, usage limit,
   // who may use it, one use per customer across orders), or throws with the customer's words. None: codes are refused.
   findDiscount = null,
+  // Sales tax on services (index.js): async () → (amountMinor) → { taxMinor, taxLines } at the shop's rate for where it
+  // is (Settings › Taxes matched to Settings › General › Location), or null when the shop collects none. None: no tax.
+  shopTax = null,
 }) {
   const services = () => db.collection("bookingServices");
   const settingsRef = () => db.collection("bookingSettings").doc("main");
@@ -221,6 +226,24 @@ function bookingActions({
       console.warn("bookings: the website link wasn't updated:", err?.message || err);
     }
   }
+  /**
+   * The sales tax on `amountMinor` of a service with `chargeTax`, added on top of the price: { taxMinor, taxLines }, or
+   * null when the service doesn't charge it or the shop has no rate for where it is. `calc` reuses one settings read.
+   */
+  async function taxOn(service, amountMinor, calc) {
+    if (!service?.chargeTax || !(amountMinor > 0) || !shopTax) return null;
+    const of = calc === undefined ? await shopTax() : calc;
+    const tax = of ? of(amountMinor) : null;
+    return tax && tax.taxMinor > 0 ? { taxMinor: tax.taxMinor, taxLines: Array.isArray(tax.taxLines) ? tax.taxLines : [] } : null;
+  }
+  const taxFields = (tax) => (tax ? { taxMinor: tax.taxMinor, taxLines: tax.taxLines } : {});
+  // The tax line on a booking's emails: "Includes tax (HST ON): $13.00".
+  const taxLinesWords = (b) => {
+    if (!(b?.taxMinor > 0)) return "";
+    const names = (Array.isArray(b.taxLines) ? b.taxLines : []).map((l) => l?.name).filter(Boolean).join(", ");
+    return `<p style="margin:0 0 4px;"><strong>Includes tax${names ? ` (${escapeHtml(names)})` : ""}:</strong> ${escapeHtml(moneyWords(b.taxMinor, b.currency))}</p>`;
+  };
+
   async function readServices() {
     const snap = await services().limit(MAX_SERVICES).get();
     return snap.docs.map((d) => cleanService(d.data(), d.id)).filter((s) => !s.problem).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
@@ -314,7 +337,7 @@ function bookingActions({
   }
 
   /** Emails the customer (and tells the owner) about a booking. `kind`: booked, moved, cancelled. Never throws. */
-  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop } = {}) {
+  async function tellCustomer(id, b, kind, { key = "", refundText = "", byShop = false, toOwner = !byShop, reviewUrl = "" } = {}) {
     try {
       const to = b.customer?.email;
       if (!to || !EMAIL.test(to)) return;
@@ -330,12 +353,13 @@ function bookingActions({
         <p style="margin:0 0 4px;font-size:13px;">Show it at the desk when you arrive.${key ? " Your booking page has it as a code to scan." : ""}</p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
-      const subject = { tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const subject = { thanks: `Thank you for coming: ${b.serviceName}`, tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
       const lead = {
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
         restPaid: `Thank you. You paid ${escapeHtml(moneyWords(restTaken(b), b.currency))} by card${tipTaken(b) ? `, with a ${escapeHtml(tipText)} tip` : ""}, so your booking with ${escapeHtml(shop)} is paid in full.`,
-        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.`,
+        thanks: `Thank you for visiting ${escapeHtml(shop)}. We hope to see you again soon.${reviewUrl ? " If you have a moment, a short review helps others find us." : ""}`,
+        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.${reviewUrl ? " And if you have a moment, a short review helps others find us." : ""}`,
         tipPaid: `Thank you! Your ${escapeHtml(tipText)} tip for your visit to ${escapeHtml(shop)} has gone through.`,
         reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
         soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
@@ -344,13 +368,14 @@ function bookingActions({
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
         cancelled: `Your booking with ${escapeHtml(shop)} is cancelled.${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
-      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid";
+      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid" || kind === "thanks";
       // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
       const due = balanceDue(b);
       const taken = bookedCardTaken(b);
       const packLine = ended || !b.pack ? "" : `<p style="margin:0 0 4px;"><strong>Paid with your pack ••••${escapeHtml(b.pack.last4 || "")}:</strong> visit ${b.pack.visit || 1} of ${b.pack.visits || 1}</p>`;
       const money = ended || !(b.priceMinor > 0) ? packLine : [
         b.discount?.amountMinor ? `<p style="margin:0 0 4px;"><strong>Discount (${escapeHtml(b.discount.code)}):</strong> ${escapeHtml(moneyWords(b.discount.amountMinor, b.currency))} off</p>` : "",
+        taxLinesWords(b),
         giftTaken(b) ? `<p style="margin:0 0 4px;"><strong>Gift card ••••${escapeHtml(b.giftCard.last4 || "")}:</strong> ${escapeHtml(moneyWords(giftTaken(b), b.currency))}</p>` : "",
         b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
         due ? `<p style="margin:0 0 4px;"><strong>${kind === "payRest" ? "Left to pay" : "To pay at your visit"}:</strong> ${escapeHtml(moneyWords(due, b.currency))}</p>` : `<p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(b.priceMinor, b.currency))}</p>`,
@@ -360,8 +385,11 @@ function bookingActions({
       const held = ended || !b.card ? "" : `<p style="margin:0 0 4px;"><strong>Card on file:</strong> ${escapeHtml(cardWords(b.card))}. Missing this booking${cancelHours ? `, or cancelling less than ${cancelHours} hours before,` : ""} may cost ${escapeHtml(moneyWords(b.lateFeeMinor || 0, b.currency))}.</p>`;
       const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? "Add a tip" : kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
+      // After the visit: leave a review (the shop's own link) and book the same service again.
+      const review = reviewUrl && (kind === "thanks" || kind === "tip") ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : "";
+      const again = kind === "thanks" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
@@ -373,6 +401,8 @@ function bookingActions({
         ${held}
         ${checkIn}
         ${manage}
+        ${again}
+        ${review}
         ${calendar}
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
       await sendEmail({ to, subject, html });
@@ -1192,13 +1222,17 @@ function bookingActions({
       if (action === "bookingInfo") {
         if (!settings.live) return res.status(200).json({ on: false });
         const list = (await readServices()).filter((s) => s.active);
+        const calc = list.some((s) => s.chargeTax) && shopTax ? await shopTax() : null;
+        const taxes = await Promise.all(list.map((s) => taxOn(s, s.priceMinor, calc)));
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
           codes: await codesOffered(), giftCards: await giftCardsOffered(),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
+            // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
+            ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
             ...(offersPack({ packVisits, packPriceMinor }) ? { packVisits, packPriceMinor, packDays } : {}),
           })),
@@ -1246,7 +1280,9 @@ function bookingActions({
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         try {
           const priced = await codeFor(service, req.body?.code, email);
-          return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: priced.priceMinor, payNowMinor: priced.upFront });
+          const tax = await taxOn(service, priced.priceMinor);
+          const total = priced.priceMinor + (tax?.taxMinor || 0);
+          return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: total, ...(tax ? { taxMinor: tax.taxMinor } : {}), payNowMinor: depositOf({ ...service, priceMinor: total }) });
         } catch (err) {
           if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
           throw err;
@@ -1362,9 +1398,12 @@ function bookingActions({
             throw err;
           }
         }
-        const price = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : service.priceMinor;
+        const before = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : service.priceMinor;
+        // Sales tax (a service with chargeTax) goes on top of the price after any code; the booking's price includes it.
+        const tax = await taxOn(service, before);
+        const price = before + (tax?.taxMinor || 0);
         // What the card page takes now: the whole price, the deposit, or nothing (free, all paid at the visit, or a pack).
-        const upFront = pack ? 0 : priced ? priced.upFront : depositOf(service);
+        const upFront = pack ? 0 : depositOf({ ...service, priceMinor: price });
         const deposit = upFront > 0 && service.payment === "deposit" && upFront < price;
         // A gift card pays part or all of what is paid now; the card page takes the rest.
         let gift = null;
@@ -1394,7 +1433,7 @@ function bookingActions({
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
-          priceMinor: price, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
+          priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
           ...(gift ? { giftCard: gift } : {}),
           ...(pack ? { pack, listPriceMinor: service.priceMinor } : {}),
@@ -1768,6 +1807,7 @@ function bookingActions({
         if (customer.problem) return fail(res, 400, customer.problem.replace("your", "the customer's").replace("Please add an email address we can send your booking to.", "Add the customer's email address."));
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time.");
+        const tax = await taxOn(service, service.priceMinor);
         const id = randomId();
         const key = randomKey();
         const at = now().toISOString();
@@ -1776,7 +1816,7 @@ function bookingActions({
           // The owner booking someone in may fill in the service's questions or leave them.
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
           // Booked in by the owner: nothing is taken by card, so a priced service is all paid at the visit.
-          status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor, currency: currency(),
+          status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor + (tax?.taxMinor || 0), ...taxFields(tax), currency: currency(),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
           history: [{ at, what: "booked", by }], createdAt: at, updatedAt: at,
         };
@@ -1837,6 +1877,7 @@ function bookingActions({
         if (!Number.isInteger(priceMinor) || priceMinor < MIN_CARD_MINOR || priceMinor > WALK_IN_MAX_MINOR) {
           return fail(res, 400, `Enter an amount from ${moneyWords(MIN_CARD_MINOR, currency())} to ${moneyWords(WALK_IN_MAX_MINOR, currency())}.`, "amount");
         }
+        const tax = await taxOn(service, priceMinor);
         const id = randomId();
         const payKey = randomKey();
         const at = now().toISOString();
@@ -1844,7 +1885,8 @@ function bookingActions({
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: 0, location: service.location,
           customer: { name, email, phone: "" }, note: "", answers: [],
-          status: "confirmed", payment: "atShop", priceMinor, currency: currency(),
+          // The amount is before tax: a service that charges tax adds it, as on the website.
+          status: "confirmed", payment: "atShop", priceMinor: priceMinor + (tax?.taxMinor || 0), ...taxFields(tax), currency: currency(),
           ...(priceMinor !== service.priceMinor ? { listPriceMinor: service.priceMinor } : {}),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(randomKey()), pendingKey: null, payKey, source: "desk", walkIn: true,
           // Reminders and the second reminder are for visits still to come.
@@ -1853,7 +1895,7 @@ function bookingActions({
           history: [{ at, what: "taken at the desk", by }], createdAt: at, updatedAt: at, checkedInAt: at,
         };
         await bookings().doc(id).set(record);
-        return res.status(200).json({ ok: true, id, url: manageUrl(id, payKey), dueMinor: priceMinor });
+        return res.status(200).json({ ok: true, id, url: manageUrl(id, payKey), dueMinor: record.priceMinor, taxMinor: tax?.taxMinor || 0 });
       }
       if (op === "checkIn") return checkIn(req, res, by);
       const id = String(req.body?.id || "");
@@ -2272,13 +2314,37 @@ function bookingActions({
       if (b.tipAskedAt || !tipOpen(b, true, nowMs)) continue;
       const key = randomKey();
       await bookings().doc(doc.id).set({ tipAskedAt: new Date(nowMs).toISOString(), tipKeyHash: hash(key) }, { merge: true });
-      await tellCustomer(doc.id, b, "tip", { byShop: true, toOwner: false, key });
+      await tellCustomer(doc.id, b, "tip", { byShop: true, toOwner: false, key, reviewUrl: settings.thankYou ? settings.reviewUrl : "" });
       asked += 1;
     }
     return { asked };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, featureOn, pickupCheck };
+  /**
+   * The thank-you email (Hours & rules › After the visit), once per visit, TIP_ASK_HOURS after it ended (within a day of
+   * that): Book again, and Leave a review when the shop gave a link. Visits that get the "Add a tip" email are thanked
+   * there (`thanksDue`). Marked before sending, so a second sweep never sends twice.
+   */
+  async function sweepThanks() {
+    if (!(await featureOn())) return { thanked: 0 };
+    const settings = await readSettings();
+    if (!settings.thankYou) return { thanked: 0 };
+    const nowMs = now().getTime();
+    const from = new Date(nowMs - (TIP_ASK_HOURS + 24) * HOUR).toISOString();
+    const to = new Date(nowMs - TIP_ASK_HOURS * HOUR).toISOString();
+    const snap = await bookings().where("end", ">=", from).where("end", "<=", to).limit(500).get();
+    let thanked = 0;
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      if (!thanksDue(b, settings, nowMs)) continue;
+      await bookings().doc(doc.id).set({ thanksSentAt: new Date(nowMs).toISOString() }, { merge: true });
+      await tellCustomer(doc.id, b, "thanks", { byShop: true, toOwner: false, reviewUrl: settings.reviewUrl });
+      thanked += 1;
+    }
+    return { thanked };
+  }
+
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */

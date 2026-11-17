@@ -40,7 +40,7 @@ describe("service sales", () => {
     expect(rows.find((r) => r.type === "Tip")).toMatchObject({ baseAmount: 9, isIncome: true, sourceType: "bookingTip" });
     expect(serviceLedgerRows(sales, "2025", "CAD")).toEqual([]);
     expect(serviceLedgerRows(sales, "2026", "USD")).toEqual([]);
-    expect(serviceYear(sales, "2026", "CAD")).toEqual({ count: 4, kept: 200, tips: 9 });
+    expect(serviceYear(sales, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9 });
   });
 
   const sources: MoneySources = { books: {}, states: {}, taxCenter: {}, fxRateCache: {}, serviceSales: sales };
@@ -68,5 +68,43 @@ describe("service sales", () => {
     expect(f.revenue).toBe(200);
     expect(f.services).toBe(200);
     expect(f.bookStats).toEqual([{ title: "Bookings", units: 4, revenue: 200, unitCost: 0, cogs: 0, shares: 0, net: 200 }]);
+  });
+
+  describe("a service that charges sales tax", () => {
+    // $100 plus 13% HST: the booking's price is $113 with $13 tax in it.
+    const taxed = { ...base, priceMinor: 11300, taxMinor: 1300, taxLines: [{ name: "HST ON", cents: 1300 }] };
+    const rows = [
+      { id: "t1", ...taxed, start: "2026-02-10T15:00:00Z", status: "confirmed", payment: "card", paid: true },
+      // A deposit of $56.50 kept after a late cancel: half the tax is in it.
+      { id: "t2", ...taxed, start: "2026-02-11T15:00:00Z", status: "cancelled", payment: "deposit", depositMinor: 5650, depositPaid: true },
+      { id: "u1", ...base, start: "2026-02-12T15:00:00Z", status: "confirmed", payment: "card", paid: true },
+    ];
+    const taxedSales = serviceSales(rows, ZONE, "2026-06-30", "CAD");
+
+    it("keeps the tax in what was kept, by name", () => {
+      expect(taxedSales.map((s) => [s.id, s.keptMinor, s.taxMinor, s.taxLines])).toEqual([
+        ["t1", 11300, 1300, [{ name: "HST ON", cents: 1300 }]],
+        ["t2", 5650, 650, [{ name: "HST ON", cents: 650 }]],
+        ["u1", 6000, 0, []],
+      ]);
+    });
+
+    it("books the sale net of tax, with the tax beside it", () => {
+      const ledger = serviceLedgerRows(taxedSales, "2026", "CAD");
+      expect(ledger.map((r) => [r.baseAmount, r.taxAmount, r.taxes])).toEqual([[100, 13, { "HST ON": 1300 }], [50, 6.5, { "HST ON": 650 }], [60, 0, {}]]);
+      expect(serviceYear(taxedSales, "2026", "CAD")).toEqual({ count: 3, kept: 210, tax: 19.5, tips: 0 });
+      expect(yearFigures({ books: [], states: {}, taxCenter: null, fxRateCache: {}, serviceSales: taxedSales }, "2026").revenue).toBe(210);
+    });
+
+    it("puts the tax on its own rate line in the sales tax period, untaxed visits apart", () => {
+      const ledgerRows = taxCenterModel({ ...sources, serviceSales: taxedSales }, "all").rows;
+      const period = { id: "2026-Q1", label: "Q1 2026", start: "2026-01-01", end: "2026-03-31", open: false, quarter: true };
+      const model = taxPeriodModel({ orders: [], ledgerRows, states: {}, period, currency: "CAD" });
+      expect(model.rates.find((r) => r.name === "HST ON")).toMatchObject({ note: "Bookings", netCents: 15000, taxCents: 1950, orders: 2 });
+      expect(model.rates.find((r) => r.id === "chan:bookings")).toMatchObject({ note: "No tax charged", netCents: 6000, orders: 1 });
+      expect(model.channels.find((c) => c.id === "bookings")).toMatchObject({ salesCents: 21000, taxCents: 1950, sales: 3 });
+      expect(model.taxCents).toBe(1950);
+      expect(model.salesCents).toBe(21000);
+    });
   });
 });

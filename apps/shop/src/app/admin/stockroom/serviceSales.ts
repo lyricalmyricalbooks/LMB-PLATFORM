@@ -2,8 +2,9 @@
 // Tax centre. Pure. A booking counts on its visit day in the shop's time zone (as the Bookings Figures tab counts it),
 // once the visit day has come, with what the shop kept: paid by card, gift card or at the shop, a missed-booking fee,
 // less refunds (`moneyKept`). A tip is its own line: money in, but never a sale and never taxed. Held bookings and
-// bookings that kept nothing are left out. No tax is charged on bookings yet, so the Tax centre lists them as such.
-import { dayOf, moneyKept, tipTaken } from "../../../shared/bookingTimes";
+// bookings that kept nothing are left out. A service that charges sales tax (`chargeTax`) has the tax inside its price;
+// the tax in what was kept is the same share of the booking's tax (`taxIn`), and the ledger row's sale is net of it.
+import { dayOf, moneyKept, taxIn, tipTaken } from "../../../shared/bookingTimes";
 
 type Row = Record<string, any>;
 
@@ -17,6 +18,10 @@ export type ServiceSale = {
   keptMinor: number;
   /** A tip the client added by card, in whole cents. */
   tipMinor: number;
+  /** The sales tax inside `keptMinor`, in whole cents (0 for a service without tax). */
+  taxMinor: number;
+  /** That tax by name (e.g. "HST ON"), adding up to `taxMinor`. */
+  taxLines: { name: string; cents: number }[];
   currency: string;
 };
 
@@ -25,7 +30,19 @@ type BookingLike = {
   payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean;
   refund?: { amountMinor?: number } | null; fee?: { amountMinor?: number } | null; rest?: { amountMinor?: number } | null;
   giftCard?: { amountMinor?: number; returned?: boolean } | null; tip?: { amountMinor?: number } | null;
+  taxMinor?: number; taxLines?: { name?: string; cents?: number }[] | null;
 };
+
+/** The booking's tax lines scaled to `taxMinor` (the part in what was kept); any rounding left goes on the first. */
+function keptTaxLines(b: BookingLike, taxMinor: number): { name: string; cents: number }[] {
+  if (!(taxMinor > 0)) return [];
+  const lines = (Array.isArray(b.taxLines) ? b.taxLines : []).filter((l) => l && Number(l.cents) > 0);
+  const whole = lines.reduce((sum, l) => sum + Number(l.cents), 0);
+  if (!whole) return [{ name: "Sales tax", cents: taxMinor }];
+  const out = lines.map((l) => ({ name: String(l.name || "Sales tax"), cents: Math.floor((Number(l.cents) * taxMinor) / whole) }));
+  out[0].cents += taxMinor - out.reduce((sum, l) => sum + l.cents, 0);
+  return out.filter((l) => l.cents > 0);
+}
 
 /** Every booking that brought money in by `today` (YYYY-MM-DD, the shop's day), oldest first. */
 export function serviceSales(bookings: readonly BookingLike[], zone: string, today: string, currency: string): ServiceSale[] {
@@ -39,7 +56,8 @@ export function serviceSales(bookings: readonly BookingLike[], zone: string, tod
     const keptMinor = moneyKept(b);
     const tipMinor = b.status === "cancelled" ? 0 : tipTaken(b);
     if (keptMinor <= 0 && tipMinor <= 0) continue;
-    out.push({ id: String(b.id), date, serviceName: String(b.serviceName || "Booking"), keptMinor, tipMinor, currency: String(b.currency || currency).toUpperCase() });
+    const taxMinor = taxIn(b, keptMinor);
+    out.push({ id: String(b.id), date, serviceName: String(b.serviceName || "Booking"), keptMinor, tipMinor, taxMinor, taxLines: keptTaxLines(b, taxMinor), currency: String(b.currency || currency).toUpperCase() });
   }
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
 }
@@ -49,8 +67,9 @@ export const SERVICE_SOURCE = "booking";
 export const TIP_SOURCE = "bookingTip";
 
 /**
- * The ledger rows for a year ('all' or 'YYYY'), shaped like the stockroom's own sale rows. Amounts in another currency
- * than the books' are left out (a shop's bookings are always in its own currency).
+ * The ledger rows for a year ('all' or 'YYYY'), shaped like the stockroom's own sale rows. A sale row's amount is what
+ * was kept less the sales tax in it; the tax rides along as `taxAmount` and `taxes` ({ name: cents }). Amounts in another
+ * currency than the books' are left out (a shop's bookings are always in its own currency).
  */
 export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, year: string, baseCurrency: string): Row[] {
   const rows: Row[] = [];
@@ -59,8 +78,10 @@ export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, yea
     if (s.currency !== String(baseCurrency).toUpperCase()) continue;
     const common = { date: s.date, cat: "Income", ref: s.id.slice(-6).toUpperCase(), origCurrency: s.currency, voided: false, hasRateError: false, isIncome: true, sourceId: "bookings" };
     if (s.keptMinor > 0) {
-      const amount = s.keptMinor / 100;
-      rows.push({ ...common, type: "Sale", desc: `${s.serviceName} (booking)`, origAmount: amount, baseAmount: amount, qty: 1, sourceType: SERVICE_SOURCE, itemId: s.id });
+      const tax = s.taxMinor || 0;
+      const amount = (s.keptMinor - tax) / 100;
+      const taxes = Object.fromEntries((s.taxLines || []).map((l) => [l.name, l.cents]));
+      rows.push({ ...common, type: "Sale", desc: `${s.serviceName} (booking)`, origAmount: amount, baseAmount: amount, qty: 1, sourceType: SERVICE_SOURCE, itemId: s.id, taxAmount: tax / 100, taxes });
     }
     if (s.tipMinor > 0) {
       const amount = s.tipMinor / 100;
@@ -70,11 +91,12 @@ export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, yea
   return rows;
 }
 
-/** Service sales of a year in the books' currency: count, kept and tips (whole currency units). */
+/** Service sales of a year in the books' currency: count, kept (net of tax), tax and tips (whole currency units). */
 export function serviceYear(sales: readonly ServiceSale[] | undefined, year: string, baseCurrency: string) {
-  let count = 0, kept = 0, tips = 0;
+  let count = 0, kept = 0, tax = 0, tips = 0;
   for (const r of serviceLedgerRows(sales, year, baseCurrency)) {
-    if (r.sourceType === SERVICE_SOURCE) { count += 1; kept += r.baseAmount; } else tips += r.baseAmount;
+    if (r.sourceType === SERVICE_SOURCE) { count += 1; kept += r.baseAmount; tax += r.taxAmount || 0; } else tips += r.baseAmount;
   }
-  return { count, kept: Math.round(kept * 100) / 100, tips: Math.round(tips * 100) / 100 };
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return { count, kept: round(kept), tax: round(tax), tips: round(tips) };
 }

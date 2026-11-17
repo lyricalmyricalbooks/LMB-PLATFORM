@@ -19,7 +19,7 @@ import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
-  withCode, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
+  withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
   peopleFor,
@@ -209,14 +209,14 @@ function NewBooking({ c }: { c: Copy }) {
           {info.services.map((s) => (
             <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" onClick={() => { setService(s); setStart(""); setAnswers({}); setProblems({}); setError(""); setStep("time"); }}>
               <h2>{s.name}</h2>
-              <span className="fm-book-price" translate="no">{s.priceMinor > 0 ? moneyText(s.priceMinor, currency) : c("bookTimeFree")}</span>
+              <span className="fm-book-price" translate="no">{s.priceMinor > 0 ? moneyText(s.priceMinor, currency) : c("bookTimeFree")}{!!s.taxMinor && <small> {c("bookTimePlusTax")}</small>}</span>
               {s.description && <p>{s.description}</p>}
               <span className="fm-book-meta fm-track-mono">
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
-                {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(s), currency), rest: moneyText(s.priceMinor - upFrontMinor(s), currency) })}</span>}
+                {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(withTax(s)), currency), rest: moneyText(withTax(s).priceMinor - upFrontMinor(withTax(s)), currency) })}</span>}
                 {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
                 {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: moneyText(s.packPriceMinor || 0, currency) })}</span>}
               </span>
@@ -253,7 +253,8 @@ function NewBooking({ c }: { c: Copy }) {
       {step === "time" && service && !!service.packVisits && !usePack && <PackOffer service={service} currency={currency} c={c} />}
 
       {step === "details" && service && start && (() => {
-        const priced = withCode(service, applied);
+        const priced = withCode(withTax(service), applied);
+        const taxMinor = applied ? applied.taxMinor || 0 : service.taxMinor || 0;
         // What the card page asks for now: what is paid when booked, less any gift card; nothing with a pack.
         const payNow = pack ? 0 : gift ? gift.payNowMinor : upFrontMinor(priced);
         return (
@@ -326,6 +327,7 @@ function NewBooking({ c }: { c: Copy }) {
             {chosen && <Row label={c("bookTimeWith")} value={chosen.name} />}
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
             {applied && <Row label={c("bookTimeDiscount")} value={`${applied.code} −${moneyText(applied.discountMinor, currency)}`} />}
+            {!pack && taxMinor > 0 && <Row label={c("bookTimeTax")} value={moneyText(taxMinor, currency)} />}
             {gift && <Row label={c("bookTimeGiftCard")} value={`••••${gift.last4} −${moneyText(gift.giftMinor, currency)}`} />}
             {pack && <Row label={c("bookTimePackLabelRow")} value={c("bookTimePackApplied", { last4: pack.last4, left: pack.left })} />}
             <div className="fm-track-total">
@@ -561,7 +563,7 @@ function ServiceMeta({ service, currency, c, paidWith = "" }: { service: Booking
   return (
     <p className="mt-4 fm-book-meta fm-track-mono">
       <span><Clock size={12} aria-hidden="true" /> {lengthText(service.minutes)}</span>
-      <span translate="no">{paidWith || (service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree"))}</span>
+      <span translate="no">{paidWith || (service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree"))}{!paidWith && !!service.taxMinor && service.priceMinor > 0 && <> {c("bookTimePlusTax")}</>}</span>
       {service.location && <span><MapPin size={12} aria-hidden="true" /> {service.location}</span>}
       {(service.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: service.places! })}</span>}
     </p>
@@ -957,6 +959,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
           <div className="fm-track-row"><span className="fm-track-mono">{c("bookTimeVideo")}</span><a className="text-right underline underline-offset-2" href={booking.meetUrl} target="_blank" rel="noopener noreferrer">{c("bookTimeJoin")}</a></div>
         )}
         {!!booking.discountMinor && <Row label={c("bookTimeDiscount")} value={`${booking.discountCode || ""} −${moneyText(booking.discountMinor, booking.currency)}`.trim()} />}
+        {!!booking.taxMinor && <Row label={c("bookTimeTax")} value={moneyText(booking.taxMinor, booking.currency)} />}
         {!!booking.giftMinor && <Row label={c("bookTimeGiftCard")} value={`••••${booking.giftCardLast4 || ""} −${moneyText(booking.giftMinor, booking.currency)}`} />}
         {!!booking.packLast4 && <Row label={c("bookTimePackLabelRow")} value={c("bookTimePackVisit", { last4: booking.packLast4, visit: booking.packVisit || 1, visits: booking.packVisits || 1 })} />}
         <div className="fm-track-total">
