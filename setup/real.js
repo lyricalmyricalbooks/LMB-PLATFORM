@@ -122,6 +122,8 @@ export async function sharedMakerConfig({ google, projectId, shopDomain, platfor
   const app = (await google.firebase.listWebApps(projectId)).find((a) => a.displayName === "Shop");
   if (!app) throw new Error(`${projectId} has no web app called Shop yet; make it once in the Firebase console`);
   return {
+    // The platform's own address: a test shop's sample billing points its admin at the billing door there.
+    platformUrl,
     sharedProject: projectId,
     webApp: await google.firebase.getWebAppConfig(projectId, app.appId),
     serviceKeyHash: await sharedServiceKeyHash(google, projectId),

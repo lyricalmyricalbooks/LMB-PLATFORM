@@ -41,6 +41,7 @@ import { connectPaymentsStep, paymentProviderOf } from "./payments.js";
 import { ensureServiceKey, hasServiceKey } from "./serviceKey.js";
 import { stockedIds, testCatalogue } from "./test-catalogue.js";
 import { writeTestSamples } from "./test-sample-data.js";
+import { SAMPLE_PLAN_DOC, testShopPlanDocument } from "../services/billing/sampleBilling.js";
 import { testShopKind } from "./testShopPlace.js";
 import { upkeepStep } from "./upkeep.js";
 import { spendGuardsStep } from "./spend.js";
@@ -207,6 +208,9 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     ...(appsOf(shop).includes("shop") && sellsServices(publishes(shop)) ? [{ path: FEATURES_PATH, data: { bookings: true, bookingsChangedBy: "setup" } }] : []),
     ...privateStart(shop, release.starterContent(shop)),
     ...(needsTestCatalogue(shop) ? testCatalogue(shop).shopDocs : []),
+    // A test shop is never billed, so its Settings › Plan and Billing show sample billing (services/billing/
+    // sampleBilling.js) through this plan copy. Only once the platform's address is known (config.platformUrl).
+    ...(shop.testShop === true && config.platformUrl ? [{ path: SAMPLE_PLAN_DOC, data: testShopPlanDocument(shop, { platformUrl: config.platformUrl, now: now() }) }] : []),
   ];
   const pageUrls = async (shop) => {
     const urls = {};

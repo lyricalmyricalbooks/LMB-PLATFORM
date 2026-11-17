@@ -70,7 +70,7 @@ import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./foundin
 import { createBillingHub, invoiceTax } from "./hub.js";
 import { siteUrlOf } from "../domains/names.js";
 import { DEFAULT_ALERT_CENTS, monthBounds, monthWords, paidShare, projectedCents } from "./runningCost.js";
-import { trackerFigures } from "./costTracker.js";
+import { trackerAnswer, trackerFigures } from "./costTracker.js";
 import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
 export { CARD_WARNING_DAYS, cardEnds, cardWords };
@@ -1331,23 +1331,10 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
       const alertCents = Number.isInteger(row.costAlert?.cents) ? row.costAlert.cents : DEFAULT_ALERT_CENTS;
       const fee = row.plan ? ownPrice(row).amount : 0;
       const figures = trackerFigures({ month, now: now(), record, history: row.runningCosts ?? {}, feeCents: fee, feeAfterCents: row.plan ? feeAfterOffer(row) : 0, rate, alertCents, paidFrom: row.trialEnd });
-      const money = (cents) => (Number.isInteger(cents) ? { cents, text: moneyText(cents, currency) } : null);
-      const short = (m) => new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", month: "short" }).format(new Date(monthBounds(m).start));
-      return {
-        month: figures.month, monthWords: figures.monthWords, monthName: figures.monthWords.split(" ")[0], day: figures.day, days: figures.days,
-        measured: figures.measured, currency, plusTax: tax, updatedAt: record?.updatedAt ?? null,
-        soFar: money(figures.soFar), monthEnd: money(figures.monthEnd),
-        groups: figures.groups.map((g) => ({ ...g, text: moneyText(g.cents, currency) })),
-        estimate: {
-          fee: money(figures.estimate.fee), discount: figures.estimate.discount ? money(figures.estimate.discount) : null,
-          percentOff: row.founding === true ? row.foundingPercentOff ?? null : null,
-          running: money(figures.estimate.running), beforeTax: money(figures.estimate.beforeTax), freeTrial: figures.estimate.freeTrial,
-        },
-        trend: figures.trend.map((t) => ({ month: t.month, words: short(t.month), now: t.now === true, ...(money(t.cents) ?? { cents: null, text: "" }) })),
-        lastMonth: figures.lastMonth ? { month: figures.lastMonth.month, monthWords: monthWords(figures.lastMonth.month), ...money(figures.lastMonth.cents) } : null,
-        average: money(figures.average), change: figures.change,
-        alert: { ...figures.alert, text: moneyText(figures.alert.cents, currency), watched: money(figures.alert.watched), sent: row.costAlert?.sentFor === month },
-      };
+      return trackerAnswer(figures, {
+        currency, money: (cents) => moneyText(cents, currency), plusTax: tax, updatedAt: record?.updatedAt ?? null,
+        percentOff: row.founding === true ? row.foundingPercentOff ?? null : null, alertSent: row.costAlert?.sentFor === month,
+      });
     },
 
     /**
