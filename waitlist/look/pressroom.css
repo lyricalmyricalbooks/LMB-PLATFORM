@@ -2530,9 +2530,9 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-textarea { min-height: 112px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card :is(.rp-input, .rp-textarea, .rp-select):focus { outline: none; box-shadow: 0 0 0 2px var(--rp-info); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card :is(.rp-input, .rp-textarea, .rp-select)[aria-invalid="true"] { box-shadow: inset 0 0 0 1.5px var(--rp-warning); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-card { background: var(--rp-surface-2); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-card { background: var(--rp-surface-2); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-card :is(.rp-input, .rp-textarea, .rp-select) { background-color: var(--rp-surface) !important; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card .rp-card .rp-card-actions { justify-content: flex-start; gap: 8px; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-card .rp-card-actions { justify-content: flex-start; gap: 8px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card-title { font-weight: 600; letter-spacing: -0.01em; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-toggle-track { border-radius: 999px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-toggle-track::after { border-radius: 50%; }
@@ -2549,3 +2549,9 @@ div.rp-listcard-main { cursor: default; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-card > .rp-card-head > :not(.rp-card-heading, .rp-card-fold) { grid-column: 1 / -1; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) .rp-fk-row > * { flex-basis: 100%; }
 }
+/* Settings polish, part 2: secondary buttons on Settings cards are soft filled pills, so "Copy link", "Check again"
+   or "Fill in missing rates" read as buttons rather than loose words. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-btn-secondary { border: 0; background: var(--rp-input-bg); color: var(--rp-text); box-shadow: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings .rp-fk-control:has(> span > .rp-select + .rp-btn) { background: transparent; box-shadow: none; }
