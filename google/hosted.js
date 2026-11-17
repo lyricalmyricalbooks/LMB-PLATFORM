@@ -6,7 +6,8 @@
 //
 // Stores, in the platform project's database:
 //   googleConnections/<shop id>   each shop's sealed Google tokens (tokens.js)
-//   googleStates/<state>          one-use sign-in states, 15 minutes each (service.js)
+//   googleStates/<state>          one-use sign-in states, 15 minutes each (a team member's: a day; service.js)
+//   googlePeople/<shop id>__<person>   a services shop's team member's own sealed tokens, for their busy times only
 //
 // A shop's own place comes from its registry row. In the shared system (`shared: true`) that is the folder
 // shops/<shop id> in the row's project (docs/shared-system.md); the platform never writes outside it. The settings are
@@ -105,10 +106,20 @@ export function googleStores(platform) {
     if (!SHOP_ID.test(String(shopId ?? ""))) throw new Error("not a shop id");
     return `googleConnections/${shopId}`;
   };
+  const personPath = (key) => {
+    const [shopId, person, ...rest] = String(key ?? "").split("/");
+    if (rest.length || !SHOP_ID.test(shopId ?? "") || !/^[A-Za-z0-9_-]{1,40}$/.test(person ?? "")) throw new Error("not a team member");
+    return `googlePeople/${shopId}__${person}`;
+  };
   return {
     connections: {
       get: (shopId) => platform.get(shopPath(shopId)),
       set: (shopId, value) => platform.set(shopPath(shopId), value),
+    },
+    // A team member's grant is keyed "<shop id>/<person>" (service.js personKey); its document name joins them with "__".
+    people: {
+      get: (key) => platform.get(personPath(key)),
+      set: (key, value) => platform.set(personPath(key), value),
     },
     states: {
       put: (state, value) => {

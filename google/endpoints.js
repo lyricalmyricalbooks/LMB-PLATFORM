@@ -15,7 +15,8 @@
 //                  the `drive.file` permission is enough for a sheet this app made (Google's Sheets scopes page);
 //                  spreadsheets.get and values.get read a sheet the press names by its link (`spreadsheets.readonly`,
 //                  "sensitive", not restricted)
-//   Calendar       developers.google.com/calendar/api/v3/reference/calendars/insert
+//   Calendar       developers.google.com/calendar/api/v3/reference/calendars/insert; freebusy/query for a team member's
+//                  busy times (the `calendar.freebusy` permission: when they are busy, never what)
 //   Business       developers.google.com/my-business/reference/accountmanagement/rest/v1/accounts/list
 //   Ads            developers.google.com/google-ads/api/reference/rpc (CustomerService.ListAccessibleCustomers,
 //                  ProductLinkService.CreateProductLink / RemoveProductLink)
@@ -73,6 +74,8 @@ export const SCOPES = Object.freeze({
   sheets: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   youtube: ["https://www.googleapis.com/auth/youtube.readonly"],
   calendar: ["https://www.googleapis.com/auth/calendar.app.created"],
+  // Each person on a services shop's team, signing in with their own Google account: only when they're busy, never what.
+  teamCalendars: ["https://www.googleapis.com/auth/calendar.freebusy"],
   businessProfile: ["https://www.googleapis.com/auth/business.manage"],
   ads: ["https://www.googleapis.com/auth/adwords"],
 });
@@ -82,7 +85,7 @@ export const SCOPES = Object.freeze({
  * (docs/google-verification.md) lists each permission under one of these, and a test keeps the two in step.
  */
 export const LAUNCH_PARTS = Object.freeze(["identity", "analytics", "searchConsole", "merchantCenter", "email", "drive", "sheets"]);
-export const LATER_PARTS = Object.freeze(["youtube", "calendar", "businessProfile", "ads"]);
+export const LATER_PARTS = Object.freeze(["youtube", "calendar", "teamCalendars", "businessProfile", "ads"]);
 
 /** Permissions Google calls restricted: they need a yearly outside security assessment, so none may be asked for. */
 export const RESTRICTED_SCOPES = Object.freeze([

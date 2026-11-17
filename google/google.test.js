@@ -55,8 +55,9 @@ async function setup({ env = ENV, shop = {}, google: googleOptions = {}, domains
   const shopFirebase = fakeShopFirebase();
   const domains = fakeDomainsCall({ waiting: domainsWaiting });
   const connections = fakeConnections();
+  const people = fakeConnections();
   const states = fakeStates();
-  const link = createGoogleLink({ config, google, connections, states, registry, auditLog, shopFirebase, domainsCall: domains.domainsCall, now });
+  const link = createGoogleLink({ config, google, connections, people, states, registry, auditLog, shopFirebase, domainsCall: domains.domainsCall, now });
   const call = (op, args = {}, key = KEY) =>
     handleGoogle({ method: "POST", path: "/shop", headers: { "X-Shop-Id": SHOP, Authorization: `Bearer ${key}` }, body: { op, args } }, { service: link.service });
   /** Connect Google from the shop: the link, Google's Allow page (pretend), the answer back. */
@@ -71,7 +72,15 @@ async function setup({ env = ENV, shop = {}, google: googleOptions = {}, domains
   const step = async (name) => (await shopRow()).google?.steps?.find((s) => s.step === name);
   const audit = () => [...(auditLog.entries.get(SHOP)?.values() ?? [])];
   const tick = (ms) => { clock += ms; };
-  return { config, google, registry, auditLog, shopFirebase, domains, connections, states, link, call, signIn, shopRow, step, audit, tick, now };
+  /** A team member opens the link the shop passed on, allows (or not) on Google's page, and lands on the platform's page. */
+  const personSignIn = async (person, { email = "sam@example.com", scopes, error } = {}) => {
+    const answer = await call("google.personLink", { person });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const state = new URL(answer.body.url).searchParams.get("state");
+    const query = error ? { state, error } : { state, code: google.allow({ email, scopes }) };
+    return { link: answer.body, back: await handleGoogle({ method: "GET", path: "/google/oauth", query }, { service: link.service }) };
+  };
+  return { config, google, registry, auditLog, shopFirebase, domains, connections, people, states, link, call, signIn, personSignIn, shopRow, step, audit, tick, now };
 }
 
 const changeNames = (t) => t.google.calls.map((c) => c[0]);
@@ -995,4 +1004,81 @@ test("a booking goes into the shop's Colophon calendar, with a Meet call when as
   // The press switches the Calendar box off: nothing more is written.
   await t.call("google.turnOff", { extras: ["calendar"] });
   assert.deepEqual((await t.call("google.bookingEvent", EVENT)).body, { available: false });
+});
+
+// ---- A services shop's team: each person's own calendar closes their busy times (Services plan 2, B6) ----
+
+test("a team member links their own calendar: only busy times are asked for, and the shop reads them by person", async () => {
+  const t = await setup();
+  const { link, back } = await t.personSignIn("ana");
+  // Only the sign-in basics and free/busy: never the shop's Analytics, Shopping or anything else.
+  const asked = new URL(link.url).searchParams.get("scope").split(" ");
+  assert.deepEqual(asked.sort(), [...SCOPES.identity, ...SCOPES.teamCalendars].sort());
+  assert.ok(link.expiresAt * 1000 - t.now() >= 23 * 3600 * 1000, "the link lasts a day: it is passed on to the person");
+  // They land on a short page from the platform, not the shop's admin.
+  assert.equal(back.status, 200);
+  assert.match(back.html, /Your calendar is linked/);
+  assert.equal(back.body.calendar, "linked");
+  assert.ok(!t.connections.map.has(SHOP), "the shop's own Google link is untouched");
+  assert.deepEqual((await t.shopRow()).google.people, ["ana"]);
+  const status = await t.call("google.peopleStatus", { people: ["ana", "ben"] });
+  assert.deepEqual(status.body.people.ben, { linked: false });
+  assert.equal(status.body.people.ana.accountEmail, "sam@example.com");
+
+  t.google.world.busy.set("sam@example.com", [
+    { start: "2026-11-02T14:00:00.000Z", end: "2026-11-02T15:00:00.000Z" },
+    { start: "2027-03-01T14:00:00.000Z", end: "2027-03-01T15:00:00.000Z" },
+  ]);
+  const busy = await t.call("google.peopleBusy", { people: ["ana", "ben"], from: "2026-10-28T00:00:00.000Z", to: "2026-12-28T00:00:00.000Z" });
+  assert.deepEqual(busy.body, { available: true, busy: { ana: [{ start: "2026-11-02T14:00:00.000Z", end: "2026-11-02T15:00:00.000Z" }], ben: [] } });
+  assert.equal((await t.call("google.peopleBusy", { people: ["ana"], from: "2026-10-28T00:00:00.000Z", to: "2027-01-28T00:00:00.000Z" })).status, 400, "62 days at most");
+  assert.equal((await t.call("google.peopleBusy", { people: ["../x"], from: "2026-10-28T00:00:00.000Z", to: "2026-11-28T00:00:00.000Z" })).status, 400);
+  assert.equal((await t.call("google.personLink", { person: "a/b" })).status, 400);
+
+  // Unlinking gives Colophon's access back (their account is nobody else's here) and forgets the tokens.
+  const off = await t.call("google.personDisconnect", { person: "ana" });
+  assert.deepEqual(off.body, { available: true, forgotten: true });
+  assert.ok(t.google.calls.some((c) => c[0] === "revoke"));
+  assert.deepEqual((await t.call("google.peopleStatus", { people: ["ana"] })).body.people.ana, { linked: false });
+  assert.deepEqual((await t.shopRow()).google.people, []);
+  assert.deepEqual((await t.call("google.peopleBusy", { people: ["ana"], from: "2026-10-28T00:00:00.000Z", to: "2026-11-28T00:00:00.000Z" })).body.busy, { ana: [] });
+});
+
+test("a team member who says no, or unticks the calendar, links nothing", async () => {
+  const t = await setup();
+  const no = await t.personSignIn("ana", { error: "access_denied" });
+  assert.match(no.back.html, /Nothing was linked/);
+  const partly = await t.personSignIn("ana", { scopes: SCOPES.identity });
+  assert.equal(partly.back.body.calendar, "denied");
+  assert.ok(t.google.calls.some((c) => c[0] === "revoke"), "the part they did allow is given straight back");
+  assert.deepEqual((await t.call("google.peopleStatus", { people: ["ana"] })).body.people.ana, { linked: false });
+  // A link is used once.
+  const again = await handleGoogle({ method: "GET", path: "/google/oauth", query: { state: new URL(no.link.url).searchParams.get("state"), code: t.google.allow({ email: "sam@example.com" }) } }, { service: t.link.service });
+  assert.equal(again.status, 400);
+});
+
+test("a team member using the owner's own Google account is unlinked without cutting the shop off", async () => {
+  const t = await setup();
+  await t.signIn({ extras: ["calendar"] });
+  await t.personSignIn("ana", { email: "owner@example.com" });
+  const before = t.google.calls.filter((c) => c[0] === "revoke").length;
+  await t.call("google.personDisconnect", { person: "ana" });
+  assert.equal(t.google.calls.filter((c) => c[0] === "revoke").length, before, "the shared grant is only forgotten here");
+  assert.deepEqual((await t.call("google.status")).body.connected, true);
+});
+
+test("team calendars wait for the later round, and closing the shop forgets every link", async () => {
+  const off = await setup({ env: LAUNCH });
+  assert.deepEqual((await off.call("google.personLink", { person: "ana" })).body, { available: false });
+  assert.deepEqual((await off.call("google.peopleBusy", { people: ["ana"], from: "2026-10-28T00:00:00.000Z", to: "2026-11-28T00:00:00.000Z" })).body, { available: false, busy: {} });
+
+  const t = await setup();
+  await t.signIn();
+  await t.personSignIn("ana");
+  await t.personSignIn("ben", { email: "ben@example.com" });
+  await t.link.teardown.teardownOnClose(SHOP);
+  for (const person of ["ana", "ben"]) {
+    const conn = t.people.map.get(`${SHOP}/${person}`);
+    assert.ok(conn.revokedAt && !conn.sealed, `${person}'s tokens are forgotten`);
+  }
 });

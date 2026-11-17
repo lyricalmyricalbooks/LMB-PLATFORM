@@ -1398,6 +1398,14 @@ the service and are free; the owner may name another. The owner books with `owne
 Emails say "With: <name>" and the owner's feed puts the name in the title. No people listed: no `p`/`r`, no staff fields,
 times as before. Tests: bookings.test.js › staff and rooms.
 
+**Each person's Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** admin op
+`teamCalendar` (status, link, unlink) asks the platform through `googleCalendarSync` (`personLink`, `peopleStatus`,
+`peopleBusy`, `personDisconnect`; only free/busy is read). `sweepTeamCalendars` (in `bookingSweep`, at most every 15
+minutes, 60 days ahead; the status step forces one when the last is over a minute old) writes each busy span into
+`bookingDays/<day>` as item `gcal~<person>~<start>~<end>` `{ start, end, p, g: true }`, so `busyFrom`, `freeTimes`,
+`whoIsFree` and the booking transactions block it for that person only. State `bookingSettings/googleBusy` `{ at, spans }`;
+only changed days are written, and a calendar that couldn't be read keeps its old spans. Tests: bookings.test.js.
+
 **Each person's day (17 November 2026, Services plan phase 4 part 2, `tasks/todo/2026-11-17-team-day.md`):** op
 `calendarFeed` with `staffId` makes that person's private link (`bookingFeed/p-<id>` with `staffId`, `staffName`; the
 owner's stays `main`). `bookingsFeed` reads the `bookingFeed` docs (limit 200), compares every token with `sameHash`, and
