@@ -64,6 +64,28 @@ export const PUBLISHES = Object.freeze({
 export const ADDRESS_SUFFIX = ".web.app";
 
 /**
+ * "Anything else you'll sell?" (Ways to sell, beta; 17 November 2026): the six more things any shop can sell, as an
+ * optional pick-any question. The ids are the ways' own (shared/ways/ways.js; ways.test.js checks they match, this
+ * file takes no imports). The answer travels with the shop as `alsoSells`: it shows Julian what new shops want, and the
+ * shop's Settings › Ways to sell says which ways the owner asked for. It turns nothing on by itself.
+ */
+export const ALSO_SELLS = Object.freeze({
+  id: "alsoSells",
+  label: "Anything else you'll sell?",
+  hint: "Pick any. They're new, so we'll open them for you one by one.",
+  options: Object.freeze([
+    Object.freeze({ id: "events", label: "Events & tickets" }),
+    Object.freeze({ id: "classes", label: "Classes & workshops" }),
+    Object.freeze({ id: "digital", label: "Digital goods" }),
+    Object.freeze({ id: "giving", label: "Donations & tips" }),
+    Object.freeze({ id: "memberships", label: "Memberships" }),
+    Object.freeze({ id: "rentals", label: "Rentals" }),
+  ]),
+});
+/** The known picks in a sent answer, in the question's order; anything else is left out. */
+export const cleanAlsoSells = (value) => (Array.isArray(value) ? ALSO_SELLS.options.map((o) => o.id).filter((id) => value.includes(id)) : []);
+
+/**
  * The front door's first shop question (14 November 2026, Julian): what kind of shop. A bookshop gets the book
  * features (authors, ISBNs, royalties, artist payouts) and book words; a product shop (called "General shop" at
  * first) gets product words and none of the book-only pages; a services shop (a salon, a studio, a tutor) gets
@@ -220,6 +242,8 @@ export function checkSignup(input) {
   if (paymentProvider === "square" && country && !SQUARE_COUNTRIES.includes(country)) problems.paymentProvider = squareWords(country);
   // The press's own time zone, read from its browser (app.js): its shop's day follows it. Left out when unreadable (Eastern time).
   const timeZone = typeof input?.timeZone === "string" && /^[A-Za-z_]+\/[A-Za-z0-9_+\-/]{1,60}$/.test(input.timeZone) ? input.timeZone : null;
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}), ...(timeZone ? { timeZone } : {}) };
+  // "Anything else you'll sell?" (ALSO_SELLS): left out when nothing was picked.
+  const alsoSells = cleanAlsoSells(input?.[ALSO_SELLS.id]);
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}), ...(timeZone ? { timeZone } : {}), ...(alsoSells.length ? { alsoSells } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

@@ -20,7 +20,7 @@ first step: the switches themselves. No way's own pages are built yet.
 - [x] Shop rules: `firstWeek/start` accepts `ways` (the six ids, true or false only), with emulator checks including
       the two-shop one. `platform/features` stays platform-only.
 - [x] Release note.
-- [ ] Next, its own pull request: the optional sign-up question "Anything else you'll sell?".
+- [x] Next, its own pull request: the optional sign-up question (`2026-11-17-ways-to-sell-signup-question.md`).
 - [ ] Then Events E1 (pages and tickets), which sets `events` to built and adds its menu, pages and control room use.
 
 ## Verify

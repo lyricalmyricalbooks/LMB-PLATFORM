@@ -80,10 +80,11 @@ test("the shop's record shows each way, and whether the owner switched it on", a
   await w.desk.set(ADMIN, { shopId: SHOP, way: "events", on: true });
   await w.desk.set(ADMIN, { shopId: SHOP, way: "rentals", on: true });
   // The owner's own switches: one way the platform allows, one it doesn't.
-  await w.shopData.set(SHOP, START_DOC, { publishes: "books", ways: { events: true, digital: true } });
+  await w.shopData.set(SHOP, START_DOC, { publishes: "books", ways: { events: true, digital: true }, alsoSells: ["rentals", "classes"] });
   const rows = Object.fromEntries((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.map((way) => [way.id, way]));
   assert.deepEqual([rows.events.on, rows.events.ownerOn, rows.events.changedBy], [true, true, "admin@example.com"]);
   assert.deepEqual([rows.rentals.on, rows.rentals.ownerOn], [true, false]);
+  assert.deepEqual([rows.rentals.asked, rows.classes.asked, rows.events.asked], [true, true, false], "what the owner asked for at sign-up");
   assert.deepEqual([rows.digital.built, rows.digital.on, rows.digital.ownerOn], [false, false, false]);
   assert.deepEqual(waysOn(await w.shopData.get(SHOP, FEATURES_DOC), await w.shopData.get(SHOP, START_DOC)), ["events"]);
 });
@@ -107,8 +108,11 @@ test("a way turned on before can always be turned off, even one no longer built"
 test("the overview lists live shops with a website and counts shops per way", async () => {
   const w = await world();
   await w.desk.set(ADMIN, { shopId: "test-goods", way: "events", on: true });
+  await w.registry.updateShop(SHOP, { alsoSells: ["classes", "events", "junk"] });
   const view = await w.desk.overview(ADMIN);
   assert.deepEqual(view.shops.map((s) => [s.shopId, s.ways, s.testShop]), [["test-goods", ["events"], true], [SHOP, [], false]]);
+  assert.deepEqual(view.shops[1].asked, ["events", "classes"]);
+  assert.deepEqual(view.ways.map((way) => way.asked), [1, 1, 0, 0, 0, 0]);
   assert.deepEqual(view.totals, { shops: 2, withAny: 1 });
   assert.deepEqual(view.ways.map((way) => [way.id, way.built, way.shops]).slice(0, 2), [["events", true, 1], ["classes", false, 0]]);
 });

@@ -61,12 +61,14 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
       if (words) return { shopId, ways: null, words };
       try {
         const features = (await shopData.get(shopId, FEATURES_DOC)) ?? {};
-        const owner = onIn((await shopData.get(shopId, START_DOC))?.ways);
+        const start = await shopData.get(shopId, START_DOC);
+        const owner = onIn(start?.ways);
+        const asked = Array.isArray(start?.alsoSells) ? start.alsoSells : [];
         const allowed = onIn(features.ways);
         return {
           shopId,
           ways: ways.map((way) => ({
-            id: way.id, label: way.label, built: way.built === true, on: allowed.includes(way.id), ownerOn: allowed.includes(way.id) && owner.includes(way.id),
+            id: way.id, label: way.label, built: way.built === true, on: allowed.includes(way.id), ownerOn: allowed.includes(way.id) && owner.includes(way.id), asked: asked.includes(way.id),
             changedAt: features.waysChanged?.[way.id]?.at ?? null, changedBy: features.waysChanged?.[way.id]?.by ?? null,
           })),
         };
@@ -79,10 +81,10 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
     async overview(claims) {
       adminOf(claims, admins, now().getTime());
       const shops = (await registry.listShops()).filter((row) => !notHere(row))
-        .map((row) => ({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, testShop: row.testShop === true, ways: (Array.isArray(row.waysBeta) ? row.waysBeta : []).filter((id) => ids.includes(id)) }))
+        .map((row) => ({ shopId: row.shopId, pressName: row.pressName ?? row.shopId, testShop: row.testShop === true, ways: (Array.isArray(row.waysBeta) ? row.waysBeta : []).filter((id) => ids.includes(id)), asked: ids.filter((id) => Array.isArray(row.alsoSells) && row.alsoSells.includes(id)) }))
         .sort((a, b) => b.ways.length - a.ways.length || String(a.pressName).localeCompare(String(b.pressName)));
       return {
-        ways: ways.map((way) => ({ id: way.id, label: way.label, built: way.built === true, shops: shops.filter((s) => s.ways.includes(way.id)).length })),
+        ways: ways.map((way) => ({ id: way.id, label: way.label, built: way.built === true, shops: shops.filter((s) => s.ways.includes(way.id)).length, asked: shops.filter((s) => s.asked.includes(way.id)).length })),
         totals: { shops: shops.length, withAny: shops.filter((s) => s.ways.length).length },
         shops,
       };

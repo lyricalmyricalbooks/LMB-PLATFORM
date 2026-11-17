@@ -50,6 +50,7 @@ import { botCheckStep } from "./botCheck.js";
 import { handoverStep } from "./handover.js";
 import { domainOrigins, siteUrlOf } from "../services/domains/names.js";
 import { sellsServices } from "../shared/sells/sells.js";
+import { WAY_IDS } from "../shared/ways/ways.js";
 
 export const OWNER_WELCOME = "owner-welcome";
 // Step 14 after a plan change adds an app: the link to the new app.
@@ -62,6 +63,9 @@ export function appsOf(shop) {
 
 /** The sign-up answer for the first-week list (signup/form.js QUESTION ids), or null when skipped or unknown. */
 export const sellingToday = (shop) => (typeof shop.sellingToday === "string" && /^[a-z]{2,20}$/.test(shop.sellingToday) ? shop.sellingToday : null);
+
+/** The ways to sell (beta) the press asked for at sign-up ("Anything else you'll sell?"; shared/ways/ways.js), or []. */
+export const alsoSells = (shop) => (Array.isArray(shop.alsoSells) ? WAY_IDS.filter((id) => shop.alsoSells.includes(id)) : []);
 
 /** Where a shop's feature switches live in its own folder (control-room/bookingsBeta.js FEATURES_DOC). */
 const FEATURES_PATH = "platform/features";
@@ -201,7 +205,7 @@ export function laterSteps({ deploy, envFiles, google, shopData, providers, emai
     // Overview › Choose your look and Set up your shop (plans 6.3, 6.9): the sign-up answers shape the theme suggestions
     // and the steps. Written once; the owner's ticks and choice stay.
     ...(appsOf(shop).includes("shop")
-      ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan } }]
+      ? [{ path: "firstWeek/start", data: { sellingToday: sellingToday(shop), publishes: publishes(shop), country: countryOf(shop), plan: shop.plan, ...(alsoSells(shop).length ? { alsoSells: alsoSells(shop) } : {}) } }]
       : []),
     // A services shop (a salon, a studio, a tutor) is built around Bookings, so it starts with Bookings on
     // (control-room/bookingsBeta.js FEATURES_DOC). Written once: turning it off in the control room later stays off.

@@ -23,7 +23,12 @@ export function waySavedWords(way: Way, on: boolean): string {
   return on ? `${way.label} is on.` : `${way.label} is off. Everything you made with it is kept.`;
 }
 
-function WayRow({ way, on, busy, onChange }: { way: Way; on: boolean; busy: boolean; onChange: (on: boolean) => void }) {
+/** The line under a way: its own, with a nudge when the owner asked for it at sign-up and hasn't switched it on. */
+export function wayLine(way: Way, asked: boolean, on: boolean): string {
+  return asked && !on ? `${way.line} You asked for this when you signed up.` : way.line;
+}
+
+function WayRow({ way, on, asked, busy, onChange }: { way: Way; on: boolean; asked: boolean; busy: boolean; onChange: (on: boolean) => void }) {
   const id = useId();
   return (
     <div className="rp-fk-toggle">
@@ -32,7 +37,7 @@ function WayRow({ way, on, busy, onChange }: { way: Way; on: boolean; busy: bool
           <span id={id}>{way.label}</span>
           <StatusBadge tone="info" glyph={false}>Beta</StatusBadge>
         </span>
-        <span className="rp-fk-hint">{way.line}</span>
+        <span className="rp-fk-hint">{wayLine(way, asked, on)}</span>
       </span>
       <button type="button" role="switch" aria-checked={on} aria-labelledby={id} disabled={busy} className="rp-fk-switch" onClick={() => onChange(!on)} />
     </div>
@@ -42,10 +47,11 @@ function WayRow({ way, on, busy, onChange }: { way: Way; on: boolean; busy: bool
 export function WaysToSellCard() {
   const allowed = useWaysAllowed();
   const [chosen, setChosen] = useState<WayId[] | null>(null);
+  const [asked, setAsked] = useState<string[]>([]);
   const [busy, setBusy] = useState<WayId | null>(null);
   useEffect(() => {
     let live = true;
-    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => { if (live) setChosen(waysIn(doc?.ways)); }).catch(() => { if (live) setChosen([]); });
+    Promise.resolve().then(() => adminApi.getFirstWeek()).then((doc) => { if (live) { setAsked(Array.isArray(doc?.alsoSells) ? doc.alsoSells : []); setChosen(waysIn(doc?.ways)); } }).catch(() => { if (live) setChosen([]); });
     return () => { live = false; };
   }, []);
   const shown = waysShown(allowed);
@@ -64,7 +70,7 @@ export function WaysToSellCard() {
   };
   return (
     <FormSection title="Ways to sell" description="More things your shop can sell. These are new, so each is marked Beta.">
-      {shown.map((way) => <WayRow key={way.id} way={way} on={chosen.includes(way.id)} busy={busy === way.id} onChange={(on) => { void set(way, on); }} />)}
+      {shown.map((way) => <WayRow key={way.id} way={way} on={chosen.includes(way.id)} asked={asked.includes(way.id)} busy={busy === way.id} onChange={(on) => { void set(way, on); }} />)}
     </FormSection>
   );
 }

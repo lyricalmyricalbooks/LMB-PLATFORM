@@ -4,7 +4,7 @@
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { COUNTRIES, GENERAL_SELLS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
+import { ALSO_SELLS, COUNTRIES, GENERAL_SELLS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
 import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
@@ -244,6 +244,15 @@ const SELLING_TODAY = [
 $("#today-choices").replaceChildren(...SELLING_TODAY.map((o) => {
   return choice("sellingToday", o.id, o.label);
 }));
+// "Anything else you'll sell?" (signup/form.js ALSO_SELLS): six more ways to sell, pick any; each says Beta.
+$("#also-label").append(ALSO_SELLS.label, " ", Object.assign(document.createElement("span"), { className: "fd-optional", textContent: "(optional)" }));
+$("#also-hint").textContent = ALSO_SELLS.hint;
+$("#also-choices").replaceChildren(...ALSO_SELLS.options.map((o) => {
+  const label = choice(ALSO_SELLS.id, o.id, o.label);
+  label.querySelector("input").type = "checkbox";
+  label.append(Object.assign(document.createElement("span"), { className: "fd-beta", textContent: "Beta" }));
+  return label;
+}));
 $("#country").replaceChildren(new Option("Choose a country", ""), ...Object.entries(COUNTRIES).map(([code, c]) => new Option(c.name, code)));
 
 const startForm = $("#start-form");
@@ -325,6 +334,7 @@ function fillAnswers() {
   for (const input of startForm.querySelectorAll("input[name=does]")) input.checked = type === "services" && input.value === press.sells;
   showKind();
   for (const input of startForm.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
+  for (const input of startForm.querySelectorAll(`input[name=${ALSO_SELLS.id}]`)) input.checked = (press.alsoSells ?? []).includes(input.value);
   // Not answered yet: start from the country the computer's clock is set to, when we can tell and serve it.
   startForm.country.value = press.country in COUNTRIES ? press.country : countryFromTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   showName();
@@ -368,7 +378,7 @@ function checkAnswers(answers, { terms = true } = {}) {
 const readAnswers = () => {
   const shopType = pickedValue("shopType");
   const sells = shopType === "books" ? bookAnswer : shopType === "general" ? pickedValue("sells") : shopType === "services" ? pickedValue("does") : "";
-  return { pressName: startForm.pressName.value.trim(), shopType, sells, country: startForm.country.value, sellingToday: pickedValue("sellingToday"), termsAccepted: startForm.termsAccepted.checked };
+  return { pressName: startForm.pressName.value.trim(), shopType, sells, country: startForm.country.value, sellingToday: pickedValue("sellingToday"), alsoSells: [...startForm.querySelectorAll(`input[name=${ALSO_SELLS.id}]:checked`)].map((input) => input.value), termsAccepted: startForm.termsAccepted.checked };
 };
 
 // Design my shop first: the answers are saved (no store is made, no terms needed yet), then the real designer opens

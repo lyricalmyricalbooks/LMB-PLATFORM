@@ -320,6 +320,7 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("a way to sell must be one of the six", assertFails(setDoc(doc(admin, "firstWeek/start"), { ways: { lottery: true } }, { merge: true })));
   await check("a way to sell is on or off, nothing else", assertFails(setDoc(doc(admin, "firstWeek/start"), { ways: { events: "yes" } }, { merge: true })));
   await check("ways to sell must be a list of switches", assertFails(setDoc(doc(admin, "firstWeek/start"), { ways: "events" }, { merge: true })));
+  await check("admin can't add to what sign-up asked for", assertFails(setDoc(doc(admin, "firstWeek/start"), { alsoSells: ["events"] }, { merge: true })));
   await check("admin can't change the sign-up answer", assertFails(setDoc(doc(admin, "firstWeek/start"), { sellingToday: "fairs" }, { merge: true })));
   await check("admin can't change the plan", assertFails(setDoc(doc(admin, "firstWeek/start"), { plan: "both" }, { merge: true })));
 }

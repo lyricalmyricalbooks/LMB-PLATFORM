@@ -33,7 +33,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { profileProblems, profileScript } from "../profile/profile.js";
 import { REGION, STOCKROOM_DATABASE, shopProblems, shopProfile } from "./steps.js";
-import { envFileText, laterSteps } from "./later-steps.js";
+import { alsoSells, envFileText, laterSteps } from "./later-steps.js";
 import { ensureShopTenant, tenantIdOf } from "./shopTenant.js";
 import { StepWaiting } from "./runner.js";
 import { domainOrigins, normalDomain } from "../services/domains/names.js";
@@ -196,6 +196,8 @@ export function sharedShopSteps({ google, shared, registry, shopData, stockroom,
           ...(shop.testShop === true && normalDomain(shop.freeAddress ?? "") ? { freeAddress: normalDomain(shop.freeAddress) } : {}),
           // What a test shop sells (setup/testShopPlace.js): the book test shop or the general one.
           ...(shop.testShop === true && /^[a-z]{2,20}$/.test(shop.publishes ?? "") ? { publishes: shop.publishes } : {}),
+          // The ways to sell (beta) the press asked for at sign-up, for Shops › Ways to sell (beta) in the control room.
+          ...(alsoSells(shop).length ? { alsoSells: alsoSells(shop) } : {}),
         });
       },
     },
