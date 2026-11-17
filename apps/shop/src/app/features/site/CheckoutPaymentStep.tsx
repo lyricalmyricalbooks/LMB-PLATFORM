@@ -9,7 +9,7 @@ import { SectionHead } from "./CheckoutFields";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 
-export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoice, formatPrice, finalTotal, payTabs, stripeOption, hasStripe, hasPaypal, isCompleting, selectedPaymentMethod, setSelectedPaymentMethod, enabledManualMethods, hasCodeBoxes, codeBoxes, holdIssues, notice, noticeRef, catalogState, termsRequired, termsAccepted, setTermsAccepted, termsError, policyLinks, payDisabled, payLabel, payTotal, checkoutPolicies, digitalConsentNeeded = false, digitalConsent = false, setDigitalConsent = () => {}, digitalConsentError = false }: {
+export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoice, formatPrice, finalTotal, payTabs, stripeOption, hasStripe, hasPaypal, isCompleting, selectedPaymentMethod, setSelectedPaymentMethod, enabledManualMethods, hasCodeBoxes, codeBoxes, holdIssues, notice, noticeRef, catalogState, termsRequired, termsAccepted, setTermsAccepted, termsError, policyLinks, payDisabled, payLabel, payTotal, checkoutPolicies, digitalConsentNeeded = false, digitalConsent = false, setDigitalConsent = () => {}, digitalConsentError = false, newsTickShown = false, joinNews = false, setJoinNews = () => {} }: {
   c: Copy; mark: (key: string) => string | null; checkoutDesign: any; needsDeliveryChoice: boolean;
   formatPrice: (priceInCAD: number) => string; finalTotal: number; payTabs: boolean; stripeOption: React.ReactNode;
   hasStripe: boolean; hasPaypal: boolean; isCompleting: boolean; selectedPaymentMethod: string; setSelectedPaymentMethod: (method: string) => void;
@@ -18,6 +18,8 @@ export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoi
   catalogState: "loading" | "ready" | "failed"; termsRequired: boolean; termsAccepted: boolean; setTermsAccepted: (accepted: boolean) => void;
   termsError: boolean; policyLinks: React.ReactNode; payDisabled: boolean; payLabel: string; payTotal: string; checkoutPolicies: string[];
   digitalConsentNeeded?: boolean; digitalConsent?: boolean; setDigitalConsent?: (agreed: boolean) => void; digitalConsentError?: boolean;
+  /** A free download (Digital D2c): an optional tick to join the shop's mailing list (double opt-in after the order). */
+  newsTickShown?: boolean; joinNews?: boolean; setJoinNews?: (join: boolean) => void;
 }) {
   return (
     <section className="fm-co-section">
@@ -85,6 +87,15 @@ export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoi
             <span>{c("coDigitalConsent")}</span>
           </label>
           {digitalConsentError && <p id="checkout-digital-consent-error" className="mt-1 text-xs" style={{ color: "var(--danger, #b4271a)" }}>{c("coErrDigitalConsent")}</p>}
+        </div>
+      )}
+      {newsTickShown && c("coNewsletterTick") && (
+        <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Newsletter tick box" className="text-sm leading-6">
+          <label htmlFor="checkout-join-news" className="flex items-start gap-2.5">
+            <input id="checkout-join-news" type="checkbox" checked={joinNews} onChange={e => setJoinNews(e.target.checked)}
+              className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--accent)]" />
+            <span>{c("coNewsletterTick")}</span>
+          </label>
         </div>
       )}
       {/* The button's name is its visible words (accessibility check, plan 8.8): the space between them is ignored by

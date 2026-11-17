@@ -996,3 +996,11 @@ Studio check: "the Classes page opens in the designer" in `scripts/studio-e2e.mj
 (`Course` in `ClassesPage.tsx`, words `classesCourses`, `classesCourseDates`; it reuses the `classesDay` and
 `classesSession` regions). Book a time shows a course's dates in place of the time picker and starts it on its first
 date (`courseStarts` on the service; words `bookTimeCourse*`); the booking page lists the dates and hides Move.
+
+## Newsletter tick on free downloads (Digital D2c, Beta, 17 November 2026)
+
+A free order of downloads only (`freeDownloadNewsShown` in `freeDownloadNews.ts`: total before gift cards 0, a download,
+nothing physical) shows the tick box `checkout-join-news` above Pay (`CheckoutPaymentStep`, data-studio-label "Newsletter
+tick box"), never ticked for the buyer. Words: Text & labels › Checkout › `coNewsletterTick` (French twin in
+`frenchCopy.ts`); empty hides the box. Ticked, the free-order path calls `subscribeNewsletter(email, "free-download")`
+after the order completes, so the usual double opt-in email goes and a failed sign-up never stops the order.

@@ -928,6 +928,7 @@ export const FRENCH_COPY: Record<string, string> = {
   coErrTerms: "Cochez la case pour accepter nos politiques avant de payer.",
   coDigitalConsent: "Rendez mes articles numériques disponibles tout de suite. Je comprends que cela met fin à mon droit d'annuler ces articles dans les 14 jours.",
   coErrDigitalConsent: "Cochez la case pour recevoir vos articles numériques tout de suite, ou retirez-les de votre panier.",
+  coNewsletterTick: "Envoyez-moi les nouvelles de cette boutique par courriel. Je peux arrêter à tout moment.",
   coFreeOrderError: "Nous n'avons pas pu finaliser votre commande gratuite. Veuillez réessayer.",
   coNoShipping: "Nous n'offrons pas la livraison de cette commande vers {country} pour le moment. Essayez un autre pays ou écrivez-nous pour une soumission sur mesure.",
   coItemCountOne: "{count} article",

@@ -1,4 +1,5 @@
 import { readCartDestination, prefillCartAddress } from "./features/site/cartDestination";
+import { freeDownloadNewsShown } from "./features/site/freeDownloadNews";
 import { orderAcquisition } from "./lib/visitSource";
 import { regionProps } from "./features/site/storefrontRegions";
 import { TRACKING_CSS } from "./features/site/trackingStyle";
@@ -15,6 +16,7 @@ import { amountIn, orderMoney, orderChargedTotal, totalNeedsConfirming } from ".
 import { cardAttemptKey, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
 import { SALE_POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
 import { DIGITAL_CONSENT_NOTE, needsDigitalConsent } from "./features/site/digitalConsent";
+import { subscribeNewsletter } from "./features/site/newsletterSignup";
 import { ChevronLeft, Tag, X, AlertCircle, CreditCard, Package, CheckCircle2, Loader2, Lock, Building } from "lucide-react";
 import { m } from "motion/react";
 import { adminApi } from "./admin/api";
@@ -124,6 +126,8 @@ export function Checkout() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [digitalConsent, setDigitalConsent] = useState(false);
   const [digitalConsentError, setDigitalConsentError] = useState(false);
+  // A free download (Digital D2c): the shopper may tick to join the mailing list; asked only after the order goes through.
+  const [joinNews, setJoinNews] = useState(false);
   const [termsError, setTermsError] = useState(false);
   // Per-field problems found when the shopper pressed Pay (cleared as each is fixed).
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailField, string>>>({});
@@ -1032,6 +1036,8 @@ export function Checkout() {
   }, [giftCards, beforeGiftCards, giftCardLinesTotal]);
   const giftCardAmount = giftCardUse.reduce((sum, card) => sum + card.minor, 0) / 100;
   const finalTotal      = Math.round((beforeGiftCards - giftCardAmount) * 100) / 100;
+  // Free downloads only (Digital D2c): nothing to pay before gift cards, and nothing in the bag to post.
+  const newsTickShown = freeDownloadNewsShown(beforeGiftCards, hasDownload, catalogItems);
   // Tax is a real figure (even CA$0.00) once the tax rules are loaded and the address it
   // depends on names a country and, where it has a list, a recognised province/state.
   const taxAddressKnown = (address: any) => {
@@ -1389,6 +1395,8 @@ export function Checkout() {
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw discountRejection(result) || serverRefusal(response, result) || new CopyError(checkoutDesign, "coFreeOrderError");
+        // The usual double opt-in: a confirmation email; the order never waits on it or fails because of it.
+        if (joinNews && newsTickShown) await subscribeNewsletter(customer.email, "free-download").catch(() => {});
         purchaseNavigating.current = true;
         window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${encodeURIComponent(freeOrderId)}`;
         return;
@@ -2114,6 +2122,7 @@ export function Checkout() {
               enabledManualMethods={enabledManualMethods} hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} holdIssues={holdIssues} notice={notice} noticeRef={noticeRef} catalogState={catalogState}
               termsRequired={termsRequired} termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} termsError={termsError} policyLinks={policyLinks}
               digitalConsentNeeded={digitalConsentNeeded} digitalConsent={digitalConsent} setDigitalConsent={setDigitalConsent} digitalConsentError={digitalConsentError}
+              newsTickShown={newsTickShown} joinNews={joinNews} setJoinNews={setJoinNews}
               payDisabled={payDisabled} payLabel={payLabel} payTotal={payTotal} checkoutPolicies={checkoutPolicies}
               stripeOption={hasStripe && (
               <StripePaymentSection

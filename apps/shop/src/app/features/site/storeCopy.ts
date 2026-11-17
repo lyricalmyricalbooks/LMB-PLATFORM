@@ -1366,6 +1366,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coErrTerms", label: "Policy tick box not ticked", default: "Tick the box to agree to our policies before paying." },
       { key: "coDigitalConsent", label: "Download consent tick box (EU, EEA and UK shoppers buying a digital item)", default: "Make my digital items available straight away. I understand this ends my 14-day right to cancel them.", hint: "Required by EU and UK consumer law before a download starts. Keep both parts: the request and the loss of the right to cancel." },
       { key: "coErrDigitalConsent", label: "Download consent tick box not ticked", default: "Tick the box to get your digital items straight away, or remove them from your bag." },
+      { key: "coNewsletterTick", label: "Newsletter tick box (free downloads)", default: "Email me news from this shop. I can stop at any time.", hint: "Shown when the whole order is a free download. The shopper gets an email to confirm before joining your mailing list. Leave empty to hide the tick box." },
       { key: "coFreeOrderError", label: "Free order couldn't be completed", default: "We couldn’t complete your free order. Please try again." },
       { key: "coNoShipping", label: "No shipping to country", default: "We don't currently offer shipping for this order to {country}. Try another country or contact us for a custom quote.", hint: "Use {country} for the country." },
       { key: "coItemCountOne", label: "Summary item count (1)", default: "{count} item", hint: "Use {count} for the number." },
