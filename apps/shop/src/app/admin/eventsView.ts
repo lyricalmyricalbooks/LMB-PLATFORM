@@ -3,6 +3,7 @@
 import { zonedTime, dayOf, addDays } from "../../shared/bookingTimes";
 import { MIN_TICKET_MINOR, salesOpen, type EventStatus } from "../../shared/eventTickets";
 import type { AdminEvent, TicketOrder } from "./eventsApi";
+import { shopMoney } from "../../shared/shopCurrency";
 
 export type TicketForm = { id: string; name: string; price: string; places: string; maxPerOrder: string };
 /** One extra in the editor (a programme, a drink): a name, a price and how many one order may add. */
@@ -141,7 +142,9 @@ export function whenParts(iso: string, zone: string): { weekday: string; day: st
 }
 
 export const moneyText = (minor: number, currency: string): string =>
-  new Intl.NumberFormat("en-CA", { style: "currency", currency: currency || "CAD" }).format(minor / 100);
+  !currency || currency === "CAD" || currency === "USD"
+    ? shopMoney(minor / 100, currency || "CAD")
+    : new Intl.NumberFormat("en-CA", { style: "currency", currency }).format(minor / 100);
 
 /** "12 of 40 sold" and how full that is (0 to 100). */
 export function soldLine(event: Pick<AdminEvent, "soldTotal" | "placesTotal">): { text: string; percent: number } {

@@ -2,6 +2,7 @@
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
 import { addDays, balanceDue, cardAsk, cardTaken, dayOf, moneyKept, moneyTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
+import { shopMoney } from "../../shared/shopCurrency";
 
 /** One card in a day's column: a single booking, or a group class with everyone booked into it. */
 export type DaySlot = { kind: "one"; booking: Booking } | { kind: "class"; key: string; serviceId: string; start: string; serviceName: string; places: number; people: Booking[] };
@@ -123,6 +124,7 @@ export function weekText(monday: string): string {
 }
 
 export function moneyText(minor: number, currency: string): string {
+  if (currency === "CAD" || currency === "USD") return shopMoney(minor / 100, currency);
   try {
     return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(minor / 100);
   } catch {

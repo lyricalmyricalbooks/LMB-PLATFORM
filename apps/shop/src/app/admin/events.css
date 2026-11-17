@@ -101,3 +101,9 @@
   .rp .evt-code-state { grid-column: 1 / -1; justify-content: flex-start; }
 }
 @media (max-width: 767px) { .rp .evt-bento > :first-child { grid-column: 1 / -1; } }
+
+/* Phones: the dark tile closes the grid across the full width, and a long amount shrinks to fit its tile. */
+@media (max-width: 767px) {
+  .rp .bkg-bento > .bkg-tile-ink:last-child { grid-column: 1 / -1; }
+  .rp .bkg-bento .bkg-big.bkg-big-money { font-size: clamp(16px, 5.2vw, 22px); }
+}
