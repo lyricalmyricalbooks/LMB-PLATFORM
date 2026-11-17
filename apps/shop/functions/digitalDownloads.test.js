@@ -21,6 +21,7 @@ function harness(initial) {
     async get() { const v = docs[name]?.[id]; return { id, exists: v !== undefined, data: () => (v === undefined ? undefined : structuredClone(v)) }; },
     async set(v) { docs[name] ||= {}; docs[name][id] = v; },
     async update(c) { Object.assign(docs[name][id], c); },
+    collection: (sub) => ({ doc: (d) => refOf(`${name}/${id}/${sub}`, d) }),
   });
   const db = {
     collection: (name) => ({
@@ -53,8 +54,8 @@ function harness(initial) {
   const patched = `${source}\nsendEmail = async (m) => { __sent.push(m); return { ok: true }; };\nautoApproveShippingAddress = async () => {};`;
   vm.runInNewContext(patched, { module, exports: module.exports, require: mockRequire, process: { env: { APP_CHECK_MODE: 'off' } }, Buffer, console, setTimeout, clearTimeout, URL, AbortController, __sent: sent, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
   const download = async (query) => {
-    const res = { code: 200, body: null, location: null, status(c) { this.code = c; return this; }, send(b) { this.body = b; return this; }, redirect(u) { this.location = u; return this; } };
-    await module.exports.downloadDigitalAsset({ query: { orderId: 'o1', token: 'T'.repeat(8), ...query }, headers: {} }, res);
+    const res = { code: 200, body: null, location: null, headers: {}, status(c) { this.code = c; return this; }, send(b) { this.body = b; return this; }, json(b) { this.body = b; return this; }, set(k, v) { this.headers[k] = v; return this; }, redirect(u) { this.location = u; return this; } };
+    await module.exports.downloadDigitalAsset({ query: { orderId: 'o1', token: 'T'.repeat(8), ...query }, headers: {}, method: 'GET' }, res);
     return res;
   };
   const paid = async (items) => {
@@ -281,5 +282,43 @@ describe('Digital D1: several files on one product', () => {
     const html = await harness(world()).paid([line()]);
     expect(html.match(/Download File/g)).toHaveLength(1);
     expect(html).not.toMatch(/[?&]file=/);
+  });
+});
+
+describe('Digital D3: listen and watch', () => {
+  const media = [{ file: '1730000000003-chapter1.mp3', name: 'Chapter 1' }, { file: '1730000000004-lesson.mp4', name: 'Lesson' }, { file: '1730000000005-notes.pdf', name: 'Notes' }];
+  test('a play gets a short inline link as JSON and never uses the download limit', async () => {
+    const app = harness(world({ downloadCounts: { b1__base: 10 } }, { digitalFiles: media }));
+    const res = await app.download({ itemId: 'b1', play: '1' });
+    expect(res.code).toBe(200);
+    expect(res.body).toMatchObject({ url: 'https://signed/digital-assets/1730000000003-chapter1.mp3', kind: 'audio' });
+    expect(app.signed[0]).toMatchObject({ responseDisposition: 'inline', responseType: 'audio/mpeg' });
+    expect(app.signed[0].expires - Date.now()).toBeLessThanOrEqual(10 * 60 * 1000);
+    expect(app.docs.orders.o1.downloadCounts).toEqual({ b1__base: 10 });
+    expect((await app.download({ itemId: 'b1', play: '1', file: '1' })).body.kind).toBe('video');
+  });
+  test('a file that is not audio or video only downloads', async () => {
+    const app = harness(world({}, { digitalFiles: media }));
+    const res = await app.download({ itemId: 'b1', play: '1', file: '2' });
+    expect(res.code).toBe(400);
+    expect(res.body.code).toBe('not_media');
+    expect(app.signed).toHaveLength(0);
+  });
+  test('plays are counted per file per day, off the order, and stop at the day\'s limit', async () => {
+    const app = harness(world({}, { digitalFiles: media }));
+    await app.download({ itemId: 'b1', play: '1' });
+    const day = new Date().toISOString().slice(0, 10);
+    const counts = app.docs['orders/o1/plays'].counts.counts;
+    expect(counts).toEqual({ [`${day}|b1__base`]: 1 });
+    expect(app.docs.orders.o1.playCounts).toBeUndefined();
+    app.docs['orders/o1/plays'].counts.counts = { [`${day}|b1__base`]: 200, '2020-01-01|b1__base': 5 };
+    const res = await app.download({ itemId: 'b1', play: '1' });
+    expect(res.code).toBe(429);
+    expect(res.body.code).toBe('play_limit');
+  });
+  test('the order checks still apply: an unpaid order gets no play link', async () => {
+    const app = harness(world({ paymentStatus: 'unpaid' }, { digitalFiles: media }));
+    expect((await app.download({ itemId: 'b1', play: '1' })).code).toBe(402);
+    expect(app.signed).toHaveLength(0);
   });
 });

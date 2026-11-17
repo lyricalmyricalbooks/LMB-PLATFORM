@@ -867,6 +867,13 @@ order-confirmation email both use them. Emailed download links stay outside brow
   (`updateLines`: the order email's own rule, box-set parts by the catalog) its download links, claimed first in
   `digitalUpdates/{id}/sent/{orderId}`, so nothing goes twice. Emails are `bulk` (never the press's Gmail).
 
+**Play mode (Digital D3, Beta, 17 November 2026):** `downloadDigitalAsset?…&play=1` (CORS through `applyCors`) checks the
+order, token and file like a download, then refuses a file that isn't audio or video (`mediaKind`, 400 `not_media`), adds
+one to today's count in `orders/{id}/plays/counts` (`nextPlayCount`, key = the file's download-count key, `MAX_PLAYS` a
+day, 429 `play_limit`) in a transaction and answers JSON `{ url, kind, expiresAt }`: a signed link with inline
+disposition and the file's type, `PLAY_LINK_MINUTES` long, `Cache-Control: no-store`. It never touches `downloadCounts`.
+The sub-document is server-only (no rule opens it). Tests: `digitalDownloads.test.js` › Digital D3.
+
 ## Payments module (27 October 2026, code plans 1.11–1.12)
 
 `functions/payments/` is the one door to the shop's card payment provider. `index.js` (`createPayments`) lists the

@@ -114,3 +114,33 @@ export function fileSizeText(bytes: unknown): string {
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
+// Listen and watch (Digital D3, Beta): audio and video files play in the buyer's browser, from the Library and the order
+// page. A play asks the server for a short-lived link (`PLAY_LINK_MINUTES`); the player asks again for a fresh one when a
+// link runs out, so no single link holds the whole file for long. Plays never use up the download limit, but each order
+// file has `MAX_PLAYS` of them a day (the owner can't reset it; it starts again the next day).
+export type MediaKind = "audio" | "video";
+const AUDIO = new Set(["mp3", "m4a", "m4b", "aac", "wav", "ogg", "oga", "opus", "flac"]);
+const VIDEO = new Set(["mp4", "m4v", "webm", "mov"]);
+/** Minutes a play link works. */
+export const PLAY_LINK_MINUTES = 10;
+/** Play links one order file may get in a day. */
+export const MAX_PLAYS = 200;
+
+/** "audio", "video", or null for a file that only downloads. Decided by the stored name's extension. */
+export function mediaKind(fileName: unknown): MediaKind | null {
+  const match = /\.([A-Za-z0-9]{1,5})$/.exec(String(fileName || ""));
+  const ext = match ? match[1].toLowerCase() : "";
+  return AUDIO.has(ext) ? "audio" : VIDEO.has(ext) ? "video" : null;
+}
+
+/** The play count after one more play today (UTC day), or `ok: false` past `MAX_PLAYS`. Older days are dropped. */
+export function nextPlayCount(counts: unknown, key: string, day: string, limit = MAX_PLAYS): { ok: boolean; used: number; next: Record<string, number> } {
+  const all = counts && typeof counts === "object" && !Array.isArray(counts) ? (counts as Record<string, unknown>) : {};
+  const today: Record<string, number> = {};
+  const prefix = `${day}|`;
+  for (const [k, v] of Object.entries(all)) if (k.startsWith(prefix) && Number(v) > 0) today[k] = Math.floor(Number(v));
+  const used = today[prefix + key] || 0;
+  if (used >= limit) return { ok: false, used, next: today };
+  return { ok: true, used: used + 1, next: { ...today, [prefix + key]: used + 1 } };
+}

@@ -3135,7 +3135,7 @@ exports.refundOrder = onBrowserRequest(
 );
 
 const downloads = digitalDownloadEndpoint({
-  onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive,
+  onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive, applyCors,
 });
 
 exports.downloadDigitalAsset = downloads.downloadDigitalAsset;

@@ -381,7 +381,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Saved address", match: /^account(Address|Field|Phone|Street|SaveAddress|Abort|Cancel$|Unconfigured)/ },
     { title: "Your data", match: /^yourData/ },
     { title: "Order history", match: /^(account(History|Items|AddOn|GiftCard|FreeGift|BoxSet|Dispatch|ShipTo|Logistics|Manage|Close|Delivered|Cancelled|Awaiting|Track|Unfulfilled|Shipped|Processing|Paid|Unpaid|Refunded|PartiallyRefunded|BookCount)|carrierLabel|trackingCodeLabel)/ },
-    { title: "Downloads & library", match: /^account(Digital|Ebook|Download$|Library)/ },
+    { title: "Downloads, library & player", match: /^account(Digital|Ebook|Download$|Library|Listen|Watch|Player)/ },
     { title: "Error messages", order: -1, match: /^account.*Error$/ },
   ],
   "Product page": [

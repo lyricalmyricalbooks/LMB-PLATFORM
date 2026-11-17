@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download, Headphones, Play } from "lucide-react";
 import { libraryEntries, type DigitalEntry } from "./digitalLine";
 import { regionProps } from "./storefrontRegions";
 import { getCopy } from "./storeCopy";
@@ -8,11 +8,13 @@ import { getCopy } from "./storeCopy";
  * newest order that holds it). Nothing shows until the shopper owns a download. Words: Text & labels › Customer account ›
  * Downloads & library; region `accountLibrary`.
  */
-export function AccountLibrary({ design, orders, entriesByOrder, onDownload }: {
+export function AccountLibrary({ design, orders, entriesByOrder, onDownload, onPlay }: {
   design: any;
   orders: any[];
   entriesByOrder: Record<string, DigitalEntry[]>;
   onDownload: (order: any, itemId: string, variantId: string, file: number) => void;
+  /** Digital D3 (Beta): open the in-page player for an audiobook or video. Without it only Download shows. */
+  onPlay?: (item: DigitalEntry & { order: any }) => void;
 }) {
   const library = libraryEntries(orders, entriesByOrder);
   if (library.length === 0) return null;
@@ -28,6 +30,18 @@ export function AccountLibrary({ design, orders, entriesByOrder, onDownload }: {
               <p className="text-[11px] font-bold text-white uppercase break-words line-clamp-2" title={item.title}>{item.title}</p>
               <p className="text-[9px] fm-muted uppercase tracking-widest mt-1 break-words">{getCopy(design, "accountLibraryFrom", { order: item.order.orderId || item.order.id })}</p>
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+            {onPlay && item.media && (
+              <button
+                type="button"
+                onClick={() => onPlay(item)}
+                className="min-h-[44px] min-w-[44px] justify-center px-3 sm:px-4 rounded-lg transition-all flex items-center gap-2 border border-white/20 text-white active:scale-95 text-[9px] font-black tracking-widest uppercase"
+                aria-label={`${getCopy(design, item.media === "video" ? "accountWatch" : "accountListen")}: ${item.title}`}
+              >
+                {item.media === "video" ? <Play size={12} aria-hidden="true" /> : <Headphones size={12} aria-hidden="true" />}
+                <span className="hidden sm:inline">{getCopy(design, item.media === "video" ? "accountWatch" : "accountListen")}</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onDownload(item.order, item.itemId, item.variantId, item.file)}
@@ -38,6 +52,7 @@ export function AccountLibrary({ design, orders, entriesByOrder, onDownload }: {
               <Download size={12} aria-hidden="true" />
               <span className="hidden sm:inline">{download}</span>
             </button>
+            </div>
           </li>
         ))}
       </ul>

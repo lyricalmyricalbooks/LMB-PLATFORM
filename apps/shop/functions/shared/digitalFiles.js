@@ -13,7 +13,7 @@
 //  - The shop picks the countries buyers of downloads can be in (Settings › General › Digital downloads). Canada and the
 //    US to start; "*" opens every other country too.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EVERY_OTHER_COUNTRY = exports.DEFAULT_DIGITAL_COUNTRIES = exports.MAX_DIGITAL_FILE_BYTES = exports.MAX_DIGITAL_FILES = void 0;
+exports.MAX_PLAYS = exports.PLAY_LINK_MINUTES = exports.EVERY_OTHER_COUNTRY = exports.DEFAULT_DIGITAL_COUNTRIES = exports.MAX_DIGITAL_FILE_BYTES = exports.MAX_DIGITAL_FILES = void 0;
 exports.filesOf = filesOf;
 exports.filesFor = filesFor;
 exports.newVersionOf = newVersionOf;
@@ -23,6 +23,8 @@ exports.filesPatch = filesPatch;
 exports.digitalCountries = digitalCountries;
 exports.digitalCountryAllowed = digitalCountryAllowed;
 exports.fileSizeText = fileSizeText;
+exports.mediaKind = mediaKind;
+exports.nextPlayCount = nextPlayCount;
 /** Most files on one product or edition. */
 exports.MAX_DIGITAL_FILES = 20;
 /** Largest file: 5 GB (plan decision 4; storage.rules refuses anything bigger). */
@@ -122,4 +124,29 @@ function fileSizeText(bytes) {
     if (n < 1024 * 1024 * 1024)
         return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
     return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+const AUDIO = new Set(["mp3", "m4a", "m4b", "aac", "wav", "ogg", "oga", "opus", "flac"]);
+const VIDEO = new Set(["mp4", "m4v", "webm", "mov"]);
+/** Minutes a play link works. */
+exports.PLAY_LINK_MINUTES = 10;
+/** Play links one order file may get in a day. */
+exports.MAX_PLAYS = 200;
+/** "audio", "video", or null for a file that only downloads. Decided by the stored name's extension. */
+function mediaKind(fileName) {
+    const match = /\.([A-Za-z0-9]{1,5})$/.exec(String(fileName || ""));
+    const ext = match ? match[1].toLowerCase() : "";
+    return AUDIO.has(ext) ? "audio" : VIDEO.has(ext) ? "video" : null;
+}
+/** The play count after one more play today (UTC day), or `ok: false` past `MAX_PLAYS`. Older days are dropped. */
+function nextPlayCount(counts, key, day, limit = exports.MAX_PLAYS) {
+    const all = counts && typeof counts === "object" && !Array.isArray(counts) ? counts : {};
+    const today = {};
+    const prefix = `${day}|`;
+    for (const [k, v] of Object.entries(all))
+        if (k.startsWith(prefix) && Number(v) > 0)
+            today[k] = Math.floor(Number(v));
+    const used = today[prefix + key] || 0;
+    if (used >= limit)
+        return { ok: false, used, next: today };
+    return { ok: true, used: used + 1, next: { ...today, [prefix + key]: used + 1 } };
 }

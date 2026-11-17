@@ -1004,3 +1004,15 @@ nothing physical) shows the tick box `checkout-join-news` above Pay (`CheckoutPa
 tick box"), never ticked for the buyer. Words: Text & labels › Checkout › `coNewsletterTick` (French twin in
 `frenchCopy.ts`); empty hides the box. Ticked, the free-order path calls `subscribeNewsletter(email, "free-download")`
 after the order completes, so the usual double opt-in email goes and a failed sign-up never stops the order.
+
+## Listen and watch (Digital D3, Beta, 17 November 2026)
+An audio or video file (`mediaKind` in `shared/digitalFiles.ts`, by the stored name's extension) gets **Listen** or
+**Watch** beside Download in the account's Library (`AccountLibrary` `onPlay`; `DigitalEntry.media` is set only for
+those). `MediaPlayer.tsx` (lazy from `Account.tsx`, region `accountPlayer`) fetches `downloadDigitalAsset` with
+`play=1` as JSON (a 10-minute inline link, counted per order file per day in `orders/{id}/plays/counts`, never against
+downloads; server notes in functions/CLAUDE.md › Round-2 digital downloads) and plays it in `<audio>`/`<video>`. The place
+is kept in this browser (`listenPlace.ts`, `lm:listen:<order>:<item>|<edition>|<file>`, forgotten near the start and the
+end). A failed load or a link close to running out asks for a new one and carries on from the same second; two failures
+in a row show Try again. Words: Text & labels › Customer account › Downloads, library & player (`accountListen`,
+`accountWatch`, `accountPlayer*`, French twins). Not built yet: free samples on product pages, storage and download
+traffic per shop in the control room.

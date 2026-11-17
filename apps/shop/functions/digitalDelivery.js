@@ -84,6 +84,16 @@ const CONTENT_TYPES = {
   mp3: "audio/mpeg",
   m4a: "audio/mp4",
   m4b: "audio/mp4",
+  aac: "audio/aac",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  opus: "audio/ogg",
+  flac: "audio/flac",
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
   zip: "application/zip",
 };
 

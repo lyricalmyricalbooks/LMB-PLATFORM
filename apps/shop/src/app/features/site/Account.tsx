@@ -8,7 +8,7 @@ import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
 import { statusCopyKey, statusTone, trackLink } from "./orderStatus";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import {
   GoogleAuthProvider,
@@ -45,6 +45,10 @@ import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { YourDataCard } from "./YourDataCard";
 import { AccountLibrary } from "./AccountLibrary";
+import type { PlayTarget } from "./MediaPlayer";
+
+// Digital D3: the player loads only when a shopper presses Listen or Watch.
+const MediaPlayer = lazy(() => import("./MediaPlayer").then((m) => ({ default: m.MediaPlayer })));
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
@@ -84,6 +88,7 @@ function AccountContent() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
+  const [playing, setPlaying] = useState<PlayTarget | null>(null);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loadingData, setLoadingData] = useState(false);
   // The order list couldn't be read: say so with Try again instead of looking like "no orders".
@@ -778,7 +783,16 @@ function AccountContent() {
         )}
 
         {/* Library (Digital D1b): every download from every paid order, in one place. */}
-        <AccountLibrary design={settings?.design} orders={orders} entriesByOrder={digitalItems} onDownload={handleDownloadDigitalAsset} />
+        <AccountLibrary design={settings?.design} orders={orders} entriesByOrder={digitalItems} onDownload={handleDownloadDigitalAsset}
+          onPlay={(item) => {
+            if (!item.order.downloadToken || !item.media) { toast.error(getCopy(settings?.design, "accountDownloadError")); return; }
+            setPlaying({ order: item.order, itemId: item.itemId, variantId: item.variantId, file: item.file, title: item.title, kind: item.media });
+          }} />
+        {playing && (
+          <Suspense fallback={null}>
+            <MediaPlayer design={settings?.design} target={playing} onClose={() => setPlaying(null)} />
+          </Suspense>
+        )}
 
         {/* Order History Details View */}
         <section {...regionProps("accountHistory")} className="glass-card border border-white/5 rounded-[2.5rem] p-10">
