@@ -4,6 +4,8 @@
 // (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own Firebase wrapper, db and
 // catalog helpers, so the vm-based handler tests' fakes still apply, and keeps the `exports.downloadDigitalAsset =` line.
 
+const pdfStamp = require("./pdfStamp");
+
 function digitalDownloadEndpoint({
   onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive,
 }) {
@@ -141,7 +143,9 @@ function digitalDownloadEndpoint({
         // A fresh, short-lived link per click, saved as an attachment named after the book.
         // One file: named after the product. Several: each keeps the name the owner gave it.
         const filename = digitalDelivery.downloadFilename(files.length > 1 ? digitalDelivery.fileLabel(files[fileIndex]) : (book.title || target.line.title), fileName);
-        const [signedUrl] = await file.getSignedUrl({
+        // A stamped PDF (Digital D2b): the buyer's name and email on each page, made once per order and file.
+        const served = await stampedCopy({ bucket, book, file, fileName, order, orderId: String(orderId) });
+        const [signedUrl] = await served.getSignedUrl({
           action: "read",
           expires: Date.now() + digitalDelivery.SIGNED_URL_MINUTES * 60 * 1000,
           responseDisposition: digitalDelivery.contentDisposition(filename),
@@ -155,6 +159,26 @@ function digitalDownloadEndpoint({
       }
     }
   );
+
+  // The file to hand out: the original, or for a product with `stampPdf` a copy of a PDF (≤ MAX_STAMP_BYTES) with the
+  // buyer's name and email at the foot of each page, kept at digital-stamped/<order>/<file> so the next download reuses
+  // it (a new version is a new file name, so it is stamped afresh). Anything that goes wrong sends the original.
+  async function stampedCopy({ bucket, book, file, fileName, order, orderId }) {
+    if (book?.stampPdf !== true || !pdfStamp.isPdf(fileName)) return file;
+    try {
+      const copy = bucket.file(`digital-stamped/${orderId.replace(/[^A-Za-z0-9_-]/g, "_")}/${fileName}`);
+      if ((await copy.exists())[0]) return copy;
+      const [meta] = await file.getMetadata();
+      if (!(Number(meta?.size) > 0) || Number(meta.size) > pdfStamp.MAX_STAMP_BYTES) return file;
+      const [bytes] = await file.download();
+      const stamped = await pdfStamp.stampPdf(bytes, { name: order.customer?.name, email: order.customer?.email, orderId: order.orderId || orderId });
+      await copy.save(Buffer.from(stamped), { contentType: "application/pdf", resumable: false });
+      return copy;
+    } catch (err) {
+      console.warn("Sending the PDF without the buyer's name:", err?.message || err);
+      return file;
+    }
+  }
 
   return { downloadDigitalAsset };
 }

@@ -30,7 +30,15 @@ function harness(initial) {
     async runTransaction(fn) { return fn({ get: (r) => r.get(), set: (r, v) => r.set(v), update: (r, v) => r.update(v) }); },
   };
   const firestore = Object.assign(() => db, { FieldValue: { increment: (n) => n, serverTimestamp: () => 'now', delete: () => undefined } });
-  const storage = () => ({ bucket: () => ({ file: (name) => ({ exists: async () => [true], getSignedUrl: async (o) => { signed.push({ name, ...o }); return [`https://signed/${name}`]; } }) }) });
+  // Originals always exist (as `pdfBytes` when a test sets it); stamped copies only once saved.
+  const saved = {};
+  const storage = () => ({ bucket: () => ({ file: (name) => ({
+    exists: async () => [!name.startsWith('digital-stamped/') || name in saved],
+    getMetadata: async () => [{ size: initial.pdfBytes?.length || 0 }],
+    download: async () => [initial.pdfBytes],
+    save: async (bytes) => { saved[name] = bytes; },
+    getSignedUrl: async (o) => { signed.push({ name, ...o }); return [`https://signed/${name}`]; },
+  }) }) });
   const admin = { initializeApp() {}, firestore, storage, auth: () => ({ verifyIdToken: async () => ({}) }), appCheck: () => ({}) };
   const wrap = (...args) => args.at(-1);
   const mockRequire = (name) => {
@@ -53,7 +61,7 @@ function harness(initial) {
     await module.exports.onOrderUpdated({ data: { before: { data: () => order({ items, paymentStatus: 'unpaid' }) }, after: { data: () => order({ items }) } }, params: { orderId: 'o1' } });
     return sent.find((m) => m.to === 'reader@example.com').html;
   };
-  return { docs, sent, signed, download, paid, exports: module.exports };
+  return { docs, sent, signed, saved, download, paid, exports: module.exports };
 }
 
 const line = (extra = {}) => ({ id: 'b1', title: 'Night Poems', quantity: 1, price: 10, format: 'E-book (PDF)', digital: true, ...extra });
@@ -90,6 +98,27 @@ describe('#113 download count cap', () => {
     expect(Object.keys(first)).toHaveLength(1);
     await app.download({ itemId: 'b1' });
     expect(app.docs.orders.o1.downloadLimitReached).toEqual(first);
+  });
+  test('a PDF the shop stamps goes out once stamped with the buyer, and the copy is reused', async () => {
+    const { PDFDocument } = realRequire('pdf-lib');
+    const doc = await PDFDocument.create(); doc.addPage();
+    const w = world({}, { stampPdf: true });
+    w.pdfBytes = Buffer.from(await doc.save());
+    const app = harness(w);
+    const first = await app.download({ itemId: 'b1' });
+    expect(first.location).toBe('https://signed/digital-stamped/o1/1730000000000-night.pdf');
+    expect(Object.keys(app.saved)).toEqual(['digital-stamped/o1/1730000000000-night.pdf']);
+    const second = await app.download({ itemId: 'b1' });
+    expect(second.location).toBe(first.location);
+    expect(Object.keys(app.saved)).toHaveLength(1);
+  });
+  test('a PDF the shop does not stamp, or one that will not open, goes out as it is', async () => {
+    expect((await harness(world()).download({ itemId: 'b1' })).location).toBe('https://signed/digital-assets/1730000000000-night.pdf');
+    const w = world({}, { stampPdf: true });
+    w.pdfBytes = Buffer.from('not a pdf');
+    const app = harness(w);
+    expect((await app.download({ itemId: 'b1' })).location).toBe('https://signed/digital-assets/1730000000000-night.pdf');
+    expect(app.saved).toEqual({});
   });
   test('a missing or out-of-range limit keeps the default', () => {
     expect(dd.downloadLimitFrom(undefined)).toBe(dd.DOWNLOAD_LIMIT);
