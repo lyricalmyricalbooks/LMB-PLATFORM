@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit } from "./bookTimeRules";
+import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit, peopleFor } from "./bookTimeRules";
 
 const ZONE = "America/Toronto";
 
@@ -79,5 +79,15 @@ describe("tip choices on the booking page", () => {
     expect(tipMinorOf({ kind: "none" }, 12500)).toBe(0);
     expect([tipMinorOf({ kind: "other", text: "12.5" }, 0), tipMinorOf({ kind: "other", text: "" }, 0), tipMinorOf({ kind: "other", text: "$7" }, 0)]).toEqual([1250, 0, 700]);
     expect([tipOk(0, 10000), tipOk(0, 10000, true), tipOk(49, 10000), tipOk(10000, 10000), tipOk(10001, 10000)]).toEqual([true, false, false, true, false]);
+  });
+});
+
+describe("the With picker", () => {
+  it("offers only the people who do the service, and nobody when the shop lists nobody", () => {
+    const staff = [{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: ["riso"] }, { id: "cy", name: "Cy", serviceIds: ["tour"] }];
+    expect(peopleFor({ staff }, "riso").map((p) => p.id)).toEqual(["ana", "ben"]);
+    expect(peopleFor({ staff }, "tour").map((p) => p.id)).toEqual(["ana", "cy"]);
+    expect(peopleFor({}, "riso")).toEqual([]);
+    expect(peopleFor(null, "riso")).toEqual([]);
   });
 });

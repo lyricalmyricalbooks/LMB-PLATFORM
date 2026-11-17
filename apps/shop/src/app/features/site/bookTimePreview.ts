@@ -78,7 +78,7 @@ function samplePack(nowMs: number, zone: string, currency: string): BookingPackV
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
   if (action === "bookingInfo") {
-    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true } satisfies BookingInfo;
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, staff: [{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: [] }] } satisfies BookingInfo;
   }
   if (action === "bookingTimes") {
     const from = typeof body.from === "string" ? body.from : today;

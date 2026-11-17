@@ -854,6 +854,13 @@ sits above the Pay button: each percent with its amount, **No tip** (only when p
 Pay button adds the tip. With nothing left to pay but `canTip` (the "Add a tip" email's link), it starts on the middle
 choice and the button is `bookTimeTipAdd`. A given tip shows `bookTimeTipPaid`. Words `bookTimeTip*` (Text & labels ›
 Bookings page › Payments, tips & card on file; French twins).
+**With picker (17 November 2026):** when `bookingInfo.staff` lists people who do the chosen service (`peopleFor` in
+`bookTimeRules.ts`), the time step opens with a row of `.fm-book-person` buttons (Anyone free, then each name;
+`aria-pressed`, styled in `bookTimeStyle.ts`). The pick goes to `bookingTimes` and `bookingStart` as `staffId`; a `staff`
+refusal goes back to anyone free with Text & labels › `bookTimeStaffProblem`. The summary and the booking's own page show
+"With <name>" (`bookTimeWith`); Change time asks for the same person's times. Words: `bookTimeWith`, `bookTimeAnyone`,
+`bookTimeStaffProblem` (French twins). The Studio preview lists two sample people.
+
 
 ## Pickup times at checkout (17 November 2026)
 

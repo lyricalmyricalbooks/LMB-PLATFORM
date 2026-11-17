@@ -1756,3 +1756,109 @@ describe("pickup times at checkout", () => {
     expect(await t.desk.pickupCheck(sel(at("2026-11-16", "14:00")), "o1")).toEqual({ pickupAt: at("2026-11-16", "14:00") });
   });
 });
+
+describe("staff and rooms", () => {
+  const team = async (t, { rooms = [], staff } = {}) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({
+      ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, rooms,
+      staff: staff || [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben", serviceIds: ["visit"] }],
+    });
+  };
+  const book = (t, start, extra = {}) => t.pub({ action: "bookingStart", serviceId: "visit", start, ...CUSTOMER, ...extra });
+
+  test("the info lists the people a client can pick, and a shop without people lists none", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([]);
+    await team(t);
+    expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: ["visit"] }]);
+  });
+
+  test("booking with anyone free assigns someone, and two bookings at once go to two people", async () => {
+    const t = setup();
+    await team(t);
+    const start = at("2026-11-18", "14:00");
+    const [a, b] = await Promise.all([book(t, start), book(t, start, { name: "Bo", email: "bo@example.com" })]);
+    expect([a.statusCode, b.statusCode]).toEqual([200, 200]);
+    const people = [a, b].map((r) => t.db.store.get(`bookings/${r.body.id}`).staffId).sort();
+    expect(people).toEqual(["ana", "ben"]);
+    expect(t.db.store.get(`bookings/${a.body.id}`).staffName).toMatch(/Ana|Ben/);
+    expect(t.db.store.get("bookingDays/2026-11-18").items[a.body.id].p).toMatch(/ana|ben/);
+    // Both are busy now, so a third client is refused.
+    expect((await book(t, start, { name: "Cy", email: "cy@example.com" })).body.code).toBe("taken");
+    // The emails name the person.
+    expect(t.emails.find((e) => e.to === "ada@example.com").html).toMatch(/With:<\/strong> (Ana|Ben)/);
+  });
+
+  test("asking for a busy person is refused, and someone who doesn't do the service is turned away", async () => {
+    const t = setup();
+    await team(t);
+    const start = at("2026-11-18", "10:00");
+    expect((await book(t, start, { staffId: "ana" })).statusCode).toBe(200);
+    const again = await book(t, start, { staffId: "ana", name: "Bo", email: "bo@example.com" });
+    expect(again.statusCode).toBe(409);
+    expect(again.body.error).toMatch(/That person was just booked/);
+    // Ana's times no longer show 10:00; anyone's still do (Ben is free).
+    const ana = (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-18", days: 1, staffId: "ana" })).body.days["2026-11-18"];
+    const anyone = (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-18", days: 1 })).body.days["2026-11-18"];
+    expect(ana).not.toContain(start);
+    expect(anyone).toContain(start);
+    const wrong = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), ...CUSTOMER, staffId: "ben" });
+    expect(wrong.body.code).toBe("staff");
+  });
+
+  test("a room stops a second booking at the same time, whoever does it", async () => {
+    const t = setup();
+    await team(t, { rooms: [{ id: "studio", name: "The studio" }] });
+    await t.db.collection("bookingServices").doc("visit").set({ name: "Studio visit", minutes: 60, gapAfter: 15, payment: "free", priceMinor: 0, roomId: "studio" });
+    const start = at("2026-11-18", "11:00");
+    const first = await book(t, start, { staffId: "ana" });
+    expect(t.db.store.get(`bookings/${first.body.id}`)).toMatchObject({ roomId: "studio", roomName: "The studio" });
+    const second = await book(t, start, { staffId: "ben", name: "Bo", email: "bo@example.com" });
+    expect(second.body.code).toBe("taken");
+    // Ana herself is busy then, whatever the service.
+    expect((await t.pub({ action: "bookingStart", serviceId: "review", start, ...CUSTOMER, staffId: "ana" })).statusCode).toBe(409);
+  });
+
+  test("a move keeps the person, and the owner can move a booking to someone else", async () => {
+    const t = setup();
+    await team(t);
+    const r = await book(t, at("2026-11-18", "10:00"), { staffId: "ben" });
+    const moved = await t.pub({ action: "bookingMove", id: r.body.id, key: r.body.key, start: at("2026-11-19", "11:00") });
+    expect(moved.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ staffId: "ben", staffName: "Ben" });
+    expect(t.db.store.get("bookingDays/2026-11-19").items[r.body.id].p).toBe("ben");
+    // The owner gives it to Ana at the same time.
+    expect((await t.adm({ op: "move", id: r.body.id, start: at("2026-11-19", "11:00"), staffId: "ana" })).body.ok).toBe(true);
+    const b = t.db.store.get(`bookings/${r.body.id}`);
+    expect(b).toMatchObject({ staffId: "ana", staffName: "Ana" });
+    expect(b.history.at(-1).what).toMatch(/to Ana$/);
+    // Ben is free again at 11:00 on the 19th.
+    const ben = (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-19", days: 1, staffId: "ben" })).body.days["2026-11-19"];
+    expect(ben).toContain(at("2026-11-19", "11:00"));
+  });
+
+  test("the owner books a client in with a chosen person, and that person can't be double-booked", async () => {
+    const t = setup();
+    await team(t);
+    const c = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-21", "09:00"), ...CUSTOMER, staffId: "ben" });
+    expect(t.db.store.get(`bookings/${c.body.id}`)).toMatchObject({ staffId: "ben" });
+    expect((await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-21", "09:00"), ...CUSTOMER, staffId: "ben" })).statusCode).toBe(409);
+    expect((await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-21", "09:00"), ...CUSTOMER, staffId: "ana" })).statusCode).toBe(200);
+  });
+
+  test("a shop with no people stores no person on its bookings, as before", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await book(t, at("2026-11-18", "10:00"));
+    const b = t.db.store.get(`bookings/${r.body.id}`);
+    expect(b.staffId).toBeUndefined();
+    expect(t.db.store.get("bookingDays/2026-11-18").items[r.body.id]).not.toHaveProperty("p");
+  });
+
+  test("the day items carry the person and room back into busy times", () => {
+    const snap = (items) => ({ exists: true, data: () => ({ items }) });
+    expect(busyFrom([snap({ a: { start: 1, end: 2, held: false, s: "x", p: "ana", r: "studio" } })], 0)).toEqual([{ start: 1, end: 2, serviceId: "x", staffId: "ana", roomId: "studio" }]);
+  });
+});

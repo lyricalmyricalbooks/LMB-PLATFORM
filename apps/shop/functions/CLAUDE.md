@@ -1361,3 +1361,16 @@ calls `bookingDesk.pickupCheck(selection, orderId)` for pickup on every price, s
 `priceOrder` and `checkoutPayment.js` pass through with its code. The time is saved as `fulfillment.pickupAt` (ISO) and
 shown in the order emails (`pickupTimeLine`, shop time zone), the workbench and the tracking page. No rule change: it
 rides in `fulfillmentSelection.pickupAt`. Tests: bookings.test.js › pickup times at checkout, r2Payments.test.js.
+
+**Staff and rooms (17 November 2026, Services plan phase 4 part 1, `tasks/todo/2026-11-17-staff-and-rooms.md`):**
+`bookingSettings/main` holds `staff` (id, name, active, `serviceIds` (none = all), `ownHours` + `hours`, `daysOff`) and
+`rooms`; a service may name a `roomId`. Day items keep `p` (person) and `r` (room) and `busyFrom` reads them back; an
+older item with no `p` blocks everyone. `takeTime` and `moveTime` pick the person inside the transaction with the shared
+`whoIsFree` (the one asked for, else whoever already runs that class at that start, else the fewest bookings that day,
+then list order), so two "anyone" bookings at once go to two people. A booking stores `staffId`, `staffName`, `roomId`,
+`roomName`. `bookingInfo` lists the active people; `bookingTimes`, `bookingStart` and the owner's `times`, `create` and
+`move` take `staffId` (`keptPerson` checks it; a wrong one is 400 code `staff`). A move keeps the person when they still do
+the service and are free; the owner may name another. The owner books with `ownerBookingSettings` (any hour, no days off).
+Emails say "With: <name>" and the owner's feed puts the name in the title. No people listed: no `p`/`r`, no staff fields,
+times as before. Tests: bookings.test.js › staff and rooms.
+

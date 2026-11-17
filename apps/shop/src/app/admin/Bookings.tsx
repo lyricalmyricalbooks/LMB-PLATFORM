@@ -3,15 +3,15 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, CalendarPlus, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Users, Video, X } from "lucide-react";
+import { BellRing, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Users, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
-  DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
+  Checkbox, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
   SaveBar, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
+import { addDays, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_PLACES, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -22,7 +22,7 @@ import { qrPicture } from "./stockroom/qrCodesStore";
 import { saveFile } from "./xlsxWriter";
 import "./bookings.css";
 
-type Tab = "calendar" | "services" | "packs" | "hours" | "figures";
+type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures";
 type CalendarView = "week" | "list";
 const VIEW_KEY = "colophon.bookings.view";
 const ZONE = shopTimeZone();
@@ -138,7 +138,8 @@ export function Bookings() {
 
       <Tabs<Tab> label="Bookings" variant="page" value={tab} onChange={setTab}
         tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length },
-          ...(sellsPacks ? [{ id: "packs" as const, label: "Packs" }] : []), { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" }]} />
+          ...(sellsPacks ? [{ id: "packs" as const, label: "Packs" }] : []),
+          { id: "team", label: "Team & rooms", ...(setup.settings.staff.length ? { count: setup.settings.staff.filter((p) => p.active).length } : {}) }, { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" }]} />
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
@@ -154,13 +155,16 @@ export function Bookings() {
         </>)}
       </TabPanel>
       <TabPanel tabId="services" active={tab === "services"}>
-        <ServicesPanel services={setup.services} onChanged={reloadSetup} startAdding={adding} onStarted={() => setAdding(false)} />
+        <ServicesPanel services={setup.services} rooms={setup.settings.rooms} onChanged={reloadSetup} startAdding={adding} onStarted={() => setAdding(false)} />
       </TabPanel>
       {sellsPacks && (
         <TabPanel tabId="packs" active={tab === "packs"}>
           {tab === "packs" && <PacksPanel />}
         </TabPanel>
       )}
+      <TabPanel tabId="team" active={tab === "team"}>
+        <TeamPanel settings={setup.settings} services={setup.services} onSaved={reloadSetup} />
+      </TabPanel>
       <TabPanel tabId="figures" active={tab === "figures"}>
         {tab === "figures" && <FiguresPanel />}
       </TabPanel>
@@ -168,8 +172,8 @@ export function Bookings() {
         <HoursPanel settings={setup.settings} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
       </TabPanel>
 
-      {open && <BookingDrawer booking={open} services={setup.services} onClose={() => setOpen(null)} />}
-      {creating && <NewBookingDialog services={setup.services} onClose={() => setCreating(false)} />}
+      {open && <BookingDrawer booking={open} services={setup.services} settings={setup.settings} onClose={() => setOpen(null)} />}
+      {creating && <NewBookingDialog services={setup.services} settings={setup.settings} onClose={() => setCreating(false)} />}
     </div>
   );
 }
@@ -266,7 +270,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
                 <button key={slot.booking.id} type="button" className="bkg-slot" data-status={slot.booking.status} data-noshow={slot.booking.noShow || undefined} onClick={() => onOpen(slot.booking)}>
                   <span className="bkg-slot-time">{timeText(slot.booking.start, ZONE)}</span>
                   <span className="bkg-slot-who">{slot.booking.customer.name}</span>
-                  <span className="bkg-slot-what">{slot.booking.serviceName}</span>
+                  <span className="bkg-slot-what">{slot.booking.serviceName}{slot.booking.staffName ? ` · ${slot.booking.staffName}` : ""}</span>
                   {slot.booking.status === "held" && <span className="bkg-slot-tag">{slot.booking.clearing ? "Payment clearing" : "Paying now"}</span>}
                   {slot.booking.noShow && <span className="bkg-slot-tag">No-show</span>}
                 </button>
@@ -618,9 +622,11 @@ function FiguresPanel() {
   );
 }
 
-function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; services: BookingService[]; onClose: () => void }) {
+function BookingDrawer({ booking: b, services, settings, onClose }: { booking: Booking; services: BookingService[]; settings: BookingSettings; onClose: () => void }) {
   const [busy, setBusy] = useState("");
   const [moving, setMoving] = useState(false);
+  // Moving can hand the booking to someone else on the team; it stays with the same person unless changed.
+  const [moveTo, setMoveTo] = useState(b.staffId || "");
   const [ask, confirmNode] = useConfirm();
   const day = dayOf(Date.parse(b.start), ZONE);
   const run = async (what: string, op: Parameters<typeof bookingsAdmin>[0], body: Record<string, unknown>, done: string) => {
@@ -666,6 +672,8 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
         {b.meetUrl && b.status === "confirmed" && <p className="bkg-detail-line"><Video size={16} aria-hidden /> <a href={b.meetUrl} target="_blank" rel="noopener noreferrer">Join the Google Meet call</a></p>}
         <dl className="bkg-facts">
+          {b.staffName && <div><dt>With</dt><dd>{b.staffName}{b.roomName ? `, ${b.roomName}` : ""}</dd></div>}
+          {!b.staffName && b.roomName && <div><dt>Room</dt><dd>{b.roomName}</dd></div>}
           <div><dt>Email</dt><dd><a href={`mailto:${b.customer.email}`}>{b.customer.email}</a></dd></div>
           {b.customer.phone && <div><dt>Phone</dt><dd><a href={`tel:${b.customer.phone}`}>{b.customer.phone}</a></dd></div>}
           <div><dt>Payment</dt><dd>{paymentText(b)}</dd></div>
@@ -725,8 +733,13 @@ function BookingDrawer({ booking: b, services, onClose }: { booking: Booking; se
       )}
       {moving && service && (
         <TimeDialog title="Move booking" description={`${b.customer.name} gets an email with the new time.`} service={service} initialDay={day} except={b.id} confirmLabel="Move here"
-          onClose={() => setMoving(false)}
-          onPick={async (start) => { await bookingsAdmin("move", { id: b.id, start }); toast.success("Booking moved"); setMoving(false); }} />
+          staffId={moveTo} onClose={() => setMoving(false)}
+          onPick={async (start) => {
+            await bookingsAdmin("move", { id: b.id, start, ...(moveTo !== (b.staffId || "") ? { staffId: moveTo } : {}) });
+            toast.success("Booking moved"); setMoving(false);
+          }}>
+          <PersonPick settings={settings} serviceId={b.serviceId} value={moveTo} onChange={setMoveTo} />
+        </TimeDialog>
       )}
       {confirmNode}
     </Drawer>
@@ -956,8 +969,9 @@ function CancelDialog({ booking: b, onClose, onCancel }: { booking: Booking; onC
 }
 
 /** Picks a day and one of its free times for a service. `onPick` throws to keep the dialog open. */
-function TimeDialog({ title, description, service, initialDay, except = "", confirmLabel, onClose, onPick, children, ready = true }: {
-  title: string; description?: string; service: BookingService; initialDay: string; except?: string; confirmLabel: string;
+function TimeDialog({ title, description, service, initialDay, except = "", staffId = "", confirmLabel, onClose, onPick, children, ready = true }: {
+  title: string; description?: string; service: BookingService; initialDay: string; except?: string;
+  /** Only this person's free times ("" = anyone on the team, or the shop's one calendar). */ staffId?: string; confirmLabel: string;
   onClose: () => void; onPick: (startIso: string) => Promise<void>; children?: React.ReactNode; ready?: boolean;
 }) {
   const [day, setDay] = useState(initialDay);
@@ -968,9 +982,9 @@ function TimeDialog({ title, description, service, initialDay, except = "", conf
   useEffect(() => {
     let live = true;
     setTimes(null); setPicked("");
-    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except }).then((r) => live && setTimes(r.times)).catch((e) => live && (setTimes([]), setProblem(e.message)));
+    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId }).then((r) => live && setTimes(r.times)).catch((e) => live && (setTimes([]), setProblem(e.message)));
     return () => { live = false; };
-  }, [day, service.id]);
+  }, [day, service.id, staffId]);
   const save = async () => {
     setSaving(true); setProblem("");
     try { await onPick(picked); } catch (e: any) { setProblem(e?.message || "That didn't save."); } finally { setSaving(false); }
@@ -1032,22 +1046,39 @@ function AddToClassDialog({ service, start, left, onClose }: { service: BookingS
   );
 }
 
-function NewBookingDialog({ services, onClose }: { services: BookingService[]; onClose: () => void }) {
+/** "With": anyone free or one person who does the service. Nothing in a shop that books as one calendar. */
+function PersonPick({ settings, serviceId, value, onChange }: { settings: BookingSettings; serviceId: string; value: string; onChange: (id: string) => void }) {
+  if (!booksByPerson(settings)) return null;
+  const people = staffFor(settings, serviceId);
+  // Someone who no longer does it (or left) stays listed for the booking they already have.
+  const current = value && !people.some((p) => p.id === value) ? settings.staff.find((p) => p.id === value) : undefined;
+  return (
+    <SelectField label="With" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Anyone free</option>
+      {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      {current && <option value={current.id} disabled>{current.name} (doesn't do this now)</option>}
+    </SelectField>
+  );
+}
+
+function NewBookingDialog({ services, settings, onClose }: { services: BookingService[]; settings: BookingSettings; onClose: () => void }) {
   const [serviceId, setServiceId] = useState(services[0]?.id || "");
+  const [staffId, setStaffId] = useState("");
   const [who, setWho] = useState({ name: "", email: "", phone: "", note: "" });
   const [sendEmail, setSendEmail] = useState(true);
   const service = services.find((s) => s.id === serviceId) || services[0];
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
-    <TimeDialog key={service.id} title="New booking" service={service} initialDay={today()} confirmLabel="Book" onClose={onClose} ready={ready}
+    <TimeDialog key={service.id} title="New booking" service={service} initialDay={today()} staffId={staffId} confirmLabel="Book" onClose={onClose} ready={ready}
       onPick={async (start) => {
-        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail });
+        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}) });
         toast.success(`${who.name.trim()} is booked in`);
         onClose();
       }}>
-      <SelectField label="Service" value={service.id} onChange={(e) => setServiceId(e.target.value)}>
+      <SelectField label="Service" value={service.id} onChange={(e) => { setServiceId(e.target.value); if (!staffFor(settings, e.target.value).some((p) => p.id === staffId)) setStaffId(""); }}>
         {services.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.minutes} min</option>)}
       </SelectField>
+      <PersonPick settings={settings} serviceId={service.id} value={staffId} onChange={setStaffId} />
       <div className="bkg-two">
         <TextField label="Name" value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} autoComplete="off" />
         <TextField label="Email" type="email" value={who.email} onChange={(e) => setWho({ ...who, email: e.target.value })} autoComplete="off" />
@@ -1063,9 +1094,9 @@ function NewBookingDialog({ services, onClose }: { services: BookingService[]; o
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0 };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, roomId: "" };
 
-function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: { services: BookingService[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
+function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
   useEffect(() => { if (startAdding) { setEditing({ ...EMPTY_SERVICE, order: services.length }); onStarted?.(); } }, [startAdding]);
   const [ask, confirmNode] = useConfirm();
@@ -1082,7 +1113,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
               <h3>{s.name}</h3>
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
-            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}</p>
+            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
             <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
@@ -1096,7 +1127,7 @@ function ServicesPanel({ services, onChanged, startAdding = false, onStarted }: 
           <span>Add a service</span>
         </button>
       </div>
-      {editing && <ServiceDialog service={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onChanged(); }} />}
+      {editing && <ServiceDialog service={editing} rooms={rooms} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onChanged(); }} />}
       {confirmNode}
     </div>
   );
@@ -1123,7 +1154,7 @@ function depositHint(price: string, deposit: string, unit: "amount" | "percent")
   return `${moneyText(now, SHOP_CURRENCY)} when they book, ${moneyText(priceMinor - now, SHOP_CURRENCY)} at the visit.`;
 }
 
-function ServiceDialog({ service, onClose, onSaved }: { service: BookingService; onClose: () => void; onSaved: () => void }) {
+function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingService; rooms: BookingRoom[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     ...service, price: service.priceMinor ? (service.priceMinor / 100).toFixed(2) : "",
     // When they pay (only asked once there is a price), and the deposit as the owner types it: an amount or a percent.
@@ -1251,6 +1282,13 @@ function ServiceDialog({ service, onClose, onSaved }: { service: BookingService;
           </fieldset>
         )}
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
+        {(rooms.length > 0 || form.roomId) && (
+          <SelectField label="Room or chair" hint="Only one booking can use it at a time, whoever does it." value={form.roomId} onChange={(e) => set("roomId", e.target.value)}>
+            <option value="">No room needed</option>
+            {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            {form.roomId && !rooms.some((r) => r.id === form.roomId) && <option value={form.roomId}>A room you removed</option>}
+          </SelectField>
+        )}
         {!group && (
           <div className="bkg-meet">
             <Toggle label="Video call with Google Meet" checked={!!form.meet} onChange={(v) => set("meet", v)} />
@@ -1318,12 +1356,10 @@ const ORDERED_DAYS = [1, 2, 3, 4, 5, 6, 0];
 function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSettings; saved: boolean; onSaved: () => void; active: boolean }) {
   const [form, setForm] = useState<BookingSettings>(settings);
   const [saving, setSaving] = useState(false);
-  const [newDayOff, setNewDayOff] = useState("");
   // The on/off switch lives at the top of the page and saves by itself, so flipping it never throws away hours being edited.
   const hoursOf = JSON.stringify({ ...settings, live: false });
   useEffect(() => setForm(settings), [hoursOf]);
   const dirty = !saved || JSON.stringify({ ...form, live: false }) !== hoursOf;
-  const setDay = (wd: number, windows: { start: string; end: string }[]) => setForm((f) => ({ ...f, hours: f.hours.map((h, i) => (i === wd ? windows : h)) }));
   const save = async () => {
     setSaving(true);
     try {
@@ -1339,30 +1375,7 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
     <div className="bkg-hours">
       <section className="bkg-tile">
         <h2 className="bkg-tile-title">Opening hours</h2>
-        <ul className="bkg-week-hours">
-          {ORDERED_DAYS.map((wd) => {
-            const windows = form.hours[wd];
-            const open = windows.length > 0;
-            return (
-              <li key={wd} className="bkg-hours-row" data-closed={!open || undefined}>
-                <Toggle label={WEEKDAYS[wd]} checked={open} onChange={(v) => setDay(wd, v ? [{ start: "10:00", end: "17:00" }] : [])} />
-                <div className="bkg-hours-windows">
-                  {open ? windows.map((w, i) => (
-                    <div key={i} className="bkg-window">
-                      <TextField label={`${WEEKDAYS[wd]} from`} hideLabel type="time" step={300} value={w.start} onChange={(e) => setDay(wd, windows.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} />
-                      <span aria-hidden>–</span>
-                      <TextField label={`${WEEKDAYS[wd]} until`} hideLabel type="time" step={300} value={w.end} onChange={(e) => setDay(wd, windows.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
-                      {windows.length > 1 && <IconButton label="Remove these hours" onClick={() => setDay(wd, windows.filter((_, j) => j !== i))}><Trash2 size={15} aria-hidden /></IconButton>}
-                    </div>
-                  )) : <span className="bkg-closed">Closed</span>}
-                  {open && windows.length < 3 && (
-                    <GhostButton size="sm" onClick={() => setDay(wd, [...windows, { start: windows[windows.length - 1].end, end: "18:00" }])}>Add hours</GhostButton>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <WeekHoursEditor hours={form.hours} onChange={(hours) => setForm((f) => ({ ...f, hours }))} />
       </section>
 
       <div className="bkg-hours-side">
@@ -1400,21 +1413,211 @@ function HoursPanel({ settings, saved, onSaved, active }: { settings: BookingSet
         <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <section className="bkg-tile">
           <h2 className="bkg-tile-title">Days off</h2>
-          <div className="bkg-dayoff-add">
-            <TextField label="Add a day off" type="date" min={today()} value={newDayOff} onChange={(e) => setNewDayOff(e.target.value)} />
-            <SecondaryButton disabled={!newDayOff} onClick={() => { setForm({ ...form, daysOff: [...new Set([...form.daysOff, newDayOff])].sort() }); setNewDayOff(""); }}>Add</SecondaryButton>
-          </div>
-          {form.daysOff.filter((d) => d >= today()).length === 0 ? <p className="bkg-day-empty">No days off coming up.</p> : (
-            <ul className="bkg-chips">
-              {form.daysOff.filter((d) => d >= today()).map((d) => (
-                <li key={d}><span>{dayText(d, "long")}</span><IconButton label={`Remove ${dayText(d, "long")}`} onClick={() => setForm({ ...form, daysOff: form.daysOff.filter((x) => x !== d) })}><Trash2 size={14} aria-hidden /></IconButton></li>
-              ))}
-            </ul>
-          )}
+          <DaysOffEditor days={form.daysOff} onChange={(daysOff) => setForm({ ...form, daysOff })} />
         </section>
         <CalendarTile google={form.googleCalendar} onGoogle={(on) => setForm({ ...form, googleCalendar: on })} />
       </div>
       {active && <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={() => setForm(saved ? settings : DEFAULT_BOOKING_SETTINGS)} message={saved ? undefined : "Save your hours to start taking bookings."} />}
     </div>
+  );
+}
+
+/** A week of hours, Monday first: a day is open with one or more windows, or closed. */
+function WeekHoursEditor({ hours, onChange, who = "" }: { hours: HoursWindow[][]; onChange: (hours: HoursWindow[][]) => void; who?: string }) {
+  const setDay = (wd: number, windows: HoursWindow[]) => onChange(hours.map((h, i) => (i === wd ? windows : h)));
+  const name = (wd: number) => `${who ? `${who} ` : ""}${WEEKDAYS[wd]}`;
+  return (
+    <ul className="bkg-week-hours">
+      {ORDERED_DAYS.map((wd) => {
+        const windows = hours[wd] || [];
+        const open = windows.length > 0;
+        return (
+          <li key={wd} className="bkg-hours-row" data-closed={!open || undefined}>
+            <Toggle label={WEEKDAYS[wd]} checked={open} onChange={(v) => setDay(wd, v ? [{ start: "10:00", end: "17:00" }] : [])} />
+            <div className="bkg-hours-windows">
+              {open ? windows.map((w, i) => (
+                <div key={i} className="bkg-window">
+                  <TextField label={`${name(wd)} from`} hideLabel type="time" step={300} value={w.start} onChange={(e) => setDay(wd, windows.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} />
+                  <span aria-hidden>–</span>
+                  <TextField label={`${name(wd)} until`} hideLabel type="time" step={300} value={w.end} onChange={(e) => setDay(wd, windows.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
+                  {windows.length > 1 && <IconButton label="Remove these hours" onClick={() => setDay(wd, windows.filter((_, j) => j !== i))}><Trash2 size={15} aria-hidden /></IconButton>}
+                </div>
+              )) : <span className="bkg-closed">{who ? "Off" : "Closed"}</span>}
+              {open && windows.length < 3 && (
+                <GhostButton size="sm" onClick={() => setDay(wd, [...windows, { start: windows[windows.length - 1].end, end: "18:00" }])}>Add hours</GhostButton>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Days off coming up, with a day to add; past ones are kept but not shown. */
+function DaysOffEditor({ days, onChange, label = "Add a day off" }: { days: string[]; onChange: (days: string[]) => void; label?: string }) {
+  const [adding, setAdding] = useState("");
+  const coming = days.filter((d) => d >= today());
+  return (
+    <>
+      <div className="bkg-dayoff-add">
+        <TextField label={label} type="date" min={today()} value={adding} onChange={(e) => setAdding(e.target.value)} />
+        <SecondaryButton disabled={!adding} onClick={() => { onChange([...new Set([...days, adding])].sort()); setAdding(""); }}>Add</SecondaryButton>
+      </div>
+      {coming.length === 0 ? <p className="bkg-day-empty">No days off coming up.</p> : (
+        <ul className="bkg-chips">
+          {coming.map((d) => (
+            <li key={d}><span>{dayText(d, "long")}</span><IconButton label={`Remove ${dayText(d, "long")}`} onClick={() => onChange(days.filter((x) => x !== d))}><Trash2 size={14} aria-hidden /></IconButton></li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ── Team & rooms ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+const shortId = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** What one person does, in a line: their services and whose hours. */
+function personLine(p: StaffMember, services: BookingService[]): string {
+  const does = !p.serviceIds.length ? "Every service" : services.filter((s) => p.serviceIds.includes(s.id)).map((s) => s.name).join(", ") || "No services yet";
+  return `${does} · ${p.ownHours ? "Their own hours" : "Your opening hours"}`;
+}
+
+/**
+ * The people clients can book and the rooms only one booking can use at a time. With nobody listed the shop books as
+ * one calendar, as before. Saved with the rest of Hours & rules through the server (op saveSettings).
+ */
+function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings; services: BookingService[]; onSaved: () => void }) {
+  const [editing, setEditing] = useState<StaffMember | null>(null);
+  const [roomName, setRoomName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [ask, confirmNode] = useConfirm();
+  const save = async (change: Partial<Pick<BookingSettings, "staff" | "rooms">>, done: string) => {
+    setSaving(true);
+    try { await bookingsAdmin("saveSettings", { settings: { ...settings, ...change } }); toast.success(done); onSaved(); return true; }
+    catch (e: any) { toast.error(e?.message || "That didn't save. Please try again."); return false; }
+    finally { setSaving(false); }
+  };
+  const addRoom = async () => {
+    const name = roomName.trim();
+    if (!name) return;
+    if (await save({ rooms: [...settings.rooms, { id: shortId("room"), name }] }, `${name} added`)) setRoomName("");
+  };
+  const removeRoom = async (r: BookingRoom) => {
+    const using = services.filter((s) => s.roomId === r.id).map((s) => s.name);
+    if (!(await ask({ title: `Remove ${r.name}?`, message: using.length ? `${using.join(", ")} won't need a room any more. Bookings already made stay.` : "Bookings already made stay as they are.", confirmLabel: "Remove" }))) return;
+    await save({ rooms: settings.rooms.filter((x) => x.id !== r.id) }, `${r.name} removed`);
+  };
+  const newPerson = (): StaffMember => ({ id: "", name: "", active: true, serviceIds: [], ownHours: false, hours: settings.hours.map((d) => d.map((w) => ({ ...w }))), daysOff: [], email: "" });
+  return (
+    <div className="bkg-team">
+      <section className="bkg-tile">
+        <div className="bkg-team-head">
+          <h2 className="bkg-tile-title">People clients can book</h2>
+          {settings.staff.length < MAX_STAFF && <SecondaryButton size="sm" icon={<Plus size={16} aria-hidden />} onClick={() => setEditing(newPerson())}>Add a person</SecondaryButton>}
+        </div>
+        {settings.staff.length === 0 ? (
+          <div className="bkg-team-empty">
+            <UserRound size={22} aria-hidden />
+            <p>Just you? Leave this empty and clients book your one calendar. Add the people who see clients and each booking goes to someone who does that service and is free.</p>
+          </div>
+        ) : (
+          <ul className="bkg-people">
+            {settings.staff.map((p) => (
+              <li key={p.id}>
+                <button type="button" className="bkg-person" onClick={() => setEditing(p)} data-off={!p.active || undefined}>
+                  <span className="bkg-person-initial" aria-hidden>{p.name.slice(0, 1).toUpperCase()}</span>
+                  <span className="bkg-person-text">
+                    <strong>{p.name}</strong>
+                    <span>{personLine(p, services)}</span>
+                  </span>
+                  {!p.active && <StatusBadge tone="neutral">Not taking bookings</StatusBadge>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="bkg-tile">
+        <h2 className="bkg-tile-title">Rooms and chairs</h2>
+        <p className="bkg-questions-hint">A room only one booking can use at a time. Pick it on each service that needs it.</p>
+        {settings.rooms.length > 0 && (
+          <ul className="bkg-chips">
+            {settings.rooms.map((r) => (
+              <li key={r.id}><span className="bkg-room-name"><DoorOpen size={14} aria-hidden /> {r.name}</span><IconButton label={`Remove ${r.name}`} disabled={saving} onClick={() => void removeRoom(r)}><Trash2 size={14} aria-hidden /></IconButton></li>
+            ))}
+          </ul>
+        )}
+        {settings.rooms.length < MAX_ROOMS && (
+          <div className="bkg-dayoff-add bkg-room-add">
+            <TextField label="Add a room or chair" placeholder="Treatment room" value={roomName} maxLength={60} onChange={(e) => setRoomName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addRoom(); } }} />
+            <SecondaryButton disabled={!roomName.trim() || saving} onClick={() => void addRoom()}>Add</SecondaryButton>
+          </div>
+        )}
+      </section>
+      {editing && (
+        <PersonDialog person={editing} services={services}
+          onClose={() => setEditing(null)}
+          onSave={async (p) => {
+            const staff = p.id ? settings.staff.map((x) => (x.id === p.id ? p : x)) : [...settings.staff, { ...p, id: shortId("p") }];
+            if (await save({ staff }, p.id ? `${p.name} saved` : `${p.name} added`)) setEditing(null);
+          }}
+          onRemove={editing.id ? async () => {
+            if (!(await ask({ title: `Remove ${editing.name}?`, message: "Clients can't pick them any more. Their bookings stay, with their name on them.", confirmLabel: "Remove" }))) return;
+            if (await save({ staff: settings.staff.filter((x) => x.id !== editing.id) }, `${editing.name} removed`)) setEditing(null);
+          } : undefined} />
+      )}
+      {confirmNode}
+    </div>
+  );
+}
+
+function PersonDialog({ person, services, onClose, onSave, onRemove }: {
+  person: StaffMember; services: BookingService[]; onClose: () => void; onSave: (p: StaffMember) => Promise<void>; onRemove?: () => Promise<void>;
+}) {
+  const [form, setForm] = useState<StaffMember>(person);
+  const [saving, setSaving] = useState(false);
+  const set = <K extends keyof StaffMember>(k: K, v: StaffMember[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const every = form.serviceIds.length === 0;
+  const pick = (id: string, on: boolean) => {
+    const next = on ? [...form.serviceIds, id] : form.serviceIds.filter((x) => x !== id);
+    // Ticking every service is the same as Every service.
+    set("serviceIds", next.length === services.length ? [] : next);
+  };
+  const save = async () => { setSaving(true); try { await onSave({ ...form, name: form.name.trim() }); } finally { setSaving(false); } };
+  return (
+    <Dialog open onClose={onClose} title={person.id ? `Edit ${person.name}` : "Add a person"}
+      footerStart={onRemove ? <DestructiveButton onClick={() => void onRemove()} disabled={saving}>Remove</DestructiveButton> : undefined}
+      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving} disabled={!form.name.trim()}>Save</PrimaryButton></>}>
+      <div className="bkg-form">
+        <TextField label="Name" placeholder="Sam" hint="Clients see it when they book." value={form.name} maxLength={60} onChange={(e) => set("name", e.target.value)} />
+        <Toggle label="Taking bookings" checked={form.active} onChange={(v) => set("active", v)} />
+        <fieldset className="bkg-questions">
+          <legend>What they do</legend>
+          <Toggle label="Every service" checked={every} onChange={(v) => set("serviceIds", v ? [] : services.slice(0, 1).map((s) => s.id))} />
+          {!every && (
+            <div className="bkg-person-services">
+              {services.map((s) => <Checkbox key={s.id} label={s.name} checked={form.serviceIds.includes(s.id)} onChange={(e) => pick(s.id, e.target.checked)} />)}
+            </div>
+          )}
+        </fieldset>
+        <fieldset className="bkg-questions">
+          <legend>When they work</legend>
+          <div className="bkg-seg" role="radiogroup" aria-label="When they work">
+            <button type="button" role="radio" aria-checked={!form.ownHours} onClick={() => set("ownHours", false)}>Your opening hours</button>
+            <button type="button" role="radio" aria-checked={form.ownHours} onClick={() => set("ownHours", true)}>Their own hours</button>
+          </div>
+          {form.ownHours && <WeekHoursEditor hours={form.hours} onChange={(hours) => set("hours", hours)} who={form.name.trim() || "Their"} />}
+        </fieldset>
+        <fieldset className="bkg-questions">
+          <legend>Their days off</legend>
+          <p className="bkg-questions-hint">On top of the shop's days off.</p>
+          <DaysOffEditor days={form.daysOff} onChange={(days) => set("daysOff", days)} label="Add a day off for them" />
+        </fieldset>
+      </div>
+    </Dialog>
   );
 }

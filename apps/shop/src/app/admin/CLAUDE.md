@@ -1190,6 +1190,15 @@ days as bars and Coming up, followed live from Bookings.
   Google Meet** (`meet`, one-customer services only; a "Video call" tag on the card); the drawer links `meetUrl`. Fixture:
   "Portfolio review" is a video call and "Ada Example" has a link.
 
+## Bookings: team and rooms (17 November 2026)
+Bookings › **Team & rooms** (`TeamPanel` in `Bookings.tsx`, CSS `.bkg-team*` / `.bkg-person*` in `bookings.css`): add people
+(`PersonDialog`: name, Taking bookings, Every service or a list, Your opening hours or their own (`WeekHoursEditor`), days
+off) and rooms; saves go through op `saveSettings` with the whole settings (`MAX_STAFF` 20, `MAX_ROOMS` 10). Removing
+asks first. The service dialog picks a room. The booking drawer shows who takes it and the room, and the new-booking and
+move dialogs let the owner pick a person or anyone free (`staffId`). Server rules: functions/CLAUDE.md › Bookings › Staff
+and rooms. Fixture: `admin-fixture.html?page=bookings&team=1` (Ana does all, Ben riso and workshops on his own hours, Cy
+not taking bookings; the riso service uses the print room).
+
 ## Shipping zones as a page (16 November 2026)
 Settings › Shipping › a profile › **Add a zone** / a zone's name opens `shipping/ZonePage.tsx` (v4 form kit, `zonePage.css`,
 tokens only) in place of the old dialog; the pure picks live in `shipping/zonePlaces.ts` (tested). Quick picks (home

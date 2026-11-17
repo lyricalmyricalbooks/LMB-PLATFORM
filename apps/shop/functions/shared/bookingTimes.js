@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.giftCardPart = giftCardPart;
 exports.cleanTipPercents = cleanTipPercents;
@@ -20,6 +20,8 @@ exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
+exports.cleanRooms = cleanRooms;
+exports.cleanStaff = cleanStaff;
 exports.zonedTime = zonedTime;
 exports.dayOf = dayOf;
 exports.addDays = addDays;
@@ -27,9 +29,14 @@ exports.summaryDue = summaryDue;
 exports.secondReminderDue = secondReminderDue;
 exports.daysTouched = daysTouched;
 exports.placesLeft = placesLeft;
+exports.staffFor = staffFor;
 exports.clashes = clashes;
 exports.bookingWindow = bookingWindow;
 exports.freeTimes = freeTimes;
+exports.whoIsFree = whoIsFree;
+exports.classPlacesLeft = classPlacesLeft;
+exports.keptPerson = keptPerson;
+exports.ownerBookingSettings = ownerBookingSettings;
 exports.isFreeTime = isFreeTime;
 exports.customerCanChange = customerCanChange;
 exports.bookingIcs = bookingIcs;
@@ -44,6 +51,8 @@ exports.MAX_CLASS_TIMES = 21;
 const isClass = (s) => Number(s?.places) > 1;
 exports.isClass = isClass;
 exports.MAX_QUESTIONS = 5;
+exports.MAX_STAFF = 20;
+exports.MAX_ROOMS = 10;
 exports.BOOKING_STEPS = [15, 30, 60];
 exports.MAX_SERVICES = 30;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -69,6 +78,8 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     pickupSlotMinutes: 30,
     pickupPerSlot: 4,
     pickupReadyHours: 2,
+    staff: [],
+    rooms: [],
 };
 /** How long a freed place may be held for the first person on the waiting list. */
 exports.WAIT_HOLD_MINUTES = [15, 30, 60, 120, 240, 720];
@@ -268,6 +279,7 @@ function cleanService(raw, id = "") {
         packVisits,
         packPriceMinor,
         packDays,
+        roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     };
 }
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
@@ -321,22 +333,8 @@ function cleanAnswers(questions, raw, enforce = true) {
 /** The opening hours and rules, cleaned; anything missing or broken takes the default. */
 function cleanBookingSettings(raw) {
     const s = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
-    const rawHours = Array.isArray(s.hours) && s.hours.length === 7 ? s.hours : exports.DEFAULT_BOOKING_SETTINGS.hours;
-    const hours = rawHours.map((day) => {
-        const windows = (Array.isArray(day) ? day : [])
-            .map((w) => (w && typeof w === "object" ? w : {}))
-            .filter((w) => typeof w.start === "string" && typeof w.end === "string" && TIME.test(w.start) && TIME.test(w.end) && minutesOf(w.start) < minutesOf(w.end))
-            .map((w) => ({ start: String(w.start), end: String(w.end) }))
-            .sort((a, b) => minutesOf(a.start) - minutesOf(b.start))
-            .slice(0, 4);
-        // Overlapping windows on one day read as one: keep each only when it starts after the last one ended.
-        const kept = [];
-        for (const w of windows)
-            if (!kept.length || minutesOf(w.start) >= minutesOf(kept[kept.length - 1].end))
-                kept.push(w);
-        return kept;
-    });
-    const daysOff = [...new Set((Array.isArray(s.daysOff) ? s.daysOff : []).filter((d) => typeof d === "string" && DAY.test(d)))].sort().slice(-200);
+    const hours = cleanHours(s.hours, exports.DEFAULT_BOOKING_SETTINGS.hours);
+    const daysOff = cleanDaysOff(s.daysOff);
     const step = exports.BOOKING_STEPS.includes(Number(s.step)) ? Number(s.step) : exports.DEFAULT_BOOKING_SETTINGS.step;
     const reminderHours = exports.REMINDER_HOURS.includes(Number(s.reminderHours)) ? Number(s.reminderHours) : exports.DEFAULT_BOOKING_SETTINGS.reminderHours;
     return {
@@ -358,7 +356,73 @@ function cleanBookingSettings(raw) {
         pickupSlotMinutes: exports.PICKUP_SLOT_MINUTES.includes(Number(s.pickupSlotMinutes)) ? Number(s.pickupSlotMinutes) : exports.DEFAULT_BOOKING_SETTINGS.pickupSlotMinutes,
         pickupPerSlot: whole(s.pickupPerSlot, 1, exports.MAX_PICKUP_PER_SLOT, exports.DEFAULT_BOOKING_SETTINGS.pickupPerSlot),
         pickupReadyHours: whole(s.pickupReadyHours, 0, 72, exports.DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
+        rooms: cleanRooms(s.rooms),
+        staff: cleanStaff(s.staff, hours),
     };
+}
+/** A week of opening hours, cleaned (7 days, up to 4 windows each, in order, no overlaps); `fallback` when broken. */
+function cleanHours(raw, fallback) {
+    const rawHours = Array.isArray(raw) && raw.length === 7 ? raw : fallback;
+    return rawHours.map((day) => {
+        const windows = (Array.isArray(day) ? day : [])
+            .map((w) => (w && typeof w === "object" ? w : {}))
+            .filter((w) => typeof w.start === "string" && typeof w.end === "string" && TIME.test(w.start) && TIME.test(w.end) && minutesOf(w.start) < minutesOf(w.end))
+            .map((w) => ({ start: String(w.start), end: String(w.end) }))
+            .sort((a, b) => minutesOf(a.start) - minutesOf(b.start))
+            .slice(0, 4);
+        // Overlapping windows on one day read as one: keep each only when it starts after the last one ended.
+        const kept = [];
+        for (const w of windows)
+            if (!kept.length || minutesOf(w.start) >= minutesOf(kept[kept.length - 1].end))
+                kept.push(w);
+        return kept;
+    });
+}
+const cleanDaysOff = (raw) => [...new Set((Array.isArray(raw) ? raw : []).filter((d) => typeof d === "string" && DAY.test(d)))].sort().slice(-200);
+/** An id kept from what was sent, else made from the position; never a repeat. */
+function ownId(raw, prefix, taken, index) {
+    let id = text(raw, 40).replace(/[^A-Za-z0-9_-]/g, "") || `${prefix}${index + 1}`;
+    while (taken.has(id))
+        id += "x";
+    taken.add(id);
+    return id;
+}
+/** The rooms and chairs, cleaned: named, at most MAX_ROOMS, each with its own id. */
+function cleanRooms(raw) {
+    const taken = new Set();
+    const out = [];
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const r = item && typeof item === "object" ? item : {};
+        const name = text(r.name, 60);
+        if (!name || out.length >= exports.MAX_ROOMS)
+            continue;
+        out.push({ id: ownId(r.id, "room", taken, out.length), name });
+    }
+    return out;
+}
+/** The people, cleaned: named, at most MAX_STAFF, each with its own id; own hours start from the shop's. */
+function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
+    const taken = new Set();
+    const out = [];
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const p = item && typeof item === "object" ? item : {};
+        const name = text(p.name, 60);
+        if (!name || out.length >= exports.MAX_STAFF)
+            continue;
+        const ownHours = p.ownHours === true;
+        const email = text(p.email, 320).toLowerCase();
+        out.push({
+            id: ownId(p.id, "p", taken, out.length),
+            name,
+            active: p.active !== false,
+            serviceIds: [...new Set((Array.isArray(p.serviceIds) ? p.serviceIds : []).map((v) => text(v, 40)).filter((v) => /^[A-Za-z0-9_-]+$/.test(v)))].slice(0, exports.MAX_SERVICES),
+            ownHours,
+            hours: ownHours ? cleanHours(p.hours, shopHours) : shopHours.map((d) => d.map((w) => ({ ...w }))),
+            daysOff: cleanDaysOff(p.daysOff),
+            email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
+        });
+    }
+    return out;
 }
 /** How far apart pickup times are offered. */
 exports.PICKUP_SLOT_MINUTES = [15, 30, 60];
@@ -448,23 +512,37 @@ function daysTouched(start, end, zone) {
  * How many more people can book `service` at `start`: 0 when anything else overlaps it (its rest included). A group
  * class shares its time only with bookings of the same class at the very same start, up to its places.
  */
-function placesLeft(start, service, busy) {
+function placesLeft(start, service, busy, staffId = "") {
     const end = start + (service.minutes + service.gapAfter) * MINUTE;
     const places = (0, exports.isClass)(service) && service.id ? Math.round(Number(service.places)) : 1;
+    const room = service.roomId || "";
     let taken = 0;
     for (const b of busy) {
         if (!(start < b.end && end > b.start))
             continue;
-        if (places > 1 && b.serviceId === service.id && b.start === start)
+        // With people, a stretch matters when it is this person's, the whole shop's, or in the room this service needs.
+        const mine = !staffId || !b.staffId || b.staffId === staffId;
+        const sameRoom = !!room && b.roomId === room;
+        if (!mine && !sameRoom)
+            continue;
+        const sameClass = places > 1 && b.serviceId === service.id && b.start === start && (!staffId || (b.staffId || "") === staffId);
+        if (sameClass)
             taken += 1;
         else
             return 0;
     }
     return Math.max(0, places - taken);
 }
+/** The people who can be booked for a service: active, and doing it (nobody listed for a service means everyone). */
+function staffFor(settings, serviceId) {
+    return (settings.staff || []).filter((p) => p.active && (!p.serviceIds.length || (!!serviceId && p.serviceIds.includes(serviceId))));
+}
+/** Does the shop book by person? Only when someone is listed and active. */
+const booksByPerson = (settings) => (settings.staff || []).some((p) => p.active);
+exports.booksByPerson = booksByPerson;
 /** Whether a booking of `service` starting at `start` can't be taken: something overlaps it, or the class is full. */
-function clashes(start, service, busy) {
-    return placesLeft(start, service, busy) === 0;
+function clashes(start, service, busy, staffId = "") {
+    return placesLeft(start, service, busy, staffId) === 0;
 }
 /** The last day customers may book, and the earliest moment, as of `nowMs`. */
 function bookingWindow(settings, zone, nowMs) {
@@ -474,29 +552,45 @@ function bookingWindow(settings, zone, nowMs) {
  * The start times (milliseconds) a customer can book on one shop day, earliest first: inside the day's opening hours,
  * whole service inside a window, at the step, after the notice, before the last day, clashing with nothing busy.
  */
-function freeTimes({ service, settings, busy, day, zone, nowMs }) {
+function freeTimes(args) {
+    const { service, settings, day } = args;
+    if (!(0, exports.booksByPerson)(settings))
+        return freeTimesFor(args, settings.hours, "");
+    const people = staffFor(settings, service.id).filter((p) => !args.staffId || p.id === args.staffId);
+    const all = new Set();
+    for (const p of people) {
+        if (p.daysOff.includes(day))
+            continue;
+        for (const ms of freeTimesFor(args, p.ownHours ? p.hours : settings.hours, p.id))
+            all.add(ms);
+    }
+    return [...all].sort((a, b) => a - b);
+}
+/** One calendar's free times on a day: the shop's (no person) or one person's, with their working hours. */
+function freeTimesFor({ service, settings, busy, day, zone, nowMs }, hours, staffId) {
     if (!(0, exports.isDay)(day) || settings.daysOff.includes(day))
         return [];
     const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
     if (day > lastDay || day < dayOf(nowMs, zone))
         return [];
     const out = [];
+    const open = (start) => placesLeft(start, service, busy, staffId) > 0;
     // A class with its own weekly times runs at those, whatever the opening hours say.
     if ((0, exports.isClass)(service) && service.classTimes?.length) {
         for (const t of service.classTimes) {
             if (t.weekday !== (0, exports.weekdayOf)(day))
                 continue;
             const start = zonedTime(day, t.time, zone);
-            if (start >= earliest && !clashes(start, service, busy) && !out.includes(start))
+            if (start >= earliest && open(start) && !out.includes(start))
                 out.push(start);
         }
         return out.sort((a, b) => a - b);
     }
-    for (const w of settings.hours[(0, exports.weekdayOf)(day)] || []) {
+    for (const w of hours[(0, exports.weekdayOf)(day)] || []) {
         const close = minutesOf(w.end);
         for (let m = minutesOf(w.start); m + service.minutes <= close; m += settings.step) {
             const start = zonedTime(day, `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`, zone);
-            if (start < earliest || clashes(start, service, busy))
+            if (start < earliest || !open(start))
                 continue;
             // A clock change can make two wall times one moment; offer it once.
             if (out[out.length - 1] !== start)
@@ -505,10 +599,48 @@ function freeTimes({ service, settings, busy, day, zone, nowMs }) {
     }
     return out;
 }
-/** Whether `start` is one of the times free on its day (the server's check before it takes a booking). */
+/**
+ * Who takes a booking of `service` at `start`: the person asked for when they are free, else (anyone) someone already
+ * running that class then, else whoever has the fewest bookings that day, then the list's order. "" when the shop books
+ * as one calendar and the time is free; null when nobody can take it (the server's check before it takes a booking).
+ */
+function whoIsFree(args) {
+    const { service, settings, busy, start, zone } = args;
+    if (!Number.isFinite(start))
+        return null;
+    const day = dayOf(start, zone);
+    if (!(0, exports.booksByPerson)(settings))
+        return freeTimesFor({ ...args, day }, settings.hours, "").includes(start) ? "" : null;
+    const people = staffFor(settings, service.id).filter((p) => (!args.staffId || p.id === args.staffId) && !p.daysOff.includes(day)
+        && freeTimesFor({ ...args, day }, p.ownHours ? p.hours : settings.hours, p.id).includes(start));
+    if (!people.length)
+        return null;
+    const teaching = (0, exports.isClass)(service) ? people.find((p) => busy.some((b) => b.staffId === p.id && b.serviceId === service.id && b.start === start)) : undefined;
+    if (teaching)
+        return teaching.id;
+    const load = (id) => busy.filter((b) => b.staffId === id && dayOf(b.start, zone) === day).length;
+    return people.reduce((best, p) => (load(p.id) < load(best.id) ? p : best)).id;
+}
+/** A class's places left at `start` for whoever could run it (the most any one person has), or the one person asked for. */
+function classPlacesLeft(start, service, settings, busy, staffId = "") {
+    if (!(0, exports.booksByPerson)(settings))
+        return placesLeft(start, service, busy);
+    const people = staffFor(settings, service.id).filter((p) => !staffId || p.id === staffId);
+    return people.reduce((most, p) => Math.max(most, placesLeft(start, service, busy, p.id)), 0);
+}
+/** The person to keep when a booking moves: theirs while they still do the service, else "" (anyone free). */
+function keptPerson(settings, serviceId, staffId) {
+    return typeof staffId === "string" && staffId && staffFor(settings, serviceId).some((p) => p.id === staffId) ? staffId : "";
+}
+/** Settings for the owner booking someone in: any hour of any day, for anyone on the team (a favour for a regular). */
+function ownerBookingSettings(settings) {
+    const allDay = Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]);
+    return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5,
+        staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [] })) };
+}
+/** Whether `start` is free for a booking (someone can take it, or the shop's one calendar is free there). */
 function isFreeTime(args) {
-    const { start, zone } = args;
-    return Number.isFinite(start) && freeTimes({ ...args, day: dayOf(start, zone) }).includes(start);
+    return whoIsFree(args) !== null;
 }
 /** Whether the customer may still cancel or move online: up to `cancelHours` before it starts. */
 function customerCanChange(startMs, settings, nowMs) {

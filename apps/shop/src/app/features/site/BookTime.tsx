@@ -22,6 +22,7 @@ import {
   withCode, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
+  peopleFor,
 } from "./bookTimeRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -78,6 +79,8 @@ function NewBooking({ c }: { c: Copy }) {
   const [service, setService] = useState<BookingServiceView | null>(null);
   const [step, setStep] = useState<Step>("service");
   const [start, setStart] = useState("");
+  // Who takes it when the shop lists people: one of them, or "" for anyone free.
+  const [staffId, setStaffId] = useState("");
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "" });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
@@ -92,7 +95,7 @@ function NewBooking({ c }: { c: Copy }) {
   // "Book a visit" on a pack's own page links here with the pack, so it is applied once the service is chosen.
   const usePack = useMemo(() => packFromSearch(search, "usepack"), [search]);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => setApplied(null), [service?.id]);
+  useEffect(() => { setApplied(null); setStaffId(""); }, [service?.id]);
   useEffect(() => {
     setPack(null);
     if (!service || !usePack) return;
@@ -137,6 +140,9 @@ function NewBooking({ c }: { c: Copy }) {
   const lastDay = addDays(today, Math.max(0, (info.maxDaysAhead || 60) - 1));
   const steps: Step[] = info.services.length > 1 ? ["service", "time", "details"] : ["time", "details"];
   const end = start && service ? new Date(Date.parse(start) + service.minutes * 60_000).toISOString() : "";
+  // The people who do this service (none when the shop lists nobody), and the one picked.
+  const people = service ? peopleFor(info, service.id) : [];
+  const chosen = people.find((p) => p.id === staffId);
   const questions = service?.questions || [];
 
   const submit = async (e: FormEvent) => {
@@ -156,11 +162,13 @@ function NewBooking({ c }: { c: Copy }) {
     setError("");
     try {
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers, ...held, ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...(staffId ? { staffId } : {}), ...form, answers, ...held, ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
       setBusy(false);
+      // The person picked stopped doing this service meanwhile: back to anyone free and the times.
+      if (err?.code === "staff") { setStaffId(""); setStart(""); setStep("time"); setError(c("bookTimeStaffProblem")); return; }
       if (err?.code === "taken") { setStart(""); setStep("time"); setError(c("bookTimeTaken")); return; }
       // The code stopped working meanwhile (used up, ended): take it off so the right price shows, and say so.
       if (err?.code === "code") { setApplied(null); setError(c("bookTimeCodeProblem")); return; }
@@ -219,7 +227,15 @@ function NewBooking({ c }: { c: Copy }) {
 
       {step === "time" && service && (
         <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
-          <TimePicker serviceId={service.id} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
+          {people.length > 0 && (
+            <div className="fm-book-people" role="group" aria-label={c("bookTimeWith")}>
+              <p className="fm-track-mono w-full" aria-hidden="true">{c("bookTimeWith")}</p>
+              {[{ id: "", name: c("bookTimeAnyone") }, ...people].map((p) => (
+                <button key={p.id || "anyone"} type="button" className="fm-book-person" aria-pressed={staffId === p.id} onClick={() => { setStaffId(p.id); setStart(""); }}>{p.name}</button>
+              ))}
+            </div>
+          )}
+          <TimePicker serviceId={service.id} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
             offer={service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : undefined}
             waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />
           <div className="fm-book-actions mt-2">
@@ -307,6 +323,7 @@ function NewBooking({ c }: { c: Copy }) {
           </form>
           <aside {...regionProps("bookingsSummary")} className="fm-track-card p-6 fm-track-ledger">
             <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
+            {chosen && <Row label={c("bookTimeWith")} value={chosen.name} />}
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
             {applied && <Row label={c("bookTimeDiscount")} value={`${applied.code} −${moneyText(applied.discountMinor, currency)}`} />}
             {gift && <Row label={c("bookTimeGiftCard")} value={`••••${gift.last4} −${moneyText(gift.giftMinor, currency)}`} />}
@@ -567,8 +584,8 @@ function Row({ label, value }: { label: string; value: string }) {
 
 // ── The day and time picker (new bookings and Change time) ─────────────────────────────────────────────────────────
 
-function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "", offer }: {
-  serviceId: string; zone: string; today: string; lastDay: string; picked: string; onPick: (iso: string) => void; c: Copy;
+function TimePicker({ serviceId, staffId = "", zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "", offer }: {
+  serviceId: string; /** Only this person's free times ("" = anyone free). */ staffId?: string; zone: string; today: string; lastDay: string; picked: string; onPick: (iso: string) => void; c: Copy;
   /** A place held for this person from the waiting list: the server shows it as free to them only. */
   offer?: { offer: string; offerKey: string };
   /** New bookings only: full class times and booked-up days offer the waiting list. */
@@ -594,7 +611,7 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitli
     let cancelled = false;
     setTimes(null);
     setFailed(false);
-    ask("bookingTimes", { serviceId, from, days: days.length || 1, ...(offer || {}) }).then((answer) => {
+    ask("bookingTimes", { serviceId, from, days: days.length || 1, ...(staffId ? { staffId } : {}), ...(offer || {}) }).then((answer) => {
       if (cancelled) return;
       const got = (answer.days || {}) as Record<string, string[]>;
       const hold = (answer.held || null) as { start: string; until: string } | null;
@@ -610,7 +627,7 @@ function TimePicker({ serviceId, zone, today, lastDay, picked, onPick, c, waitli
       setDay((current) => (current && days.includes(current) && ((got[current] || []).length || (gone[current] || []).length || booked.includes(current)) ? current : firstOpenDay(days, got)));
     }).catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, [serviceId, from, attempt]);
+  }, [serviceId, staffId, from, attempt]);
 
   const back = pageStep(from, today, lastDay, -1);
   const next = pageStep(from, today, lastDay, 1);
@@ -909,6 +926,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       <div {...regionProps("bookingsConfirmation")} className="fm-track-card p-6 sm:p-8 fm-track-ledger">
         <Row label={c("bookTimeWhat")} value={`${booking.serviceName} · ${lengthText(booking.minutes)}`} />
         <Row label={c("bookTimeWhen")} value={whenText(booking.start, booking.end, zone)} />
+        {booking.staffName && <Row label={c("bookTimeWith")} value={booking.staffName} />}
         {booking.location && <Row label={c("bookTimeWhere")} value={booking.location} />}
         {booking.meetUrl && booking.status === "confirmed" && (
           <div className="fm-track-row"><span className="fm-track-mono">{c("bookTimeVideo")}</span><a className="text-right underline underline-offset-2" href={booking.meetUrl} target="_blank" rel="noopener noreferrer">{c("bookTimeJoin")}</a></div>
@@ -970,7 +988,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       {booking.status === "confirmed" && mode === "move" && info?.today && (
         <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
           <h2 className="fm-track-display text-3xl mb-6">{c("bookTimeMoveTitle")}</h2>
-          <TimePicker serviceId={booking.serviceId} zone={zone} today={info.today} lastDay={lastDay} picked={newStart} onPick={setNewStart} c={c} />
+          <TimePicker serviceId={booking.serviceId} staffId={booking.staffId} zone={zone} today={info.today} lastDay={lastDay} picked={newStart} onPick={setNewStart} c={c} />
           <div className="fm-book-actions">
             <button type="button" className="fm-track-btn" disabled={!newStart || busy} onClick={() => void act("bookingMove", { start: newStart })}>
               {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {newStart ? c("bookTimeMoveSave", { time: timeText(newStart, zone) }) : c("bookTimeMoveTitle")}
