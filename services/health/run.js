@@ -1,5 +1,5 @@
 // Runs the health checks or the nightly backups for real. Needs the platform project (docs/test-shop.md steps 1–2) and
-// a schedule to call it (every five minutes, and once a night); nothing in the platform's tests runs it.
+// a schedule to call it (every 15 minutes, and once a night); nothing in the platform's tests runs it.
 //
 //   HEALTH_ALERT_TO=<the platform's alert address> node services/health/run.js checks
 //   node services/health/run.js nightly

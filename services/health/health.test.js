@@ -269,7 +269,10 @@ test("in the shared system, one export of the shared project's databases a night
   const runs = [];
   const backups = { run: async (projectId, { database }) => { runs.push([projectId, database]); return { name: "backups/2026-10-28/" }; } };
   const result = await runNightlyBackups({ registry, backups, shopDb: world({ docs: { "press-alpha": goodBackup() } }).shopDb, now: () => new Date(NOW) });
-  // Bravo's own copy missed a night: the shared database is exported once, and the stockroom's once, for both shops.
-  assert.deepEqual(runs, [["lmb-test-shop", "stockroom"], ["lmb-test-shop", "(default)"]]);
-  assert.deepEqual(result.shops, [{ shopId: "press-alpha", backedUp: ["stockroomAt"], failed: [] }, { shopId: "press-bravo", backedUp: ["shopAt", "stockroomAt"], failed: [] }]);
+  // A shared shop copies its own folder only weekly, so the shared database is exported every night, even when a shop's
+  // own copy is fresh: once for both shops, and the stockroom's once.
+  assert.deepEqual(runs, [["lmb-test-shop", "(default)"], ["lmb-test-shop", "stockroom"]]);
+  assert.deepEqual(result.shops, [{ shopId: "press-alpha", backedUp: ["shopAt", "stockroomAt"], failed: [] }, { shopId: "press-bravo", backedUp: ["shopAt", "stockroomAt"], failed: [] }]);
+  const rows = await registry.listShops();
+  assert.ok(rows.every((r) => r.platformBackup?.shopAt), "each shop's row records the nightly export, which the backup check reads");
 });

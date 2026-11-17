@@ -171,6 +171,14 @@ export function hasStockroom(profile: ShopProfile = shopProfile): boolean {
   return profile.apps.stockroom === true;
 }
 
+/**
+ * The shop lives in the shared system (it has its own sign-in list there). Its own downloadable copy runs once a week, and
+ * the platform backs up every shop in the shared system every night (LMB-PLATFORM services/health/nightly.js).
+ */
+export function weeklyOwnCopy(profile: ShopProfile = shopProfile): boolean {
+  return typeof profile.tenant === "string" && profile.tenant !== "";
+}
+
 /** Card payments run through the platform (plan 2.2): the checkout offers cards without the shop's own keys. */
 export function platformTakesCards(profile: ShopProfile = shopProfile): boolean {
   const payments = profile.payments;

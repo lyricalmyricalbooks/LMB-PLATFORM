@@ -10,7 +10,8 @@ import { DownloadChoices } from "../DownloadChoices";
 import { LocalBackupCard } from "../LocalBackupCard";
 import { readMeta, supported } from "../localBackup";
 import { Drawer, PageActions, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
-import { folderRow, nightlyRow } from "./backups";
+import { backupCadence, folderRow, nightlyRow } from "./backups";
+import { weeklyOwnCopy } from "../../../lib/shopProfile";
 import { StockroomCopiesList, copiesLine, useStockroomCopies } from "./StockroomCopies.tsx";
 import { isTestBook, stockroomApi } from "./stockroomData";
 import { stockLocationsCsv } from "@stockroom/stock-locations.js";
@@ -34,7 +35,8 @@ export function BackupsPage() {
   const [choosing, setChoosing] = useState(false);
   const [, setSeen] = useState(0);
   const close = () => { setOpen(""); setSeen((n) => n + 1); };
-  const row = nightlyRow(nightly.record);
+  const weekly = weeklyOwnCopy();
+  const row = nightlyRow(nightly.record, Date.now(), weekly);
   const folder = folderRow(readMeta(), supported());
   const view = nightly.view;
   const stockCounts = (run: ExportRun, busy: string) => (
@@ -93,7 +95,7 @@ export function BackupsPage() {
         </ul>
       </section>
 
-      <Drawer open={open === "nightly"} onClose={close} title="Nightly backups" description="Every night. Kept 30 days.">
+      <Drawer open={open === "nightly"} onClose={close} title={weekly ? "Weekly backups" : "Nightly backups"} description={backupCadence(weekly).drawer}>
         <NightlyBackupStatus nightly={nightly} />
         <NightlyBackupDays nightly={nightly} />
       </Drawer>

@@ -3,7 +3,8 @@ import { doc, getDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import { runsOnColophon, shopProfile } from "../../lib/shopProfile";
+import { runsOnColophon, shopProfile, weeklyOwnCopy } from "../../lib/shopProfile";
+import { backupCadence } from "./stockroom/backups";
 import { adminApi } from "./api";
 import { catalogToCsv } from "./bulkPricing";
 import { buildCustomers, customersToCsv } from "./customerInsights";
@@ -231,7 +232,7 @@ export type ExportRun = (kind: string, make: () => Promise<[string, string, stri
 export function BackupsExportCard() {
   const nightly = useNightlyBackup();
   return (
-    <SectionCard title="Backups & export" description="Nightly at 3:17 am. Kept 30 days.">
+    <SectionCard title="Backups & export" description={backupCadence(weeklyOwnCopy()).card}>
       <NightlyBackupStatus nightly={nightly} />
       <div style={{ margin: "0 0 16px" }}>
         <PrimaryButton size="sm" disabled={!!nightly.busy || nightly.view?.running} onClick={nightly.runBackup}>{nightly.busy === "backup" ? "Backing up…" : "Back up now"}</PrimaryButton>

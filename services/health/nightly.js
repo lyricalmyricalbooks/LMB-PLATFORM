@@ -1,7 +1,9 @@
-// The nightly backup run (plan 4.3). Each shop backs up its own database every night (its nightly backup function,
-// systemStatus/backup). The platform adds what that doesn't cover:
+// The nightly backup run (plan 4.3). A shop in its own project backs up its own database every night (its nightly backup
+// function, systemStatus/backup); a shop in the shared system copies its folder once a week (17 November 2026, running
+// cost cut 2), and the one export of the shared database below is its nightly backup. The platform adds:
 // - the stockroom's own database (plan 1.20), which nothing in the stockroom backs up: exported every night;
-// - the shop's database when its own backup has missed a night (no good one in STAND_IN_HOURS): exported as a stand-in.
+// - a shared shop's database every night (one export of the shared project covers all its shops);
+// - a single-project shop's database when its own backup has missed a night (no good one in STAND_IN_HOURS): a stand-in.
 // Exports go to backups/<day>/ in the shop's bucket (clients/google.js `backups.run`), next to the shop's own. Each one
 // is written on the registry row (`platformBackup: { shopAt?, stockroomAt? }`, read by the backup check in checks.js)
 // and as a registry event. A failed export is an event too; the five-minute run's backup check then alerts on it.
@@ -34,9 +36,14 @@ export async function runNightlyBackups({ registry, backups, shopDb, now = () =>
     const failed = [];
     const jobs = [];
     if (apps.includes("shop")) {
-      const own = await shopDb(row.shopId).get("systemStatus/backup").catch(() => null);
-      const fresh = own?.lastSuccessAt && (now().getTime() - Date.parse(own.lastSuccessAt)) / 3_600_000 < STAND_IN_HOURS;
-      if (!fresh) jobs.push(["shopAt", "(default)"]);
+      // A shared shop copies its own folder only once a week (the shop's ownCopyDue), so the one export of the shared
+      // database is every shared shop's nightly backup. A shop in its own project still gets it only as a stand-in.
+      if (row.shared === true) jobs.push(["shopAt", "(default)"]);
+      else {
+        const own = await shopDb(row.shopId).get("systemStatus/backup").catch(() => null);
+        const fresh = own?.lastSuccessAt && (now().getTime() - Date.parse(own.lastSuccessAt)) / 3_600_000 < STAND_IN_HOURS;
+        if (!fresh) jobs.push(["shopAt", "(default)"]);
+      }
     }
     if (apps.includes("stockroom")) jobs.push(["stockroomAt", stockroomDatabase]);
     for (const [field, database] of jobs) {

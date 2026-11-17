@@ -125,7 +125,7 @@ const digitalDelivery = require("./digitalDelivery");
 const { assignLicenceKeys, licenceKeysEmailSection } = require("./licenceKeys");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { paypalCredentials, paypalWebhookId } = require("./paypalCredentials");
-const { shopOrigin, checkoutClosed, planPaused, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
+const { shopOrigin, checkoutClosed, planPaused, dailyDigestEnabled, backupStatusRecord, ownCopyDue } = require("./shopSettings");
 const { runInBatches, backupFoldersToPrune } = require("./sweepLimits");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
@@ -5161,7 +5161,7 @@ exports.unpaidPaymentSweep = onSchedule(
 );
 
 /**
- * Nightly backup into the project's default Storage bucket, folder backups/YYYY-MM-DD/, done two ways:
+ * Nightly backup (weekly for a shop in the shared system: ownCopyDue in shopSettings.js) into the project's default Storage bucket, folder backups/YYYY-MM-DD/, done two ways:
  *  1. the managed Firestore export (restorable with `gcloud firestore import`). It needs the Functions
  *     service account to hold "Cloud Datastore Import Export Admin"; without it Google answers PERMISSION_DENIED.
  *  2. the Functions' own copy of every document (backupJson.js, backups/<day>/json/), which needs no extra
@@ -5182,6 +5182,7 @@ async function runFirestoreBackup({ trigger, budgetMs }) {
   const bucketName = admin.app().options.storageBucket || `${projectId}.firebasestorage.app`;
   const statusRef = db.collection("systemStatus").doc("backup");
   const at = new Date(startedAt).toISOString();
+  const shared = !!currentShop();
 
   // One backup at a time: a run holds `runningSince` for up to BACKUP_LOCK_MS.
   const claim = await db.runTransaction(async tx => {
@@ -5189,11 +5190,12 @@ async function runFirestoreBackup({ trigger, budgetMs }) {
     const prev = snap.exists ? snap.data() : null;
     const running = prev?.runningSince && startedAt - Date.parse(prev.runningSince) < BACKUP_LOCK_MS;
     if (running) return { busy: true, previous: prev };
+    if (!ownCopyDue({ trigger, shared, previous: prev, now: startedAt })) return { notDue: true, previous: prev };
     if (trigger === "manual" && prev?.lastAttemptAt && startedAt - Date.parse(prev.lastAttemptAt) < BACKUP_MANUAL_GAP_MS) return { tooSoon: true, previous: prev };
     tx.set(statusRef, { runningSince: at, runningTrigger: trigger }, { merge: true });
     return { previous: prev };
   });
-  if (claim.busy || claim.tooSoon) return claim;
+  if (claim.busy || claim.tooSoon || claim.notDue) return claim;
   const previous = claim.previous;
 
   const { serviceAccountEmail } = require("./inventoryLinkStore");
@@ -5281,6 +5283,7 @@ exports.nightlyFirestoreBackup = onSchedule(
   async () => {
     const result = await runFirestoreBackup({ trigger: "nightly", budgetMs: 480 * 1000 });
     if (result.busy) { console.warn("nightlyFirestoreBackup: another backup is running; skipped."); return; }
+    if (result.notDue) return; // shared system: the shop's own copy is weekly; the platform's export covers tonight.
     if (!result.ok) throw new Error(`Backup failed: ${result.error}`);
   }
 );

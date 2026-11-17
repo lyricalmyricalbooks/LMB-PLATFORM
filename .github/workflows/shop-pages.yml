@@ -1,0 +1,87 @@
+name: Draw changed shops' pages
+
+# Every 15 minutes, each shared shop whose catalogue changed since its pages were drawn gets them drawn again
+# (services/release-runner/pageRefresh.js; Julian, 17 November 2026, to cut shops' running costs). Until then every
+# shopper's page reads the shop's books one by one from the database instead of from its one catalogue file. A look that
+# finds nothing changed stops after the check, without setting up the build tools.
+#
+# It only writes shops' own published files (their pages, sitemap, feeds and catalogue file), with the version each shop
+# already runs. A shop whose pages fail keeps its last good ones and is tried again next time.
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shop-pages
+  cancel-in-progress: false
+
+env:
+  WIF_PROVIDER: projects/1038369055304/locations/global/workloadIdentityPools/github/providers/lmb-platform
+  DEPLOY_ACCOUNT: github-deploy@lmb-platform-prod.iam.gserviceaccount.com
+  PLAYWRIGHT: playwright@1.64.1
+
+jobs:
+  draw:
+    if: github.repository == 'lyricalmyricalbooks/LMB-PLATFORM' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: shared-system
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Every commit, so the version a shop runs (it names its own commit) can be built.
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Sign in to Google as the deploy account
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: Settings
+        env:
+          SERVER_SETTINGS: ${{ vars.SERVER_SETTINGS }}
+        run: |
+          # Only plain settings (project names), never a key: they are in the repository variable.
+          value=$(printf '%s\n' "$SERVER_SETTINGS" | sed -n 's/^SHARED_SHOPS_PROJECT: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' | head -n 1)
+          [ -n "$value" ] && echo "SHARED_SHOPS_PROJECT=$value" >> "$GITHUB_ENV"
+          echo "RELEASE_BUILD_ROOT=$RUNNER_TEMP/builds" >> "$GITHUB_ENV"
+      - name: Which shops changed
+        id: look
+        run: node services/release-runner/run-page-refresh.js --list
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: steps.look.outputs.count != '0'
+        with:
+          version: 10
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.look.outputs.count != '0'
+        with:
+          path: |
+            ~/.npm
+            ~/.local/share/pnpm/store
+            ~/.cache/ms-playwright
+          key: shop-pages-${{ runner.os }}-${{ env.PLAYWRIGHT }}-${{ hashFiles('apps/shop/pnpm-lock.yaml', 'apps/shop/functions/package-lock.json', 'apps/stockroom/package-lock.json') }}
+          restore-keys: shop-pages-${{ runner.os }}-
+      - name: The drawing tools
+        if: steps.look.outputs.count != '0'
+        run: |
+          # The pages are drawn in a browser (apps/shop/scripts/prerender-storefront.mjs).
+          npm install --no-save "$PLAYWRIGHT"
+          npx playwright install chromium
+          if find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) -exec ldd {} \; | grep -q "not found"; then
+            timeout 600 npx playwright install-deps chromium
+          fi
+      - name: Draw them again
+        if: steps.look.outputs.count != '0'
+        run: node services/release-runner/run-page-refresh.js

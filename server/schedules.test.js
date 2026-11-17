@@ -28,7 +28,7 @@ test("every job has a schedule whose beat matches how often it is meant to run",
     assert.match(cron, /^(\*|\*\/\d+|\d+) (\*|\*\/\d+|\d+) (\*|\d+) \* (\*|[0-6])$/, `${job.name}: ${cron}`);
     assert.equal(gapOf(cron), job.every, `${job.name}: ${cron} is not every ${job.every} minutes`);
   }
-  assert.equal(cronFor(JOBS.find((j) => j.name === "health-checks")), "*/5 * * * *");
+  assert.equal(cronFor(JOBS.find((j) => j.name === "health-checks")), "*/15 * * * *");
   assert.equal(cronFor(JOBS.find((j) => j.name === "shop-maker")), "* * * * *");
   assert.equal(cronFor(JOBS.find((j) => j.name === "press-messages")), "7 * * * *");
   assert.equal(schedulePlan().length, JOBS.length);

@@ -23,7 +23,7 @@ Julian's own website and stockroom repos are never changed for the platform; the
 | `releases/` | Notes on how a new shop and stockroom version reaches every press. |
 | `status/` | The public status page: whether pages, checkout, payments and backups are working, counted across shops and naming none. |
 | `services/support/` | The support inbox: presses ask from their account page, the platform team answers from the control room, and every answer is emailed. |
-| `services/health/` | Checks every shop's pages, checkout, payment events and backups every five minutes, emails the platform when one fails, and backs up what the shops don't each night. |
+| `services/health/` | Checks every shop's pages, checkout, payment events and backups every 15 minutes, emails the platform when one fails, and backs up what the shops don't each night. |
 | `services/release-runner/` | Builds a release once and sends it to the test shop, then every other platform shop; stops and rolls back at the first failed check. |
 | `control-room/` | Platform admin: every shop's health, plan and version, and a logged "act as this shop" button. |
 | `services/payments/` | The one service that holds the Stripe platform key. It handles checkout and Stripe events for all shops. |

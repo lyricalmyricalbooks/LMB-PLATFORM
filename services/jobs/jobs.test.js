@@ -37,7 +37,7 @@ test("every job the platform's code schedules is listed once, with its gap", () 
     const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
     if (fn) assert.ok(source.includes(fn), `${job.code}`);
   }
-  assert.equal(JOBS.find((j) => j.name === "health-checks").every, 5);
+  assert.equal(JOBS.find((j) => j.name === "health-checks").every, 15);
 });
 
 test("a run is recorded with its time, result and summary; a failure is a run, never a crash", async () => {
@@ -86,12 +86,12 @@ test("the run log keeps the newest 50 runs of each job", async () => {
 
 test("a missed run alerts once; it alerts again only after it runs on time and goes late again", async () => {
   const w = world();
-  // The health checks run every 5 minutes; the shop maker every minute and keeps the checking going.
+  // The health checks run every 15 minutes; the shop maker every minute and keeps the checking going.
   await w.jobs.runJob("health-checks", async () => ({}));
   const late = async () => (await w.jobs.jobsStatus()).find((j) => j.name === "health-checks");
-  w.tick(9);
+  w.tick(29);
   await w.jobs.runJob("shop-maker", async () => ({}));
-  assert.equal((await late()).late, false, "9 minutes is within twice the gap");
+  assert.equal((await late()).late, false, "29 minutes is within twice the gap");
   assert.equal(w.sent.length, 0);
 
   w.tick(2);
@@ -111,10 +111,10 @@ test("a missed run alerts once; it alerts again only after it runs on time and g
 
   // It runs again: back on time, no email. Then it stops again: a second alert.
   await w.jobs.runJob("health-checks", async () => ({}));
-  w.tick(5);
+  w.tick(15);
   await w.jobs.runJob("shop-maker", async () => ({}));
   assert.equal(w.sent.length, 1);
-  w.tick(6);
+  w.tick(16);
   await w.jobs.runJob("shop-maker", async () => ({}));
   assert.equal(w.sent.length, 2);
   assert.notEqual(w.sent[1].idempotencyKey, w.sent[0].idempotencyKey);
@@ -131,7 +131,7 @@ test("an alert that couldn't be sent is tried again on the next check", async ()
   const sent = [];
   const jobs = createJobs({ store: w.store, alertTo: "alerts@example.com", now: w.now, email: { sendPlatform: async (m) => { if (down) throw new Error("no answer"); sent.push(m); } } });
   await jobs.runJob("health-checks", async () => ({}));
-  w.tick(20);
+  w.tick(40);
   const quiet = console.error;
   console.error = () => {};
   try {

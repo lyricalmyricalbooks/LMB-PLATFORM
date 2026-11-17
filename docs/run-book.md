@@ -8,7 +8,7 @@ the registry, in the shop's own audit log and in the control room's activity log
 
 ## When an alert email comes
 
-The health checks (`services/health/`) look at every live shop every five minutes. When something breaks, they email
+The health checks (`services/health/`) look at every live shop every 15 minutes. When something breaks, they email
 the alert address (`HEALTH_ALERT_TO`). The subject says the press, the shop id and what happened:
 
 - **"… failing"**: a check has just started failing. Pages and checkout email only after two failed runs in a row
@@ -17,7 +17,7 @@ the alert address (`HEALTH_ALERT_TO`). The subject says the press, the shop id a
 - **"… working again"**: it passes again. Nothing to do.
 
 The email's "What the check saw" line is the detail. The control room shows the same thing on the shop's row, under
-Health. To look again after a fix, use **Check now** on that shop, or wait five minutes for the next run.
+Health. To look again after a fix, use **Check now** on that shop, or wait up to 15 minutes for the next run.
 
 Look first at the public status page (`status/`). If every shop shows the same problem, the cause is the platform or
 Google, not one press. Post a status note (see "Tell presses about a problem" below).
@@ -73,7 +73,7 @@ refusing them or failing to process them. Orders can show as unpaid when they we
 ### errors
 
 **What it means:** shoppers' browsers reported a burst of crashes on the cart or checkout pages (ten or more new reports
-since the last check, five minutes ago). The reports hold no names, emails or addresses; the shop counts each distinct
+since the last check, 15 minutes ago). The reports hold no names, emails or addresses; the shop counts each distinct
 error. "working again" means the burst stopped.
 
 **What to do:**
@@ -94,8 +94,9 @@ but if the data were damaged now, a day or more of changes would be gone.
 
 1. Read the detail. "last try: PERMISSION_DENIED" means the shop's server lost permission to export its own database.
    The shop maker's step 10 gives it back. Run setup again for that shop.
-2. The nightly run (`node services/health/run.js nightly`) makes a stand-in copy of a shop whose own backup missed a
-   night, and always backs up the stockroom. If it didn't run, run it by hand now.
+2. The nightly run (`node services/health/run.js nightly`) exports the shared project every night (a shared shop's own
+   copy runs only weekly), makes a stand-in copy of a single-project shop whose own backup missed a night, and always
+   backs up the stockroom. If it didn't run, run it by hand now.
 3. A press can also press **Back up now** in their own admin (Settings › General › Backups & export).
 
 ### drill

@@ -19,7 +19,7 @@ import { REGION } from "../../setup/steps.js";
 
 export const BACKUP_MAX_HOURS = 26;
 export const WEBHOOK_WINDOW_HOURS = 24;
-/** New checkout-page error reports in one run (five minutes) that count as a jump. */
+/** New checkout-page error reports in one run (15 minutes) that count as a jump. */
 export const CHECKOUT_ERROR_JUMP = 10;
 const CHECKOUT_PATH = /^\/(?:checkout|cart)(?:\/|$)/;
 const TIMEOUT_MS = 10_000;
