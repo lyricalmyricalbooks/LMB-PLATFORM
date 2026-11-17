@@ -85,3 +85,20 @@
 .rp-glance-tile:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 .rp-glance-side { font: 500 var(--rp-text-xs)/1.4 var(--rp-font-mono); text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
 .rp-glance-value { font-size: 32px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+
+/* A services shop's Home, phase 6 (HomeServices.tsx): Next client, Needs you (ink) and the small chips on tiles. */
+.rp-home-tile[data-tone="ink"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
+.rp-home-in { font: 500 var(--rp-text-sm)/1 var(--rp-font-body); letter-spacing: 0; opacity: .75; }
+.rp-home-who { font: 600 18px/1.3 var(--rp-font-body); overflow-wrap: anywhere; }
+.rp-home-muted { color: var(--rp-text-muted); }
+.rp-home-calm { opacity: .8; }
+.rp-home-chips { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; }
+.rp-home-chip { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--rp-inverse); color: var(--rp-on-inverse); font: 600 var(--rp-text-sm)/1 var(--rp-font-body); cursor: pointer; white-space: nowrap; }
+.rp-home-chip[data-ghost] { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px currentColor; }
+.rp-home-chip[data-light] { background: var(--rp-on-inverse); color: var(--rp-inverse); }
+.rp-home-chip:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-home-needs { list-style: none; margin: 4px 0 0; padding: 0; display: grid; }
+.rp-home-needs li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); }
+.rp-home-needs li:first-child { border-top: 0; }
+.rp-home-needs span { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; font-size: var(--rp-text-sm); }
+.rp-home-needs small { opacity: .75; font-size: var(--rp-text-xs); }

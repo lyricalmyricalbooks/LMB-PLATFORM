@@ -1184,6 +1184,12 @@ Fixture: `?sells=hair&bookings=new` (nothing set up), `&start=1` (the services s
 `overview/servicesHome.ts`; `HomePage` prop `services` from Dashboard's menu kind): To do is appointments to mark paid,
 messages, privacy requests and the Money side's payments; Today is the day's appointments, who is next, the next seven
 days as bars and Coming up, followed live from Bookings.
+**Services Home, phase 6 (17 November 2026):** six tiles. Next client (mint) shows "in 25 min" (`startsIn`), the
+person and room, a money line (`moneyLine`: free, paid, deposit, at the visit, pack visit, saved card) and Open client
+(`#customers?q=<email>`, read by Customers on mount). Needs you (`data-tone="ink"`) lists `ServicesDay.fees`
+(`feeChargeable`, newest first) and the waitlist count for the next 7 days (op `waitlist`, a failed read shows 0).
+Taken today is `moneyKept` + `tipTaken` over today's confirmed and cancelled bookings (a cancel with no refund counts
+as kept). Open times this week is left out: it would need a server times call per day.
 
 ## Bookings: who's coming and adding to a class (16 November 2026)
 
