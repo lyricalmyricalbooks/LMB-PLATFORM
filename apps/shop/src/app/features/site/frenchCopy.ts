@@ -1047,6 +1047,8 @@ export const FRENCH_COPY: Record<string, string> = {
   eventsYourTickets: "Vos billets",
   eventsTicketNumber: "Billet {number} de {total}",
   eventsShowCode: "Présentez un code à l'entrée. Chaque code vaut pour une personne.",
+  eventsCodeQr: "Code QR de ce billet",
+  eventsTicketUsed: "Enregistré à l'entrée",
   eventsOnlineRow: "En ligne",
   eventsJoinOnline: "Participer en ligne",
   eventsAddCalendar: "Ajouter au calendrier",

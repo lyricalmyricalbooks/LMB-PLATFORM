@@ -1478,3 +1478,12 @@ sell when the owner flips Events; answered even while Events is off, so the link
 record exists and the value differs, never throws into the caller, and is a hint for showing a link: every public action
 still checks the real switches. `adminApi.updateSettings` strips `eventsLive` like `bookingsLive`. No sweep keeps it:
 after the last event ends the link stays until the next save, and the page then says nothing is coming up.
+
+**At the door (E2, 17 November 2026, `tasks/todo/2026-11-17-events-door.md`):** admin op `checkIn` (`{ code, eventId?,
+value? }`) finds the paid order by `ticketCodes` (array-contains, one field, no index), and in one transaction stamps
+`usedAt`/`usedBy` on that ticket and adds one to `eventPlaces/{eventId}.arrived` (`placesDoc` carries `arrived` through
+later sales). A second scan answers `already: true` and changes nothing; `value: false` takes it back. Refusals:
+`bad_code` (400), `unknown_code` (404), `wrong_event` and `cancelled` (409). `publicOrder` shows each ticket's `used`
+and never `usedBy`. `tellWebsite` also writes `eventsLiveUntil` (the end of the last coming event), which the pages use
+to take the Events link down by themselves (`eventsLive.ts` `eventsLiveNow`): still no scheduled job.
+

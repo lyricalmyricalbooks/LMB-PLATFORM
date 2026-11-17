@@ -2,19 +2,22 @@
 // tickets and who is coming, in the Colophon bento look (bookings.css tiles + events.css, tokens only). Shown only when
 // Events is on for the shop (the platform's switch and the owner's, Dashboard.tsx). Events, places and ticket orders
 // are server-only records, so every read and change goes through the server (eventsApi.ts): it never sells one place twice.
+// The guest list is also the door (E2): type or scan a ticket's code and the server marks it used, once.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, Download, ImagePlus, Mail, Pencil, Plus, Ticket, Trash2, Users } from "lucide-react";
+import { CalendarPlus, Check, Download, ImagePlus, Mail, Pencil, Plus, ScanLine, Ticket, Trash2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DestructiveButton, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField,
   StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { eventsAdmin, type AdminEvent, type TicketOrder } from "./eventsApi";
+import { eventsAdmin, type AdminEvent, type DoorAnswer, type TicketOrder } from "./eventsApi";
 import {
-  blankForm, blankTicket, eventFigures, eventFromForm, eventState, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS, whenParts,
+  arrivedCount, blankForm, blankTicket, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
+  whenParts, withTicketUsed,
   type EventForm, type TicketForm,
 } from "./eventsView";
-import { MAX_TICKET_KINDS, type EventStatus } from "../../shared/eventTickets";
+import { cleanTicketCode, MAX_TICKET_KINDS, type EventStatus } from "../../shared/eventTickets";
+import { ScanBarcodeButton } from "./ScanBarcodeButton";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { saveFile } from "./xlsxWriter";
@@ -34,7 +37,7 @@ export function Events() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"coming" | "past">("coming");
   const [form, setForm] = useState<EventForm | null>(null);
-  const [guestsOf, setGuestsOf] = useState<AdminEvent | null>(null);
+  const [guestsOf, setGuestsOf] = useState<{ event: AdminEvent; door: boolean } | null>(null);
   // "Now" is read once per load, so the lists don't shuffle while the owner reads them.
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -71,7 +74,7 @@ export function Events() {
         <div className="bkg-tile bkg-tile-mint">
           <p className="bkg-kicker">Next event</p>
           {next && nextWhen ? (
-            <button type="button" className="bkg-next-body" onClick={() => setGuestsOf(next)}>
+            <button type="button" className="bkg-next-body" onClick={() => setGuestsOf({ event: next, door: false })}>
               <span className="bkg-next-when">{nextWhen.weekday} {nextWhen.day} {nextWhen.month}<span>{nextWhen.time}</span></span>
               <span className="bkg-next-who">{next.title}</span>
               <span className="bkg-next-what">{soldLine(next).text}{next.venue ? ` · ${next.venue}` : ""}</span>
@@ -115,18 +118,18 @@ export function Events() {
       ) : (
         <ul className="evt-list" aria-label={tab === "coming" ? "Coming events" : "Past events"}>
           {shown.map((event) => <EventRow key={event.id} event={event} zone={zone} currency={currency} nowMs={nowMs}
-            onEdit={() => setForm(formFromEvent(event, zone))} onGuests={() => setGuestsOf(event)} />)}
+            onEdit={() => setForm(formFromEvent(event, zone))} onGuests={(door) => setGuestsOf({ event, door })} />)}
         </ul>
       )}
 
       {form && <EventEditor key={form.id || "new"} start={form} zone={zone} sold={data.events.find((e) => e.id === form.id)?.sold || {}}
         onClose={() => setForm(null)} onSaved={() => { setForm(null); void reload(); }} />}
-      {guestsOf && <GuestList event={guestsOf} zone={zone} currency={currency} onClose={() => setGuestsOf(null)} />}
+      {guestsOf && <GuestList event={guestsOf.event} door={guestsOf.door} zone={zone} currency={currency} onClose={() => { setGuestsOf(null); void reload(); }} />}
     </div>
   );
 }
 
-function EventRow({ event, zone, currency, nowMs, onEdit, onGuests }: { event: AdminEvent; zone: string; currency: string; nowMs: number; onEdit: () => void; onGuests: () => void }) {
+function EventRow({ event, zone, currency, nowMs, onEdit, onGuests }: { event: AdminEvent; zone: string; currency: string; nowMs: number; onEdit: () => void; onGuests: (door: boolean) => void }) {
   const when = whenParts(event.start, zone);
   const state = eventState(event, nowMs);
   const sold = soldLine(event);
@@ -141,11 +144,12 @@ function EventRow({ event, zone, currency, nowMs, onEdit, onGuests }: { event: A
         <p className="evt-when">{when.weekday} {when.day} {when.month}, {when.time}{event.venue ? ` · ${event.venue}` : event.onlineUrl ? " · Online" : ""}</p>
         <div className="evt-sold">
           <div className="evt-bar" role="img" aria-label={sold.text}><i style={{ width: `${sold.percent}%` }} /></div>
-          <span>{sold.text}{event.paidMinor ? ` · ${moneyText(event.paidMinor, currency)}` : ""}</span>
+          <span>{sold.text}{event.paidMinor ? ` · ${moneyText(event.paidMinor, currency)}` : ""}{event.arrived ? ` · ${event.arrived} arrived` : ""}</span>
         </div>
       </div>
       <div className="evt-actions">
-        <SecondaryButton icon={<Users size={16} aria-hidden />} onClick={onGuests}>Who's coming</SecondaryButton>
+        {event.status === "live" && event.soldTotal > 0 && <SecondaryButton icon={<ScanLine size={16} aria-hidden />} onClick={() => onGuests(true)}>At the door</SecondaryButton>}
+        <SecondaryButton icon={<Users size={16} aria-hidden />} onClick={() => onGuests(false)}>Who's coming</SecondaryButton>
         <GhostButton icon={<Pencil size={16} aria-hidden />} onClick={onEdit}>Edit</GhostButton>
       </div>
     </li>
@@ -232,16 +236,26 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
   );
 }
 
-function GuestList({ event, zone, currency, onClose }: { event: AdminEvent; zone: string; currency: string; onClose: () => void }) {
+type DoorResult = { state: "in" | "already" | "refused"; name?: string; what?: string; say: string; code?: string };
+
+function GuestList({ event, door, zone, currency, onClose }: { event: AdminEvent; door: boolean; zone: string; currency: string; onClose: () => void }) {
   const [orders, setOrders] = useState<TicketOrder[] | null>(null);
   const [error, setError] = useState("");
   const [sending, setSending] = useState("");
+  const [typed, setTyped] = useState("");
+  const [find, setFind] = useState("");
+  const [busy, setBusy] = useState("");
+  const [result, setResult] = useState<DoorResult | null>(null);
   const load = () => eventsAdmin<{ orders: TicketOrder[] }>("orders", { eventId: event.id })
     .then((answer) => { setOrders(answer.orders || []); setError(""); })
     .catch((err) => setError(problemOf(err, "The guest list didn't load.")));
   useEffect(() => { void load(); }, [event.id]);
   const when = whenParts(event.start, zone);
   const tickets = (orders || []).reduce((sum, o) => sum + o.tickets.length, 0);
+  const arrived = arrivedCount(orders || []);
+  const shown = findGuests(orders || [], find);
+  const canCheckIn = event.status !== "cancelled";
+  const timeOf = (iso: string) => whenParts(iso, zone).time;
 
   const resend = async (order: TicketOrder) => {
     setSending(order.id);
@@ -250,10 +264,33 @@ function GuestList({ event, zone, currency, onClose }: { event: AdminEvent; zone
     finally { setSending(""); }
   };
   const download = () => saveFile(`guest-list-${event.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "event"}.csv`,
-    `﻿${guestCsv(orders || [])}`, "text/csv;charset=utf-8");
+    `\uFEFF${guestCsv(orders || [])}`, "text/csv;charset=utf-8");
+
+  // One ticket in (or back out) by its code. The server decides; the list here follows its answer.
+  const checkIn = async (raw: string, value = true) => {
+    const code = cleanTicketCode(raw);
+    if (!code) { setResult({ state: "refused", say: "A ticket code is eight letters and numbers, like K7QM-2XPA." }); return; }
+    setBusy(code);
+    try {
+      const answer = await eventsAdmin<DoorAnswer>("checkIn", { eventId: event.id, code, ...(value ? {} : { value: false }) });
+      const t = answer.ticket;
+      setOrders((list) => withTicketUsed(list || [], t.code, t.usedAt));
+      setResult(!value ? null : {
+        state: answer.already ? "already" : "in", name: t.name || "No name", code: t.code,
+        what: `${t.kind} · ticket ${t.number} of ${t.of}`,
+        say: answer.already ? `This ticket was already used${t.usedAt ? ` (${timeOf(t.usedAt)})` : ""}. Don't let it in twice.` : "Checked in. Welcome them in.",
+      });
+    } catch (err) {
+      setResult({ state: "refused", say: problemOf(err, "That didn't work just now. Try again.") });
+    } finally {
+      setBusy("");
+      setTyped("");
+      if (value) window.setTimeout(() => document.querySelector<HTMLInputElement>(".evt-door-input")?.focus(), 0);
+    }
+  };
 
   return (
-    <Drawer open onClose={onClose} title="Who's coming" description={`${event.title} · ${when.weekday} ${when.day} ${when.month}, ${when.time}`} size="lg"
+    <Drawer open onClose={onClose} title={door ? "At the door" : "Who's coming"} description={`${event.title} · ${when.weekday} ${when.day} ${when.month}, ${when.time}`} size="lg"
       footer={<><GhostButton onClick={onClose}>Close</GhostButton>
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={download} disabled={!orders?.length}>Download guest list</SecondaryButton></>}>
       {error ? <ErrorState title="The guest list didn't load" description={error} onRetry={() => { void load(); }} />
@@ -261,9 +298,41 @@ function GuestList({ event, zone, currency, onClose }: { event: AdminEvent; zone
         : orders.length === 0 ? <EmptyState inline title="No tickets sold yet" description="When someone buys a ticket, they show up here with a code for the door." />
         : (
           <>
-            <p className="evt-guest-count">{tickets} {tickets === 1 ? "ticket" : "tickets"} in {orders.length} {orders.length === 1 ? "order" : "orders"}</p>
+            {canCheckIn && (
+              <section className="evt-door" aria-label="Check tickets in">
+                <div className="evt-door-count" role="status">
+                  <strong>{arrived}</strong><span>of {tickets} arrived</span>
+                  <div className="evt-bar" aria-hidden="true"><i style={{ width: `${tickets ? Math.round((arrived / tickets) * 100) : 0}%` }} /></div>
+                </div>
+                <form className="evt-door-form" onSubmit={(e) => { e.preventDefault(); void checkIn(typed); }}>
+                  <TextField label="Ticket code" placeholder="K7QM-2XPA" autoFocus={door} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                    className="evt-door-input" value={typed} onChange={(e) => setTyped(e.target.value)} />
+                  <div className="evt-door-actions">
+                    <PrimaryButton type="submit" icon={<Check size={16} aria-hidden />} busy={!!busy && busy === cleanTicketCode(typed)} disabled={!!busy || !typed.trim()}>Check in</PrimaryButton>
+                    <ScanBarcodeButton label="Scan a ticket" title="Scan a ticket" description="Hold the QR code on their phone inside the picture. It checks them in by itself."
+                      qr={(raw) => cleanTicketCode(raw)} onCode={(code) => { void checkIn(code); }} />
+                  </div>
+                </form>
+                {result && (
+                  <div className="evt-arrival" data-state={result.state} role="status" aria-live="assertive">
+                    {result.name && <p className="evt-arrival-name">{result.name}</p>}
+                    {result.what && <p className="evt-arrival-what">{result.what}</p>}
+                    <p className="evt-arrival-say">{result.say}</p>
+                    {result.state === "in" && result.code && (
+                      <div><GhostButton size="sm" disabled={!!busy} onClick={() => { void checkIn(result.code!, false); }}>Undo check-in</GhostButton></div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            <div className="evt-guest-tools">
+              <p className="evt-guest-count">{tickets} {tickets === 1 ? "ticket" : "tickets"} in {orders.length} {orders.length === 1 ? "order" : "orders"}</p>
+              {orders.length > 4 && <TextField label="Find a guest" hideLabel type="search" placeholder="Find by name, email or code" value={find} onChange={(e) => setFind(e.target.value)} />}
+            </div>
+            {shown.length === 0 && <p className="evt-guest-none">Nobody on the list matches “{find.trim()}”.</p>}
             <ul className="evt-guests">
-              {orders.map((order) => (
+              {shown.map((order) => (
                 <li key={order.id} className="evt-guest">
                   <div className="evt-guest-head">
                     <div>
@@ -274,7 +343,16 @@ function GuestList({ event, zone, currency, onClose }: { event: AdminEvent; zone
                     <span className="evt-guest-paid">{order.chargedMinor ? moneyText(order.chargedMinor, order.currency || currency) : "Free"}</span>
                   </div>
                   <ul className="evt-codes">
-                    {order.tickets.map((t) => <li key={t.code}><span>{t.name}</span><code>{t.code}</code></li>)}
+                    {order.tickets.map((t) => (
+                      <li key={t.code} data-used={t.usedAt ? "true" : undefined}>
+                        <span>{t.name}</span>
+                        <code>{t.code}</code>
+                        {t.usedAt
+                          ? <span className="evt-code-state"><StatusBadge tone="success">Arrived {timeOf(t.usedAt)}</StatusBadge>
+                            <GhostButton size="sm" disabled={!!busy} onClick={() => { void checkIn(t.code, false); }} aria-label={`Undo check-in for ticket ${t.code}`}>Undo</GhostButton></span>
+                          : canCheckIn && <span className="evt-code-state"><SecondaryButton size="sm" busy={busy === t.code} disabled={!!busy} onClick={() => { void checkIn(t.code); }} aria-label={`Check in ticket ${t.code}, ${order.name || "no name"}`}>Check in</SecondaryButton></span>}
+                      </li>
+                    ))}
                   </ul>
                   <GhostButton icon={<Mail size={16} aria-hidden />} onClick={() => { void resend(order); }} busy={sending === order.id}>Send tickets again</GhostButton>
                 </li>

@@ -7,14 +7,21 @@ import type { OrderLine, ShopEvent } from "../../shared/eventTickets";
 /** An event as the admin lists it: what was made, plus tickets sold, places left and money taken. */
 export type AdminEvent = ShopEvent & {
   sold: Record<string, number>; soldTotal: number; placesTotal: number; left: Record<string, number>; paidMinor: number; orders: number;
+  /** Tickets checked in at the door so far. */
+  arrived?: number;
 };
 /** One paid order of tickets: who bought, what, and each ticket's code for the door. */
 export type TicketOrder = {
   id: string; status: "paid"; eventId: string; name: string; email: string; lines: OrderLine[]; ticketCount: number;
-  totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; tickets: { code: string; ticketId: string; name: string }[];
+  totalMinor: number; taxMinor: number; chargedMinor: number; currency: string; tickets: { code: string; ticketId: string; name: string; usedAt?: string }[];
   createdAt: string; paidAt: string; test: boolean;
 };
-export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets" | "hint";
+export type EventsAdminOp = "list" | "saveEvent" | "deleteEvent" | "orders" | "resendTickets" | "hint" | "checkIn";
+/** What the door hears back for one code: whose ticket it is, and whether it was already used. */
+export type DoorAnswer = {
+  ok: true; already: boolean; arrived: number;
+  ticket: { code: string; kind: string; usedAt: string; orderId: string; eventId: string; eventTitle: string; name: string; number: number; of: number; arrivedOfOrder: number };
+};
 
 /** One object so the admin fixture (src/adminFixture/main.ts) can swap in sample events. */
 export const eventsData = {

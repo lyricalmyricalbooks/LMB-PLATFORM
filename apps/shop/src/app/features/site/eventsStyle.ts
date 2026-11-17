@@ -50,8 +50,12 @@ export const EVENTS_CSS = [
   `${S} .fm-evt-form{display:grid;gap:18px;}`,
   `${S} .fm-evt-codes{display:grid;gap:12px;margin:22px 0 0;padding:0;list-style:none;}`,
   `@media (min-width:641px){${S} .fm-evt-codes{grid-template-columns:repeat(2,minmax(0,1fr));}}`,
-  `${S} .fm-evt-code{display:grid;gap:4px;padding:16px 18px;border:var(--t-edge-w) dashed var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
+  `${S} .fm-evt-code{display:flex;align-items:center;gap:16px;padding:16px 18px;border:var(--t-edge-w) dashed var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
   `${S} .fm-evt-code strong{font-family:var(--t-mono);font-size:22px;letter-spacing:.12em;overflow-wrap:anywhere;}`,
+  `${S} .fm-evt-code-words{display:grid;gap:4px;min-width:0;}`,
+  // The QR picture is drawn black on white whatever the theme, so a scanner can always read it.
+  `${S} .fm-evt-code-qr{flex:none;display:block;width:96px;height:96px;image-rendering:pixelated;outline:var(--t-edge-w) solid var(--t-edge);}`,
+  `${S} .fm-evt-code[data-used="true"]{opacity:.62;}`,
   `${S} .fm-evt-error{margin:6px 0 0;font-size:13px;color:var(--danger, currentColor);}`,
   `${S} .fm-evt-empty{padding:28px 0;text-align:center;}`,
   `@media (prefers-reduced-motion:reduce){${S} .fm-evt-card{transition:none;}${S} a.fm-evt-card:hover{transform:none;}}`,

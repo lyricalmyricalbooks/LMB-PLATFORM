@@ -1281,3 +1281,9 @@ op `hint`, which keeps the website's Events link (`settings/website.eventsLive`)
 in the combined and services menus; `BETA_PAGES` in `riso/nav.ts` puts a small "Beta" (`.rp-nav-tag`) beside a page
 still in beta, so add the next way's page id there. Fixture: `admin-fixture.html?ways=events&page=events`
 (`&events=new`: none yet).
+
+**The door (E2):** the guest list drawer is also the door (`GuestList` in `Events.tsx`, opened by **At the door** on an
+on-sale event with tickets sold): code box, `ScanBarcodeButton` (QR, `cleanTicketCode`), the answer tile (`evt-arrival`),
+an arrived count, per-ticket Check in / Undo and a find box (`findGuests`, `arrivedCount`, `withTicketUsed` in
+`eventsView.ts`). The server decides (`eventsAdmin` op `checkIn`); the list only follows its answer. Fixture:
+`admin-fixture.html?ways=events&page=events` (codes `KRTW-2345`, `MPQZ-2345`).

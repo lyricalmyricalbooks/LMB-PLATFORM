@@ -1,13 +1,29 @@
 // Whether this shop has events coming up right now, for the header icon, the phone menu and the footer link. The
 // server keeps `settings/website.eventsLive` in step (functions/events.js `tellWebsite`: after an event is saved or
 // deleted and when the owner flips the switch), so the pages learn it from the settings they already read: no extra
-// request. It is only a hint for showing a link; the server still decides what can be bought.
+// request. It is only a hint for showing a link; the server still decides what can be bought. The server also says
+// when the last coming event is over (`eventsLiveUntil`), so the link comes down by itself with nobody saving anything.
 import { useSyncExternalStore } from "react";
 
 let live = false;
 const listeners = new Set<() => void>();
 
-export function setEventsLive(next: boolean) {
+let timer: ReturnType<typeof setTimeout> | null = null;
+const MAX_WAIT = 2_000_000_000; // setTimeout's longest wait, about 23 days
+
+/** Whether the hint still holds at `nowMs`: on, and not past the end of the last coming event (no end kept = on). */
+export function eventsLiveNow(on: boolean, until: unknown, nowMs: number): boolean {
+  if (!on) return false;
+  const end = typeof until === "string" ? Date.parse(until) : NaN;
+  return !Number.isFinite(end) || end > nowMs;
+}
+
+export function setEventsLive(on: boolean, until?: unknown) {
+  if (timer) { clearTimeout(timer); timer = null; }
+  const next = eventsLiveNow(on, until, Date.now());
+  // An open page takes the link down when the last event ends.
+  const end = typeof until === "string" ? Date.parse(until) : NaN;
+  if (next && Number.isFinite(end)) timer = setTimeout(() => setEventsLive(on, until), Math.min(MAX_WAIT, end - Date.now() + 1000));
   if (next === live) return;
   live = next;
   listeners.forEach((l) => l());

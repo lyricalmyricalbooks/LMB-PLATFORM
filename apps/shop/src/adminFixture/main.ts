@@ -88,6 +88,19 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     }
     if (op === "deleteEvent") { events = events.filter((x) => x.id !== body.id); return { ok: true }; }
     if (op === "orders") return { orders: body.eventId === "evt-launch" ? guests : [] };
+    if (op === "checkIn") {
+      const code = String(body.code || "");
+      const order = guests.find((g) => g.tickets.some((t) => t.code === code));
+      if (!order) throw Object.assign(new Error("No ticket has that code. Check the letters and try again."), { code: "unknown_code" });
+      const index = order.tickets.findIndex((t) => t.code === code);
+      const ticket = order.tickets[index];
+      const undo = body.value === false;
+      const already = !undo && !!ticket.usedAt;
+      if (undo) ticket.usedAt = ""; else if (!already) ticket.usedAt = new Date().toISOString();
+      const arrived = guests.reduce((sum, g) => sum + g.tickets.filter((t) => t.usedAt).length, 0);
+      events = events.map((e) => (e.id === "evt-launch" ? { ...e, arrived } : e));
+      return { ok: true, already, arrived, ticket: { code, kind: ticket.name, usedAt: ticket.usedAt || "", orderId: order.id, eventId: order.eventId, eventTitle: "Autumn launch party", name: order.name, number: index + 1, of: order.tickets.length, arrivedOfOrder: order.tickets.filter((t) => t.usedAt).length } };
+    }
     return { ok: true };
   };
 }
