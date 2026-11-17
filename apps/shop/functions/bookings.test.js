@@ -109,8 +109,11 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
     } : {}),
   };
   let n = 0;
+  const optOuts = new Set();
   const desk = bookingActions({
     db, calendar, findDiscount, shopTax,
+    optedOut: async (e) => optOuts.has(e),
+    unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
     payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
@@ -137,7 +140,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   };
   const pub = async (body) => { const r = res(); await desk.handlePublic({ body }, r); return r; };
   const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
-  return { db, desk, clock, emails, opened, closed, refunds, sessions, charges, terminal, seed, pub, adm };
+  return { db, desk, clock, emails, opened, closed, refunds, sessions, charges, terminal, optOuts, seed, pub, adm };
 }
 
 const CUSTOMER = { name: "Ada Reader", email: "ada@example.com" };
@@ -2117,5 +2120,71 @@ describe("the thank-you email after the visit", () => {
     expect(cleanBookingSettings({ reviewUrl: "http://example.com" }).reviewUrl).toBe("");
     expect(cleanBookingSettings({ reviewUrl: "javascript:alert(1)" }).reviewUrl).toBe("");
     expect(cleanBookingSettings({}).thankYou).toBe(false);
+  });
+});
+
+describe("rebook reminders", () => {
+  const seedRebook = async (t, weeks = 6) => {
+    await t.seed();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000, rebookWeeks: weeks });
+  };
+  const book = (t, day, extra = {}) => t.pub({ action: "bookingStart", serviceId: "cut", start: at(day, "15:00"), ...CUSTOMER, ...extra });
+  const weeksAfter = (t, day, weeks, days = 0) => { t.clock.now = new Date(Date.parse(at(day, "15:00")) + (weeks * 7 + days) * 86_400_000); };
+  const rebooks = (t) => t.emails.filter((e) => /^Time for your next/.test(e.subject));
+
+  test("one reminder the set number of weeks after a visit, with Book again and an unsubscribe link", async () => {
+    const t = setup();
+    await seedRebook(t);
+    const r = await book(t, "2026-11-18");
+    weeksAfter(t, "2026-11-18", 5);
+    expect(await t.desk.sweepRebook()).toEqual({ reminded: 0 });
+    weeksAfter(t, "2026-11-18", 6, 1);
+    expect(await t.desk.sweepRebook()).toEqual({ reminded: 1 });
+    expect(await t.desk.sweepRebook()).toEqual({ reminded: 0 });
+    const [email] = rebooks(t);
+    expect(email.to).toBe(CUSTOMER.email);
+    expect(email.subject).toBe("Time for your next Cut?");
+    expect(email.html).toContain("/book?service=cut");
+    expect(email.html).toContain("Hi Ada");
+    expect(email.html).toContain("unsubscribe=1");
+    expect(t.db.store.get(`bookings/${r.body.id}`).rebookSentAt).toBeTruthy();
+  });
+
+  test("a client who booked again, unsubscribed or missed the visit gets nothing; off and old visits too", async () => {
+    const again = setup();
+    await seedRebook(again);
+    await book(again, "2026-11-18");
+    await book(again, "2026-12-02");
+    weeksAfter(again, "2026-11-18", 6, 1);
+    expect(await again.desk.sweepRebook()).toEqual({ reminded: 0 });
+    expect(again.db.store.get("bookings/booking001").rebookSkipped).toBe("booked");
+
+    const out = setup();
+    await seedRebook(out);
+    out.optOuts.add(CUSTOMER.email);
+    await book(out, "2026-11-18");
+    weeksAfter(out, "2026-11-18", 6, 1);
+    expect(await out.desk.sweepRebook()).toEqual({ reminded: 0 });
+    expect(out.db.store.get("bookings/booking001").rebookSkipped).toBe("unsubscribed");
+
+    const missed = setup();
+    await seedRebook(missed);
+    await book(missed, "2026-11-18");
+    await missed.db.collection("bookings").doc("booking001").set({ noShow: true }, { merge: true });
+    weeksAfter(missed, "2026-11-18", 6, 1);
+    expect(await missed.desk.sweepRebook()).toEqual({ reminded: 0 });
+
+    const off = setup();
+    await seedRebook(off, 0);
+    await book(off, "2026-11-18");
+    weeksAfter(off, "2026-11-18", 6, 1);
+    expect(await off.desk.sweepRebook()).toEqual({ reminded: 0 });
+
+    const old = setup();
+    await seedRebook(old);
+    await book(old, "2026-11-18");
+    weeksAfter(old, "2026-11-18", 6, 20);
+    expect(await old.desk.sweepRebook()).toEqual({ reminded: 0 });
+    expect(rebooks(again).length + rebooks(out).length + rebooks(missed).length + rebooks(off).length + rebooks(old).length).toBe(0);
   });
 });
