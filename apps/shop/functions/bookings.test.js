@@ -2624,6 +2624,18 @@ describe("courses: one sign-up, one price, a place on every date", () => {
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
   });
 
+  test("joining late with a first-visit price: never more than the late-join price", async () => {
+    const { t, id } = await withCourse({ lateJoin: true, introPriceMinor: 15000 });
+    await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    await t.adm({ op: "saveSettings", settings: { live: true, maxDaysAhead: 60 } });
+    t.clock.now = new Date(at("2026-11-28", "20:30"));
+    const late = await t.pub({ action: "bookingStart", serviceId: id, start: all[1], ...person(2) });
+    expect(late.body).toMatchObject({ status: "held" });
+    expect(t.db.store.get(`bookings/${late.body.id}`)).toMatchObject({ priceMinor: 12000 });
+    expect(t.db.store.get(`bookings/${late.body.id}`).intro).toBeUndefined();
+  });
+
   test("joining late: the dates left at their share of the price, alongside the people already on it", async () => {
     const { t, id } = await withCourse({ lateJoin: true });
     await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });

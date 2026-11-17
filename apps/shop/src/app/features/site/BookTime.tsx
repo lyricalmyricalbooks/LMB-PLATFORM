@@ -246,7 +246,7 @@ function NewBooking({ c }: { c: Copy }) {
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
-                {!!s.introPriceMinor && <span translate="no">{c("bookTimeIntroPrice", { price: moneyText(s.introPriceMinor, currency) })}</span>}
+                {!!s.introPriceMinor && s.introPriceMinor < s.priceMinor && <span translate="no">{c("bookTimeIntroPrice", { price: moneyText(s.introPriceMinor, currency) })}</span>}
                 {!!s.minPlaces && <span>{c("bookTimeClassMinimum", { count: s.minPlaces })}</span>}
                 {!!s.courseStarts?.length && <span>{s.joining ? c("bookTimeCourseLate", { count: s.courseStarts.length, of: s.joining.of }) : c("bookTimeCourseCount", { count: s.courseStarts.length })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
@@ -304,7 +304,7 @@ function NewBooking({ c }: { c: Copy }) {
         const payNow = pack ? 0 : gift ? gift.payNowMinor : upFrontMinor(priced);
         // A first-visit price is decided by the server from the email (an applied code's quote already has it), so the
         // page says it may apply instead of naming a total the card page might not ask for.
-        const maybeIntro = !!service.introPriceMinor && !pack && !applied;
+        const maybeIntro = !!service.introPriceMinor && service.introPriceMinor < (listed?.priceMinor ?? service.priceMinor) && !pack && !applied;
         return (
         <div className="grid gap-8 lg:grid-cols-[1fr_280px] items-start">
           <form {...regionProps("bookingsForm")} onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">

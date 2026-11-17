@@ -1324,7 +1324,10 @@ function bookingActions({
    * held or confirmed under their email; cancelled ones don't count), else as it is.
    */
   async function introFor(service, email, claimFor = "") {
-    if (!service.introPriceMinor || !email) return service;
+    // The service's own price now (a late-join course is already prorated), without the ticked extras: a first-visit
+    // price only ever lowers it.
+    const base = service.priceMinor - (service.extrasMinor || 0);
+    if (!service.introPriceMinor || !email || service.introPriceMinor >= base) return service;
     const who = String(email).trim().toLowerCase();
     // Asked by status, so any number of cancelled bookings can't hide an earlier visit.
     for (const status of ["confirmed", "held"]) {
