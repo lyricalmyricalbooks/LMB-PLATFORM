@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -227,5 +227,21 @@ describe("team pay", () => {
       ["Ana", "1", "100.00", "12.5", "12.50", "10.50", "23.00"],
       ["Total", "1", "100.00", "", "12.50", "10.50", "23.00"],
     ]);
+  });
+});
+
+describe("sharing the booking page", () => {
+  it("links to the page, a service or a person, as the booking page reads them", () => {
+    expect(bookingShareLink("https://shop.example/book")).toBe("https://shop.example/book");
+    expect(bookingShareLink("https://shop.example/book", { service: "cut" })).toBe("https://shop.example/book?service=cut");
+    expect(bookingShareLink("https://shop.example/book", { service: "cut", person: "ana" })).toBe("https://shop.example/book?service=cut&with=ana");
+  });
+
+  it("writes a Book now button that is only a link, with the words made safe", () => {
+    const html = bookButtonHtml("https://shop.example/book?service=cut&with=ana", ' Book "now" <b> ');
+    expect(html).toMatch(/^<a href="https:\/\/shop\.example\/book\?service=cut&amp;with=ana" target="_blank" rel="noopener" style="[^"]+">Book &quot;now&quot; &lt;b&gt;<\/a>$/);
+    expect(html).not.toMatch(/<script|<iframe|onclick/i);
+    expect(bookButtonHtml("https://shop.example/book", "")).toContain(">Book now</a>");
+    expect(bookButtonHtml("https://shop.example/book", "Go", "light")).toContain("background:#ffffff");
   });
 });
