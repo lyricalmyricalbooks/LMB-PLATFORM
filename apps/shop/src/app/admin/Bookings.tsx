@@ -1230,7 +1230,7 @@ export function BookAgainDialog({ initial, onClose, onBooked }: { initial: BookA
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "" };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0 };
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -1250,7 +1250,7 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
             <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
-            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}</p>
+            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
               <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -1271,6 +1271,10 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
 
 /** Under the deposit box: what the customer pays now and what is left for the visit. */
 const PACK_DAY_CHOICES = [0, 30, 60, 90, 180, 365, MAX_PACK_DAYS];
+// Rebook reminder choices, in weeks (0 = off).
+const REBOOK_CHOICES = [0, 2, 3, 4, 5, 6, 8, 10, 12, 16, 26, 52];
+const rebookSpan = (w: number): string => (w === 52 ? "a year" : w === 26 ? "6 months" : `${w} week${w === 1 ? "" : "s"}`);
+const rebookText = (w: number): string => (!w ? "Don't send a reminder" : `After ${rebookSpan(w)}`);
 const packDaysText = (d: number): string => (!d ? "No end date" : d % 365 === 0 ? `${d / 365} year${d === 365 ? "" : "s"}` : d % 30 === 0 && d < 365 ? `${d / 30} month${d === 30 ? "" : "s"}` : `${d} days`);
 
 /** What a pack saves on single visits ("5 visits for $180.00, saves $45.00"), or what's missing. */
@@ -1442,6 +1446,15 @@ function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingS
               : "For times held online: each booking gets its own Google Meet link."}</p>
           </div>
         )}
+        <div className="bkg-meet">
+          <SelectField label="Remind them to come back" value={String(form.rebookWeeks || 0)} onChange={(e) => set("rebookWeeks", Number(e.target.value))}>
+            {REBOOK_CHOICES.concat(REBOOK_CHOICES.includes(form.rebookWeeks || 0) ? [] : [form.rebookWeeks || 0])
+              .map((w) => <option key={w} value={w}>{rebookText(w)}</option>)}
+          </SelectField>
+          <p className="bkg-questions-hint">{form.rebookWeeks
+            ? `${rebookSpan(form.rebookWeeks).replace(/^a/, "A")} after a visit, customers get one email with a button to book again, unless they've already booked. It has an unsubscribe link.`
+            : "Send customers one email to book again a set time after their visit."}</p>
+        </div>
         <fieldset className="bkg-questions">
           <legend>Who can book a time</legend>
           <div className="bkg-seg" role="radiogroup" aria-label="Who can book a time">

@@ -1956,6 +1956,9 @@ const bookingDesk = require("./bookings").bookingActions({
   },
   // Sales tax on services: the shop's own rate for where it is (a service is done at the shop), from Settings › Taxes.
   // Rates limited to some product kinds are for products, so only the general rates count. Collecting off: none.
+  // Rebook reminders are marketing mail: the same opt-out list and one-click unsubscribe as review requests.
+  optedOut: async email => (await db.collection("marketing-optout").doc(optOutId(email)).get()).exists,
+  unsubscribeUrl: async email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, await marketingUnsubscribeKey())}`),
   shopTax: async () => {
     const settings = (await db.collection("settings").doc("website").get()).data() || {};
     if (!taxCollectionOn(settings)) return null;
@@ -4779,6 +4782,8 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   if (tips.asked) console.log(`bookingSweep: ${tips.asked} tip emails sent`);
   const thanks = await bookingDesk.sweepThanks();
   if (thanks.thanked) console.log(`bookingSweep: ${thanks.thanked} thank-you emails sent`);
+  const rebook = await bookingDesk.sweepRebook();
+  if (rebook.reminded) console.log(`bookingSweep: ${rebook.reminded} rebook reminders sent`);
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

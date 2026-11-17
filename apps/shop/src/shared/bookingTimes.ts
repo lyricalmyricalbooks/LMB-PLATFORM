@@ -60,6 +60,11 @@ export type BookingService = {
    * General › Location) is added on top of the price when someone books. Only for a priced service.
    */
   chargeTax: boolean;
+  /**
+   * Rebook reminder (Services plan phase 7): this many weeks after a visit the client gets one "time for your next
+   * visit?" email with a Book again button, unless they have booked again since. 0 = never.
+   */
+  rebookWeeks?: number;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -388,6 +393,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     packDays,
     roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     chargeTax: payment !== "free" && s.chargeTax === true,
+    rebookWeeks: whole(s.rebookWeeks, 0, MAX_REBOOK_WEEKS, 0),
   };
 }
 
@@ -467,6 +473,28 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     thankYou: s.thankYou === true,
     reviewUrl: reviewLink(s.reviewUrl),
   };
+}
+
+export const MAX_REBOOK_WEEKS = 52;
+/** A rebook reminder goes out within this many days of falling due; a visit older than that is left alone. */
+export const REBOOK_WINDOW_DAYS = 14;
+
+/**
+ * Is a visit due its rebook reminder? The service asks for one, the visit happened (confirmed, not a no-show), the
+ * client left an email, `rebookWeeks` weeks have passed (but not `REBOOK_WINDOW_DAYS` more, so turning it on never
+ * mails old clients), and none went yet. Whether they booked again since is the caller's to check.
+ */
+export function rebookDue(
+  b: { status?: string; noShow?: boolean; start?: string; rebookSentAt?: string | null; customer?: { email?: string } | null },
+  service: { rebookWeeks?: number } | null | undefined,
+  nowMs: number,
+): boolean {
+  const weeks = Number(service?.rebookWeeks) || 0;
+  if (!(weeks > 0) || b.status !== "confirmed" || b.noShow || b.rebookSentAt || !b.customer?.email) return false;
+  const start = Date.parse(b.start || "");
+  if (!Number.isFinite(start)) return false;
+  const dueAt = start + weeks * 7 * 86_400_000;
+  return dueAt <= nowMs && nowMs < dueAt + REBOOK_WINDOW_DAYS * 86_400_000;
 }
 
 /** A review link as typed: an https address of at most 500 characters, else "". */

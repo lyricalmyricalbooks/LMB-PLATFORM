@@ -1418,3 +1418,12 @@ typed amount, and the emails say "Includes tax (HST ON)". Packs of visits are no
 `thanksSentAt` or `tipAskedAt`, and not getting the tip email by `tipOpen`) are marked `thanksSentAt`, then sent the `thanks`
 email (Book again → `/book?service=<id>`, Leave a review when a link is set). The tip email carries the review link too
 while `thankYou` is on, so one visit never gets both.
+
+**Rebook reminders (17 November 2026, Services plan phase 7).** A service's `rebookWeeks` (0–52, 0 = off; Bookings ›
+Services › edit › **Remind them to come back**) sends one "Time for your next <service>?" email that many weeks after a
+visit. `bookingSweep` calls `sweepRebook`: per service, visits that started `rebookWeeks` to `rebookWeeks` + 2 weeks ago
+(`REBOOK_WINDOW_DAYS`, so switching it on never mails old clients) and pass `rebookDue` (confirmed, not a no-show, has an
+email, no `rebookSentAt`). A client with any later booking that isn't cancelled is skipped (`rebookSkipped: "booked"`), and so
+is one in `marketing-optout` (`"unsubscribed"`); both are still marked `rebookSentAt`. It is marketing mail: index.js passes
+`optedOut` and `unsubscribeUrl` (the review requests' signed `/track?unsubscribe=1` link) and without them nothing is sent.
+Book again opens `/book?service=<id>&with=<staffId>`. At most 50 a sweep.

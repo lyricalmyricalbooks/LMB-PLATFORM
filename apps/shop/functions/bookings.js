@@ -59,7 +59,7 @@ const crypto = require("crypto");
 const {
   cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
-  secondReminderDue, summaryDue, thanksDue, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
+  secondReminderDue, summaryDue, thanksDue, rebookDue, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
 } = require("./shared/bookingTimes");
@@ -197,6 +197,10 @@ function bookingActions({
   // Sales tax on services (index.js): async () → (amountMinor) → { taxMinor, taxLines } at the shop's rate for where it
   // is (Settings › Taxes matched to Settings › General › Location), or null when the shop collects none. None: no tax.
   shopTax = null,
+  // Rebook reminders (marketing mail): (email) → true when the client unsubscribed from such emails, and (email) → their
+  // signed one-click unsubscribe link (may be async). Without both no rebook reminder is sent.
+  optedOut = null,
+  unsubscribeUrl = null,
 }) {
   const services = () => db.collection("bookingServices");
   const settingsRef = () => db.collection("bookingSettings").doc("main");
@@ -2346,7 +2350,63 @@ function bookingActions({
     return { thanked };
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, featureOn, pickupCheck };
+  /**
+   * Rebook reminders (Services plan phase 7): `rebookWeeks` weeks after a visit to a service that asks for them, one
+   * "time for your next visit?" email with Book again (the same service, and the same person when they had one), unless
+   * the client booked anything since. It is marketing mail, so it carries an unsubscribe link and skips anyone who
+   * unsubscribed. Marked before sending, so a second sweep never sends twice. At most MAX_REBOOKS a sweep.
+   */
+  const MAX_REBOOKS = 50;
+  async function sweepRebook() {
+    if (!optedOut || !unsubscribeUrl || !(await featureOn())) return { reminded: 0 };
+    const nowMs = now().getTime();
+    const wanted = (await readServices()).filter((s) => s.active && s.rebookWeeks > 0);
+    let reminded = 0;
+    for (const service of wanted) {
+      const dueFrom = nowMs - service.rebookWeeks * 7 * DAY;
+      const from = new Date(dueFrom - REBOOK_WINDOW_DAYS * DAY).toISOString();
+      const snap = await bookings().where("start", ">=", from).where("start", "<=", new Date(dueFrom).toISOString()).limit(500).get();
+      for (const doc of snap.docs) {
+        if (reminded >= MAX_REBOOKS) return { reminded };
+        const b = doc.data();
+        if (b.serviceId !== service.id || !rebookDue(b, service, nowMs)) continue;
+        const email = String(b.customer.email).trim().toLowerCase();
+        const mark = (extra = {}) => bookings().doc(doc.id).set({ rebookSentAt: new Date(nowMs).toISOString(), ...extra }, { merge: true });
+        // Booked anything since (still on, or already been): they came back by themselves.
+        const theirs = await bookings().where("customer.email", "==", b.customer.email).limit(200).get();
+        if (theirs.docs.some((d) => d.id !== doc.id && d.data().start > b.start && d.data().status !== "cancelled")) { await mark({ rebookSkipped: "booked" }); continue; }
+        if (await optedOut(email)) { await mark({ rebookSkipped: "unsubscribed" }); continue; }
+        await mark();
+        await tellRebook(b, service, email);
+        reminded += 1;
+      }
+    }
+    return { reminded };
+  }
+
+  /** The rebook reminder itself. Never throws. */
+  async function tellRebook(b, service, email) {
+    try {
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const first = String(b.customer?.name || "").trim().split(/\s+/)[0] || "";
+      const weeks = service.rebookWeeks;
+      const since = weeks === 1 ? "a week" : weeks % 4 === 0 && weeks <= 48 ? `${weeks / 4 === 1 ? "a month" : `${weeks / 4} months`}` : `${weeks} weeks`;
+      const query = `service=${encodeURIComponent(service.id)}${b.staffId ? `&with=${encodeURIComponent(b.staffId)}` : ""}`;
+      const html = risoLayout(`
+        <h4 style="margin:0 0 8px;">Time for your next visit?</h4>
+        <h2 style="margin:0 0 12px;">${escapeHtml(service.name)}</h2>
+        <p style="margin:0 0 16px;">${first ? `Hi ${escapeHtml(first)}, it` : "It"}'s been about ${since} since your last ${escapeHtml(service.name)} at ${escapeHtml(shop)}${b.staffName ? ` with ${escapeHtml(b.staffName)}` : ""}. Whenever you're ready, you can pick your next time online.</p>
+        ${risoButton(escapeHtml(siteLink(`/book?${query}`)), "Book your next visit", brand.accent, brand.theme)}
+        <p style="margin-top:28px;font-size:11px;color:#888;">Don't want reminders like this? <a href="${escapeHtml(await unsubscribeUrl(email))}">Unsubscribe</a>.</p>
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to: email, subject: `Time for your next ${service.name}?`, html });
+    } catch (err) {
+      console.error("bookings: rebook reminder failed:", err?.message || err);
+    }
+  }
+
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
@@ -2404,6 +2464,7 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
 }
 
 const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 /** The booking's own link, the reminder's, the tip email's or the owner's pay link: each opens the customer's booking page. */
 const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
 /** How long a page to pay the rest stays open, and how long before its end a fresh one is opened instead. */

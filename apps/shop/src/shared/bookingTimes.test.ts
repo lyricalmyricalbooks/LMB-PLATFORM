@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  rebookDue,
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
@@ -485,5 +486,30 @@ describe("staff and rooms", () => {
     expect(cleanRooms(Array.from({ length: 12 }, (_, i) => ({ name: `R${i}` })))).toHaveLength(MAX_ROOMS);
     expect(cleanService({ name: "Facial", minutes: 60, roomId: "r 1!" })).toMatchObject({ roomId: "r1" });
     expect(cleanBookingSettings({})).toMatchObject({ staff: [], rooms: [] });
+  });
+});
+
+describe("rebook reminders", () => {
+  const visit = { status: "confirmed", start: "2026-11-18T20:00:00.000Z", customer: { email: "ada@example.com" } };
+  const at = (days: number) => Date.parse(visit.start) + days * 86_400_000;
+  it("are due from the set number of weeks after the visit, for two weeks", () => {
+    expect(rebookDue(visit, { rebookWeeks: 6 }, at(41))).toBe(false);
+    expect(rebookDue(visit, { rebookWeeks: 6 }, at(42))).toBe(true);
+    expect(rebookDue(visit, { rebookWeeks: 6 }, at(55))).toBe(true);
+    expect(rebookDue(visit, { rebookWeeks: 6 }, at(56))).toBe(false);
+  });
+  it("never for a service without them, a missed or cancelled visit, no email, or one already sent", () => {
+    expect(rebookDue(visit, { rebookWeeks: 0 }, at(43))).toBe(false);
+    expect(rebookDue(visit, {}, at(43))).toBe(false);
+    expect(rebookDue({ ...visit, noShow: true }, { rebookWeeks: 6 }, at(43))).toBe(false);
+    expect(rebookDue({ ...visit, status: "cancelled" }, { rebookWeeks: 6 }, at(43))).toBe(false);
+    expect(rebookDue({ ...visit, customer: {} }, { rebookWeeks: 6 }, at(43))).toBe(false);
+    expect(rebookDue({ ...visit, rebookSentAt: "2026-12-30T00:00:00Z" }, { rebookWeeks: 6 }, at(43))).toBe(false);
+  });
+  it("a service keeps 0 to 52 weeks", () => {
+    const base = { name: "Cut", minutes: 30, payment: "atShop", priceMinor: 6000 };
+    expect((cleanService({ ...base, rebookWeeks: 6 }) as { rebookWeeks: number }).rebookWeeks).toBe(6);
+    expect((cleanService({ ...base, rebookWeeks: 99 }) as { rebookWeeks: number }).rebookWeeks).toBe(52);
+    expect((cleanService(base) as { rebookWeeks: number }).rebookWeeks).toBe(0);
   });
 });

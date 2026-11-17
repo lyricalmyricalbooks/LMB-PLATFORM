@@ -9,7 +9,7 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -21,6 +21,7 @@ exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
+exports.rebookDue = rebookDue;
 exports.reviewLink = reviewLink;
 exports.thanksDue = thanksDue;
 exports.cleanRooms = cleanRooms;
@@ -301,6 +302,7 @@ function cleanService(raw, id = "") {
         packDays,
         roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         chargeTax: payment !== "free" && s.chargeTax === true,
+        rebookWeeks: whole(s.rebookWeeks, 0, exports.MAX_REBOOK_WEEKS, 0),
     };
 }
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */
@@ -382,6 +384,24 @@ function cleanBookingSettings(raw) {
         thankYou: s.thankYou === true,
         reviewUrl: reviewLink(s.reviewUrl),
     };
+}
+exports.MAX_REBOOK_WEEKS = 52;
+/** A rebook reminder goes out within this many days of falling due; a visit older than that is left alone. */
+exports.REBOOK_WINDOW_DAYS = 14;
+/**
+ * Is a visit due its rebook reminder? The service asks for one, the visit happened (confirmed, not a no-show), the
+ * client left an email, `rebookWeeks` weeks have passed (but not `REBOOK_WINDOW_DAYS` more, so turning it on never
+ * mails old clients), and none went yet. Whether they booked again since is the caller's to check.
+ */
+function rebookDue(b, service, nowMs) {
+    const weeks = Number(service?.rebookWeeks) || 0;
+    if (!(weeks > 0) || b.status !== "confirmed" || b.noShow || b.rebookSentAt || !b.customer?.email)
+        return false;
+    const start = Date.parse(b.start || "");
+    if (!Number.isFinite(start))
+        return false;
+    const dueAt = start + weeks * 7 * 86_400_000;
+    return dueAt <= nowMs && nowMs < dueAt + exports.REBOOK_WINDOW_DAYS * 86_400_000;
 }
 /** A review link as typed: an https address of at most 500 characters, else "". */
 function reviewLink(raw) {
