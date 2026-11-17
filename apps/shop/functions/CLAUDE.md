@@ -1575,3 +1575,10 @@ reminders for each later date, once (`course.reminded` / `course.reminded2` list
 with the email and text speaking of that date. `bookingsFeed` and `customerBookingIcs` list every date (`datesOf`, no
 tidy-up time; UIDs `<id>-<n>`). Not yet per date: the linked Google Calendar, thank-you and tip emails, check-in and the
 waiting list (they follow the first date).
+
+**Joining a course late (17 November 2026, Ways to sell plan, Classes).** A course service may set `lateJoin`. Every
+public booking action reads the service through `publicService`, which runs the shared `joinableCourse`: before the first
+date the course as it is; after it, while `lateJoin` is on and `MIN_LATE_DATES` (2) dates are still to come, a shorter
+course of the dates left priced at their share of the whole price (a set deposit never above that) with `joining
+{ missed, of, fullPriceMinor }`; otherwise the whole course, so `bookingStart` answers `started`. `takeTime` saves that as
+`course.joined`. The Timetable (`courseOpen`) and `bookingInfo` list the joined-now course; the owner's `create` uses it too.

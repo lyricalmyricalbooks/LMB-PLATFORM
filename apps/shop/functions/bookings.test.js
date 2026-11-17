@@ -2534,6 +2534,47 @@ describe("courses: one sign-up, one price, a place on every date", () => {
     expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
   });
 
+  test("joining late: the dates left at their share of the price, alongside the people already on it", async () => {
+    const { t, id } = await withCourse({ lateJoin: true });
+    await t.db.collection("platform").doc("features").set({ bookings: true, ways: { classes: true } });
+    await t.db.collection("firstWeek").doc("start").set({ ways: { classes: true } });
+    await t.adm({ op: "saveSettings", settings: { live: true, maxDaysAhead: 60 } });
+    // Someone signs up before it starts.
+    const early = await t.adm({ op: "create", serviceId: id, ...person(1) });
+    expect(early.statusCode).toBe(200);
+    t.clock.now = new Date(at("2026-11-28", "20:30"));
+    const info = (await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === id);
+    expect(info).toMatchObject({ courseStarts: all.slice(1), priceMinor: 12000, joining: { missed: 1, of: 3, fullPriceMinor: 18000 } });
+    const page = (await t.pub({ action: "classTimetable" })).body.courses;
+    expect(page).toEqual([expect.objectContaining({ id, starts: all.slice(1), priceMinor: 12000, left: 1, joining: { missed: 1, of: 3, fullPriceMinor: 18000 } })]);
+    const times = (await t.pub({ action: "bookingTimes", serviceId: id, from: "2026-11-28", days: 14 })).body.days;
+    expect(Object.entries(times).filter(([, list]) => list.length)).toEqual([["2026-12-05", [all[1]]]]);
+    // The first date is gone; the next one is the start, for two thirds of the price.
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start: first, ...person(2) })).statusCode).toBe(409);
+    const late = await t.pub({ action: "bookingStart", serviceId: id, start: all[1], ...person(2) });
+    expect(late.body).toMatchObject({ status: "held" });
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(12000);
+    const bid = late.body.id;
+    // The late joiner shares the dates left with the person already on the course, and has nothing on the date missed.
+    expect(await items(t, "2026-12-05")).toHaveLength(2);
+    expect(await items(t, "2026-12-05")).toContain(bid);
+    expect(await items(t, "2026-12-12")).toContain(`${bid}~1`);
+    expect(await items(t, "2026-11-28")).not.toContain(bid);
+    expect(t.db.store.get(`bookings/${bid}`)).toMatchObject({ priceMinor: 12000, course: { joined: { missed: 1, of: 3, fullPriceMinor: 18000 } } });
+    // With one date left it closes, on the page and for sign-ups.
+    t.clock.now = new Date(at("2026-12-05", "20:30"));
+    expect((await t.pub({ action: "classTimetable" })).body.courses).toEqual([]);
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start: all[2], ...person(3) })).body.code).toBe("started");
+  });
+
+  test("a course that doesn't let people join late stays closed once it starts", async () => {
+    const { t, id, saved } = await withCourse();
+    expect(saved.body.service.lateJoin).toBeUndefined();
+    t.clock.now = new Date(at("2026-11-28", "20:30"));
+    await t.adm({ op: "saveSettings", settings: { live: true, maxDaysAhead: 60 } });
+    expect((await t.pub({ action: "bookingStart", serviceId: id, start: all[1], ...person(2) })).body.code).toBe("started");
+  });
+
   test("the Timetable gives no count for a course whose days it couldn't all read", async () => {
     const t = setup();
     await t.seed();

@@ -5,7 +5,7 @@ import {
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime,
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
-  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn,
+  cleanStaff, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -564,5 +564,26 @@ describe("courses (one sign-up for every date)", () => {
     expect(coursePlacesLeft(course, settings, [taken("2026-12-05"), taken("2026-12-05"), taken("2026-11-28")], ZONE)).toBe(0);
     // Something else in a date's way takes every place.
     expect(coursePlacesLeft(course, settings, [{ start: at("2026-12-12", "19:00"), end: at("2026-12-12", "19:30"), serviceId: "visit" }], ZONE)).toBe(0);
+  });
+});
+
+describe("joining a course late", () => {
+  const test = it;
+  const course = { places: 4, priceMinor: 10000, depositMinor: 5000, courseDates: ["2026-11-02T18:00", "2026-11-09T18:00", "2026-11-16T18:00", "2026-11-23T18:00"] };
+  const Z = "America/Toronto";
+  const t = (d: string) => zonedTime(d, "19:00", Z);
+  test("before it starts the whole course comes back as it is", () => {
+    expect(joinableCourse(course, Z, t("2026-11-01"))).toBe(course);
+  });
+  test("once it starts only a course that lets people join late can be joined, for the dates left at their share", () => {
+    expect(joinableCourse(course, Z, t("2026-11-02"))).toBeNull();
+    const late = joinableCourse({ ...course, lateJoin: true }, Z, t("2026-11-09"));
+    expect(late).toMatchObject({ courseDates: ["2026-11-16T18:00", "2026-11-23T18:00"], priceMinor: 5000, depositMinor: 5000, joining: { missed: 2, of: 4, fullPriceMinor: 10000 } });
+    // Fewer than two dates left: closed.
+    expect(joinableCourse({ ...course, lateJoin: true }, Z, t("2026-11-16"))).toBeNull();
+  });
+  test("anything that isn't a course comes back as it is", () => {
+    const visit = { places: 1, priceMinor: 100 };
+    expect(joinableCourse(visit, Z, 0)).toBe(visit);
   });
 });
