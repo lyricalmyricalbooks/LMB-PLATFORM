@@ -106,3 +106,4 @@ browsers may write (mirroring `firestore.rules`).
   `withSold`, `withoutHold`), an order's lines (`orderLines`), ticket codes and `eventWhen` (always given the shop's
   zone). `eventTickets.test.ts` runs every rule against the shop's copy and the server's.
   Moving an order to another event (E3c): `moveKinds`, `movedLines`, `withArrived`; refunds: `refundMinorFor`, `withReturned`.
+  `refundMinorFor` gives back the share really paid, so an order bought with a discount code (E3d) never refunds list price.

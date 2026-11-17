@@ -31,6 +31,7 @@ const {
   TICKET_MESSAGES, MAX_EVENTS,
 } = require("./shared/eventTickets");
 const { waysOn } = require("./shared/waysToSell");
+const { ticketDiscountMinor, tooSmallForCard, TicketCodeProblem, NOT_FOR_TICKETS } = require("./eventDiscount");
 
 /** How long an order's places are kept while the customer pays. */
 // Orders given back per call when a whole event is called off.
@@ -45,7 +46,7 @@ const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
 const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const PUBLIC_EVENT_ACTIONS = Object.freeze(["eventsInfo", "eventStart", "eventView"]);
+const PUBLIC_EVENT_ACTIONS = Object.freeze(["eventsInfo", "eventStart", "eventView", "eventCode"]);
 
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const hash = (key) => crypto.createHash("sha256").update(String(key)).digest("hex");
@@ -69,7 +70,7 @@ const WORDS = {
     subject: (n, title) => `Your ${n === 1 ? "ticket" : "tickets"}: ${title}`,
     heading: (n) => (n === 1 ? "Your ticket" : "Your tickets"),
     intro: (shop) => `Thank you. Here is what you need for the door, from ${shop}. Show each code when you arrive.`,
-    when: "When", where: "Where", online: "Join online", paid: "Paid", free: "Free", tax: "Includes tax", button: "See your tickets",
+    when: "When", where: "Where", online: "Join online", paid: "Paid", free: "Free", tax: "Includes tax", discount: "Discount", button: "See your tickets",
     keep: "Keep this email: anyone with a code can use that ticket.",
     refundSubject: (title) => `Your refund: ${title}`,
     refundHeading: (n) => (n === 1 ? "Your ticket was refunded" : "Your tickets were refunded"),
@@ -86,7 +87,7 @@ const WORDS = {
     subject: (n, title) => `${n === 1 ? "Votre billet" : "Vos billets"} : ${title}`,
     heading: (n) => (n === 1 ? "Votre billet" : "Vos billets"),
     intro: (shop) => `Merci. Voici ce qu'il vous faut à l'entrée, de la part de ${shop}. Présentez chaque code à votre arrivée.`,
-    when: "Quand", where: "Où", online: "Participer en ligne", paid: "Payé", free: "Gratuit", tax: "Taxes incluses", button: "Voir vos billets",
+    when: "Quand", where: "Où", online: "Participer en ligne", paid: "Payé", free: "Gratuit", tax: "Taxes incluses", discount: "Rabais", button: "Voir vos billets",
     keep: "Conservez ce courriel : toute personne ayant un code peut utiliser ce billet.",
     refundSubject: (title) => `Votre remboursement : ${title}`,
     refundHeading: (n) => (n === 1 ? "Votre billet a été remboursé" : "Vos billets ont été remboursés"),
@@ -121,6 +122,7 @@ function publicOrder(id, o, event) {
   return {
     id, status: o.status, refundedMinor: o.refundedMinor || 0, eventId: o.eventId, title: o.eventTitle, start: o.start, end: o.end || "", venue: o.venue || "", address: o.address || "",
     name: o.customer?.name || "", lines: o.lines || [], totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
+    discount: o.discount ? { code: o.discount.code, amountMinor: o.discount.amountMinor || 0 } : null,
     holdUntil: o.status === "held" ? o.holdUntil || null : null,
     // The codes and the online link only once the order is paid, and never for an event the shop called off.
     // Each ticket's code and whether the door has used it; never who checked it in.
@@ -139,6 +141,9 @@ function eventActions({
   randomCode = () => ticketCodeFrom(crypto.randomBytes(8)),
   // Sales tax on tickets (index.js, the same as Bookings): async () → (amountMinor) → { taxMinor, taxLines }, or null.
   shopTax = null,
+  // Discount codes on tickets (index.js): async (code, email) → the shop's discount after its usual checks, or throws
+  // in the customer's words (an error with a `code` is the database failing). None: no code box.
+  findDiscount = null,
 }) {
   const events = () => db.collection("events");
   const orders = () => db.collection("eventOrders");
@@ -199,6 +204,53 @@ function eventActions({
   const keyFits = (o, key) => KEY.test(String(key || "")) && (o.keyHashes || []).some((h) => sameHash(h, hash(key)));
   const orderUrl = (id, key) => siteLink(`/events?order=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
 
+  // ── Discount codes ──────────────────────────────────────────────────────────────────────────────────────────
+  const discountRef = (id) => db.collection("discounts").doc(id);
+
+  /** Does the shop have a code marked "Works on event tickets too"? The Events page shows its code box only then. */
+  async function codesOffered() {
+    if (!findDiscount) return false;
+    const snap = await db.collection("discounts").where("forTickets", "==", true).limit(1).get().catch(() => null);
+    return !!snap && !snap.empty;
+  }
+
+  /** A typed code after the shop's own checks and the tickets' side of one-use-per-customer. Throws TicketCodeProblem. */
+  async function codeFor(raw, email) {
+    const typed = String(raw || "").trim().toUpperCase().slice(0, 40);
+    if (!findDiscount || !typed) throw new TicketCodeProblem(NOT_FOR_TICKETS);
+    let found;
+    try {
+      found = await findDiscount(typed, email);
+    } catch (err) {
+      // The database failing is not the customer's code being wrong.
+      if (err && err.code !== undefined) throw err;
+      throw new TicketCodeProblem(String(err?.message || "This code can't be used.").slice(0, 160));
+    }
+    ticketDiscountMinor(found, 1_000_000);
+    if (found.onePerCustomer && email) {
+      const me = String(email).trim().toLowerCase();
+      const snap = await orders().where("discount.id", "==", found.id).limit(500).get();
+      if (snap.docs.some((d) => ["held", "paid"].includes(d.data()?.status) && String(d.data()?.customer?.email || "").toLowerCase() === me)) {
+        throw new TicketCodeProblem("You have already used this code.");
+      }
+    }
+    return { ...found, code: typed };
+  }
+
+  /** What an order costs: the tickets, less a code, plus tax on what is left. Throws TicketCodeProblem for a code that doesn't fit. */
+  function priceOf(event, order, calc, found) {
+    const amountMinor = found ? ticketDiscountMinor(found, order.totalMinor) : 0;
+    const totalMinor = order.totalMinor - amountMinor;
+    const tax = event.chargeTax && calc && totalMinor > 0 ? calc(totalMinor) : null;
+    const taxMinor = tax?.taxMinor > 0 ? tax.taxMinor : 0;
+    const chargedMinor = totalMinor + taxMinor;
+    if (found && tooSmallForCard(chargedMinor)) throw new TicketCodeProblem("This code can't be used on these tickets.");
+    return {
+      totalMinor, taxMinor, taxLines: taxMinor && Array.isArray(tax.taxLines) ? tax.taxLines : [], chargedMinor,
+      discount: found ? { id: found.id, code: found.code, amountMinor } : null,
+    };
+  }
+
   /** Emails a paid order's tickets to the buyer (and tells the owner, the first time). Never throws. */
   async function tellTickets(id, o, key, { toOwner = true, movedFrom = "" } = {}) {
     try {
@@ -225,6 +277,7 @@ function eventActions({
           ${where ? `<p style="margin:0 0 4px;"><strong>${say.where}:</strong> ${escapeHtml(where)}</p>` : ""}
           ${event?.onlineUrl && event.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>${say.online}:</strong> <a href="${escapeHtml(event.onlineUrl)}">${escapeHtml(event.onlineUrl)}</a></p>` : ""}
           <p style="margin:0 0 4px;"><strong>${say.paid}:</strong> ${o.chargedMinor > 0 ? escapeHtml(moneyWords(o.chargedMinor, o.currency, locale)) : say.free}</p>
+          ${o.discount?.amountMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.discount} (${escapeHtml(o.discount.code)}):</strong> −${escapeHtml(moneyWords(o.discount.amountMinor, o.currency, locale))}</p>` : ""}
           ${o.taxMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.tax}:</strong> ${escapeHtml(moneyWords(o.taxMinor, o.currency, locale))}</p>` : ""}
           <table role="presentation" style="margin:16px 0;border-collapse:collapse;">${rows}</table>
           <p style="margin:0 0 16px;">${say.keep}</p>
@@ -295,8 +348,12 @@ function eventActions({
       if (!fresh.exists || !["held", "cancelled"].includes(fresh.data()?.status) || fresh.data()?.paidAt) return false;
       const pSnap = await tx.get(placesRef(o.eventId));
       const before = pSnap.exists ? pSnap.data() : null;
+      // A code whose use was given back when the hold ran out is counted again now the order is paid after all.
+      const code = fresh.data().discount?.returned ? fresh.data().discount : null;
+      const cSnap = code ? await tx.get(discountRef(code.id)) : null;
       tx.set(placesRef(o.eventId), placesDoc(before, withSold(before, id, o.lines || []), { paidMinor: (before?.paidMinor || 0) + (o.chargedMinor || 0), orders: (before?.orders || 0) + 1 }));
-      tx.set(orders().doc(id), changes, { merge: true });
+      if (cSnap?.exists) tx.set(discountRef(code.id), { usageCount: (Number(cSnap.data()?.usageCount) || 0) + 1 }, { merge: true });
+      tx.set(orders().doc(id), { ...changes, ...(code ? { discount: { ...code, returned: false } } : {}) }, { merge: true });
       return true;
     });
     if (!done) return { ...o, ...((await orders().doc(id).get()).data() || {}) };
@@ -326,8 +383,12 @@ function eventActions({
       if (!fresh.exists || fresh.data()?.status !== "held") return;
       const pSnap = await tx.get(placesRef(o.eventId));
       const before = pSnap.exists ? pSnap.data() : null;
+      // The code's use goes back with the places, once.
+      const code = fresh.data().discount?.id && !fresh.data().discount.returned ? fresh.data().discount : null;
+      const cSnap = code ? await tx.get(discountRef(code.id)) : null;
       tx.set(placesRef(o.eventId), placesDoc(before, withoutHold(before, id, now().getTime())));
-      tx.set(orders().doc(id), { status: "cancelled", cancelledAt: at, cancelledBy: why, holdUntil: null, pendingKey: null, updatedAt: at }, { merge: true });
+      if (cSnap?.exists) tx.set(discountRef(code.id), { usageCount: Math.max(0, (Number(cSnap.data()?.usageCount) || 0) - 1) }, { merge: true });
+      tx.set(orders().doc(id), { status: "cancelled", cancelledAt: at, cancelledBy: why, holdUntil: null, pendingKey: null, updatedAt: at, ...(code ? { discount: { ...code, returned: true } } : {}) }, { merge: true });
     });
   }
 
@@ -374,7 +435,23 @@ function eventActions({
         const coming = comingLive(await readEvents(), nowMs).slice(0, MAX_SHOWN);
         const calc = coming.some((e) => e.chargeTax) && shopTax ? await shopTax().catch(() => null) : null;
         const places = await Promise.all(coming.map((e) => readPlaces(e.id)));
-        return res.status(200).json({ on: true, zone: zone(), currency: currency(), events: coming.map((e, i) => publicEvent(e, places[i], nowMs, calc)) });
+        const codes = coming.some((e) => e.tickets.some((t) => t.priceMinor > 0)) && (await codesOffered());
+        return res.status(200).json({ on: true, zone: zone(), currency: currency(), codes, events: coming.map((e, i) => publicEvent(e, places[i], nowMs, calc)) });
+      }
+      if (action === "eventCode") {
+        // Tries a code on the tickets picked: what comes off and what there is to pay. Nothing is held or counted.
+        const event = await readEvent(String(req.body?.eventId || ""));
+        if (!event || !salesOpen(event, nowMs)) return fail(res, 409, TICKET_MESSAGES.closed, "closed");
+        const asked = orderLines(event, req.body?.tickets, placesLeft(event, await readPlaces(event.id), nowMs));
+        if (asked.problem) return fail(res, 409, asked.problem, "tickets");
+        const email = EMAIL.test(String(req.body?.email || "").trim()) ? String(req.body.email).trim().toLowerCase() : "";
+        try {
+          const price = priceOf(event, asked, await taxCalc(event), await codeFor(req.body?.code, email));
+          return res.status(200).json({ code: price.discount.code, amountMinor: price.discount.amountMinor, totalMinor: price.totalMinor, taxMinor: price.taxMinor, chargedMinor: price.chargedMinor });
+        } catch (err) {
+          if (err instanceof TicketCodeProblem) return fail(res, 400, err.message, "code");
+          throw err;
+        }
       }
       if (action === "eventStart") {
         const eventId = String(req.body?.eventId || "");
@@ -392,8 +469,19 @@ function eventActions({
         // A free order sends an email nobody paid for, so it takes from the shop's email budget first.
         const asked = orderLines(seen, req.body?.tickets, placesLeft(seen, await readPlaces(eventId), nowMs));
         if (asked.problem) return fail(res, 409, asked.problem, "tickets");
-        if (asked.totalMinor === 0 && !(await claimEmailSend(db, "eventEmail", buyer.email))) return fail(res, 429, "Too many tries. Please wait a while and try again.");
-        if (asked.totalMinor > 0 && !checkout) return fail(res, 409, "This shop can't take card payments for tickets yet. Please contact the shop.", "not_available");
+        let found = null;
+        let toPay = asked.totalMinor;
+        if (String(req.body?.code || "").trim()) {
+          try {
+            found = await codeFor(req.body.code, buyer.email);
+            toPay = priceOf(seen, asked, calc, found).chargedMinor;
+          } catch (err) {
+            if (err instanceof TicketCodeProblem) return fail(res, 400, err.message, "code");
+            throw err;
+          }
+        }
+        if (toPay === 0 && !(await claimEmailSend(db, "eventEmail", buyer.email))) return fail(res, 429, "Too many tries. Please wait a while and try again.");
+        if (toPay > 0 && !checkout) return fail(res, 409, "This shop can't take card payments for tickets yet. Please contact the shop.", "not_available");
         // The event and its places are read again inside the transaction: what is written is what was free then.
         const made = await db.runTransaction(async (tx) => {
           const eSnap = await tx.get(events().doc(eventId));
@@ -403,15 +491,25 @@ function eventActions({
           const before = pSnap.exists ? pSnap.data() : null;
           const order = orderLines(event, req.body?.tickets, placesLeft(event, before, nowMs));
           if (order.problem) return { problem: order.problem, code: "tickets" };
-          const tax = event.chargeTax && calc && order.totalMinor > 0 ? calc(order.totalMinor) : null;
-          const taxMinor = tax?.taxMinor > 0 ? tax.taxMinor : 0;
-          const free = order.totalMinor === 0;
+          let price;
+          try { price = priceOf(event, order, calc, found); } catch (err) {
+            if (err instanceof TicketCodeProblem) return { problem: err.message, code: "code", status: 400 };
+            throw err;
+          }
+          // The code is counted with the places, so its limit is never passed by two orders at once.
+          const cSnap = found ? await tx.get(discountRef(found.id)) : null;
+          const used = Number(cSnap?.data()?.usageCount) || 0;
+          const limit = Number(cSnap?.data()?.usageLimit) || 0;
+          if (found && (!cSnap.exists || (limit > 0 && used >= limit))) return { problem: "This code has been used up.", code: "code", status: 409 };
+          const { taxMinor } = price;
+          const free = price.chargedMinor === 0;
           const tickets = free ? newTickets(order.lines) : [];
           const record = {
             eventId, eventTitle: event.title, start: event.start, end: event.end, venue: event.venue, address: event.address,
-            customer: buyer, locale: french(req.body?.locale) ? "fr" : "en", lines: order.lines, ticketCount: order.tickets, totalMinor: order.totalMinor,
-            ...(taxMinor ? { taxMinor, taxLines: Array.isArray(tax.taxLines) ? tax.taxLines : [] } : {}),
-            chargedMinor: order.totalMinor + taxMinor, currency: currency(), mode, keyHashes: [hash(key)], sessions: [], createdAt: at, updatedAt: at,
+            customer: buyer, locale: french(req.body?.locale) ? "fr" : "en", lines: order.lines, ticketCount: order.tickets, totalMinor: price.totalMinor,
+            ...(price.discount ? { discount: price.discount, listMinor: order.totalMinor } : {}),
+            ...(taxMinor ? { taxMinor, taxLines: price.taxLines } : {}),
+            chargedMinor: price.chargedMinor, currency: currency(), mode, keyHashes: [hash(key)], sessions: [], createdAt: at, updatedAt: at,
             ...(free
               ? { status: "paid", paidAt: at, holdUntil: null, tickets, ticketCodes: tickets.map((t) => t.code) }
               : { status: "held", holdUntil, pendingKey: key }),
@@ -420,10 +518,11 @@ function eventActions({
           tx.set(placesRef(eventId), free
             ? placesDoc(before, withSold(cleared, id, order.lines), { orders: (before?.orders || 0) + 1 })
             : placesDoc(before, withHold(cleared, id, order.lines, holdUntil)));
+          if (found) tx.set(discountRef(found.id), { usageCount: used + 1 }, { merge: true });
           tx.set(orders().doc(id), record);
           return { record, free };
         });
-        if (made.problem) return fail(res, 409, made.problem, made.code);
+        if (made.problem) return fail(res, made.status || 409, made.problem, made.code);
         if (made.free) {
           await tellTickets(id, made.record, key);
           return res.status(200).json({ orderId: id, key, paid: true });
@@ -468,6 +567,7 @@ function eventActions({
     totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
     tickets: (o.tickets || []).map((t) => ({ code: t.code, ticketId: t.ticketId, name: t.name, usedAt: t.usedAt || "" })),
     createdAt: o.createdAt || "", paidAt: o.paidAt || "", test: o.mode === "test",
+    discount: o.discount ? { code: o.discount.code, amountMinor: o.discount.amountMinor || 0 } : null,
     refundedMinor: o.refundedMinor || 0, refundedTickets: (o.refunds || []).reduce((sum, r) => sum + (r.tickets || []).length, 0), refundedAt: o.refundedAt || "",
   });
 
@@ -574,6 +674,10 @@ function eventActions({
           const pSnap = await tx.get(placesRef(o.eventId));
           const before = pSnap.exists ? pSnap.data() : null;
           const usedGone = gone.filter((t) => t.usedAt).length;
+          // An order given back whole frees its code's use too, once.
+          const code = !tickets.length && o.discount?.id && !o.discount.returned ? o.discount : null;
+          const cSnap = code ? await tx.get(discountRef(code.id)) : null;
+          if (cSnap?.exists) tx.set(discountRef(code.id), { usageCount: Math.max(0, (Number(cSnap.data()?.usageCount) || 0) - 1) }, { merge: true });
           tx.set(placesRef(o.eventId), placesDoc(before, withReturned(before, counts), {
             paidMinor: Math.max(0, (before?.paidMinor || 0) - amountMinor), orders: Math.max(0, (before?.orders || 0) - (tickets.length ? 0 : 1)),
             ...(usedGone ? { arrived: Math.max(0, (before?.arrived || 0) - usedGone) } : {}),
@@ -582,6 +686,7 @@ function eventActions({
             tickets, ticketCodes: tickets.map((t) => t.code), refundedMinor: (o.refundedMinor || 0) + amountMinor, updatedAt: at,
             refunds: [...(o.refunds || []), { at, by, amountMinor, refundId, ...(called ? { eventCancelled: true } : {}), tickets: gone.map((t) => ({ code: t.code, ticketId: t.ticketId, name: t.name })) }].slice(-50),
             ...(tickets.length ? {} : { status: "refunded", refundedAt: at }),
+            ...(code ? { discount: { ...code, returned: true } } : {}),
           };
           tx.set(orders().doc(id), changes, { merge: true });
           return { ...o, ...changes };

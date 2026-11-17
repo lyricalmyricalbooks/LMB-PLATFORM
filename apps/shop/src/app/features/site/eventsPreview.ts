@@ -49,7 +49,14 @@ function sampleOrder(nowMs: number, currency: string, eventId?: string, picks?: 
 
 /** What the server would answer, from sample data. */
 export function previewEventsAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
-  if (action === "eventsInfo") return { on: true, zone, currency, events: sampleEvents(nowMs) } satisfies EventsInfo;
+  if (action === "eventsInfo") return { on: true, zone, currency, codes: true, events: sampleEvents(nowMs) } satisfies EventsInfo;
+  // Any code takes a sample tenth off, so the owner sees how an applied code looks.
+  if (action === "eventCode") {
+    const event = sampleEvents(nowMs).find((e) => e.id === body.eventId);
+    const list = (event?.tickets || []).reduce((sum, t) => sum + (Number(body.tickets?.[t.id]) || 0) * t.priceMinor, 0);
+    const amountMinor = Math.round(list / 10);
+    return { code: String(body.code || "").trim().toUpperCase(), amountMinor, totalMinor: list - amountMinor, taxMinor: 0, chargedMinor: list - amountMinor };
+  }
   if (action === "eventStart") {
     sample = sampleOrder(nowMs, currency, body.eventId, body.tickets, body.name);
     return { orderId: SAMPLE_EVENT_ORDER, key: SAMPLE_EVENT_KEY, paid: true };

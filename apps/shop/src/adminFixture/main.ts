@@ -77,6 +77,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     ticketCount: Number(count), totalMinor: Number(count) * (ticketId === "s" ? 3000 : 1500), taxMinor: 0, chargedMinor: Number(count) * (ticketId === "s" ? 3000 : 1500), currency: "CAD",
     tickets: Array.from({ length: Number(count) }, (_, n) => ({ code: `${"KRTW MPQZ HNDB".split(" ")[i]}-${"2345 6789 ABCD".split(" ")[n]}`, ticketId: String(ticketId), name: ticketId === "s" ? "Supporter" : "General" })),
     createdAt: at(-2, 14), paidAt: at(-2, 14), test: false,
+    ...(i === 2 ? { discount: { code: "EARLY", amountMinor: 900 }, totalMinor: 3600, chargedMinor: 3600 } : {}),
   }));
   eventsData.admin = async (op, body) => {
     if (op === "list") return { zone: "America/Toronto", currency: "CAD", events };

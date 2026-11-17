@@ -1301,3 +1301,8 @@ back", then the total and any orders that failed by name. Fixture op `cancelEven
 `GuestList`). `MoveDialog` picks the event (starting on the first with room), asks which ticket each old kind becomes
 when the new event has several, shows a shortage before the server does, and on success drops the order from this
 list. Fixture op `moveOrder` moves the order and both events' counts.
+
+**Discount codes on tickets (E3d):** the discount form has **Works on event tickets too** (`forTickets`, kept by
+`discountRecord.ts`) when the shop offers Events (`useWaysOn`) and the code is a plain one; it is cleared when the code
+stops being plain. Who's coming shows "Code EARLY, $9.00 off" on an order that used one (`TicketOrder.discount`). The
+fixture gives one guest a code.

@@ -89,6 +89,10 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
       expect(lib.refundMinorFor(order, { gen: 9 }, 1)).toBe(3390);
       expect(lib.refundMinorFor({ lines: order.lines, totalMinor: 0, chargedMinor: 0 }, { gen: 1 }, 2)).toBe(0);
       expect(lib.refundMinorFor({ ...order, refundedMinor: 6000 }, { gen: 1 }, 2)).toBe(215);
+      // With a discount code the refund is the same share of what was really paid (4400 + 572 tax for 5500 of tickets).
+      const cut = { ...order, totalMinor: 4400, taxMinor: 572, chargedMinor: 4972 };
+      expect(lib.refundMinorFor(cut, { gen: 1 }, 3)).toBe(904);
+      expect(lib.refundMinorFor({ ...cut, refundedMinor: 904 }, { gen: 2, sup: 1 }, 0)).toBe(4068);
       expect(lib.withReturned({ sold: { gen: 3, sup: 1 }, held: { o9: { until: "2026-12-01T00:00:00Z", lines: { gen: 1 } } } }, { gen: 2, sup: 5 }))
         .toEqual({ sold: { gen: 1, sup: 0 }, held: { o9: { until: "2026-12-01T00:00:00Z", lines: { gen: 1 } } } });
     });

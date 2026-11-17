@@ -1990,6 +1990,13 @@ const eventDesk = require("./events").eventActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
   escapeHtml, risoLayout, risoButton, shopTax: () => serviceTax(),
+  // Discount codes on tickets: checkout's own checks (eventDiscount.js says which codes and how much).
+  findDiscount: async (code, email) => {
+    const discount = await fetchValidDiscount(code);
+    validateDiscountCustomer(discount, email);
+    await assertDiscountNotUsedByCustomer(discount, email);
+    return discount;
+  },
   emailBrand: async () => {
     const settings = await loadNotificationSettings();
     const brand = settings.brand || {};

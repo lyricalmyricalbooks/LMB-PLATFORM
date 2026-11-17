@@ -31,6 +31,7 @@ const fields = {
   onePerCustomer: boolean(),
   // "Works on bookings too": the code can be typed on the Book a time page (functions/bookingDiscount.js). Older records miss it.
   forBookings: optional(boolean()),
+  forTickets: optional(boolean()),
   // "catalog" is an older name for "all" that checkout still reads.
   appliesTo: oneOf(["all", "catalog", "categories", "products"] as const),
   selectedCategories: array(string()),

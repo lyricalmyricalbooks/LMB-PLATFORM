@@ -56,6 +56,10 @@ export const EVENTS_CSS = [
   // The QR picture is drawn black on white whatever the theme, so a scanner can always read it.
   `${S} .fm-evt-code-qr{flex:none;display:block;width:96px;height:96px;image-rendering:pixelated;outline:var(--t-edge-w) solid var(--t-edge);}`,
   `${S} .fm-evt-code[data-used="true"]{opacity:.62;}`,
+  `${S} .fm-evt-applied{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 0;border-top:1px dashed var(--t-rule);border-bottom:1px dashed var(--t-rule);font-family:var(--t-mono);font-size:13px;letter-spacing:.04em;}`,
+  `${S} .fm-evt-code-row{display:flex;gap:8px;align-items:stretch;}`,
+  `${S} .fm-evt-code-row .fm-track-input{flex:1;min-width:0;text-transform:uppercase;font-family:var(--t-mono);letter-spacing:.08em;}`,
+  `${S} .fm-evt-code-row .fm-track-btn{flex-shrink:0;width:auto;}`,
   `${S} .fm-evt-error{margin:6px 0 0;font-size:13px;color:var(--danger, currentColor);}`,
   `${S} .fm-evt-empty{padding:28px 0;text-align:center;}`,
   `@media (prefers-reduced-motion:reduce){${S} .fm-evt-card{transition:none;}${S} a.fm-evt-card:hover{transform:none;}}`,

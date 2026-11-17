@@ -23,7 +23,7 @@ import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { moneyText } from "./bookTimeRules";
 import {
   cartOf, clampQty, codeText, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch,
-  type EventOrderView, type EventView, type EventsInfo,
+  type EventOrderView, type EventView, type EventsInfo, type TicketCode,
 } from "./eventsRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -119,7 +119,7 @@ function Browse({ eventId, c }: { eventId: string; c: Copy }) {
       </Intro>
     );
   }
-  if (event) return <OneEvent key={event.id} event={event} zone={zone} currency={currency} c={c} headingRef={headingRef} onStale={load} />;
+  if (event) return <OneEvent key={event.id} event={event} zone={zone} currency={currency} codes={!!info.codes} c={c} headingRef={headingRef} onStale={load} />;
   if (!events.length) return <Intro c={c}><div {...regionProps("eventsNotice")} className="fm-track-notice" role="status"><p>{c("eventsNone")}</p></div></Intro>;
 
   return (
@@ -190,8 +190,48 @@ function Facts({ start, end, venue, address, zone, online }: { start: string; en
   );
 }
 
-function OneEvent({ event, zone, currency, c, headingRef, onStale }: {
-  event: EventView; zone: string; currency: string; c: Copy; headingRef: React.Ref<HTMLHeadingElement>; onStale: () => Promise<void>;
+/**
+ * "Have a discount code?": folded until asked for. The server checks what is typed (`onTry` throws when it can't be
+ * used) and checks it again when the order is made. Once applied it shows the code with a Remove button.
+ */
+function CodeBox({ applied, onTry, onRemove, c }: { applied: string; onTry: (typed: string) => Promise<void>; onRemove: () => void; c: Copy }) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [problem, setProblem] = useState("");
+  const [checking, setChecking] = useState(false);
+  if (applied) {
+    return (
+      <div {...regionProps("eventsCode")} className="fm-evt-applied" role="status">
+        <span translate="no">{applied}</span>
+        <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer" onClick={() => { onRemove(); setTyped(""); }}>{c("eventsCodeRemove")}</button>
+      </div>
+    );
+  }
+  if (!open) return <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer text-sm justify-self-start" onClick={() => setOpen(true)}>{c("eventsCodeOpen")}</button>;
+  const apply = async () => {
+    if (!typed.trim() || checking) return;
+    setChecking(true);
+    setProblem("");
+    try { await onTry(typed.trim()); } catch { setProblem(c("eventsCodeProblem")); } finally { setChecking(false); }
+  };
+  return (
+    <div {...regionProps("eventsCode")}>
+      <Field id="evt-code" label={c("eventsCodeLabel")} problem={problem}>
+        <div className="fm-evt-code-row">
+          <input id="evt-code" className="fm-track-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={typed} maxLength={40}
+            aria-invalid={!!problem} aria-describedby={problem ? "evt-code-err" : undefined}
+            onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void apply(); } }} />
+          <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => { void apply(); }} disabled={checking || !typed.trim()}>
+            {checking ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : c("eventsCodeApply")}
+          </button>
+        </div>
+      </Field>
+    </div>
+  );
+}
+
+function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
+  event: EventView; zone: string; currency: string; codes: boolean; c: Copy; headingRef: React.Ref<HTMLHeadingElement>; onStale: () => Promise<void>;
 }) {
   const navigate = useNavigate();
   const [picks, setPicks] = useState<Record<string, number>>({});
@@ -199,9 +239,25 @@ function OneEvent({ event, zone, currency, c, headingRef, onStale }: {
   const [problems, setProblems] = useState<{ tickets?: string; name?: string; email?: string }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [applied, setApplied] = useState<TicketCode | null>(null);
   const state = eventState(event);
   const cart = cartOf(event, picks);
-  const amount = moneyText(cart.totalMinor, currency);
+  // With a code, the server's own figures are shown (the code comes off before any tax).
+  const due = applied ? applied.totalMinor : cart.totalMinor;
+  const amount = moneyText(due, currency);
+  const tryCode = async (code: string, tickets = cart.tickets) => {
+    setApplied(await askEvents("eventCode", { eventId: event.id, tickets, code, email: form.email.trim() }) as TicketCode);
+  };
+  // Other tickets, another amount: the code is asked about again, and dropped when it no longer fits.
+  const picked = JSON.stringify(cart.tickets);
+  useEffect(() => {
+    if (!applied) return;
+    if (!cart.totalMinor) { setApplied(null); return; }
+    let live = true;
+    askEvents("eventCode", { eventId: event.id, tickets: cart.tickets, code: applied.code, email: form.email.trim() })
+      .then((answer) => { if (live) setApplied(answer as TicketCode); }).catch(() => { if (live) setApplied(null); });
+    return () => { live = false; };
+  }, [picked]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -217,13 +273,14 @@ function OneEvent({ event, zone, currency, c, headingRef, onStale }: {
     setBusy(true);
     setError("");
     try {
-      const answer = await askEvents("eventStart", { eventId: event.id, name: form.name.trim(), email: form.email.trim(), locale: navigator.language || "en", tickets: cart.tickets });
+      const answer = await askEvents("eventStart", { eventId: event.id, name: form.name.trim(), email: form.email.trim(), locale: navigator.language || "en", tickets: cart.tickets, ...(applied ? { code: applied.code } : {}) });
       if (answer.on === false) { setBusy(false); setError(c("eventsSalesClosed")); return; }
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(within(`order=${encodeURIComponent(answer.orderId)}&key=${answer.key}`));
     } catch (err: any) {
       setBusy(false);
       // Someone else got there first: show what is left now, with the picks trimmed to it.
+      if (err?.code === "code") { setApplied(null); setError(c("eventsCodeProblem")); return; }
       if (err?.code === "tickets" || err?.code === "closed") {
         await onStale();
         setError(c(err.code === "tickets" ? "eventsTicketsChanged" : "eventsSalesClosed"));
@@ -296,15 +353,19 @@ function OneEvent({ event, zone, currency, c, headingRef, onStale }: {
               {event.tickets.filter((t) => cart.tickets[t.id]).map((t) => (
                 <Row key={t.id} label={`${cart.tickets[t.id]} × ${t.name}`} value={t.priceMinor > 0 ? moneyText(cart.tickets[t.id] * t.priceMinor, currency) : c("eventsFree")} />
               ))}
+              {applied && <Row label={c("eventsDiscountRow", { code: applied.code })} value={`−${moneyText(applied.amountMinor, currency)}`} />}
               <div className="fm-track-total">
                 <span className="fm-track-mono">{c("eventsTotal")}</span>
-                <strong translate="no">{cart.count && !cart.totalMinor ? c("eventsFree") : amount}{cart.taxed && <small className="fm-track-mono"> {c("eventsPlusTax")}</small>}</strong>
+                <strong translate="no">{cart.count && !due ? c("eventsFree") : amount}{cart.taxed && due > 0 && <small className="fm-track-mono"> {c("eventsPlusTax")}</small>}</strong>
               </div>
             </div>
-            {cart.totalMinor > 0 && <p className="text-sm leading-6 fm-muted">{c("eventsPayNote", { minutes: HOLD_MINUTES })}</p>}
+            {codes && cart.totalMinor > 0 && (
+              <CodeBox c={c} applied={applied ? c("eventsCodeApplied", { code: applied.code }) : ""} onTry={tryCode} onRemove={() => setApplied(null)} />
+            )}
+            {due > 0 && <p className="text-sm leading-6 fm-muted">{c("eventsPayNote", { minutes: HOLD_MINUTES })}</p>}
             <button type="submit" className="fm-track-btn w-full" disabled={busy}>
               {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("eventsWorking")}</>
-                : cart.totalMinor > 0 ? c(cart.taxed ? "eventsPayTax" : "eventsPay", { amount }) : c("eventsGetFree")}
+                : due > 0 ? c(cart.taxed ? "eventsPayTax" : "eventsPay", { amount }) : c("eventsGetFree")}
             </button>
           </form>
         ) : (
@@ -388,6 +449,7 @@ function YourTickets({ id, orderKey, c }: { id: string; orderKey: string; c: Cop
         {place && <Row label={c("eventsWhere")} value={place} />}
         {order.name && <Row label={c("eventsNameRow")} value={order.name} />}
         {order.lines.map((l) => <Row key={l.ticketId} label={`${l.qty} × ${l.name}`} value={l.priceMinor > 0 ? moneyText(l.qty * l.priceMinor, order.currency) : c("eventsFree")} />)}
+        {!!order.discount?.amountMinor && <Row label={c("eventsDiscountRow", { code: order.discount.code })} value={`−${moneyText(order.discount.amountMinor, order.currency)}`} />}
         {order.taxMinor > 0 && <Row label={c("eventsTax")} value={moneyText(order.taxMinor, order.currency)} />}
         {paid && order.onlineUrl && !called && (
           <div className="fm-track-row"><span className="fm-track-mono">{c("eventsOnlineRow")}</span><a className="text-right underline underline-offset-2" href={order.onlineUrl} target="_blank" rel="noopener noreferrer">{c("eventsJoinOnline")}</a></div>

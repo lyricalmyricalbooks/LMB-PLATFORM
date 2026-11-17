@@ -17,6 +17,8 @@ export type TicketOrder = {
   createdAt: string; paidAt: string; test: boolean;
   /** Money already sent back, tickets already given back, and when the last one went (a fully refunded order). */
   refundedMinor?: number; refundedTickets?: number; refundedAt?: string;
+  /** A discount code the buyer used: what they typed and what it took off. */
+  discount?: { code: string; amountMinor: number } | null;
 };
 /** One round of calling an event off: orders given back this call, the money sent, the ones that failed, and how many wait. */
 export type CancelAnswer = { ok: true; done: number; amountMinor: number; failed: { id: string; name: string; code?: string }[]; left: number };
