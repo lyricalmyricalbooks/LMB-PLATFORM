@@ -151,6 +151,8 @@ function VisitDialog({ client, email, visit, onClose, onSaved }: {
   const [problem, setProblem] = useState("");
   // Photos added in this window: removed again if the window closes without saving.
   const added = useRef<string[]>([]);
+  // Set once the window closes: a photo still uploading then is removed as soon as it lands.
+  const closed = useRef(false);
   const before = useRef<HTMLInputElement>(null), after = useRef<HTMLInputElement>(null);
 
   const addPhotos = async (kind: VisitPhoto["kind"], files: FileList | null) => {
@@ -162,6 +164,7 @@ function VisitDialog({ client, email, visit, onClose, onSaved }: {
     try {
       for (const file of list.slice(0, room)) {
         const path = await uploadClientPhoto(client, kind, file);
+        if (closed.current) { void clientVisitsData.removeFiles([path]); return; }
         added.current.push(path);
         setPhotos((p) => [...p, { path, kind }]);
       }
@@ -174,6 +177,7 @@ function VisitDialog({ client, email, visit, onClose, onSaved }: {
   };
 
   const close = () => {
+    closed.current = true;
     void clientVisitsData.removeFiles(added.current);
     onClose();
   };
