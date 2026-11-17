@@ -45,6 +45,7 @@ import { createHash } from "node:crypto";
 import { personOf, SignupError } from "../signup/signup.js";
 import { paymentWayView } from "../services/billing/paymentWay.js";
 import { planEnding } from "../services/billing/paymentWayState.js";
+import { moneyWords } from "../services/billing/currencies.js";
 import { BillingError } from "../services/billing/billing.js";
 import { ownerTwoStepProblem } from "./twoStep.js";
 
@@ -55,7 +56,13 @@ export const billingPage = (settings, shopId) => `${settings.platformUrl}/accoun
  * Every billing call, by name, for both doors: { run(shopId, body, { returnUrl }), secondStep }. `secondStep` (true, or
  * a test of the body) marks the changes a paid plan's owner needs two-step sign-in for (plan 14.1); looking is free.
  */
-export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null, meters = null }) {
+/** A month's text reminders for the tracker: how many went and what they cost so far, in words. */
+export function textsLine({ texts, cents, currency }, settings) {
+  const amount = Number(cents) || 0;
+  return { count: texts, cents: amount, text: moneyWords(amount, currency === "USD" ? "USD" : "CAD", settings) };
+}
+
+export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null, meters = null, texts = null }) {
   // The card and the billing details are the paying account's (one Stripe customer for every shop it pays for), so only
   // that person changes them: a co-owner's card would otherwise pay the account holder's other shops too.
   const payerOnly = (run) => async (shopId, body, context) => {
@@ -77,7 +84,14 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
     // Pay what you use: the amount a month's bill may pass before the press is emailed (0 turns the email off).
     "cost-alert": { run: async (shopId, { cents }) => billing.setCostAlert({ shopId, cents }) },
     // The running-cost tracker: this month so far, where it is heading and the months before (looking only).
-    costs: { run: async (shopId) => ({ costs: await billing.costTracker({ shopId, meters }) }) },
+    // Text reminders (services/texts) are billed as their own line, at cost: shown under the tracker when any went.
+    costs: {
+      run: async (shopId) => {
+        const costs = await billing.costTracker({ shopId, meters });
+        const sent = texts && costs ? await texts.forShop(shopId).catch(() => null) : null;
+        return { costs: sent?.texts > 0 ? { ...costs, texts: textsLine(sent, settings) } : costs };
+      },
+    },
     card: { run: payerOnly(async (shopId, _body, { returnUrl }) => billing.cardLink({ shopId, returnUrl })), secondStep: true },
     cancel: {
       run: async (shopId, { reason, words }) => ({ cancelAtPeriodEnd: planEnding(await billing.cancel({ shopId, reason, words })).cancelling }),
@@ -165,7 +179,7 @@ export function billingCallLog({ registry, auditLog, now, source = "billing-door
   };
 }
 
-export function billingRoutes({ billing, paymentWay = null, bankFeed = null, meters = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
+export function billingRoutes({ billing, paymentWay = null, bankFeed = null, meters = null, texts = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   const log = billingCallLog({ registry, auditLog, now });
 
@@ -197,7 +211,7 @@ export function billingRoutes({ billing, paymentWay = null, bankFeed = null, met
     };
   }
 
-  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings, bankFeed, meters })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
+  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings, bankFeed, meters, texts })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
 }
 
 /**

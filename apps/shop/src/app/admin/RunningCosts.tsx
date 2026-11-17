@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SecondaryButton, SectionCard, TextField } from "./riso/components";
 import "./runningCosts.css";
 import { planDate, type PlatformPlan } from "./platformPlan";
-import { alertCents, alertWords, billEstimate, billingCall, trendWords, type BillCents, type BillingStatus, type CostTracker } from "./platformBilling";
+import { alertCents, alertWords, billEstimate, billingCall, textsWords, trendWords, type BillCents, type BillingStatus, type CostTracker } from "./platformBilling";
 
 // Settings › Billing › Running costs (14 November 2026): what the shop has cost to run so far this month, where the
 // month is heading, the bill that will come of it, what the money went on, the months before, and the amount the
@@ -65,6 +65,7 @@ function Groups({ costs }: { costs: CostTracker }) {
           </li>
         ))}
       </ul>
+      {textsWords(costs) && <p className="rp-hint" data-rc="texts" style={{ margin: 0 }}>{textsWords(costs)}</p>}
     </div>
   );
 }

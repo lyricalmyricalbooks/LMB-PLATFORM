@@ -1175,6 +1175,8 @@ let helperShown = false;
         trend: [...["Jun", "Jul", "Aug", "Sep", "Oct"].map((words, i) => ({ month: `2026-${String(i + 6).padStart(2, "0")}`, words, now: false, ...(past[i] === null ? { cents: null, text: "" } : $(past[i]!)) })), { month: "2026-11", words: "Nov", now: true, ...(measured ? $(monthEnd) : { cents: null, text: "" }) }],
         lastMonth: past[4] === null ? null : { month: "2026-10", monthWords: "October 2026", ...$(268) }, average: past[4] === null ? null : $(210), change: past[4] === null || !measured ? null : Math.round(((monthEnd - 268) / 268) * 100),
         alert: { ...$(billing.usage.alert.cents), on: billing.usage.alert.cents > 0, watched: measured ? $(watched) : null, passing: measured && billing.usage.alert.cents > 0 && watched > billing.usage.alert.cents, used: measured && billing.usage.alert.cents > 0 ? Math.min(1, watched / billing.usage.alert.cents) : null, sent: over },
+        // `&texts=sent`: booking reminders went by text this month (their own line on the next bill).
+        ...(q.get("texts") === "sent" ? { texts: { count: 42, ...$(67) } } : {}),
       } };
     };
     const answers: Record<string, (body?: any) => unknown> = {

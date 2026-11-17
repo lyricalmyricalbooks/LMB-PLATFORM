@@ -3439,6 +3439,8 @@ async function loadUsage(month) {
           { header: "Pages served", end: true, render: (row) => num(row.egressGb, gbWords) },
           { header: "Files kept", end: true, render: (row) => num(row.storageGb, gbWords) },
           { header: "Emails", end: true, render: (row) => num(row.emails) },
+          // Booking reminders by text: their own line on the shop's next bill, at cost (services/texts).
+          { header: "Texts", end: true, render: (row) => el("div", {}, num(row.texts || null), meta(row.texts ? `${money(row.textCents, "CAD")} at cost` : null)) },
           // What the owner's own tracker shows them (Settings › Billing › Running costs), in CAD.
           { header: "Owner sees so far", end: true, render: (row) => el("div", {}, num(row.soFarCents, (n) => money(n, "CAD")), meta(row.monthEndCents == null ? null : `about ${money(row.monthEndCents, "CAD")} by month end`)) },
           { header: "Share of the bill", end: true, render: (row) => (row.costCents == null ? el("span", { className: "rp-hint", textContent: "not split yet" }) : num(row.costCents, (n) => money(n, "CAD"))) },

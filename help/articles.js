@@ -63,6 +63,35 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
+    id: "booking-reminders",
+    topic: "Selling",
+    question: "How do booking reminders work, and what do texts cost?",
+    answer: [
+      "Everyone who books gets a reminder by email before their visit. Choose how long before under Hours and rules in your calendar, and add a second reminder closer to the time if you like.",
+      "To send reminders by text as well, turn on Send reminders by text too in the same place. People then see a Text me reminders box when they book, and only those who tick it and give a mobile number get texts.",
+      "Each text costs about two cents and is added to your monthly bill at cost, with nothing on top. A long text counts as two. Anyone can reply STOP to stop getting texts.",
+    ],
+  },
+  {
+    id: "booking-no-shows",
+    topic: "Selling",
+    question: "How do I stop people missing their bookings?",
+    answer: [
+      "Reminders help most, so keep them on. For each service you can also ask for a deposit when people book, or the whole price.",
+      "You can keep a card on file and set a missed-visit fee. If someone doesn't come, or cancels too late, open their booking and charge the fee in one step.",
+      "A free service can keep a card on file too, so even free visits are held to their time.",
+    ],
+  },
+  {
+    id: "packs-of-visits",
+    topic: "Selling",
+    question: "Can I sell a pack of visits?",
+    answer: [
+      "Yes. Open a service in your calendar, turn on Sell a pack of visits, and set how many visits, the pack's price and how long people have to use it.",
+      "The client gets a code by email and uses it when they book, one visit at a time. You see every open pack and how many visits are left, and you can close a pack with a refund for what wasn't used.",
+    ],
+  },
+  {
     id: "editions",
     topic: "Getting started",
     question: "How do I sell one book in more than one edition?",

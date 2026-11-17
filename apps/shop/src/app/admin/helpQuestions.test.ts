@@ -5,6 +5,9 @@ import { helpList } from "./helpAnswers";
 
 const LIST = articlesFor("both", null);
 export const ASKED: [string, string][] = [
+  ["send appointment reminders by sms", "booking-reminders"],
+  ["clients keep missing appointments", "booking-no-shows"],
+  ["sell a package of sessions", "packs-of-visits"],
   ["how do i add a book", "add-a-book"],
   ["add new product", "add-a-book"],
   ["how much does postage cost to send", "shipping"],

@@ -18,7 +18,7 @@ function fakeMeters(records = {}) {
   return { get: async (shopId, month) => structuredClone(records[`${shopId}_${month}`] ?? null) };
 }
 
-async function world({ meters = fakeMeters() } = {}) {
+async function world({ meters = fakeMeters(), texts = null } = {}) {
   const registry = fakeRegistry();
   await registry.createShop("moth", { shopId: "moth", pressName: "Moth Press", status: "live", shared: true, projectId: "demo-shared" });
   await registry.createShop("wasp", { shopId: "wasp", pressName: "Wasp Books", status: "live", shared: true, projectId: "demo-shared" });
@@ -28,7 +28,7 @@ async function world({ meters = fakeMeters() } = {}) {
   await registry.recordRelease({ kind: "shared-first-release", version: "1.1.0", runId: "r1", startedAt: "2026-11-09T10:00:00Z", ok: true, projects: [{ projectId: "demo-shared", status: "shipped" }] });
   await registry.recordRelease({ kind: "shared-release", version: "1.2.0", runId: "r2", startedAt: "2026-11-10T10:00:00Z", finishedAt: "2026-11-10T10:05:00Z", ok: false, error: "demo-shared: the check failed",
     projects: [{ projectId: "lmb-test-shop", status: "shipped", pages: { done: ["test-press"], failed: [] } }, { projectId: "demo-shared", status: "rolled-back", error: "the check failed", pages: { done: ["moth"], failed: [{ shopId: "wasp", error: "timed out" }] } }, { projectId: "demo-later", status: "not-run" }] });
-  const desk = createSharedSystemDesk({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, meters, now: () => new Date(NOW) });
+  const desk = createSharedSystemDesk({ admins: controlRoomAdmins({ PLATFORM_ADMIN_EMAILS: "admin@example.com" }), registry, meters, texts, now: () => new Date(NOW) });
   const api = createApi({ signup: {}, verifyIdToken: fakeVerifyIdToken, settings: platformSettings({}), routes: sharedSystemRoutes(desk), log: () => {} });
   const ask = (claims, method, path, body) => api({ method, path, body, headers: { Authorization: `Bearer ${JSON.stringify(claims)}` } });
   return { desk, ask, registry };
@@ -83,6 +83,16 @@ test("each shared shop's month of use, busiest first, and its share once the bil
   assert.equal(last.totals.costCents, 360);
   assert.equal(last.totals.invocations, 900);
   assert.equal(last.shops[0].monthEndCents, null, "a finished month has no estimate");
+});
+
+test("each shop's text reminders this month sit beside its use, at cost", async () => {
+  const texts = { monthTexts: async (month) => (month === "2026-11" ? { moth: { texts: 30, parts: 40 } } : {}), cents: (_currency, parts) => parts * 2 };
+  const w = await world({ meters: fakeMeters({ "moth_2026-11": { invocations: 1 } }), texts });
+  const now = await w.desk.usage(ADMIN);
+  assert.deepEqual(now.shops.map((s) => [s.shopId, s.texts, s.textCents]), [["moth", 30, 80], ["wasp", 0, 0]]);
+  assert.deepEqual([now.totals.texts, now.totals.textCents], [30, 80]);
+  const broken = await (await world({ texts: { monthTexts: async () => { throw new Error("down"); }, cents: () => 0 } })).desk.usage(ADMIN);
+  assert.ok(broken.shops.every((s) => s.texts === 0));
 });
 
 test("before the shared system is on, the use says so", async () => {

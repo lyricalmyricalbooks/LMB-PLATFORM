@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 /** Each address and a piece of text its page must hold. */
 export const LIVE_PAGES = Object.freeze([
   ["/", "Colophon"],
+  ["/services", "Colophon for services"],
   ["/join/", "Start your free trial"],
   ["/signup/", "Colophon"],
   ["/account/", "Your shops"],
