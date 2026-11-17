@@ -152,15 +152,32 @@ export function taxPeriodModel({ orders, ledgerRows, states, period, currency }:
     channels[channel].sales += 1;
   }
   const inPerson = Object.values(channels).filter((c) => c.sales);
-  // Bookings (serviceSales.ts): each visit's takings on its day. No tax is charged on bookings yet.
+  // Bookings (serviceSales.ts): each visit's takings on its day, net of any sales tax the service charges.
   const bookings: ChannelLine = { id: "bookings", name: "Bookings", salesCents: 0, taxCents: 0, sales: 0 };
+  const bookingRates = new Map<string, RateLine>();
+  let bookingsNoTax: RateLine | null = null;
   for (const r of ledgerRows) {
     if (r.sourceType !== SERVICE_SOURCE || r.voided || !r.date || r.date < period.start || r.date > period.end) continue;
-    bookings.salesCents += Math.round(Number(r.baseAmount || 0) * 100);
+    const netCents = Math.round(Number(r.baseAmount || 0) * 100);
+    bookings.salesCents += netCents;
     bookings.sales += 1;
+    const names = Object.entries((r.taxes || {}) as Record<string, number>).filter(([, c]) => c > 0);
+    if (!names.length) {
+      bookingsNoTax ||= { id: "chan:bookings", name: "Bookings", note: "No tax charged", netCents: 0, taxCents: 0, orders: 0 };
+      bookingsNoTax.netCents += netCents; bookingsNoTax.orders += 1;
+      continue;
+    }
+    names.forEach(([name, cents], i) => {
+      const line = bookingRates.get(name) || { id: `booking-tax:${name}`, name, note: "Bookings", netCents: 0, taxCents: 0, orders: 0 };
+      if (i === 0) line.netCents += netCents;
+      line.taxCents += cents; line.orders += 1;
+      bookings.taxCents = (bookings.taxCents || 0) + cents;
+      bookingRates.set(name, line);
+    });
   }
 
-  const taxCents = sales.reduce((sum, l) => sum + Object.values(l.taxes).reduce((a, b) => a + b, 0), 0);
+  const websiteTaxCents = sales.reduce((sum, l) => sum + Object.values(l.taxes).reduce((a, b) => a + b, 0), 0);
+  const taxCents = websiteTaxCents + (bookings.taxCents || 0);
   const refundsCents = refunds.reduce((sum, l) => sum + l.refundsCents, 0);
   const fees = sales.filter((l) => l.feeCents !== null);
   const feesCents = fees.reduce((sum, l) => sum + (l.feeCents || 0), 0);
@@ -171,9 +188,10 @@ export function taxPeriodModel({ orders, ledgerRows, states, period, currency }:
   const rates = [...byName.values()].sort((a, b) => b.taxCents - a.taxCents);
   if (noTax) rates.push(noTax);
   for (const c of inPerson) rates.push({ id: `chan:${c.id}`, name: c.name, note: "No tax recorded", netCents: c.salesCents, taxCents: 0, orders: c.sales });
-  if (bookings.sales) rates.push({ id: "chan:bookings", name: "Bookings", note: "No tax charged", netCents: bookings.salesCents, taxCents: 0, orders: bookings.sales });
+  rates.push(...[...bookingRates.values()].sort((a, b) => b.taxCents - a.taxCents));
+  if (bookingsNoTax) rates.push(bookingsNoTax);
 
-  const website: ChannelLine = { id: "website", name: "Website", salesCents: sales.reduce((s, l) => s + net(l), 0), taxCents, sales: sales.length };
+  const website: ChannelLine = { id: "website", name: "Website", salesCents: sales.reduce((s, l) => s + net(l), 0), taxCents: websiteTaxCents, sales: sales.length };
   const checks: CheckLine[] = [
     noTax
       ? { id: "no-tax", text: `${noTax.orders} website ${noTax.orders === 1 ? "sale has" : "sales have"} no tax`, done: false }

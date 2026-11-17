@@ -160,6 +160,8 @@ function publicBooking(id, b, settings, nowMs) {
     staffId: b.staffId || "", staffName: b.staffName || "",
     meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
+    // Sales tax: the part of priceMinor that is tax.
+    taxMinor: b.taxMinor || 0,
     // A discount code: what it took off the service's price (priceMinor is already after it).
     discountCode: b.discount?.code || "", discountMinor: b.discount?.amountMinor || 0,
     // A gift card: its last four and what it paid (never its id), and whether that went back onto it.
@@ -192,6 +194,9 @@ function bookingActions({
   // Discount codes on bookings: (code, email) → the shop's discount, checked like checkout's (on, dates, usage limit,
   // who may use it, one use per customer across orders), or throws with the customer's words. None: codes are refused.
   findDiscount = null,
+  // Sales tax on services (index.js): async () → (amountMinor) → { taxMinor, taxLines } at the shop's rate for where it
+  // is (Settings › Taxes matched to Settings › General › Location), or null when the shop collects none. None: no tax.
+  shopTax = null,
 }) {
   const services = () => db.collection("bookingServices");
   const settingsRef = () => db.collection("bookingSettings").doc("main");
@@ -221,6 +226,24 @@ function bookingActions({
       console.warn("bookings: the website link wasn't updated:", err?.message || err);
     }
   }
+  /**
+   * The sales tax on `amountMinor` of a service with `chargeTax`, added on top of the price: { taxMinor, taxLines }, or
+   * null when the service doesn't charge it or the shop has no rate for where it is. `calc` reuses one settings read.
+   */
+  async function taxOn(service, amountMinor, calc) {
+    if (!service?.chargeTax || !(amountMinor > 0) || !shopTax) return null;
+    const of = calc === undefined ? await shopTax() : calc;
+    const tax = of ? of(amountMinor) : null;
+    return tax && tax.taxMinor > 0 ? { taxMinor: tax.taxMinor, taxLines: Array.isArray(tax.taxLines) ? tax.taxLines : [] } : null;
+  }
+  const taxFields = (tax) => (tax ? { taxMinor: tax.taxMinor, taxLines: tax.taxLines } : {});
+  // The tax line on a booking's emails: "Includes tax (HST ON): $13.00".
+  const taxLinesWords = (b) => {
+    if (!(b?.taxMinor > 0)) return "";
+    const names = (Array.isArray(b.taxLines) ? b.taxLines : []).map((l) => l?.name).filter(Boolean).join(", ");
+    return `<p style="margin:0 0 4px;"><strong>Includes tax${names ? ` (${escapeHtml(names)})` : ""}:</strong> ${escapeHtml(moneyWords(b.taxMinor, b.currency))}</p>`;
+  };
+
   async function readServices() {
     const snap = await services().limit(MAX_SERVICES).get();
     return snap.docs.map((d) => cleanService(d.data(), d.id)).filter((s) => !s.problem).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
@@ -351,6 +374,7 @@ function bookingActions({
       const packLine = ended || !b.pack ? "" : `<p style="margin:0 0 4px;"><strong>Paid with your pack ••••${escapeHtml(b.pack.last4 || "")}:</strong> visit ${b.pack.visit || 1} of ${b.pack.visits || 1}</p>`;
       const money = ended || !(b.priceMinor > 0) ? packLine : [
         b.discount?.amountMinor ? `<p style="margin:0 0 4px;"><strong>Discount (${escapeHtml(b.discount.code)}):</strong> ${escapeHtml(moneyWords(b.discount.amountMinor, b.currency))} off</p>` : "",
+        taxLinesWords(b),
         giftTaken(b) ? `<p style="margin:0 0 4px;"><strong>Gift card ••••${escapeHtml(b.giftCard.last4 || "")}:</strong> ${escapeHtml(moneyWords(giftTaken(b), b.currency))}</p>` : "",
         b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
         due ? `<p style="margin:0 0 4px;"><strong>${kind === "payRest" ? "Left to pay" : "To pay at your visit"}:</strong> ${escapeHtml(moneyWords(due, b.currency))}</p>` : `<p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(b.priceMinor, b.currency))}</p>`,
@@ -1192,13 +1216,17 @@ function bookingActions({
       if (action === "bookingInfo") {
         if (!settings.live) return res.status(200).json({ on: false });
         const list = (await readServices()).filter((s) => s.active);
+        const calc = list.some((s) => s.chargeTax) && shopTax ? await shopTax() : null;
+        const taxes = await Promise.all(list.map((s) => taxOn(s, s.priceMinor, calc)));
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
           codes: await codesOffered(), giftCards: await giftCardsOffered(),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
+            // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
+            ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
             ...(offersPack({ packVisits, packPriceMinor }) ? { packVisits, packPriceMinor, packDays } : {}),
           })),
@@ -1246,7 +1274,9 @@ function bookingActions({
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         try {
           const priced = await codeFor(service, req.body?.code, email);
-          return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: priced.priceMinor, payNowMinor: priced.upFront });
+          const tax = await taxOn(service, priced.priceMinor);
+          const total = priced.priceMinor + (tax?.taxMinor || 0);
+          return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: total, ...(tax ? { taxMinor: tax.taxMinor } : {}), payNowMinor: depositOf({ ...service, priceMinor: total }) });
         } catch (err) {
           if (err instanceof BookingCodeProblem) return fail(res, 400, err.message, "code");
           throw err;
@@ -1362,9 +1392,12 @@ function bookingActions({
             throw err;
           }
         }
-        const price = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : service.priceMinor;
+        const before = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : service.priceMinor;
+        // Sales tax (a service with chargeTax) goes on top of the price after any code; the booking's price includes it.
+        const tax = await taxOn(service, before);
+        const price = before + (tax?.taxMinor || 0);
         // What the card page takes now: the whole price, the deposit, or nothing (free, all paid at the visit, or a pack).
-        const upFront = pack ? 0 : priced ? priced.upFront : depositOf(service);
+        const upFront = pack ? 0 : depositOf({ ...service, priceMinor: price });
         const deposit = upFront > 0 && service.payment === "deposit" && upFront < price;
         // A gift card pays part or all of what is paid now; the card page takes the rest.
         let gift = null;
@@ -1394,7 +1427,7 @@ function bookingActions({
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
-          priceMinor: price, ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
+          priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
           ...(gift ? { giftCard: gift } : {}),
           ...(pack ? { pack, listPriceMinor: service.priceMinor } : {}),
@@ -1764,6 +1797,7 @@ function bookingActions({
         if (customer.problem) return fail(res, 400, customer.problem.replace("your", "the customer's").replace("Please add an email address we can send your booking to.", "Add the customer's email address."));
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time.");
+        const tax = await taxOn(service, service.priceMinor);
         const id = randomId();
         const key = randomKey();
         const at = now().toISOString();
@@ -1772,7 +1806,7 @@ function bookingActions({
           // The owner booking someone in may fill in the service's questions or leave them.
           customer: { name: customer.name, email: customer.email, phone: customer.phone }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
           // Booked in by the owner: nothing is taken by card, so a priced service is all paid at the visit.
-          status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor, currency: currency(),
+          status: "confirmed", payment: service.priceMinor > 0 ? "atShop" : "free", priceMinor: service.priceMinor + (tax?.taxMinor || 0), ...taxFields(tax), currency: currency(),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(key), pendingKey: null, source: "admin",
           history: [{ at, what: "booked", by }], createdAt: at, updatedAt: at,
         };
@@ -1833,6 +1867,7 @@ function bookingActions({
         if (!Number.isInteger(priceMinor) || priceMinor < MIN_CARD_MINOR || priceMinor > WALK_IN_MAX_MINOR) {
           return fail(res, 400, `Enter an amount from ${moneyWords(MIN_CARD_MINOR, currency())} to ${moneyWords(WALK_IN_MAX_MINOR, currency())}.`, "amount");
         }
+        const tax = await taxOn(service, priceMinor);
         const id = randomId();
         const payKey = randomKey();
         const at = now().toISOString();
@@ -1840,7 +1875,8 @@ function bookingActions({
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: 0, location: service.location,
           customer: { name, email, phone: "" }, note: "", answers: [],
-          status: "confirmed", payment: "atShop", priceMinor, currency: currency(),
+          // The amount is before tax: a service that charges tax adds it, as on the website.
+          status: "confirmed", payment: "atShop", priceMinor: priceMinor + (tax?.taxMinor || 0), ...taxFields(tax), currency: currency(),
           ...(priceMinor !== service.priceMinor ? { listPriceMinor: service.priceMinor } : {}),
           paid: false, sessions: [], holdUntil: null, manageKeyHash: hash(randomKey()), pendingKey: null, payKey, source: "desk", walkIn: true,
           // Reminders and the second reminder are for visits still to come.
@@ -1849,7 +1885,7 @@ function bookingActions({
           history: [{ at, what: "taken at the desk", by }], createdAt: at, updatedAt: at, checkedInAt: at,
         };
         await bookings().doc(id).set(record);
-        return res.status(200).json({ ok: true, id, url: manageUrl(id, payKey), dueMinor: priceMinor });
+        return res.status(200).json({ ok: true, id, url: manageUrl(id, payKey), dueMinor: record.priceMinor, taxMinor: tax?.taxMinor || 0 });
       }
       if (op === "checkIn") return checkIn(req, res, by);
       const id = String(req.body?.id || "");

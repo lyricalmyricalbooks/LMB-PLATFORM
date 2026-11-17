@@ -55,6 +55,11 @@ export type BookingService = {
   packDays: number;
   /** The room or chair the service needs (Services plan phase 4): "" for none. Two bookings never share a room. */
   roomId: string;
+  /**
+   * Charge sales tax (17 November 2026): the shop's own tax rate for where it is (Settings › Taxes, matched to Settings ›
+   * General › Location) is added on top of the price when someone books. Only for a priced service.
+   */
+  chargeTax: boolean;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -203,6 +208,19 @@ export function depositOf(s: { payment?: string; priceMinor?: number; depositMin
   const amount = Math.round(Number(s.depositMinor) || 0);
   if (amount > 0) return Math.min(amount, price);
   return Math.min(price, Math.round((price * (Number(s.depositPercent) || 0)) / 100));
+}
+
+/**
+ * Sales tax on a booking (17 November 2026). A service with `chargeTax` adds the shop's rate on top of its price when it
+ * is booked: the booking's `priceMinor` is then the whole amount with the tax, `taxMinor` the tax in it and `taxLines`
+ * the tax by its name in the books ([{ name, cents }]). The tax in `amountMinor` of what was paid or kept: the same share
+ * of the tax as of the price, so a deposit, a part refund or a kept fee each carry their own part.
+ */
+export function taxIn(b: { priceMinor?: number; taxMinor?: number } | null | undefined, amountMinor: number): number {
+  const price = Math.round(Number(b?.priceMinor) || 0);
+  const tax = Math.round(Number(b?.taxMinor) || 0);
+  if (!(tax > 0) || !(price > 0) || !(amountMinor > 0)) return 0;
+  return Math.min(tax, Math.round((tax * Math.min(amountMinor, price)) / price));
 }
 
 /**
@@ -363,6 +381,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     packPriceMinor,
     packDays,
     roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
+    chargeTax: payment !== "free" && s.chargeTax === true,
   };
 }
 

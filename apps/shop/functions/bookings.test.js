@@ -54,7 +54,7 @@ function res() {
   return out;
 }
 
-function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null } = {}) {
+function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null, shopTax = null } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -110,7 +110,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   };
   let n = 0;
   const desk = bookingActions({
-    db, calendar, findDiscount,
+    db, calendar, findDiscount, shopTax,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
     payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
@@ -1911,5 +1911,86 @@ describe("staff and rooms", () => {
   test("the day items carry the person and room back into busy times", () => {
     const snap = (items) => ({ exists: true, data: () => ({ items }) });
     expect(busyFrom([snap({ a: { start: 1, end: 2, held: false, s: "x", p: "ana", r: "studio" } })], 0)).toEqual([{ start: 1, end: 2, serviceId: "x", staffId: "ana", roomId: "studio" }]);
+  });
+});
+
+describe("sales tax on a service", () => {
+  // The shop's rate where it is: 13% HST, as index.js works it out from Settings › Taxes and the shop's location.
+  const hst = async () => (amountMinor) => {
+    const cents = Math.round(amountMinor * 0.13);
+    return { taxMinor: cents, taxLines: cents ? [{ name: "HST ON", cents }] : [] };
+  };
+  const seedTaxed = async (t) => {
+    await t.seed();
+    await t.db.collection("bookingServices").doc("review").set({ name: "Portfolio review", minutes: 30, gapAfter: 0, payment: "full", priceMinor: 4000, chargeTax: true });
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 0, payment: "deposit", priceMinor: 10000, depositPercent: 20, chargeTax: true });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000, chargeTax: true });
+  };
+
+  test("only a priced service keeps the switch", async () => {
+    const t = setup({ shopTax: hst });
+    await t.seed();
+    const free = await t.adm({ op: "saveService", service: { name: "Chat", minutes: 30, payment: "free", chargeTax: true } });
+    expect(free.body.service.chargeTax).toBe(false);
+    const paid = await t.adm({ op: "saveService", service: { name: "Lesson", minutes: 30, payment: "full", priceMinor: 5000, chargeTax: true } });
+    expect(paid.body.service.chargeTax).toBe(true);
+  });
+
+  test("the card page takes the price plus tax, and the booking keeps the tax by its name", async () => {
+    const t = setup({ shopTax: hst });
+    await seedTaxed(t);
+    const info = await t.pub({ action: "bookingInfo" });
+    expect(info.body.services.find((s) => s.id === "review")).toMatchObject({ priceMinor: 4000, taxMinor: 520 });
+    expect(info.body.services.find((s) => s.id === "visit").taxMinor).toBeUndefined();
+    const r = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(4520);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ priceMinor: 4520, taxMinor: 520, taxLines: [{ name: "HST ON", cents: 520 }] });
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_tax" });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking).toMatchObject({ status: "confirmed", paid: true, priceMinor: 4520, taxMinor: 520 });
+    const email = t.emails.find((e) => e.to === "ada@example.com").html;
+    expect(email).toMatch(/Includes tax \(HST ON\):<\/strong> \$5\.20/);
+    expect(email).toMatch(/Paid:<\/strong> \$45\.20/);
+  });
+
+  test("a deposit is worked out on the price with tax, and paying at the visit carries the tax too", async () => {
+    const t = setup({ shopTax: hst });
+    await seedTaxed(t);
+    await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(2260);
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ payment: "deposit", priceMinor: 11300, depositMinor: 2260, taxMinor: 1300 });
+    const cut = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-19", "13:00"), ...CUSTOMER });
+    expect(t.db.store.get(`bookings/${cut.body.id}`)).toMatchObject({ payment: "atShop", priceMinor: 6780, taxMinor: 780 });
+  });
+
+  test("a discount code comes off before the tax", async () => {
+    let db;
+    const findDiscount = async (code) => {
+      const hit = (await db.collection("discounts").where("code", "==", code).limit(1).get()).docs[0];
+      if (!hit) throw new Error("That code isn't valid.");
+      return { id: hit.id, ...hit.data() };
+    };
+    const t = setup({ shopTax: hst, findDiscount });
+    db = t.db;
+    await seedTaxed(t);
+    await t.db.collection("discounts").doc("d1").set({ code: "TEN", type: "fixed", value: 10, isActive: true, forBookings: true, usageCount: 0 });
+    const tried = await t.pub({ action: "bookingCode", serviceId: "review", code: "TEN", email: CUSTOMER.email });
+    expect(tried.body).toMatchObject({ discountMinor: 1000, priceMinor: 3390, taxMinor: 390, payNowMinor: 3390 });
+    await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), code: "TEN", ...CUSTOMER });
+    expect(t.db.store.get("bookings/booking001")).toMatchObject({ priceMinor: 3390, taxMinor: 390, listPriceMinor: 4000 });
+  });
+
+  test("the owner's bookings and walk-ins add the tax, and a shop with no rate charges none", async () => {
+    const t = setup({ shopTax: hst });
+    await seedTaxed(t);
+    const made = await t.adm({ op: "create", serviceId: "cut", start: at("2026-11-18", "15:00"), ...CUSTOMER });
+    expect(t.db.store.get(`bookings/${made.body.id || made.body.booking?.id || "booking001"}`)).toMatchObject({ priceMinor: 6780, taxMinor: 780 });
+    const walk = await t.adm({ op: "walkIn", serviceId: "cut", name: "Bo", priceMinor: 5000 });
+    expect(walk.body).toMatchObject({ dueMinor: 5650, taxMinor: 650 });
+    const none = setup({ shopTax: async () => null });
+    await seedTaxed(none);
+    await none.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), ...CUSTOMER });
+    expect(none.db.store.get("bookings/booking001").taxMinor).toBeUndefined();
+    expect(none.opened[0].params.line_items[0].price_data.unit_amount).toBe(4000);
   });
 });

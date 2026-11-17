@@ -1067,6 +1067,8 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeCodeRemove: "Retirer",
   bookTimeCodeProblem: "Ce code ne peut pas être utilisé pour cette réservation.",
   bookTimeDiscount: "Réduction",
+  bookTimePlusTax: "taxes en sus",
+  bookTimeTax: "Taxes",
   bookTimeGiftOpen: "Vous avez une carte-cadeau?",
   bookTimeGiftLabel: "Code de la carte-cadeau",
   bookTimeGiftApplied: "Carte-cadeau se terminant par {last4}",

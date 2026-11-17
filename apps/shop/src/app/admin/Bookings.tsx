@@ -679,6 +679,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
           {b.customer.phone && <div><dt>Phone</dt><dd><a href={`tel:${b.customer.phone}`}>{b.customer.phone}</a></dd></div>}
           <div><dt>Payment</dt><dd>{paymentText(b)}</dd></div>
           {b.giftCard && <div><dt>Gift card</dt><dd>Ending {b.giftCard.last4}, {moneyText(b.giftCard.amountMinor, b.currency)}{b.giftCard.returned ? " (put back on the card)" : ""}</dd></div>}
+          {(b.taxMinor || 0) > 0 && <div><dt>Tax</dt><dd>{moneyText(b.taxMinor || 0, b.currency)} included{b.taxLines?.length ? ` (${b.taxLines.map((l) => l.name).join(", ")})` : ""}</dd></div>}
           {b.discount && <div><dt>Discount</dt><dd>{b.discount.code}, {moneyText(b.discount.amountMinor, b.currency)} off{b.discount.returned ? " (use given back)" : ""}</dd></div>}
           {b.cardHold && <div><dt>Card on file</dt><dd>{b.card ? `${cardText(b.card)}, ${moneyText(b.lateFeeMinor || 0, b.currency)} if missed` : b.status === "held" ? "Being saved" : "Not saved"}</dd></div>}
           {!!tipTaken(b) && <div><dt>Tip</dt><dd>{moneyText(tipTaken(b), b.currency)} by card</dd></div>}
@@ -1097,7 +1098,7 @@ function NewBookingDialog({ services, settings, onClose }: { services: BookingSe
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, roomId: "" };
+const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "" };
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
@@ -1117,7 +1118,7 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
             <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
-            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}</p>
+            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
               <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -1196,6 +1197,7 @@ function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingS
         depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
         holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
         meet: !!rest.meet && rest.places <= 1,
+        chargeTax: priceMinor > 0 && !!rest.chargeTax,
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
         packDays: sellPack ? Number(packLasts) || 0 : 0,
@@ -1283,6 +1285,14 @@ function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingS
               </>
             )}
           </fieldset>
+        )}
+        {Number(form.price) > 0 && (
+          <div className="bkg-meet">
+            <Toggle label="Charge sales tax" checked={!!form.chargeTax} onChange={(v) => set("chargeTax", v)} />
+            <p className="bkg-questions-hint">{form.chargeTax
+              ? "Your shop's sales tax rate is added on top of the price. Customers see it before they pay, and it shows in the Tax centre."
+              : "The price is all they pay. Turn this on to add your sales tax on top."}</p>
+          </div>
         )}
         <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
         {(rooms.length > 0 || form.roomId) && (

@@ -1954,6 +1954,20 @@ const bookingDesk = require("./bookings").bookingActions({
     await assertDiscountNotUsedByCustomer(discount, email);
     return discount;
   },
+  // Sales tax on services: the shop's own rate for where it is (a service is done at the shop), from Settings › Taxes.
+  // Rates limited to some product kinds are for products, so only the general rates count. Collecting off: none.
+  shopTax: async () => {
+    const settings = (await db.collection("settings").doc("website").get()).data() || {};
+    if (!taxCollectionOn(settings)) return null;
+    const place = settings.location || {};
+    const general = (settings.taxes?.rates || []).filter(rate => !(Array.isArray(rate?.kinds) && rate.kinds.length));
+    const rate = matchTaxRate(general, place.country, place.state);
+    if (!rate || !(Number(rate.rate) > 0)) return null;
+    return amountMinor => {
+      const taxLines = taxLinesFor([{ rate, amount: (amountMinor / 100) * (Number(rate.rate) / 100) }]);
+      return { taxMinor: taxLines.reduce((sum, line) => sum + line.cents, 0), taxLines };
+    };
+  },
   emailBrand: async () => {
     const settings = await loadNotificationSettings();
     const brand = settings.brand || {};

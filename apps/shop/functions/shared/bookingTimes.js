@@ -11,6 +11,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
 exports.depositOf = depositOf;
+exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
 exports.cleanTipPercents = cleanTipPercents;
 exports.tipOpen = tipOpen;
@@ -108,6 +109,19 @@ function depositOf(s) {
     if (amount > 0)
         return Math.min(amount, price);
     return Math.min(price, Math.round((price * (Number(s.depositPercent) || 0)) / 100));
+}
+/**
+ * Sales tax on a booking (17 November 2026). A service with `chargeTax` adds the shop's rate on top of its price when it
+ * is booked: the booking's `priceMinor` is then the whole amount with the tax, `taxMinor` the tax in it and `taxLines`
+ * the tax by its name in the books ([{ name, cents }]). The tax in `amountMinor` of what was paid or kept: the same share
+ * of the tax as of the price, so a deposit, a part refund or a kept fee each carry their own part.
+ */
+function taxIn(b, amountMinor) {
+    const price = Math.round(Number(b?.priceMinor) || 0);
+    const tax = Math.round(Number(b?.taxMinor) || 0);
+    if (!(tax > 0) || !(price > 0) || !(amountMinor > 0))
+        return 0;
+    return Math.min(tax, Math.round((tax * Math.min(amountMinor, price)) / price));
 }
 /** What the card page asks for when this booking is made. */
 const cardAsk = (b) => Math.max(0, bookedAsk(b) - giftMinor(b));
@@ -282,6 +296,7 @@ function cleanService(raw, id = "") {
         packPriceMinor,
         packDays,
         roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
+        chargeTax: payment !== "free" && s.chargeTax === true,
     };
 }
 /** A class's weekly start times, cleaned: real weekdays and times, no repeats, in week order. */

@@ -656,6 +656,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookTimeCodeRemove", label: "Remove code button", default: "Remove" },
       { key: "bookTimeCodeProblem", label: "Code refused", default: "This code can't be used for this booking." },
       { key: "bookTimeDiscount", label: "Discount label", default: "Discount" },
+      { key: "bookTimePlusTax", label: "Sales tax added note", default: "plus tax" },
+      { key: "bookTimeTax", label: "Sales tax label", default: "Tax" },
       { key: "bookTimeGiftOpen", label: "Gift card link", default: "Have a gift card?" },
       { key: "bookTimeGiftLabel", label: "Gift card box", default: "Gift card code" },
       { key: "bookTimeGiftApplied", label: "Gift card applied", default: "Gift card ending {last4}", hint: "Use {last4} for its last four letters." },

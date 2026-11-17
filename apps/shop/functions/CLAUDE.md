@@ -1382,3 +1382,13 @@ lower case and a missing dash pass; looked up by `checkInCode`, no new index) or
 off. It sets `checkedInAt`, `noShow: false` and a history line, and answers `arrivalCard` (name, service, time, what is
 left to pay). Refusals: `bad_code`, `no_code`, `unknown_code` (404), and 409 with the booking for cancelled, held and
 `not_today`; a second scan answers `already`. A walk-in is saved checked in. Tests: bookings.test.js › check-in at the till.
+
+**Sales tax on a service (17 November 2026, Bookings plan phase 4).** A paid service may set `chargeTax` (`cleanService`
+keeps it only when the service isn't free). `bookingActions` gets `shopTax` from index.js: `settings/website` with
+`taxCollectionOn` not false, the general rates (no `kinds`) and `matchTaxRate` on `location` country/state; no rate or 0
+means no tax. Tax goes on top of the price after any discount code (`taxOn` in bookings.js), and the booking's
+`priceMinor` is then the price with tax, `taxMinor` the tax in it and `taxLines` `[{ name, cents }]`, so deposits, card
+asks, balances and refunds work unchanged. The tax in any part paid or kept is `taxIn(b, amount)` (shared/bookingTimes),
+the same share as of the price. bookingInfo shows `taxMinor` per service, bookingCode answers it, walk-ins add it to the
+typed amount, and the emails say "Includes tax (HST ON)". Packs of visits are not taxed yet. Tests: bookings.test.js ›
+"sales tax on a service".
