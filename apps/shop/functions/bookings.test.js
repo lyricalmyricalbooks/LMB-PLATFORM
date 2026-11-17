@@ -2872,6 +2872,14 @@ describe("classes: a class pass and a first-visit price", () => {
     expect(prices).toEqual([2000, 500].sort());
   });
 
+  test("a priced extra is still charged on top of the first-visit price", async () => {
+    const { t } = await ready();
+    await t.db.collection("bookingServices").doc("trial").set({ name: "Trial", minutes: 60, gapAfter: 0, payment: "full", priceMinor: 4000, introPriceMinor: 1000, extras: [{ id: "x", name: "Hot towel", minutes: 15, priceMinor: 500 }] });
+    const r = await t.pub({ action: "bookingStart", serviceId: "trial", start: at("2026-11-20", "10:00"), ...CUSTOMER, extras: ["x"] });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(1500);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ priceMinor: 1500, intro: true });
+  });
+
   test("many cancelled bookings never hide an earlier visit from the first-visit check", async () => {
     const { t, yoga } = await ready();
     for (let i = 0; i < 60; i++) t.db.store.set(`bookings/old${String(i).padStart(2, "0")}`, { customer: { email: CUSTOMER.email.toLowerCase() }, status: "cancelled" });

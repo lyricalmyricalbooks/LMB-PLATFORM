@@ -1335,7 +1335,8 @@ function bookingActions({
     // bookings started at the same moment can't both get it. A claim whose booking was let go, or never went ahead
     // within five minutes, is taken over.
     if (claimFor && !(await claimIntro(who, claimFor))) return service;
-    return { ...service, priceMinor: service.introPriceMinor, intro: true };
+    // Priced extras the client ticked still cost what they cost on top of the first-visit price.
+    return { ...service, priceMinor: service.introPriceMinor + (service.extrasMinor || 0), intro: true };
   }
   async function claimIntro(email, bookingId) {
     const ref = db.collection("bookingIntros").doc(hash(email));

@@ -390,7 +390,9 @@ function withExtras(service, raw) {
     const minutes = service.minutes + extras.reduce((n, e) => n + e.minutes, 0);
     if (minutes > 8 * 60)
         return { problem: "With those extras the booking is longer than 8 hours. Choose fewer." };
-    return { service: { ...service, minutes, priceMinor: service.priceMinor + extras.reduce((n, e) => n + e.priceMinor, 0) }, extras };
+    const extrasMinor = extras.reduce((n, e) => n + e.priceMinor, 0);
+    // `extrasMinor` keeps what the extras add, so a price that replaces the service's own (a first-visit price) keeps them.
+    return { service: { ...service, minutes, priceMinor: service.priceMinor + extrasMinor, ...(extrasMinor ? { extrasMinor } : {}) }, extras };
 }
 /** A course's dates, cleaned: real shop-clock "YYYY-MM-DDTHH:MM" moments, no repeats, earliest first. */
 function cleanCourseDates(raw) {

@@ -397,7 +397,7 @@ function NewBooking({ c }: { c: Copy }) {
               <span className="fm-track-mono">{c("bookTimePaid")}</span>
               <strong translate="no">{pack ? c("bookTimePackPaid") : priced.priceMinor > 0 ? moneyText(priced.priceMinor, currency) : c("bookTimeFree")}</strong>
             </div>
-            {maybeIntro && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeIntroNote", { price: moneyText(service.introPriceMinor || 0, currency) })}</p>}
+            {maybeIntro && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeIntroNote", { price: moneyText((service.introPriceMinor || 0) + service.priceMinor - (listed?.priceMinor ?? service.priceMinor), currency) })}</p>}
             {!pack && takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
             {!pack && priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
             {run && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimeRunNote")}</p>}
