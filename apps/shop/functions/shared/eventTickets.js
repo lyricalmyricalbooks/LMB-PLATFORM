@@ -11,7 +11,7 @@
 // order still paying, each with the time its hold ends. The server reads and writes it in the same transaction as the
 // order, so the last ticket can't be sold twice.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TICKET_MESSAGES = exports.MAX_EXTRAS = exports.MAX_TICKET_MINOR = exports.MIN_TICKET_MINOR = exports.MAX_PER_ORDER = exports.MAX_PLACES = exports.MAX_TICKET_KINDS = exports.MAX_EVENTS = void 0;
+exports.TICKET_MESSAGES = exports.MAX_FEE_MINOR = exports.MAX_EXTRAS = exports.MAX_TICKET_MINOR = exports.MIN_TICKET_MINOR = exports.MAX_PER_ORDER = exports.MAX_PLACES = exports.MAX_TICKET_KINDS = exports.MAX_EVENTS = void 0;
 exports.cleanTicketKind = cleanTicketKind;
 exports.cleanExtra = cleanExtra;
 exports.cleanEvent = cleanEvent;
@@ -21,6 +21,7 @@ exports.placesLeft = placesLeft;
 exports.soldCount = soldCount;
 exports.orderLines = orderLines;
 exports.extraLines = extraLines;
+exports.bookingFeeMinor = bookingFeeMinor;
 exports.lineCounts = lineCounts;
 exports.withHold = withHold;
 exports.withSold = withSold;
@@ -42,6 +43,8 @@ exports.MIN_TICKET_MINOR = 50;
 exports.MAX_TICKET_MINOR = 1_000_000;
 /** Small paid things sold with the tickets (a programme, a drink): up to this many per event. */
 exports.MAX_EXTRAS = 8;
+/** The most a shop may add to each paid ticket as its own booking fee. */
+exports.MAX_FEE_MINOR = 2000;
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const longText = (value, max) => (typeof value === "string" ? value.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").trim().slice(0, max) : "");
 const KIND_ID = /^[A-Za-z0-9_-]{1,24}$/;
@@ -130,11 +133,17 @@ function cleanEvent(raw, id = "") {
             return { problem: "Two extras share an id. Remove one and add it again." };
         extras.push(extra);
     }
+    const feeMinor = Math.round(Number(e.feeMinor) || 0);
+    if (feeMinor < 0)
+        return { problem: "A booking fee can't be less than nothing." };
+    if (feeMinor > exports.MAX_FEE_MINOR)
+        return { problem: `A booking fee can be up to ${(exports.MAX_FEE_MINOR / 100).toFixed(2)} a ticket.` };
     const status = e.status === "live" || e.status === "cancelled" ? e.status : "draft";
     return {
         id, title, description: longText(e.description, 4000), start, end, venue: text(e.venue, 120), address: text(e.address, 240),
         onlineUrl: webLink(e.onlineUrl), photo: webLink(e.photo), status, chargeTax: e.chargeTax === true, tickets,
         ...(extras.length ? { extras } : {}),
+        ...(feeMinor ? { feeMinor } : {}),
     };
 }
 /** True while tickets can be bought: the event is live and hasn't started. */
@@ -220,6 +229,11 @@ function extraLines(event, wanted) {
     lines.sort((a, b) => offered.findIndex((x) => x.id === a.extraId) - offered.findIndex((x) => x.id === b.extraId));
     return { lines, totalMinor: lines.reduce((sum, l) => sum + l.qty * l.priceMinor, 0) };
 }
+/** The shop's booking fee for an order: the event's fee once for each paid ticket. */
+function bookingFeeMinor(event, lines) {
+    const fee = count(event.feeMinor);
+    return fee ? fee * lines.reduce((sum, l) => sum + (l.priceMinor > 0 ? l.qty : 0), 0) : 0;
+}
 /** An order's lines as the places record keeps them: ticket id → how many. */
 function lineCounts(lines) {
     return Object.fromEntries(lines.map((l) => [l.ticketId, l.qty]));
@@ -289,7 +303,7 @@ function movedLines(lines, kinds, to) {
 /**
  * What goes back to the buyer when some of an order's tickets are refunded: their prices plus the same share of the
  * tax. Giving back the last tickets returns everything still kept (extras too), so cents never go missing. Extras stay
- * with the buyer while they keep a ticket. `counts` is ticket id →
+ * with the buyer while they keep a ticket. A booking fee is part of the tickets' share, so it goes back with them. `counts` is ticket id →
  * how many are refunded now; `ticketsLeft` is how many the order keeps afterwards.
  */
 function refundMinorFor(order, counts, ticketsLeft) {

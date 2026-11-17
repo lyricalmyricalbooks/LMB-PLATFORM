@@ -1,6 +1,6 @@
 // The Events page's own sums and link reading (eventsRules.ts), and Studio's sample answers (eventsPreview.ts).
 import { describe, expect, it } from "vitest";
-import { cartOf, clampQty, extrasOf, codeText, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch, type EventView } from "./eventsRules";
+import { cartOf, clampQty, extrasOf, feeOf, codeText, eventDayParts, eventFromSearch, eventState, eventWhenText, lowestPrice, orderFromSearch, type EventView } from "./eventsRules";
 import { previewEventsAnswer, SAMPLE_EVENT_KEY, SAMPLE_EVENT_ORDER } from "./eventsPreview";
 
 const ZONE = "America/Toronto";
@@ -71,6 +71,8 @@ describe("the picks", () => {
     expect(extrasOf(withExtras, { prog: 1, drink: 9, nope: 2 })).toEqual({ extras: { prog: 1, drink: 2 }, totalMinor: 2100, taxed: true });
     expect(extrasOf(withExtras, { drink: -1 })).toEqual({ extras: {}, totalMinor: 0, taxed: false });
     expect(extrasOf({}, { prog: 1 })).toEqual({ extras: {}, totalMinor: 0, taxed: false });
+    expect(feeOf({ ...event(), feeMinor: 150 }, { gen: 2, free: 2 })).toBe(300);
+    expect(feeOf(event(), { gen: 2 })).toBe(0);
   });
   it("spaces a long code and leaves a dashed one alone", () => {
     expect(codeText("ABCD2345EFGH")).toBe("ABCD 2345 EFGH");
@@ -90,7 +92,7 @@ describe("Studio's sample answers", () => {
     const made = previewEventsAnswer("eventStart", { eventId: "sample-launch", tickets: { general: 2, supporter: 1 }, name: "Ada" }, "USD", now, ZONE);
     expect(made).toEqual({ orderId: SAMPLE_EVENT_ORDER, key: SAMPLE_EVENT_KEY, paid: true });
     const { order } = previewEventsAnswer("eventView", {}, "USD", now, ZONE);
-    expect(order).toMatchObject({ status: "paid", name: "Ada", totalMinor: 7000, chargedMinor: 7000, currency: "USD" });
+    expect(order).toMatchObject({ status: "paid", name: "Ada", feeMinor: 300, totalMinor: 7300, chargedMinor: 7300, currency: "USD" });
     expect(order.tickets).toHaveLength(3);
     expect(orderFromSearch(`?order=${SAMPLE_EVENT_ORDER}&key=${SAMPLE_EVENT_KEY}`)).not.toBeNull();
   });

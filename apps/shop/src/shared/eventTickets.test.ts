@@ -115,6 +115,15 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
       const order = { lines: [{ ticketId: "gen", name: "General", qty: 2, priceMinor: 1000 }], totalMinor: 2500, extrasMinor: 500, taxMinor: 325, chargedMinor: 2825 };
       expect(lib.refundMinorFor(order, { gen: 1 }, 1)).toBe(1130);
       expect(lib.refundMinorFor({ ...order, refundedMinor: 1130 }, { gen: 1 }, 0)).toBe(1695);
+      // A booking fee of 1.00 a paid ticket is part of the tickets' share: one of two 10.00 tickets back returns 11.00.
+      expect(lib.cleanEvent({ ...EVENT, feeMinor: 100 })).toMatchObject({ feeMinor: 100 });
+      expect(event.feeMinor).toBeUndefined();
+      expect(lib.cleanEvent({ ...EVENT, feeMinor: 2001 })).toHaveProperty("problem");
+      expect(lib.cleanEvent({ ...EVENT, feeMinor: -1 })).toHaveProperty("problem");
+      expect(lib.bookingFeeMinor({ feeMinor: 100 }, [{ qty: 2, priceMinor: 1000 }, { qty: 3, priceMinor: 0 }])).toBe(200);
+      expect(lib.bookingFeeMinor({}, [{ qty: 2, priceMinor: 1000 }])).toBe(0);
+      const fee = { lines: order.lines, totalMinor: 2700, extrasMinor: 500, feeMinor: 200, chargedMinor: 2700 };
+      expect(lib.refundMinorFor(fee, { gen: 1 }, 1)).toBe(1100);
       // Free tickets with a paid extra: one ticket back returns nothing, the last returns the extra's money.
       const free = { lines: [{ ticketId: "gen", name: "General", qty: 2, priceMinor: 0 }], totalMinor: 500, extrasMinor: 500, chargedMinor: 500 };
       expect(lib.refundMinorFor(free, { gen: 1 }, 1)).toBe(0);

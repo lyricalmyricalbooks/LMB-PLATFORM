@@ -65,7 +65,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   };
   let events: AdminEvent[] = new URLSearchParams(window.location.search).get("events") === "new" ? [] : [
     { ...made("evt-launch", "Autumn launch party", at(9, 23), "The shop", "live", [kind("g", "General", 1500, 60), kind("s", "Supporter", 3000, 20)], { g: 34, s: 9 }),
-      extras: [{ id: "prog", name: "Printed programme", priceMinor: 500, maxPerOrder: 10 }, { id: "drink", name: "Welcome drink", priceMinor: 800, maxPerOrder: 4 }] },
+      extras: [{ id: "prog", name: "Printed programme", priceMinor: 500, maxPerOrder: 10 }, { id: "drink", name: "Welcome drink", priceMinor: 800, maxPerOrder: 4 }], feeMinor: 100 },
     made("evt-workshop", "Zine-making workshop", at(16, 18), "Back room", "live", [kind("g", "Place at the table", 4500, 12)], { g: 12 }),
     made("evt-reading", "Winter reading night", at(30, 0), "Online", "draft", [kind("g", "Free place", 0, 100)], {}),
     made("evt-market", "Summer market day", at(-40, 15), "Market hall", "live", [kind("g", "Entry", 500, 200)], { g: 143 }),
@@ -78,7 +78,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     ticketCount: Number(count), totalMinor: Number(count) * (ticketId === "s" ? 3000 : 1500), taxMinor: 0, chargedMinor: Number(count) * (ticketId === "s" ? 3000 : 1500), currency: "CAD",
     tickets: Array.from({ length: Number(count) }, (_, n) => ({ code: `${"KRTW MPQZ HNDB".split(" ")[i]}-${"2345 6789 ABCD".split(" ")[n]}`, ticketId: String(ticketId), name: ticketId === "s" ? "Supporter" : "General" })),
     createdAt: at(-2, 14), paidAt: at(-2, 14), test: false,
-    ...(i === 0 ? { extras: [{ extraId: "prog", name: "Printed programme", qty: 1, priceMinor: 500 }, { extraId: "drink", name: "Welcome drink", qty: 2, priceMinor: 800 }], extrasMinor: 2100, totalMinor: 5100, chargedMinor: 5100 } : {}),
+    ...(i === 0 ? { extras: [{ extraId: "prog", name: "Printed programme", qty: 1, priceMinor: 500 }, { extraId: "drink", name: "Welcome drink", qty: 2, priceMinor: 800 }], extrasMinor: 2100, feeMinor: 200, totalMinor: 5300, chargedMinor: 5300 } : {}),
     ...(i === 2 ? { discount: { code: "EARLY", amountMinor: 900 }, totalMinor: 3600, chargedMinor: 3600 } : {}),
   }));
   eventsData.admin = async (op, body) => {
@@ -86,7 +86,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     if (op === "saveEvent") {
       const e = body.event as AdminEvent;
       const old = events.find((x) => x.id === e.id);
-      const next = { ...made(e.id || `evt-${Date.now()}`, e.title, e.start, e.venue, e.status, e.tickets, old?.sold || {}), extras: e.extras ?? [] };
+      const next = { ...made(e.id || `evt-${Date.now()}`, e.title, e.start, e.venue, e.status, e.tickets, old?.sold || {}), extras: e.extras ?? [], feeMinor: e.feeMinor };
       events = old ? events.map((x) => (x.id === next.id ? next : x)) : [...events, next];
       return { ok: true, event: next };
     }

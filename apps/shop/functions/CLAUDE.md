@@ -1535,3 +1535,10 @@ out on the whole, and a discount code comes off the tickets only (`ticketsMinor`
 out of a ticket's share, and the last tickets return everything kept. A moved order keeps its extras as bought. The ticket
 email, the card page's description and the owner's email name them.
 
+**The shop's booking fee (E3f, `tasks/todo/2026-11-17-events-fee.md`):** an event may set `feeMinor` (0 to
+`MAX_FEE_MINOR`, left off when 0): the shop's own fee, added once for each paid ticket (`bookingFeeMinor`; free tickets
+never carry it). It is the shop's money, not a platform fee. `askedOf` adds it to the total, tax is worked out on the
+whole, and `priceOf` returns the `feeMinor` really asked for: a code that makes every ticket free takes the fee with it.
+The order keeps `feeMinor`; `publicEvent`, `eventCode`, both order views and the ticket email show it. It is part of the
+tickets' share in `refundMinorFor`, so it goes back with the tickets it was paid for.
+

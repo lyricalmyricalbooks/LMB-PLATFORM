@@ -27,7 +27,7 @@
 
 const crypto = require("crypto");
 const {
-  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, extraLines, withHold, withSold, withoutHold, withReturned, refundMinorFor, withArrived, moveKinds, movedLines, placesLeft: leftAt, ticketCodeFrom, cleanTicketCode, eventWhen,
+  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, extraLines, bookingFeeMinor, withHold, withSold, withoutHold, withReturned, refundMinorFor, withArrived, moveKinds, movedLines, placesLeft: leftAt, ticketCodeFrom, cleanTicketCode, eventWhen,
   TICKET_MESSAGES, MAX_EVENTS,
 } = require("./shared/eventTickets");
 const { waysOn } = require("./shared/waysToSell");
@@ -70,7 +70,7 @@ const WORDS = {
     subject: (n, title) => `Your ${n === 1 ? "ticket" : "tickets"}: ${title}`,
     heading: (n) => (n === 1 ? "Your ticket" : "Your tickets"),
     intro: (shop) => `Thank you. Here is what you need for the door, from ${shop}. Show each code when you arrive.`,
-    when: "When", where: "Where", online: "Join online", paid: "Paid", free: "Free", tax: "Includes tax", discount: "Discount", extras: "Extras", button: "See your tickets",
+    when: "When", where: "Where", online: "Join online", paid: "Paid", free: "Free", tax: "Includes tax", discount: "Discount", extras: "Extras", fee: "Booking fee", button: "See your tickets",
     keep: "Keep this email: anyone with a code can use that ticket.",
     refundSubject: (title) => `Your refund: ${title}`,
     refundHeading: (n) => (n === 1 ? "Your ticket was refunded" : "Your tickets were refunded"),
@@ -87,7 +87,7 @@ const WORDS = {
     subject: (n, title) => `${n === 1 ? "Votre billet" : "Vos billets"} : ${title}`,
     heading: (n) => (n === 1 ? "Votre billet" : "Vos billets"),
     intro: (shop) => `Merci. Voici ce qu'il vous faut à l'entrée, de la part de ${shop}. Présentez chaque code à votre arrivée.`,
-    when: "Quand", where: "Où", online: "Participer en ligne", paid: "Payé", free: "Gratuit", tax: "Taxes incluses", discount: "Rabais", extras: "Suppléments", button: "Voir vos billets",
+    when: "Quand", where: "Où", online: "Participer en ligne", paid: "Payé", free: "Gratuit", tax: "Taxes incluses", discount: "Rabais", extras: "Suppléments", fee: "Frais de réservation", button: "Voir vos billets",
     keep: "Conservez ce courriel : toute personne ayant un code peut utiliser ce billet.",
     refundSubject: (title) => `Votre remboursement : ${title}`,
     refundHeading: (n) => (n === 1 ? "Votre billet a été remboursé" : "Vos billets ont été remboursés"),
@@ -113,6 +113,7 @@ function publicEvent(event, places, nowMs, taxOf) {
       id: t.id, name: t.name, priceMinor: t.priceMinor, maxPerOrder: t.maxPerOrder, left: Math.min(left[t.id] ?? 0, t.maxPerOrder), soldOut: !(left[t.id] > 0),
       ...(event.chargeTax && t.priceMinor > 0 && taxOf ? { taxMinor: taxOf(t.priceMinor)?.taxMinor || 0 } : {}),
     })),
+    feeMinor: event.feeMinor || 0,
     extras: (event.extras || []).map((x) => ({
       id: x.id, name: x.name, priceMinor: x.priceMinor, maxPerOrder: x.maxPerOrder,
       ...(event.chargeTax && taxOf ? { taxMinor: taxOf(x.priceMinor)?.taxMinor || 0 } : {}),
@@ -121,15 +122,16 @@ function publicEvent(event, places, nowMs, taxOf) {
 }
 
 /**
- * What a buyer asked for: the tickets and any extras, with one total before tax. `ticketsMinor` is the tickets alone
- * (what a discount code works on). A problem carries the code the page shows it under.
+ * What a buyer asked for: the tickets, any extras and the shop's booking fee, with one total before tax. `ticketsMinor`
+ * is the tickets alone (what a discount code works on). A problem carries the code the page shows it under.
  */
 function askedOf(event, body, left) {
   const order = orderLines(event, body?.tickets, left);
   if (order.problem) return { problem: order.problem, code: "tickets" };
   const extras = extraLines(event, body?.extras);
   if (extras.problem) return { problem: extras.problem, code: "extras" };
-  return { lines: order.lines, tickets: order.tickets, ticketsMinor: order.totalMinor, extras: extras.lines, extrasMinor: extras.totalMinor, totalMinor: order.totalMinor + extras.totalMinor };
+  const feeMinor = bookingFeeMinor(event, order.lines);
+  return { lines: order.lines, tickets: order.tickets, ticketsMinor: order.totalMinor, extras: extras.lines, extrasMinor: extras.totalMinor, feeMinor, totalMinor: order.totalMinor + extras.totalMinor + feeMinor };
 }
 const extrasWords = (o) => (o.extras || []).map((x) => `${x.qty} × ${x.name}`).join(", ");
 
@@ -138,7 +140,7 @@ function publicOrder(id, o, event) {
   const paid = o.status === "paid";
   return {
     id, status: o.status, refundedMinor: o.refundedMinor || 0, eventId: o.eventId, title: o.eventTitle, start: o.start, end: o.end || "", venue: o.venue || "", address: o.address || "",
-    name: o.customer?.name || "", lines: o.lines || [], extras: o.extras || [], totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
+    name: o.customer?.name || "", lines: o.lines || [], extras: o.extras || [], feeMinor: o.feeMinor || 0, totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
     discount: o.discount ? { code: o.discount.code, amountMinor: o.discount.amountMinor || 0 } : null,
     holdUntil: o.status === "held" ? o.holdUntil || null : null,
     // The codes and the online link only once the order is paid, and never for an event the shop called off.
@@ -257,13 +259,16 @@ function eventActions({
   /** What an order costs: the tickets less a code, plus any extras, plus tax on what is left. Throws TicketCodeProblem for a code that doesn't fit. */
   function priceOf(event, order, calc, found) {
     const amountMinor = found ? ticketDiscountMinor(found, order.ticketsMinor ?? order.totalMinor) : 0;
-    const totalMinor = order.totalMinor - amountMinor;
+    // A code that makes every ticket free takes the booking fee with it: nobody pays a fee on a ticket they were given.
+    const ticketsMinor = order.ticketsMinor ?? order.totalMinor;
+    const feeMinor = amountMinor > 0 && amountMinor >= ticketsMinor ? 0 : order.feeMinor || 0;
+    const totalMinor = order.totalMinor - amountMinor - ((order.feeMinor || 0) - feeMinor);
     const tax = event.chargeTax && calc && totalMinor > 0 ? calc(totalMinor) : null;
     const taxMinor = tax?.taxMinor > 0 ? tax.taxMinor : 0;
     const chargedMinor = totalMinor + taxMinor;
     if (found && tooSmallForCard(chargedMinor)) throw new TicketCodeProblem("This code can't be used on these tickets.");
     return {
-      totalMinor, taxMinor, taxLines: taxMinor && Array.isArray(tax.taxLines) ? tax.taxLines : [], chargedMinor,
+      totalMinor, taxMinor, taxLines: taxMinor && Array.isArray(tax.taxLines) ? tax.taxLines : [], chargedMinor, feeMinor,
       discount: found ? { id: found.id, code: found.code, amountMinor } : null,
     };
   }
@@ -295,6 +300,7 @@ function eventActions({
           ${event?.onlineUrl && event.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>${say.online}:</strong> <a href="${escapeHtml(event.onlineUrl)}">${escapeHtml(event.onlineUrl)}</a></p>` : ""}
           <p style="margin:0 0 4px;"><strong>${say.paid}:</strong> ${o.chargedMinor > 0 ? escapeHtml(moneyWords(o.chargedMinor, o.currency, locale)) : say.free}</p>
           ${(o.extras || []).length ? `<p style="margin:0 0 4px;"><strong>${say.extras}:</strong> ${escapeHtml(extrasWords(o))}</p>` : ""}
+          ${o.feeMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.fee}:</strong> ${escapeHtml(moneyWords(o.feeMinor, o.currency, locale))}</p>` : ""}
           ${o.discount?.amountMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.discount} (${escapeHtml(o.discount.code)}):</strong> −${escapeHtml(moneyWords(o.discount.amountMinor, o.currency, locale))}</p>` : ""}
           ${o.taxMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.tax}:</strong> ${escapeHtml(moneyWords(o.taxMinor, o.currency, locale))}</p>` : ""}
           <table role="presentation" style="margin:16px 0;border-collapse:collapse;">${rows}</table>
@@ -465,7 +471,7 @@ function eventActions({
         const email = EMAIL.test(String(req.body?.email || "").trim()) ? String(req.body.email).trim().toLowerCase() : "";
         try {
           const price = priceOf(event, asked, await taxCalc(event), await codeFor(req.body?.code, email));
-          return res.status(200).json({ code: price.discount.code, amountMinor: price.discount.amountMinor, totalMinor: price.totalMinor, taxMinor: price.taxMinor, chargedMinor: price.chargedMinor });
+          return res.status(200).json({ code: price.discount.code, amountMinor: price.discount.amountMinor, feeMinor: price.feeMinor, totalMinor: price.totalMinor, taxMinor: price.taxMinor, chargedMinor: price.chargedMinor });
         } catch (err) {
           if (err instanceof TicketCodeProblem) return fail(res, 400, err.message, "code");
           throw err;
@@ -527,6 +533,7 @@ function eventActions({
             eventId, eventTitle: event.title, start: event.start, end: event.end, venue: event.venue, address: event.address,
             customer: buyer, locale: french(req.body?.locale) ? "fr" : "en", lines: order.lines, ticketCount: order.tickets, totalMinor: price.totalMinor,
             ...(order.extras.length ? { extras: order.extras, extrasMinor: order.extrasMinor } : {}),
+            ...(price.feeMinor ? { feeMinor: price.feeMinor } : {}),
             ...(price.discount ? { discount: price.discount, listMinor: order.totalMinor } : {}),
             ...(taxMinor ? { taxMinor, taxLines: price.taxLines } : {}),
             chargedMinor: price.chargedMinor, currency: currency(), mode, keyHashes: [hash(key)], sessions: [], createdAt: at, updatedAt: at,
@@ -583,7 +590,7 @@ function eventActions({
     return { ...event, sold: sold.byKind, soldTotal: sold.total, placesTotal: sold.places, left, paidMinor: places?.paidMinor || 0, orders: places?.orders || 0, arrived: Math.max(0, places?.arrived || 0) };
   }
   const adminOrder = (id, o) => ({
-    id, status: o.status, eventId: o.eventId, name: o.customer?.name || "", email: o.customer?.email || "", lines: o.lines || [], extras: o.extras || [], extrasMinor: o.extrasMinor || 0, ticketCount: o.ticketCount || 0,
+    id, status: o.status, eventId: o.eventId, name: o.customer?.name || "", email: o.customer?.email || "", lines: o.lines || [], extras: o.extras || [], extrasMinor: o.extrasMinor || 0, feeMinor: o.feeMinor || 0, ticketCount: o.ticketCount || 0,
     totalMinor: o.totalMinor || 0, taxMinor: o.taxMinor || 0, chargedMinor: o.chargedMinor || 0, currency: o.currency,
     tickets: (o.tickets || []).map((t) => ({ code: t.code, ticketId: t.ticketId, name: t.name, usedAt: t.usedAt || "" })),
     createdAt: o.createdAt || "", paidAt: o.paidAt || "", test: o.mode === "test",
