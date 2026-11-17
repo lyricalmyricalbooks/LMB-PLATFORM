@@ -1205,8 +1205,11 @@ function bookingActions({
   async function introFor(service, email, claimFor = "") {
     if (!service.introPriceMinor || !email) return service;
     const who = String(email).trim().toLowerCase();
-    const snap = await bookings().where("customer.email", "==", who).limit(50).get();
-    if (snap.docs.some((d) => ["confirmed", "held"].includes(d.data()?.status))) return service;
+    // Asked by status, so any number of cancelled bookings can't hide an earlier visit.
+    for (const status of ["confirmed", "held"]) {
+      const snap = await bookings().where("customer.email", "==", who).where("status", "==", status).limit(1).get();
+      if (!snap.empty) return service;
+    }
     // Booking for real: the first visit is claimed for this booking in one step (`bookingIntros/<email hash>`), so two
     // bookings started at the same moment can't both get it. A claim whose booking was let go, or never went ahead
     // within five minutes, is taken over.

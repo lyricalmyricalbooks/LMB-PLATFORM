@@ -2863,6 +2863,14 @@ describe("classes: a class pass and a first-visit price", () => {
     expect(prices).toEqual([2000, 500].sort());
   });
 
+  test("many cancelled bookings never hide an earlier visit from the first-visit check", async () => {
+    const { t, yoga } = await ready();
+    for (let i = 0; i < 60; i++) t.db.store.set(`bookings/old${String(i).padStart(2, "0")}`, { customer: { email: CUSTOMER.email.toLowerCase() }, status: "cancelled" });
+    t.db.store.set("bookings/zz-visit", { customer: { email: CUSTOMER.email.toLowerCase() }, status: "confirmed" });
+    await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER });
+    expect(t.opened.at(-1).params.line_items[0].price_data.unit_amount).toBe(2000);
+  });
+
   test("a booking that doesn't go through gives the first-visit price back for the next try", async () => {
     const { t, yoga } = await ready();
     const refused = await t.pub({ action: "bookingStart", serviceId: yoga.id, start: thu, ...CUSTOMER, code: "NOSUCHCODE" });
