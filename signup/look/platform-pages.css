@@ -374,6 +374,7 @@ html.cp-page { background: var(--rp-canvas); }
 .cp .cp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .cp .cp-table th { text-align: left; font: 500 11px/1 var(--rp-font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--rp-text-subtle); padding: 10px 12px; border-bottom: 1px solid var(--rp-divider); }
 .cp .cp-table td { padding: 12px; border-bottom: 1px solid var(--rp-divider); vertical-align: middle; }
+.cp .cp-table td:first-child { white-space: nowrap; }
 .cp .cp-table tbody tr:hover { background: var(--cl-hover); }
 .cp .cp-table .rp-num, .cp .cp-table .cp-amount { text-align: right; font: 400 13px/1.4 var(--rp-font-mono); font-variant-numeric: tabular-nums; }
 .cp-table-wrap { overflow-x: auto; }
@@ -423,7 +424,9 @@ body.cp:has(> footer) > main { flex: 1 0 auto; }
    measures this on every walkthrough page). Links inside running text stay inline. */
 @media (pointer: coarse), (max-width: 640px) {
   .cp-mast .cp-wrap { min-height: 64px; }
-  .cp-mast nav { margin-left: 0; width: 100%; }
+  /* The links stay on the wordmark's row while they fit, and drop to their own row only when they don't. */
+  .cp-mast nav { margin-left: auto; }
+  .cp-word { margin-right: 0; }
   .cp-mast nav a, .cp-footer a, .cp > footer a, .cp-chip, .cp a.button, .cp a.rp-status-pill, .cp-word, .cp-links-grid h3 a, .cp-start-page .card > a,
   .cp-links a, .cp-toc a, .cp a.cp-kicker {
     display: inline-flex; align-items: center; min-height: 44px; padding-block: 0;

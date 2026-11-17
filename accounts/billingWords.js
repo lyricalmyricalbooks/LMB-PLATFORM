@@ -50,8 +50,13 @@ export function billingWords(billing, now = new Date()) {
   const card = billing.card ? `${BRANDS[billing.card.brand] ?? "Card"} ending ${billing.card.last4}, runs out ${String(billing.card.expMonth).padStart(2, "0")}/${billing.card.expYear}.` : billing.hasCard ? "A card is on file." : billing.status === "trialing" ? "No card yet. Your trial needs none; add one to keep your shop open after it." : "No card on file. Add one to keep your shop open.";
   const cancel = billing.cancelAtPeriodEnd
     ? `Changed your mind? Keep your plan any time before ${day(until)}.`
-    : billing.access === "closed" ? "" : `Your shop stays open until ${day(until)}, and you won't be charged again. You can keep your plan until then.`;
-  const cancelAsk = `Cancel your plan? Your shop stays open until ${day(until)}, then closes. You can download everything in it for 90 days after that, then it is deleted.`;
+    : billing.access === "closed" ? ""
+    // A paused shop is already shut to shoppers, so "stays open" would be wrong.
+    : billing.access === "paused" ? "You won't be charged again, and your shop stays closed to shoppers."
+    : `Your shop stays open until ${day(until)}, and you won't be charged again. You can keep your plan until then.`;
+  const cancelAsk = billing.access === "paused"
+    ? "Cancel your plan? Your shop stays closed to shoppers. Once it is fully closed, you can download everything in it for 90 days, then it is deleted."
+    : `Cancel your plan? Your shop stays open until ${day(until)}, then closes. You can download everything in it for 90 days after that, then it is deleted.`;
   // "Keep it": the one-click way back for an app the plan change will close (billing.keepClosingApps).
   const keepClosing = closing ? `Keep ${appList(billing.appsClosing.apps)}` : "";
   return { state, when, closing, keepClosing, card, cancel, cancelAsk };

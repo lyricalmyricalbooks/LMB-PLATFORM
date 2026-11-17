@@ -170,6 +170,10 @@ test("the page says where the plan stands in each state", () => {
   assert.match(billingWords({ ...base, status: "active", hasCard: true, card, nextPaymentAt: "2026-12-11T12:00:00Z" }).when, /^Next payment: \$39\.00 on 11 December 2026\.$/);
   assert.equal(billingWords({ ...base, status: "past_due", hasCard: true }).state, "Payment problem");
   assert.match(billingWords({ ...base, status: "paused", access: "paused" }).when, /paused\. Add a card/);
+  // A paused shop is already closed to shoppers: cancelling never says it "stays open".
+  const paused = billingWords({ ...base, status: "paused", access: "paused" });
+  assert.doesNotMatch(paused.cancel, /stays open/);
+  assert.doesNotMatch(paused.cancelAsk, /stays open/);
   const cancelled = billingWords({ ...base, status: "active", cancelAtPeriodEnd: true });
   assert.equal(cancelled.state, "Cancelled");
   assert.match(cancelled.cancel, /Keep your plan any time before 11 November 2026/);
