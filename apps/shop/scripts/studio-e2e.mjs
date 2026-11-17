@@ -2200,6 +2200,33 @@ await check("each person's own price and length show on the Book a time page and
   if (process.env.STUDIO_SHOTS) await people.screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-person-prices.png` });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 
+await check("a booked client can ask to hear of an earlier time, and the earlier-time link moves the booking", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-store-region=bookingsService]").first().waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
+  await frame.locator("[data-store-region=bookingsService]").nth(1).click();
+  await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().click({ timeout: 10000 });
+  await frame.locator("[data-store-region=bookingsTimes] button.fm-track-btn:not([disabled])").first().click();
+  await frame.locator("#bt-name").fill("Sample Client");
+  await frame.locator("#bt-email").fill("client@example.com");
+  // The sample session asks one required question.
+  await frame.locator("form textarea").first().fill("Prints");
+  await frame.locator("form button[type=submit]").first().click();
+  const tick = frame.locator("[data-store-region=bookingsEarlier] input[type=checkbox]");
+  await tick.waitFor({ timeout: 15000 });
+  await tick.check();
+  if (!(await tick.isChecked())) throw new Error("the earlier-time tick didn't stay on");
+  if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsEarlier]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-earlier-tick.png` });
+  // The link in the email: the earlier time, the booking it replaces, one button.
+  await frame.locator("body").evaluate(() => { history.pushState({}, "", `/book?earlier=sample-booking&ekey=${"a".repeat(48)}`); dispatchEvent(new PopStateEvent("popstate")); });
+  const offer = frame.locator("[data-store-region=bookingsEarlierOffer]");
+  await offer.getByRole("button", { name: "Take the earlier time" }).waitFor({ timeout: 10000 });
+  if (process.env.STUDIO_SHOTS) await offer.screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-earlier-offer.png` });
+  await offer.getByRole("button", { name: "Take the earlier time" }).click();
+  await offer.getByText(/Your booking is now/).waitFor({ timeout: 10000 });
+}, "?bookings=1#designer?t=bookingsPage&tab=sections");
+
 await check("a Book a time section added to the home page shows sample services that link to the booking page", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

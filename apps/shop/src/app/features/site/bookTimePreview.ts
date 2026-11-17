@@ -71,7 +71,7 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
     start: new Date(startMs).toISOString(), end: new Date(startMs + service.minutes * 60_000).toISOString(),
     status: "confirmed", payment: deposit ? "deposit" : service.priceMinor > 0 ? "card" : "free", paid: !deposit && service.priceMinor > 0, priceMinor: service.priceMinor, currency,
     ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service), canPayRest: true, restPaidMinor: 0, tipPercents: [15, 18, 20], tipLimitMinor: 10_000 } : {}),
-    name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24,
+    name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24, canEarlier: (listed.places || 1) <= 1 && !listed.courseStarts?.length, earlier: false,
     // The review box shows on the sample so it can be designed (a real one shows only after the visit).
     canReview: true,
     ...(service.holdCard ? { cardHold: true, cardLast4: "4242", lateFeeMinor: service.lateFeeMinor } : {}),
@@ -166,7 +166,18 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     }
     return { id: SAMPLE_BOOKING_ID, key: SAMPLE_BOOKING_KEY };
   }
+  // An earlier time held for the sample booking: two days sooner, held half an hour.
+  if (action === "bookingEarlierView" || action === "bookingEarlierTake") {
+    const was = sample || sampleBooking(zone, currency, nowMs);
+    const offerStart = new Date(Date.parse(was.start) - 86_400_000).toISOString();
+    if (action === "bookingEarlierTake") {
+      sample = { ...sampleBooking(zone, currency, nowMs, was.serviceId, offerStart), earlier: false };
+      return { offer: { serviceName: was.serviceName, staffName: was.staffName || "", minutes: was.minutes, start: offerStart, taken: true } };
+    }
+    return { offer: { serviceName: was.serviceName, staffName: was.staffName || "", minutes: was.minutes, start: was.start, offerStart, offerUntil: new Date(nowMs + 30 * 60_000).toISOString() } };
+  }
   sample ||= sampleBooking(zone, currency, nowMs);
+  if (action === "bookingEarlier") sample = { ...sample, earlier: body.on === true };
   if (action === "bookingMove" && typeof body.start === "string") sample = { ...sampleBooking(zone, currency, nowMs, sample.serviceId, body.start, sample.discountCode), giftCardLast4: sample.giftCardLast4, giftMinor: sample.giftMinor };
   // Paying what is left: no card page in the preview, it just shows as paid in full.
   if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0, tipMinor: Number(body.tipMinor) || 0 };

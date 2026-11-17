@@ -37,6 +37,11 @@
 //                          it is held for them for the shop's waitHoldMinutes (an `offer_<id>` item in bookingDays) and emailed with a
 //                          link that books it; the entry goes once they book, once the hold runs out (the place then goes
 //                          to the next person) or once its day has passed.
+//   bookingEarlier/{bookingId} { bookingId, serviceId, serviceName, start, name, email, createdAt, passed[], offerStart?,
+//                          offerUntil?, offerKeyHash? }: a client who asked to hear if a time earlier than their own
+//                          one-to-one booking opens (Services plan 2, B5). Server-only. A freed earlier time goes to the
+//                          first who asked: held for them EARLIER_HOLD_MINUTES (an `offer_e_<id>` item) and emailed with a
+//                          link that moves their booking to it. A hold they let run out passes on; the time joins `passed`.
 //
 // A paid booking holds its time while the customer pays on the shop's own Stripe or Square page
 // (payments.standaloneCheckout, as the stockroom's invoice pay links do). No shop order is made and the webhook ignores
@@ -148,6 +153,11 @@ const OFFER_GRACE_MS = 15 * 60 * 1000;
 const WAIT_ID = /^[a-f0-9]{32}$/;
 const PACK_ID = /^[a-f0-9]{40}$/;
 const offerItem = (wid) => `offer_${wid}`;
+/** "Tell me if an earlier time opens": the held earlier time's item on its days, and how long it is held. */
+const earlierItem = (bookingId) => `offer_e_${bookingId}`;
+const EARLIER_HOLD_MINUTES = 30;
+/** The most people one freed time is checked against for an earlier time (first asked first). */
+const MAX_EARLIER_READ = 100;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
 // Stripe smart readers (tmr_…) and Square Terminals (sqdev_<device id>, payments/square.js).
@@ -161,13 +171,13 @@ const text = (value, max) => (typeof value === "string" ? value.trim().replace(/
 const hash = (key) => crypto.createHash("sha256").update(String(key)).digest("hex");
 const sameHash = (a, b) => typeof a === "string" && typeof b === "string" && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-/** What is taken on the given days, as Busy stretches, leaving out `except` (a booking being moved). */
+/** What is taken on the given days, as Busy stretches, leaving out `except` (a booking being moved; one id or several). */
 function busyFrom(daySnaps, nowMs, except = "") {
   const busy = [];
   for (const snap of daySnaps) {
     const items = (snap.exists ? snap.data()?.items : null) || {};
     for (const [id, item] of Object.entries(items)) {
-      if (id === except || !item || !Number.isFinite(item.start) || !Number.isFinite(item.end)) continue;
+      if ((Array.isArray(except) ? except.includes(id) : id === except) || !item || !Number.isFinite(item.start) || !Number.isFinite(item.end)) continue;
       // A place held for the waiting list lasts until its own end (the owner picks how long); other holds STALE_HOLD_MS.
       if (item.offer && Number.isFinite(item.until) ? nowMs > item.until + OFFER_GRACE_MS : item.held && Number.isFinite(item.at) && nowMs - item.at > STALE_HOLD_MS) continue;
       busy.push({ start: item.start, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined,
@@ -238,6 +248,8 @@ function publicBooking(id, b, settings, nowMs) {
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
     // A course is one sign-up for all of its dates: it can be cancelled online, never moved.
     canMove: b.status === "confirmed" && customerCanChange(start, settings, nowMs) && !b.course,
+    // "Tell me if an earlier time opens": a one-to-one visit still ahead (never a class or a course).
+    canEarlier: b.status === "confirmed" && start > nowMs && !b.course, earlier: b.earlierWanted === true,
     cancelHours: settings.cancelHours,
     // Card on file: only whether one is kept, its last four and the fee (never its ids).
     cardHold: !!b.cardHold, lateFeeMinor: b.cardHold ? b.lateFeeMinor || 0 : 0, cardLast4: b.card?.last4 || "", feeMinor: b.fee?.amountMinor || 0,
@@ -279,6 +291,7 @@ function bookingActions({
   const bookings = () => db.collection("bookings");
   const dayRef = (day) => db.collection("bookingDays").doc(day);
   const waitlist = () => db.collection("bookingWaitlist");
+  const earlierList = () => db.collection("bookingEarlier");
   const packs = () => db.collection("bookingPacks");
 
   // On when the platform turned Bookings on for the shop, or when the shop sells Classes (a way to sell, both of its
@@ -545,9 +558,9 @@ function bookingActions({
 
   // ── The waiting list ──────────────────────────────────────────────────────────────────────────────────────────────
 
-  async function busyAround(day, nowMs) {
+  async function busyAround(day, nowMs, except = "") {
     const snaps = await Promise.all([addDays(day, -1), day, addDays(day, 1)].map((d) => dayRef(d).get()));
-    return busyFrom(snaps, nowMs);
+    return busyFrom(snaps, nowMs, except);
   }
   /** The full starts of a class on one day: its own times that only lack a place (nothing else is in the way). */
   function fullClassTimes(service, settings, busy, day, nowMs) {
@@ -561,30 +574,37 @@ function bookingActions({
    * Holds a freed place for the first person waiting for it: an `offer_<id>` item on its days (so nobody else sees the
    * place), and the hold's end and key on their entry. false when the place went or they already have one.
    */
-  async function holdForWaiting(wid, service, settings, start, until, key) {
+  function holdForWaiting(wid, service, settings, start, until, key) {
+    return holdOffer({ ref: waitlist().doc(wid), item: offerItem(wid), service, settings, start, until, key });
+  }
+  /** The same for an earlier time: held with the client's own person, their own booking not counting against it. */
+  function holdEarlier(bookingId, service, settings, start, until, key, staffId) {
+    return holdOffer({ ref: earlierList().doc(bookingId), item: earlierItem(bookingId), service, settings, start, until, key, staffId, except: bookingId });
+  }
+  async function holdOffer({ ref, item: itemKey, service, settings, start, until, key, staffId, except = "" }) {
     const blockEnd = start + (service.minutes + (service.gapAfter || 0)) * MINUTE;
     const days = daysTouched(start, blockEnd, zone());
     return db.runTransaction(async (tx) => {
-      const fresh = await tx.get(waitlist().doc(wid));
+      const fresh = await tx.get(ref);
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
       if (!fresh.exists || fresh.data()?.offerUntil) return false;
-      const who = whoIsFree({ service, settings, busy: busyFrom(snaps, nowMs), start, zone: zone(), nowMs });
+      const who = whoIsFree({ service, settings, busy: busyFrom(snaps, nowMs, except), start, zone: zone(), nowMs, ...(staffId ? { staffId } : {}) });
       if (who === null) return false;
       // The held place keeps a person (and the room) free for them; booking it picks the person again.
       const { item } = staffParts(settings, who, service.roomId);
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        items[offerItem(wid)] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, ...item, offer: true, until };
+        items[itemKey] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, ...item, offer: true, until };
         tx.set(dayRef(d), { items });
       });
-      tx.set(waitlist().doc(wid), { offerStart: new Date(start).toISOString(), offerUntil: new Date(until).toISOString(), offerKeyHash: hash(key) }, { merge: true });
+      tx.set(ref, { offerStart: new Date(start).toISOString(), offerUntil: new Date(until).toISOString(), offerKeyHash: hash(key) }, { merge: true });
       return true;
     });
   }
 
   /** Takes a waiting person's held place off its days (the entry itself is left to the caller). */
-  async function dropOffer(wid, w) {
+  async function dropOffer(wid, w, itemKey = offerItem(wid)) {
     const start = Date.parse(w?.offerStart || "");
     if (!Number.isFinite(start)) return;
     const days = daysTouched(start, start + 24 * HOUR, zone());
@@ -592,8 +612,8 @@ function bookingActions({
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        if (!(offerItem(wid) in items)) return;
-        delete items[offerItem(wid)];
+        if (!(itemKey in items)) return;
+        delete items[itemKey];
         tx.set(dayRef(d), { items });
       });
     });
@@ -611,12 +631,31 @@ function bookingActions({
     return { wid, item: offerItem(wid), start, until: w.offerUntil, days: daysTouched(start, start + 24 * HOUR, zone()) };
   }
 
+  /** A booking card's "earlier time" choice, off for a class (the record doesn't say; its service does). */
+  async function withEarlier(card, b) {
+    if (!card.canEarlier) return card;
+    const service = (await readServices()).find((x) => x.id === b.serviceId);
+    return service && !isClass(service) && !isCourse(service) ? card : { ...card, canEarlier: false };
+  }
+
+  /** The earlier time held for a booking (`id`, `ekey` from the email), still held and still theirs; else null. */
+  async function earlierOffer(body, nowMs) {
+    const id = String(body?.id || "");
+    const key = String(body?.ekey || "");
+    if (!ID.test(id) || !KEY.test(key)) return null;
+    const [eSnap, bSnap] = await Promise.all([earlierList().doc(id).get(), bookings().doc(id).get()]);
+    const e = eSnap.exists ? eSnap.data() : null;
+    const b = bSnap.exists ? bSnap.data() : null;
+    if (!e || !b || b.status !== "confirmed" || !sameHash(e.offerKeyHash, hash(key)) || !(Date.parse(e.offerUntil || "") > nowMs)) return null;
+    return { id, b, e };
+  }
+
   /**
    * Offers the places that opened on these days to the people waiting for them, first come first served: each gets one
    * place held for the shop's waitHoldMinutes and an email with a link that books it. Someone already holding (or who let a hold run
    * out) is skipped; the sweep passes a lapsed hold to the next person. Never throws.
    */
-  async function tellWaitlist(days) {
+  async function tellWaitlist(days, opened = []) {
     try {
       const settings = await readSettings();
       if (!settings.live) return 0;
@@ -662,10 +701,94 @@ function bookingActions({
           told += 1;
         }
       }
-      return told;
+      // What is still free after the day's waiting list may be an earlier time for someone already booked.
+      return told + (await tellEarlier(opened, settings));
     } catch (err) {
       console.warn("bookings: the waiting list wasn't told:", err?.message || err);
       return 0;
+    }
+  }
+
+  /**
+   * "Tell me if an earlier time opens" (Services plan 2, B5): offers each time that just opened (`opened`, the starts a
+   * cancel, a move or a lapsed hold left behind) to the clients who asked, first asked first. One opened time goes to the
+   * first whose booking is later and who fits it (same length, same person); it is held EARLIER_HOLD_MINUTES and sent by
+   * email (and a text when they and the shop have texts on) with a link that moves their booking to it. Someone already
+   * holding one, or who let this very time pass, is skipped. Never throws.
+   */
+  async function tellEarlier(opened, settings) {
+    try {
+      const nowMs = now().getTime();
+      const times = [...new Set(opened)].filter((ms) => Number.isFinite(ms) && ms > nowMs).sort((x, y) => x - y);
+      if (!times.length || !settings.live) return 0;
+      const snap = await earlierList().where("start", ">", new Date(times[0]).toISOString()).limit(MAX_EARLIER_READ).get();
+      if (snap.empty) return 0;
+      const queue = snap.docs.map((doc) => ({ doc, e: doc.data() }))
+        .sort((a, b) => String(a.e.createdAt || "").localeCompare(String(b.e.createdAt || "")) || a.doc.id.localeCompare(b.doc.id));
+      const list = await readServices();
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const busy = new Set();
+      let told = 0;
+      for (const start of times) {
+        for (const { doc, e } of queue) {
+          if (e.offerUntil || busy.has(doc.id) || (Array.isArray(e.passed) && e.passed.includes(new Date(start).toISOString()))) continue;
+          const bSnap = await bookings().doc(doc.id).get();
+          const b = bSnap.exists ? bSnap.data() : null;
+          const own = Date.parse(b?.start || "");
+          const listed = list.find((x) => x.id === b?.serviceId && x.active);
+          if (!b || b.status !== "confirmed" || !b.earlierWanted || !(own > nowMs) || !listed || isClass(listed) || b.course) {
+            busy.add(doc.id); await doc.ref.delete(); continue;
+          }
+          if (!(start < own) || !EMAIL.test(String(b.customer?.email || ""))) continue;
+          // Their own length (add-ons, their person's rate) and their own person.
+          const service = { ...listed, minutes: b.minutes, gapAfter: b.gapAfter || 0 };
+          const staffId = keptPerson(settings, b.serviceId, b.staffId);
+          const day = dayOf(start, zone());
+          const free = freeTimes({ service, settings, busy: await busyAround(day, nowMs, doc.id), day, zone: zone(), nowMs, ...(staffId ? { staffId } : {}) });
+          if (!free.includes(start)) continue;
+          const key = randomKey();
+          const until = Math.min(nowMs + EARLIER_HOLD_MINUTES * MINUTE, start);
+          if (!(await claimEmailSend(db, "bookingEmail", b.customer.email))) continue;
+          if (!(await holdEarlier(doc.id, service, settings, start, until, key, staffId))) continue;
+          busy.add(doc.id);
+          const when = whenWords({ start: new Date(start).toISOString() });
+          const was = whenWords(b);
+          const untilText = new Date(until).toLocaleTimeString("en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
+          const link = siteLink(`/book?earlier=${encodeURIComponent(doc.id)}&ekey=${key}`);
+          await sendEmail({
+            to: b.customer.email,
+            subject: `An earlier time is free: ${b.serviceName}, ${when}`,
+            html: risoLayout(`
+              <h4 style="margin:0 0 8px;">An earlier time has opened</h4>
+              <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName || "")}</h2>
+              <p style="margin:0 0 16px;">${escapeHtml(when)}${b.staffName ? ` ${escapeHtml(withWhom(b))}` : ""} is free, and ${escapeHtml(shop)} is holding it for you until ${escapeHtml(untilText)}. Your booking is now ${escapeHtml(was)}. Take the earlier time and your booking moves to it. If you do nothing, you keep your booking.</p>
+              ${risoButton(escapeHtml(link), "Take the earlier time", brand.accent, brand.theme)}
+            `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+          });
+          await earlierText(doc.id, b, when, link, key);
+          told += 1;
+          break;
+        }
+      }
+      return told;
+    } catch (err) {
+      console.warn("bookings: the earlier-time list wasn't told:", err?.message || err);
+      return 0;
+    }
+  }
+
+  /** The earlier time by text too, for a client who ticked texts while the shop's switch is on. Never throws. */
+  async function earlierText(id, b, when, link, key) {
+    try {
+      if (!texts || !b.customer?.textOk || !b.customer?.phone) return;
+      if (!(await readSettings()).textReminders) return;
+      const shop = String(shopName() || "").trim().slice(0, 40);
+      const body = `An earlier time is free${shop ? ` at ${shop}` : ""}: ${when}, held ${EARLIER_HOLD_MINUTES} min. Take it: ${link} Reply STOP to stop texts.`;
+      const sent = await texts.send({ to: b.customer.phone, body, kind: "booking-earlier", idempotencyKey: `booking-${id}-earlier-${hash(key).slice(0, 10)}` });
+      if (sent?.optedOut) await bookings().doc(id).set({ customer: { ...b.customer, textOk: false } }, { merge: true });
+    } catch (err) {
+      console.warn("bookings: the earlier-time text failed:", err?.message || err);
     }
   }
 
@@ -702,15 +825,28 @@ function bookingActions({
     }
     const lapsed = await waitlist().where("offerUntil", "<=", new Date(nowMs).toISOString()).limit(100).get();
     const days = [];
+    const opened = [];
     for (const doc of lapsed.docs) {
       const w = doc.data();
       await dropOffer(doc.id, w);
       await doc.ref.delete();
       days.push(w.day);
+      opened.push(Date.parse(w.offerStart || ""));
       await tellHoldEnded(w);
     }
-    if (days.length) await tellWaitlist(days);
-    return { forgotten: past.docs.length, passedOn: lapsed.docs.length };
+    // Earlier times: forget visits now past, and pass a hold that ran out on (that time never comes back to them).
+    const gone = await earlierList().where("start", "<=", new Date(nowMs).toISOString()).limit(200).get();
+    for (const doc of gone.docs) { await dropOffer(doc.id, doc.data(), earlierItem(doc.id)); await doc.ref.delete(); }
+    const ranOut = await earlierList().where("offerUntil", "<=", new Date(nowMs).toISOString()).limit(100).get();
+    for (const doc of ranOut.docs) {
+      const e = doc.data();
+      await dropOffer(doc.id, e, earlierItem(doc.id));
+      await doc.ref.set({ offerStart: null, offerUntil: null, offerKeyHash: null, passed: [...(Array.isArray(e.passed) ? e.passed : []), e.offerStart].slice(-20) }, { merge: true });
+      const at = Date.parse(e.offerStart || "");
+      if (Number.isFinite(at)) { days.push(dayOf(at, zone())); opened.push(at); }
+    }
+    if (days.length) await tellWaitlist(days, opened);
+    return { forgotten: past.docs.length + gone.docs.length, passedOn: lapsed.docs.length + ranOut.docs.length };
   }
 
   // ── Taking, moving and freeing time (one transaction each) ──────────────────────────────────────────────────────
@@ -858,7 +994,17 @@ function bookingActions({
       tx.set(bookings().doc(id), all, { merge: true });
       return all;
     });
-    await tellWaitlist(days);
+    // No earlier time for a visit that is off (a time held for it goes back to the others below).
+    if (written && b.earlierWanted) {
+      const e = (await earlierList().doc(id).get()).data();
+      if (e) {
+        await dropOffer(id, e, earlierItem(id));
+        await earlierList().doc(id).delete();
+        const at = Date.parse(e.offerStart || "");
+        if (Number.isFinite(at)) { days.push(dayOf(at, zone())); spans.push({ start: at }); }
+      }
+    }
+    await tellWaitlist(days, spans.map((x) => x.start));
     return written;
   }
 
@@ -867,7 +1013,7 @@ function bookingActions({
    * they still do the service; the owner may name another (`staffId`, "" for anyone free). Resolves to false, or to
    * what changed on the booking.
    */
-  async function moveTime(id, b, service, settings, start, { check = true, by = "customer", staffId } = {}) {
+  async function moveTime(id, b, service, settings, start, { check = true, by = "customer", staffId, alsoFree = "" } = {}) {
     const oldDays = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
     const end = start + b.minutes * MINUTE;
     const blockEnd = end + (b.gapAfter || 0) * MINUTE;
@@ -878,12 +1024,14 @@ function bookingActions({
       const nowMs = now().getTime();
       const nearby = snaps.filter((_, i) => newDays.includes(all[i]));
       const wanted = staffId === undefined ? keptPerson(settings, b.serviceId, b.staffId) : String(staffId || "");
-      const who = whoIsFree({ service, settings, busy: busyFrom(nearby, nowMs, id), start, zone: zone(), nowMs, staffId: wanted });
+      // `alsoFree`: a time held for this very booking (an earlier time it is taking) doesn't count against it, and goes.
+      const who = whoIsFree({ service, settings, busy: busyFrom(nearby, nowMs, alsoFree ? [id, alsoFree] : id), start, zone: zone(), nowMs, staffId: wanted });
       if (check && who === null) return false;
       const assigned = staffParts(settings, who ?? wanted, service.roomId);
       all.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         delete items[id];
+        if (alsoFree) delete items[alsoFree];
         if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId, ...assigned.item };
         tx.set(dayRef(d), { items });
       });
@@ -898,8 +1046,10 @@ function bookingActions({
       tx.set(bookings().doc(id), changes, { merge: true });
       return changes;
     });
+    // An earlier-time wish follows the booking's new start.
+    if (moved && b.earlierWanted && !alsoFree) await earlierList().doc(id).set({ start: moved.start }, { merge: true }).catch(() => {});
     // The time left behind may be what someone is waiting for.
-    if (moved) await tellWaitlist(oldDays);
+    if (moved) await tellWaitlist(oldDays, [Date.parse(b.start)]);
     return moved;
   }
 
@@ -1965,6 +2115,23 @@ function bookingActions({
         await waitlist().doc(wid).set({ serviceId: service.id, serviceName: service.name, day, start: startIso, name: customer.name, email: customer.email, createdAt: new Date(nowMs).toISOString() });
         return res.status(200).json({ ok: true });
       }
+      if (action === "bookingEarlierView" || action === "bookingEarlierTake") {
+        // The earlier time held for a client (the link in the email: the booking's id and the hold's own key).
+        const found = await earlierOffer(req.body, nowMs);
+        if (!found) return fail(res, 404, "This earlier time has gone, or its hold ran out. You keep your booking.", "gone");
+        const { id: bid, b: held, e } = found;
+        if (action === "bookingEarlierView") {
+          return res.status(200).json({ offer: { serviceName: held.serviceName, staffName: held.staffName || "", minutes: held.minutes, start: held.start, offerStart: e.offerStart, offerUntil: e.offerUntil } });
+        }
+        const service = (await readServices()).find((x) => x.id === held.serviceId) || { roomId: "" };
+        const moved = await moveTime(bid, held, { ...service, id: held.serviceId, minutes: held.minutes, gapAfter: held.gapAfter || 0, places: 1 }, settings, Date.parse(e.offerStart), { by: "customer (earlier time)", alsoFree: earlierItem(bid) });
+        if (!moved) return fail(res, 409, "Someone just took this time. You keep your booking.", "taken");
+        await earlierList().doc(bid).delete();
+        await bookings().doc(bid).set({ earlierWanted: false }, { merge: true });
+        const next = await syncCalendar(bid, { ...held, ...moved, earlierWanted: false });
+        await tellCustomer(bid, next, "moved");
+        return res.status(200).json({ offer: { serviceName: next.serviceName, staffName: next.staffName || "", minutes: next.minutes, start: next.start, taken: true } });
+      }
       const id = String(req.body?.id || "");
       const key = String(req.body?.key || "");
       let b = await loadBooking(id, key);
@@ -2002,7 +2169,33 @@ function bookingActions({
         if (b.status === "held") b = await refreshHeld(id, b, (await standalone()).checkout);
         if (b.restOpen) b = await refreshRest(id, b, (await standalone()).checkout);
         if (Date.parse(b.end) > nowMs) b = await withCheckInCode(id, b);
-        return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs), ...(await runOf(id, b, key)) });
+        return res.status(200).json({ booking: await withEarlier(publicBooking(id, b, settings, nowMs), b), ...(await runOf(id, b, key)) });
+      }
+      if (action === "bookingEarlier") {
+        // "Tell me if an earlier time opens" on (`on: true`) or off for this one-to-one visit.
+        const card = await withEarlier(publicBooking(id, b, settings, nowMs), b);
+        const ref = earlierList().doc(id);
+        if (req.body?.on === true) {
+          if (!card.canEarlier) return fail(res, 409, "This booking can't wait for an earlier time.", "no_earlier");
+          if (!b.earlierWanted) {
+            await ref.set({ bookingId: id, serviceId: b.serviceId, serviceName: b.serviceName, start: b.start, name: b.customer?.name || "", email: b.customer?.email || "", createdAt: new Date(nowMs).toISOString(), passed: [] });
+            await bookings().doc(id).set({ earlierWanted: true }, { merge: true });
+            b = { ...b, earlierWanted: true };
+          }
+        } else {
+          const snap = await ref.get();
+          const e = snap.exists ? snap.data() : null;
+          await bookings().doc(id).set({ earlierWanted: false }, { merge: true });
+          b = { ...b, earlierWanted: false };
+          if (e) {
+            await dropOffer(id, e, earlierItem(id));
+            await ref.delete();
+            // A time held for them goes back to everyone else waiting.
+            const at = Date.parse(e.offerStart || "");
+            if (Number.isFinite(at)) await tellWaitlist([dayOf(at, zone())], [at]);
+          }
+        }
+        return res.status(200).json({ booking: { ...card, earlier: b.earlierWanted === true } });
       }
       if (action === "bookingPayRest") {
         // A card page for what is left; the booking page reads it when the customer comes back.
@@ -2097,7 +2290,7 @@ function bookingActions({
         if (!moved) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         const next = await syncCalendar(id, { ...b, ...moved });
         await tellCustomer(id, next, "moved", { key });
-        return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs) });
+        return res.status(200).json({ booking: await withEarlier(publicBooking(id, next, settings, nowMs), next) });
       }
       return fail(res, 400, "Unknown booking action.");
     } catch (err) {
@@ -2271,7 +2464,7 @@ function bookingActions({
         await dropOffer(wid, w);
         await waitlist().doc(wid).delete();
         // A place held for them goes to the next person.
-        if (w?.offerStart) await tellWaitlist([w.day]);
+        if (w?.offerStart) await tellWaitlist([w.day], [Date.parse(w.offerStart)]);
         return res.status(200).json({ ok: true });
       }
       if (op === "packs") {
@@ -3167,6 +3360,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
 module.exports = { PickupTimeProblem, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
