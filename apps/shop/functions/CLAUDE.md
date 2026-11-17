@@ -1502,3 +1502,13 @@ the `refund` op uses (`called: true`: checked-in tickets go back too, the arrive
 event is cancelled). It answers `{ done, amountMinor, failed, left }`; the admin calls again while `left > 0`, passing
 failed order ids as `skip`. Safe to repeat: given-back orders are skipped and a failed refund leaves its order paid.
 
+**Moving an order (E3c, `tasks/todo/2026-11-17-events-move.md`):** admin op `moveOrder` (`{ orderId, toEventId, kinds? }`)
+puts a paid order's tickets on another event that isn't cancelled or over (a draft is fine). No money moves and no
+provider is called. `kinds` maps each old ticket kind to a new one; without it the shared `moveKinds` takes the kind
+with the same name, or the only kind (400 `kind` otherwise). One transaction reads the order and both `eventPlaces`,
+refuses 409 `full` (naming the kind and what is left) or `changed`, gives the old places back (`withReturned`, with the
+order's kept money, order count and arrivals), takes the new ones (`withArrived`) and rewrites the order's event
+details, `tickets` (same codes, check-ins cleared), `lines` (`movedLines`: what was paid per ticket is kept, so later
+refunds stay right) and `moves[]`. A fresh key is added (old links keep working) and the buyer gets the tickets email
+with "Your tickets have moved" wording (`tellTickets` `movedFrom`).
+

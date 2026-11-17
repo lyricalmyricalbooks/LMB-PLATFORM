@@ -27,7 +27,7 @@
 
 const crypto = require("crypto");
 const {
-  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, withHold, withSold, withoutHold, withReturned, refundMinorFor, ticketCodeFrom, cleanTicketCode, eventWhen,
+  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, withHold, withSold, withoutHold, withReturned, refundMinorFor, withArrived, moveKinds, movedLines, placesLeft: leftAt, ticketCodeFrom, cleanTicketCode, eventWhen,
   TICKET_MESSAGES, MAX_EVENTS,
 } = require("./shared/eventTickets");
 const { waysOn } = require("./shared/waysToSell");
@@ -74,6 +74,8 @@ const WORDS = {
     refundSubject: (title) => `Your refund: ${title}`,
     refundHeading: (n) => (n === 1 ? "Your ticket was refunded" : "Your tickets were refunded"),
     cancelHeading: (n) => (n === 1 ? "Your ticket was cancelled" : "Your tickets were cancelled"),
+    movedSubject: (title) => `Your tickets have moved: ${title}`, movedHeading: (n) => (n === 1 ? "Your ticket has moved" : "Your tickets have moved"),
+    movedIntro: (shop, from) => `${shop} has moved you from "${from}" to the event below. Your ticket codes stay the same.`,
     calledSubject: (title) => `Cancelled: ${title}`, calledHeading: "This event has been cancelled",
     calledIntro: (shop) => `${shop} has cancelled this event. We're sorry for the change of plans. Your tickets below no longer work.`,
     refundIntro: (shop) => `${shop} has cancelled the tickets below. Their codes no longer work at the door.`,
@@ -89,6 +91,8 @@ const WORDS = {
     refundSubject: (title) => `Votre remboursement : ${title}`,
     refundHeading: (n) => (n === 1 ? "Votre billet a été remboursé" : "Vos billets ont été remboursés"),
     cancelHeading: (n) => (n === 1 ? "Votre billet a été annulé" : "Vos billets ont été annulés"),
+    movedSubject: (title) => `Vos billets ont été déplacés : ${title}`, movedHeading: (n) => (n === 1 ? "Votre billet a été déplacé" : "Vos billets ont été déplacés"),
+    movedIntro: (shop, from) => `${shop} vous a déplacé de « ${from} » vers l'événement ci-dessous. Vos codes de billet restent les mêmes.`,
     calledSubject: (title) => `Annulé : ${title}`, calledHeading: "Cet événement a été annulé",
     calledIntro: (shop) => `${shop} a annulé cet événement. Nous sommes désolés de ce changement. Vos billets ci-dessous ne sont plus valides.`,
     refundIntro: (shop) => `${shop} a annulé les billets ci-dessous. Leurs codes ne sont plus valides à l'entrée.`,
@@ -196,7 +200,7 @@ function eventActions({
   const orderUrl = (id, key) => siteLink(`/events?order=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
 
   /** Emails a paid order's tickets to the buyer (and tells the owner, the first time). Never throws. */
-  async function tellTickets(id, o, key, { toOwner = true } = {}) {
+  async function tellTickets(id, o, key, { toOwner = true, movedFrom = "" } = {}) {
     try {
       const to = o.customer?.email;
       if (!to || !EMAIL.test(to)) return false;
@@ -212,11 +216,11 @@ function eventActions({
       const rows = tickets.map((t) => `<tr><td style="padding:6px 12px 6px 0;">${escapeHtml(t.name)}</td><td style="padding:6px 0;font-family:monospace;font-size:18px;letter-spacing:1px;"><strong>${escapeHtml(t.code)}</strong></td></tr>`).join("");
       await sendEmail({
         to,
-        subject: say.subject(tickets.length, o.eventTitle),
+        subject: movedFrom ? say.movedSubject(o.eventTitle) : say.subject(tickets.length, o.eventTitle),
         html: risoLayout(`
-          <h4 style="margin:0 0 8px;">${say.heading(tickets.length)}</h4>
+          <h4 style="margin:0 0 8px;">${movedFrom ? say.movedHeading(tickets.length) : say.heading(tickets.length)}</h4>
           <h2 style="margin:0 0 12px;">${escapeHtml(o.eventTitle)}</h2>
-          <p style="margin:0 0 16px;">${escapeHtml(say.intro(shop))}</p>
+          <p style="margin:0 0 16px;">${escapeHtml(movedFrom ? say.movedIntro(shop, movedFrom) : say.intro(shop))}</p>
           <p style="margin:0 0 4px;"><strong>${say.when}:</strong> ${escapeHtml(eventWhen(o.start, zone(), locale))}</p>
           ${where ? `<p style="margin:0 0 4px;"><strong>${say.where}:</strong> ${escapeHtml(where)}</p>` : ""}
           ${event?.onlineUrl && event.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>${say.online}:</strong> <a href="${escapeHtml(event.onlineUrl)}">${escapeHtml(event.onlineUrl)}</a></p>` : ""}
@@ -596,6 +600,56 @@ function eventActions({
         const result = await giveBack(id, seen, { asked, money: req.body?.money !== false });
         if (result.error) return fail(res, ...result.error);
         return res.status(200).json({ ok: true, ...result });
+      }
+      if (op === "moveOrder") {
+        // Moves a paid order's tickets to another event: same codes, no money moves. `kinds` picks the new ticket kind
+        // for each old one where the names don't match. Places at the new event are checked inside the transaction.
+        const id = String(req.body?.orderId || "");
+        const toId = String(req.body?.toEventId || "");
+        const snap = ID.test(id) ? await orders().doc(id).get() : null;
+        const seen = snap?.exists ? snap.data() : null;
+        if (!seen || seen.status !== "paid" || !(seen.tickets || []).length) return fail(res, 404, "That order has no tickets to move.", "not_found");
+        const target = await readEvent(toId);
+        if (!target || toId === seen.eventId) return fail(res, 400, "Choose another event to move them to.", "event");
+        if (target.status === "cancelled" || endMs(target) <= nowMs) return fail(res, 409, "That event is over or cancelled, so nobody can be moved to it.", "closed");
+        const picks = req.body?.kinds && typeof req.body.kinds === "object" ? req.body.kinds : {};
+        const kinds = moveKinds(seen.tickets, target.tickets, picks);
+        if (Object.values(kinds).some((k) => !k)) return fail(res, 400, "Choose which ticket they get at the new event.", "kind");
+        const at = now().toISOString();
+        const key = randomKey();
+        const done = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(orders().doc(id));
+          const o = fresh.exists ? fresh.data() : null;
+          if (!o || o.status !== "paid" || o.eventId !== seen.eventId || !(o.tickets || []).length) return { gone: true };
+          const fromSnap = await tx.get(placesRef(o.eventId));
+          const toSnap = await tx.get(placesRef(toId));
+          const fromPlaces = fromSnap.exists ? fromSnap.data() : null;
+          const toPlaces = toSnap.exists ? toSnap.data() : null;
+          const leaving = {}; const arriving = {};
+          for (const t of o.tickets) { leaving[t.ticketId] = (leaving[t.ticketId] || 0) + 1; arriving[kinds[t.ticketId]] = (arriving[kinds[t.ticketId]] || 0) + 1; }
+          const left = leftAt(target, toPlaces, nowMs);
+          const short = target.tickets.find((k) => (arriving[k.id] || 0) > (left[k.id] || 0));
+          if (short) return { short: { name: short.name, left: left[short.id] || 0 } };
+          const kept = Math.max(0, (o.chargedMinor || 0) - (o.refundedMinor || 0));
+          const used = o.tickets.filter((t) => t.usedAt).length;
+          tx.set(placesRef(o.eventId), placesDoc(fromPlaces, withReturned(fromPlaces, leaving), {
+            paidMinor: Math.max(0, (fromPlaces?.paidMinor || 0) - kept), orders: Math.max(0, (fromPlaces?.orders || 0) - 1), arrived: Math.max(0, (fromPlaces?.arrived || 0) - used),
+          }));
+          tx.set(placesRef(toId), placesDoc(toPlaces, withArrived(toPlaces, arriving), { paidMinor: (toPlaces?.paidMinor || 0) + kept, orders: (toPlaces?.orders || 0) + 1 }));
+          const nameOf = (kindId) => target.tickets.find((k) => k.id === kindId)?.name || "";
+          const tickets = o.tickets.map((t) => ({ code: t.code, ticketId: kinds[t.ticketId], name: nameOf(kinds[t.ticketId]) }));
+          const changes = {
+            eventId: toId, eventTitle: target.title, start: target.start, end: target.end || "", venue: target.venue || "", address: target.address || "",
+            tickets, lines: movedLines(o.lines || [], kinds, target.tickets), keyHashes: [...(o.keyHashes || []), hash(key)].slice(-5), updatedAt: at,
+            moves: [...(o.moves || []), { at, by, from: o.eventId, fromTitle: o.eventTitle || "" }].slice(-20),
+          };
+          tx.set(orders().doc(id), changes, { merge: true });
+          return { order: { ...o, ...changes }, fromTitle: o.eventTitle || "" };
+        });
+        if (done.gone) return fail(res, 409, "That order changed a moment ago. Open the guest list again.", "changed");
+        if (done.short) return fail(res, 409, done.short.left > 0 ? `Only ${done.short.left} ${done.short.name} ${done.short.left === 1 ? "place is" : "places are"} left at that event.` : `${done.short.name} is sold out at that event.`, "full");
+        const told = await tellTickets(id, done.order, key, { toOwner: false, movedFrom: done.fromTitle });
+        return res.status(200).json({ ok: true, told, order: adminOrder(id, done.order) });
       }
       if (op === "cancelEvent") {
         // Calls an event off and gives every order back, a few per call so no call runs long: the admin calls again
