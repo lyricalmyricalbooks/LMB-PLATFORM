@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { bookingPaid, redactedBookingFields, BOOKING_NAME_REMOVED, findByEmail } = require('./privacyData.js');
 const { privacyActions } = require('./privacyRequests.js');
+const emailHash = (e) => require('node:crypto').createHash('sha256').update(e).digest('hex');
 
 const NOW = '2026-11-15T10:00:00.000Z';
 
@@ -96,6 +97,10 @@ function setup() {
       t2: { eventTitle: 'Open day', status: 'paid', chargedMinor: 0, customer: { name: 'Ada', email: 'ada@example.com' }, tickets: [{ code: 'WXYZ-6789', name: 'Free' }], keyHashes: ['k2'] },
       t3: { eventTitle: 'Launch', status: 'paid', chargedMinor: 1500, customer: { name: 'Bo', email: 'bo@example.com' }, keyHashes: ['k3'] },
     },
+    bookingIntros: {
+      [emailHash('ada@example.com')]: { bookingId: 'paid1', at: '2026-11-17T10:00:00.000Z' },
+      [emailHash('bo@example.com')]: { bookingId: 'other', at: '2026-11-17T11:00:00.000Z' },
+    },
     bookingWaitlist: {
       w1: { serviceName: 'Evening class', day: '2026-11-22', name: 'Ada', email: 'ada@example.com' },
       w2: { serviceName: 'Evening class', day: '2026-11-22', name: 'Bo', email: 'bo@example.com' },
@@ -122,6 +127,8 @@ describe("the owner's privacy export and erase", () => {
     expect(out.body.bookings.find(b => b.id === 'free1')).toMatchObject({ note: 'Bringing a friend', answers: [{ label: 'Allergies', answer: 'Nuts' }] });
     for (const b of out.body.bookings) for (const key of ['manageKeyHash', 'pendingKey', 'sessions', 'paymentIntent']) expect(b).not.toHaveProperty(key);
     expect(out.body.bookingWaitingList.map(w => w.id)).toEqual(['w1']);
+    // Their first-visit price claim.
+    expect(out.body.bookingFirstVisitPrice).toEqual({ bookingId: 'paid1', at: '2026-11-17T10:00:00.000Z' });
     expect(out.body.bookingPacks.map(p => p.id).sort()).toEqual(['p1', 'p2']);
     for (const p of out.body.bookingPacks) for (const key of ['pendingCode', 'sessions', 'paymentIntent']) expect(p).not.toHaveProperty(key);
     // Event tickets they bought, codes included, without link keys or payment ids.
@@ -142,6 +149,7 @@ describe("the owner's privacy export and erase", () => {
     expect(bookings.get('paid1')).toMatchObject({ customer: { name: 'Ada', email: 'ada@example.com', phone: '' }, note: '', answers: [], manageKeyHash: '', paid: true, priceMinor: 2500 });
     expect(bookings.get('other')).toMatchObject({ customer: { name: 'Bo', email: 'bo@example.com' }, note: 'Mine', manageKeyHash: 'ghi' });
     expect([...db.store.get('bookingWaitlist').keys()]).toEqual(['w2']);
+    expect([...db.store.get('bookingIntros').keys()]).toEqual([emailHash('bo@example.com')]);
     // An unpaid pack goes; a paid one stays as the payment record it is.
     expect(out.body.deleted.unpaidPacks).toBe(1);
     expect([...db.store.get('bookingPacks').keys()].sort()).toEqual(['p1', 'p3']);

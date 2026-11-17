@@ -3,6 +3,7 @@
 // (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own db, admin SDK, email sender and
 // guards, so the vm-based handler tests' fakes still apply.
 
+const crypto = require("crypto");
 const { pressName } = require("./shared/shopIdentity");
 const { shopConfig } = require("./shopConfig");
 const { bookingPaid, redactedBookingFields, redactedTicketOrderFields } = require("./privacyData");
@@ -124,7 +125,7 @@ function privacyActions({
   // shopper's own copy) uses indexed lookups only, so a signed-in visitor can never make the shop read whole collections.
   async function personalDataFor(email, { scan = true } = {}) {
     const find = (collection, field, options = {}) => findByEmailData(db, collection, field, email, { ...options, scan });
-    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders] = await Promise.all([
+    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, intro] = await Promise.all([
       find("orders", "customer.email"), find("stockAlerts", "email"),
       find("abandoned-carts", "email"), find("reviewContacts", "email"),
       find("contactMessages", "email"), db.collection("newsletter").doc(email).get(),
@@ -139,6 +140,8 @@ function privacyActions({
       find("bookingPacks", "customer.email"),
       // Event tickets they bought (events.js).
       find("eventOrders", "customer.email"),
+      // Their first-visit price claim (bookings.js), kept under a hash of the address.
+      db.collection("bookingIntros").doc(crypto.createHash("sha256").update(email).digest("hex")).get(),
     ]);
     // Private fulfilment notes kept about the person's orders (admin-only order-operations).
     const operations = orders.length ? (await db.getAll(...orders.map(o => db.collection("order-operations").doc(o.id)))).filter(d => d.exists) : [];
@@ -149,7 +152,7 @@ function privacyActions({
       ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
       : [];
     const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows], ["bookings", bookings], ["bookingWaitlist", waiting], ["bookingPacks", packs], ["eventOrders", ticketOrders]].filter(([, d]) => d.truncated).map(([n]) => n);
-    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, operations, incompleteScan };
+    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, intro, operations, incompleteScan };
   }
 
   // The personal-data file for one person: what the admin downloads, and what a signed-in shopper downloads for themselves.
@@ -171,6 +174,7 @@ function privacyActions({
       giftCards: rows(data.giftCards).map(({ code, holds, ...card }) => card),
       bookings: rows(data.bookings).map(({ manageKeyHash, pendingKey, sessions, paidSession, paymentIntent, ...booking }) => booking),
       bookingWaitingList: rows(data.waiting),
+      bookingFirstVisitPrice: data.intro?.exists ? { bookingId: data.intro.data()?.bookingId || null, at: data.intro.data()?.at || null } : null,
       // A pack's code is the customer's key: never in the file (only its last four are kept anyway).
       bookingPacks: rows(data.packs).map(({ pendingCode, sessions, paidSession, paymentIntent, mode, ...pack }) => pack),
       // Event tickets: the codes are theirs; the link keys and payment ids stay out.
@@ -247,6 +251,7 @@ function privacyActions({
       const unpaidPacks = data.packs.filter(d => d.data()?.status === "held");
       for (const d of unpaidPacks) ops.push(b => b.delete(d.ref));
       if (data.newsletter.exists) ops.push(b => b.delete(data.newsletter.ref));
+      if (data.intro?.exists) ops.push(b => b.delete(data.intro.ref));
       if (data.profile?.exists) ops.push(b => b.delete(data.profile.ref));
       for (const r of data.reviews) ops.push(b => b.update(r.ref, reviewErasure(reviewMode)));
       const redactedOrders = data.orders.filter(d => neverPaid(d.data()));

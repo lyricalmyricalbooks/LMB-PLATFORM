@@ -3062,9 +3062,12 @@ function bookingActions({
     const wanted = allServices.filter((s) => s.minPlaces);
     for (const doc of retries.docs) {
       const r = doc.data() || {};
-      const service = allServices.find((s) => s.id === r.serviceId) || { id: r.serviceId };
+      const found = allServices.find((s) => s.id === r.serviceId);
+      const service = found || { id: r.serviceId };
+      // A sweep cut short before the time was closed closes it now, so nobody signs up for a cancelled class.
+      if (r.closed === false && found && r.start) await closeClassTime(found, Date.parse(r.start));
       const left = await cancelForMinimum(service, r.left || []);
-      await doc.ref.set(retryState(left), { merge: true });
+      await doc.ref.set({ ...retryState(left), closed: true }, { merge: true });
     }
     for (const service of wanted) {
       // A course is decided on its first date; a weekly class on each of its times between now and its decide time.
@@ -3088,10 +3091,10 @@ function bookingActions({
         }
         // The decision goes first (with everyone still to cancel, marked to retry), so a second sweep never decides
         // twice and a refund that fails, or a sweep cut short here, stays on the list for the next one.
-        await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt, ...retryState(going.map((x) => x.id)) });
+        await runRef.set({ serviceId: service.id, start: iso, decision: "cancelled", count: going.length, minPlaces: service.minPlaces, decidedAt, closed: false, left: going.map((x) => x.id), retry: true, retryAt: nowIso });
         await closeClassTime(service, start);
         const left = await cancelForMinimum(service, going.map((x) => x.id));
-        await runRef.set(retryState(left), { merge: true });
+        await runRef.set({ ...retryState(left), closed: true }, { merge: true });
         await tellOwnerTooFew(service, start, going, left);
         cancelled += 1;
       }

@@ -2815,6 +2815,19 @@ describe("classes: a minimum number to run", () => {
     expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ left: [], retry: false, retryAt: null });
   });
 
+  test("a sweep cut short before closing the time closes it on the next sweep", async () => {
+    const { t, id } = await withClass();
+    const bid = await signUp(t, id, 1);
+    const decided = new Date(Date.parse(wed) - 2 * 3600_000).toISOString();
+    // What the first sweep wrote before it stopped: the decision, nobody cancelled and the time still open.
+    t.db.store.set(`bookingRuns/${id}~${Date.parse(wed)}`, { serviceId: id, start: new Date(wed).toISOString(), decision: "cancelled", count: 1, minPlaces: 2, decidedAt: decided, closed: false, left: [bid], retry: true, retryAt: decided });
+    t.clock.now = new Date(Date.parse(wed) - 3600_000);
+    await t.desk.sweepMinimum();
+    expect(Object.values(t.db.store.get("bookingDays/2026-11-18").items)).toContainEqual(expect.objectContaining({ s: id, closed: true }));
+    expect(t.db.store.get(`bookings/${bid}`).status).toBe("cancelled");
+    expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ closed: true, retry: false, retryAt: null });
+  });
+
   test("without a minimum nothing is decided", async () => {
     const { t, id } = await withClass({ minPlaces: 0 });
     await signUp(t, id, 1);
