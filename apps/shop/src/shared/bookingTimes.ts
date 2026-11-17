@@ -623,9 +623,14 @@ export function runStarts(start: number, run: BookingRun, zone: string): number[
   return out;
 }
 
-/** Settings for a run's later visits booked online: the shop's hours and days off, however far ahead (up to a year). */
-export function runSettings(settings: BookingSettings): BookingSettings {
-  return { ...settings, minNoticeHours: 0, maxDaysAhead: 366 };
+/**
+ * Settings for a run's later visits: online, the shop's hours and days off; booked by the shop (`owner`), any hour. Either
+ * way a later visit may fall up to a year after a first visit at the far edge of the booking window, so the window grows
+ * by the longest run.
+ */
+export function runSettings(settings: BookingSettings, owner = false): BookingSettings {
+  const base = owner ? ownerBookingSettings(settings) : { ...settings, minNoticeHours: 0 };
+  return { ...base, maxDaysAhead: (base.maxDaysAhead || DEFAULT_BOOKING_SETTINGS.maxDaysAhead) + MAX_RUN_DAYS };
 }
 /** A rebook reminder goes out within this many days of falling due; a visit older than that is left alone. */
 export const REBOOK_WINDOW_DAYS = 14;

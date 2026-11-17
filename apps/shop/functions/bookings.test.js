@@ -2793,4 +2793,19 @@ describe("standing appointments", () => {
     // A class can't be a run.
     expect((await t.adm({ op: "saveService", service: { name: "Life drawing", minutes: 60, places: 6, repeats: true } })).body.service.repeats).toBe(false);
   });
+
+  test("a run that starts at the far edge of the booking window may reach almost a year past it", async () => {
+    const t = await runSetup();
+    // 57 days out (inside the 60-day window), every 6 weeks, 9 times: the last visit is 393 days from today.
+    const LONG = { everyWeeks: 6, visits: 9 };
+    const check = await t.pub({ action: "bookingRunCheck", serviceId: "cut", start: at("2027-01-12", "10:00"), run: LONG });
+    expect(check.body.visits).toHaveLength(9);
+    expect(check.body.visits.at(-1).start).toBe(at("2027-12-14", "10:00"));
+    expect(check.body.visits.every((v) => v.free)).toBe(true);
+    const r = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2027-01-12", "10:00"), ...CUSTOMER, run: LONG });
+    expect(r.body).toMatchObject({ status: "confirmed", visits: 9 });
+    // The first visit still keeps to the window.
+    const far = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2027-02-16", "10:00"), ...CUSTOMER, email: "bo@example.com", run: LONG });
+    expect(far.statusCode).toBeGreaterThanOrEqual(400);
+  });
 });

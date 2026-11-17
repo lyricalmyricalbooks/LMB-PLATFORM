@@ -899,7 +899,7 @@ function bookingActions({
    * the dates before booking; the visits are taken one by one afterwards, each in its own transaction.
    */
   async function runPlan({ service, settings, starts, staffId = "", owner = false }) {
-    const rules = owner ? ownerBookingSettings(settings) : runSettings(settings);
+    const rules = runSettings(settings, owner);
     const nowMs = now().getTime();
     return Promise.all(starts.map(async (ms) => {
       const busy = await busyAround(dayOf(ms, zone()), nowMs);
@@ -921,7 +921,7 @@ function bookingActions({
    * when a visit can't be taken, every visit is taken back out, the first too, and the dates that failed are answered.
    */
   async function bookRun({ firstId, first, service, settings, starts, staffId = "", owner = false, by }) {
-    const rules = owner ? ownerBookingSettings(settings) : runSettings(settings);
+    const rules = runSettings(settings, owner);
     const tax = await taxOn(service, service.priceMinor);
     const price = service.priceMinor + (tax?.taxMinor || 0);
     const { discount: _d, listPriceMinor: _l, giftCard: _g, pack: _p, depositMinor: _dm, depositPaid: _dp, taxMinor: _t, taxLines: _tl, ...base } = first;
