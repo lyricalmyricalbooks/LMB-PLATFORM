@@ -2496,6 +2496,33 @@ describe("courses: one sign-up, one price, a place on every date", () => {
     expect(b.course.staff).toEqual(["Ana", "Ben"]);
   });
 
+  test("every later date gets its own reminders, once, and the calendars list every date", async () => {
+    const { t, id } = await withCourse({ payment: "free", priceMinor: 0 });
+    await t.adm({ op: "saveSettings", settings: { live: true, reminderHours: 24, secondReminderHours: 2 } });
+    const made = (await t.adm({ op: "create", serviceId: id, ...person(1) })).body;
+    const bid = made.id || made.booking?.id;
+    const subjects = (word) => t.emails.filter((m) => String(m.subject).startsWith(word)).map((m) => m.subject);
+    // The day before the second date.
+    t.clock.now = new Date(Date.parse(at("2026-12-04", "19:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 1 });
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+    expect(subjects("Coming up:")).toHaveLength(1);
+    expect(subjects("Coming up:")[0]).toContain("December 5");
+    // An hour before it: the short reminder, about the same date.
+    t.clock.now = new Date(Date.parse(at("2026-12-05", "17:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 1 });
+    expect(subjects("Soon:")[0]).toContain("December 5");
+    expect(t.db.store.get(`bookings/${bid}`).course).toMatchObject({ reminded: [all[1]], reminded2: [all[1]] });
+    // The third date, a week on.
+    t.clock.now = new Date(Date.parse(at("2026-12-11", "19:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 1 });
+    expect(subjects("Coming up:")[1]).toContain("December 12");
+    // A cancelled course is told nothing more.
+    await t.adm({ op: "cancel", id: bid });
+    t.clock.now = new Date(Date.parse(at("2026-12-12", "17:00")));
+    expect(await t.desk.sweepReminders()).toEqual({ reminded: 0 });
+  });
+
   test("the Timetable gives no count for a course whose days it couldn't all read", async () => {
     const t = setup();
     await t.seed();

@@ -111,6 +111,14 @@ function spansOf(id, b) {
   return starts.map((start, n) => ({ key: n ? `${id}~${n}` : id, start, end: start + length }));
 }
 
+/** When a booking happens, as it is in a calendar: once, or on each date of a course (no tidy-up time). */
+function datesOf(b) {
+  const first = Date.parse(b.start);
+  const length = Date.parse(b.end) - first;
+  const starts = Array.isArray(b.course?.starts) && b.course.starts.length ? b.course.starts.map((iso) => Date.parse(iso)) : [first];
+  return starts.map((start) => ({ start, end: start + length }));
+}
+
 function newPackCode() {
   const bytes = crypto.randomBytes(12);
   let raw = "";
@@ -2392,15 +2400,17 @@ function bookingActions({
    */
   async function sweepReminders() {
     if (!(await featureOn())) return { reminded: 0 };
-    const { reminderHours } = await readSettings();
-    if (!reminderHours) return { reminded: 0 };
+    const { reminderHours, secondReminderHours } = await readSettings();
+    if (!reminderHours && !secondReminderHours) return { reminded: 0 };
     const nowMs = now().getTime();
     const snap = await bookings().where("status", "==", "confirmed").limit(1000).get();
     let reminded = 0;
     for (const doc of snap.docs) {
       const b = doc.data();
+      // A course's later dates get their own reminders (both kinds); its first date goes the usual way below.
+      reminded += await remindCourseDates(doc.id, b, { reminderHours, secondReminderHours }, nowMs);
       const start = Date.parse(b.start || "");
-      if (b.reminderSentAt || !Number.isFinite(start)) continue;
+      if (!reminderHours || b.reminderSentAt || !Number.isFinite(start)) continue;
       if (start - nowMs > reminderHours * HOUR || start - nowMs < Math.min(HOUR, reminderHours * HOUR / 2)) continue;
       if (nowMs - Date.parse(b.createdAt || "") < Math.min(REMINDER_SKIP_HOURS, reminderHours / 2) * HOUR) continue;
       // Its own link, so the customer can cancel or move from the reminder; the first email's link keeps working.
@@ -2411,6 +2421,34 @@ function bookingActions({
       reminded += 1;
     }
     return { reminded };
+  }
+
+  /**
+   * Reminders for the later dates of a course: the same two reminders as any booking, once for each date, kept on the
+   * booking's `course.reminded` / `course.reminded2` (the dates already told). Marked before sending. Returns how many went.
+   */
+  async function remindCourseDates(id, b, { reminderHours, secondReminderHours }, nowMs) {
+    const starts = Array.isArray(b.course?.starts) ? b.course.starts : [];
+    if (starts.length < 2) return 0;
+    const length = Date.parse(b.end) - Date.parse(b.start);
+    let course = b.course;
+    let sent = 0;
+    for (const iso of starts.slice(1)) {
+      const left = Date.parse(iso) - nowMs;
+      const kinds = [["reminder", reminderHours, "reminded", Math.min(HOUR, (reminderHours * HOUR) / 2), "reminderKeyHash"], ["soon", secondReminderHours, "reminded2", 15 * 60_000, "reminder2KeyHash"]];
+      for (const [kind, hours, list, least, keyField] of kinds) {
+        if (!hours || !Number.isFinite(left) || (course[list] || []).includes(iso) || left > hours * HOUR || left < least) continue;
+        const key = randomKey();
+        course = { ...course, [list]: [...(course[list] || []), iso] };
+        await bookings().doc(id).set({ course, [keyField]: hash(key) }, { merge: true });
+        // The email and the text speak of this date, not the first.
+        const dated = { ...b, course, start: iso, end: new Date(Date.parse(iso) + length).toISOString() };
+        await tellCustomer(id, dated, kind, { byShop: true, key });
+        await textReminder(id, dated, kind, key);
+        sent += 1;
+      }
+    }
+    return sent;
   }
 
   /**
@@ -2682,7 +2720,9 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
   if (feed.id !== "main" && !staffId) return null;
   const snap = await shop.collection("bookings").where("status", "in", ["confirmed", "held"]).limit(2000).get();
   const from = nowMs - 31 * 24 * HOUR;
+  // Someone on a course is in the calendar on every one of its dates.
   const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .flatMap((b) => datesOf(b).map((x, n) => ({ ...b, id: n ? `${b.id}-${n + 1}` : b.id, start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString(), ...(n && b.course?.staff?.[n] ? { staffName: b.course.staff[n] } : {}) })))
     .filter((b) => Date.parse(b.end || "") >= from && (!staffId || b.staffId === staffId))
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.roomName ? [b.roomName, b.location].filter(Boolean).join(", ") : b.location || "",
@@ -2701,7 +2741,11 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
   const b = snap.exists ? snap.data() : null;
   if (!on || !b || b.status !== "confirmed") return null;
   if (!keyFits(b, key)) return null;
-  return bookingIcs({ id, title: shopName ? `${b.serviceName} · ${shopName}` : b.serviceName, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "", nowMs });
+  const title = shopName ? `${b.serviceName} · ${shopName}` : b.serviceName;
+  const spans = datesOf(b);
+  // A course: one file with every date.
+  if (spans.length > 1) return bookingsFeedIcs(title, spans.map((x, n) => ({ id: n ? `${id}-${n + 1}` : id, title, start: x.start, end: x.end, location: b.location || "" })), nowMs);
+  return bookingIcs({ id, title, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "", nowMs });
 }
 
 const HOUR = 60 * 60 * 1000;
