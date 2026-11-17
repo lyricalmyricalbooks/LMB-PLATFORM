@@ -55,7 +55,7 @@ export function billingWords(billing, now = new Date()) {
     : billing.access === "paused" ? "You won't be charged again, and your shop stays closed to shoppers."
     : `Your shop stays open until ${day(until)}, and you won't be charged again. You can keep your plan until then.`;
   const cancelAsk = billing.access === "paused"
-    ? "Cancel your plan? Your shop stays closed. You can download everything in it for 90 days, then it is deleted."
+    ? "Cancel your plan? Your shop stays closed to shoppers. Once it is fully closed, you can download everything in it for 90 days, then it is deleted."
     : `Cancel your plan? Your shop stays open until ${day(until)}, then closes. You can download everything in it for 90 days after that, then it is deleted.`;
   // "Keep it": the one-click way back for an app the plan change will close (billing.keepClosingApps).
   const keepClosing = closing ? `Keep ${appList(billing.appsClosing.apps)}` : "";
