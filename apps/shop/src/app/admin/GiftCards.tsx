@@ -13,7 +13,7 @@ import {
   SecondaryButton, SectionCard, StatusBadge, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import {
-  createdTime, dollarsToMinor, formatMinor, giftCardStatus, historyAmount, historyLabel, historyTime, issuePayload, maskedCode,
+  createdTime, dollarsToMinor, formatMinor, giftCardStatus, historyAmount, historyLabelOf, historyTime, issuePayload, maskedCode,
 } from "./giftCardsAdmin";
 import { batches, readGiftCardFile, type GiftCardFile } from "./giftCardMove";
 import { shopDate } from "../features/site/preorder";
@@ -404,12 +404,13 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
                 {history.map((h, i) => (
                   <li key={i} style={{ borderTop: "1px solid var(--rp-divider)", paddingTop: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                      <strong>{historyLabel(h.type)}</strong>
+                      <strong>{historyLabelOf(h)}</strong>
                       {historyAmount(h) ? <span className="rp-mono">{historyAmount(h)}</span> : null}
                     </div>
                     <div className="rp-hint">
                       {when(historyTime(h))}
                       {h.orderId ? <> · <a style={LINK} href={`#orders/${encodeURIComponent(h.orderId)}`}>Order {h.orderId}</a></> : null}
+                      {h.bookingId ? <> · <a style={LINK} href="#bookings">Bookings</a></> : null}
                       {h.actor ? ` · ${h.actor}` : ""}
                     </div>
                     {h.reason && <div style={{ overflowWrap: "anywhere" }}>{h.reason}</div>}

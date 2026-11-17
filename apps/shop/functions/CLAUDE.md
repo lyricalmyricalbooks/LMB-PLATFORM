@@ -1297,6 +1297,37 @@ to `usageCount` in the same transaction (409 `code` at the limit); `freeTime` gi
 running out included (`discount.returned`). `bookingInfo.codes` says whether any code works on bookings. Emails show
 "Discount (CODE)". Tests: `bookingDiscount.test.js`, bookings.test.js › discount codes on bookings.
 
+**Gift cards on bookings (16 November 2026):** a gift card pays part or all of what is paid when booked (the price or the
+deposit, after any code), never a pay-at-the-visit price. Money rules in `src/shared/bookingTimes.ts`: `giftCard
+{ amountMinor }` comes off `cardAsk` and `bookedCardTaken`, `giftTaken` counts it once the booking's payment went through,
+`moneyKept` takes off a part put back (`giftReturned`), and `giftCardPart` never leaves the card page 1 to 49 cents. Public
+action `bookingGiftCard` tries one (`giftFor`: `giftCardProblem` with `shopTestMode`, `availableMinor` so order holds count;
+400 `gift` with `GIFT_CARD_MESSAGES`); `bookingStart` takes `giftCard` (the code) and stores `giftCard { id, last4,
+amountMinor }`. `takeTime` re-checks and debits the card in the same transaction as the time (409 `gift` when it fell
+short), history `redeemed` with `bookingId`. Covered in full with no card to save: confirmed and `paid`/`depositPaid` at
+once, no card page; otherwise the page asks for the rest and `confirmPaid` marks it paid with or without card money.
+`freeTime(…, { giftBack })` puts the part back once on any cancel (hold running out included; history `refunded` with
+`bookingId`, `giftCard.returned`, decided on the booking's own copy inside the transaction) and returns what it wrote; the
+admin `cancel` op takes `giftBack: false` to keep it. `bookingInfo.giftCards` says whether the shop has any gift card.
+Tests: bookings.test.js › gift cards on bookings, bookingTimes.test.ts › gift cards on bookings.
+
+**Packs of visits (16 November 2026, `tasks/todo/2026-11-14-bookings-beta.md` › Packs of visits):** a paid service may sell
+`packVisits` (2 to `MAX_PACK_VISITS`) visits for `packPriceMinor`, to book within `packDays` (0: no end; `cleanService`
+checks them, `offersPack`). Packs live in the server-only `bookingPacks` (no rule opens it): id = `hash("booking-pack:" +
+code).slice(0, 40)`, so the 12-character code (`XXXX-XXXX-XXXX`, `newPackCode`) is never stored except as `pendingCode`
+until it is emailed. Public `bookingPackBuy` makes a `held` pack and opens a card page (`metadata.pack`, back to
+`/book?pack=CODE`); `refreshPack` (page open) or `sweepPacks` (start of `sweepHolds`) activates it only when the session
+paid the pack's price, sets `expiresOn` (`packEndsOn`) and runs `tellPack` (customer code + owner `[PACK] New`); an
+unpaid hold is deleted. `bookingPackView` answers the pack's page, `bookingPack` tries one (400 `pack`, `packProblem` /
+`PACK_MESSAGES`). `bookingStart` with `pack`: no code or gift card with it, nothing to pay (`payment: "pack"`,
+`priceMinor` 0, `listPriceMinor`); `takeTime` re-checks the pack and appends the use in the same transaction (409
+`pack`), and the booking keeps `pack { id, last4, visit, visits }`. `freeTime(…, { packBack })` puts the visit back once
+(`pack.returned`); the admin `cancel` op takes `packBack: false` for a late cancel. A move past `expiresOn` is refused.
+Admin ops `packs` (newest first, no held ones) and `packClose { id, refundMinor }` (refund through `payments.refund`, key
+`pack-refund-<id>-<amount>`, then `status: "closed"`). Privacy: export by `customer.email` without `pendingCode` or
+payment ids; erase deletes held packs and keeps paid ones. Tests: bookings.test.js › packs of visits,
+bookingTimes.test.ts › packs of visits, privacyBookings.test.js.
+
 **Tips (16 November 2026, `tasks/todo/2026-11-16-booking-tips.md`):** settings `tips` / `tipPercents` (shared
 `cleanTipPercents`). `bookingPayRest` takes `tipMinor` (`tipFits`: whole cents, ≥ 50, ≤ `tipLimitMinor` = the price or
 100.00) and the new public `bookingTip` a tip on its own (`tipOpen`: kept, priced, started visit, no tip yet, within 14

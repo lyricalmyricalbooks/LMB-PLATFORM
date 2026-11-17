@@ -3,10 +3,29 @@
 import { addDays, depositOf } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
-export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number };
+export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
+  /** A pack of visits sold with it: `packVisits` visits for `packPriceMinor`, to use within `packDays` (0: no end). */ packVisits?: number; packPriceMinor?: number; packDays?: number };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop has a discount code that works on bookings, so the form offers a code box. */
-  codes?: boolean };
+  codes?: boolean;
+  /** The shop has gift cards, so the form offers a gift card box on paid services. */
+  giftCards?: boolean };
+/** A pack the server accepted for this service: its code as typed, last four, visits left of how many. */
+export type BookingPackUse = { code: string; last4: string; left: number; visits: number };
+/** A pack as its own page shows it (`bookingPackView`). */
+export type BookingPackView = { last4: string; serviceId: string; serviceName: string; visits: number; left: number; status: "held" | "active" | "closed"; expiresOn: string | null; priceMinor: number; currency: string; coming: string[] };
+/** What a pack saves against booking each visit on its own, in cents (never below nothing). */
+export const packSaving = (s: Pick<BookingServiceView, "priceMinor" | "packVisits" | "packPriceMinor">): number =>
+  Math.max(0, (s.packVisits || 0) * s.priceMinor - (s.packPriceMinor || 0));
+/** A pack's code from the address (`/book?pack=…` opens the pack, `usepack=…` books with it), or "". */
+export function packFromSearch(search: string, name: "pack" | "usepack" = "pack"): string {
+  const raw = (new URLSearchParams(search).get(name) || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return raw.length === 12 ? raw.match(/.{4}/g)!.join("-") : "";
+}
+/** "16 December 2026" for a shop day. */
+export const longDayText = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+/** A gift card the server accepted: its last four, what it pays now and what is left for the card page. */
+export type BookingGift = { code: string; last4: string; giftMinor: number; payNowMinor: number };
 /** A discount code the server accepted for one service: what it takes off, the price after it and what is paid now. */
 export type BookingCode = { code: string; discountMinor: number; priceMinor: number; payNowMinor: number };
 /** The service as priced with a code (the server's figures), so every line and button shows what will really be asked. */
@@ -16,7 +35,7 @@ export function withCode<S extends BookingServiceView>(service: S, code: Booking
 }
 export type BookingView = {
   id: string; serviceId: string; serviceName: string; minutes: number; location: string; /** A Google Meet link, for a video-call service. */ meetUrl?: string; start: string; end: string;
-  status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop"; paid: boolean; priceMinor: number; currency: string;
+  status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;
   /** With payment "deposit": what was asked by card when booking, whether it is paid, and what is left for the visit. */
   depositMinor?: number; depositPaid?: boolean; dueMinor?: number;
   name: string; email: string; refunded: boolean; canChange: boolean; cancelHours: number;
@@ -26,6 +45,10 @@ export type BookingView = {
   canPayRest?: boolean; restPaidMinor?: number;
   /** A discount code used when booking, and what it took off (priceMinor is after it). */
   discountCode?: string; discountMinor?: number;
+  /** A gift card that paid part or all of it when booked, and whether that went back onto the card. */
+  giftCardLast4?: string; giftMinor?: number; giftReturned?: boolean;
+  /** A visit booked with a pack: its last four, which visit of how many, and whether it went back on the pack. */
+  packLast4?: string; packVisit?: number; packVisits?: number; packReturned?: boolean;
   /** Tips: the shop's choices (empty when it doesn't ask), whether a tip can be added on its own, the tip given and the most one may be. */
   tipPercents?: number[]; canTip?: boolean; tipMinor?: number; tipLimitMinor?: number;
 };

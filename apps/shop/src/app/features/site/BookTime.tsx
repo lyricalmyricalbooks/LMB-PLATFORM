@@ -19,7 +19,7 @@ import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
-  withCode, type BookingCode,
+  withCode, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
 } from "./bookTimeRules";
@@ -39,7 +39,9 @@ function BookTimeContent() {
   const c: Copy = (key, vars) => getCopy(design, key, vars);
   const location = useLocation();
   const manage = useMemo(() => manageFromSearch(location.search), [location.search]);
-  useSEO({ title: c("bookTimeTitle"), description: c("bookTimeSubtitle"), noindex: !!manage });
+  // A pack's own page: the link in its email, and where the card page sends the customer back after buying one.
+  const packCode = useMemo(() => packFromSearch(location.search), [location.search]);
+  useSEO({ title: c("bookTimeTitle"), description: c("bookTimeSubtitle"), noindex: !!manage || !!packCode });
 
   return (
     <div data-fm-store data-studio-target="copy:Bookings page|style:colors" data-studio-label="Book a time page" className="fm-track min-h-screen fm-page text-white font-sans relative pb-24">
@@ -54,7 +56,7 @@ function BookTimeContent() {
         </div>
       </nav>
       <main className="max-w-3xl mx-auto px-5 sm:px-8 pt-12 sm:pt-16 relative z-10">
-        {manage ? <ManageBooking id={manage.id} manageKey={manage.key} c={c} /> : <NewBooking c={c} />}
+        {manage ? <ManageBooking id={manage.id} manageKey={manage.key} c={c} /> : packCode ? <PackPage code={packCode} c={c} /> : <NewBooking c={c} />}
       </main>
       <TemplateSections design={design} templateId="bookingsPage" books={books} />
       <GlobalSections design={design} books={books} />
@@ -83,8 +85,22 @@ function NewBooking({ c }: { c: Copy }) {
   const [error, setError] = useState("");
   // A discount code the server accepted for the chosen service (cleared when the service changes).
   const [applied, setApplied] = useState<BookingCode | null>(null);
+  // A gift card the server accepted for what is paid now (cleared when the service or the code changes, which changes that).
+  const [gift, setGift] = useState<BookingGift | null>(null);
+  // A pack of visits the server accepted for the chosen service: it pays for the visit, so no code or gift card with it.
+  const [pack, setPack] = useState<BookingPackUse | null>(null);
+  // "Book a visit" on a pack's own page links here with the pack, so it is applied once the service is chosen.
+  const usePack = useMemo(() => packFromSearch(search, "usepack"), [search]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => setApplied(null), [service?.id]);
+  useEffect(() => {
+    setPack(null);
+    if (!service || !usePack) return;
+    let gone = false;
+    ask("bookingPack", { serviceId: service.id, pack: usePack }).then((a) => { if (!gone) setPack({ ...(a as Omit<BookingPackUse, "code">), code: usePack }); }).catch(() => {});
+    return () => { gone = true; };
+  }, [service?.id, usePack]);
+  useEffect(() => setGift(null), [service?.id, applied?.code]);
 
   const load = () => {
     setLoadFailed(false);
@@ -140,7 +156,7 @@ function NewBooking({ c }: { c: Copy }) {
     setError("");
     try {
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers, ...held, ...(applied ? { code: applied.code } : {}) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...form, answers, ...held, ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -148,6 +164,10 @@ function NewBooking({ c }: { c: Copy }) {
       if (err?.code === "taken") { setStart(""); setStep("time"); setError(c("bookTimeTaken")); return; }
       // The code stopped working meanwhile (used up, ended): take it off so the right price shows, and say so.
       if (err?.code === "code") { setApplied(null); setError(c("bookTimeCodeProblem")); return; }
+      // The gift card's balance changed meanwhile: take it off so the right amount shows, and say so.
+      if (err?.code === "gift") { setGift(null); setError(c("bookTimeGiftProblem")); return; }
+      // The pack ran out or closed meanwhile: take it off so the price shows, and say so.
+      if (err?.code === "pack") { setPack(null); setError(c("bookTimePackProblem")); return; }
       setError(c("bookTimeError"));
     }
   };
@@ -171,7 +191,7 @@ function NewBooking({ c }: { c: Copy }) {
           {step === "service" || !service ? c("bookTimeTitle") : service.name}
         </h1>
         {step === "service" && <p className="mt-4 text-base leading-7 fm-muted">{c("bookTimeSubtitle")}</p>}
-        {step !== "service" && service && <ServiceMeta service={service} currency={currency} c={c} />}
+        {step !== "service" && service && <ServiceMeta service={withCode(service, step === "details" ? applied : null)} currency={currency} c={c} paidWith={step === "details" && pack ? c("bookTimePackPaid") : ""} />}
       </div>
 
       {error && <div className="fm-track-notice mb-6" data-tone="danger" role="alert"><p>{error}</p></div>}
@@ -190,6 +210,7 @@ function NewBooking({ c }: { c: Copy }) {
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(s), currency), rest: moneyText(s.priceMinor - upFrontMinor(s), currency) })}</span>}
                 {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
+                {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: moneyText(s.packPriceMinor || 0, currency) })}</span>}
               </span>
             </button>
           ))}
@@ -213,8 +234,13 @@ function NewBooking({ c }: { c: Copy }) {
           </div>
         </div>
       )}
+      {step === "time" && service && !!service.packVisits && !usePack && <PackOffer service={service} currency={currency} c={c} />}
 
-      {step === "details" && service && start && (() => { const priced = withCode(service, applied); return (
+      {step === "details" && service && start && (() => {
+        const priced = withCode(service, applied);
+        // What the card page asks for now: what is paid when booked, less any gift card; nothing with a pack.
+        const payNow = pack ? 0 : gift ? gift.payNowMinor : upFrontMinor(priced);
+        return (
         <div className="grid gap-8 lg:grid-cols-[1fr_280px] items-start">
           <form {...regionProps("bookingsForm")} onSubmit={submit} noValidate className="fm-track-card p-6 sm:p-8 space-y-5">
             <Field id="bt-name" label={c("bookTimeName")} problem={problems.name}>
@@ -250,13 +276,32 @@ function NewBooking({ c }: { c: Copy }) {
               <textarea id="bt-note" className="fm-track-input" value={form.note} maxLength={1000}
                 onChange={(e) => setForm({ ...form, note: e.target.value })} />
             </Field>
-            {info.codes && service.priceMinor > 0 && <CodeBox serviceId={service.id} email={form.email} applied={applied} onApplied={setApplied} currency={currency} c={c} />}
-            {paysUpFront(priced) && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
+            {(!!service.packVisits || pack) && !applied && !gift && (
+              <ApplyBox region={regionProps("bookingsPackCode")} field="bt-pack" c={c} words={{ open: "bookTimePackOpen", label: "bookTimePackLabel", problem: "bookTimePackProblem" }}
+                applied={pack ? c("bookTimePackApplied", { last4: pack.last4, left: pack.left }) : ""}
+                onRemove={() => setPack(null)} maxLength={20}
+                onTry={async (typed) => setPack({ ...(await ask("bookingPack", { serviceId: service.id, pack: typed, start }) as Omit<BookingPackUse, "code">), code: typed })} />
+            )}
+            {info.codes && service.priceMinor > 0 && !pack && (
+              <ApplyBox region={regionProps("bookingsCode")} field="bt-code" c={c} words={{ open: "bookTimeCodeOpen", label: "bookTimeCodeLabel", problem: "bookTimeCodeProblem" }}
+                applied={applied ? `${c("bookTimeCodeApplied", { code: applied.code })} · −${moneyText(applied.discountMinor, currency)}` : ""}
+                onRemove={() => setApplied(null)} maxLength={40}
+                onTry={async (typed) => setApplied(await ask("bookingCode", { serviceId: service.id, code: typed, email: form.email.trim() }) as BookingCode)} />
+            )}
+            {info.giftCards && paysUpFront(priced) && !pack && (
+              <ApplyBox region={regionProps("bookingsGiftCard")} field="bt-gift" c={c} words={{ open: "bookTimeGiftOpen", label: "bookTimeGiftLabel", problem: "bookTimeGiftProblem" }}
+                applied={gift ? `${c("bookTimeGiftApplied", { last4: gift.last4 })} · −${moneyText(gift.giftMinor, currency)}` : ""}
+                onRemove={() => setGift(null)} maxLength={40}
+                onTry={async (typed) => setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed })} />
+            )}
+            {payNow > 0 && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
             <button type="submit" className="fm-track-btn w-full" disabled={busy}>
               {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("bookTimeBooking")}</>
-                : takesDeposit(priced) ? c("bookTimePayDeposit", { amount: moneyText(upFrontMinor(priced), currency) })
-                : paysUpFront(priced) ? c("bookTimePay", { amount: moneyText(priced.priceMinor, currency) })
+                : pack ? (service.holdCard ? c("bookTimeSaveCard") : c("bookTimePackBook"))
+                : paysUpFront(priced) && !payNow ? c("bookTimeGiftBook")
+                : takesDeposit(priced) ? c("bookTimePayDeposit", { amount: moneyText(payNow, currency) })
+                : paysUpFront(priced) ? c("bookTimePay", { amount: moneyText(payNow, currency) })
                 : service.holdCard ? c("bookTimeSaveCard") : c("bookTimeBook")}
             </button>
           </form>
@@ -264,12 +309,14 @@ function NewBooking({ c }: { c: Copy }) {
             <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
             {applied && <Row label={c("bookTimeDiscount")} value={`${applied.code} −${moneyText(applied.discountMinor, currency)}`} />}
+            {gift && <Row label={c("bookTimeGiftCard")} value={`••••${gift.last4} −${moneyText(gift.giftMinor, currency)}`} />}
+            {pack && <Row label={c("bookTimePackLabelRow")} value={c("bookTimePackApplied", { last4: pack.last4, left: pack.left })} />}
             <div className="fm-track-total">
               <span className="fm-track-mono">{c("bookTimePaid")}</span>
-              <strong translate="no">{priced.priceMinor > 0 ? moneyText(priced.priceMinor, currency) : c("bookTimeFree")}</strong>
+              <strong translate="no">{pack ? c("bookTimePackPaid") : priced.priceMinor > 0 ? moneyText(priced.priceMinor, currency) : c("bookTimeFree")}</strong>
             </div>
-            {takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
-            {priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
+            {!pack && takesDeposit(priced) && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(priced), currency), rest: moneyText(priced.priceMinor - upFrontMinor(priced), currency) })}</p>}
+            {!pack && priced.priceMinor > 0 && !paysUpFront(priced) && <p className="mt-2 text-sm leading-6 fm-muted">{c("bookTimePayAtShop")}</p>}
             <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 mt-5 cursor-pointer" onClick={() => setStep("time")}>
               <ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeChange")}
             </button>
@@ -281,9 +328,13 @@ function NewBooking({ c }: { c: Copy }) {
   );
 }
 
-/** "Have a discount code?": folded until asked for; the server prices the code (bookingCode) and checks it again on booking. */
-function CodeBox({ serviceId, email, applied, onApplied, currency, c }: {
-  serviceId: string; email: string; applied: BookingCode | null; onApplied: (code: BookingCode | null) => void; currency: string; c: Copy;
+/**
+ * "Have a discount code?" / "Have a gift card?": folded until asked for; the server checks what is typed (`onTry`, which
+ * throws when it can't be used) and checks it again on booking. Once applied it shows `applied` with a Remove button.
+ */
+function ApplyBox({ region, field, words, applied, onTry, onRemove, maxLength, c }: {
+  region: ReturnType<typeof regionProps>; field: string; words: { open: string; label: string; problem: string }; applied: string;
+  onTry: (typed: string) => Promise<void>; onRemove: () => void; maxLength: number; c: Copy;
 }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -291,39 +342,182 @@ function CodeBox({ serviceId, email, applied, onApplied, currency, c }: {
   const [checking, setChecking] = useState(false);
   if (applied) {
     return (
-      <div {...regionProps("bookingsCode")} className="fm-book-code" role="status">
-        <span translate="no">{c("bookTimeCodeApplied", { code: applied.code })} · −{moneyText(applied.discountMinor, currency)}</span>
-        <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer" onClick={() => { onApplied(null); setTyped(""); }}>{c("bookTimeCodeRemove")}</button>
+      <div {...region} className="fm-book-code" role="status">
+        <span translate="no">{applied}</span>
+        <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer" onClick={() => { onRemove(); setTyped(""); }}>{c("bookTimeCodeRemove")}</button>
       </div>
     );
   }
   if (!open) {
-    return <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer text-sm" onClick={() => setOpen(true)}>{c("bookTimeCodeOpen")}</button>;
+    return <button type="button" className="fm-track-link bg-transparent border-0 p-0 cursor-pointer text-sm" onClick={() => setOpen(true)}>{c(words.open)}</button>;
   }
   const apply = async () => {
     if (!typed.trim() || checking) return;
     setChecking(true);
     setProblem("");
     try {
-      onApplied(await ask("bookingCode", { serviceId, code: typed.trim(), email: email.trim() }) as BookingCode);
+      await onTry(typed.trim());
     } catch {
-      setProblem(c("bookTimeCodeProblem"));
+      setProblem(c(words.problem));
     } finally {
       setChecking(false);
     }
   };
   return (
-    <div {...regionProps("bookingsCode")}>
-      <Field id="bt-code" label={c("bookTimeCodeLabel")} problem={problem}>
+    <div {...region}>
+      <Field id={field} label={c(words.label)} problem={problem}>
         <div className="fm-book-code-row">
-          <input id="bt-code" className="fm-track-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={typed} maxLength={40}
-            aria-invalid={!!problem} aria-describedby={problem ? "bt-code-err" : undefined}
+          <input id={field} className="fm-track-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={typed} maxLength={maxLength}
+            aria-invalid={!!problem} aria-describedby={problem ? `${field}-err` : undefined}
             onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); apply(); } }} />
           <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={apply} disabled={checking || !typed.trim()}>
             {checking ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : c("bookTimeCodeApply")}
           </button>
         </div>
       </Field>
+    </div>
+  );
+}
+
+// ── Packs of visits ────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** "Coming back?": a service's pack of visits under its times, with a name and email form that opens the card page. */
+function PackOffer({ service, currency, c }: { service: BookingServiceView; currency: string; c: Copy }) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [problems, setProblems] = useState<{ name?: string; email?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const price = moneyText(service.packPriceMinor || 0, currency);
+  const saving = packSaving(service);
+  const buy = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    const found = { ...(name.trim() ? {} : { name: c("bookTimeNeedName") }), ...(EMAIL.test(email.trim()) ? {} : { email: c("bookTimeNeedEmail") }) };
+    setProblems(found);
+    if (found.name || found.email) { document.getElementById(found.name ? "bt-pack-name" : "bt-pack-email")?.focus(); return; }
+    setBusy(true);
+    setError("");
+    try {
+      const answer = await ask("bookingPackBuy", { serviceId: service.id, name, email });
+      if (answer?.url) { window.location.href = answer.url; return; }
+      // Studio's preview has no card page: it opens the sample pack's own page straight away.
+      if (answer?.code) { navigate(`/book?pack=${encodeURIComponent(answer.code)}`); return; }
+      setBusy(false);
+      setError(c("bookTimePackError"));
+    } catch {
+      setBusy(false);
+      setError(c("bookTimePackError"));
+    }
+  };
+  return (
+    <section {...regionProps("bookingsPack")} className="fm-track-card fm-book-pack p-5 sm:p-8 mt-6" aria-labelledby="bt-pack-title">
+      <p className="fm-track-mono mb-2" translate="no">{c("bookTimePackOffer", { visits: service.packVisits || 0, price })}</p>
+      <h2 id="bt-pack-title" className="fm-track-display text-3xl">{c("bookTimePackTitle")}</h2>
+      <p className="mt-3 text-base leading-7" translate="no">
+        {c("bookTimePackText", { visits: service.packVisits || 0, price })}
+        {saving > 0 && <> {c("bookTimePackSave", { amount: moneyText(saving, currency), visits: service.packVisits || 0 })}</>}
+        {!!service.packDays && <> {c("bookTimePackDays", { days: service.packDays })}</>}
+      </p>
+      {!open ? (
+        <button type="button" className="fm-track-btn fm-track-btn-ghost mt-5" onClick={() => setOpen(true)} translate="no">{c("bookTimePackBuy", { price })}</button>
+      ) : (
+        <form className="mt-5 space-y-4" onSubmit={buy} noValidate>
+          <div className="fm-book-wait-fields">
+            <Field id="bt-pack-name" label={c("bookTimeName")} problem={problems.name}>
+              <input id="bt-pack-name" className="fm-track-input" autoComplete="name" value={name} maxLength={100}
+                aria-invalid={!!problems.name} aria-describedby={problems.name ? "bt-pack-name-err" : undefined} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field id="bt-pack-email" label={c("bookTimeEmail")} problem={problems.email}>
+              <input id="bt-pack-email" type="email" className="fm-track-input" autoComplete="email" value={email} maxLength={320}
+                aria-invalid={!!problems.email} aria-describedby={problems.email ? "bt-pack-email-err" : undefined} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
+          </div>
+          {error && <p className="fm-book-error" role="alert">{error}</p>}
+          <button type="submit" className="fm-track-btn w-full" disabled={busy} translate="no">
+            {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimePackBuy", { price })}
+          </button>
+          <p className="text-sm leading-6 fm-muted">{c("bookTimePackBuyNote")}</p>
+        </form>
+      )}
+    </section>
+  );
+}
+
+/** A pack's own page (`/book?pack=<code>`): visits left, the last day to book, the visits coming up and Book a visit. */
+function PackPage({ code, c }: { code: string; c: Copy }) {
+  const [pack, setPack] = useState<BookingPackView | null>(null);
+  const [zone, setZone] = useState(shopTimeZone());
+  const [state, setState] = useState<"loading" | "ready" | "missing" | "failed">("loading");
+  const polls = useRef(0);
+  const load = (quiet = false) => {
+    if (!quiet) setState("loading");
+    return ask("bookingPackView", { pack: code }).then((answer) => {
+      setPack(answer.pack || null);
+      setState(answer.pack ? "ready" : "missing");
+    }).catch((err: any) => setState(err?.status === 404 || err?.code === "pack" ? "missing" : "failed"));
+  };
+  useEffect(() => { void load(); ask("bookingInfo").then((a) => { if (a?.zone) setZone(a.zone); }).catch(() => {}); }, [code]);
+  // Back from the card page: the payment usually lands within seconds, so look again a few times.
+  useEffect(() => {
+    if (pack?.status !== "held" || polls.current >= 8) return;
+    const timer = window.setTimeout(() => { polls.current += 1; void load(true); }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [pack]);
+
+  if (state === "loading") return <Loading c={c} />;
+  if (state === "failed") {
+    return (
+      <div className="fm-track-notice" data-tone="danger" role="alert">
+        <p>{c("bookTimeLoadError")}</p>
+        <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => void load()}>{c("bookTimeRetry")}</button>
+      </div>
+    );
+  }
+  if (state === "missing" || !pack) {
+    return (
+      <div className="space-y-6">
+        <div className="fm-track-notice" data-tone="danger" role="alert"><p>{c("bookTimePackMissing")}</p></div>
+        <Link to="/book" className="fm-track-link fm-track-mono"><CalendarPlus size={14} aria-hidden="true" /> {c("bookTimeAnother")}</Link>
+      </div>
+    );
+  }
+  const usable = pack.status === "active" && pack.left > 0;
+  return (
+    <div className="space-y-8">
+      <div {...regionProps("bookingsIntro")}>
+        <p className="fm-track-mono mb-3">{c("bookTimeEyebrow")}</p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <h1 className="fm-track-display text-5xl sm:text-6xl">{c("bookTimePackPageTitle")}</h1>
+          <span className="fm-track-stamp" data-state={pack.status === "active" ? "paid" : pack.status === "held" ? "unpaid" : "ended"}>{pack.serviceName}</span>
+        </div>
+        <p className="mt-4 text-base leading-7 fm-muted" role="status">
+          {pack.status === "held" ? c("bookTimePackPending") : pack.status === "closed" ? c("bookTimePackClosed") : pack.left ? c("bookTimePackPageText") : c("bookTimePackUsedUp")}
+        </p>
+      </div>
+      <div {...regionProps("bookingsPass")} className="fm-track-card p-6 sm:p-8 fm-track-ledger">
+        <Row label={c("bookTimeWhat")} value={pack.serviceName} />
+        <Row label={c("bookTimePackCode")} value={`••••${pack.last4}`} />
+        <Row label={c("bookTimePackUntil")} value={pack.expiresOn ? longDayText(pack.expiresOn) : c("bookTimePackNoEnd")} />
+        {pack.coming.length > 0 && <Row label={c("bookTimePackComing")} value={pack.coming.map((iso) => whenText(iso, iso, zone).split(", ").slice(0, 2).join(", ")).join(" · ")} />}
+        <div className="fm-track-total">
+          <span className="fm-track-mono">{c("bookTimePackLeft")}</span>
+          <strong translate="no">{c("bookTimePackLeftValue", { left: pack.left, visits: pack.visits })}</strong>
+        </div>
+        <div className="fm-book-pack-meter" aria-hidden="true">
+          {Array.from({ length: pack.visits }, (_, i) => <span key={i} data-used={i >= pack.left || undefined} />)}
+        </div>
+      </div>
+      {pack.status === "held" && (
+        <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => { polls.current = 0; void load(true); }}>{c("bookTimeCheckAgain")}</button>
+      )}
+      {usable && (
+        <Link to={`/book?service=${encodeURIComponent(pack.serviceId)}&usepack=${encodeURIComponent(code)}`} className="fm-track-btn">
+          <CalendarPlus size={16} aria-hidden="true" /> {c("bookTimePackBookVisit")}
+        </Link>
+      )}
     </div>
   );
 }
@@ -345,11 +539,12 @@ function Loading({ c }: { c: Copy }) {
   return <p role="status" className="fm-book-empty fm-track-mono"><Loader2 size={16} className="animate-spin inline-block" aria-hidden="true" /> {c("bookTimeLoading")}</p>;
 }
 
-function ServiceMeta({ service, currency, c }: { service: BookingServiceView; currency: string; c: Copy }) {
+/** The chosen service's line under its heading: length, price (after a discount code, or "Paid with your pack"), place. */
+function ServiceMeta({ service, currency, c, paidWith = "" }: { service: BookingServiceView; currency: string; c: Copy; paidWith?: string }) {
   return (
     <p className="mt-4 fm-book-meta fm-track-mono">
       <span><Clock size={12} aria-hidden="true" /> {lengthText(service.minutes)}</span>
-      <span translate="no">{service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree")}</span>
+      <span translate="no">{paidWith || (service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree"))}</span>
       {service.location && <span><MapPin size={12} aria-hidden="true" /> {service.location}</span>}
       {(service.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: service.places! })}</span>}
     </p>
@@ -719,9 +914,11 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
           <div className="fm-track-row"><span className="fm-track-mono">{c("bookTimeVideo")}</span><a className="text-right underline underline-offset-2" href={booking.meetUrl} target="_blank" rel="noopener noreferrer">{c("bookTimeJoin")}</a></div>
         )}
         {!!booking.discountMinor && <Row label={c("bookTimeDiscount")} value={`${booking.discountCode || ""} −${moneyText(booking.discountMinor, booking.currency)}`.trim()} />}
+        {!!booking.giftMinor && <Row label={c("bookTimeGiftCard")} value={`••••${booking.giftCardLast4 || ""} −${moneyText(booking.giftMinor, booking.currency)}`} />}
+        {!!booking.packLast4 && <Row label={c("bookTimePackLabelRow")} value={c("bookTimePackVisit", { last4: booking.packLast4, visit: booking.packVisit || 1, visits: booking.packVisits || 1 })} />}
         <div className="fm-track-total">
           <span className="fm-track-mono">{c("bookTimePaid")}</span>
-          <strong translate="no">{booking.priceMinor > 0 ? (fullyPaid ? c("bookTimePaidAmount", { amount: moneyText(booking.priceMinor, booking.currency) }) : moneyText(booking.priceMinor, booking.currency)) : c("bookTimeFree")}</strong>
+          <strong translate="no">{booking.payment === "pack" ? c("bookTimePackPaid") : booking.priceMinor > 0 ? (fullyPaid ? c("bookTimePaidAmount", { amount: moneyText(booking.priceMinor, booking.currency) }) : moneyText(booking.priceMinor, booking.currency)) : c("bookTimeFree")}</strong>
         </div>
         {booking.status !== "cancelled" && !fullyPaid && booking.depositPaid && (
           <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeDepositPaid", { deposit: moneyText(booking.depositMinor || 0, booking.currency), rest: moneyText(booking.dueMinor || 0, booking.currency) })}</p>
@@ -789,6 +986,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
             <p id="bt-cancel-q"><strong>{c("bookTimeCancelSure")}</strong></p>
             {booking.payment === "card" && booking.paid && <p>{c("bookTimeCancelRefund")}</p>}
             {booking.payment === "deposit" && booking.depositPaid && <p>{c("bookTimeCancelDepositRefund")}</p>}
+            {booking.payment === "pack" && <p>{c("bookTimePackCancelBack")}</p>}
           </div>
           <div className="fm-book-actions">
             <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void act("bookingCancel")}>

@@ -45,6 +45,14 @@ export type BookingService = {
   lateFeeMinor: number;
   /** A video call: with bookings going into Google Calendar, each booking gets its own Google Meet link. */
   meet: boolean;
+  /**
+   * A pack of visits sold on the Book a time page (16 November 2026): `packVisits` visits (0 = no pack) for
+   * `packPriceMinor`, paid by card up front, each visit then booked with the pack's code. `packDays`: how many days the
+   * pack lasts from the day it is bought (0 = it never runs out).
+   */
+  packVisits: number;
+  packPriceMinor: number;
+  packDays: number;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -154,25 +162,46 @@ export function depositOf(s: { payment?: string; priceMinor?: number; depositMin
  * The money side of one booking, in cents. `payment` on a booking: "free", "card" (all by card when booked), "deposit"
  * (part by card when booked, the rest at the visit) or "atShop". `paid` means all of it is paid; `depositPaid` that the
  * deposit is. `rest` is what was left, paid later by card from the client's own booking page. Every screen, email and
- * the server read a booking's money through these.
+ * the server read a booking's money through these. `giftCard` is a gift card's part of what is paid when booked: it is
+ * taken off the card page (`cardAsk`) and counts as received once the booking is paid (`giftTaken`).
  */
-export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string; fee?: { amountMinor?: number } | null; rest?: { amountMinor?: number } | null };
+export type BookingMoney = { payment?: string; priceMinor?: number; depositMinor?: number; paid?: boolean; depositPaid?: boolean; refund?: { amountMinor?: number } | null; status?: string; fee?: { amountMinor?: number } | null; rest?: { amountMinor?: number } | null; giftCard?: { amountMinor?: number; returned?: boolean } | null };
 /** What the card page asks for when this booking is made. */
-export const cardAsk = (b: BookingMoney): number => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
+export const cardAsk = (b: BookingMoney): number => Math.max(0, bookedAsk(b) - giftMinor(b));
+/** What is paid when booked, card and gift card together: the whole price, the deposit or nothing. */
+const bookedAsk = (b: BookingMoney): number => (b.payment === "card" ? b.priceMinor || 0 : b.payment === "deposit" ? b.depositMinor || 0 : 0);
+/** Did the booking's own payment (card page, gift card or both) go through? */
+const bookedPaid = (b: BookingMoney): boolean => (b.payment === "card" ? !!b.paid : b.payment === "deposit" ? !!b.depositPaid : false);
+/** The gift card's part of what is paid when booked. */
+const giftMinor = (b: BookingMoney): number => Math.max(0, Math.min(b.giftCard?.amountMinor || 0, bookedAsk(b)));
+/** What a gift card paid towards this booking (counted once the booking's payment went through). */
+export const giftTaken = (b: BookingMoney): number => (bookedPaid(b) ? giftMinor(b) : 0);
+/** What went back onto the gift card when the booking was cancelled. */
+export const giftReturned = (b: BookingMoney): number => (b.giftCard?.returned ? giftTaken(b) : 0);
+/**
+ * How much of `available` on a gift card goes towards `upFront` (what is paid when booked). What is left for the card
+ * page is never between nothing and the smallest card payment, so the gift card then covers a little less.
+ */
+export function giftCardPart(upFront: number, available: number): number {
+  const due = Math.max(0, Math.round(upFront) || 0);
+  const part = Math.min(due, Math.max(0, Math.floor(available) || 0));
+  const left = due - part;
+  return left > 0 && left < MIN_CARD_MINOR ? Math.max(0, due - MIN_CARD_MINOR) : part;
+}
 /** What was taken by card for this booking (the most that can go back to the card). */
 export const cardTaken = (b: BookingMoney): number => bookedCardTaken(b) + restTaken(b);
 /** What the card page took when the booking was made (the deposit, or the whole price). */
-export const bookedCardTaken = (b: BookingMoney): number => (b.payment === "card" ? (b.paid ? b.priceMinor || 0 : 0) : b.payment === "deposit" ? (b.depositPaid ? b.depositMinor || 0 : 0) : 0);
+export const bookedCardTaken = (b: BookingMoney): number => (bookedPaid(b) ? cardAsk(b) : 0);
 /** What was left and later paid by card from the booking page. */
 export const restTaken = (b: BookingMoney): number => Math.max(0, b.rest?.amountMinor || 0);
 /** A missed-booking or late-cancellation fee charged to the saved card. */
 export const feeTaken = (b: BookingMoney): number => Math.max(0, b.fee?.amountMinor || 0);
 /** What was received towards the price itself (not counting a fee). */
-const priceTaken = (b: BookingMoney): number => (b.paid ? b.priceMinor || 0 : cardTaken(b));
+const priceTaken = (b: BookingMoney): number => (b.paid ? b.priceMinor || 0 : cardTaken(b) + giftTaken(b));
 /** Everything the shop has received for this booking, a fee included, before refunds. */
 export const moneyTaken = (b: BookingMoney): number => priceTaken(b) + feeTaken(b);
-/** What the shop keeps: received less refunded. */
-export const moneyKept = (b: BookingMoney): number => Math.max(0, moneyTaken(b) - (b.refund?.amountMinor || 0));
+/** What the shop keeps: received less refunded (to the card, or back onto the gift card). */
+export const moneyKept = (b: BookingMoney): number => Math.max(0, moneyTaken(b) - (b.refund?.amountMinor || 0) - giftReturned(b));
 /** What is still to pay at the visit. Nothing for a cancelled booking. */
 export const balanceDue = (b: BookingMoney): number => (b.status === "cancelled" ? 0 : Math.max(0, (b.priceMinor || 0) - priceTaken(b)));
 /** The smallest amount a card page takes. */
@@ -247,6 +276,17 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   }
   // Card on file, for a fee after a missed booking. Paid in full has nothing left to charge, so it never holds a card.
   const holdCard = s.holdCard === true && payment !== "full";
+  // A pack of visits: only for a priced service, two visits or more, at least the smallest card payment.
+  const packVisits = payment !== "free" ? whole(s.packVisits, 0, MAX_PACK_VISITS, 0) : 0;
+  let packPriceMinor = 0;
+  let packDays = 0;
+  if (packVisits === 1) return { problem: "A pack has at least 2 visits." };
+  if (packVisits >= 2) {
+    packPriceMinor = Math.round(Number(s.packPriceMinor));
+    if (!Number.isFinite(packPriceMinor) || packPriceMinor < MIN_CARD_MINOR) return { problem: "Say what the pack costs: at least 0.50." };
+    if (packPriceMinor > 5_000_000) return { problem: "That pack price is too high." };
+    packDays = whole(s.packDays, 0, MAX_PACK_DAYS, 0);
+  }
   let lateFeeMinor = 0;
   if (holdCard) {
     lateFeeMinor = Math.round(Number(s.lateFeeMinor));
@@ -272,6 +312,9 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     holdCard,
     lateFeeMinor,
     meet: s.meet === true,
+    packVisits,
+    packPriceMinor,
+    packDays,
   };
 }
 
@@ -550,4 +593,53 @@ export function bookingsFeedIcs(name: string, events: readonly IcsEventInput[], 
 export function googleCalendarLink({ title, start, end, location = "", details = "" }: { title: string; start: number; end: number; location?: string; details?: string }): string {
   const q = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${icsTime(start)}/${icsTime(end)}`, ...(location ? { location } : {}), ...(details ? { details } : {}) });
   return `https://calendar.google.com/calendar/render?${q.toString()}`;
+}
+
+// ── Packs of visits (16 November 2026) ──────────────────────────────────────────────────────────────────────────
+
+export const MAX_PACK_VISITS = 50;
+export const MAX_PACK_DAYS = 730;
+/** Does this service sell a pack of visits? */
+export const offersPack = (s: { packVisits?: number; packPriceMinor?: number } | null | undefined): boolean =>
+  (Number(s?.packVisits) || 0) >= 2 && (Number(s?.packPriceMinor) || 0) >= MIN_CARD_MINOR;
+
+/** A bought pack as the server keeps it (`bookingPacks/{id}`). Each booking made with it is one use. */
+export type BookingPack = {
+  serviceId?: string;
+  visits?: number;
+  uses?: { bookingId: string; at?: string; returned?: boolean }[];
+  /** "held" while its card page is open, "active" once paid, "closed" when refunded or ended by the shop. */
+  status?: string;
+  /** The last shop day it can be booked for, or null when it never runs out. */
+  expiresOn?: string | null;
+};
+/** The visits booked with a pack and not given back. */
+export const packUsed = (p: BookingPack): number => (p.uses || []).filter((u) => !u.returned).length;
+/** The visits still to book. */
+export const packLeft = (p: BookingPack): number => Math.max(0, (Number(p.visits) || 0) - packUsed(p));
+/** The last shop day a pack bought on `day` can be booked for: `days` later, or null when it never runs out. */
+export const packEndsOn = (day: string, days: number): string | null => (days > 0 ? addDays(day, days) : null);
+
+export type PackProblem = "not_found" | "not_paid" | "closed" | "other_service" | "expired" | "used_up";
+/** The customer's words for each reason a pack can't book this visit. */
+export const PACK_MESSAGES: Record<PackProblem, string> = {
+  not_found: "We couldn't find that pack. Check the code in your email.",
+  not_paid: "This pack isn't paid for yet.",
+  closed: "This pack has been closed. Please contact the shop.",
+  other_service: "This pack is for another service.",
+  expired: "This pack has run out of time.",
+  used_up: "Every visit in this pack has been booked.",
+};
+/**
+ * Why `pack` can't book a visit to `serviceId` on shop day `day` (the visit's own day), or null when it can. A pack
+ * running out only stops visits after its last day; a visit booked before then keeps its place.
+ */
+export function packProblem(pack: BookingPack | null | undefined, serviceId: string, day: string): PackProblem | null {
+  if (!pack) return "not_found";
+  if (pack.status === "held") return "not_paid";
+  if (pack.status !== "active") return "closed";
+  if (pack.serviceId !== serviceId) return "other_service";
+  if (pack.expiresOn && day > pack.expiresOn) return "expired";
+  if (packLeft(pack) <= 0) return "used_up";
+  return null;
 }

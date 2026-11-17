@@ -66,4 +66,26 @@ describe("the header's Book a time link", () => {
     ask("bookingStart", { serviceId: "sample-session", start: "2026-11-18T15:00:00.000Z", code: "SPRING" });
     expect(ask("bookingView").booking).toMatchObject({ priceMinor: 4050, discountCode: "SPRING", discountMinor: 450 });
   });
+
+  it("lets any gift card pay up to 25.00 of what is paid now, and the booking shows it", () => {
+    expect(ask("bookingInfo").giftCards).toBe(true);
+    expect(ask("bookingGiftCard", { serviceId: "sample-session", giftCard: "abcd-efgh-jklm-np23" })).toEqual({ last4: "NP23", giftMinor: 2500, payNowMinor: 2000 });
+    expect(ask("bookingGiftCard", { serviceId: "sample-class", giftCard: "ABCDEFGH" })).toEqual({ last4: "EFGH", giftMinor: 2000, payNowMinor: 0 });
+    expect(() => ask("bookingGiftCard", { serviceId: "sample-visit", giftCard: "ABCDEFGH" })).toThrow();
+    ask("bookingStart", { serviceId: "sample-session", start: "2026-11-18T15:00:00.000Z", giftCard: "ABCD-EFGH-JKLM-NP23" });
+    expect(ask("bookingView").booking).toMatchObject({ giftCardLast4: "NP23", giftMinor: 2500 });
+    ask("bookingMove", { start: "2026-11-19T15:00:00.000Z" });
+    expect(ask("bookingView").booking).toMatchObject({ giftMinor: 2500 });
+  });
+
+  it("sells a sample pack of visits, opens its page and books with any twelve-character code", () => {
+    expect(ask("bookingInfo").services.find((s: any) => s.id === "sample-session")).toMatchObject({ packVisits: 5, packPriceMinor: 18000 });
+    expect(ask("bookingPackBuy", { serviceId: "sample-session", name: "Sam", email: "sam@example.com" })).toEqual({ code: "SAMP-LEPA-CK42" });
+    expect(ask("bookingPackView", { pack: "SAMP-LEPA-CK42" }).pack).toMatchObject({ last4: "CK42", visits: 5, left: 3, status: "active" });
+    expect(ask("bookingPack", { serviceId: "sample-session", pack: "abcd-efgh-jk42" })).toMatchObject({ last4: "JK42", left: 3, visits: 5 });
+    expect(() => ask("bookingPack", { serviceId: "sample-visit", pack: "ABCD-EFGH-JK42" })).toThrow();
+    expect(() => ask("bookingPack", { serviceId: "sample-session", pack: "ABCD" })).toThrow();
+    ask("bookingStart", { serviceId: "sample-session", start: "2026-11-18T15:00:00.000Z", pack: "ABCD-EFGH-JK42" });
+    expect(ask("bookingView").booking).toMatchObject({ payment: "pack", priceMinor: 0, packLast4: "JK42", packVisit: 3, packVisits: 5 });
+  });
 });

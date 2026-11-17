@@ -21,7 +21,7 @@ import { nightlyBackupApi } from "../app/admin/BackupsExportCard";
 import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stockroomCopies";
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
-import { bookingsData, type Booking } from "../app/admin/bookingsApi";
+import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
 import { DEFAULT_BOOKING_SETTINGS, type BookingService } from "../shared/bookingTimes";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
@@ -82,11 +82,11 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
 {
   const mode = new URLSearchParams(window.location.search).get("bookings") || "on";
   const service = (id: string, name: string, minutes: number, priceMinor: number, order: number, extra: Partial<BookingService> = {}): BookingService => ({
-    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, ...extra,
+    id, name, description: "", minutes, gapAfter: 15, priceMinor, payment: priceMinor ? "full" : "free", depositMinor: 0, depositPercent: 0, location: "456 Example Ave", active: true, order, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, ...extra,
   });
   let services: BookingService[] = mode === "new" ? [] : [
     service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000, meet: true }),
-    service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
+    service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
     service("binding", "Bookbinding class", 90, 3000, 2, { active: false, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25 }),
   ];
@@ -106,6 +106,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
     booking("bk-6", services[3], at(0, 9), "Flo Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false }),
     booking("bk-8", services[2], at(1, 13), "Hal Example"),
+    booking("bk-12", services[1], at(2, 10), "Kai Example", { payment: "pack", priceMinor: 0, listPriceMinor: 4500, paid: true, pack: { id: "p".repeat(40), last4: "K7QD", visit: 2, visits: 5 } }),
     booking("bk-9", services[2], at(1, 13), "Ivy Example", { status: "held", paid: false }),
     booking("bk-10", services[2], at(1, 13), "Jo Example"),
     // Started two hours ago, so Charge fee shows whatever the time of day.
@@ -128,6 +129,15 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       ...(i % 13 === 5 ? { status: "cancelled" as const, refund: s.priceMinor ? { amountMinor: s.priceMinor - 1000, at: at(days - 1, 9) } : null } : {}),
     });
   }) : [];
+  // Packs of visits for the Packs tab: one running out, one fresh, one ending soon, one used up and one closed.
+  const pk = (id: string, name: string, left: number, extra: Partial<PackRow> = {}): PackRow => ({
+    id: id.repeat(40).slice(0, 40), last4: name.slice(0, 2).toUpperCase() + "7Q", serviceId: "riso", serviceName: "Risograph printing session", name, email: `${name.split(" ")[0].toLowerCase()}@example.com`,
+    visits: 5, left, status: "active", priceMinor: 18000, currency: "CAD", expiresOn: dayAhead(300), paidAt: at(-20, 10), refundMinor: 0, uses: [], ...extra,
+  });
+  let packRows: PackRow[] = mode === "on" ? [
+    pk("p", "Kai Example", 3), pk("q", "Lea Example", 1), pk("r", "Mo Example", 5, { paidAt: at(-1, 9) }), pk("s", "Ned Example", 2, { expiresOn: dayAhead(9) }),
+    pk("t", "Oda Example", 0, { paidAt: at(-90, 9) }), pk("u", "Pat Example", 2, { status: "closed", refundMinor: 7200, paidAt: at(-60, 9) }),
+  ] : [];
   const watchers = new Set<() => void>();
   const changed = () => watchers.forEach((w) => w());
   bookingsData.watchOn = (onChange) => { onChange(mode !== "off"); return () => {}; };
@@ -144,8 +154,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "deleteService") services = services.filter((x) => x.id !== id);
     if (op === "saveSettings") settings = { ...settings, ...(body.settings as object) };
     if (op === "setLive") settings = { ...settings, live: body.live === true };
-    if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b));
+    if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", ...(b.pack && body.packBack !== false ? { pack: { ...b.pack, returned: true } } : {}) } : b));
     if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
+    if (op === "packs") return { packs: packRows };
+    if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };
     if (op === "walkIn") {
