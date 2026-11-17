@@ -23,6 +23,8 @@ import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/adm
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
 import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
 import { DEFAULT_BOOKING_SETTINGS, type BookingService } from "../shared/bookingTimes";
+import { waysData } from "../app/admin/waysApi";
+import { waysIn } from "../shared/waysToSell";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 // Read at load: the fixture puts the address back to the page it opens, so later reads would miss it.
@@ -35,6 +37,13 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   // Author entries waiting on a title (the old stockroom's author inbox).
   submissions: { "night-songs": { sales: { s1: true }, expenses: { e1: true, e2: true } } },
 });
+
+// ── Settings › General › Ways to sell (beta): `?ways=events,classes` are the ways the platform turned on for the shop
+// (none without it, so the section stays hidden). In memory. ──
+{
+  const allowed = waysIn(Object.fromEntries((new URLSearchParams(window.location.search).get("ways") || "").split(",").map((id) => [id, true])));
+  waysData.watchAllowed = (onChange) => { onChange(allowed); return () => {}; };
+}
 
 // ── Stockroom › QR codes (?page=stockroom/qrcodes): two items with a card payment link, one without, and one own code
 // kept in memory (nothing reaches Firestore). ──

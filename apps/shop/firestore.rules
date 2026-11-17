@@ -383,7 +383,7 @@ service cloud.firestore {
         // (Settings › General › What you sell), which reads before `publishes`.
         allow read: if isAdminReader();
         allow create, update: if isAdmin()
-          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "ways", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
           && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
             && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
             && request.resource.data.get("country", null) == resource.data.get("country", null)
@@ -398,6 +398,14 @@ service cloud.firestore {
                 || resource.data.get("sells", "") in ["hair", "wellness", "lessons", "fitness", "studio", "services"]
                 || get(/databases/$(database)/documents/shops/$(shopId)/platform/features).data.get("bookings", false) == true)))
           && (!("sellsProducts" in request.resource.data) || request.resource.data.sellsProducts is bool)
+          // Ways to sell (beta; Settings › General › Ways to sell): the owner's own switches, true or false for each
+          // of the six ways. A way is on only while the platform allows it too (`platform/features` › `ways`, which
+          // no browser can write), and the server checks both before it sells anything.
+          && (!("ways" in request.resource.data) || (request.resource.data.ways is map
+            && request.resource.data.ways.keys().hasOnly(["events", "classes", "digital", "giving", "memberships", "rentals"])
+            && request.resource.data.ways.get("events", false) is bool && request.resource.data.ways.get("classes", false) is bool
+            && request.resource.data.ways.get("digital", false) is bool && request.resource.data.ways.get("giving", false) is bool
+            && request.resource.data.ways.get("memberships", false) is bool && request.resource.data.ways.get("rentals", false) is bool))
           && (!("done" in request.resource.data) || request.resource.data.done is map && request.resource.data.done.size() <= 20)
           && (!("hiddenAt" in request.resource.data) || request.resource.data.hiddenAt is string)
           && (!("details" in request.resource.data) || (request.resource.data.details is map

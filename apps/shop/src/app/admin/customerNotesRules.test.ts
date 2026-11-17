@@ -20,7 +20,7 @@ describe("admin-only customer data rules", () => {
   it("the first-week checklist is admin-only with a bounded shape (plan 3.3)", () => {
     const b = block("firstWeek");
     expect(b).toMatch(/allow read: if isAdminReader\(\);/);
-    expect(b).toMatch(/hasOnly\(\["sellingToday", "publishes", "sells", "sellsProducts", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"\]\)/);
+    expect(b).toMatch(/hasOnly\(\["sellingToday", "publishes", "sells", "sellsProducts", "ways", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"\]\)/);
     expect(b).toMatch(/"details" in request\.resource\.data/);
   expect(b).toMatch(/"bring" in request\.resource\.data/);
   expect(b).toMatch(/"shipping" in request\.resource\.data/);

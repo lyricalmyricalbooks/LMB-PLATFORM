@@ -67,6 +67,7 @@ import { practiceCheckout, type PracticeState } from "../lib/practiceCheckout";
 import { studioHash } from "../lib/studioLocation";
 import { useShopWords } from "./shopWords";
 import { WhatYouSellCard } from "./WhatYouSellCard";
+import { WaysToSellCard } from "./WaysToSellCard";
 import { BANK_TRANSFER, BANK_TRANSFER_FULL, MONEY_SIGN, US_SHOP, POSTAL_LABEL } from "./moneySign";
 
 export function ShopSettings({ 
@@ -263,6 +264,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           <FormSection title="How the shop runs" description="Sets the words in your admin and emails.">
             <WhatYouSellCard bare />
           </FormSection>
+          <WaysToSellCard />
           <SettingsAnchor id="gs-policies">
             <FormSection title="Store policies" description="Footer links. Blank ones hide.">
               {POLICY_KEYS.map((k) => {
