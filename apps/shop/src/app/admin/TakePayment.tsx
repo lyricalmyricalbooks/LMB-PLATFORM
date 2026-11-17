@@ -11,7 +11,7 @@ import { Check, Copy, CreditCard, Mail, Plus, QrCode } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, EmptyState, ErrorState, GhostButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextField, useConfirm } from "./riso/components";
 import { CheckInButton } from "./CheckInDialog";
-import { bookingsAdmin, followBookings, readBookingSetup, type Booking, type CardReader, type CardReaders, type ReaderState } from "./bookingsApi";
+import { bookingsAdmin, followBookings, readBookingSetup, type Booking, type CardReader, type CardReaders, type ReaderPairing, type ReaderState } from "./bookingsApi";
 import { moneyText, timeText } from "./bookingsView";
 import { amountMinor, deskState, dueToday } from "./deskPayment";
 import { dayOf, MIN_CARD_MINOR, type BookingService, type BookingSettings } from "../../shared/bookingTimes";
@@ -159,7 +159,8 @@ function ReadersTile({ readers, error, onChange, onRetry }: { readers: CardReade
     if (!(await confirm({ title: `Remove ${r.label}?`, message: "Payments can't go to it until you add it again with a new code.", confirmLabel: "Remove" }))) return;
     setRemoving(r.id);
     try {
-      onChange(await bookingsAdmin<CardReaders>("readerRemove", { readerId: r.id }));
+      await bookingsAdmin("readerRemove", { readerId: r.id });
+      onChange(await bookingsAdmin<CardReaders>("readers"));
     } catch (e: any) {
       toast.error(e?.message || "The reader couldn't be removed. Please try again.");
     } finally {
@@ -175,7 +176,7 @@ function ReadersTile({ readers, error, onChange, onRetry }: { readers: CardReade
       {error && !readers ? (
         <div className="tp-quiet-row"><p className="tp-quiet">{error}</p><GhostButton size="sm" onClick={onRetry}>Try again</GhostButton></div>
       ) : !readers ? <LoadingState /> : !readers.available ? (
-        <p className="tp-quiet">Card readers work with Stripe for now. Clients can still pay with the QR code.</p>
+        <p className="tp-quiet">Connect card payments in Settings › Payments to use a card reader. Clients can still pay with the QR code.</p>
       ) : readers.readers.length === 0 ? (
         <p className="tp-quiet">No reader yet. Add one and payments go straight to it: the client taps, inserts or swipes their card.</p>
       ) : (
@@ -184,13 +185,15 @@ function ReadersTile({ readers, error, onChange, onRetry }: { readers: CardReade
             <li key={r.id} className="tp-reader">
               <span className="tp-reader-icon" aria-hidden><CreditCard size={18} /></span>
               <span className="tp-who"><strong>{r.label}</strong>{r.device && <span>{r.device}</span>}</span>
-              <StatusBadge tone={r.online ? "success" : "neutral"}>{r.online ? "Online" : "Offline"}</StatusBadge>
+              {r.online === null ? <span aria-hidden /> : <StatusBadge tone={r.online ? "success" : "neutral"}>{r.online ? "Online" : "Offline"}</StatusBadge>}
               <GhostButton size="sm" onClick={() => void remove(r)} busy={removing === r.id} disabled={!!removing}>Remove</GhostButton>
             </li>
           ))}
         </ul>
       )}
-      {adding && <AddReader testMode={readers?.testMode === true} onClose={() => setAdding(false)} onAdded={(r) => { onChange(r); setAdding(false); }} />}
+      {adding && (readers?.pairsWithCode
+        ? <PairTerminal onClose={() => setAdding(false)} onDone={(r) => { onChange(r); setAdding(false); }} />
+        : <AddReader testMode={readers?.testMode === true} onClose={() => setAdding(false)} onAdded={(r) => { onChange(r); setAdding(false); }} />)}
       {confirmNode}
     </section>
   );
@@ -206,9 +209,9 @@ function AddReader({ testMode, onClose, onAdded }: { testMode: boolean; onClose:
     setBusy(true);
     setError("");
     try {
-      const r = await bookingsAdmin<CardReaders>("readerAdd", { code: code.trim(), label: label.trim() || "Front desk" });
+      await bookingsAdmin("readerAdd", { code: code.trim(), label: label.trim() || "Front desk" });
       toast.success(`${label.trim() || "Front desk"} is ready`);
-      onAdded(r);
+      onAdded(await bookingsAdmin<CardReaders>("readers"));
     } catch (e: any) {
       setError(e?.message || "The reader couldn't be added just now. Please try again.");
     } finally {
@@ -223,6 +226,58 @@ function AddReader({ testMode, onClose, onAdded }: { testMode: boolean; onClose:
         <TextField label="Pairing code" placeholder="apple-grape-orange" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" data-autofocus
           hint={testMode ? "Test mode: enter simulated-wpe for a pretend reader." : undefined} />
         <TextField label="Name" placeholder="Front desk" hint="So you can tell your readers apart." value={label} onChange={(e) => setLabel(e.target.value)} autoComplete="off" />
+        {error && <p className="bkg-error" role="alert">{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Square Terminal: the shop asks for a code, the owner types it on the Terminal (Sign in › Use a device code), then
+ * Done lists it. Square keeps a code for five minutes.
+ */
+function PairTerminal({ onClose, onDone }: { onClose: () => void; onDone: (r: CardReaders) => void }) {
+  const [label, setLabel] = useState("");
+  const [pairing, setPairing] = useState<ReaderPairing | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const getCode = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      setPairing((await bookingsAdmin<{ pairing: ReaderPairing }>("readerAdd", { label: label.trim() || "Front desk" })).pairing);
+    } catch (e: any) {
+      setError(e?.message || "A code couldn't be made just now. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const done = async () => {
+    setBusy(true);
+    try {
+      const r = await bookingsAdmin<CardReaders>("readers");
+      if (r.readers.some((x) => x.label === (label.trim() || "Front desk"))) toast.success(`${label.trim() || "Front desk"} is ready`);
+      onDone(r);
+    } catch (e: any) {
+      setError(e?.message || "The card readers couldn't be reached just now. Please try again.");
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={onClose} title="Add a Square Terminal"
+      description={pairing ? "On the Terminal, choose Sign in, then Use a device code, and type this code." : "Name the Terminal, then type the code we give you on its screen."}
+      footer={pairing
+        ? <><SecondaryButton onClick={() => void getCode()} disabled={busy}>New code</SecondaryButton><PrimaryButton onClick={() => void done()} busy={busy}>Done</PrimaryButton></>
+        : <><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void getCode()} busy={busy}>Get a code</PrimaryButton></>}>
+      <div className="bkg-form">
+        {pairing ? (
+          <>
+            <p className="tp-pair-code" aria-label={`Code ${pairing.code.split("").join(" ")}`}>{pairing.code}</p>
+            <p className="tp-quiet">The code works for five minutes. Ask for a new one if it runs out.</p>
+          </>
+        ) : (
+          <TextField label="Name" placeholder="Front desk" hint="So you can tell your readers apart." value={label} onChange={(e) => setLabel(e.target.value)} autoComplete="off" data-autofocus />
+        )}
         {error && <p className="bkg-error" role="alert">{error}</p>}
       </div>
     </Dialog>

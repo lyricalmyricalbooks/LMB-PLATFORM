@@ -464,6 +464,7 @@ function createSquareProvider({ db, platform = null }) {
       return { ...before, status: "expired" };
     }
     return Object.freeze({
+      reader: terminalReader(linkMode),
       async open(params, idempotencyKey) {
         const item = params?.line_items?.[0]?.price_data;
         const metadata = params?.metadata || {};
@@ -549,6 +550,71 @@ function createSquareProvider({ db, platform = null }) {
           }
         }
         return { closed };
+      },
+    });
+  }
+
+  // Card readers at the desk (Square Terminal, Services plan 2, A4), in the words bookings.js uses for Stripe's smart
+  // readers. Square pairs a Terminal the other way round: the shop asks for a code and the owner types it on the
+  // Terminal (`pairsWithCode`). Readers belong to the shop's one Square location (`fixedPlace`). Square has no call to
+  // unpair one, so Remove only hides it here. A charge is a Terminal checkout (`sqterm_<id>`); once it completes, its
+  // payment (`sqpay_<id>`) is what refunds use, and any tip the customer added on the Terminal comes with it.
+  // In test mode Square's Sandbox lists one test reader that pays by itself.
+  const SANDBOX_TERMINAL = "9fa747a2-25ff-48ee-b078-04381f7c828f";
+  const TERMINAL = "sqterm_";
+  const DEVICE = "sqdev_";
+  const readersDoc = () => db.collection("bookingReaders").doc("square");
+  function terminalReader(mode) {
+    const testMode = mode === "test";
+    const deviceOf = (readerId) => String(readerId || "").replace(DEVICE, "");
+    const hidden = async () => {
+      const snap = await readersDoc().get();
+      return new Set(snap.exists && Array.isArray(snap.data()?.[`hidden_${mode}`]) ? snap.data()[`hidden_${mode}`] : []);
+    };
+    const STOPPED = { BUYER_CANCELED: "The customer cancelled on the reader.", TIMED_OUT: "The card reader payment ran out of time." };
+    return Object.freeze({
+      testMode,
+      pairsWithCode: true,
+      fixedPlace: "square",
+      async list() {
+        const gone = await hidden();
+        const paired = (await call("square.terminal.readers", mode, {})).data || [];
+        const readers = paired.filter((r) => !gone.has(r.id)).map((r) => ({ id: `${DEVICE}${r.id}`, label: String(r.name || "Square Terminal"), online: null, device: "Square Terminal", action: null }));
+        if (testMode && !gone.has(SANDBOX_TERMINAL)) readers.push({ id: `${DEVICE}${SANDBOX_TERMINAL}`, label: "Test reader", online: true, device: "Square Terminal", action: null });
+        return readers;
+      },
+      async pair({ label }, idempotencyKey) {
+        const made = await call("square.terminal.pair", mode, { name: label, idempotencyKey });
+        // A Terminal paired again after Remove shows again.
+        const snap = await readersDoc().get();
+        if (snap.exists && Array.isArray(snap.data()?.[`hidden_${mode}`]) && snap.data()[`hidden_${mode}`].length) await readersDoc().set({ [`hidden_${mode}`]: [] }, { merge: true });
+        return { code: String(made.code || ""), pairBy: made.pairBy || null };
+      },
+      async remove(readerId) {
+        const all = [...(await hidden()), deviceOf(readerId)].slice(-50);
+        await readersDoc().set({ [`hidden_${mode}`]: all }, { merge: true });
+      },
+      read: async (readerId) => ({ id: readerId, label: "", online: null, device: "Square Terminal", action: null }),
+      async charge({ readerId, amountMinor, currency, description, metadata, tipPercents }, idempotencyKey) {
+        const referenceId = metadata?.booking ? String(metadata.booking).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) : undefined;
+        const made = await call("square.terminal.checkout.create", mode, {
+          deviceId: deviceOf(readerId), amountMinor, currency, note: description, ...(referenceId ? { referenceId } : {}),
+          ...(Array.isArray(tipPercents) && tipPercents.length ? { tipPercents } : {}), idempotencyKey,
+        });
+        return { intent: `${TERMINAL}${made.id}` };
+      },
+      async payment(intent) {
+        const read = await call("square.terminal.checkout.retrieve", mode, { id: String(intent).replace(TERMINAL, "") });
+        if (read.status === "COMPLETED") return { status: "succeeded", amountMinor: read.totalMinor || read.amountMinor || 0, tipMinor: read.tipMinor || 0, paymentIntent: read.paymentId ? squarePaymentId(read.paymentId) : null, error: "" };
+        if (read.status === "CANCELED") return { status: "canceled", amountMinor: 0, tipMinor: 0, error: STOPPED[read.cancelReason] || "" };
+        return { status: "processing", amountMinor: 0, tipMinor: 0, error: "" };
+      },
+      async cancel(_readerId, intent) {
+        if (intent) await call("square.terminal.checkout.cancel", mode, { id: String(intent).replace(TERMINAL, "") }).catch(() => {});
+      },
+      // The Sandbox's test reader pays by itself; a real Terminal can't be tapped from here.
+      testCard: async () => {
+        if (!testMode) throw Object.assign(new Error("Test cards work in test mode only."), { code: "test_only" });
       },
     });
   }

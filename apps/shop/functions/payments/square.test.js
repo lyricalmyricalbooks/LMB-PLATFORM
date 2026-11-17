@@ -72,6 +72,11 @@ function fakeService({ live = false } = {}) {
     if (op === "square.refunds.retrieve") return world.refunds.has(args.id) ? reply(200, { ...world.refunds.get(args.id) }) : missing();
     if (op === "square.refunds.forPayment") return reply(200, { data: [...world.refunds.values()].filter((r) => r.paymentId === args.paymentId) });
     if (op === "square.disputes.forPayment") return reply(200, { data: world.disputes.filter((d) => d.paymentId === args.paymentId) });
+    if (op === "square.terminal.readers") return reply(200, { data: [{ id: "DEV1", name: "Front desk" }] });
+    if (op === "square.terminal.pair") return reply(200, { id: "DC1", code: "EBCARJ", name: args.name, status: "UNPAIRED", pairBy: "2026-10-28T12:05:00Z" });
+    if (op === "square.terminal.checkout.create") { (world.terminal ??= []).push(args); return reply(200, { id: `TC${world.terminal.length}`, status: "PENDING" }); }
+    if (op === "square.terminal.checkout.retrieve") return reply(200, world.terminalRead || { id: args.id, status: "PENDING" });
+    if (op === "square.terminal.checkout.cancel") { world.cancelled = args.id; return reply(200, { id: args.id, status: "CANCELED" }); }
     if (op === "square.payouts.retrieve") return args.id === "po_1" ? reply(200, { id: "po_1", status: world.payoutStatus || "PAID", arrivalDate: "2026-10-31", amountMinor: 3814, currency: "CAD" }) : missing();
     return reply(400, { error: { code: "bad_request", message: `unknown call ${op}` } });
   };
@@ -495,5 +500,33 @@ describe("Square charges in its account's currency", () => {
     service.world.statusFails = true;
     const card = await payments.forCheckout({ payments: { testMode: true } });
     expect(await card.chargeCurrency("eur")).toBe("eur");
+  });
+});
+
+describe("Square Terminals at the desk (Services plan 2, A4)", () => {
+  test("lists paired Terminals (and Square's test reader in test mode), pairs by code, hides a removed one", async () => {
+    const { payments, db } = make();
+    const reader = (await payments.standaloneCheckout("test")).reader;
+    expect(reader).toMatchObject({ pairsWithCode: true, fixedPlace: "square", testMode: true });
+    expect((await reader.list()).map((r) => [r.id, r.label])).toEqual([["sqdev_DEV1", "Front desk"], ["sqdev_9fa747a2-25ff-48ee-b078-04381f7c828f", "Test reader"]]);
+    expect(await reader.pair({ label: "Back room" }, "pair-1")).toEqual({ code: "EBCARJ", pairBy: "2026-10-28T12:05:00Z" });
+    await reader.remove("sqdev_DEV1");
+    expect(db.docs["bookingReaders/square"]).toMatchObject({ hidden_test: ["DEV1"] });
+    expect((await reader.list()).map((r) => r.id)).toEqual(["sqdev_9fa747a2-25ff-48ee-b078-04381f7c828f"]);
+  });
+
+  test("a charge is a Terminal checkout with the tip choices; a completed one answers with its payment and tip", async () => {
+    const { payments, service } = make();
+    const reader = (await payments.standaloneCheckout("test")).reader;
+    const started = await reader.charge({ readerId: "sqdev_DEV1", amountMinor: 4500, currency: "CAD", description: "Cut (Gil)", metadata: { booking: "booking001" }, tipPercents: [15, 18, 20] }, "booking-reader-booking001-4500-1");
+    expect(started).toEqual({ intent: "sqterm_TC1" });
+    expect(service.world.terminal[0]).toEqual({ deviceId: "DEV1", amountMinor: 4500, currency: "CAD", note: "Cut (Gil)", referenceId: "booking001", tipPercents: [15, 18, 20], idempotencyKey: "booking-reader-booking001-4500-1" });
+    expect(await reader.payment("sqterm_TC1")).toMatchObject({ status: "processing" });
+    service.world.terminalRead = { id: "TC1", status: "COMPLETED", paymentId: "PAY9", amountMinor: 4500, totalMinor: 5310, tipMinor: 810 };
+    expect(await reader.payment("sqterm_TC1")).toEqual({ status: "succeeded", amountMinor: 5310, tipMinor: 810, paymentIntent: "sqpay_PAY9", error: "" });
+    service.world.terminalRead = { id: "TC1", status: "CANCELED", cancelReason: "BUYER_CANCELED" };
+    expect(await reader.payment("sqterm_TC1")).toMatchObject({ status: "canceled", error: "The customer cancelled on the reader." });
+    await reader.cancel("sqdev_DEV1", "sqterm_TC1");
+    expect(service.world.cancelled).toBe("TC1");
   });
 });

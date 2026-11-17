@@ -64,7 +64,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   const sessions = new Map();
   const charges = [];
   // Card readers (Stripe smart readers): one place, readers by code, payments the test taps or declines.
-  const terminal = { places: [], readers: new Map(), intents: new Map(), offline: false, cancelled: [] };
+  const terminal = { places: [], readers: new Map(), intents: new Map(), offline: false, cancelled: [], tipSettings: [], pairings: [] };
   const fakeReader = {
     testMode: true,
     async makePlace({ name, address }) { terminal.places.push({ name, address }); return `tml_${terminal.places.length}`; },
@@ -77,16 +77,37 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
     },
     async remove(id) { terminal.readers.delete(id); },
     async read(id) { return terminal.readers.get(id) || null; },
-    async charge({ readerId, amountMinor, metadata }, key) {
+    async setTips(args) { terminal.tipSettings.push(args); return args.config || "tmc_1"; },
+    async charge({ readerId, amountMinor, metadata, tipPercents }, key) {
       if (terminal.offline) throw new Error("Reader is offline");
       const intent = `pi_reader_${terminal.intents.size + 1}`;
-      terminal.intents.set(intent, { status: "requires_payment_method", amountMinor, metadata, key, readerId });
+      terminal.intents.set(intent, { status: "requires_payment_method", amountMinor, metadata, key, readerId, tipPercents, tipMinor: 0 });
       terminal.readers.get(readerId).action = { status: "in_progress", error: "", intent };
       return { intent };
     },
-    async payment(id) { const i = terminal.intents.get(id); return { status: i.status, amountMinor: i.status === "succeeded" ? i.amountMinor : 0, error: i.error || "" }; },
+    async payment(id) { const i = terminal.intents.get(id); return { status: i.status, amountMinor: i.status === "succeeded" ? i.amountMinor + i.tipMinor : 0, tipMinor: i.status === "succeeded" ? i.tipMinor : 0, error: i.error || "" }; },
     async cancel(readerId, intentId) { terminal.cancelled.push(intentId); const i = terminal.intents.get(intentId); if (i && i.status !== "succeeded") i.status = "canceled"; },
     async testCard(readerId) { const r = terminal.readers.get(readerId); terminal.intents.get(r.action.intent).status = "succeeded"; r.action.status = "succeeded"; },
+  };
+  // Square Terminals: the shop gets a pairing code; a checkout completes with its own payment id (sqpay_…).
+  const squareReader = {
+    testMode: true, pairsWithCode: true, fixedPlace: "square",
+    async list() { return [...terminal.readers.values()].map(({ place: _p, ...r }) => r); },
+    async pair({ label }) { terminal.pairings.push(label); terminal.readers.set(`sqdev_DEV${terminal.readers.size + 1}`, { id: `sqdev_DEV${terminal.readers.size + 1}`, label, online: null, action: null }); return { code: "EBCARJ", pairBy: "2026-11-16T13:05:00Z" }; },
+    async remove(id) { terminal.readers.delete(id); },
+    async read(id) { return terminal.readers.get(id) || null; },
+    async charge({ readerId, amountMinor, metadata, tipPercents }, key) {
+      const intent = `sqterm_TC${terminal.intents.size + 1}`;
+      terminal.intents.set(intent, { status: "processing", amountMinor, metadata, key, readerId, tipPercents, tipMinor: 0 });
+      return { intent };
+    },
+    async payment(id) {
+      const i = terminal.intents.get(id);
+      if (i.status === "succeeded") return { status: "succeeded", amountMinor: i.amountMinor + i.tipMinor, tipMinor: i.tipMinor, paymentIntent: `sqpay_PAY${id.slice(-1)}`, error: "" };
+      return { status: i.status, amountMinor: 0, tipMinor: 0, error: i.error || "" };
+    },
+    async cancel(_r, intentId) { terminal.cancelled.push(intentId); const i = terminal.intents.get(intentId); if (i && i.status !== "succeeded") i.status = "canceled"; },
+    async testCard() {},
   };
   const card = checkout === null ? null : {
     async open(params, idem) {
@@ -106,7 +127,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
         charges.push({ args, idem });
         return { id: `pi_fee_${charges.length}`, status: "succeeded" };
       },
-    } : {}),
+    } : { reader: squareReader }),
   };
   let n = 0;
   const optOuts = new Set();
@@ -1339,7 +1360,7 @@ describe("paying the rest by link", () => {
   test("card readers: added with the reader's code at the shop's address, listed and removed", async () => {
     const t = setup();
     await seedMore(t);
-    expect((await t.adm({ op: "readers" })).body).toEqual({ available: true, testMode: true, readers: [] });
+    expect((await t.adm({ op: "readers" })).body).toEqual({ available: true, testMode: true, pairsWithCode: false, readers: [] });
     // The reader's place needs the shop's street address.
     expect((await t.adm({ op: "readerAdd", code: "simulated-wpe" })).body.code).toBe("address");
     await t.db.collection("settings").doc("website").set({ location: { street: "456 Montrose Ave", city: "Toronto", state: "Ontario", zip: "M6G 3H1", country: "Canada" } });
@@ -1353,10 +1374,54 @@ describe("paying the rest by link", () => {
     expect((await t.adm({ op: "readers" })).body.readers.map((r) => r.label)).toEqual(["Front desk", "Back room"]);
     expect((await t.adm({ op: "readerRemove", readerId: "tmr_2" })).statusCode).toBe(200);
     expect((await t.adm({ op: "readers" })).body.readers).toHaveLength(1);
-    // A Square shop has none yet.
-    const sq = setup({ provider: "square" });
-    await seedMore(sq);
-    expect((await sq.adm({ op: "readers" })).body).toEqual({ available: false, readers: [] });
+    // A shop with no card payments has none.
+    const none = setup({ checkout: null });
+    await seedMore(none);
+    expect((await none.adm({ op: "readers" })).body).toEqual({ available: false, readers: [] });
+  });
+
+  test("Square Terminals: the shop gives a code to type on the Terminal, with no street address needed", async () => {
+    const t = setup({ provider: "square" });
+    await seedMore(t);
+    expect((await t.adm({ op: "readers" })).body).toEqual({ available: true, testMode: true, pairsWithCode: true, readers: [] });
+    const added = await t.adm({ op: "readerAdd", label: "Front desk" });
+    expect(added.body).toEqual({ ok: true, pairing: { code: "EBCARJ", pairBy: "2026-11-16T13:05:00Z" } });
+    expect(t.terminal.pairings).toEqual(["Front desk"]);
+    expect((await t.adm({ op: "readers" })).body.readers.map((r) => [r.id, r.label])).toEqual([["sqdev_DEV1", "Front desk"]]);
+  });
+
+  test("tips on the reader: asked when the shop asks for tips, kept apart from the rest, refunded with the payment", async () => {
+    for (const provider of ["stripe", "square"]) {
+      const t = setup({ provider });
+      await seedMore(t);
+      await t.db.collection("settings").doc("website").set({ location: { street: "456 Montrose Ave", city: "Toronto", state: "ON", zip: "M6G3H1", country: "CA" } });
+      const s = (await t.db.collection("bookingSettings").doc("main").get()).data();
+      await t.db.collection("bookingSettings").doc("main").set({ ...s, tips: true, tipPercents: [15, 18, 20] });
+      const readerId = provider === "stripe" ? "tmr_1" : "sqdev_DEV1";
+      await t.adm({ op: "readerAdd", code: "simulated-wpe", label: "Front desk" });
+      const w = await t.adm({ op: "walkIn", serviceId: "cut", name: "Gil Example", email: "gil@example.com", priceMinor: 4500 });
+      expect((await t.adm({ op: "readerCharge", id: w.body.id, readerId })).body.state).toBe("waiting");
+      const [intentId, intent] = [...t.terminal.intents.entries()][0];
+      expect(intent.tipPercents).toEqual([15, 18, 20]);
+      // Stripe sets the choices on the reader's place once; Square takes them with each payment.
+      expect(t.terminal.tipSettings).toEqual(provider === "stripe" ? [{ place: "tml_1", currency: "CAD", percents: [15, 18, 20], config: null }] : []);
+      // The customer adds $8.10 on the reader.
+      Object.assign(intent, { status: "succeeded", tipMinor: 810 });
+      expect((await t.adm({ op: "readerCheck", id: w.body.id })).body).toMatchObject({ state: "paid", dueMinor: 0 });
+      const paidWith = provider === "stripe" ? intentId : "sqpay_PAY1";
+      const b = t.db.store.get(`bookings/${w.body.id}`);
+      expect(b).toMatchObject({ rest: { amountMinor: 4500, paymentIntent: paidWith, reader: true }, tip: { amountMinor: 810, paymentIntent: paidWith, reader: true } });
+      expect(b.history.at(-1).what).toMatch(/paid on the card reader, \$8\.10 tip added/);
+      // A second charge on the same day reuses the tip choices without setting them again.
+      const w2 = await t.adm({ op: "walkIn", serviceId: "cut", name: "Hal Example", priceMinor: 3000 });
+      await t.adm({ op: "readerCharge", id: w2.body.id, readerId });
+      expect(t.terminal.tipSettings).toHaveLength(provider === "stripe" ? 1 : 0);
+      // With tips off, no tip screen.
+      await t.db.collection("bookingSettings").doc("main").set({ ...s, tips: false });
+      await t.adm({ op: "readerCancel", id: w2.body.id });
+      await t.adm({ op: "readerCharge", id: w2.body.id, readerId });
+      expect([...t.terminal.intents.values()].at(-1).tipPercents).toEqual([]);
+    }
   });
 
   test("a payment on the card reader is kept as the rest, closes the pay page, and can't be paid twice", async () => {

@@ -89,7 +89,7 @@ export class ServiceError extends Error {
 }
 
 const ACCOUNT_ID = /^acct_[A-Za-z0-9]+$/;
-const ids = { tml: /^tml_[A-Za-z0-9_]+$/, tmr: /^tmr_[A-Za-z0-9_]+$/, pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
+const ids = { tml: /^tml_[A-Za-z0-9_]+$/, tmc: /^tmc_[A-Za-z0-9_]+$/, tmr: /^tmr_[A-Za-z0-9_]+$/, pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
 
 // Parameters that would move money anywhere but the press's own account, or set the platform's fee. A shop never
 // sets them: the service adds the fee itself, and any of these from a shop is refused, at any depth.
@@ -199,8 +199,34 @@ const readerParams = (params) => {
   return out;
 };
 const processParams = (params) => {
-  const out = only(params, ["payment_intent"]);
+  const out = only(params, ["payment_intent", "process_config"]);
   idFor("pi", out.payment_intent);
+  // A tip asked on the reader (Services plan 2, A4): only the amount the tip is worked out on.
+  if (out.process_config !== undefined) {
+    const config = only(out.process_config, ["tipping"]);
+    const tipping = only(config.tipping, ["amount_eligible"]);
+    if (!Number.isInteger(tipping.amount_eligible) || tipping.amount_eligible < 1) throw bad("process_config.tipping.amount_eligible must be a whole number above 0");
+    out.process_config = { tipping };
+  }
+  return out;
+};
+
+// The reader settings a shop may set: tip choices (up to three percentages) per currency, nothing else.
+const configurationParams = (params) => {
+  const out = only(params, ["tipping"]);
+  if (!plainObject(out.tipping)) throw bad("tipping is needed");
+  const tipping = {};
+  for (const [currency, value] of Object.entries(out.tipping)) {
+    if (!/^[a-z]{3}$/.test(currency)) throw bad("tipping is keyed by a three-letter currency");
+    const { percentages } = only(value, ["percentages"]);
+    if (!Array.isArray(percentages) || !percentages.length || percentages.length > 3 || !percentages.every((p) => Number.isInteger(p) && p > 0 && p <= 100)) throw bad("tipping percentages must be 1 to 3 whole numbers");
+    tipping[currency] = { percentages };
+  }
+  return { tipping };
+};
+const locationUpdateParams = (params) => {
+  const out = only(params, ["configuration_overrides"]);
+  idFor("tmc", out.configuration_overrides);
   return out;
 };
 
@@ -221,6 +247,9 @@ const SHOP_OPS = Object.freeze({
   "balanceTransactions.list": { method: "GET", path: () => "/v1/balance_transactions", params: payoutListParams },
   "terminal.locations.list": { method: "GET", path: () => "/v1/terminal/locations", params: (p) => { const out = only(p, ["limit"]); limitOk(out.limit); return out; } },
   "terminal.locations.create": { method: "POST", path: () => "/v1/terminal/locations", params: locationParams },
+  "terminal.locations.update": { method: "POST", path: (a) => `/v1/terminal/locations/${idFor("tml", a.id)}`, params: locationUpdateParams },
+  "terminal.configurations.create": { method: "POST", path: () => "/v1/terminal/configurations", params: configurationParams },
+  "terminal.configurations.update": { method: "POST", path: (a) => `/v1/terminal/configurations/${idFor("tmc", a.id)}`, params: configurationParams },
   "terminal.readers.list": { method: "GET", path: () => "/v1/terminal/readers", params: readerListParams },
   "terminal.readers.create": { method: "POST", path: () => "/v1/terminal/readers", params: readerParams },
   "terminal.readers.retrieve": { method: "GET", path: (a) => `/v1/terminal/readers/${idFor("tmr", a.id)}`, params: (p) => only(p, []) },

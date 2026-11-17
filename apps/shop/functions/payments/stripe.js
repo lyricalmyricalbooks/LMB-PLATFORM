@@ -512,14 +512,25 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
       },
       remove: (id) => stripe.terminal.readers.del(id, {}, requestOptions),
       read: async (id) => readerOf(await stripe.terminal.readers.retrieve(id, {}, requestOptions)),
-      // Canadian debit cards pay through Interac on the reader, so a CAD payment takes both.
-      async charge({ readerId, amountMinor, currency, description, metadata }, idempotencyKey) {
+      // The shop's tip choices on the place's reader settings (one Terminal configuration, updated when they change).
+      async setTips({ place, currency, percents, config }) {
+        const tipping = { [String(currency).toLowerCase()]: { percentages: percents.slice(0, 3) } };
+        const made = config
+          ? await stripe.terminal.configurations.update(config, { tipping }, requestOptions)
+          : await stripe.terminal.configurations.create({ tipping }, requestOptions);
+        await stripe.terminal.locations.update(place, { configuration_overrides: made.id }, requestOptions);
+        return made.id;
+      },
+      // Canadian debit cards pay through Interac on the reader, so a CAD payment takes both. With `tipPercents` the reader
+      // asks for a tip first (choices from setTips), added on top of the amount.
+      async charge({ readerId, amountMinor, currency, description, metadata, tipPercents }, idempotencyKey) {
         const types = String(currency).toLowerCase() === "cad" ? ["card_present", "interac_present"] : ["card_present"];
         const intent = await stripe.paymentIntents.create({
           amount: amountMinor, currency: String(currency).toLowerCase(), payment_method_types: types, capture_method: "automatic", description, metadata,
         }, { ...requestOptions, idempotencyKey });
         try {
-          await stripe.terminal.readers.processPaymentIntent(readerId, { payment_intent: intent.id }, requestOptions);
+          const tips = Array.isArray(tipPercents) && tipPercents.length ? { process_config: { tipping: { amount_eligible: amountMinor } } } : {};
+          await stripe.terminal.readers.processPaymentIntent(readerId, { payment_intent: intent.id, ...tips }, requestOptions);
         } catch (err) {
           // The reader never got it (offline, busy): stop the payment so it can't be taken later.
           await stripe.paymentIntents.cancel(intent.id, {}, requestOptions).catch(() => {});
@@ -529,7 +540,7 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
       },
       async payment(intentId) {
         const intent = await stripe.paymentIntents.retrieve(intentId, {}, requestOptions);
-        return { status: intent.status, amountMinor: intent.amount_received || 0, error: intent.last_payment_error?.message || "" };
+        return { status: intent.status, amountMinor: intent.amount_received || 0, tipMinor: intent.amount_details?.tip?.amount || 0, error: intent.last_payment_error?.message || "" };
       },
       async cancel(readerId, intentId) {
         await stripe.terminal.readers.cancelAction(readerId, {}, requestOptions).catch(() => {});

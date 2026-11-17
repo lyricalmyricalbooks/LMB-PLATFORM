@@ -146,7 +146,8 @@ const PACK_ID = /^[a-f0-9]{40}$/;
 const offerItem = (wid) => `offer_${wid}`;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
-const READER_ID = /^tmr_[A-Za-z0-9_]{1,100}$/;
+// Stripe smart readers (tmr_…) and Square Terminals (sqdev_<device id>, payments/square.js).
+const READER_ID = /^(tmr_[A-Za-z0-9_]{1,100}|sqdev_[A-Za-z0-9:_-]{1,192})$/;
 /** A fee being charged stops a second tap for this long, in case the first one never finished. */
 const FEE_CLAIM_MS = 2 * MINUTE;
 const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
@@ -989,7 +990,7 @@ function bookingActions({
 
   // ── Card readers at the desk (Services plan phase 3) ────────────────────────────────────────────────────────────
 
-  /** The provider's card readers for this shop's mode, or null (Square shops, for now). */
+  /** The provider's card readers for this shop's mode (Stripe smart readers or Square Terminals), or null. */
   async function readerDesk() {
     const { mode, checkout } = await standalone();
     return { mode, reader: checkout?.reader || null };
@@ -998,6 +999,8 @@ function bookingActions({
 
   /** The shop's one place for card readers in this mode, made from Settings › General › Location the first time. */
   async function readerPlace(mode, reader, { make = false } = {}) {
+    // Square's readers belong to the shop's one Square location: nothing to make.
+    if (reader.fixedPlace) return reader.fixedPlace;
     const snap = await readersRef().get();
     const kept = snap.exists ? String(snap.data()?.[`place_${mode}`] || "") : "";
     if (kept || !make) return kept;
@@ -1016,6 +1019,27 @@ function bookingActions({
   }
 
   /**
+   * Tips on the reader (Services plan 2, A4): Stripe asks the tip on the screen from the place's reader settings, so the
+   * shop's tip choices are set on the place once and again whenever they change. Square takes them with each payment.
+   */
+  async function readerTips(mode, reader, place, currency, percents) {
+    if (!reader.setTips || !percents.length) return true;
+    const key = `${String(currency).toLowerCase()}:${percents.join(",")}`;
+    const snap = await readersRef().get();
+    const kept = snap.exists ? snap.data()?.[`tips_${mode}`] : null;
+    if (kept?.key === key && kept.place === place) return true;
+    try {
+      const config = await reader.setTips({ place, currency, percents, config: kept?.config || null });
+      await readersRef().set({ [`tips_${mode}`]: { key, place, config } }, { merge: true });
+      return true;
+    } catch (err) {
+      // The payment still goes to the reader, only without the tip screen.
+      console.warn("bookings: reader tips couldn't be set:", err?.message || err);
+      return false;
+    }
+  }
+
+  /**
    * Reads a payment sent to a card reader: a payment that went through is kept as `rest` (so refunds, figures and the
    * receipt work as for a pay link), a declined or stopped one closes with the reader's words. Returns the booking.
    */
@@ -1025,24 +1049,32 @@ function bookingActions({
     const payment = await reader.payment(charge.intent);
     const at = now().toISOString();
     if (payment.status === "succeeded") {
+      // The payment to refund later (Square's checkout pays with its own payment), and any tip added on the reader.
+      const paidWith = payment.paymentIntent || charge.intent;
+      const tipMinor = Math.max(0, Math.round(Number(payment.tipMinor) || 0));
       const kept = await db.runTransaction(async (tx) => {
         const fresh = (await tx.get(bookings().doc(id))).data() || {};
         if (!fresh.readerOpen || fresh.readerCharge?.intent !== charge.intent) return null;
+        const restMinor = Math.max(0, (payment.amountMinor || charge.amountMinor + tipMinor) - tipMinor) || charge.amountMinor;
+        const tipNew = tipMinor > 0 && !fresh.tip;
+        const what = [fresh.rest ? "card reader payment also went through (it was already paid)" : "paid on the card reader", tipNew ? `${moneyWords(tipMinor, fresh.currency)} tip added` : ""].filter(Boolean).join(", ");
         const changes = {
-          ...(fresh.rest ? {} : { rest: { amountMinor: payment.amountMinor || charge.amountMinor, paymentIntent: charge.intent, at, reader: true } }),
+          ...(fresh.rest ? {} : { rest: { amountMinor: restMinor, paymentIntent: paidWith, at, reader: true } }),
+          ...(tipNew ? { tip: { amountMinor: tipMinor, paymentIntent: paidWith, at, reader: true } } : {}),
           readerOpen: false, readerCharge: null, readerError: "", updatedAt: at,
-          history: [...(fresh.history || []), { at, what: fresh.rest ? "card reader payment also went through (it was already paid)" : "paid on the card reader", by: "shop" }].slice(-20),
+          history: [...(fresh.history || []), { at, what, by: "shop" }].slice(-20),
         };
         tx.set(bookings().doc(id), changes, { merge: true });
         return { ...fresh, ...changes };
       });
       if (!kept) return { ...b, ...((await bookings().doc(id).get()).data() || {}) };
-      if (kept.rest?.paymentIntent === charge.intent) await tellCustomer(id, kept, "restPaid", { byShop: true, toOwner: false });
+      if (kept.rest?.paymentIntent === paidWith) await tellCustomer(id, kept, "restPaid", { byShop: true, toOwner: false });
       return kept;
     }
     let error = "";
     const canceled = payment.status === "canceled";
-    if (canceled) error = stopped;
+    // Square says why a checkout stopped (the customer cancelled, it ran out of time); a stop asked for here has no words.
+    if (canceled) error = stopped ? payment.error || stopped : "";
     else if (payment.status === "requires_payment_method") {
       const onReader = await reader.read(charge.readerId).catch(() => null);
       const action = onReader?.action;
@@ -2061,13 +2093,19 @@ function bookingActions({
       }
       if (op === "readers" || op === "readerAdd" || op === "readerRemove") {
         // Card readers that connect over the internet (Stripe's smart readers): one place per shop, readers added with
-        // the code the reader shows. Square shops answer `available: false` for now.
+        // the code the reader shows; Square Terminals pair the other way round (the owner types our code on the Terminal).
         const { mode, reader } = await readerDesk();
         if (!reader) {
           if (op === "readers") return res.status(200).json({ available: false, readers: [] });
-          return fail(res, 409, "Card readers work with Stripe for now.", "not_available");
+          return fail(res, 409, "Card readers need card payments connected in Settings › Payments.", "not_available");
         }
         try {
+          if (op === "readerAdd" && reader.pairsWithCode) {
+            // Square: the shop gets a code and the owner types it on the Terminal's sign-in screen.
+            const label = text(req.body?.label, 60) || "Card reader";
+            const pairing = await reader.pair({ label }, `reader-pair-${now().getTime()}`);
+            return res.status(200).json({ ok: true, pairing });
+          }
           if (op === "readerAdd") {
             const code = String(req.body?.code || "").trim().toLowerCase().replace(/\s+/g, "-");
             const label = text(req.body?.label, 60) || "Card reader";
@@ -2083,7 +2121,7 @@ function bookingActions({
             return res.status(200).json({ ok: true });
           }
           const place = await readerPlace(mode, reader);
-          return res.status(200).json({ available: true, testMode: reader.testMode === true, readers: place ? await reader.list(place) : [] });
+          return res.status(200).json({ available: true, testMode: reader.testMode === true, pairsWithCode: reader.pairsWithCode === true, readers: place ? await reader.list(place) : [] });
         } catch (err) {
           console.warn("bookings: card readers:", op, err?.message || err);
           const words = readerWords(err, op === "readerAdd" ? "The reader couldn't be added just now. Please try again." : "The card readers couldn't be reached just now. Please try again.");
@@ -2242,8 +2280,8 @@ function bookingActions({
         return res.status(200).json({ ok: true, fee });
       }
       if (op === "readerCharge" || op === "readerCheck" || op === "readerCancel" || op === "readerTest") {
-        const { reader } = await readerDesk();
-        if (!reader) return fail(res, 409, "Card readers work with Stripe for now.", "not_available");
+        const { mode, reader } = await readerDesk();
+        if (!reader) return fail(res, 409, "Card readers need card payments connected in Settings › Payments.", "not_available");
         const state = (x) => ({ ok: true, state: x.readerOpen ? "waiting" : x.rest?.reader ? "paid" : "idle", error: x.readerOpen ? "" : String(x.readerError || ""), dueMinor: balanceDue(x) });
         try {
           if (op === "readerCheck") return res.status(200).json(state(await refreshReader(id, b, reader)));
@@ -2281,7 +2319,12 @@ function bookingActions({
           const description = `${shopName() ? `${shopName()}: ` : ""}${b.serviceName} (${b.customer?.name || "desk"})`.slice(0, 250);
           // Counted before the reader is asked, so a try that failed never hands back its stopped payment.
           await bookings().doc(id).set({ readerTries: tries }, { merge: true });
-          const started = await reader.charge({ readerId, amountMinor, currency: b.currency || currency(), description, metadata: { booking: id, rest: "1", reader: "1" } }, `booking-reader-${id}-${amountMinor}-${tries}`);
+          // The reader asks for a tip first when the shop asks for tips and none was given yet (added on top).
+          const settings = await readSettings();
+          const askTip = settings.tips && !b.tip && (b.priceMinor || 0) > 0 && Array.isArray(settings.tipPercents) && settings.tipPercents.length > 0;
+          const place = askTip ? await readerPlace(mode, reader) : "";
+          const tipPercents = askTip && (await readerTips(mode, reader, place, b.currency || currency(), settings.tipPercents)) ? settings.tipPercents : [];
+          const started = await reader.charge({ readerId, amountMinor, currency: b.currency || currency(), description, metadata: { booking: id, rest: "1", reader: "1" }, tipPercents, place }, `booking-reader-${id}-${amountMinor}-${tries}`);
           const at = now().toISOString();
           const changes = { readerOpen: true, readerTries: tries, readerError: "", readerCharge: { intent: started.intent, readerId, amountMinor, at }, updatedAt: at, history: [...(b.history || []), { at, what: `${moneyWords(amountMinor, b.currency || currency())} sent to the card reader`, by }].slice(-20) };
           await bookings().doc(id).set(changes, { merge: true });

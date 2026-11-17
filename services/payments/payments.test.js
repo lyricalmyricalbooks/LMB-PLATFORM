@@ -429,6 +429,19 @@ test("card readers: a shop reaches only its own place and readers, with checked 
   assert.notEqual((await call("testHelpers.terminal.readers.presentPaymentMethod", { id: "tmr_1" }, "test")).status, 400);
   assert.equal(stripe.requests.length, before + 1);
   assert.equal(sent().path, "/v1/test_helpers/terminal/readers/tmr_1/present_payment_method");
+  // Tips on the reader (Services plan 2, A4): the amount the tip is on, and up to three choices on the place.
+  assert.notEqual((await call("terminal.readers.processPaymentIntent", { id: "tmr_1", params: { payment_intent: "pi_1", process_config: { tipping: { amount_eligible: 4500 } } } })).status, 400);
+  assert.equal((await call("terminal.readers.processPaymentIntent", { id: "tmr_1", params: { payment_intent: "pi_1", process_config: { tipping: { amount_eligible: 0 } } } })).status, 400);
+  assert.equal((await call("terminal.readers.processPaymentIntent", { id: "tmr_1", params: { payment_intent: "pi_1", process_config: { skip_tipping: true } } })).status, 400);
+  assert.notEqual((await call("terminal.configurations.create", { params: { tipping: { cad: { percentages: [15, 18, 20] } } } })).status, 400);
+  assert.equal(sent().path, "/v1/terminal/configurations");
+  assert.equal((await call("terminal.configurations.create", { params: { tipping: { cad: { percentages: [15, 18, 20, 25] } } } })).status, 400);
+  assert.equal((await call("terminal.configurations.create", { params: { tipping: { cad: { percentages: [15] } }, offline: { enabled: true } } })).status, 400);
+  assert.notEqual((await call("terminal.configurations.update", { id: "tmc_1", params: { tipping: { usd: { percentages: [10] } } } })).status, 400);
+  assert.equal(sent().path, "/v1/terminal/configurations/tmc_1");
+  assert.notEqual((await call("terminal.locations.update", { id: "tml_1", params: { configuration_overrides: "tmc_1" } })).status, 400);
+  assert.equal(sent().path, "/v1/terminal/locations/tml_1");
+  assert.equal((await call("terminal.locations.update", { id: "tml_1", params: { display_name: "Other" } })).status, 400);
 });
 
 test("every call a shop can make is listed", () => {
@@ -444,6 +457,9 @@ test("every call a shop can make is listed", () => {
     // Card readers (Services plan phase 3)
     "terminal.locations.create", "terminal.locations.list", "terminal.readers.cancelAction", "terminal.readers.create", "terminal.readers.del",
     "terminal.readers.list", "terminal.readers.processPaymentIntent", "terminal.readers.retrieve", "testHelpers.terminal.readers.presentPaymentMethod",
+    // Square Terminals and tips on the reader (Services plan 2, A4)
+    "square.terminal.pair", "square.terminal.readers", "square.terminal.checkout.create", "square.terminal.checkout.retrieve", "square.terminal.checkout.cancel",
+    "terminal.locations.update", "terminal.configurations.create", "terminal.configurations.update",
   ].sort());
 });
 
