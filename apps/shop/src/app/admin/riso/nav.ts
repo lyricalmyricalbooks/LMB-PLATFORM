@@ -278,7 +278,7 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   inventory: { title: "Inventory", description: "Stock on hand, low-stock and reprint alerts, and quick count corrections." },
   catalog: { title: "Books", description: "Manage titles, pricing, formats, and inventory." },
   discounts: { title: "Discounts", description: "Create and schedule discount codes and automatic offers." },
-  giftCards: { title: "Gift cards", description: "Gift cards shoppers bought and ones you issued: balances, history and resending codes." },
+  giftCards: { title: "Gift cards", description: "Bought and issued gift cards, with balances and history." },
   reviews: { title: "Reviews", description: "Moderate customer reviews before they appear on the storefront." },
   channels: { title: "Sales channels", description: "Sell where people already look: Facebook, Instagram, Pinterest, TikTok and Google." },
   design: { title: "Design", description: "Design your website in Studio." },

@@ -1,5 +1,5 @@
 /* The money pages (Tax centre, Expenses, Ask about your sales) on the shared admin look (riso.css tokens). */
-.rp-money { display: grid; gap: var(--rp-space-4); min-width: 0; }
+.rp-money { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--rp-space-4); min-width: 0; }
 .rp-money-note { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
 .rp-money-sub { font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
 .rp-money-pad { padding: var(--rp-space-3) var(--rp-space-4); }
@@ -52,10 +52,10 @@
 @media (max-width: 860px) { .rp-lh { grid-template-columns: 1fr; } .rp-lh-preview { height: 480px; } }
 /* Bookkeeping (mockup, 12 November 2026): Receipts cards, the P&L table, Where the money goes bars, report cards. Tokens only. */
 .rp-rc { display: grid; gap: var(--rp-space-4); }
-.rp-rc-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--rp-space-4); }
+.rp-rc-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: var(--rp-space-4); }
 .rp-rc-filters { display: flex; flex-wrap: wrap; gap: 8px; }
 .rp-rc-filters .rp-page-tab { border: 0; cursor: pointer; white-space: nowrap; }
-.rp-rc-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--rp-space-4); }
+.rp-rc-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: var(--rp-space-4); }
 .rp-rc-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: var(--rp-space-3); background: var(--rp-surface); border-radius: var(--rp-radius-lg, 22px); }
 .rp-rc-thumb { display: grid; place-items: center; height: 110px; margin-bottom: 6px; border-radius: var(--rp-radius, 16px); color: var(--rp-text-muted); font: 500 var(--rp-text-xs)/1 var(--rp-font-mono, monospace); letter-spacing: .1em; text-transform: uppercase;
   background: repeating-linear-gradient(45deg, var(--rp-surface-2), var(--rp-surface-2) 8px, var(--rp-surface) 8px, var(--rp-surface) 16px); }
@@ -67,7 +67,7 @@
 .rp-rc-tag[data-tone="mint"] { background: var(--rp-tile-mint, var(--rp-success-tint)); color: var(--rp-on-tile, var(--rp-text)); }
 .rp-rc-tag[data-tone="apricot"] { background: var(--rp-tile-apricot, var(--rp-warning-tint)); color: var(--rp-on-tile, var(--rp-text)); }
 .rp-rc-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.rp-bk-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--rp-space-4); }
+.rp-bk-tiles { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: var(--rp-space-4); }
 .rp-bk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: var(--rp-space-4); align-items: start; }
 .rp-bk-pl { width: 100%; border-collapse: collapse; font-size: var(--rp-text-sm); }
 .rp-bk-pl td { padding: 10px 0; border-top: 1px solid var(--rp-border); }
@@ -85,7 +85,7 @@
 .rp-bk-stats div { padding: var(--rp-space-3); border-radius: var(--rp-radius, 16px); background: var(--rp-surface-2); }
 .rp-bk-stats dt { font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
 .rp-bk-stats dd { margin: 4px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-.rp-bk-reports { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--rp-space-3); }
+.rp-bk-reports { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: var(--rp-space-3); }
 .rp-bk-reports li { display: flex; flex-direction: column; gap: var(--rp-space-2); padding: var(--rp-space-4); border-radius: var(--rp-radius, 16px); background: var(--rp-surface-2); }
 .rp-bk-reports strong { font-weight: 600; }
 .rp-bk-reports span { font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
@@ -117,7 +117,7 @@
 .rp-er-link:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-primary)); outline-offset: 2px; }
 .rp-er-code { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--rp-space-2); padding: var(--rp-space-3) var(--rp-space-4); border-radius: var(--rp-radius, 16px); background: var(--rp-tile-sky, var(--rp-surface-2)); color: var(--rp-on-tile, var(--rp-text)); font-size: var(--rp-text-sm); }
 .rp-er-code strong { font-family: var(--rp-font-mono, monospace); letter-spacing: .06em; }
-.rp-er-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--rp-space-3); }
+.rp-er-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: var(--rp-space-3); }
 .rp-er-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: var(--rp-space-4); border-radius: var(--rp-radius, 16px); background: var(--rp-surface-2); }
 .rp-er-item .rp-rc-actions { margin-top: auto; padding-top: 6px; }
 .rp-er-steps { margin: 0; padding: 0 0 0 1.3em; list-style: decimal; display: grid; gap: var(--rp-space-4); }
