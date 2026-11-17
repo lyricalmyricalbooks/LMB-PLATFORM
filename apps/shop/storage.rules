@@ -37,6 +37,14 @@ service firebase.storage {
         allow read: if true;
         allow write: if isAdmin();
       }
+      // Before and after photos on the client card (Services plan 2): the team only, never public, pictures only.
+      match /client-photos/{client}/{file} {
+        allow read, delete: if isAdmin();
+        allow create: if isAdmin()
+          && client.matches("^[0-9a-f]{64}$")
+          && request.resource.size < 12 * 1024 * 1024
+          && request.resource.contentType.matches("image/.*");
+      }
       match /digital-assets/{allPaths=**} {
         allow read: if false; // Only accessible via Admin SDK signed URLs on the backend
         allow write: if isAdmin();

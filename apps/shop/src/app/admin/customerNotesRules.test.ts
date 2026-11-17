@@ -17,6 +17,19 @@ describe("admin-only customer data rules", () => {
     expect(b).toMatch(/get\("phone", ""\)\.size\(\) <= 40/);
     expect(b).not.toMatch(/if true/);
   });
+  it("visit notes and photos are the team's only: no read-only visit, bounded shape (Services plan 2)", () => {
+    const b = block("clientVisits");
+    expect(b).toMatch(/allow read, delete: if isAdmin\(\);/);
+    expect(b).not.toMatch(/isAdminReader|isBookkeeper|if true/);
+    expect(b).toMatch(/hasOnly\(\["client", "email", "day", "note", "photos", "createdAt", "updatedAt"\]\)/);
+    expect(b).toMatch(/note\.size\(\) <= 4000/);
+    expect(b).toMatch(/photos\.size\(\) <= 8/);
+    const storage = readFileSync(new URL("../../../storage.rules", import.meta.url), "utf8");
+    const photos = storage.slice(storage.indexOf("match /client-photos/"), storage.indexOf("match /digital-assets/"));
+    expect(photos).toMatch(/allow read, delete: if isAdmin\(\);/);
+    expect(photos).toMatch(/contentType\.matches\("image\/\.\*"\)/);
+    expect(photos).not.toMatch(/if true/);
+  });
   it("the first-week checklist is admin-only with a bounded shape (plan 3.3)", () => {
     const b = block("firstWeek");
     expect(b).toMatch(/allow read: if isAdminReader\(\);/);

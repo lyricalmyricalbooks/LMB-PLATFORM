@@ -28,7 +28,7 @@ const FULL_SCAN_MS = 24 * 3600 * 1000;
 const CACHE_RESCAN_MS = 7 * 24 * 3600 * 1000;
 const STATUS_DOC = ["systemStatus", "imageCopies"];
 // Folders that never hold shop pictures (or must stay private) are left alone by the cache pass.
-const CACHE_SKIP_PREFIXES = ["backups/", "digital-assets/"];
+const CACHE_SKIP_PREFIXES = ["backups/", "digital-assets/", "client-photos/"];
 
 /** Mirrors admin/prepareImage.ts `mediaWidthsFor`: every rung up to the original, plus the original width. */
 function widthsFor(originalWidth, ladder = BOOK_PHOTO_WIDTHS) {
