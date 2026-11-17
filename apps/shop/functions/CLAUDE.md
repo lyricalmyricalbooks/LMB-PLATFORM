@@ -1568,5 +1568,10 @@ course's own dates decide), and the booking keeps `course { starts, days }`. `sp
 items; `freeTime` and `confirmPaid` go through it, so every date is freed or confirmed together. Money is unchanged: one
 booking, one price. Refused: a pack with a course, `bookingMove` and the owner's `move` (code `course`), signing up once
 the first date has started (code `started`). `classTimetable` answers `courses` (open ones, with `coursePlacesLeft`), and
-`classesLive` counts an open course. Emails list all dates. Not yet per date: reminders, calendar entries, check-in and
-the waiting list (they follow the first date).
+`classesLive` counts an open course. Emails list all dates. A stand-in on a later date is `course.staff[n]` (set only
+when the people differ). `classTimetable` counts whole courses only (200 days in all, soonest first; no `left` otherwise).
+**Every date (17 November):** `sweepReminders` reads when either reminder is on and calls `remindCourseDates`: both
+reminders for each later date, once (`course.reminded` / `course.reminded2` list the dates told; marked before sending),
+with the email and text speaking of that date. `bookingsFeed` and `customerBookingIcs` list every date (`datesOf`, no
+tidy-up time; UIDs `<id>-<n>`). Not yet per date: the linked Google Calendar, thank-you and tip emails, check-in and the
+waiting list (they follow the first date).
