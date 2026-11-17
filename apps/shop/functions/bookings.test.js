@@ -6,7 +6,7 @@ import { createRequire } from "module";
 
 const realRequire = createRequire(import.meta.url);
 const { bookingActions, busyFrom } = realRequire("./bookings");
-const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings } = realRequire("./shared/bookingTimes");
+const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings, cleanRates } = realRequire("./shared/bookingTimes");
 
 const ZONE = "America/Toronto";
 const at = (day, hhmm) => new Date(zonedTime(day, hhmm, ZONE)).toISOString();
@@ -2212,7 +2212,7 @@ describe("sales tax on a service", () => {
     const t = setup({ shopTax: hst });
     await seedTaxed(t);
     const info = await t.pub({ action: "bookingInfo" });
-    expect(info.body.services.find((s) => s.id === "review")).toMatchObject({ priceMinor: 4000, taxMinor: 520 });
+    expect(info.body.services.find((s) => s.id === "review")).toMatchObject({ priceMinor: 4000, taxMinor: 520, taxPpm: 130000 });
     expect(info.body.services.find((s) => s.id === "visit").taxMinor).toBeUndefined();
     const r = await t.pub({ action: "bookingStart", serviceId: "review", start: at("2026-11-18", "13:00"), ...CUSTOMER });
     expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(4520);
@@ -3123,5 +3123,53 @@ describe("add-ons and options", () => {
     const own = await t.adm({ op: "create", serviceId: "cut", start: at("2026-11-18", "09:00"), name: "Bo", email: "bo@example.com", extras: ["deep"] });
     expect(own.statusCode).toBe(200);
     expect(t.db.store.get(`bookings/${own.body.id}`)).toMatchObject({ minutes: 60, priceMinor: 8000, extras: [EXTRAS[0]] });
+  });
+});
+
+describe("prices by person", () => {
+  const STAFF = [
+    { id: "ana", name: "Ana", rates: [{ serviceId: "cut", minutes: 60, priceMinor: 9000 }, { serviceId: "visit", minutes: null, priceMinor: 5000 }] },
+    { id: "ben", name: "Ben" },
+  ];
+  const withTeam = async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, staff: STAFF });
+    return t;
+  };
+
+  test("saving keeps one rate per service, at least one of length or price, lengths 5 minutes to 8 hours", () => {
+    expect(cleanRates([{ serviceId: "cut", minutes: "45", priceMinor: "" }, { serviceId: "cut", priceMinor: 1 }, { serviceId: "x y", minutes: 30 },
+      { serviceId: "visit", minutes: null, priceMinor: null }, { serviceId: "long", minutes: 9999 }])).toEqual([
+      { serviceId: "cut", minutes: 45, priceMinor: null }, { serviceId: "long", minutes: 480, priceMinor: null }]);
+  });
+
+  test("the info lists each person's own rates", async () => {
+    const t = await withTeam();
+    const staff = (await t.pub({ action: "bookingInfo" })).body.staff;
+    expect(staff[0].rates).toEqual(STAFF[0].rates);
+    expect(staff[1].rates).toBeUndefined();
+  });
+
+  test("booking Ana takes her length and price; anyone free keeps the service's own", async () => {
+    const t = await withTeam();
+    // Her hour-long cut can't start in the last half hour of the day.
+    const anaTimes = (await t.pub({ action: "bookingTimes", serviceId: "cut", from: "2026-11-18", days: 1, staffId: "ana" })).body.days["2026-11-18"];
+    const anyTimes = (await t.pub({ action: "bookingTimes", serviceId: "cut", from: "2026-11-18", days: 1 })).body.days["2026-11-18"];
+    expect(anaTimes.at(-1)).toBe(at("2026-11-18", "16:00"));
+    expect(anyTimes.at(-1)).toBe(at("2026-11-18", "16:30"));
+    const withAna = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", "10:00"), staffId: "ana", ...CUSTOMER });
+    expect(t.db.store.get(`bookings/${withAna.body.id}`)).toMatchObject({ staffId: "ana", minutes: 60, priceMinor: 9000 });
+    const anyone = await t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-19", "10:00"), ...CUSTOMER, email: "bo@example.com" });
+    expect(t.db.store.get(`bookings/${anyone.body.id}`)).toMatchObject({ minutes: 30, priceMinor: 6000 });
+  });
+
+  test("a free service never takes a person's price, and the owner's booking follows the person picked", async () => {
+    const t = await withTeam();
+    const free = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), staffId: "ana", ...CUSTOMER });
+    expect(t.db.store.get(`bookings/${free.body.id}`)).toMatchObject({ priceMinor: 0, minutes: 60 });
+    const own = await t.adm({ op: "create", serviceId: "cut", start: at("2026-11-20", "10:00"), staffId: "ana", name: "Cy", email: "cy@example.com", sendEmail: false });
+    expect(t.db.store.get(`bookings/${own.body.id}`)).toMatchObject({ minutes: 60, priceMinor: 9000 });
   });
 });

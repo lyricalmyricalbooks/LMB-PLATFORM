@@ -61,7 +61,7 @@ const {
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
-  whoIsFree, booksByPerson, classPlacesLeft, keptPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
+  whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
   cleanRun, runStarts, runSettings, runsOnline, withExtras,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
@@ -1593,6 +1593,9 @@ function bookingActions({
         const list = (await readServices()).filter((s) => s.active).map((s) => joinableCourse(s, zone(), nowMs) ?? s);
         const calc = list.some((s) => s.chargeTax) && shopTax ? await shopTax() : null;
         const taxes = await Promise.all(list.map((s) => taxOn(s, s.priceMinor, calc)));
+        // The rate as tax on a million cents, so the page works out the tax on a price with add-ons or a person's own
+        // price the way the server will (one rounding on the whole amount).
+        const taxPpm = calc ? (await taxOn({ chargeTax: true }, 1_000_000, calc))?.taxMinor || 0 : 0;
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
           // The shop's opening hours, Sunday first, for the Hours & where to find us section.
@@ -1603,7 +1606,7 @@ function bookingActions({
           // Whether the form offers "Text me reminders": the owner's switch, and the platform sending texts.
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
-          staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
+          staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}) })) : [],
           services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // Standing appointments: a run of visits can be booked at once.
@@ -1618,7 +1621,7 @@ function bookingActions({
             ...(packAnyClass ? { packAnyClass } : {}),
             ...(introPriceMinor ? { introPriceMinor } : {}),
             // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
-            ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
+            ...(taxes[i] ? { taxMinor: taxes[i].taxMinor, ...(taxPpm ? { taxPpm } : {}) } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
             ...(offersPack({ packVisits, packPriceMinor }) ? { packVisits, packPriceMinor, packDays } : {}),
           })),
@@ -1677,7 +1680,7 @@ function bookingActions({
         const listed = await publicService(req.body?.serviceId);
         if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
         // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
-        const asked = withExtras(listed, req.body?.extras);
+        const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
         const from = isDay(req.body?.from) ? req.body.from : dayOf(nowMs, zone());
@@ -1716,7 +1719,7 @@ function bookingActions({
         const listed = await publicService(req.body?.serviceId);
         if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
         // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
-        const asked = withExtras(listed, req.body?.extras);
+        const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
@@ -1736,7 +1739,7 @@ function bookingActions({
         const listed = await publicService(req.body?.serviceId);
         if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
         // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
-        const asked = withExtras(listed, req.body?.extras);
+        const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
@@ -1823,7 +1826,7 @@ function bookingActions({
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
         const listed = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
         if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
-        const asked = withExtras(listed, req.body?.extras);
+        const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
         if (!runsOnline({ ...service, holdCard: service.holdCard && canHoldCard() })) return fail(res, 400, "This service can't be booked as a standing appointment.", "run");
@@ -1841,7 +1844,7 @@ function bookingActions({
         const listed = await publicService(req.body?.serviceId);
         if (!listed) return fail(res, 404, "This service isn't taking bookings right now.");
         // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
-        const asked = withExtras(listed, req.body?.extras);
+        const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service, extras } = asked;
         const start = Date.parse(String(req.body?.start || ""));
@@ -2286,7 +2289,7 @@ function bookingActions({
         // The admin's own times for a new or moved booking: the same free times customers see, without the notice.
         const found = (await readServices()).find((s) => s.id === req.body?.serviceId);
         if (!found) return fail(res, 404, "Choose a service.");
-        const asked = withExtras(found, req.body?.extras);
+        const asked = withExtras(forPerson(found, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
         const day = isDay(req.body?.day) ? req.body.day : dayOf(now().getTime(), zone());
@@ -2301,7 +2304,7 @@ function bookingActions({
         // New booking › Repeat: is each later visit of the run free? (Any hour, as the shop books it.)
         const found = (await readServices()).find((s) => s.id === req.body?.serviceId);
         if (!found) return fail(res, 404, "Choose a service.");
-        const asked = withExtras(found, req.body?.extras);
+        const asked = withExtras(forPerson(found, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
         if (isClass(service)) return fail(res, 400, "A class or course can't be booked as a standing appointment.", "run");
@@ -2379,7 +2382,7 @@ function bookingActions({
         // The owner can book someone onto a course late too, when it lets people join late.
         const listed = found && (joinableCourse(found, zone(), now().getTime()) ?? found);
         if (!listed) return fail(res, 404, "Choose a service.");
-        const asked = withExtras(listed, req.body?.extras);
+        const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service, extras } = asked;
         const customer = cleanCustomer(req.body);

@@ -34,8 +34,8 @@ const SHOP_WEEK = () => [[], [], [{ ...HOURS }], [{ ...HOURS }], [{ ...HOURS }],
 
 /** Sam does everything in the shop's hours; Riya does colour and cuts, later in the day, Wednesday to Saturday. */
 const TEST_STUDIO_STAFF = [
-  { id: "sam", name: "Sam Example", active: true, serviceIds: [], ownHours: false, hours: SHOP_WEEK(), daysOff: [], email: "" },
-  { id: "riya", name: "Riya Example", active: true, serviceIds: ["test-cut", "test-colour"], ownHours: true, hours: [[], [], [], [{ ...LATE }], [{ ...LATE }], [{ ...LATE }], [{ ...LATE }]], daysOff: [], email: "" },
+  { id: "sam", name: "Sam Example", active: true, serviceIds: [], ownHours: false, hours: SHOP_WEEK(), daysOff: [], email: "", rates: [] },
+  { id: "riya", name: "Riya Example", active: true, serviceIds: ["test-cut", "test-colour"], ownHours: true, hours: [[], [], [], [{ ...LATE }], [{ ...LATE }], [{ ...LATE }], [{ ...LATE }]], daysOff: [], email: "", rates: [{ serviceId: "test-cut", minutes: 60, priceMinor: 7500 }] },
 ];
 
 const service = (id, order, name, minutes, priceMinor, extra = {}) => ({

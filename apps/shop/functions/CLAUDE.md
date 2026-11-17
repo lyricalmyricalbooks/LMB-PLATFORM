@@ -1474,6 +1474,12 @@ from the page. `bookingStart` refuses a pack with priced extras (400 `pack`). Th
 `minutes`/`priceMinor`, so moves, runs and refunds need nothing more. Emails, the calendar entry and the owner's feed
 say "Extras: …" (`extrasWords`). Tests: bookings.test.js › add-ons and options.
 
+**Prices by person (17 November 2026, Services plan 2 B3, `tasks/todo/2026-11-17-prices-by-person.md`).** A team member's
+`rates` (`cleanRates`: one per service, minutes 5–480 or null, priceMinor or null) give their own length and price for a
+one-to-one service. `forPerson(service, settings, staffId)` applies it only when that person is picked (never a class, a
+course or a free service's money); every action calls `withExtras(forPerson(…), extras)`, so add-ons go on top and the
+booking stores the result. `bookingInfo` lists each person's `rates`. Tests: bookings.test.js › prices by person.
+
 **Text reminders (17 November 2026, Services plan phase 7, `tasks/todo/2026-11-17-text-reminders.md`).** Settings
 `textReminders` (Hours & rules › Text reminders, off by default). With `PLATFORM_TEXTS_URL` set (`shopConfig.platformTextsUrl`,
 written by the release runner), index.js gives `bookingActions` a `texts` sender (`textSender.js`: `status()` cached five

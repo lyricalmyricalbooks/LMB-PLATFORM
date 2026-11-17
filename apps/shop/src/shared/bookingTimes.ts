@@ -122,6 +122,9 @@ export const MAX_EXTRA_MINUTES = 240;
 
 export type HoursWindow = { start: string; end: string };
 
+/** One person's own length and price for one service: null keeps the service's own. */
+export type PersonRate = { serviceId: string; minutes: number | null; priceMinor: number | null };
+
 /**
  * One person clients can book (Services plan phase 4, 17 November 2026). With nobody listed the shop books as one
  * calendar, as before.
@@ -140,6 +143,8 @@ export type StaffMember = {
   daysOff: string[];
   /** Their sign-in address on the Team page, so they can see their own day (phase 4 part 2). */
   email: string;
+  /** Their own length or price for a service, when it differs from the service's (Services plan 2, B3). */
+  rates?: PersonRate[];
 };
 /** A room or chair that only one booking can use at a time. */
 export type BookingRoom = { id: string; name: string };
@@ -849,9 +854,42 @@ export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BO
       hours: ownHours ? cleanHours(p.hours, shopHours) : shopHours.map((d) => d.map((w) => ({ ...w }))),
       daysOff: cleanDaysOff(p.daysOff),
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
+      rates: cleanRates(p.rates),
     });
   }
   return out;
+}
+
+/** A person's own lengths and prices: one per service, at least one of the two set, lengths 5 minutes to 8 hours. */
+export function cleanRates(raw: unknown): PersonRate[] {
+  const seen = new Set<string>();
+  const out: PersonRate[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const r = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const serviceId = text(r.serviceId, 40);
+    if (!/^[A-Za-z0-9_-]+$/.test(serviceId) || seen.has(serviceId) || out.length >= MAX_SERVICES) continue;
+    const set = (v: unknown) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+    const minutes = set(r.minutes) ? whole(r.minutes, 5, 8 * 60, 5) : null;
+    const priceMinor = set(r.priceMinor) ? whole(r.priceMinor, 0, 1_000_000, 0) : null;
+    if (minutes === null && priceMinor === null) continue;
+    seen.add(serviceId);
+    out.push({ serviceId, minutes, priceMinor });
+  }
+  return out;
+}
+
+/**
+ * The service as booked with one person picked: their own length and price where they set one (B3). Only a one-to-one
+ * service, only someone who does it, and never money on a free service. "Anyone free" keeps the service's own.
+ */
+export function forPerson<T extends Pick<BookingService, "id" | "minutes" | "priceMinor" | "payment"> & { places?: number; courseDates?: readonly string[] }>(
+  service: T, settings: Pick<BookingSettings, "staff">, staffId: unknown,
+): T {
+  if ((service.places || 1) > 1 || isCourse(service)) return service;
+  const id = keptPerson(settings, service.id, staffId);
+  const rate = id ? (settings.staff || []).find((p) => p.id === id)?.rates?.find((r) => r.serviceId === service.id) : undefined;
+  if (!rate) return service;
+  return { ...service, minutes: rate.minutes ?? service.minutes, priceMinor: service.payment === "free" ? service.priceMinor : rate.priceMinor ?? service.priceMinor };
 }
 
 /** How far apart pickup times are offered. */

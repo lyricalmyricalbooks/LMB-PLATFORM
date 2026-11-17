@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type BookingRoom } from "../../shared/bookingTimes";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -1301,7 +1301,10 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { 
   // Add-ons ticked for this booking (ids of the service's extras).
   const [picked, setPicked] = useState<string[]>([]);
   const extras = (service.extras || []).filter((e) => picked.includes(e.id)).map((e) => e.id);
-  const asBooked = withExtras(service, extras);
+  // The picked person's own length and price for it, with the add-ons on top.
+  const personal = forPerson(service, settings, staffId);
+  const ownRate = personal.minutes !== service.minutes || personal.priceMinor !== service.priceMinor;
+  const asBooked = withExtras(personal, extras);
   const length = "problem" in asBooked ? service.minutes : asBooked.service.minutes;
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
@@ -1326,6 +1329,7 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { 
         </fieldset>
       )}
       <PersonPick settings={settings} serviceId={service.id} value={staffId} onChange={setStaffId} />
+      {ownRate && !extras.length && <p className="bkg-questions-hint">Their own: {personal.minutes} minutes{personal.priceMinor ? `, ${moneyText(personal.priceMinor, SHOP_CURRENCY)}` : ""}.</p>}
       <div className="bkg-two">
         <TextField label="Name" value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} autoComplete="off" />
         <TextField label="Email" type="email" value={who.email} onChange={(e) => setWho({ ...who, email: e.target.value })} autoComplete="off" />
@@ -1999,7 +2003,19 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
     // Ticking every service is the same as Every service.
     set("serviceIds", next.length === services.length ? [] : next);
   };
-  const save = async () => { setSaving(true); try { await onSave({ ...form, name: form.name.trim() }); } finally { setSaving(false); } };
+  // Their own price and length for each one-to-one service they do, as typed (blank = the service's own).
+  const [rateRows, setRateRows] = useState<Record<string, { minutes: string; price: string }>>(() => Object.fromEntries((person.rates || []).map((r) => [r.serviceId, {
+    minutes: r.minutes ? String(r.minutes) : "", price: r.priceMinor != null ? (r.priceMinor / 100).toFixed(2) : "",
+  }])));
+  const rated = services.filter((s) => (s.places || 1) <= 1 && !(s.courseDates || []).length && (every || form.serviceIds.includes(s.id)));
+  const setRate = (id: string, change: Partial<{ minutes: string; price: string }>) => setRateRows((r) => ({ ...r, [id]: { ...(r[id] || { minutes: "", price: "" }), ...change } }));
+  const rates = (): PersonRate[] => rated.flatMap((s) => {
+    const row = rateRows[s.id];
+    const minutes = row?.minutes.trim() ? Math.round(Number(row.minutes)) : null;
+    const priceMinor = s.payment !== "free" && row?.price.trim() ? Math.round(Number(row.price) * 100) : null;
+    return minutes == null && priceMinor == null ? [] : [{ serviceId: s.id, minutes, priceMinor }];
+  });
+  const save = async () => { setSaving(true); try { await onSave({ ...form, name: form.name.trim(), rates: rates() }); } finally { setSaving(false); } };
   return (
     <Dialog open onClose={onClose} title={person.id ? `Edit ${person.name}` : "Add a person"}
       footerStart={onRemove ? <DestructiveButton onClick={() => void onRemove()} disabled={saving}>Remove</DestructiveButton> : undefined}
@@ -2016,6 +2032,22 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
             </div>
           )}
         </fieldset>
+        {rated.length > 0 && (
+          <fieldset className="bkg-questions">
+            <legend>Their prices and lengths <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+            <p className="bkg-questions-hint">Leave empty to use the service's own. Clients see {form.name.trim() || "their"}{form.name.trim() ? "'s" : ""} price when they pick {form.name.trim() ? "them" : "this person"}.</p>
+            {rated.map((s) => (
+              <div key={s.id} className="bkg-question bkg-rate">
+                <div className="bkg-question-row">
+                  <TextField label={`${s.name}: minutes`} type="number" inputMode="numeric" min={5} max={480} step={5} placeholder={String(s.minutes)}
+                    value={rateRows[s.id]?.minutes || ""} onChange={(e) => setRate(s.id, { minutes: e.target.value })} />
+                  {s.payment !== "free" && <TextField label={`${s.name}: price`} type="number" inputMode="decimal" min={0} step="0.01" placeholder={(s.priceMinor / 100).toFixed(2)}
+                    value={rateRows[s.id]?.price || ""} onChange={(e) => setRate(s.id, { price: e.target.value })} />}
+                </div>
+              </div>
+            ))}
+          </fieldset>
+        )}
         <fieldset className="bkg-questions">
           <legend>When they work</legend>
           <div className="bkg-seg" role="radiogroup" aria-label="When they work">

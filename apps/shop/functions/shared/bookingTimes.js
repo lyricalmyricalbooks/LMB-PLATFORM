@@ -40,6 +40,8 @@ exports.reviewLink = reviewLink;
 exports.thanksDue = thanksDue;
 exports.cleanRooms = cleanRooms;
 exports.cleanStaff = cleanStaff;
+exports.cleanRates = cleanRates;
+exports.forPerson = forPerson;
 exports.zonedTime = zonedTime;
 exports.dayOf = dayOf;
 exports.addDays = addDays;
@@ -725,9 +727,42 @@ function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
             hours: ownHours ? cleanHours(p.hours, shopHours) : shopHours.map((d) => d.map((w) => ({ ...w }))),
             daysOff: cleanDaysOff(p.daysOff),
             email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
+            rates: cleanRates(p.rates),
         });
     }
     return out;
+}
+/** A person's own lengths and prices: one per service, at least one of the two set, lengths 5 minutes to 8 hours. */
+function cleanRates(raw) {
+    const seen = new Set();
+    const out = [];
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const r = item && typeof item === "object" ? item : {};
+        const serviceId = text(r.serviceId, 40);
+        if (!/^[A-Za-z0-9_-]+$/.test(serviceId) || seen.has(serviceId) || out.length >= exports.MAX_SERVICES)
+            continue;
+        const set = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+        const minutes = set(r.minutes) ? whole(r.minutes, 5, 8 * 60, 5) : null;
+        const priceMinor = set(r.priceMinor) ? whole(r.priceMinor, 0, 1_000_000, 0) : null;
+        if (minutes === null && priceMinor === null)
+            continue;
+        seen.add(serviceId);
+        out.push({ serviceId, minutes, priceMinor });
+    }
+    return out;
+}
+/**
+ * The service as booked with one person picked: their own length and price where they set one (B3). Only a one-to-one
+ * service, only someone who does it, and never money on a free service. "Anyone free" keeps the service's own.
+ */
+function forPerson(service, settings, staffId) {
+    if ((service.places || 1) > 1 || (0, exports.isCourse)(service))
+        return service;
+    const id = keptPerson(settings, service.id, staffId);
+    const rate = id ? (settings.staff || []).find((p) => p.id === id)?.rates?.find((r) => r.serviceId === service.id) : undefined;
+    if (!rate)
+        return service;
+    return { ...service, minutes: rate.minutes ?? service.minutes, priceMinor: service.payment === "free" ? service.priceMinor : rate.priceMinor ?? service.priceMinor };
 }
 /** How far apart pickup times are offered. */
 exports.PICKUP_SLOT_MINUTES = [15, 30, 60];
