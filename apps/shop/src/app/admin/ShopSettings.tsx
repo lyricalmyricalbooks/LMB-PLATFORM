@@ -40,8 +40,7 @@ import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
 import { saveSectionsInOrder } from "./settingsSave";
 import { SocialAccountsFields } from "./SocialAccountsFields";
-import { NewShippingProfileDialog } from "./NewShippingProfileDialog";
-import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
+import { ProfilesWorkspace } from "./shipping/ProfilesWorkspace";
 
 /** Same cap as functions/liveRateExtra.js MAX_LIVE_RATE_EXTRA. */
 const MAX_LIVE_RATE_EXTRA = 50;
@@ -537,7 +536,6 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   const [rateBaseline, setRateBaseline] = useState<string | null>(null);
   
   // Create profile dialog
-  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   const [shippoApiKey, setShippoApiKey] = useState("");
   const [showShippoApiKey, setShowShippoApiKey] = useState(false);
   const [shippoConfig, setShippoConfig] = useState<any | null>(null);
@@ -619,66 +617,11 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   };
 
   const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+  // Every "open this profile" (Overview fixes, a new or copied profile) opens it in the Profiles workspace.
+  const [focusProfileId, setFocusProfileId] = useState<string | null>(null);
   const handleSelectProfile = (profile: any) => {
-    setSelectedProfileId(profile.id);
-    setEditingProfile(JSON.parse(JSON.stringify(profile)));
-  };
-
-  // Opens a just-made profile from the fresh list (so it isn't "unsaved"), then asks which books use it.
-  const openNewProfile = async (created: any, message: string) => {
-    const list = await refreshProfiles();
-    const saved = (list || []).find((p: any) => p.id === created.id) || created;
-    handleSelectProfile(saved);
+    setFocusProfileId(profile.id);
     setShippingView("profiles");
-    openProductModal(saved.id);
-    toast.success(message);
-  };
-  const creatingRef = useRef(false);
-  const handleCreateProfile = async (draft: any): Promise<boolean> => {
-    // A double click must not create two profiles.
-    if (creatingRef.current) return false;
-    creatingRef.current = true;
-    try {
-      const created = await adminApi.createShippingProfile(draft);
-      await openNewProfile(created, `“${draft.name}” created. Tick the books that use it.`);
-      return true;
-    } catch {
-      toast.error("Couldn't create the shipping profile. Check your connection and try again.");
-      return false;
-    } finally {
-      creatingRef.current = false;
-    }
-  };
-  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
-  const handleDuplicateProfile = async (profile: any) => {
-    if (duplicatingId) return;
-    setDuplicatingId(profile.id);
-    try {
-      const draft = duplicateProfile(profile, newId, profiles.map((p: any) => p.name));
-      const created = await adminApi.createShippingProfile(draft);
-      await openNewProfile(created, `Copied as “${draft.name}”. Tick the books that use it; its prices are the same as “${profile.name}”.`);
-    } catch {
-      toast.error("Couldn't copy the shipping profile. Check your connection and try again.");
-    } finally {
-      setDuplicatingId(null);
-    }
-  };
-
-  const handleDeleteProfile = async (id: string) => {
-    if (id === "general-profile") {
-      toast.error("Cannot delete the General Shipping Profile.");
-      return;
-    }
-    if (!(await askConfirm({ title: "Delete this shipping profile?", message: "All assigned products will revert to the General Profile.", confirmLabel: "Delete profile" }))) return;
-    try {
-      await adminApi.deleteShippingProfile(id);
-      refreshProfiles();
-      await loadBooks(); // its books moved to General — refresh counts and health
-      setSelectedProfileId(null);
-      setEditingProfile(null);
-    } catch {
-      toast.error("Couldn't delete the shipping profile. Nothing was changed; try again.");
-    }
   };
 
   const [savingProfile, setSavingProfile] = useState(false);
@@ -1067,45 +1010,7 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
         {shippingView === "carrier" && <OwnAccountOnly><AddressFinderCard /></OwnAccountOnly>}
 
         {shippingView === "profiles" && (
-        <>
-        {renderTabProblems(profileProblems)}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <PrimaryButton size="sm" onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>
-        </div>
-
-        <NewShippingProfileDialog open={isCreatingProfile} onClose={() => setIsCreatingProfile(false)} profiles={profiles} onCreate={handleCreateProfile} />
-
-        {profiles.length === 0 && profilesError ? null : profiles.length === 0 ? (
-          <EmptyState icon="🚚" title="No shipping profiles" description="Customers can't check out until a profile has a zone and a rate."
-            action={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
-        ) : (
-          <ul className="rp-list" style={{ margin: 0, border: "var(--rp-stroke) solid var(--rp-border-strong)", background: "var(--rp-surface)" }} aria-label="Shipping profiles">
-            {profiles.map((p: any) => {
-              const assigned = getAssignedProducts(p.id);
-              const noRates = !(p.zones || []).some((z: any) => z.rates?.length);
-              return (
-                <li key={p.id} style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
-                  <div style={{ minWidth: 0, flex: "1 1 260px" }}>
-                    <button type="button" className="rp-wb-a" style={{ fontSize: "var(--rp-text-md, 16px)", overflowWrap: "anywhere", textAlign: "left" }} onClick={() => handleSelectProfile(p)}>{p.name || "Untitled profile"}</button>{" "}
-                    {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
-                    {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
-                    <div className="rp-hint" style={{ marginTop: 4, overflowWrap: "anywhere" }}>
-                      {profileSummary(p)} · {p.id === "general-profile" ? "all other books" : `${assigned.length} book${assigned.length === 1 ? "" : "s"}`}
-                    </div>
-                  </div>
-                  <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
-                    <button type="button" className="rp-wb-a" onClick={() => handleSelectProfile(p)} aria-label={`Edit ${p.name || "profile"}`}>Edit</button>
-                    <ActionMenu label={`More for ${p.name || "profile"}`} actions={[
-                      { label: duplicatingId === p.id ? "Duplicating…" : "Duplicate", onSelect: () => { if (!duplicatingId) handleDuplicateProfile(p); } },
-                      ...(p.id !== "general-profile" ? [{ label: "Delete", tone: "danger" as const, onSelect: () => handleDeleteProfile(p.id) }] : []),
-                    ]} />
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        </>
+          <ProfilesWorkspace profiles={profiles} books={books} refreshProfiles={refreshProfiles} reloadBooks={loadBooks} focusProfileId={focusProfileId} />
         )}
         {confirmNode}
       </div>
