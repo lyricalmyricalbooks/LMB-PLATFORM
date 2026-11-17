@@ -26,6 +26,8 @@ import { sellsServices } from "../../shared/shopSells";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./clientCard.css";
 import { ClientFormFacts } from "./clientForm";
+import { ClientVisits } from "./ClientVisits";
+import { emailHash } from "./emailHash";
 import { dayOf } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 
@@ -52,12 +54,7 @@ const bookingDay = (iso: string) => {
 const BOOKINGS_BACK_DAYS = 365, BOOKINGS_AHEAD_DAYS = 183;
 const shortDate = (at: number) => new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
-/** sha256 hex of the lowercased email: the id of `customerNotes` and `marketing-optout` docs. */
-export async function emailHash(email: string): Promise<string> {
-  const data = new TextEncoder().encode(String(email || "").trim().toLowerCase());
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+export { emailHash };
 
 /** `#customers?q=…` prefills the search (global search links here). */
 const hashQuery = () => {
@@ -406,6 +403,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
         <div className="rp-stack">
           {hasCard && <ClientCardView card={card} phone={phone} email={c.email} again={card.again && onBookAgain ? () => onBookAgain({ ...card.again!, name: c.name, email: c.email, phone }) : undefined}
             bookFirst={!card.again && onBookAgain ? () => onBookAgain({ serviceId: "", staffId: "", name: c.name, email: c.email, phone }) : undefined} />}
+          {hasCard && services && <ClientVisits email={c.key} />}
           {(!services || c.orderCount > 0 || !hasCard || c.segment === "moved") && <p className="rp-hint" style={{ margin: 0 }}>
             {c.segment === "moved"
               ? services ? "Brought over from your old booking tool. Their visits there are in Private notes." : "Brought over from your old shop, with no order here yet. What they bought there is in Notes & tags."

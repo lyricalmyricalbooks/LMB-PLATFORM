@@ -25,6 +25,9 @@ import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsA
 import { DEFAULT_BOOKING_SETTINGS, addDays, zonedTime, type BookingService } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
+import { clientVisitsData } from "../app/admin/clientVisitsApi";
+import { emailHash } from "../app/admin/emailHash";
+import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
 import { refundMinorFor } from "../shared/eventTickets";
 import { waysIn } from "../shared/waysToSell";
@@ -415,6 +418,35 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     changed();
     return { ok: true };
   };
+}
+
+// ── Customers › a client › Visit notes and photos (services shops, `?sells=hair`): Ben has two visits, one with
+// before and after photos. Kept in memory; photos are drawn pictures, uploads become the picked file itself.
+{
+  const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
+  const dayOf = (d: Date) => d.toLocaleDateString("en-CA");
+  const picture = (label: string, hue: number) => `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="hsl(${hue},45%,72%)"/><circle cx="300" cy="250" r="120" fill="hsl(${hue},40%,52%)"/><rect x="150" y="380" width="300" height="160" rx="70" fill="hsl(${hue},40%,52%)"/><text x="300" y="80" font-family="sans-serif" font-size="44" text-anchor="middle" fill="#1d1b17">${label}</text></svg>`)}`;
+  const files = new Map<string, string>();
+  let visits: ClientVisit[] = [];
+  let made = false;
+  const seed = async (client: string) => {
+    if (made || client !== await emailHash("ben@example.com")) return;
+    made = true;
+    const p = (name: string) => `${clientPhotoFolder(client)}/${name}`;
+    files.set(p("before-1-a.jpg"), picture("Before", 28));
+    files.set(p("after-1-b.jpg"), picture("After", 280));
+    files.set(p("after-1-c.jpg"), picture("After", 300));
+    visits = [
+      { id: "v-1", client, email: "ben@example.com", day: dayOf(ago(12)), note: "Root touch-up. 6N + 20 vol, 35 min. Toner 9V on the ends, 10 min.\nNext time: try 7N, he found it a little dark.", photos: [{ path: p("before-1-a.jpg"), kind: "before" }, { path: p("after-1-b.jpg"), kind: "after" }, { path: p("after-1-c.jpg"), kind: "after" }], createdAt: ago(12).toISOString(), updatedAt: ago(12).toISOString() },
+      { id: "v-2", client, email: "ben@example.com", day: dayOf(ago(60)), note: "First visit. Allergy patch test clear. Full colour 6N.", photos: [], createdAt: ago(60).toISOString(), updatedAt: ago(60).toISOString() },
+    ];
+  };
+  clientVisitsData.list = async (client) => { await seed(client); return visits.filter((v) => v.client === client).sort((a, b) => b.day.localeCompare(a.day) || b.createdAt.localeCompare(a.createdAt)); };
+  clientVisitsData.write = async (id, record) => { const vid = id || `v-${Date.now()}`; visits = [{ ...record, id: vid }, ...visits.filter((v) => v.id !== vid)]; return vid; };
+  clientVisitsData.erase = async (id) => { visits = visits.filter((v) => v.id !== id); };
+  clientVisitsData.upload = async (client, kind, file) => { const path = `${clientPhotoFolder(client)}/${photoFileName(kind, Date.now(), Math.random().toString(36).slice(2, 8))}`; files.set(path, URL.createObjectURL(file)); return path; };
+  clientVisitsData.photoUrl = async (path) => { const url = files.get(path); if (!url) throw new Error("missing"); return url; };
+  clientVisitsData.removeFiles = async (paths) => { for (const p of paths) files.delete(p); };
 }
 
 // ── Bookkeeping › Transactions › Bank feed (beta, a paid add-on): `?bank=soon|off|connect|signin|empty` (default: one
