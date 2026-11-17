@@ -638,6 +638,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "eventsShowCode", label: "Under the ticket codes", default: "Show a code at the door. Each one is good for one person." },
       { key: "eventsCodeQr", label: "Ticket QR code (read aloud)", default: "QR code for this ticket" },
       { key: "eventsTicketUsed", label: "On a ticket already used at the door", default: "Checked in" },
+      { key: "eventsCancelledRefundedText", label: "Your tickets: the event was cancelled and refunded", default: "This event has been cancelled. Your money is on its way back to the card you paid with. It can take a few days to show." },
       { key: "eventsRefundedTitle", label: "Tickets refunded: heading", default: "Refunded" },
       { key: "eventsRefundedText", label: "Tickets refunded: text", default: "These tickets were cancelled and your money is on its way back to the card you paid with. It can take a few days to show." },
       { key: "eventsTicketsCancelledTitle", label: "Tickets cancelled: heading", default: "Tickets cancelled" },

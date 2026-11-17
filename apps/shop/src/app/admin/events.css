@@ -74,6 +74,8 @@
 .rp .evt-refund-sum strong { font-size: 20px; font-variant-numeric: tabular-nums; margin-right: 4px; }
 .rp .evt-refund-note { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
 .rp .evt-refund-error { margin: 0; font-size: 14px; color: var(--rp-danger, var(--rp-text)); }
+.rp .evt-refund-error p { margin: 0 0 6px; }
+.rp .evt-refund-error ul { margin: 0 0 6px; padding-left: 18px; }
 .rp .evt-codes { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .rp .evt-codes li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(150px, auto); align-items: center; gap: 12px; min-height: 36px; font-size: 14px; }
 .rp .evt-codes li[data-used="true"] > span:first-child, .rp .evt-codes li[data-used="true"] > code { color: var(--rp-text-muted); }

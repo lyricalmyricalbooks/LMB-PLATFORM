@@ -1049,6 +1049,7 @@ export const FRENCH_COPY: Record<string, string> = {
   eventsShowCode: "Présentez un code à l'entrée. Chaque code vaut pour une personne.",
   eventsCodeQr: "Code QR de ce billet",
   eventsTicketUsed: "Enregistré à l'entrée",
+  eventsCancelledRefundedText: "Cet événement a été annulé. Votre argent est en route vers la carte utilisée pour payer. Cela peut prendre quelques jours.",
   eventsRefundedTitle: "Remboursé",
   eventsRefundedText: "Ces billets ont été annulés et votre argent est en route vers la carte utilisée pour payer. Cela peut prendre quelques jours.",
   eventsTicketsCancelledTitle: "Billets annulés",

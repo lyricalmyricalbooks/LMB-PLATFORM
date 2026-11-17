@@ -1496,3 +1496,9 @@ after the money moves does one transaction drop the tickets and `ticketCodes`, f
 by `orders`, last). A refused refund changes nothing (`refund_failed`); `money: false` cancels without sending money.
 The buyer gets one email (`tellRefund`) and their page shows the refund.
 
+**Calling an event off (E3b, `tasks/todo/2026-11-17-events-cancel.md`):** admin op `cancelEvent` (`{ id, money?, skip? }`)
+marks the event cancelled, then gives back up to `CANCEL_BATCH` (10) paid orders per call through the same `giveBack`
+the `refund` op uses (`called: true`: checked-in tickets go back too, the arrived count follows, the email says the
+event is cancelled). It answers `{ done, amountMinor, failed, left }`; the admin calls again while `left > 0`, passing
+failed order ids as `skip`. Safe to repeat: given-back orders are skipped and a failed refund leaves its order paid.
+
