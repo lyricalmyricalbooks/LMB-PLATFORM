@@ -199,7 +199,38 @@ export type BookingSettings = {
    * ticked "Text me reminders" and gave a mobile number. Sent through the platform, billed to the shop at cost.
    */
   textReminders?: boolean;
+  /** A form clients fill in once before their first visit (Services plan 2, B4). Left out while there is none. */
+  intakeForm?: IntakeForm;
 };
+
+/**
+ * A health or consent form a client fills in once, signed with their typed name and a tick (the date is kept). It asks
+ * again when its words change. `serviceIds` empty: every service.
+ */
+export type IntakeForm = { on: boolean; title: string; text: string; questions: BookingQuestion[]; serviceIds: string[] };
+export const MAX_FORM_TEXT = 6000;
+
+/** The form as saved: words trimmed and capped, its questions cleaned; null when it has no words at all. */
+export function cleanIntakeForm(raw: unknown): IntakeForm | null {
+  const f = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const body = typeof f.text === "string" ? f.text.trim().slice(0, MAX_FORM_TEXT) : "";
+  const questions = cleanQuestions(f.questions);
+  if (!body && !questions.length) return null;
+  const serviceIds = [...new Set((Array.isArray(f.serviceIds) ? f.serviceIds : []).filter((x): x is string => typeof x === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(x)))].slice(0, MAX_SERVICES);
+  return { on: f.on === true, title: text(f.title, 80) || "Before your first visit", text: body, questions, serviceIds };
+}
+
+/** Whether a booking of this service asks for the form. */
+export const formFor = (form: IntakeForm | null | undefined, serviceId: string): IntakeForm | null =>
+  form?.on && (!form.serviceIds.length || form.serviceIds.includes(serviceId)) ? form : null;
+
+/** Which wording of the form a client signed: changing the title, words or questions asks everyone again. */
+export function formVersion(form: Pick<IntakeForm, "title" | "text" | "questions">): string {
+  const source = JSON.stringify([form.title, form.text, form.questions.map((q) => [q.label, q.long, q.required])]);
+  let h = 5381;
+  for (let i = 0; i < source.length; i += 1) h = ((h * 33) ^ source.charCodeAt(i)) >>> 0;
+  return `v${h.toString(36)}${source.length.toString(36)}`;
+}
 
 /**
  * A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. `staffId` is the person
@@ -655,6 +686,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     reviewUrl: reviewLink(s.reviewUrl),
     siteReviews: s.siteReviews === true,
     textReminders: s.textReminders === true,
+    ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
   };
 }
 

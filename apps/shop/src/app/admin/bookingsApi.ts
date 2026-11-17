@@ -40,6 +40,8 @@ export type Booking = {
   /** Add-ons and options the client ticked (each already in `minutes` and `priceMinor`). */
   extras?: BookingExtra[] | null;
   series?: { id: string; visit: number; visits: number; everyWeeks: number } | null;
+  /** The client asked to hear if an earlier time opens (Services plan 2, B5). */
+  earlierWanted?: boolean;
 };
 
 /**
@@ -115,7 +117,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus" | "runCheck";
+export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus" | "runCheck" | "clientForm";
 
 /** A card reader that connects over the internet (Take a payment). */
 export type CardReader = { id: string; label: string; online: boolean | null; device?: string };

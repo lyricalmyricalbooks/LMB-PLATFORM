@@ -100,6 +100,10 @@ export type BookingView = {
   staffId?: string; staffName?: string;
   /** A course: every date this sign-up holds a place on. `canMove` false: it can be cancelled online but not moved. */
   courseStarts?: string[]; canMove?: boolean;
+  /** "Tell me if an earlier time opens": whether this visit can ask, and whether it has. */
+  canEarlier?: boolean; earlier?: boolean;
+  /** The shop's form before the first visit, while this client hasn't signed it; or when they signed it. */
+  form?: { title: string; text: string; questions: BookingQuestion[] }; formSigned?: string;
   /** Add-ons and options booked with it (minutes and priceMinor already include them). */
   extras?: BookingExtraView[];
   /** A standing appointment: which visit of the run this is, how many there are and how often. */
@@ -241,6 +245,15 @@ export function monthLabel(days: string[]): string {
 }
 
 /** The manage link's parts from the address, or null. Ids and keys keep the server's own shapes. */
+/** An earlier time held for a booking (`/book?earlier=…&ekey=…`, the link in its email), or null. */
+export function earlierFromSearch(search: string): { id: string; ekey: string } | null {
+  const q = new URLSearchParams(search);
+  const id = q.get("earlier") || "";
+  const ekey = q.get("ekey") || "";
+  return /^[A-Za-z0-9_-]{6,40}$/.test(id) && /^[a-f0-9]{48}$/.test(ekey) ? { id, ekey } : null;
+}
+/** The earlier time as its page shows it (`bookingEarlierView` / `bookingEarlierTake`). */
+export type EarlierOfferView = { serviceName: string; staffName: string; minutes: number; start: string; offerStart?: string; offerUntil?: string; taken?: boolean };
 export function manageFromSearch(search: string): { id: string; key: string } | null {
   const q = new URLSearchParams(search);
   const id = q.get("booking") || "";

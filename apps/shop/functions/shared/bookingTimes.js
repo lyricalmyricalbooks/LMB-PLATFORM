@@ -9,8 +9,10 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = void 0;
+exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.formFor = exports.MAX_FORM_TEXT = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = void 0;
+exports.cleanIntakeForm = cleanIntakeForm;
+exports.formVersion = formVersion;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -84,6 +86,28 @@ exports.MAX_EXTRAS = 8;
 exports.MAX_EXTRA_MINUTES = 240;
 exports.MAX_STAFF = 20;
 exports.MAX_ROOMS = 10;
+exports.MAX_FORM_TEXT = 6000;
+/** The form as saved: words trimmed and capped, its questions cleaned; null when it has no words at all. */
+function cleanIntakeForm(raw) {
+    const f = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const body = typeof f.text === "string" ? f.text.trim().slice(0, exports.MAX_FORM_TEXT) : "";
+    const questions = cleanQuestions(f.questions);
+    if (!body && !questions.length)
+        return null;
+    const serviceIds = [...new Set((Array.isArray(f.serviceIds) ? f.serviceIds : []).filter((x) => typeof x === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(x)))].slice(0, exports.MAX_SERVICES);
+    return { on: f.on === true, title: text(f.title, 80) || "Before your first visit", text: body, questions, serviceIds };
+}
+/** Whether a booking of this service asks for the form. */
+const formFor = (form, serviceId) => form?.on && (!form.serviceIds.length || form.serviceIds.includes(serviceId)) ? form : null;
+exports.formFor = formFor;
+/** Which wording of the form a client signed: changing the title, words or questions asks everyone again. */
+function formVersion(form) {
+    const source = JSON.stringify([form.title, form.text, form.questions.map((q) => [q.label, q.long, q.required])]);
+    let h = 5381;
+    for (let i = 0; i < source.length; i += 1)
+        h = ((h * 33) ^ source.charCodeAt(i)) >>> 0;
+    return `v${h.toString(36)}${source.length.toString(36)}`;
+}
 exports.BOOKING_STEPS = [15, 30, 60];
 exports.MAX_SERVICES = 30;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -543,6 +567,7 @@ function cleanBookingSettings(raw) {
         reviewUrl: reviewLink(s.reviewUrl),
         siteReviews: s.siteReviews === true,
         textReminders: s.textReminders === true,
+        ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
     };
 }
 exports.MAX_REBOOK_WEEKS = 52;

@@ -21,7 +21,7 @@ import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/booking
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
-  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
+  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, earlierFromSearch, type EarlierOfferView, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
   peopleFor, withPicked, pricedPicks, asPerson, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
@@ -41,9 +41,11 @@ function BookTimeContent() {
   const c: Copy = (key, vars) => getCopy(design, key, vars);
   const location = useLocation();
   const manage = useMemo(() => manageFromSearch(location.search), [location.search]);
+  // An earlier time held for a booking: the link in its email.
+  const earlier = useMemo(() => earlierFromSearch(location.search), [location.search]);
   // A pack's own page: the link in its email, and where the card page sends the customer back after buying one.
   const packCode = useMemo(() => packFromSearch(location.search), [location.search]);
-  useSEO({ title: c("bookTimeTitle"), description: c("bookTimeSubtitle"), noindex: !!manage || !!packCode });
+  useSEO({ title: c("bookTimeTitle"), description: c("bookTimeSubtitle"), noindex: !!manage || !!packCode || !!earlier });
 
   return (
     <div data-fm-store data-studio-target="copy:Bookings page|style:colors" data-studio-label="Book a time page" className="fm-track min-h-screen fm-page text-white font-sans relative pb-24">
@@ -58,7 +60,7 @@ function BookTimeContent() {
         </div>
       </nav>
       <main className="max-w-3xl mx-auto px-5 sm:px-8 pt-12 sm:pt-16 relative z-10">
-        {manage ? <ManageBooking id={manage.id} manageKey={manage.key} c={c} /> : packCode ? <PackPage code={packCode} c={c} /> : <NewBooking c={c} />}
+        {earlier ? <EarlierOffer id={earlier.id} ekey={earlier.ekey} c={c} /> : manage ? <ManageBooking id={manage.id} manageKey={manage.key} c={c} /> : packCode ? <PackPage code={packCode} c={c} /> : <NewBooking c={c} />}
       </main>
       <TemplateSections design={design} templateId="bookingsPage" books={books} />
       <GlobalSections design={design} books={books} />
@@ -1057,6 +1059,120 @@ function CheckInCode({ code, c }: { code: string; c: Copy }) {
   );
 }
 
+/** The shop's form before the first visit: its words, its questions, a typed name and a tick. Signed once per client. */
+function FirstVisitForm({ form, id, manageKey, onSigned, c }: {
+  form: NonNullable<BookingView["form"]>; id: string; manageKey: string; onSigned: (b: BookingView) => void; c: Copy;
+}) {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [name, setName] = useState("");
+  const [agree, setAgree] = useState(false);
+  const [problems, setProblems] = useState<{ name?: string; agree?: string; answers?: Record<string, string> }>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const sign = async (e: FormEvent) => {
+    e.preventDefault();
+    const missing = Object.fromEntries(form.questions.filter((q) => q.required && !(answers[q.id] || "").trim()).map((q) => [q.id, c("bookTimeNeedAnswer")]));
+    const found = { ...(name.trim() ? {} : { name: c("bookTimeFormNeedName") }), ...(agree ? {} : { agree: c("bookTimeFormNeedAgree") }), ...(Object.keys(missing).length ? { answers: missing } : {}) };
+    setProblems(found);
+    if (Object.keys(found).length) return;
+    setBusy(true);
+    setError("");
+    try {
+      onSigned((await ask("bookingForm", { id, key: manageKey, signedName: name.trim(), agree: true, answers })).booking);
+    } catch (err: any) {
+      setError(err?.message || c("bookTimeError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form {...regionProps("bookingsIntake")} className="fm-track-card p-5 sm:p-8 space-y-5" onSubmit={(e) => void sign(e)} noValidate>
+      <div className="space-y-2">
+        <h2 className="fm-track-display text-3xl">{form.title}</h2>
+        <p className="text-sm leading-6 fm-muted">{c("bookTimeFormIntro")}</p>
+      </div>
+      {form.text && <div className="fm-book-form-text">{form.text}</div>}
+      {form.questions.map((q) => {
+        const qid = `bt-f-${q.id}`;
+        const problem = problems.answers?.[q.id];
+        const props = { id: qid, className: "fm-track-input", value: answers[q.id] || "", "aria-invalid": !!problem, "aria-required": q.required, "aria-describedby": problem ? `${qid}-err` : undefined };
+        return (
+          <Field key={q.id} id={qid} label={q.required ? q.label : `${q.label} ${c("bookTimeOptional")}`} problem={problem}>
+            {q.long
+              ? <textarea {...props} maxLength={1000} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
+              : <input {...props} maxLength={200} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />}
+          </Field>
+        );
+      })}
+      <Field id="bt-f-name" label={c("bookTimeFormName")} problem={problems.name}>
+        <input id="bt-f-name" className="fm-track-input" autoComplete="name" value={name} maxLength={100} aria-invalid={!!problems.name} aria-describedby={problems.name ? "bt-f-name-err" : undefined} onChange={(e) => { setName(e.target.value); setProblems((p) => ({ ...p, name: undefined })); }} />
+      </Field>
+      <label className="fm-book-extra">
+        <input type="checkbox" checked={agree} aria-invalid={!!problems.agree} onChange={(e) => { setAgree(e.target.checked); setProblems((p) => ({ ...p, agree: undefined })); }} />
+        <span>{c("bookTimeFormAgree")}</span>
+        {problems.agree && <span className="fm-book-error w-full" role="alert">{problems.agree}</span>}
+      </label>
+      {error && <div className="fm-track-notice" data-tone="danger" role="alert"><p>{error}</p></div>}
+      <button type="submit" className="fm-track-btn" disabled={busy}>{busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeFormSign")}</button>
+    </form>
+  );
+}
+
+/** An earlier time held for a booking: the time, the booking it would replace, and one button that moves it. */
+function EarlierOffer({ id, ekey, c }: { id: string; ekey: string; c: Copy }) {
+  const [offer, setOffer] = useState<EarlierOfferView | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "gone" | "failed">("loading");
+  const [busy, setBusy] = useState(false);
+  const zone = shopTimeZone();
+  const load = () => {
+    setState("loading");
+    ask("bookingEarlierView", { id, ekey }).then((a) => { setOffer(a.offer); setState("ready"); })
+      .catch((err: any) => setState(err?.status === 404 ? "gone" : "failed"));
+  };
+  useEffect(load, [id, ekey]);
+  const take = async () => {
+    setBusy(true);
+    try {
+      setOffer((await ask("bookingEarlierTake", { id, ekey })).offer);
+    } catch (err: any) {
+      setState(err?.status === 404 || err?.code === "taken" ? "gone" : "failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const when = (start: string, minutes: number) => whenText(start, new Date(Date.parse(start) + minutes * 60_000).toISOString(), zone);
+  if (state === "loading") return <Loading c={c} />;
+  if (state === "failed") {
+    return (
+      <div className="fm-track-notice" data-tone="danger" role="alert">
+        <p>{c("bookTimeLoadError")}</p>
+        <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={load}>{c("bookTimeRetry")}</button>
+      </div>
+    );
+  }
+  return (
+    <div {...regionProps("bookingsEarlierOffer")} className="space-y-6">
+      <h1 className="fm-track-display text-4xl sm:text-5xl">{c("bookTimeSoonerTitle")}</h1>
+      {state === "gone" || !offer ? (
+        <div className="fm-track-notice" data-tone="warning" role="status"><p>{c("bookTimeSoonerGone")}</p></div>
+      ) : offer.taken ? (
+        <div className="fm-track-notice" data-tone="success" role="status"><p>{c("bookTimeSoonerTaken", { when: when(offer.start, offer.minutes) })}</p></div>
+      ) : (
+        <div className="fm-track-card p-5 sm:p-8 space-y-4">
+          <p className="fm-track-mono">{offer.serviceName}{offer.staffName ? ` · ${offer.staffName}` : ""}</p>
+          <p className="text-xl font-bold" translate="no">{c("bookTimeSoonerNew", { when: when(offer.offerStart || offer.start, offer.minutes) })}</p>
+          <p className="fm-muted" translate="no">{c("bookTimeSoonerNow", { when: when(offer.start, offer.minutes) })}</p>
+          {offer.offerUntil && <p className="text-sm leading-6 fm-muted">{c("bookTimeSoonerHeld", { time: timeText(offer.offerUntil, zone) })}</p>}
+          <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void take()}>
+            {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeSoonerTake")}
+          </button>
+        </div>
+      )}
+      <Link to="/book" className="fm-track-link fm-track-mono"><CalendarPlus size={14} aria-hidden="true" /> {c("bookTimeAnother")}</Link>
+    </div>
+  );
+}
+
 function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c: Copy }) {
   const [booking, setBooking] = useState<BookingView | null>(null);
   const [info, setInfo] = useState<BookingInfo | null>(null);
@@ -1142,6 +1258,18 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
     }
   };
 
+  // "Tell me if an earlier time opens", on or off.
+  const wantEarlier = async (on: boolean) => {
+    setBusy(true);
+    setError("");
+    try {
+      setBooking((await ask("bookingEarlier", { id, key: manageKey, on })).booking);
+    } catch {
+      setError(c("bookTimeError"));
+    } finally {
+      setBusy(false);
+    }
+  };
   const act = async (action: "bookingMove" | "bookingCancel", body: Record<string, unknown> = {}) => {
     setBusy(true);
     setError("");
@@ -1272,6 +1400,15 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
             </div>
           ) : <p className="text-sm leading-6 fm-muted">{c("bookTimeTooLate")}</p>}
           {booking.canChange && <p className="text-sm leading-6 fm-muted">{c("bookTimeCancelRule", { hours: booking.cancelHours })}</p>}
+          {booking.form && <FirstVisitForm form={booking.form} id={id} manageKey={manageKey} onSigned={setBooking} c={c} />}
+          {booking.formSigned && <p className="text-sm leading-6 fm-muted">{c("bookTimeFormSigned", { date: new Date(booking.formSigned).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) })}</p>}
+          {booking.canEarlier && (
+            <label {...regionProps("bookingsEarlier")} className="fm-book-extra fm-book-earlier">
+              <input type="checkbox" checked={!!booking.earlier} disabled={busy} onChange={(e) => void wantEarlier(e.target.checked)} />
+              <span>{c("bookTimeSooner")}</span>
+              <span className="text-sm leading-6 fm-muted w-full">{c("bookTimeSoonerHint")}</span>
+            </label>
+          )}
         </div>
       )}
 

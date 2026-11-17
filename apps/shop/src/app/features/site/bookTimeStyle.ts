@@ -60,6 +60,7 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-run-taken, ${S} .fm-book-run-mark{font-family:var(--t-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
   `${S} .fm-book-run-mark{background:var(--accent);color:var(--on-accent, rgb(var(--fg-rgb)));}`,
   `${S} .fm-book-person{min-height:44px;padding:0 16px;border:var(--t-edge-w) solid var(--t-edge);background:transparent;color:inherit;border-radius:var(--rp-card-radius, 0px);font-weight:700;cursor:pointer;}`,
+  `${S} .fm-book-form-text{white-space:pre-wrap;line-height:1.6;max-height:20rem;overflow:auto;padding:12px 16px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
   `${S} .fm-book-person-rate{display:block;font-weight:400;font-size:0.8125rem;opacity:0.8;}`,
   `${S} .fm-book-person:has(.fm-book-person-rate){padding:6px 16px;text-align:left;}`,
   `${S} .fm-book-person[aria-pressed="true"]{background:var(--accent);color:var(--on-accent, rgb(var(--fg-rgb)));box-shadow:4px 4px 0 rgb(var(--fg-rgb));}`,
