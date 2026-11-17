@@ -1203,6 +1203,7 @@ function bookingActions({
           <p style="margin:0 0 16px;">Thank you. You have ${p.visits} visits with ${escapeHtml(shop)} to book whenever suits you. Use this code on the booking form for each visit. Keep it safe: anyone with the code can book with it.</p>
           <p style="margin:0 0 16px;font-family:monospace;font-size:22px;letter-spacing:2px;"><strong>${escapeHtml(code)}</strong></p>
           <p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(p.priceMinor || 0, p.currency))}</p>
+          ${taxLinesWords(p)}
           ${until ? `<p style="margin:0 0 4px;"><strong>Book by:</strong> ${escapeHtml(until)}</p>` : ""}
           ${risoButton(escapeHtml(siteLink(`/book?pack=${encodeURIComponent(code)}`)), "Book a visit", brand.accent, brand.theme)}
         `, layout),
@@ -1488,13 +1489,16 @@ function bookingActions({
         if (customer.problem) return fail(res, 400, customer.problem.replace("send your booking to", "send your pack to"));
         const { checkout, mode } = await standalone();
         if (!checkout) return fail(res, 409, "This shop can't take card payments for packs yet. Please contact the shop.", "not_available");
+        // A service that charges sales tax charges it on its pack too, on top of the pack's price (as on a visit).
+        const tax = await taxOn(service, service.packPriceMinor);
+        const payMinor = service.packPriceMinor + (tax?.taxMinor || 0);
         const code = newPackCode();
         const pid = packId(code);
         const until = nowMs + PACK_PAGE_MINUTES * MINUTE;
         const at = new Date(nowMs).toISOString();
         await packs().doc(pid).set({
           last4: code.slice(-4), serviceId: service.id, serviceName: service.name, visits: service.packVisits, days: service.packDays,
-          priceMinor: service.packPriceMinor, currency: currency(), mode, customer: { name: customer.name, email: customer.email },
+          priceMinor: payMinor, ...taxFields(tax), currency: currency(), mode, customer: { name: customer.name, email: customer.email },
           status: "held", sessions: [], uses: [], holdUntil: new Date(until).toISOString(), createdAt: at, updatedAt: at,
           // Kept only until it is paid, so the email can carry the code; afterwards only its hash (the id) is left.
           pendingCode: code,
@@ -1506,7 +1510,7 @@ function bookingActions({
           session = await checkout.open({
             customer_email: customer.email, metadata, mode: "payment", expires_at: Math.floor(until / 1000),
             success_url: siteLink(`/book?pack=${encodeURIComponent(code)}`),
-            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: service.packPriceMinor, product_data: { name: description } } }],
+            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: payMinor, product_data: { name: description } } }],
             payment_intent_data: { description, metadata },
           }, `booking-pack-${pid}`);
         } catch (err) {
@@ -1990,6 +1994,7 @@ function bookingActions({
             id, last4: p.last4 || "", serviceId: p.serviceId, serviceName: p.serviceName || "", name: p.customer?.name || "", email: p.customer?.email || "",
             visits: p.visits || 0, left: packLeft(p), status: p.status, priceMinor: p.priceMinor || 0, currency: p.currency, expiresOn: p.expiresOn || null,
             paidAt: p.paidAt || null, refundMinor: p.refund?.amountMinor || 0,
+            ...(p.taxMinor > 0 ? { taxMinor: p.taxMinor, taxLines: Array.isArray(p.taxLines) ? p.taxLines : [] } : {}),
             uses: (p.uses || []).map((u) => ({ bookingId: u.bookingId, start: u.start || null, returned: !!u.returned })),
           })),
         });

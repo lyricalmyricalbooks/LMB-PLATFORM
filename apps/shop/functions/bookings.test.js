@@ -2191,6 +2191,22 @@ describe("sales tax on a service", () => {
     expect(none.db.store.get("bookings/booking001").taxMinor).toBeUndefined();
     expect(none.opened[0].params.line_items[0].price_data.unit_amount).toBe(4000);
   });
+
+  test("a pack of a taxed service takes its price plus tax, and the owner's list and email show the tax", async () => {
+    const t = setup({ shopTax: hst });
+    await seedTaxed(t);
+    await t.db.collection("bookingServices").doc("lesson").set({ name: "Lesson", minutes: 60, gapAfter: 0, payment: "full", priceMinor: 5000, packVisits: 3, packPriceMinor: 13500, packDays: 30, chargeTax: true });
+    await t.pub({ action: "bookingPackBuy", serviceId: "lesson", ...CUSTOMER });
+    expect(t.opened[0].params.line_items[0].price_data.unit_amount).toBe(15255);
+    const code = decodeURIComponent(t.opened[0].params.success_url.split("pack=")[1]);
+    Object.assign(t.sessions.get("cs_test_00000000"), { payment_status: "paid", payment_intent: "pi_pack" });
+    expect((await t.pub({ action: "bookingPackView", pack: code })).body.pack.status).toBe("active");
+    const [row] = (await t.adm({ op: "packs" })).body.packs;
+    expect(row).toMatchObject({ priceMinor: 15255, taxMinor: 1755, taxLines: [{ name: "HST ON", cents: 1755 }] });
+    expect(t.emails.find((e) => e.to === "ada@example.com").html).toMatch(/Includes tax \(HST ON\):<\/strong> \$17\.55/);
+    // The owner can give back up to everything paid, tax included.
+    expect((await t.adm({ op: "packClose", id: row.id, refundMinor: 15255 })).body).toEqual({ ok: true, refundMinor: 15255 });
+  });
 });
 
 describe("the thank-you email after the visit", () => {

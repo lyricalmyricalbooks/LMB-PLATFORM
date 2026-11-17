@@ -1409,7 +1409,9 @@ means no tax. Tax goes on top of the price after any discount code (`taxOn` in b
 `priceMinor` is then the price with tax, `taxMinor` the tax in it and `taxLines` `[{ name, cents }]`, so deposits, card
 asks, balances and refunds work unchanged. The tax in any part paid or kept is `taxIn(b, amount)` (shared/bookingTimes),
 the same share as of the price. bookingInfo shows `taxMinor` per service, bookingCode answers it, walk-ins add it to the
-typed amount, and the emails say "Includes tax (HST ON)". Packs of visits are not taxed yet. Tests: bookings.test.js ›
+typed amount, and the emails say "Includes tax (HST ON)". A pack of a taxed service (17 November 2026) is charged `packPriceMinor` plus
+`taxOn` of it: the pack's `priceMinor` holds the total with `taxMinor`/`taxLines`, so activation, refunds and `packClose`'s cap
+work unchanged; op `packs` and the pack email show the tax. Tests: bookings.test.js ›
 "sales tax on a service".
 
 **Thank-you email after the visit (17 November 2026, Bookings plan phase 4).** Hours & rules › After the visit saves

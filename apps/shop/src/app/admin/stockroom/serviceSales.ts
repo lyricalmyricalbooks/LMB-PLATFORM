@@ -23,6 +23,8 @@ export type ServiceSale = {
   /** That tax by name (e.g. "HST ON"), adding up to `taxMinor`. */
   taxLines: { name: string; cents: number }[];
   currency: string;
+  /** "pack" for a pack of visits sold (its visits are then booked at no price, so they never count twice). */
+  kind?: "pack";
 };
 
 type BookingLike = {
@@ -34,7 +36,7 @@ type BookingLike = {
 };
 
 /** The booking's tax lines scaled to `taxMinor` (the part in what was kept); any rounding left goes on the first. */
-function keptTaxLines(b: BookingLike, taxMinor: number): { name: string; cents: number }[] {
+function keptTaxLines(b: { taxLines?: { name?: string; cents?: number }[] | null }, taxMinor: number): { name: string; cents: number }[] {
   if (!(taxMinor > 0)) return [];
   const lines = (Array.isArray(b.taxLines) ? b.taxLines : []).filter((l) => l && Number(l.cents) > 0);
   const whole = lines.reduce((sum, l) => sum + Number(l.cents), 0);
@@ -62,6 +64,39 @@ export function serviceSales(bookings: readonly BookingLike[], zone: string, tod
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
 }
 
+/** A pack of visits as the admin's `packs` op lists it (bookingsApi PackRow). */
+type PackLike = {
+  id: string; serviceName?: string; visits?: number; status?: string; priceMinor?: number; currency?: string;
+  paidAt?: string | null; refundMinor?: number; taxMinor?: number; taxLines?: { name?: string; cents?: number }[] | null;
+};
+
+/**
+ * Every pack of visits sold by `today`, as sales on the day it was paid: what the shop kept (the price less any refund
+ * on closing it), with the sales tax in that part when the pack was taxed. The visits booked with it carry no price.
+ */
+export function packSales(packs: readonly PackLike[], zone: string, today: string, currency: string): ServiceSale[] {
+  const out: ServiceSale[] = [];
+  for (const p of packs) {
+    if (!p || !p.paidAt) continue;
+    const ms = Date.parse(p.paidAt);
+    if (!Number.isFinite(ms)) continue;
+    const date = dayOf(ms, zone);
+    if (date > today) continue;
+    const keptMinor = Math.max(0, Math.round(Number(p.priceMinor) || 0) - Math.round(Number(p.refundMinor) || 0));
+    if (keptMinor <= 0) continue;
+    const taxMinor = taxIn(p, keptMinor);
+    const visits = Math.round(Number(p.visits) || 0);
+    const name = `${String(p.serviceName || "Visits")}${visits > 0 ? `, pack of ${visits}` : ", pack"}`;
+    out.push({ id: `pack-${p.id}`, date, serviceName: name, keptMinor, tipMinor: 0, taxMinor, taxLines: keptTaxLines(p, taxMinor), currency: String(p.currency || currency).toUpperCase(), kind: "pack" });
+  }
+  return out;
+}
+
+/** Bookings and packs together, oldest first (the order `serviceSales` keeps). */
+export function withPackSales(sales: readonly ServiceSale[], packs: readonly ServiceSale[]): ServiceSale[] {
+  return [...sales, ...packs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
+}
+
 /** Booking ledger rows look like this (`sourceType`). */
 export const SERVICE_SOURCE = "booking";
 export const TIP_SOURCE = "bookingTip";
@@ -81,7 +116,7 @@ export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, yea
       const tax = s.taxMinor || 0;
       const amount = (s.keptMinor - tax) / 100;
       const taxes = Object.fromEntries((s.taxLines || []).map((l) => [l.name, l.cents]));
-      rows.push({ ...common, type: "Sale", desc: `${s.serviceName} (booking)`, origAmount: amount, baseAmount: amount, qty: 1, sourceType: SERVICE_SOURCE, itemId: s.id, taxAmount: tax / 100, taxes });
+      rows.push({ ...common, type: "Sale", desc: s.kind === "pack" ? s.serviceName : `${s.serviceName} (booking)`, origAmount: amount, baseAmount: amount, qty: 1, sourceType: SERVICE_SOURCE, itemId: s.id, taxAmount: tax / 100, taxes });
     }
     if (s.tipMinor > 0) {
       const amount = s.tipMinor / 100;

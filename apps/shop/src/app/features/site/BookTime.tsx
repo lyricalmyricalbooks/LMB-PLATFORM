@@ -230,7 +230,7 @@ function NewBooking({ c }: { c: Copy }) {
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(withTax(s)), currency), rest: moneyText(withTax(s).priceMinor - upFrontMinor(withTax(s)), currency) })}</span>}
                 {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
-                {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: moneyText(s.packPriceMinor || 0, currency) })}</span>}
+                {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: `${moneyText(s.packPriceMinor || 0, currency)}${s.taxMinor ? ` ${c("bookTimePlusTax")}` : ""}` })}</span>}
               </span>
             </button>
           ))}
@@ -440,7 +440,8 @@ function PackOffer({ service, currency, c }: { service: BookingServiceView; curr
   const [problems, setProblems] = useState<{ name?: string; email?: string }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const price = moneyText(service.packPriceMinor || 0, currency);
+  // A taxed service's pack is taxed too: the card page adds it, so the price says so.
+  const price = `${moneyText(service.packPriceMinor || 0, currency)}${service.taxMinor ? ` ${c("bookTimePlusTax")}` : ""}`;
   const saving = packSaving(service);
   const buy = async (e: FormEvent) => {
     e.preventDefault();
