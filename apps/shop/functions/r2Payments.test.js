@@ -758,3 +758,30 @@ test('pickup times: checkout keeps a free time on the order and refuses a missin
   const plain = await app.resolveShipping(physical, order(''), [], false, app.docs.settings.website, 30);
   expect(plain.fulfillment.pickupAt).toBeUndefined();
 });
+
+// ── Digital D1: downloads only sell to buyers in the shop's chosen countries ─────────────────
+const digitalDocs = (website = {}) => ({ settings: baseSettings(website), books: { pattern: { status: 'published', title: 'Quilt pattern', format: 'Pattern', digital: true, retailPrice: 12, digitalFiles: [{ file: '1-a.pdf', name: 'Pattern' }] } } });
+const digitalOrder = (country) => ({ customer: { email: 'r@example.com', address: { country } }, items: [{ id: 'pattern', quantity: 1 }] });
+
+test('digital D1: Canada and the US can buy downloads by default; other countries are refused in plain words', async () => {
+  const app = harness({ docs: digitalDocs() });
+  for (const country of ['Canada', 'CA', 'United States', 'US']) expect((await app.priceOrder(digitalOrder(country))).subtotal).toBe(12);
+  for (const country of ['France', 'GB', '', 'Narnia']) {
+    await expect(app.priceOrder(digitalOrder(country))).rejects.toMatchObject({ code: 'digital_country' });
+  }
+});
+
+test("digital D1: the shop's own list decides, and \"every other country\" opens the rest", async () => {
+  const usOnly = harness({ docs: digitalDocs({ digitalDownloads: { countries: ['US'] } }) });
+  await expect(usOnly.priceOrder(digitalOrder('Canada'))).rejects.toMatchObject({ code: 'digital_country' });
+  expect((await usOnly.priceOrder(digitalOrder('US'))).subtotal).toBe(12);
+  const everywhere = harness({ docs: digitalDocs({ digitalDownloads: { countries: ['CA', '*'] } }) });
+  expect((await everywhere.priceOrder(digitalOrder('France'))).subtotal).toBe(12);
+});
+
+test('digital D1: a download-only bag is read from the billing country', async () => {
+  const app = harness({ docs: digitalDocs() });
+  const billingOnly = (country) => ({ customer: { email: 'r@example.com', address: null, billingAddress: { country, state: '' } }, items: [{ id: 'pattern', quantity: 1 }] });
+  expect((await app.priceOrder(billingOnly('Canada'))).subtotal).toBe(12);
+  await expect(app.priceOrder(billingOnly('France'))).rejects.toMatchObject({ code: 'digital_country' });
+});

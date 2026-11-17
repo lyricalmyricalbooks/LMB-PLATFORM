@@ -55,6 +55,8 @@ import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
 import { LicenceKeysCard } from "./LicenceKeysCard";
+import { DigitalFilesEditor } from "./DigitalFilesEditor";
+import { filesPatch } from "../../shared/digitalFiles";
 import { CardsAsSections, PageActions, PageHead, ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import { FormChoice, StatusBar, SummaryRail, formStatus } from "./riso/FormKit";
 import { combinedAdmin } from "./combined";
@@ -271,12 +273,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   // "Uploading video 2 of 3 · 45%" while a video goes up (Images tab).
   const [videoStatus, setVideoStatus] = useState("");
   const [initialData, setInitialData] = useState<any>(null);
-  const [uploadingDigital, setUploadingDigital] = useState(false);
-  const digitalFileInputRef = useRef<HTMLInputElement>(null);
-  // One download file per digital edition: the edition being uploaded for, and its hidden picker.
-  const variantFileInputRef = useRef<HTMLInputElement>(null);
-  const variantFileTarget = useRef<string>("");
-  const [uploadingVariantFile, setUploadingVariantFile] = useState("");
+
   const [tab, setTab] = useState<BookTab>("details");
   // v4: one Details page, so going to a part scrolls to its field or section instead of switching tabs.
   const goTo = (next: BookTab, field?: string) => {
@@ -792,56 +789,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       const src = (prev.variants || []).find((v: any) => v.id === id);
       if (!src) return prev;
       // The copy starts with no stock and no download file: stock and files belong to the original edition.
-      return { ...prev, variants: [...prev.variants, { ...src, id: crypto.randomUUID(), name: src.name ? `${src.name} (copy)` : "", sku: src.sku ? `${src.sku}-2` : "", stock: 0, stockLevel: 0, digitalFileName: "", digitalFilePath: "" }] };
+      return { ...prev, variants: [...prev.variants, { ...src, id: crypto.randomUUID(), name: src.name ? `${src.name} (copy)` : "", sku: src.sku ? `${src.sku}-2` : "", stock: 0, stockLevel: 0, digitalFileName: "", digitalFiles: [], digitalFilePath: "" }] };
     });
-  };
-
-  const handleDigitalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingDigital(true);
-    try {
-      const fileName = `${Date.now()}-${file.name}`;
-      // digital-assets/ cannot be read from a browser (storage.rules), so keep the Storage path, not a download URL;
-      // downloadDigitalAsset opens digital-assets/<digitalFileName> on the server (#4).
-      const path = await adminApi.uploadStoragePath(file, `digital-assets/${fileName}`);
-      setFormData((prev: any) => ({
-        ...prev,
-        digitalFilePath: path,
-        digitalFileUrl: "",
-        digitalFileName: fileName,
-      }));
-      toast.success("Digital asset uploaded successfully");
-    } catch (err: any) {
-      console.error("Digital upload error:", err);
-      toast.error("Failed to upload digital asset. Please try again.");
-    } finally {
-      setUploadingDigital(false);
-      if (digitalFileInputRef.current) digitalFileInputRef.current.value = "";
-    }
-  };
-
-  const handleVariantDigitalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const variantId = variantFileTarget.current;
-    if (!file || !variantId) return;
-    setUploadingVariantFile(variantId);
-    try {
-      const fileName = `${Date.now()}-${file.name}`;
-      const path = await adminApi.uploadStoragePath(file, `digital-assets/${fileName}`);
-      setFormData((prev: any) => ({
-        ...prev,
-        variants: (prev.variants || []).map((v: any) => v.id === variantId ? { ...v, digital: true, digitalFileName: fileName, digitalFilePath: path } : v),
-      }));
-      toast.success("Edition file uploaded");
-    } catch (err: any) {
-      console.error("Edition file upload error:", err);
-      toast.error("Failed to upload the edition file. Please try again.");
-    } finally {
-      setUploadingVariantFile("");
-      if (variantFileInputRef.current) variantFileInputRef.current.value = "";
-    }
   };
 
   const removePhoto = (id: string) => {
@@ -1151,13 +1100,6 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     setBoxSetOn(on);
     if (!on) set("bundleItems", []);
   };
-  const removeDigitalFile = async (variantId: string | null) => {
-    const ok = await askConfirm({ title: "Remove this download file?", confirmLabel: "Remove file",
-      message: variantId ? "Buyers of this edition will get the book's main digital file instead, if it has one, once you save." : "Buyers will have no file to download once you save, until you upload a new one." });
-    if (!ok) return;
-    if (variantId) setFormData((prev: any) => ({ ...prev, variants: (prev.variants || []).map((x: any) => x.id === variantId ? { ...x, digitalFileName: "", digitalFilePath: "" } : x) }));
-    else setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "", digitalFilePath: "" }));
-  };
   const copyBookLink = async () => {
     const slug = book?.slug;
     if (!slug) return;
@@ -1174,7 +1116,10 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const fmt = (n: any) => num(n).toFixed(2);
   const overrides = !!formData.manualCurrencyOverrides;
   const hasVariants = (formData.variants || []).length > 0;
-  const isDigital = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
+  // Digital D1: a book format that is a download, or the "Digital product" switch any kind of shop has.
+  const digitalFormat = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
+  const isDigital = digitalFormat || formData.digital === true;
+  const digitalNotify = { ok: (m: string) => toast.success(m), err: (m: string) => toast.error(m) };
   // Plan 10.4: what a blank customs box means follows the product's kind (a printed book when it has none).
   const customsDefaults = customsDefaultsFor(formData);
   // The price shoppers pay today: a scheduled sale that hasn't started (or has ended) doesn't count.
@@ -1734,21 +1679,15 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <TextField label="Made to order: ships in" name="madeToOrderTime" value={formData.madeToOrderTime || ""} onChange={handleChange} placeholder="2 to 3 weeks" maxLength={40} hint="Leave empty if you ship it from stock. Shoppers see “Made to order · ships in …” on the product page." />
                 </div>
               </SectionCard>}
-              {isDigital && !giftCard && (
-                <SectionCard title="Secure digital file" description="Stored securely and delivered to paying customers only.">
-                  {formData.digitalFileName ? (
-                    <div className="be-file">
-                      <div><span className="be-label-xs">Active file</span><code>{formData.digitalFileName}</code></div>
-                      <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void removeDigitalFile(null)}><Trash2 size={14} aria-hidden /> Remove</button>
-                    </div>
-                  ) : (
-                    <>
-                      <input type="file" ref={digitalFileInputRef} onChange={handleDigitalUpload} accept={formData.format.includes("PDF") ? ".pdf" : formData.format.includes("EPUB") ? ".epub" : ".mp3,.m4a,.zip"} className="hidden" />
-                      <button type="button" className="be-photo-add be-wide" onClick={() => digitalFileInputRef.current?.click()} disabled={uploadingDigital}>
-                        {uploadingDigital ? <Loader2 size={22} className="animate-spin" aria-hidden /> : <Upload size={22} aria-hidden />}
-                        <span>{uploadingDigital ? "Uploading…" : "Upload digital book file"}</span>
-                      </button>
-                    </>
+              {!giftCard && (
+                <SectionCard title="Digital product (Beta)" description="Buyers download files instead of getting a parcel. Files are stored privately and only paying buyers can download them.">
+                  <Toggle label="Buyers download files (nothing to ship)" checked={isDigital} disabled={digitalFormat}
+                    onChange={(on) => setFormData((prev: any) => ({ ...prev, digital: on }))} />
+                  {digitalFormat && <p className="rp-hint">On because the format is {formData.format}.</p>}
+                  {isDigital && (
+                    <DigitalFilesEditor holder={formData} label="Download files" notify={digitalNotify}
+                      emptyNote={hasVariants ? w("No files yet. Editions without their own files use these.") : "No files yet. Upload what buyers get, such as a PDF, a ZIP or an audio file."}
+                      onChange={(files) => setFormData((prev: any) => ({ ...prev, ...filesPatch(files), ...(files.length ? {} : { digitalFileUrl: "", digitalFilePath: "" }) }))} />
                   )}
                 </SectionCard>
               )}
@@ -1784,7 +1723,6 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </div>
               )}
               {!hasVariants && <p className="be-note">{giftCard ? "No amounts yet. Add at least one." : w("No special editions. The base price and stock on the Pricing and Inventory tabs apply.")}</p>}
-              <input type="file" ref={variantFileInputRef} onChange={handleVariantDigitalUpload} accept=".pdf,.epub,.mp3,.m4a,.zip" className="hidden" aria-hidden="true" tabIndex={-1} />
               <div className="be-variants">
                 {(formData.variants || []).map((v: Variant, i: number) => (
                   <fieldset key={v.id} className="be-variant">
@@ -1815,20 +1753,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                       <div style={{ gridColumn: "1 / -1" }}>
                         <Toggle label="Digital edition (buyers download a file)" checked={(v as any).digital === true} onChange={(on) => updateVariant(v.id, "digital", on)} />
                         {(v as any).digital === true && (
-                          <div className="be-inline-actions" role="group" aria-label={`Download file for ${v.name || "this edition"}`}>
-                            {(v as any).digitalFileName ? (
-                              <>
-                                <span className="be-label-xs">This edition's file</span> <code>{String((v as any).digitalFileName).replace(/^\d{10,}-/, "")}</code>
-                                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void removeDigitalFile(v.id)}><Trash2 size={13} aria-hidden /> Remove</button>
-                              </>
-                            ) : (
-                              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={!!uploadingVariantFile}
-                                onClick={() => { variantFileTarget.current = v.id; variantFileInputRef.current?.click(); }}>
-                                <Upload size={13} aria-hidden /> {uploadingVariantFile === v.id ? "Uploading…" : "Upload this edition's file"}
-                              </button>
-                            )}
-                            <span className="be-note">{(v as any).digitalFileName ? "Buyers of this edition get this file." : "No file yet: buyers of this edition get the book's main digital file, if it has one."}</span>
-                          </div>
+                          <DigitalFilesEditor holder={v} label={`Download files for ${v.name || "this edition"}`} notify={digitalNotify}
+                            emptyNote={w("No files yet: buyers of this edition get the book's main digital files, if it has any.")}
+                            onChange={(files) => setFormData((prev: any) => ({ ...prev, variants: (prev.variants || []).map((x: any) => x.id === v.id ? { ...x, ...filesPatch(files), ...(files.length ? {} : { digitalFilePath: "" }) } : x) }))} />
                         )}
                       </div>
                     </div>

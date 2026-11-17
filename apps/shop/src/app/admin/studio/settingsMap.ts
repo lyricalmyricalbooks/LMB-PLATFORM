@@ -340,7 +340,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Gift cards, automatic offers & free gifts", match: /^co(GiftCard|Auto|FreeGift|Line)/ },
     { title: "After the order", match: /^co(Thanks|Account|Pending|Continue|OrderPlaced|OrderConfirmed|Finalizing|CheckEmail|OrderNumber|ConfirmationSent|Confirming|Success|TrackOrder)/ },
     { title: "Empty bag", match: /^coEmpty/ },
-    { title: "Error messages", order: -1, match: /^co(Err|ServerRefused|TotalChanged|BelowMinimum|BagUpdated|Catalog|PaymentCanceled|PaymentNotFinished|DiscountInvalid|DiscountExpired|DiscountRejected|CheckoutFailed)|Error$|Failed$/ },
+    { title: "Error messages", order: -1, match: /^co(Err|ServerRefused|TotalChanged|BelowMinimum|BagUpdated|Catalog|PaymentCanceled|PaymentNotFinished|DiscountInvalid|DiscountExpired|DiscountRejected|CheckoutFailed|DigitalCountry)|Error$|Failed$/ },
   ],
   "Order tracking": [
     { title: "Find your order", match: /^track(Eyebrow|Title|Subtitle|Order|Email|Submit|Loading|Link|Found|Back|Another|Created|Help)/ },

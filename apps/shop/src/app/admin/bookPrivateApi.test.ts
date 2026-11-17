@@ -113,12 +113,14 @@ describe("digital file upload (#4)", () => {
     expect(getDownloadURL).not.toHaveBeenCalled();
   });
 
-  it("the book editor uses it for digital-assets and stores the path, not a URL", async () => {
+  it("the book editor uploads to digital-assets as a path, not a URL, and keeps the file's name", async () => {
     const { readFileSync } = await import("node:fs");
+    // Digital D1: the files box (DigitalFilesEditor) uploads in pieces; the book editor saves its list.
+    const files = readFileSync(new URL("./DigitalFilesEditor.tsx", import.meta.url), "utf8");
     const editor = readFileSync(new URL("./BookEditor.tsx", import.meta.url), "utf8");
-    expect(editor).not.toMatch(/uploadFile\(file, `digital-assets/);
-    expect(editor).toMatch(/uploadStoragePath\(file, `digital-assets\/\$\{fileName\}`\)/);
-    // downloadDigitalAsset opens digital-assets/<digitalFileName>, so the name must still be saved.
-    expect(editor).toMatch(/digitalFileName: fileName/);
+    expect(files + editor).not.toMatch(/uploadFile\(file, `digital-assets/);
+    expect(files).toMatch(/uploadStoragePathInPieces\(file, `digital-assets\/\$\{stored\}`/);
+    // downloadDigitalAsset opens digital-assets/<digitalFileName>: filesPatch keeps it equal to the first file.
+    expect(editor).toMatch(/\.\.\.filesPatch\(files\)/);
   });
 });

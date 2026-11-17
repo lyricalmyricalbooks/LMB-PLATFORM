@@ -176,14 +176,14 @@ function OrderTrackingContent() {
     }
   };
 
-  const handleDownload = (itemId: string, variantId = "") => {
+  const handleDownload = (itemId: string, variantId = "", file = 0) => {
     if (!order) return;
     if (!order.downloadToken) { setDownloadNotice(getCopy(settings?.design, "trackDownloadError")); return; }
     setDownloadNotice("");
     // The download endpoint authorizes via the secret token issued at
     // payment time, not the (guessable) customer email.
     window.open(
-      functionUrl("downloadDigitalAsset", { orderId: order.id || order.orderId, itemId, variantId: variantId || undefined, token: order.downloadToken }),
+      functionUrl("downloadDigitalAsset", { orderId: order.id || order.orderId, itemId, variantId: variantId || undefined, file: file ? String(file) : undefined, token: order.downloadToken }),
       "_blank"
     );
   };
@@ -501,12 +501,12 @@ function OrderTrackingContent() {
                   <ul className="list-none p-0 m-0">
                     {digitalItems.map((item) => {
                       return (
-                        <li key={`${item.itemId}|${item.variantId}`} className="flex items-center justify-between gap-4 py-3 border-b fm-track-rule">
+                        <li key={`${item.itemId}|${item.variantId}|${item.file}`} className="flex items-center justify-between gap-4 py-3 border-b fm-track-rule">
                           <div className="min-w-0">
                             <p className="text-sm font-bold uppercase truncate">{item.title}</p>
                             <p className="fm-track-mono mt-1">{getCopy(settings?.design, "trackDigitalFormat")}</p>
                           </div>
-                          <button type="button" onClick={() => handleDownload(item.itemId, item.variantId)} className="fm-track-btn" aria-label={getCopy(settings?.design, "trackDownload")} title={getCopy(settings?.design, "trackDownload")}>
+                          <button type="button" onClick={() => handleDownload(item.itemId, item.variantId, item.file)} className="fm-track-btn" aria-label={getCopy(settings?.design, "trackDownload")} title={getCopy(settings?.design, "trackDownload")}>
                             <Download size={16} aria-hidden="true" />
                           </button>
                         </li>

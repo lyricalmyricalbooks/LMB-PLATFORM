@@ -38,8 +38,17 @@ describe("round-2 PR 4: editions, box sets, limit", () => {
   it("lists the e-book parts of a box set (#114)", () => {
     const order = { items: [{ id: "box", title: "Box", bundle: true, format: "Hardcover", components: [{ id: "b", variantId: "", title: "Part" }, { id: "p", variantId: "", title: "Print" }] }] };
     const books = { box: {}, b: { digitalFileName: "x.pdf", digital: true }, p: { digitalFileName: "", digital: false } };
-    expect(digitalEntries(order, books)).toEqual([{ itemId: "b", variantId: "", title: "Part" }]);
+    expect(digitalEntries(order, books)).toEqual([{ itemId: "b", variantId: "", title: "Part", file: 0 }]);
     expect(downloadBookIds(order).sort()).toEqual(["b", "box", "p"]);
+  });
+  it("lists each file of a product with several files, by the name the owner gave it (Digital D1)", () => {
+    const book = { digital: true, digitalFiles: [{ file: "1-a.pdf", name: "Pattern" }, { file: "2-b.zip", name: "Sizes" }] };
+    const order = { items: [{ id: "k", title: "Quilt", digital: true }] };
+    expect(digitalEntries(order, { k: book })).toEqual([
+      { itemId: "k", variantId: "", title: "Quilt: Pattern", file: 0 },
+      { itemId: "k", variantId: "", title: "Quilt: Sizes", file: 1 },
+    ]);
+    expect(hasDigitalFile({ digitalFiles: [{ file: "x.zip" }] })).toBe(true);
   });
   it("shows the same limit as the server (#113)", () => {
     expect(DOWNLOAD_LIMIT).toBe(createRequire(import.meta.url)("../../../../functions/digitalDelivery").DOWNLOAD_LIMIT);

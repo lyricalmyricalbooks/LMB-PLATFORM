@@ -12,7 +12,7 @@ function digitalDownloadEndpoint({
   // ──────────────────────────────────────────────────────────────
   const downloadDigitalAsset = onRequest(
     async (req, res) => {
-      const { orderId, itemId, token } = req.query;
+      const { orderId, itemId, token } = req.query; // plus optional variantId and file (which of the files, from 0)
       if (!orderId || !itemId || !token) {
         res.status(400).send("Missing download parameters");
         return;
@@ -89,13 +89,23 @@ function digitalDownloadEndpoint({
           res.status(403).send(book.publishDate ? `This pre-order can be downloaded from ${String(book.publishDate).slice(0, 10)}.` : "This pre-order can be downloaded once the book is released.");
           return;
         }
-        // One file per digital edition: the edition's own file, else the book's.
-        const target = ready.find(c => digitalDelivery.pickFileName(book, c.variantId)) || ready[0];
-        const fileName = digitalDelivery.pickFileName(book, target.variantId);
-        if (!fileName) {
+        // The edition's own files, else the book's; `file` picks one of them (0, the first, when left out).
+        const target = ready.find(c => digitalDelivery.filesFor(book, c.variantId).length) || ready[0];
+        const files = digitalDelivery.filesFor(book, target.variantId);
+        const fileIndex = req.query.file === undefined || req.query.file === "" ? 0 : Number(req.query.file);
+        if (!Number.isInteger(fileIndex) || fileIndex < 0) {
+          res.status(400).send("Missing download parameters");
+          return;
+        }
+        if (!files.length) {
           res.status(400).send("This publication does not have a digital download configured.");
           return;
         }
+        if (!files[fileIndex]) {
+          res.status(404).send("This file is no longer part of the product. Please open your order again for the current files.");
+          return;
+        }
+        const fileName = files[fileIndex].file;
 
         const bucket = admin.storage().bucket();
         const file = bucket.file(`digital-assets/${fileName}`);
@@ -109,7 +119,7 @@ function digitalDownloadEndpoint({
         // Each book + edition on the order can be fetched a limited number of times (counted atomically);
         // Order detail › Reset downloads gives the buyer a fresh allowance.
         const orderRef = db.collection("orders").doc(String(orderId));
-        const key = digitalDelivery.countKey(target.bookId, target.variantId);
+        const key = digitalDelivery.fileCountKey(digitalDelivery.countKey(target.bookId, target.variantId), files, fileIndex);
         const limit = digitalDelivery.downloadLimitFrom((await db.collection("settings").doc("website").get()).data?.());
         const claim = await db.runTransaction(async tx => {
           const fresh = await tx.get(orderRef);
@@ -124,7 +134,8 @@ function digitalDownloadEndpoint({
         }
 
         // A fresh, short-lived link per click, saved as an attachment named after the book.
-        const filename = digitalDelivery.downloadFilename(book.title || target.line.title, fileName);
+        // One file: named after the product. Several: each keeps the name the owner gave it.
+        const filename = digitalDelivery.downloadFilename(files.length > 1 ? digitalDelivery.fileLabel(files[fileIndex]) : (book.title || target.line.title), fileName);
         const [signedUrl] = await file.getSignedUrl({
           action: "read",
           expires: Date.now() + digitalDelivery.SIGNED_URL_MINUTES * 60 * 1000,

@@ -407,13 +407,13 @@ function AccountContent() {
     }
   }
 
-  const handleDownloadDigitalAsset = (order: any, itemId: string, variantId = "") => {
+  const handleDownloadDigitalAsset = (order: any, itemId: string, variantId = "", file = 0) => {
     if (!order.downloadToken) {
       toast.error(getCopy(settings?.design, "accountDownloadError"));
       return;
     }
     window.open(
-      functionUrl("downloadDigitalAsset", { orderId: order.id || order.orderId, itemId, variantId: variantId || undefined, token: order.downloadToken }),
+      functionUrl("downloadDigitalAsset", { orderId: order.id || order.orderId, itemId, variantId: variantId || undefined, file: file ? String(file) : undefined, token: order.downloadToken }),
       "_blank"
     );
   };
@@ -949,13 +949,13 @@ function AccountContent() {
                               {orderDigitalAssets.map((item) => {
                                 // One download per book and edition (box-set parts included).
                                 return (
-                                  <div key={`${item.itemId}|${item.variantId}`} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
+                                  <div key={`${item.itemId}|${item.variantId}|${item.file}`} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
                                     <div className="truncate pr-4">
                                       <p className="text-[10px] font-bold text-white uppercase truncate">{item.title}</p>
                                       <p className="text-[8px] fm-muted uppercase tracking-widest mt-1">{getCopy(settings?.design, "accountEbook")}</p>
                                     </div>
                                     <button
-                                      onClick={() => handleDownloadDigitalAsset(o, item.itemId, item.variantId)}
+                                      onClick={() => handleDownloadDigitalAsset(o, item.itemId, item.variantId, item.file)}
                                       className="text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
                                       style={{ backgroundColor: "var(--accent)" }}
                                       title={getCopy(settings?.design, "accountDownload")}

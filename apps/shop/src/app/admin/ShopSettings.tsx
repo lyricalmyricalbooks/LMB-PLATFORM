@@ -8,6 +8,7 @@ import { useShopSells } from "./shopWords";
 import { sellsBooks } from "./sells";
 import { AmountField } from "./AmountField";
 import { ActionMenu, Checkbox, PageHead, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
+import { digitalCountries, EVERY_OTHER_COUNTRY } from "../../shared/digitalFiles";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
@@ -356,6 +357,16 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
             <TextField label="Downloads per file" type="number" min={1} max={100} hint="Per order. Default 10. You can reset an order's count from the order."
               placeholder="10 (default)" value={String(settings.digitalDownloads?.limit ?? "")}
               onChange={(e) => set("digitalDownloads", { limit: e.target.value === "" ? "" : Math.min(100, Math.max(1, Math.floor(Number(e.target.value)))) })} />
+            {/* Digital D1: where buyers of downloads can be. Checkout refuses downloads to any other country. */}
+            <fieldset style={{ border: 0, padding: 0, margin: "16px 0 0", display: "grid", gap: 8 }}>
+              <legend className="rp-label">Where buyers can be (Beta)</legend>
+              {([["CA", "Canada"], ["US", "United States"], [EVERY_OTHER_COUNTRY, "Every other country"]] as const).map(([code, name]) => {
+                const chosen = digitalCountries(settings);
+                return <Toggle key={code} label={name} checked={chosen.includes(code)}
+                  onChange={(on) => set("digitalDownloads", { countries: on ? [...chosen, code] : chosen.filter((c) => c !== code) })} />;
+              })}
+              <p className="rp-hint">Sales tax on downloads follows where the buyer lives. Only open a country once you know what it asks of you.</p>
+            </fieldset>
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>

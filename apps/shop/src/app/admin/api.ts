@@ -519,6 +519,20 @@ export const adminApi = {
     return snapshot.ref.fullPath || shopFilePath(path);
   },
 
+  // A large download file (Digital D1, up to 5 GB): sent in pieces, so a dropped connection picks up where it stopped
+  // instead of starting over. `onProgress` gets 0 to 1. Returns the Storage path, like uploadStoragePath.
+  uploadStoragePathInPieces: async (file: File, path: string, onProgress?: (share: number) => void) => {
+    const [{ getStorage, ref, uploadBytesResumable }, { getApp }] = await Promise.all([
+      import("firebase/storage"),
+      import("firebase/app"),
+    ]);
+    const task = uploadBytesResumable(ref(getStorage(getApp()), shopFilePath(path)), file);
+    const snapshot = await new Promise<{ ref: { fullPath: string } }>((resolve, reject) => {
+      task.on("state_changed", (s) => onProgress?.(s.totalBytes ? s.bytesTransferred / s.totalBytes : 0), reject, () => resolve(task.snapshot));
+    });
+    return snapshot.ref.fullPath || shopFilePath(path);
+  },
+
   uploadBrandAsset: async (file: File, type: 'logo' | 'favicon') => {
     const ext = file.name.split('.').pop();
     const path = `assets/brand/${type}_${Date.now()}.${ext}`;

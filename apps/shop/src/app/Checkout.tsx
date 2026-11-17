@@ -1165,6 +1165,8 @@ export function Checkout() {
     // Settings › General › Store status › Maintenance: the server refuses every new checkout.
     // A paused or closed plan (plan 6.7, "shop_paused") reads the same to a shopper: checkout is closed for now.
     if (data?.code === "store_closed" || data?.code === "shop_paused") return new CopyError(checkoutDesign, "coStoreClosed");
+    // Digital D1: downloads only sell to buyers in the shop's chosen countries (Settings › General › Digital downloads).
+    if (data?.code === "digital_country") return new CopyError(checkoutDesign, "coDigitalCountry");
     return message ?new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
   };
 

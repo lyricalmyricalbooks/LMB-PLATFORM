@@ -169,13 +169,14 @@ export function duplicateBookData(data: any, nowISO = new Date().toISOString()):
   delete copy.id;
   delete copy._lastDoc;
   for (const key of ["isbn", "isbn13", "sku", "barcode", "slug", "digitalFileUrl", "digitalFilePath", "digitalFileName"]) copy[key] = "";
+  copy.digitalFiles = [];
   copy.title = `${data?.title || "Untitled"} (Copy)`;
   copy.stockLevel = 0;
   copy.isFeatured = false;
   copy.featured = false;
   copy.status = "draft";
   if (Array.isArray(data?.variants)) {
-    copy.variants = data.variants.map((v: any) => ({ ...v, id: newId(), sku: "", stock: 0, stockLevel: 0 }));
+    copy.variants = data.variants.map((v: any) => ({ ...v, id: newId(), sku: "", stock: 0, stockLevel: 0, ...(v && (v.digitalFileName || v.digitalFiles) ? { digitalFileName: "", digitalFiles: [] } : {}) }));
   }
   copy.createdAt = nowISO;
   copy.updatedAt = nowISO;

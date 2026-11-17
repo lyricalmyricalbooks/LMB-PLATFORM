@@ -909,6 +909,7 @@ export const FRENCH_COPY: Record<string, string> = {
   coCatalogFailed: "Nous n'avons pas pu vérifier les prix et les stocks actuels. Vérifiez votre connexion et rechargez cette page avant de payer.",
   coServerRefused: "Nous n'avons pas pu passer votre commande : {reason}",
   coHoldLimit: "Vous avez déjà mis de côté le nombre maximal d'exemplaires que nous pouvons réserver pour un même client. Terminez ou annulez vos autres paiements, réduisez la quantité ou écrivez-nous pour une commande plus importante.",
+  coDigitalCountry: "Les téléchargements de cette boutique ne peuvent pas encore être achetés depuis votre pays. Retirez-les de votre panier pour payer le reste.",
   coStoreClosed: "Nous mettons la boutique à jour; le paiement est donc suspendu pour un moment. Votre panier est enregistré — veuillez réessayer bientôt.",
   coTotalChanged: "Votre total est passé à {amount} parce que les prix ou les stocks ont été mis à jour. Rien n'a été débité — vérifiez votre commande et payez de nouveau.",
   coErrEmailFormat: "Vérifiez votre adresse courriel — nous y envoyons votre reçu et vos liens de livres numériques.",
