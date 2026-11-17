@@ -1514,7 +1514,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
               </div>
               {course && (
                 <>
-                  <p className="bkg-questions-hint">People sign up once, pay one price and get a place on every date. Sign-ups close when the first date starts.</p>
+                  <p className="bkg-questions-hint">People sign up once, pay one price and get a place on every date. {form.lateJoin ? "Once it starts, people can still join while 2 or more dates are left, paying only for those." : "Sign-ups close when the first date starts."}</p>
+                  <Toggle label="Let people join after it starts, paying for the dates left" checked={!!form.lateJoin} onChange={(v) => set("lateJoin", v)} />
                   {courseDates.map((d, i) => (
                     <div key={i} className="bkg-classtime">
                       <TextField label={`Date ${i + 1}`} type="date" value={d.split("T")[0]} onChange={(e) => setCourseDate(i, e.target.value, d.split("T")[1] || "18:00")} />

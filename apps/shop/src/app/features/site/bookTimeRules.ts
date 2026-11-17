@@ -6,7 +6,9 @@ import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
   /** A pack of visits sold with it: `packVisits` visits for `packPriceMinor`, to use within `packDays` (0: no end). */ packVisits?: number; packPriceMinor?: number; packDays?: number;
   /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number;
-  /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[] };
+  /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[];
+  /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
+  joining?: { missed: number; of: number; fullPriceMinor: number } };
 export type BookingInfo = { on: boolean; zone?: string; currency?: string; cancelHours?: number; maxDaysAhead?: number; today?: string; services?: BookingServiceView[];
   /** The shop's opening hours, Sunday first ("09:00" to "17:00" windows; none = closed). */
   hours?: Array<Array<{ start: string; end: string }>>;

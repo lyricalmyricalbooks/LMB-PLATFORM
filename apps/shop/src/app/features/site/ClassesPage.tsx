@@ -163,7 +163,7 @@ function Course({ k, zone, currency, c }: { k: CourseView; zone: string; currenc
   const lines = courseDateLines(k.starts, zone);
   return (
     <li {...regionProps("classesSession")} className="fm-cls-session" data-state={state}>
-      <div className="fm-cls-time"><strong>{c("classesCourseDates", { count: k.starts.length })}</strong><span>{lengthText(k.minutes)}</span></div>
+      <div className="fm-cls-time"><strong>{k.joining ? c("bookTimeCourseLate", { count: k.starts.length, of: k.joining.of }) : c("classesCourseDates", { count: k.starts.length })}</strong><span>{lengthText(k.minutes)}</span></div>
       <div className="fm-cls-main">
         <h3>{k.name}</h3>
         <p>{[price, k.location].filter(Boolean).join(" · ")}</p>

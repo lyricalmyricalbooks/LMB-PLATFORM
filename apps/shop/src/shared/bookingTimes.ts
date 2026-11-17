@@ -41,6 +41,8 @@ export type BookingService = {
    * or more), the class is sold only as a whole: one sign-up, one price, a place in every session. Empty: not a course.
    */
   courseDates?: string[];
+  /** A course people may still join after it starts, paying for the dates left (while at least 2 are left). */
+  lateJoin?: boolean;
   /**
    * Card on file: the customer saves a card when booking (nothing is taken for it), so the owner can charge `lateFeeMinor`
    * after a missed booking or a late cancellation. Not with payment "full" (all of it is already paid).
@@ -413,6 +415,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     // A course runs on its own dates, never at weekly times as well.
     classTimes: courseDates.length ? [] : cleanClassTimes(s.classTimes),
     ...(courseDates.length ? { courseDates } : {}),
+    ...(courseDates.length && s.lateJoin === true ? { lateJoin: true } : {}),
     holdCard,
     lateFeeMinor,
     meet: s.meet === true,
@@ -449,6 +452,35 @@ export function courseStarts(service: { places?: number; courseDates?: readonly 
     if (Number.isFinite(ms) && !out.includes(ms)) out.push(ms);
   }
   return out.sort((a, b) => a - b);
+}
+
+/** A course joined late needs at least this many dates still to come. */
+export const MIN_LATE_DATES = 2;
+
+/** How a late joiner's course differs: the dates they missed, of how many, and the whole course's price. */
+export type CourseJoining = { missed: number; of: number; fullPriceMinor: number };
+
+/**
+ * The course as someone signing up now gets it: the whole course before it starts; after it starts, only when the owner
+ * lets people join late (`lateJoin`) and at least MIN_LATE_DATES dates are still to come, as a course of the dates left
+ * at the price of those dates (the whole price shared evenly across the dates, rounded to the cent; a set deposit never
+ * more than that). null when it can't be joined any more. Anything that isn't a course comes back as it is.
+ */
+export function joinableCourse<T extends Partial<BookingService> & { places?: number; courseDates?: readonly string[] }>(service: T, zone: string, nowMs: number): (T & { joining?: CourseJoining }) | null {
+  if (!isCourse(service)) return service;
+  const dates = service.courseDates!;
+  const left = dates.filter((d) => zonedTime(d.slice(0, 10), d.slice(11, 16), zone) > nowMs);
+  if (left.length === dates.length) return service;
+  if (!service.lateJoin || left.length < MIN_LATE_DATES) return null;
+  const full = Math.max(0, Math.round(Number(service.priceMinor) || 0));
+  const priceMinor = Math.round((full * left.length) / dates.length);
+  return {
+    ...service,
+    courseDates: left,
+    priceMinor,
+    ...(service.depositMinor ? { depositMinor: Math.min(service.depositMinor, priceMinor) } : {}),
+    joining: { missed: dates.length - left.length, of: dates.length, fullPriceMinor: full },
+  };
 }
 
 /**

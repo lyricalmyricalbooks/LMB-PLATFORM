@@ -226,7 +226,7 @@ function NewBooking({ c }: { c: Copy }) {
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
-                {!!s.courseStarts?.length && <span>{c("bookTimeCourseCount", { count: s.courseStarts.length })}</span>}
+                {!!s.courseStarts?.length && <span>{s.joining ? c("bookTimeCourseLate", { count: s.courseStarts.length, of: s.joining.of }) : c("bookTimeCourseCount", { count: s.courseStarts.length })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(withTax(s)), currency), rest: moneyText(withTax(s).priceMinor - upFrontMinor(withTax(s)), currency) })}</span>}
                 {s.holdCard && <span translate="no">{c("bookTimeCardNote", { fee: moneyText(s.lateFeeMinor || 0, currency) })}</span>}
@@ -241,7 +241,7 @@ function NewBooking({ c }: { c: Copy }) {
         <div {...regionProps("bookingsTimes")} className="fm-track-card p-5 sm:p-8">
           {course && (
             <div className="fm-book-course">
-              <h2 className="fm-track-mono">{c("bookTimeCourseDates", { count: course.length })}</h2>
+              <h2 className="fm-track-mono">{service.joining ? c("bookTimeCourseLate", { count: course.length, of: service.joining.of }) : c("bookTimeCourseDates", { count: course.length })}</h2>
               <ol>{courseDateLines(course, zone).map((line) => <li key={line}>{line}</li>)}</ol>
               <p className="text-sm leading-6 fm-muted">{c("bookTimeCourseNote")}</p>
             </div>

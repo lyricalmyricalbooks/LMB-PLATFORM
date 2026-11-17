@@ -57,7 +57,7 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, isCourse, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, freeTimes, isClass, isCourse, joinableCourse, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
@@ -98,8 +98,9 @@ async function classesOn(shop) {
 }
 /** A class the website's Timetable lists: customers can book it, it has places for a group, and it runs at set weekly times. */
 const onTimetable = (s) => s.active && isClass(s) && s.classTimes.length > 0;
-// A course on the Timetable page: active, and its first session hasn't started (it is signed up for as a whole).
-const courseOpen = (s, zone, nowMs) => s.active && isCourse(s) && courseStarts(s, zone)[0] > nowMs;
+// A course on the Timetable page: active, and still open to sign up for (before it starts, or late while it lets people
+// join late with dates left).
+const courseOpen = (s, zone, nowMs) => s.active && isCourse(s) && joinableCourse(s, zone, nowMs) !== null;
 /**
  * The stretches a booking holds on the days' ledger: one for an ordinary booking (under its own id), and one for each
  * session of a course (the first under the id, the rest under `<id>~<n>`).
@@ -326,6 +327,15 @@ function bookingActions({
   async function readServices() {
     const snap = await services().limit(MAX_SERVICES).get();
     return snap.docs.map((d) => cleanService(d.data(), d.id)).filter((s) => !s.problem).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  }
+  /**
+   * A service as a public action sees it: active, and a course as someone signing up now gets it (only the dates left,
+   * at their price, when it lets people join late). A course that can't be joined any more comes back whole, so the
+   * "already started" answer still applies. null when there is no such active service.
+   */
+  async function publicService(id) {
+    const s = (await readServices()).find((x) => x.id === id && x.active);
+    return s ? joinableCourse(s, zone(), now().getTime()) ?? s : null;
   }
   /** Only Stripe can keep a card for later; a Square shop's services book without one. */
   const canHoldCard = () => payments?.provider === "stripe";
@@ -708,7 +718,11 @@ function bookingActions({
     const days = [...new Set(sessions.flatMap((ms) => daysTouched(ms, ms + length, zone())))];
     const all = offer ? [...new Set([...days, ...offer.days])] : days;
     // `days` (shop days) lets the admin find a course's people in any week it runs, with one query.
-    if (sessions.length > 1) record.course = { starts: sessions.map((ms) => new Date(ms).toISOString()), days: [...new Set(sessions.map((ms) => dayOf(ms, zone())))] };
+    if (sessions.length > 1) {
+      record.course = { starts: sessions.map((ms) => new Date(ms).toISOString()), days: [...new Set(sessions.map((ms) => dayOf(ms, zone())))] };
+      // Joined late: the dates missed and the whole course's price, for the owner's list and the emails.
+      if (service.joining) record.course.joined = { missed: service.joining.missed, of: service.joining.of, fullPriceMinor: service.joining.fullPriceMinor };
+    }
     return db.runTransaction(async (tx) => {
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
@@ -1369,7 +1383,8 @@ function bookingActions({
       }
       if (action === "bookingInfo") {
         if (!settings.live) return res.status(200).json({ on: false });
-        const list = (await readServices()).filter((s) => s.active);
+        // A course already under way that lets people join late is offered as the dates left, at their price.
+        const list = (await readServices()).filter((s) => s.active).map((s) => joinableCourse(s, zone(), nowMs) ?? s);
         const calc = list.some((s) => s.chargeTax) && shopTax ? await shopTax() : null;
         const taxes = await Promise.all(list.map((s) => taxOn(s, s.priceMinor, calc)));
         return res.status(200).json({
@@ -1383,10 +1398,12 @@ function bookingActions({
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // A course: every one of its dates (signed up for as a whole, from the first).
             ...(isCourse({ places, courseDates }) ? { courseStarts: courseStarts({ places, courseDates }, zone()).map((ms) => new Date(ms).toISOString()) } : {}),
+            // Joining a course late: how many dates were missed, of how many, and the whole course's price.
+            ...(joining ? { joining } : {}),
             // Sales tax added when booked: the tax on the full price (the page shows "plus tax"; a code lowers it).
             ...(taxes[i] ? { taxMinor: taxes[i].taxMinor } : {}),
             ...(holdCard && canHoldCard() ? { holdCard: true, lateFeeMinor } : {}),
@@ -1401,7 +1418,7 @@ function bookingActions({
         const every = await readServices();
         const list = every.filter(onTimetable);
         // Courses still open for sign-up, with the fewest places left across their dates (one read per day they touch).
-        const open = every.filter((s) => courseOpen(s, zone(), nowMs));
+        const open = every.filter((s) => courseOpen(s, zone(), nowMs)).map((s) => joinableCourse(s, zone(), nowMs));
         // Whole courses only, up to 200 days in all: a course whose days didn't fit goes out with no count (an unread
         // day would read as empty and promise places that are gone). Signing up still checks every date.
         const daysOf = (s) => [...new Set(courseStarts(s, zone()).flatMap((ms) => [addDays(dayOf(ms, zone()), -1), dayOf(ms, zone()), addDays(dayOf(ms, zone()), 1)]))];
@@ -1418,6 +1435,7 @@ function bookingActions({
         const courses = open.map((s) => ({
           id: s.id, name: s.name, description: s.description, minutes: s.minutes, priceMinor: s.priceMinor, payment: s.payment, location: s.location, places: s.places,
           ...(s.chargeTax ? { plusTax: true } : {}), starts: courseStarts(s, zone()).map((ms) => new Date(ms).toISOString()),
+          ...(s.joining ? { joining: s.joining } : {}),
           ...(counted.has(s.id) ? { left: coursePlacesLeft(s, settings, courseBusy, zone()) } : {}),
         })).sort((a, b) => a.starts[0].localeCompare(b.starts[0]) || a.id.localeCompare(b.id));
         const today = dayOf(nowMs, zone());
@@ -1443,7 +1461,7 @@ function bookingActions({
       }
       if (action === "bookingTimes") {
         if (!settings.live) return res.status(200).json({ on: false });
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        const service = await publicService(req.body?.serviceId);
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const from = isDay(req.body?.from) ? req.body.from : dayOf(nowMs, zone());
         const count = Math.min(MAX_DAYS_ASKED, Math.max(1, Math.round(Number(req.body?.days) || 7)));
@@ -1478,7 +1496,7 @@ function bookingActions({
       if (action === "bookingCode") {
         // Try a discount code before booking: what it takes off and what is paid now. Booking checks it again.
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        const service = await publicService(req.body?.serviceId);
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         try {
@@ -1494,7 +1512,7 @@ function bookingActions({
       if (action === "bookingGiftCard") {
         // Try a gift card before booking: what it pays now and what is left for the card page. Booking checks it again.
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        const service = await publicService(req.body?.serviceId);
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         let upFront = depositOf(service);
@@ -1515,7 +1533,7 @@ function bookingActions({
       if (action === "bookingPackBuy") {
         // Buy a pack of visits: a card page for the pack's price. The code is emailed once it is paid.
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        const service = await publicService(req.body?.serviceId);
         if (!service || !offersPack(service)) return fail(res, 404, "This service doesn't sell packs right now.");
         const customer = cleanCustomer(req.body);
         if (customer.problem) return fail(res, 400, customer.problem.replace("send your booking to", "send your pack to"));
@@ -1564,7 +1582,7 @@ function bookingActions({
       if (action === "bookingPack") {
         // Try a pack's code on the booking form; booking checks it again and counts the visit.
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        const service = await publicService(req.body?.serviceId);
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const p = await loadPack(req.body?.pack);
         const when = Date.parse(String(req.body?.start || ""));
@@ -1574,7 +1592,7 @@ function bookingActions({
       }
       if (action === "bookingStart") {
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        const service = await publicService(req.body?.serviceId);
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
@@ -1588,7 +1606,8 @@ function bookingActions({
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
         // A pack of visits pays for the visit outright: no code, gift card or card payment with it.
         let pack = null;
-        if (isCourse(service) && start <= nowMs) return fail(res, 409, "This course has already started. Please contact the shop.", "started");
+        // Its first date (the first left, for a late joiner) gone means it can't be joined any more.
+        if (isCourse(service) && courseStarts(service, zone())[0] <= nowMs) return fail(res, 409, "This course has already started. Please contact the shop.", "started");
         if (isCourse(service) && String(req.body?.pack || "").trim()) return fail(res, 400, "A pack pays for single visits, not for a course.", "pack");
         if (String(req.body?.pack || "").trim()) {
           const p = await loadPack(req.body.pack);
@@ -1704,7 +1723,7 @@ function bookingActions({
       if (action === "bookingWait") {
         // Hear when a full class time (start) or a full day has room again; a freed place is held for the first in line.
         if (!settings.live) return fail(res, 409, "Bookings are closed right now.");
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId && s.active);
+        const service = await publicService(req.body?.serviceId);
         if (!service) return fail(res, 404, "This service isn't taking bookings right now.");
         const customer = cleanCustomer(req.body);
         if (customer.problem) return fail(res, 400, customer.problem.replace("send your booking to", "reach you at"));
@@ -2059,7 +2078,9 @@ function bookingActions({
         return res.status(200).json({ ok: true, refundMinor: refund?.amountMinor || 0 });
       }
       if (op === "create") {
-        const service = (await readServices()).find((s) => s.id === req.body?.serviceId);
+        const found = (await readServices()).find((s) => s.id === req.body?.serviceId);
+        // The owner can book someone onto a course late too, when it lets people join late.
+        const service = found && (joinableCourse(found, zone(), now().getTime()) ?? found);
         if (!service) return fail(res, 404, "Choose a service.");
         const customer = cleanCustomer(req.body);
         if (customer.problem) return fail(res, 400, customer.problem.replace("your", "the customer's").replace("Please add an email address we can send your booking to.", "Add the customer's email address."));

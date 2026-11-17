@@ -9,7 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = void 0;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -19,6 +20,7 @@ exports.feeChargeable = feeChargeable;
 exports.cleanService = cleanService;
 exports.cleanCourseDates = cleanCourseDates;
 exports.courseStarts = courseStarts;
+exports.joinableCourse = joinableCourse;
 exports.coursePlacesLeft = coursePlacesLeft;
 exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
@@ -316,6 +318,7 @@ function cleanService(raw, id = "") {
         // A course runs on its own dates, never at weekly times as well.
         classTimes: courseDates.length ? [] : cleanClassTimes(s.classTimes),
         ...(courseDates.length ? { courseDates } : {}),
+        ...(courseDates.length && s.lateJoin === true ? { lateJoin: true } : {}),
         holdCard,
         lateFeeMinor,
         meet: s.meet === true,
@@ -355,6 +358,33 @@ function courseStarts(service, zone) {
             out.push(ms);
     }
     return out.sort((a, b) => a - b);
+}
+/** A course joined late needs at least this many dates still to come. */
+exports.MIN_LATE_DATES = 2;
+/**
+ * The course as someone signing up now gets it: the whole course before it starts; after it starts, only when the owner
+ * lets people join late (`lateJoin`) and at least MIN_LATE_DATES dates are still to come, as a course of the dates left
+ * at the price of those dates (the whole price shared evenly across the dates, rounded to the cent; a set deposit never
+ * more than that). null when it can't be joined any more. Anything that isn't a course comes back as it is.
+ */
+function joinableCourse(service, zone, nowMs) {
+    if (!(0, exports.isCourse)(service))
+        return service;
+    const dates = service.courseDates;
+    const left = dates.filter((d) => zonedTime(d.slice(0, 10), d.slice(11, 16), zone) > nowMs);
+    if (left.length === dates.length)
+        return service;
+    if (!service.lateJoin || left.length < exports.MIN_LATE_DATES)
+        return null;
+    const full = Math.max(0, Math.round(Number(service.priceMinor) || 0));
+    const priceMinor = Math.round((full * left.length) / dates.length);
+    return {
+        ...service,
+        courseDates: left,
+        priceMinor,
+        ...(service.depositMinor ? { depositMinor: Math.min(service.depositMinor, priceMinor) } : {}),
+        joining: { missed: dates.length - left.length, of: dates.length, fullPriceMinor: full },
+    };
 }
 /**
  * The fewest places left across a course's sessions (a sign-up needs one in each), for whoever could run each one.
