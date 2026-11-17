@@ -2726,7 +2726,7 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
   const from = nowMs - 31 * 24 * HOUR;
   // Someone on a course is in the calendar on every one of its dates.
   const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-    .flatMap((b) => datesOf(b).map((x, n) => ({ ...b, id: n ? `${b.id}-${n + 1}` : b.id, start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString(), ...(n && b.course?.staff?.[n] ? { staffName: b.course.staff[n] } : {}), ...(n && b.course?.staffIds?.[n] ? { staffId: b.course.staffIds[n] } : {}) })))
+    .flatMap((b) => datesOf(b).map((x, n) => ({ ...b, id: n ? `${b.id}-${n + 1}` : b.id, start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString(), ...(n && b.course?.staff?.[n] ? { staffName: b.course.staff[n] } : {}), ...(n && b.course?.staffIds?.[n] ? { staffId: b.course.staffIds[n] } : {}), ...(n && !b.course?.staffIds && b.course?.staff?.[n] && b.course.staff[n] !== b.staffName ? { staffId: b.course.staff[n] === feed.staffName ? staffId : "" } : {}) })))
     .filter((b) => Date.parse(b.end || "") >= from && (!staffId || b.staffId === staffId))
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.roomName ? [b.roomName, b.location].filter(Boolean).join(", ") : b.location || "",

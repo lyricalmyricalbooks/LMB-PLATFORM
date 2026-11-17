@@ -118,6 +118,18 @@ describe("a course in the calendars", () => {
     expect(ics).toMatch(/DTSTART:20261205T230000Z/);
   });
 
+  test("an older course with names only still splits the dates between people", async () => {
+    const older = course({ "shops/s1/bookingFeed/p-ben": { token: "e".repeat(48), staffId: "ben", staffName: "Ben" }, "shops/s1/bookingFeed/p-ana": { token: "f".repeat(48), staffId: "ana", staffName: "Ana" } });
+    delete older["shops/s1/bookings/booking5"].course.staffIds;
+    const at = { db: rootDb(older).db, shopId: "s1", nowMs: Date.parse("2026-11-14T12:00:00Z") };
+    const ben = await bookingsFeed({ ...at, token: "e".repeat(48) });
+    expect(ben.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(ben).toMatch(/DTSTART:20261205T230000Z/);
+    const ana = await bookingsFeed({ ...at, token: "f".repeat(48) });
+    expect(ana.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(ana).toMatch(/DTSTART:20261128T230000Z/);
+  });
+
   test("the customer's file has every date too", async () => {
     const ics = await customerBookingIcs({ db: rootDb(course()).db, shopId: "s1", id: "booking5", key: KEY, shopName: "Test Press" });
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2);
