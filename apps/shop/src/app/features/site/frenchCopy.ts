@@ -1112,6 +1112,7 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeClassSize: "Jusqu'à {count} personnes",
   bookTimeCourseCount: "Cours · {count} dates",
   bookTimeCourseDates: "Les {count} dates",
+  bookTimeClassMinimum: "Minimum {count} personnes pour avoir lieu",
   bookTimeCourseLate: "Déjà commencé · rejoignez les {count} dernières dates sur {of}",
   bookTimeCourseNote: "Une seule inscription et un seul prix couvrent toutes les dates.",
   bookTimeCourseFull: "Ce cours vient d'afficher complet. Écrivez-nous pour connaître le prochain.",

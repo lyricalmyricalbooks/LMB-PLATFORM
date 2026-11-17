@@ -44,6 +44,14 @@ export type BookingService = {
   /** A course people may still join after it starts, paying for the dates left (while at least 2 are left). */
   lateJoin?: boolean;
   /**
+   * Minimum number to run (Classes, 17 November 2026): a class at set times (weekly or a course) runs only when at least
+   * this many have signed up `decideHours` before it starts; otherwise everyone is cancelled and refunded and that time
+   * closes. Left out: it always runs.
+   */
+  minPlaces?: number;
+  /** With `minPlaces`: how many hours before the start it is decided (1 to MAX_DECIDE_HOURS). */
+  decideHours?: number;
+  /**
    * Card on file: the customer saves a card when booking (nothing is taken for it), so the owner can charge `lateFeeMinor`
    * after a missed booking or a late cancellation. Not with payment "full" (all of it is already paid).
    */
@@ -184,7 +192,8 @@ export type BookingSettings = {
  * A booked or held stretch of time: [start, end) in milliseconds, its rest after it included. `staffId` is the person
  * booked (none: the whole shop, as every booking made before there were people), `roomId` the room it uses.
  */
-export type Busy = { start: number; end: number; /** Whose booking it is, so a class can tell its own from another's. */ serviceId?: string; staffId?: string; roomId?: string };
+export type Busy = { start: number; end: number; /** Whose booking it is, so a class can tell its own from another's. */ serviceId?: string; staffId?: string; roomId?: string;
+  /** A class time cancelled for too few people: closes that class at that start, and nothing else. */ closed?: boolean };
 
 /** What the free-time rules need of a service. Without `id` and `places` it is one customer at a time. */
 export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId" | "courseDates">>;
@@ -403,6 +412,11 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   const courseDates = cleanCourseDates(rawDates);
   if (rawDates.length && courseDates.length < 2) return { problem: "A course has at least 2 dates. For a single date, leave the course dates empty." };
   if (courseDates.length && places < 2) return { problem: "A course needs room for at least 2 people." };
+  const classTimes = courseDates.length ? [] : cleanClassTimes(s.classTimes);
+  // A minimum only for a group at set times: a weekly class or a course (a class at any free time has no session to decide).
+  const atSetTimes = places >= 2 && (courseDates.length > 0 || classTimes.length > 0);
+  const minPlaces = atSetTimes ? whole(s.minPlaces, 0, MAX_PLACES, 0) : 0;
+  if (minPlaces > places) return { problem: "The minimum to run can't be more than the places." };
   return {
     id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     name,
@@ -419,9 +433,11 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     questions: cleanQuestions(s.questions),
     places,
     // A course runs on its own dates, never at weekly times as well.
-    classTimes: courseDates.length ? [] : cleanClassTimes(s.classTimes),
+    classTimes,
     ...(courseDates.length ? { courseDates } : {}),
     ...(courseDates.length && s.lateJoin === true ? { lateJoin: true } : {}),
+    // A minimum of 1 is no minimum: anyone signed up is enough.
+    ...(minPlaces >= 2 ? { minPlaces, decideHours: whole(s.decideHours, 1, MAX_DECIDE_HOURS, DECIDE_HOURS) } : {}),
     holdCard,
     lateFeeMinor,
     meet: s.meet === true,
@@ -459,6 +475,19 @@ export function courseStarts(service: { places?: number; courseDates?: readonly 
     if (Number.isFinite(ms) && !out.includes(ms)) out.push(ms);
   }
   return out.sort((a, b) => a - b);
+}
+
+/** How long before a class with a minimum it is decided whether it runs: by default, and at most (a week). */
+export const DECIDE_HOURS = 24;
+export const MAX_DECIDE_HOURS = 168;
+
+/**
+ * Whether a class time with a minimum is due to be decided now: from `decideHours` before `start` until it starts. A
+ * course is decided on its first date. false for a service without a minimum.
+ */
+export function runDecisionDue(start: number, service: Pick<BookingService, "minPlaces" | "decideHours">, nowMs: number): boolean {
+  if (!service.minPlaces || !Number.isFinite(start)) return false;
+  return nowMs >= start - (service.decideHours || DECIDE_HOURS) * 60 * MINUTE && nowMs < start;
 }
 
 /** A course joined late needs at least this many dates still to come. */
@@ -863,6 +892,10 @@ export function placesLeft(start: number, service: Bookable, busy: readonly Busy
   const room = service.roomId || "";
   let taken = 0;
   for (const b of busy) {
+    if (b.closed) {
+      if (b.serviceId === service.id && b.start === start) return 0;
+      continue;
+    }
     if (!(start < b.end && end > b.start)) continue;
     // With people, a stretch matters when it is this person's, the whole shop's, or in the room this service needs.
     const mine = !staffId || !b.staffId || b.staffId === staffId;

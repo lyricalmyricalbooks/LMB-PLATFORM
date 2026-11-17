@@ -1609,3 +1609,12 @@ date the course as it is; after it, while `lateJoin` is on and `MIN_LATE_DATES` 
 course of the dates left priced at their share of the whole price (a set deposit never above that) with `joining
 { missed, of, fullPriceMinor }`; otherwise the whole course, so `bookingStart` answers `started`. `takeTime` saves that as
 `course.joined`. The Timetable (`courseOpen`) and `bookingInfo` list the joined-now course; the owner's `create` uses it too.
+
+**Classes: minimum number to run (17 November 2026, `tasks/todo/2026-11-17-classes-minimum.md`).** A weekly class or a
+course may have `minPlaces` (2 to its places) and `decideHours` (1 to 168, default 24). `sweepMinimum` (in `bookingSweep`)
+decides each class time once, `runDecisionDue` hours before it starts, and records it in `bookingRuns/<serviceId>~<startMs>`
+before acting. Too few confirmed: a `closed` item goes on the time's day (every date of a course), which closes that
+class then and nothing else (`placesLeft`, `fullClassTimes`); each confirmed sign-up is cancelled through `shopCancel`
+(shared with the admin's cancel: full refund, gift card and pack visit back, calendar, email saying too few signed up,
+`cancelledFor: "minimum"`), and the owner gets one email. A time with a sign-up still paying waits for the next sweep.
+

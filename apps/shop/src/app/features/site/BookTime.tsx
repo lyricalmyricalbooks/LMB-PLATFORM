@@ -233,6 +233,7 @@ function NewBooking({ c }: { c: Copy }) {
                 <span><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
                 {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
+                {!!s.minPlaces && <span>{c("bookTimeClassMinimum", { count: s.minPlaces })}</span>}
                 {!!s.courseStarts?.length && <span>{s.joining ? c("bookTimeCourseLate", { count: s.courseStarts.length, of: s.joining.of }) : c("bookTimeCourseCount", { count: s.courseStarts.length })}</span>}
                 {s.priceMinor > 0 && !paysUpFront(s) && <span>{c("bookTimePayAtShop")}</span>}
                 {takesDeposit(s) && <span translate="no">{c("bookTimeDepositNote", { deposit: moneyText(upFrontMinor(withTax(s)), currency), rest: moneyText(withTax(s).priceMinor - upFrontMinor(withTax(s)), currency) })}</span>}
