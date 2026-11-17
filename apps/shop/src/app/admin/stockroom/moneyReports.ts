@@ -19,11 +19,15 @@ import { shopProfile } from "../../../lib/shopProfile";
 import { keptRates, type RateCache } from "./datedRates";
 import type { StockroomRecords } from "./stockroomData";
 import { SHOP_CURRENCY, homeCurrency } from "../moneySign";
+import { serviceLedgerRows, serviceYear, type ServiceSale } from "./serviceSales";
 
 type Row = Record<string, any>;
 
+/** The stockroom's sources plus the bookings' service sales (serviceSales.ts), which the stockroom's own rules don't read. */
+export type MoneySources = TaxSources & { serviceSales?: ServiceSale[] };
+
 /** The records as the stockroom's rules want them. States are copied: the ledger re-derives consignment mirrors in place. */
-export function sourcesOf(records: StockroomRecords, dated: RateCache = keptRates()): TaxSources {
+export function sourcesOf(records: StockroomRecords, dated: RateCache = keptRates()): MoneySources {
   const taxCenter = (records.taxCenter || {}) as Row;
   const rates = taxCenter.settings?.rates;
   return {
@@ -33,6 +37,7 @@ export function sourcesOf(records: StockroomRecords, dated: RateCache = keptRate
     // The Tax centre's saved daily rates, then the rates for each sale's own date kept in this browser (taxRates.ts
     // fetches them). A foreign-currency sale with no dated rate yet is valued at the saved rate and says so (rateNotes).
     fxRateCache: { [`${SHOP_CURRENCY}_${SHOP_CURRENCY}`]: 1, ...(rates && typeof rates === "object" ? rates : {}), ...dated },
+    ...(records.serviceSales?.length ? { serviceSales: records.serviceSales } : {}),
   };
 }
 
@@ -44,11 +49,29 @@ export const LEDGER_PAGE_SIZE = 25;
 
 export type RecurringRow = { id: string; desc: string; vendor: string; cat: string; currency: string; amount: number; every: string; status: string; next: string | null; perMonth: number };
 
-export function taxCenterModel(sources: TaxSources, year: string, now: Date = new Date()) {
-  const everything = buildTaxLedger(sources, "all");
-  const ledger = year === "all" ? everything : buildTaxLedger(sources, year);
-  const baseCurrency = baseCurrencyOf(sources);
+/** The stockroom's ledger for a year with the bookings' rows added and counted in its totals. */
+function ledgerWithServices(sources: MoneySources, year: string) {
+  const ledger = buildTaxLedger(sources, year);
+  const rows = serviceLedgerRows(sources.serviceSales, year, baseCurrencyOf(sources));
+  if (!rows.length) return ledger;
+  const extra = rows.reduce((sum, r) => sum + (r.baseAmount || 0), 0);
+  return { ...ledger, totalGrossSales: Math.round((ledger.totalGrossSales + extra) * 100) / 100, allLedger: [...ledger.allLedger, ...rows] };
+}
+
+/** The cash flow summary with the bookings' visits counted as sales (the stockroom counts only its own). */
+function summaryWithServices(sources: MoneySources, year: string, ledger: ReturnType<typeof buildTaxLedger>) {
   const summary = cashFlowSummary(sources, year, ledger);
+  const service = serviceYear(sources.serviceSales, year, baseCurrencyOf(sources));
+  if (!service.count && !service.tips) return summary;
+  const txnCount = (summary.txnCount || 0) + service.count;
+  return { ...summary, txnCount, avgSale: txnCount > 0 ? summary.sales / txnCount : null };
+}
+
+export function taxCenterModel(sources: MoneySources, year: string, now: Date = new Date()) {
+  const everything = ledgerWithServices(sources, "all");
+  const ledger = year === "all" ? everything : ledgerWithServices(sources, year);
+  const baseCurrency = baseCurrencyOf(sources);
+  const summary = summaryWithServices(sources, year, ledger);
   const rows = [...ledger.allLedger].sort((a, b) => ((a.date || "") > (b.date || "") ? -1 : (a.date || "") < (b.date || "") ? 1 : 0));
   const categories = categorySummary(ledger.allLedger);
   const trips = Object.entries(tripsForYear(sources.taxCenter, sources.fxRateCache, year))

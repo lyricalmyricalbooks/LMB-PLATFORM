@@ -11,6 +11,7 @@ import { DEFAULT_SHOP_NAME } from "../../../shared/shopIdentity";
 import { getOrdersCached } from "../ordersCache";
 import { saveFile, zipStored } from "../xlsxWriter";
 import { RecordsGate } from "./RecordsGate";
+import { loadMoneyRecords } from "./moneyRecords";
 import { useRatedRecords } from "./taxRates";
 import { moneyYears, useMoneyYear, YearSwitch } from "./YearSwitch";
 import { ledgerCsvFile, sourcesOf, taxCenterModel } from "./moneyReports";
@@ -201,5 +202,6 @@ function ReportsLive({ initial }: { initial: StockroomRecords }) {
 }
 
 export function ReportsPage({ load = stockroomApi.load }: { load?: () => Promise<StockroomRecords> } & Partial<NativePageProps>) {
-  return <RecordsGate load={load} what="your reports">{(records) => <ReportsLive initial={records} />}</RecordsGate>;
+  const withServices = useMemo(() => () => loadMoneyRecords(load), [load]);
+  return <RecordsGate load={withServices} what="your reports">{(records) => <ReportsLive initial={records} />}</RecordsGate>;
 }

@@ -5,6 +5,7 @@
 // (`shops/<id>/settings/…`, `shops/<id>/books/<book>/data/<part>`), with an older copy in the Realtime Database under
 // `shops/<id>/lyrical`. `settings/modeFlags` says which store holds the catalogue and each item; a store that turns
 // out empty falls back to the other, exactly as the stockroom reads them.
+import type { ServiceSale } from "./serviceSales";
 import { getDatabase, get, ref } from "firebase/database";
 import { collection, doc, getDoc, getDocs, getFirestore, type DocumentReference } from "firebase/firestore";
 import { assembleParts, stitchState } from "@stockroom/merge-state.js";
@@ -25,6 +26,8 @@ export type StockroomRecords = {
   invoiceSettings?: Record<string, unknown> | null;
   /** Author entries waiting for approval, per book (`submissions/<book>/{sales,expenses}/<id>`): only the ids matter. */
   submissions?: Record<string, { sales?: Record<string, unknown>; expenses?: Record<string, unknown> }>;
+  /** What the shop's bookings brought in (serviceSales.ts), added by the money pages' loader (moneyRecords.ts); never saved. */
+  serviceSales?: ServiceSale[];
 };
 
 /** The stockroom's own place in the shop's project, as the page's profile names it (missing: the project's defaults). */

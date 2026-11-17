@@ -2,6 +2,7 @@
 // downloadFullTaxSeasonExport), line for line, so a bookkeeper gets the same file from either app: revenue by book,
 // fair and in-person sales by day (the shop's bookkeeping columns, with the "Tax on in-person sales" setting), every
 // expense and payout, author settlement cash, and the warnings for amounts that are not final. Pure.
+import type { ServiceSale } from "./serviceSales";
 import { dayLineRows, inPersonDailyLines, inPersonTaxOf, isInPersonSale } from "@stockroom/bookkeeping-days.js";
 import { csvCell, csvRow } from "@stockroom/csv.js";
 import { calcArtistEarnings, payoutNetted, tierEffectiveCap } from "@stockroom/earnings.js";
@@ -10,7 +11,8 @@ import { getBookCurrencyCode, roundCents } from "@stockroom/money.js";
 import { SHOP_CURRENCY } from "../moneySign";
 
 type Row = Record<string, any>;
-export type TaxSeasonInput = { books: Row[]; states: Record<string, Row>; taxCenter: Row | null; fxRateCache: Record<string, number> };
+/** `serviceSales`: what the shop's bookings brought in (serviceSales.ts), counted as sales in the year figures. */
+export type TaxSeasonInput = { books: Row[]; states: Record<string, Row>; taxCenter: Row | null; fxRateCache: Record<string, number>; serviceSales?: ServiceSale[] };
 
 /** A foreign-currency expense with no value in dollars yet (main.js isExpenseAwaitingRate): it counts 0, never 1 to 1. */
 export function isExpenseAwaitingRate(e: Row | null | undefined): boolean {
