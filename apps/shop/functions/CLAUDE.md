@@ -1329,7 +1329,7 @@ short), history `redeemed` with `bookingId`. Covered in full with no card to sav
 once, no card page; otherwise the page asks for the rest and `confirmPaid` marks it paid with or without card money.
 `freeTime(…, { giftBack })` puts the part back once on any cancel (hold running out included; history `refunded` with
 `bookingId`, `giftCard.returned`, decided on the booking's own copy inside the transaction) and returns what it wrote; the
-admin `cancel` op takes `giftBack: false` to keep it. `bookingInfo.giftCards` says whether the shop has any gift card.
+admin `cancel` op takes `giftBack: false` to keep it. `bookingInfo.giftCards` says whether the shop has any gift card. `bookingInfo.hours` is the shop's week (7 lists of `{start,end}`, Sunday first) for the website's Hours section.
 Tests: bookings.test.js › gift cards on bookings, bookingTimes.test.ts › gift cards on bookings.
 
 **Packs of visits (16 November 2026, `tasks/todo/2026-11-14-bookings-beta.md` › Packs of visits):** a paid service may sell

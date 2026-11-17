@@ -1226,6 +1226,8 @@ function bookingActions({
         const taxes = await Promise.all(list.map((s) => taxOn(s, s.priceMinor, calc)));
         return res.status(200).json({
           on: true, zone: zone(), currency: currency(), cancelHours: settings.cancelHours, maxDaysAhead: settings.maxDaysAhead, today: dayOf(nowMs, zone()),
+          // The shop's opening hours, Sunday first, for the Hours & where to find us section.
+          hours: settings.hours,
           codes: await codesOffered(), giftCards: await giftCardsOffered(),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds }) => ({ id, name, serviceIds })) : [],

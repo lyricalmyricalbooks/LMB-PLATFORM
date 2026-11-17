@@ -2124,6 +2124,30 @@ await check("a Book a time section added to the home page shows sample services 
   if (process.env.STUDIO_SHOTS) await frame.locator(".fm-booktime-grid").locator("xpath=ancestor::section[1]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booktime-section.png` });
 });
 
+await check("the four services sections (price list, team, big Book button, hours) draw sample answers that link to booking", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const picks = [["Price list", "menu"], ["Your team", "team"], ["Big Book button", "call"], ["Hours & where to find us", "hours"]];
+  for (const [label] of picks) {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("button", { name: new RegExp("^" + label) }).first().click();
+  }
+  await expectText(page, "Home · 4 sections");
+  const frame = page.frameLocator("iframe").first();
+  const menu = frame.locator(".fm-svc-menu li");
+  await menu.first().waitFor({ timeout: 15000 });
+  if (await menu.count() < 2) throw new Error(`the price list shows ${await menu.count()} services`);
+  const book = await menu.first().locator("a").getAttribute("href");
+  if (!/\/book\?service=sample-/.test(book || "")) throw new Error(`the price list's Book link points at ${book}`);
+  const team = frame.locator(".fm-svc-team li a");
+  await team.first().waitFor({ timeout: 10000 });
+  if (!/\/book\?with=/.test((await team.first().getAttribute("href")) || "")) throw new Error("the team card does not book with that person");
+  const big = await frame.locator(".fm-svc-call a").first().getAttribute("href");
+  if (!/\/book(\?preview=true)?$/.test(big || "")) throw new Error(`the big Book button points at ${big}`);
+  const days = frame.locator(".fm-svc-hours dt");
+  if (await days.count() !== 7) throw new Error(`the hours list shows ${await days.count()} days`);
+  if (process.env.STUDIO_SHOTS) for (const [, part] of picks) await frame.locator(`.fm-svc-${part}`).first().screenshot({ path: `${process.env.STUDIO_SHOTS}/services-${part}.png` });
+});
+
 await browser.close();
 await server?.close();
 for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name} (${Math.round(r.ms / 1000)}s)${r.ok ? "" : ` — ${r.error}`}`);

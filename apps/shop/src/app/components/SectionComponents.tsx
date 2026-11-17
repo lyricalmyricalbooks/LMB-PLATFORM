@@ -3,7 +3,7 @@ import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
-import { Send, ChevronLeft, ChevronRight, MapPin, Clock, Users } from "lucide-react";
+import { Send, ChevronLeft, ChevronRight, MapPin, Clock, Users, Navigation } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { resolveStaffNoteRows } from "../features/site/staffNotes";
@@ -15,6 +15,7 @@ import { bookingInfoOnce } from "../features/site/bookTimeAsk";
 import { isBookingPreview } from "../features/site/bookTimePreview";
 import { useBookingsLive } from "../features/site/bookingsLive";
 import { lengthText, moneyText as bookingMoney, sectionServices, type BookingInfo } from "../features/site/bookTimeRules";
+import { bookWithHref, directionsUrl, hoursRows, menuServices, personWords, teamRows } from "../features/site/serviceSections";
 import { faqAnchors, faqJsonLd, filterFaq, groupFaq, safeJson, type FaqItem } from "../features/site/faqHelp";
 import { submitContactMessage } from "../features/site/contactMessages";
 import { useSectionCopy, useSectionDesign, useSectionPage, useShopName } from "./sectionCopy";
@@ -2163,9 +2164,9 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
  * "Book a time" anywhere: the shop's bookable services, each with a button that opens the Book a time page on that
  * service. Shows nothing while the shop isn't taking bookings (Studio's preview shows sample services instead).
  */
-export function BookTimeSection({ settings, enableAnimations }: any) {
+/** The shop's booking answer for a section: asked once per visit, null while bookings are off (Studio's preview: samples). */
+function useBookingInfo(): BookingInfo | null {
   const live = useBookingsLive();
-  const c = useSectionCopy();
   const [info, setInfo] = useState<BookingInfo | null>(null);
   const wanted = live || isBookingPreview();
   useEffect(() => {
@@ -2174,7 +2175,29 @@ export function BookTimeSection({ settings, enableAnimations }: any) {
     bookingInfoOnce().then((next) => { if (!stale) setInfo(next); }).catch(() => {});
     return () => { stale = true; };
   }, [wanted]);
-  const services = sectionServices(wanted ? info : null, settings.maxServices);
+  return wanted ? info : null;
+}
+
+/** The eyebrow, title and subtitle every booking section opens with. */
+function BookingHeading({ settings, type, enableAnimations, className = "mb-10" }: { settings: any; type: string; enableAnimations?: boolean; className?: string }) {
+  return (
+    <AnimationContainer enabled={enableAnimations}>
+      <div className={`${className} ${aClass(settings)}`}>
+        {settings.eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>}
+        <h2 className="text-3xl md:text-4xl font-bold uppercase text-white" style={hStyle(settings)} data-theme-field="title">{settings.title ?? fb(`${type}.title`)}</h2>
+        {settings.subtitle && <p className="mt-3 text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>}
+      </div>
+    </AnimationContainer>
+  );
+}
+
+/** A booking button in the shop's button look (Studio's button colour wins). */
+const bookButtonStyle = (settings: any) => ({ backgroundColor: settings.accentColor || "var(--btn-bg, var(--accent))", color: "var(--btn-text, var(--on-accent))", borderRadius: "var(--btn-radius, 0px)", ...btnS(settings) });
+
+export function BookTimeSection({ settings, enableAnimations }: any) {
+  const c = useSectionCopy();
+  const info = useBookingInfo();
+  const services = sectionServices(info, settings.maxServices);
   if (!services.length) return null;
 
   const currency = info?.currency || "CAD";
@@ -2224,6 +2247,190 @@ export function BookTimeSection({ settings, enableAnimations }: any) {
             <a href={siteHref("/book")} className="underline underline-offset-4 text-white/80 text-sm" style={bStyle(settings)} data-theme-field="allLabel">{settings.allLabel ?? fb("BookTimeSection.allLabel")}</a>
           </p>
         )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Price list (Services plan phase 6): every service the shop takes bookings for as a menu, name and price on one line,
+ * length and description under, each with a Book link. Nothing while bookings are off.
+ */
+export function ServiceMenuSection({ settings, enableAnimations }: any) {
+  const c = useSectionCopy();
+  const info = useBookingInfo();
+  const services = menuServices(info);
+  if (!services.length) return null;
+  const currency = info?.currency || "CAD";
+  const book = settings.buttonLabel ?? fb("ServiceMenuSection.buttonLabel");
+  return (
+    <section className="fm-svc-menu" style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-3xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <BookingHeading settings={settings} type="ServiceMenuSection" enableAnimations={enableAnimations} />
+        <ul className="list-none m-0 p-0 border-t border-white/15">
+          {services.map((s) => (
+            <li key={s.id} className="grid items-start gap-x-6 gap-y-2 py-6 border-b border-white/15 text-left" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
+              <div className="min-w-0">
+                <h3 className="text-lg md:text-xl font-bold text-white leading-snug" style={hStyle(settings)}>{s.name}</h3>
+                {settings.showLength !== false && (
+                  <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] tracking-[0.12em] uppercase text-white/60" style={bStyle(settings)}>
+                    <span className="inline-flex items-center gap-1.5"><Clock size={12} aria-hidden="true" /> {lengthText(s.minutes)}</span>
+                    {(s.places || 1) > 1 && <span className="inline-flex items-center gap-1.5"><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
+                  </p>
+                )}
+                {settings.showDescription !== false && s.description && <p className="mt-2 text-sm text-white/60 leading-relaxed" style={bStyle(settings)}>{s.description}</p>}
+              </div>
+              <div className="flex flex-col items-end gap-3 text-right">
+                <span className="text-base font-bold text-white whitespace-nowrap" translate="no" style={bStyle(settings)}>
+                  {s.priceMinor > 0 ? bookingMoney(s.priceMinor, currency) : c("bookTimeFree")}
+                  {s.priceMinor > 0 && !!s.taxMinor && <small className="block text-[11px] font-normal text-white/60">{c("bookTimePlusTax")}</small>}
+                </span>
+                {settings.showBook !== false && (
+                  <a href={siteHref(`/book?service=${encodeURIComponent(s.id)}`)} aria-label={`${book}: ${s.name}`}
+                    className="inline-flex min-h-11 items-center px-5 py-2 text-[10px] tracking-[0.3em] font-bold uppercase" style={bookButtonStyle(settings)} data-theme-field="buttonLabel">
+                    {book}
+                  </a>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Your team: the people clients can book, each with what they do and a "Book with …" button that opens the Book a time
+ * page with them picked. Nothing while bookings are off or the shop lists nobody.
+ */
+export function BookingTeamSection({ settings, enableAnimations }: any) {
+  const c = useSectionCopy();
+  const people = teamRows(useBookingInfo());
+  if (!people.length) return null;
+  const words = settings.buttonLabel ?? fb("BookingTeamSection.buttonLabel");
+  const cols = Math.min(3, people.length);
+  return (
+    <section className="fm-svc-team" style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <BookingHeading settings={settings} type="BookingTeamSection" enableAnimations={enableAnimations} />
+        <style>{`.fm-team-grid{display:grid;gap:20px;}@media ${UP_TO.mobile}{.fm-team-grid{grid-template-columns:1fr !important;}}`}</style>
+        <ul className="fm-team-grid list-none m-0 p-0" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {people.map((p) => {
+            const label = personWords(words, p.name);
+            return (
+              <li key={p.id} className="flex flex-col items-start gap-4 p-6 border border-white/15 bg-white/[0.03] text-left" style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
+                <span aria-hidden="true" className="grid place-items-center w-14 h-14 rounded-full border border-white/15 bg-white/[0.06] text-xl font-bold text-white" style={hStyle(settings)}>
+                  {p.name.trim().charAt(0).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-xl font-bold text-white leading-tight" style={hStyle(settings)}>{p.name}</h3>
+                  {settings.showServices !== false && (
+                    <p className="mt-2 text-sm text-white/60 leading-relaxed" style={bStyle(settings)}>{p.services.length ? p.services.join(" · ") : c("bookTimeTeamAll")}</p>
+                  )}
+                </div>
+                <a href={siteHref(bookWithHref(p.id))} className="mt-auto inline-flex min-h-11 items-center px-6 py-3 text-[10px] tracking-[0.3em] font-bold uppercase" style={bookButtonStyle(settings)}>
+                  {label}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Big Book button: one band with a large heading, a line and the Book button, with the shop's cancel rule under it.
+ * Nothing while bookings are off.
+ */
+export function BookCallSection({ settings, enableAnimations }: any) {
+  const c = useSectionCopy();
+  const info = useBookingInfo();
+  if (!menuServices(info).length) return null;
+  const hours = info?.cancelHours || 0;
+  const align = aClass(settings);
+  const justify = settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center";
+  return (
+    <section className="fm-svc-call" style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")} ${align}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-5" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>}
+          <h2 className="text-4xl md:text-6xl font-bold uppercase text-white leading-[1.05]" style={hStyle(settings)} data-theme-field="title">{settings.title ?? fb("BookCallSection.title")}</h2>
+          {settings.subtitle && <p className="mt-5 text-lg text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>}
+          <div className={`mt-10 flex ${justify}`}>
+            <a href={siteHref("/book")} className="inline-flex min-h-14 items-center px-10 py-5 text-xs tracking-[0.3em] font-bold uppercase" style={bookButtonStyle(settings)} data-theme-field="buttonLabel">
+              {settings.buttonLabel ?? fb("BookCallSection.buttonLabel")}
+            </a>
+          </div>
+          {settings.showCancelRule !== false && hours > 0 && (
+            <p className="mt-5 text-sm text-white/60" style={bStyle(settings)}>{c("bookTimeCancelRule", { hours })}</p>
+          )}
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Hours & where to find us: the week's opening hours from Bookings › Hours & rules (today marked), the address with a
+ * directions link and a map, and a "Good to know" box with the cancel rule and the owner's own note.
+ * Nothing while bookings are off.
+ */
+export function BookingHoursSection({ settings, enableAnimations }: any) {
+  const c = useSectionCopy();
+  const info = useBookingInfo();
+  const rows = hoursRows(info?.hours, info?.today);
+  if (!info?.on || !rows.length) return null;
+  const address = String(settings.address || "").trim();
+  const hours = info.cancelHours || 0;
+  const rule = settings.showCancelRule !== false && hours > 0;
+  const note = String(settings.note || "").trim();
+  return (
+    <section className="fm-svc-hours" style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <BookingHeading settings={settings} type="BookingHoursSection" enableAnimations={enableAnimations} />
+        <div className="grid gap-10 md:grid-cols-2 text-left">
+          <dl className="m-0 border-t border-white/15">
+            {rows.map((r) => (
+              <div key={r.weekday} className="flex items-baseline justify-between gap-6 py-3 border-b border-white/15" data-today={r.today || undefined}>
+                <dt className={`text-sm ${r.today ? "font-bold text-white" : "text-white/80"}`} style={bStyle(settings)}>
+                  {r.day}
+                  {r.today && <span className="ml-2 text-[10px] tracking-[0.2em] uppercase text-white/60">{c("bookTimeHoursToday")}</span>}
+                </dt>
+                <dd className={`m-0 text-sm text-right ${r.today ? "font-bold text-white" : "text-white/80"}`} style={bStyle(settings)} translate="no">
+                  {r.windows.length ? r.windows.map((w) => <span key={w} className="block">{w}</span>) : <span className="text-white/60">{c("bookTimeHoursClosed")}</span>}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <div className="flex flex-col gap-6">
+            {address && (
+              <div>
+                <p className="flex items-start gap-2 text-base text-white" style={bStyle(settings)}>
+                  <MapPin size={16} aria-hidden="true" className="mt-1 shrink-0" />
+                  <span data-theme-field="address">{address}</span>
+                </p>
+                <a href={directionsUrl(address)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 underline underline-offset-4 text-sm text-white/80" style={bStyle(settings)} data-theme-field="directionsLabel">
+                  <Navigation size={14} aria-hidden="true" /> {settings.directionsLabel ?? fb("BookingHoursSection.directionsLabel")}
+                </a>
+              </div>
+            )}
+            {address && settings.showMap !== false && (
+              <div className="aspect-[4/3] w-full overflow-hidden border border-white/15" style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
+                <iframe title={address} src={`https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`} className="w-full h-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+              </div>
+            )}
+            {(rule || note) && (
+              <div className="p-5 border border-white/15 bg-white/[0.03]" style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-3" style={bStyle(settings)} data-theme-field="goodToKnow">{settings.goodToKnow ?? fb("BookingHoursSection.goodToKnow")}</p>
+                {rule && <p className="text-sm text-white/80 leading-relaxed" style={bStyle(settings)}>{c("bookTimeCancelRule", { hours })}</p>}
+                {note && <p className="mt-2 text-sm text-white/80 leading-relaxed whitespace-pre-line" style={bStyle(settings)} data-theme-field="note">{note}</p>}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -24,6 +24,8 @@ const SERVICES: BookingServiceView[] = [
 /** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */
 const CLASS_LEFT = [8, 3, 0, 1, 6];
 const TIMES = ["10:00", "11:00", "13:30", "15:00", "18:00"];
+/** Sample opening hours, Sunday first: weekdays 9 to 5 with a late Thursday, Saturday 10 to 4, closed Sunday. */
+const SAMPLE_HOURS = [[], ...[1, 2, 3].map(() => [{ start: "09:00", end: "17:00" }]), [{ start: "09:00", end: "20:00" }], [{ start: "09:00", end: "17:00" }], [{ start: "10:00", end: "16:00" }]];
 
 /** The sample booking as last changed in this preview (Change time and Cancel work on it). */
 let sample: BookingView | null = null;
@@ -78,7 +80,7 @@ function samplePack(nowMs: number, zone: string, currency: string): BookingPackV
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
   if (action === "bookingInfo") {
-    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, staff: [{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: [] }] } satisfies BookingInfo;
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, hours: SAMPLE_HOURS, staff: [{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: ["sample-session", "sample-class"] }] } satisfies BookingInfo;
   }
   if (action === "bookingTimes") {
     const from = typeof body.from === "string" ? body.from : today;

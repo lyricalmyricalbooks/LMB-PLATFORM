@@ -42,14 +42,16 @@ describe("Book a time page rules", () => {
     expect(manageFromSearch("")).toBeNull();
   });
   it("reads the service and day a waiting-list email links to, and drops anything misshapen", () => {
-    expect(wantedFromSearch("?service=svc_1&day=2026-11-21")).toEqual({ service: "svc_1", day: "2026-11-21", offer: "", offerKey: "" });
-    expect(wantedFromSearch("?service=a/b&day=tomorrow")).toEqual({ service: "", day: "", offer: "", offerKey: "" });
+    expect(wantedFromSearch("?service=svc_1&day=2026-11-21")).toEqual({ service: "svc_1", day: "2026-11-21", offer: "", offerKey: "", person: "" });
+    expect(wantedFromSearch("?with=ana").person).toBe("ana");
+    expect(wantedFromSearch("?with=a/b").person).toBe("");
+    expect(wantedFromSearch("?service=a/b&day=tomorrow")).toEqual({ service: "", day: "", offer: "", offerKey: "", person: "" });
     // A held place from the waiting list needs both parts, well formed.
     const offer = "a".repeat(32);
     const offerKey = "b".repeat(48);
     expect(wantedFromSearch(`?service=svc_1&day=2026-11-21&offer=${offer}&offerKey=${offerKey}`)).toMatchObject({ offer, offerKey });
     expect(wantedFromSearch(`?service=svc_1&offer=${offer}&offerKey=short`)).toMatchObject({ offer: "", offerKey: "" });
-    expect(wantedFromSearch("")).toEqual({ service: "", day: "", offer: "", offerKey: "" });
+    expect(wantedFromSearch("")).toEqual({ service: "", day: "", offer: "", offerKey: "", person: "" });
   });
   it("gives a Book a time section the first few services, and none while bookings are off", () => {
     const service = (id: string) => ({ id, name: id, description: "", minutes: 30, priceMinor: 0, payment: "free" as const, location: "" });
