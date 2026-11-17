@@ -114,3 +114,40 @@ describe("customers' bookings (Bookings beta)", () => {
     expect(bookingsLine([bk("p", "a@x.com", "2026-11-01T15:00:00Z")], now, day)).toBe("1 booking · last 2026-11-01");
   });
 });
+
+describe("a client's card (services plan, phase 5)", () => {
+  const now = Date.parse("2026-11-16T12:00:00Z");
+  const bk = (id: string, start: string, extra: Record<string, unknown> = {}) => ({
+    id, serviceId: "cut", serviceName: "Cut", minutes: 60, start, end: new Date(Date.parse(start) + 3600_000).toISOString(),
+    status: "confirmed", payment: "card", priceMinor: 6000, currency: "CAD", paid: true, customer: { name: "Ada", email: "ada@example.com" }, ...extra,
+  }) as any;
+  const pack = (id: string, extra: Record<string, unknown> = {}) => ({
+    id, last4: "AB12", serviceId: "cut", serviceName: "Cut", name: "Ada", email: "Ada@Example.com", visits: 5, left: 3, status: "active",
+    priceMinor: 25000, currency: "CAD", expiresOn: null, paidAt: "2026-10-01", refundMinor: 0, uses: [], ...extra,
+  }) as any;
+  it("counts visits, no-shows and what the shop kept, and finds the card, answers and packs", async () => {
+    const { clientCard } = await import("./customerInsights");
+    const card = clientCard([
+      bk("old", "2026-09-01T15:00:00Z", { card: { customer: "c", paymentMethod: "pm", brand: "visa", last4: "4242" } }),
+      bk("colour", "2026-10-20T15:00:00Z", { serviceId: "colour", serviceName: "Colour", staffId: "ana", answers: [{ label: "Allergies", answer: "None" }, { label: "Notes", answer: " " }], customer: { name: "Ada", email: "ada@example.com", phone: "416 555 0100" } }),
+      bk("missed", "2026-11-01T15:00:00Z", { noShow: true, payment: "free", priceMinor: 0, paid: false, fee: { amountMinor: 2500, at: "x" } }),
+      bk("gone", "2026-11-05T15:00:00Z", { status: "cancelled", refund: { amountMinor: 6000, at: "x" } }),
+      bk("held", "2026-11-06T15:00:00Z", { status: "held", paid: false }),
+      bk("soon", "2026-11-20T15:00:00Z", { tip: { amountMinor: 900, at: "x" } }),
+    ], [pack("p1"), pack("p2", { left: 0, status: "used" }), pack("p3", { email: "ben@example.com" })], "ada@example.com", now);
+    expect(card).toMatchObject({
+      visits: 2, noShows: 1, cancelled: 1, lastVisit: "2026-10-20T15:00:00Z", phone: "416 555 0100", currency: "CAD",
+      card: { brand: "visa", last4: "4242" }, again: { serviceId: "colour", staffId: "ana" },
+      answers: { serviceName: "Colour", list: [{ label: "Allergies", answer: "None" }] },
+      packs: [{ id: "p1", serviceName: "Cut", left: 3, visits: 5, expiresOn: null }],
+    });
+    // 6000 × 3 kept (old, colour, soon) + the 25.00 missed fee; the cancelled one was refunded and the tip never counts.
+    expect(card.spentMinor).toBe(6000 * 3 + 2500);
+    expect(card.next?.id).toBe("soon");
+  });
+  it("books again from the next booking when there is no past visit, and is empty without bookings", async () => {
+    const { clientCard } = await import("./customerInsights");
+    expect(clientCard([bk("soon", "2026-11-20T15:00:00Z", { staffId: "sam" })], [], "ada@example.com", now).again).toEqual({ serviceId: "cut", staffId: "sam" });
+    expect(clientCard(undefined, undefined, "ada@example.com", now)).toMatchObject({ visits: 0, noShows: 0, spentMinor: 0, next: null, card: null, packs: [], answers: null, again: null });
+  });
+});

@@ -13,7 +13,8 @@ describe("admin-only customer data rules", () => {
     expect(b).toMatch(/allow read: if isAdminReader\(\);/);
     expect(b).toMatch(/allow delete: if isAdmin\(\);/);
     expect(b).toMatch(/allow create, update: if isAdmin\(\)/);
-    expect(b).toMatch(/hasOnly\(\["email", "note", "tags", "updatedAt", "name", "place"\]\)/);
+    expect(b).toMatch(/hasOnly\(\["email", "note", "tags", "updatedAt", "name", "place", "phone"\]\)/);
+    expect(b).toMatch(/get\("phone", ""\)\.size\(\) <= 40/);
     expect(b).not.toMatch(/if true/);
   });
   it("the first-week checklist is admin-only with a bounded shape (plan 3.3)", () => {

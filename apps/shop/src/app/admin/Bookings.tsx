@@ -1151,18 +1151,23 @@ function PersonPick({ settings, serviceId, value, onChange }: { settings: Bookin
   );
 }
 
-function NewBookingDialog({ services, settings, onClose }: { services: BookingService[]; settings: BookingSettings; onClose: () => void }) {
-  const [serviceId, setServiceId] = useState(services[0]?.id || "");
-  const [staffId, setStaffId] = useState("");
-  const [who, setWho] = useState({ name: "", email: "", phone: "", note: "" });
+/** What Book again fills in: the client and their last service and person (Customers › a client). */
+export type BookAgain = { serviceId: string; staffId: string; name: string; email: string; phone: string };
+
+function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { services: BookingService[]; settings: BookingSettings; onClose: () => void; initial?: BookAgain; onBooked?: () => void }) {
+  const [serviceId, setServiceId] = useState(() => services.find((s) => s.id === initial?.serviceId)?.id || services[0]?.id || "");
+  // The same person again, if they still take this service.
+  const [staffId, setStaffId] = useState(() => (initial?.staffId && staffFor(settings, serviceId).some((p) => p.id === initial.staffId) ? initial.staffId : ""));
+  const [who, setWho] = useState({ name: initial?.name || "", email: initial?.email || "", phone: initial?.phone || "", note: "" });
   const [sendEmail, setSendEmail] = useState(true);
   const service = services.find((s) => s.id === serviceId) || services[0];
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
-    <TimeDialog key={service.id} title="New booking" service={service} initialDay={today()} staffId={staffId} confirmLabel="Book" onClose={onClose} ready={ready}
+    <TimeDialog key={service.id} title={initial ? "Book again" : "New booking"} service={service} initialDay={today()} staffId={staffId} confirmLabel="Book" onClose={onClose} ready={ready}
       onPick={async (start) => {
         await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}) });
         toast.success(`${who.name.trim()} is booked in`);
+        onBooked?.();
         onClose();
       }}>
       <SelectField label="Service" value={service.id} onChange={(e) => { setServiceId(e.target.value); if (!staffFor(settings, e.target.value).some((p) => p.id === staffId)) setStaffId(""); }}>
@@ -1180,6 +1185,25 @@ function NewBookingDialog({ services, settings, onClose }: { services: BookingSe
       <Toggle label="Email them the booking" checked={sendEmail} onChange={setSendEmail} />
     </TimeDialog>
   );
+}
+
+/**
+ * Book again (services plan, phase 5), opened from a client's card on Customers: the New booking window, filled in with
+ * the client and their last service and person. Reads the services itself, so Customers stays light until it is used.
+ */
+export function BookAgainDialog({ initial, onClose, onBooked }: { initial: BookAgain; onClose: () => void; onBooked?: () => void }) {
+  const [setup, setSetup] = useState<{ services: BookingService[]; settings: BookingSettings } | null>(null);
+  useEffect(() => {
+    let live = true;
+    readBookingSetup().then((s) => {
+      if (!live) return;
+      if (!s.services.length) { toast.error("Add a service in Bookings first."); onClose(); return; }
+      setSetup(s);
+    }).catch((e) => { if (live) { toast.error(e?.message || "Your services couldn't be loaded. Try again."); onClose(); } });
+    return () => { live = false; };
+  }, []);
+  if (!setup) return null;
+  return <NewBookingDialog services={setup.services} settings={setup.settings} initial={initial} onBooked={onBooked} onClose={onClose} />;
 }
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────

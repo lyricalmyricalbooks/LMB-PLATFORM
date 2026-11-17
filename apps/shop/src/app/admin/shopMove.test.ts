@@ -297,6 +297,26 @@ describe("customers", () => {
     expect(again[0]).toMatchObject({ action: "update", note: first[0].note, name: "Ada Moth" });
   });
 
+  it("reads a booking tool's client list: phone, visits, missed visits and last visit (services plan, phase 5)", () => {
+    const list = csv([
+      ["Client Name", "Email", "Mobile Number", "Total Visits", "No Shows", "Last Visit", "Client Notes"],
+      ["Nia Example", "nia@example.com", "416 555 0100", "12", "1", "2026-10-02", "Colour 6N + 20 vol"],
+      ["Sol Example", "sol@example.com", "", "0", "", "", ""],
+    ]);
+    const { customers, problems } = readCustomerExport(list);
+    expect(problems).toEqual([]);
+    expect(customers[0]).toMatchObject({ name: "Nia Example", phone: "416 555 0100", visits: 12, noShows: 1, lastVisit: "2026-10-02", note: "Colour 6N + 20 vol", acceptsEmail: null });
+    const writes = planCustomerNotes(customers, new Map(), "2026-11-17");
+    expect(writes[0]).toMatchObject({ action: "create", phone: "416 555 0100" });
+    expect(writes[0].note).toBe(`${MOVED_MARK} on 2026-11-17: Nia Example · 12 visits there · 1 missed · last visit 2026-10-02\nColour 6N + 20 vol`);
+    expect(writes[1].note).toBe(`${MOVED_MARK} on 2026-11-17: Sol Example`);
+    // A phone typed here is kept; a second run changes nothing.
+    const after = new Map(writes.map(w => [w.email, { note: w.note, tags: w.tags, name: w.name, place: w.place, phone: w.email === "nia@example.com" ? "647 555 0199" : w.phone }]));
+    const again = planCustomerNotes(customers, after, "2026-11-18");
+    expect(again.map(w => w.action)).toEqual(["unchanged", "unchanged"]);
+    expect(again[0].phone).toBe("647 555 0199");
+  });
+
   it("only customers who said yes, aren't subscribed and haven't opted out may join the newsletter", () => {
     const { customers } = readCustomerExport(CUSTOMERS);
     expect(newsletterJoiners(customers, new Set(), () => false).map(c => c.email)).toEqual(["ada@example.com"]);

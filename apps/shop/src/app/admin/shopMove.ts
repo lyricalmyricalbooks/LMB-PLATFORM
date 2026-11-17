@@ -839,6 +839,8 @@ export interface MovedCustomer {
   /** true: agreed to marketing email at the old shop; false: said no; null: the file doesn't say. */
   acceptsEmail: boolean | null;
   orders: number | null; spent: number | null;
+  /** From a booking tool's client list (services plan, phase 5): their phone, visits, missed visits and last visit there. */
+  phone: string; visits: number | null; noShows: number | null; lastVisit: string;
 }
 
 export interface CustomerMove { customers: MovedCustomer[]; skipped: { line: number; reason: string }[]; problems: string[] }
@@ -868,7 +870,7 @@ export function readCustomerExport(text: string): CustomerMove {
     if (!EMAIL.test(email) || email.length > 254) { skipped.push({ line, reason: email ? `“${email}” isn't an email address.` : "No email address." }); return; }
     if (seen.has(email)) { skipped.push({ line, reason: `${email} is already on an earlier line.` }); return; }
     seen.add(email);
-    const name = c.get(row, "Name", "Full Name") || [c.get(row, "First Name", "Billing First Name"), c.get(row, "Last Name", "Surname", "Billing Last Name")].filter(Boolean).join(" ");
+    const name = c.get(row, "Name", "Full Name", "Client", "Client Name", "Customer Name") || [c.get(row, "First Name", "Billing First Name"), c.get(row, "Last Name", "Surname", "Billing Last Name")].filter(Boolean).join(" ");
     const place = [
       c.get(row, "Default Address City", "City", "Billing City", "Billing Address City", "Address 1 - City"),
       c.get(row, "Default Address Province Code", "Province Code", "Province", "State", "Region", "Billing State", "Billing Address State/Province", "Address 1 - State/Region"),
@@ -884,7 +886,16 @@ export function readCustomerExport(text: string): CustomerMove {
     const orders = count(c.get(row, "Total Orders", "Orders", "Order Count", "Transaction Count"));
     const spentRaw = c.get(row, "Total Spent", "Total Spend", "Lifetime Spend", "Money Spent", "Spent");
     const spent = spentRaw ? money(spentRaw) : NaN;
-    customers.push({ line, email, name, place, tags: parseTags(c.get(row, "Tags", "Labels", "Groups").replace(/;/g, ",")), note: c.get(row, "Note", "Notes", "Memo"), acceptsEmail, orders, spent: Number.isNaN(spent) ? null : spent });
+    // A booking tool's client list: the phone, how many visits and missed visits, and the last visit.
+    const phone = c.get(row, "Phone", "Mobile", "Mobile Phone", "Mobile Number", "Cell", "Cell Phone", "Phone Number", "Client Phone", "Default Address Phone", "Billing Phone").slice(0, 40);
+    const visits = count(c.get(row, "Total Visits", "Visits", "Number of Visits", "Appointments", "Total Appointments", "Total Bookings"));
+    const noShows = count(c.get(row, "No Shows", "No-Shows", "No Show", "Total No Shows", "Missed Appointments"));
+    const lastVisit = c.get(row, "Last Visit", "Last Visit Date", "Last Appointment", "Last Appointment Date", "Last Booking").slice(0, 30);
+    customers.push({
+      line, email, name, place, tags: parseTags(c.get(row, "Tags", "Labels", "Groups").replace(/;/g, ",")),
+      note: c.get(row, "Note", "Notes", "Memo", "Client Notes", "Customer Notes"), acceptsEmail, orders, spent: Number.isNaN(spent) ? null : spent,
+      phone, visits, noShows, lastVisit,
+    });
   });
   return { customers, skipped, problems: customers.length ? [] : ["None of the lines had a usable email address."] };
 }
@@ -893,27 +904,32 @@ export function readCustomerExport(text: string): CustomerMove {
 export { MOVED_MARK };
 
 /** `name` and `place` are stored beside the note so the customer is listed before their first order here (plan 23.10). */
-export interface CustomerWrite { email: string; note: string; tags: string[]; name: string; place: string; action: "create" | "update" | "unchanged" }
+export interface CustomerWrite { email: string; note: string; tags: string[]; name: string; place: string; phone: string; action: "create" | "update" | "unchanged" }
 
 /** Each customer's private note and tags (Customers › a customer › Notes), merged with what is already there. */
-export function planCustomerNotes(customers: MovedCustomer[], existing: Map<string, { note: string; tags: string[]; name?: string; place?: string }>, today: string): CustomerWrite[] {
+export function planCustomerNotes(customers: MovedCustomer[], existing: Map<string, { note: string; tags: string[]; name?: string; place?: string; phone?: string }>, today: string): CustomerWrite[] {
   return customers.map(cu => {
     const was = existing.get(cu.email);
     const facts = [
       cu.name, cu.place,
       cu.orders !== null ? `${cu.orders} order${cu.orders === 1 ? "" : "s"} there` : "",
       cu.spent !== null ? `${cu.spent.toFixed(2)} spent there` : "",
+      cu.visits ? `${cu.visits} visit${cu.visits === 1 ? "" : "s"} there` : "",
+      cu.noShows ? `${cu.noShows} missed` : "",
+      cu.lastVisit ? `last visit ${cu.lastVisit}` : "",
     ].filter(Boolean).join(" · ");
     const block = [`${MOVED_MARK} on ${today}${facts ? `: ${facts}` : "."}`, cu.note].filter(Boolean).join("\n");
     const tags = parseTags([...(was?.tags || []), ...cu.tags].join(","));
     const name = (was?.name || cu.name).slice(0, 100);
     const place = (was?.place || cu.place).slice(0, 200);
+    // A phone the owner typed here wins over the file's.
+    const phone = (was?.phone || cu.phone || "").slice(0, 40);
     if (was?.note.includes(MOVED_MARK)) {
-      const same = tags.join(",") === (was.tags || []).join(",") && name === (was.name || "") && place === (was.place || "");
-      return { email: cu.email, note: was.note, tags, name, place, action: same ? "unchanged" : "update" };
+      const same = tags.join(",") === (was.tags || []).join(",") && name === (was.name || "") && place === (was.place || "") && phone === (was.phone || "");
+      return { email: cu.email, note: was.note, tags, name, place, phone, action: same ? "unchanged" : "update" };
     }
     const note = (was?.note ? `${was.note}\n\n${block}` : block).slice(0, 5000);
-    return { email: cu.email, note, tags, name, place, action: was ? "update" : "create" };
+    return { email: cu.email, note, tags, name, place, phone, action: was ? "update" : "create" };
   });
 }
 

@@ -35,7 +35,7 @@ describe("customer exports", () => {
       if (want.note) expect(ada.note).toBe(want.note);
       // A second run of the same file changes nothing.
       const first = planCustomerNotes(move.customers, new Map(), "2026-11-10");
-      const saved = new Map(first.map(w => [w.email, { note: w.note, tags: w.tags, name: w.name, place: w.place }]));
+      const saved = new Map(first.map(w => [w.email, { note: w.note, tags: w.tags, name: w.name, place: w.place, phone: w.phone }]));
       expect(planCustomerNotes(move.customers, saved, "2026-11-11").every(w => w.action === "unchanged")).toBe(true);
     });
   }
