@@ -1044,6 +1044,11 @@ fixture takes `?support=1` to show the links.
 days left (`fundraiserFacts`), the story (`storyParagraphs`) and the wall (regions `supportFundraiser`, `supportWall`;
 words `supportFund*`, `supportWall*`). The "show my name" tick sends `wall`. Studio shows a sample one only with
 `fundraiser=sample` on the preview's or Studio's address (`supportPreview.ts`).
+**Rewards (G2b):** the amounts card lists the rewards (region `supportRewards`, `.fm-sup-reward*`): none, then each with
+its smallest gift, words, when and how many are left (`rewardStock`); picking one under the gift raises the gift
+(`amountForReward`) and says so. One that ships adds the posting address (`.fm-sup-ship`) to Your details. A
+`reward_*` refusal clears the pick and reloads the counts. Words `supportReward*`, `supportShip*`, `supportNeedAddress`
+(Text & labels › Support page › Fundraiser rewards & posting address). Clicking in Studio's preview needs Browse mode.
 
 ## Tip at checkout (Donations & tips beta, G1c, 18 November 2026)
 `CheckoutTip.tsx` (pure `tipAtCheckout.ts`: `tipsOffered`, `tipBaseMinor`, `tipFor`) sits in the Pay step under the code

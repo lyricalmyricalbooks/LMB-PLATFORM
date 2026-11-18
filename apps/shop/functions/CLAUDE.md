@@ -1745,3 +1745,10 @@ edited; `endFundraiser` deletes a draft. `giftStart` takes `fundraiserId`, accep
 day (`liveFundraiser`), else 409 `fundraiser_ended`, and `wall` (never for an anonymous giver). The total, supporter count
 and wall line change only inside `confirmPaid`'s paid transaction, and a refund takes them back off, so a browser can't
 move them. `givingInfo` sends `fundraiser` (`publicFundraiser`: no gift ids or emails) and `today`.
+**Rewards (G2b):** a fundraiser's `rewards` (`cleanRewards`, at most 8; each keeps the server's `taken`, can't be removed
+once taken or set below it; cleaned inside `saveFundraiser`'s transaction against what is stored). `giftStart` takes
+`rewardId` (+ `shipTo` when it ships, `cleanShipTo`): checked first, then claimed in one transaction with the gift's
+creation (409 `reward_gone` / `reward_min` / `reward_unknown`, 400 `address`). The gift keeps `reward {id,title,ships,when}`,
+`shipTo` and `rewardHeld`; `cancelGift` and a refund give the reward back, a closed page that turns out paid takes it
+again (past the limit if need be). Op `rewardSent` (`sent: false` undoes). The thank-you emails name it. Privacy erase
+blanks `shipTo`, turns `wall` off and takes the giver's line off the fundraiser's wall.

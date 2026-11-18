@@ -4,16 +4,16 @@
 // Gifts are server-only records, so every read and change goes through the server (givingApi.ts). The tile of blocked
 // tries shows the card-testing guard at work.
 import { useEffect, useState } from "react";
-import { ExternalLink, Flag, HeartHandshake, Mail, Pencil, Plus, Settings2, Square, Undo2, X } from "lucide-react";
+import { Check, ExternalLink, Flag, Gift, HeartHandshake, Mail, Pencil, Plus, Settings2, Square, Trash2, Undo2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, StatusBadge, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { givingAdmin, type AdminFundraiser, type AdminGift, type GivingList } from "./givingApi";
-import { amountFromText, blockedLine, dayText, fundraiserLines, giverLine, goalFromText, honourText, withAmount } from "./givingView";
+import { amountFromText, blankReward, blockedLine, dayText, fundraiserLines, giverLine, goalFromText, honourText, rewardLine, rewardRowsOf, rewardsFromRows, shipToText, withAmount, type RewardRow } from "./givingView";
 import { moneyText } from "./eventsView";
 import { MAX_AMOUNTS, MAX_THANKS, MAX_TIP_CHOICES, cleanTipPercents, type GivingSettings } from "../../shared/givingRules";
-import { MAX_STORY, MAX_TITLE, dayAfter, goalProgress, type FundraiserInput } from "../../shared/fundraiserRules";
+import { MAX_REWARDS, MAX_REWARD_TEXT, MAX_REWARD_TITLE, MAX_REWARD_WHEN, MAX_STORY, MAX_TITLE, dayAfter, goalProgress, type FundraiserInput } from "../../shared/fundraiserRules";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./bookings.css";
 import "./giving.css";
@@ -105,7 +105,7 @@ export function Giving() {
 }
 
 function GiftRow({ gift, money, onChanged }: { gift: AdminGift; money: (minor: number) => string; onChanged: (gift: AdminGift) => void }) {
-  const [busy, setBusy] = useState<"" | "refund" | "resend">("");
+  const [busy, setBusy] = useState<"" | "refund" | "resend" | "sent">("");
   const [ask, confirmNode] = useConfirm();
   const refunded = gift.status === "refunded";
   const honour = honourText(gift);
@@ -127,6 +127,17 @@ function GiftRow({ gift, money, onChanged }: { gift: AdminGift; money: (minor: n
     finally { setBusy(""); }
   };
 
+  const markSent = async (sent: boolean) => {
+    setBusy("sent");
+    try {
+      const answer = await givingAdmin<{ gift: AdminGift }>("rewardSent", { giftId: gift.id, sent });
+      onChanged(answer.gift);
+      toast.success(sent ? "Marked as sent." : "Marked as not sent yet.");
+    } catch (err) { toast.error(problemOf(err, "That didn't save. Try again.")); }
+    finally { setBusy(""); }
+  };
+  const reward = gift.reward;
+
   return (
     <li className="bkg-tile gvg-row" data-refunded={refunded || undefined}>
       <div className="gvg-main">
@@ -140,6 +151,19 @@ function GiftRow({ gift, money, onChanged }: { gift: AdminGift; money: (minor: n
         <p className="gvg-meta">{[gift.email, dayText(gift.paidAt || gift.createdAt)].filter(Boolean).join(" · ")}</p>
         {honour && <p className="gvg-honour">{honour}</p>}
         {gift.note && <blockquote className="gvg-note">{gift.note}</blockquote>}
+        {reward && (
+          <div className="gvg-gift-reward" data-sent={reward.sentAt ? true : undefined}>
+            <Gift size={16} aria-hidden />
+            <div>
+              <p><strong>{reward.title}</strong>{reward.when ? ` · ${reward.when}` : ""}</p>
+              {reward.ships && gift.shipTo && <p className="gvg-meta">Post to {shipToText(gift.shipTo)}</p>}
+              {reward.sentAt && <p className="gvg-meta">Sent {dayText(reward.sentAt)}</p>}
+            </div>
+            {!refunded && (reward.sentAt
+              ? <GhostButton onClick={() => { void markSent(false); }} busy={busy === "sent"} disabled={!!busy}>Not sent yet</GhostButton>
+              : <SecondaryButton icon={<Check size={16} aria-hidden />} onClick={() => { void markSent(true); }} busy={busy === "sent"} disabled={!!busy}>Mark sent</SecondaryButton>)}
+          </div>
+        )}
       </div>
       <div className="gvg-side">
         <p className="gvg-amount">{money(gift.amountMinor)}{gift.feeMinor > 0 && <small>+ {money(gift.feeMinor)} card fee covered</small>}</p>
@@ -214,6 +238,15 @@ function FundraiserCard({ f, money, busy, onEdit, onEnd }: { f: AdminFundraiser;
       <p className="gvg-fund-raised"><span>{money(f.raisedMinor)}</span> raised of {money(f.goalMinor)}</p>
       <div className="gvg-bar" role="progressbar" aria-label="Toward the goal" aria-valuemin={0} aria-valuemax={100} aria-valuenow={bar}><span style={{ width: `${bar}%` }} /></div>
       <p className="gvg-meta">{[lines.percent, f.supporters === 1 ? "1 supporter" : `${f.supporters} supporters`, lines.when].join(" · ")}</p>
+      {f.rewards.length > 0 && (
+        <ul className="gvg-fund-rewards" aria-label="Thank-you rewards">
+          {f.rewards.map((r) => (
+            <li key={r.id} data-gone={r.limit > 0 && r.taken >= r.limit ? true : undefined}>
+              <Gift size={14} aria-hidden /><strong>{r.title}</strong><span>{rewardLine(r, money)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -221,12 +254,14 @@ function FundraiserCard({ f, money, busy, onEdit, onEnd }: { f: AdminFundraiser;
 function FundraiserDrawer({ start, today, money, running, onClose, onSaved }: {
   start: AdminFundraiser | null; today: string; money: (minor: number) => string; running: AdminFundraiser | null; onClose: () => void; onSaved: (f: AdminFundraiser) => void;
 }) {
-  const [form, setForm] = useState<Omit<FundraiserInput, "goalMinor"> & { goal: string }>(() => ({
+  const [form, setForm] = useState<Omit<FundraiserInput, "goalMinor" | "rewards"> & { goal: string }>(() => ({
     title: start?.title || "", story: start?.story || "", endsOn: start?.endsOn || dayAfter(today, 29), wall: start ? start.showWall : true,
     goal: start ? String(start.goalMinor / 100) : "",
   }));
-  const [problem, setProblem] = useState<{ field: string; words: string } | null>(null);
+  const [rewards, setRewards] = useState<RewardRow[]>(() => rewardRowsOf(start?.rewards));
+  const [problem, setProblem] = useState<{ field: string; words: string; row?: number } | null>(null);
   const [busy, setBusy] = useState<"" | "draft" | "start">("");
+  const setReward = (i: number, patch: Partial<RewardRow>) => { setRewards((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r))); setProblem(null); };
   const set = (patch: Partial<typeof form>) => { setForm((f) => ({ ...f, ...patch })); setProblem(null); };
   const live = start?.state === "live";
   const blocked = !live && running && running.id !== start?.id ? running : null;
@@ -234,18 +269,20 @@ function FundraiserDrawer({ start, today, money, running, onClose, onSaved }: {
   const save = async (startIt: boolean) => {
     const goal = goalFromText(form.goal);
     if ("problem" in goal) { setProblem({ field: "goal", words: goal.problem }); return; }
+    const offered = rewardsFromRows(rewards);
+    if ("problem" in offered) { setProblem({ field: "rewards", words: offered.problem, row: offered.row }); return; }
     setBusy(startIt ? "start" : "draft");
     try {
       const answer = await givingAdmin<{ fundraiser: AdminFundraiser }>("saveFundraiser", {
         ...(start ? { id: start.id } : {}), start: startIt,
-        fundraiser: { title: form.title, story: form.story, endsOn: form.endsOn, wall: form.wall, goalMinor: goal.minor },
+        fundraiser: { title: form.title, story: form.story, endsOn: form.endsOn, wall: form.wall, goalMinor: goal.minor, rewards: offered.rewards },
       });
       toast.success(startIt && !live ? "Your fundraiser is on your Support page." : "Saved.");
       onSaved(answer.fundraiser);
     } catch (err) {
       const words = problemOf(err, "That didn't save. Check your connection and try again.");
       const code = (err as { code?: string })?.code || "";
-      setProblem({ field: ["title", "goal", "endsOn"].includes(code) ? code : "", words });
+      setProblem({ field: ["title", "goal", "endsOn", "rewards"].includes(code) ? code : "", words });
     } finally { setBusy(""); }
   };
   const fieldError = (field: string) => (problem?.field === field ? problem.words : undefined);
@@ -272,6 +309,36 @@ function FundraiserDrawer({ start, today, money, running, onClose, onSaved }: {
           hint="Shown under the goal bar. Plain text; blank lines start a new paragraph." onChange={(e) => set({ story: e.target.value })} />
         <Toggle label="Show supporters who agree on a wall" checked={form.wall} onChange={(v) => set({ wall: v })} />
         <p className="gvg-hint">Givers tick a box to have their name shown. Anonymous gifts never are. Only gifts paid while it runs count toward the goal, card fees left out.</p>
+        <section className="gvg-rewards" aria-labelledby="gvg-rewards-title">
+          <div className="gvg-rewards-head">
+            <h3 id="gvg-rewards-title" className="gvg-section-title">Thank-you rewards <small>Optional</small></h3>
+            <p className="gvg-hint">Something givers get for a gift of a set size, like a signed print. You post or hand it over yourself.</p>
+          </div>
+          {rewards.map((r, i) => (
+            <fieldset key={r.id || `new-${i}`} className="gvg-reward" data-problem={problem?.field === "rewards" && problem.row === i ? true : undefined}>
+              <legend className="sr-only">Reward {i + 1}</legend>
+              <div className="gvg-reward-top">
+                <TextField label="Reward" maxLength={MAX_REWARD_TITLE} value={r.title} placeholder="Signed print" onChange={(e) => setReward(i, { title: e.target.value })} />
+                <IconButton label={r.taken > 0 ? "Someone chose this, so it stays" : "Remove this reward"} disabled={r.taken > 0}
+                  onClick={() => { setRewards((rows) => rows.filter((_, j) => j !== i)); setProblem(null); }}><Trash2 size={16} aria-hidden /></IconButton>
+              </div>
+              <div className="gvg-two">
+                <TextField label="For gifts from" inputMode="decimal" value={r.from} placeholder="50" onChange={(e) => setReward(i, { from: e.target.value })} />
+                <TextField label="How many" inputMode="numeric" value={r.limit} placeholder="No limit" hint={r.taken > 0 ? `${r.taken} chosen so far.` : undefined}
+                  onChange={(e) => setReward(i, { limit: e.target.value })} />
+              </div>
+              <TextField label="What it is (optional)" maxLength={MAX_REWARD_TEXT} value={r.description} placeholder="An A4 risograph print, signed and numbered."
+                onChange={(e) => setReward(i, { description: e.target.value })} />
+              <TextField label="When it's ready (optional)" maxLength={MAX_REWARD_WHEN} value={r.when} placeholder="March 2027" onChange={(e) => setReward(i, { when: e.target.value })} />
+              <Toggle label="We post it, so ask for an address" checked={r.ships} onChange={(v) => setReward(i, { ships: v })} />
+              {problem?.field === "rewards" && problem.row === i && <p className="gvg-problem" role="alert">{problem.words}</p>}
+            </fieldset>
+          ))}
+          {problem?.field === "rewards" && (problem.row === undefined || !rewards[problem.row]) && <p className="gvg-problem" role="alert">{problem.words}</p>}
+          {rewards.length < MAX_REWARDS && (
+            <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setRewards((rows) => [...rows, blankReward()])}>Add a reward</SecondaryButton>
+          )}
+        </section>
         {problem && !problem.field && <p className="gvg-problem" role="alert">{problem.words}</p>}
       </div>
     </Drawer>

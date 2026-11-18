@@ -46,6 +46,25 @@
 .rp .gvg-past li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 10px 0; border-bottom: 1px solid var(--rp-border); font-size: 14px; color: var(--rp-text-muted); }
 .rp .gvg-past strong { flex: 1 1 200px; color: var(--rp-text); font-weight: 600; overflow-wrap: anywhere; }
 .rp .gvg-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+/* Thank-you rewards (G2b): the drawer's rows, the card's list and the reward on a gift. */
+.rp .gvg-rewards { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--rp-border); }
+.rp .gvg-rewards-head { display: grid; gap: 4px; }
+.rp .gvg-rewards-head .gvg-section-title { margin: 0; font-size: 17px; }
+.rp .gvg-section-title small { margin-left: 6px; font: 500 11px/1 var(--rp-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .gvg-reward { display: grid; gap: 12px; margin: 0; padding: 16px; border: 1px solid var(--rp-border); border-radius: 16px; min-width: 0; background: var(--rp-surface); }
+.rp .gvg-reward[data-problem] { border-color: var(--rp-danger, var(--rp-text)); }
+.rp .gvg-reward-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.rp .gvg-rewards > .rp-btn { justify-self: start; }
+.rp .gvg-fund-rewards { display: grid; gap: 0; margin: 4px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--rp-border); }
+.rp .gvg-fund-rewards li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 0; border-bottom: 1px solid var(--rp-border); font-size: 14px; }
+.rp .gvg-fund-rewards li:last-child { border-bottom: 0; padding-bottom: 0; }
+.rp .gvg-fund-rewards strong { font-weight: 600; overflow-wrap: anywhere; }
+.rp .gvg-fund-rewards span { margin-left: auto; color: var(--rp-text-muted); font-variant-numeric: tabular-nums; }
+.rp .gvg-fund-rewards li[data-gone] span::after { content: " · all gone"; }
+.rp .gvg-gift-reward { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; margin-top: 4px; padding: 10px 12px; border-radius: 12px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .gvg-gift-reward[data-sent] { background: var(--rp-surface-2); color: var(--rp-text); }
+.rp .gvg-gift-reward p { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.rp .gvg-gift-reward .gvg-meta { color: inherit; opacity: 0.78; }
 @media (prefers-reduced-motion: reduce) { .rp .gvg-bar span { transition: none; } }
 
 @media (max-width: 640px) {
@@ -53,4 +72,6 @@
   .rp .gvg-row { grid-template-columns: minmax(0, 1fr); }
   .rp .gvg-side { justify-items: start; text-align: left; }
   .rp .gvg-actions { justify-content: flex-start; }
+  .rp .gvg-gift-reward { grid-template-columns: auto minmax(0, 1fr); }
+  .rp .gvg-gift-reward > .rp-btn { grid-column: 1 / -1; justify-self: start; }
 }

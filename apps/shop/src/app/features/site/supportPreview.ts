@@ -22,6 +22,11 @@ const SAMPLE_FUNDRAISER = (day: string): PublicFundraiser => ({
   id: "sample-fundraiser", title: "Reprint our first book", goalMinor: 300000, raisedMinor: 187500, supporters: 42, endsOn: dayAfter(day, 20), state: "live",
   story: "Our first book sold out in a month. With your help we can print 500 more on the same paper.\n\nEvery gift counts toward the reprint.",
   showWall: true, wall: [{ name: "Ada Reader", at: "" }, { name: "Ben Example", at: "" }, { name: "Cleo Example", at: "" }],
+  rewards: [
+    { id: "rw1", title: "Thank-you postcard", description: "A risograph postcard with a note from us.", minMinor: 1000, ships: false, when: "", left: null, gone: false },
+    { id: "rw2", title: "Signed print", description: "An A4 print from the book, signed and numbered.", minMinor: 5000, ships: true, when: "January", left: 4, gone: false },
+    { id: "rw3", title: "Your name in the book", description: "", minMinor: 15000, ships: false, when: "Spring 2027", left: 0, gone: true },
+  ],
 });
 
 function sampleGift(currency: string, amountMinor = 2500, cover = true, name = "Ada Reader", honour: GiftView["honour"] = null, anonymous = false): GiftView {
@@ -44,6 +49,8 @@ export function previewGivingAnswer(action: string, body: Record<string, any> = 
     const amount = Math.round(Number(body.amountMinor)) || 2500;
     const giver = body.giver || {};
     sample = sampleGift(currency, amount, body.coverFee === true, String(giver.name || "Ada Reader"), giver.honour?.name ? { kind: giver.honour.kind === "memory" ? "memory" : "honour", name: String(giver.honour.name) } : null, giver.anonymous === true);
+    const r = body.rewardId ? SAMPLE_FUNDRAISER(today()).rewards.find((x) => x.id === body.rewardId) : null;
+    if (r) sample = { ...sample, reward: { title: r.title, ships: r.ships, when: r.when, sent: false } };
     return { giftId: SAMPLE_GIFT_ID, key: SAMPLE_GIFT_KEY, preview: true };
   }
   sample ||= sampleGift(currency);

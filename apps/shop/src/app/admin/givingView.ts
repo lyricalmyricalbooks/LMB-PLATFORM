@@ -1,6 +1,6 @@
 // Donations & tips (beta): the admin page's own small rules (Giving.tsx), kept apart so they can be tested.
 import { MAX_AMOUNTS, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../shared/givingRules";
-import { MAX_GOAL_MINOR, MIN_GOAL_MINOR, daysLeft, goalProgress, type PublicFundraiser } from "../../shared/fundraiserRules";
+import { MAX_GOAL_MINOR, MAX_REWARDS, MIN_GOAL_MINOR, MIN_REWARD_MINOR, daysLeft, goalProgress, type PublicFundraiser, type Reward, type ShipTo } from "../../shared/fundraiserRules";
 import type { AdminGift, BlockedTries } from "./givingApi";
 
 /** An amount the owner typed in dollars ("25", "12.50", "$40") as cents, or the problem in plain words. */
@@ -68,3 +68,46 @@ export function fundraiserLines(f: Pick<PublicFundraiser, "raisedMinor" | "goalM
     : left <= 1 ? "Last day today" : `${left} days left`;
   return { raised: `${money(f.raisedMinor)} of ${money(f.goalMinor)}`, percent: `${percent}% of the goal`, when };
 }
+
+/** One reward as the drawer edits it: amounts and limits as typed. */
+export type RewardRow = { id: string; title: string; description: string; from: string; limit: string; ships: boolean; when: string; taken: number };
+
+export const rewardRowsOf = (rewards: readonly Reward[] = []): RewardRow[] => rewards.map((r) => ({
+  id: r.id, title: r.title, description: r.description, from: String(r.minMinor / 100), limit: r.limit > 0 ? String(r.limit) : "", ships: r.ships, when: r.when, taken: r.taken || 0,
+}));
+
+export const blankReward = (): RewardRow => ({ id: "", title: "", description: "", from: "", limit: "", ships: false, when: "", taken: 0 });
+
+/** The drawer's rows as the server takes them, or the first problem (with the row it is on). Blank rows are dropped. */
+export function rewardsFromRows(rows: readonly RewardRow[]): { rewards: Partial<Reward>[] } | { problem: string; row: number } {
+  const out: Partial<Reward>[] = [];
+  const kept = rows.filter((r) => r.title.trim() || r.from.trim() || r.taken > 0);
+  if (kept.length > MAX_REWARDS) return { problem: `${MAX_REWARDS} rewards at most.`, row: MAX_REWARDS };
+  for (const [i, r] of kept.entries()) {
+    const row = rows.indexOf(r);
+    if (r.title.trim().length < 2) return { problem: "Give this reward a name.", row };
+    const from = r.from.replace(/[$\s,]/g, "");
+    if (!/^\d+(\.\d{1,2})?$/.test(from)) return { problem: "Type the smallest gift for it, like 50.", row };
+    const minMinor = Math.round(Number(from) * 100);
+    if (minMinor < MIN_REWARD_MINOR) return { problem: "A reward needs a gift of at least 5.", row };
+    const limitText = r.limit.trim();
+    if (limitText && !/^\d+$/.test(limitText)) return { problem: "How many there are, as a whole number, or leave it blank.", row };
+    const limit = limitText ? Number(limitText) : 0;
+    if (limitText && limit < 1) return { problem: "Leave it blank for no limit.", row };
+    if (limit > 0 && limit < r.taken) return { problem: `${r.taken} people already chose it, so there must be at least ${r.taken}.`, row };
+    out[i] = { ...(r.id ? { id: r.id } : {}), title: r.title.trim(), description: r.description.trim(), minMinor, limit, ships: r.ships, when: r.when.trim() };
+  }
+  return { rewards: out };
+}
+
+/** "From $50 · 3 of 25 chosen" for the owner. */
+export function rewardLine(r: Pick<Reward, "minMinor" | "limit" | "taken">, money: (minor: number) => string): string {
+  const chosen = r.limit > 0 ? `${r.taken} of ${r.limit} chosen` : r.taken === 1 ? "1 chosen" : `${r.taken} chosen`;
+  return `From ${money(r.minMinor)} · ${chosen}`;
+}
+
+/** An address on one line. */
+export const shipToText = (a: ShipTo | null | undefined): string => (a ? [a.name, a.street, a.street2, a.city, [a.state, a.zip].filter(Boolean).join(" "), a.country].filter(Boolean).join(", ") : "");
+
+/** Rewards still to post or hand over: paid gifts with a reward not marked sent. */
+export const rewardsToSend = (gifts: readonly AdminGift[]): number => gifts.filter((g) => g.status === "paid" && g.reward && !g.reward.sentAt).length;

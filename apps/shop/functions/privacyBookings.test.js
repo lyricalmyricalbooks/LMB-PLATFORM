@@ -93,9 +93,12 @@ function setup() {
       p3: { serviceName: 'Lesson', status: 'held', visits: 5, customer: { name: 'Bo', email: 'bo@example.com' } },
     },
     gifts: {
-      g1: { status: 'paid', amountMinor: 2500, chargedMinor: 2606, customer: { name: 'Ada', email: 'ada@example.com' }, note: 'For the press', keyHashes: ['k1'], paymentIntent: 'pi_g', sessions: ['cs_g'] },
+      g1: { status: 'paid', amountMinor: 2500, chargedMinor: 2606, customer: { name: 'Ada', email: 'ada@example.com' }, note: 'For the press', keyHashes: ['k1'], paymentIntent: 'pi_g', sessions: ['cs_g'], fundraiserId: 'fund1', wall: true, reward: { id: 'rw1', title: 'Print', ships: true }, shipTo: { name: 'Ada', street: '1 Main St', city: 'Toronto', state: 'ON', zip: 'M6G 3H1', country: 'CA' } },
       g2: { status: 'cancelled', amountMinor: 1000, chargedMinor: 1000, customer: { name: 'Ada', email: 'ada@example.com' }, keyHashes: ['k2'] },
       g3: { status: 'paid', amountMinor: 1000, chargedMinor: 1000, customer: { name: 'Bo', email: 'bo@example.com' }, keyHashes: ['k3'] },
+    },
+    fundraisers: {
+      fund1: { title: 'Reprint', status: 'live', wallEntries: [{ gift: 'g1', name: 'Ada', at: '2026-11-18' }, { gift: 'g3', name: 'Bo', at: '2026-11-18' }] },
     },
     eventOrders: {
       t1: { eventTitle: 'Launch', status: 'paid', chargedMinor: 3000, customer: { name: 'Ada', email: 'ada@example.com' }, tickets: [{ code: 'ABCD-2345', name: 'General' }], ticketCodes: ['ABCD-2345'], keyHashes: ['k1'], paymentIntent: 'pi_t', sessions: ['cs_t'] },
@@ -194,6 +197,9 @@ describe("the owner's privacy export and erase", () => {
     expect(given.get('g1')).toMatchObject({ customer: { name: 'Ada', email: 'ada@example.com' }, keyHashes: [] });
     expect(given.get('g2')).toMatchObject({ customer: { name: BOOKING_NAME_REMOVED, email: '' }, keyHashes: [] });
     expect(given.get('g3')).toMatchObject({ customer: { name: 'Bo' }, keyHashes: ['k3'] });
+    // A reward's posting address goes, and so does the giver's line on the fundraiser's wall (only theirs).
+    expect(given.get('g1')).toMatchObject({ shipTo: null, wall: false });
+    expect(db.store.get('fundraisers').get('fund1').wallEntries).toEqual([{ gift: 'g3', name: 'Bo', at: '2026-11-18' }]);
   });
 
   it("visit notes and photos: in the owner's export, deleted with their photos on erase, nobody else's touched", async () => {

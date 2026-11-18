@@ -370,3 +370,78 @@ describe("fundraisers (G2)", () => {
     expect(list.today).toBe("2026-11-18");
   });
 });
+
+describe("fundraiser rewards (G2b)", () => {
+  const ADDRESS = { name: "Ada Reader", street: "1 Main St", city: "Toronto", state: "ON", zip: "M6G 3H1", country: "CA" };
+  const REWARDS = [
+    { title: "Thank-you card", minMinor: 1000, limit: 1, when: "January 2027" },
+    { title: "Signed print", minMinor: 5000, ships: true },
+  ];
+  const FUND = { title: "Print our next book", story: "", goalMinor: 300000, endsOn: "2026-12-31", wall: true, rewards: REWARDS };
+  const startFund = async (t) => (await t.adm({ op: "saveFundraiser", fundraiser: FUND, start: true })).body.fundraiser;
+  const left = async (t, i) => (await t.pub({ action: "givingInfo" })).body.fundraiser.rewards[i].left;
+
+  test("a gift claims a reward in turn; gone, too small and a missing address are refused; the email and the owner's list name it", async () => {
+    const t = setup();
+    await t.seed();
+    const fund = await startFund(t);
+    expect(fund.rewards.map((r) => r.id)).toEqual(["rw1", "rw2"]);
+    expect(await left(t, 0)).toBe(1);
+    expect((await t.give({ fundraiserId: fund.id, rewardId: "rw2", amountMinor: 2500 })).body.code).toBe("reward_min");
+    expect((await t.give({ fundraiserId: fund.id, rewardId: "rw2", amountMinor: 5000 })).body.code).toBe("address");
+    const ok = await t.give({ fundraiserId: fund.id, rewardId: "rw1", amountMinor: 1000 });
+    expect(ok.statusCode).toBe(200);
+    expect(await left(t, 0)).toBe(0);
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser.rewards[0].gone).toBe(true);
+    const BO = { name: "Bo Reader", email: "bo@example.com" };
+    expect((await t.give({ fundraiserId: fund.id, rewardId: "rw1", amountMinor: 1000, giver: BO }, "5.6.7.8")).body.code).toBe("reward_gone");
+    const posted = await t.give({ fundraiserId: fund.id, rewardId: "rw2", amountMinor: 5000, shipTo: ADDRESS, giver: BO }, "9.9.9.9");
+    expect(posted.statusCode).toBe(200);
+    t.pay(0); t.pay(1);
+    await t.desk.sweep();
+    const thanks = t.emails.find((m) => m.to === "bo@example.com" && /Signed print/.test(m.html));
+    expect(thanks.html).toContain("1 Main St");
+    const listed = (await t.adm({ op: "list" })).body;
+    const gift = listed.gifts.find((g) => g.reward?.id === "rw2");
+    expect(gift).toMatchObject({ reward: { title: "Signed print", ships: true, sentAt: "" }, shipTo: { city: "Toronto" } });
+    expect(listed.fundraisers[0].rewards.map((r) => r.taken)).toEqual([1, 1]);
+    const sent = await t.adm({ op: "rewardSent", giftId: gift.id });
+    expect(sent.body.gift.reward.sentAt).toMatch(/^2026-11-18T/);
+    expect((await t.doc("gifts", gift.id)).reward.sentAt).toBeTruthy();
+    expect((await t.adm({ op: "rewardSent", giftId: gift.id, sent: false })).body.gift.reward.sentAt).toBe("");
+  });
+
+  test("an unpaid page gives its reward back, one paid as its page closes keeps it once, and a refund gives it back", async () => {
+    const t = setup();
+    await t.seed();
+    const fund = await startFund(t);
+    await t.give({ fundraiserId: fund.id, rewardId: "rw1", amountMinor: 1000 });
+    expect(await left(t, 0)).toBe(0);
+    t.later(40 * 60);
+    await t.desk.sweep();
+    expect(await left(t, 0)).toBe(1);
+    expect((await t.doc("gifts", "gift0002")).status).toBe("cancelled");
+    expect((await t.doc("gifts", "gift0002")).rewardHeld).toBe(false);
+    // A second giver pays just as the sweep closes the page: confirmed on the last read, the reward counted once.
+    await t.give({ fundraiserId: fund.id, rewardId: "rw1", amountMinor: 1000, giver: { name: "Bo Reader", email: "bo@example.com" } }, "5.6.7.8");
+    t.later(40 * 60);
+    const close = t.desk.sweep;
+    t.pay(1);
+    await close();
+    expect((await t.doc("gifts", "gift0003")).status).toBe("paid");
+    expect((await t.adm({ op: "list" })).body.fundraisers[0].rewards[0].taken).toBe(1);
+    await t.adm({ op: "refund", giftId: "gift0003" });
+    expect(await left(t, 0)).toBe(1);
+    expect((await t.doc("gifts", "gift0003")).rewardHeld).toBe(false);
+  });
+
+  test("the owner can't remove a reward someone chose or set fewer than were chosen", async () => {
+    const t = setup();
+    await t.seed();
+    const fund = await startFund(t);
+    await t.give({ fundraiserId: fund.id, rewardId: "rw2", amountMinor: 5000, shipTo: ADDRESS });
+    const save = (rewards) => t.adm({ op: "saveFundraiser", id: fund.id, fundraiser: { ...FUND, rewards } });
+    expect((await save([fund.rewards[0]])).body.error).toMatch(/can't be removed/);
+    expect((await save([fund.rewards[0], { ...fund.rewards[1], limit: 0, taken: 0, title: "Signed print, larger" }])).body.fundraiser.rewards[1]).toMatchObject({ taken: 1, title: "Signed print, larger" });
+  });
+});

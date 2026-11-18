@@ -66,25 +66,33 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     createdAt: ago(days), paidAt: ago(days), refundedAt: "", test: false, ...extra,
   });
   let gifts: AdminGift[] = new URLSearchParams(window.location.search).get("giving") === "new" ? [] : [
-    gift("g1", "Ada Example", "ada@example.com", 5000, 1, { feeMinor: 176, chargedMinor: 5176, note: "Your books got me through a long winter. Keep printing!" }),
+    gift("g1", "Ada Example", "ada@example.com", 5000, 1, { feeMinor: 176, chargedMinor: 5176, note: "Your books got me through a long winter. Keep printing!", fundraiserId: "f1",
+      reward: { id: "rw2", title: "Signed print", ships: true, when: "January", sentAt: "" },
+      shipTo: { name: "Ada Example", street: "12 Example St", street2: "", city: "Toronto", state: "ON", zip: "M6G 3H1", country: "CA" } }),
     gift("g2", "Ben Example", "ben@example.com", 2500, 4, { anonymous: true, honour: { kind: "memory", name: "Grace Example" } }),
-    gift("g3", "Cleo Example", "cleo@example.com", 1000, 12),
+    gift("g3", "Cleo Example", "cleo@example.com", 1000, 12, { fundraiserId: "f1", reward: { id: "rw1", title: "Thank-you postcard", ships: false, when: "", sentAt: ago(10) } }),
     gift("g4", "Dev Example", "dev@example.com", 2500, 40, { status: "refunded", refundedAt: ago(39) }),
   ];
   let settings = cleanGivingSettings({ amounts: [1000, 2500, 5000, 10000] });
   const today = new Date().toISOString().slice(0, 10);
   const fund = (id: string, f: Partial<AdminFundraiser>): AdminFundraiser => ({
     id, title: "", story: "", goalMinor: 100000, raisedMinor: 0, supporters: 0, endsOn: dayAfter(today, 20), state: "live", status: "live",
-    wall: [], showWall: true, createdAt: ago(10), startedAt: ago(10), endedAt: "", ...f,
+    wall: [], showWall: true, rewards: [], createdAt: ago(10), startedAt: ago(10), endedAt: "", ...f,
   });
   let funds: AdminFundraiser[] = !gifts.length ? [] : [
     fund("f1", { title: "Reprint our first book", story: "Our first book sold out in a month. Help us print 500 more on the same paper.", goalMinor: 300000, raisedMinor: 187500, supporters: 42,
-      wall: [{ name: "Ada Example", at: ago(1) }, { name: "Cleo Example", at: ago(3) }] }),
+      wall: [{ name: "Ada Example", at: ago(1) }, { name: "Cleo Example", at: ago(3) }],
+      rewards: [
+        { id: "rw1", title: "Thank-you postcard", description: "A risograph postcard with a note from us.", minMinor: 1000, limit: 0, ships: false, when: "", taken: 18 },
+        { id: "rw2", title: "Signed print", description: "An A4 print from the book, signed and numbered.", minMinor: 5000, limit: 25, ships: true, when: "January", taken: 21 },
+        { id: "rw3", title: "Your name in the book", description: "", minMinor: 15000, limit: 10, ships: false, when: "Spring 2027", taken: 10 },
+      ] }),
     fund("f0", { title: "A new risograph drum", goalMinor: 150000, raisedMinor: 162000, supporters: 51, state: "ended", status: "ended", endsOn: dayAfter(today, -60), endedAt: ago(60) }),
   ];
   givingData.admin = async (op, body) => {
     if (op === "saveFundraiser") {
-      const clean = cleanFundraiser(body.fundraiser, today);
+      const before = funds.find((f) => f.id === body.id);
+      const clean = cleanFundraiser(body.fundraiser, today, before?.rewards || []);
       if ("problem" in clean) throw Object.assign(new Error(clean.problem), { code: clean.field });
       const id = String(body.id || `f${Date.now()}`);
       const was = funds.find((f) => f.id === id);
@@ -109,6 +117,10 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
         blocked: gifts.length ? { tooSmall: 3, tooMany: 1, bot: 11, total: 15 } : { tooSmall: 0, tooMany: 0, bot: 0, total: 0 },
         fundraisers: funds, today,
       };
+    }
+    if (op === "rewardSent") {
+      gifts = gifts.map((g) => (g.id === body.giftId && g.reward ? { ...g, reward: { ...g.reward, sentAt: body.sent === false ? "" : new Date().toISOString() } } : g));
+      return { ok: true, gift: gifts.find((g) => g.id === body.giftId) };
     }
     if (op === "saveSettings") { settings = cleanGivingSettings(body.settings); return { ok: true, settings }; }
     if (op === "refund") {
