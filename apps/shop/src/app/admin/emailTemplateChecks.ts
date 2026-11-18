@@ -58,7 +58,7 @@ const SAMPLE: Record<string, string> = {
   book_titles: "Visions of Toronto", customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: HOME_CARRIER, tracking_number: "123456789012",
   total_price: `${MONEY_SIGN}45.00`, payment_method: BANK_TRANSFER_FULL, email: "julianne@reader.example", status: "out for delivery",
   tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: SAMPLE_CARRIER_SERVICE,
-  delivery_estimate: "2-4 business days after dispatch", recipient_name: "Sam", sender_name: "Julianne", amount: `${MONEY_SIGN}50.00`,
+  delivery_estimate: "2-4 business days after shipping", recipient_name: "Sam", sender_name: "Julianne", amount: `${MONEY_SIGN}50.00`,
   code: "ABCD-EFGH-JKMN-PQRS", expires: "It never expires.", expires_on: "November 5, 2026", shop_url: "#", items_table: "", shop_name: DEFAULT_SHOP_NAME,
 };
 

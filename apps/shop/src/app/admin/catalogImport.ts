@@ -377,7 +377,7 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     if (given("categories")) {
       next.categories = splitList(value.categories!);
       const missing = next.categories.filter((c: string) => known.size && !known.has(c.toLowerCase()));
-      if (missing.length) warnings.push(`${missing.join(", ")} ${missing.length === 1 ? "isn't a shop category" : "aren't shop categories"} yet, so ${missing.length === 1 ? "it won't" : "they won't"} show in the storefront menu. Add ${missing.length === 1 ? "it" : "them"} in Design › Menus › Shop categories.`);
+      if (missing.length) warnings.push(`${missing.join(", ")} ${missing.length === 1 ? "isn't a shop category" : "aren't shop categories"} yet, so ${missing.length === 1 ? "it won't" : "they won't"} show in your website's menu. Add ${missing.length === 1 ? "it" : "them"} in Design › Menus › Shop categories.`);
     }
     if (given("status")) {
       const s = value.status!.toLowerCase();

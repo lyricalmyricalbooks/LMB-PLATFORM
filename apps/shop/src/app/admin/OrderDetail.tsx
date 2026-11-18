@@ -206,7 +206,7 @@ export function OrderDetail({
       if (fresh) setOrder(fresh);
       if (fresh?.paymentStatus === "refunded" && before !== "refunded") toast.success(`${providerName()} shows this payment was refunded — order updated and stock returned.`);
       else if (fresh?.paymentStatus === "paid" && before === "unpaid") toast.success(`${providerName()} confirmed the payment — order marked paid.`);
-      else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error(`${providerName()}'s amount doesn't match this order. Review it in ${providerName()} before fulfilling.`);
+      else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error(`${providerName()}'s amount doesn't match this order. Review it in ${providerName()} before you pack it.`);
       else if (manual) toast((report as any).awaitingWebhook ? `${providerName()} received payment. The order is waiting for the payment to be confirmed; check again in a minute before shipping.` : fresh?.paymentStatus === "paid" ? "Order payment was confirmed." : `${providerName()} has not confirmed this payment yet.`);
     } catch (err: any) {
       if (manual) toast.error(plainError(err, `Couldn't reach ${providerName()}`));
@@ -492,7 +492,7 @@ export function OrderDetail({
     try {
       if (action === "markPaid") {
         await adminApi.markOrderPaid(orderId);
-        toast.success("Payment recorded — the order is paid and ready to fulfil.");
+        toast.success("Payment recorded. The order is paid and ready to pack.");
       } else if (action === "mismatch") {
         await adminApi.resolvePaymentMismatch(orderId);
         toast.success("Marked as refunded");
@@ -587,10 +587,10 @@ export function OrderDetail({
                       ? "Order cleared"
                     : action === "clear_app_label"
                       ? "Inventory app label removed from the order"
-                      : "Local fulfillment updated",
+                      : "Pickup or delivery updated",
       );
     } catch (err: any) {
-      toast.error(plainError(err, "Could not save fulfillment"));
+      toast.error(plainError(err, "Could not save the pickup or delivery change"));
     } finally {
       setWorking(false);
     }
@@ -963,7 +963,7 @@ export function OrderDetail({
           )}
           {reviewOpen(order) && (
             <SectionCard title="Check this payment">
-              <p className="fw-summary">This payment looks risky, so the order waits for you. Packing, labels and dispatch are blocked until you decide.</p>
+              <p className="fw-summary">This payment looks risky, so the order waits for you. Packing, labels and shipping are paused until you decide.</p>
               <ul className="fw-summary">
                 {(order.review.reasons || []).map((reason: string) => <li key={reason}>{reason}</li>)}
               </ul>
@@ -977,7 +977,7 @@ export function OrderDetail({
             <SectionCard title="Payment disputed">
               <p className="fw-summary">
                 The customer's bank opened a chargeback ({String(order.disputeStatus).replace(/_/g, " ")}). The money is held until the bank decides.
-                Packing, labels and dispatch are blocked until it is settled. Answer it in {providerName()} with your evidence (order details, tracking, messages) before its deadline.
+                Packing, labels and shipping are paused until it is settled. Answer it in {providerName()} with your evidence (order details, tracking, messages) before its deadline.
               </p>
               {order.stripePaymentIntentId && (
                 <div className="fw-actions">
@@ -1201,7 +1201,7 @@ export function OrderDetail({
             {hasStripePayment(order) && (
               <div className="fw-actions">
                 <SecondaryButton size="sm" disabled={checkingPayment} onClick={() => checkStripePayment(true)}>
-                  {checkingPayment ? `Checking with ${providerName()}…` : `Sync with ${providerName()}`}
+                  {checkingPayment ? `Checking with ${providerName()}…` : `Check with ${providerName()}`}
                 </SecondaryButton>
               </div>
             )}
@@ -1343,7 +1343,7 @@ export function OrderDetail({
       <Dialog
         open={!!showShipForm}
         onClose={() => !isShipping && setShowShipForm(false)}
-        title={showShipForm === "edit" ? (hasLabel ? "Edit tracking link or number" : "Correct tracking") : "Confirm dispatch"}
+        title={showShipForm === "edit" ? (hasLabel ? "Edit tracking link or number" : "Correct tracking") : "Mark as shipped"}
         description={
           showShipForm === "edit"
             ? hasLabel

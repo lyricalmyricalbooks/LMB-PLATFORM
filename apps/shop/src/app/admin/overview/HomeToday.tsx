@@ -42,7 +42,7 @@ export function todayFigures(orders: Order[], fair: StockroomFair | null, now = 
 
 /** The order pill, in the mockup's words: waiting to go out is green, a refund amber, a problem red. */
 const PILL: Record<string, { tone: BadgeTone; word: string }> = {
-  "Paid · to send": { tone: "success", word: "Unfulfilled" },
+  "Paid · to send": { tone: "success", word: "To ship" },
   Shipped: { tone: "success", word: "Shipped" },
   Completed: { tone: "neutral", word: "Completed" },
   "Pre-order": { tone: "info", word: "Pre-order" },

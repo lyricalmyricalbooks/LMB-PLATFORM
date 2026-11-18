@@ -440,7 +440,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
       items: [
         { title: "New seasonal catalogue", date: "2026-06-27", excerpt: "Introduce readers to a new collection, author interview, or shop announcement.", imageUrl: "", linkUrl: "/page/news" },
         { title: "Inside the archive", date: "2026-06-27", excerpt: "Use this card to explain your curation process and build trust before purchase.", imageUrl: "", linkUrl: "/page/news" },
-        { title: "Shipping and care notes", date: "2026-06-27", excerpt: "Highlight helpful guidance such as packing, fulfillment windows, or edition care.", imageUrl: "", linkUrl: "/page/shipping" },
+        { title: "Shipping and care notes", date: "2026-06-27", excerpt: "Highlight helpful guidance such as packing, shipping times, or edition care.", imageUrl: "", linkUrl: "/page/shipping" },
       ],
     },
     blockType: "article",
@@ -2484,7 +2484,7 @@ export type PageTemplateMeta = {
 };
 
 export const PAGE_TEMPLATES: PageTemplateMeta[] = [
-  { id: "heroPage", label: "Home", description: "Sections shown on the storefront homepage.", previewMode: "homepage" },
+  { id: "heroPage", label: "Home", description: "Sections shown on your website's home page.", previewMode: "homepage" },
   { id: "storefront", label: "Catalog / Shop", description: "Sections for the product catalog page.", previewMode: "shop" },
   { id: "productPage", label: "Product", description: "Sections shown on individual product pages.", previewMode: "product" },
   { id: "collectionPage", label: "Collection", description: "Sections for category/collection pages.", previewMode: "collection" },

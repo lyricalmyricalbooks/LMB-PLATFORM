@@ -204,7 +204,7 @@ function Queue() {
         </SelectField>
       </FilterBar>
 
-      <SectionCard flush collapsible={false} title="Moderation queue" description={`${list.length} review${list.length === 1 ? "" : "s"} in this view`}
+      <SectionCard flush collapsible={false} title="Waiting for you" description={`${list.length} review${list.length === 1 ? "" : "s"} in this view`}
         actions={list.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <Checkbox label="Select all" checked={allSelected}

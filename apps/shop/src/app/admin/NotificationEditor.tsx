@@ -978,7 +978,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
               )}
               {resendStored && resendWasPublic && (
                 <p className="es-note" data-tone="warn" style={{ marginTop: 12 }}>
-                  This key was once saved where the storefront could read it and has been moved to the admin-only store. Rotate it in Resend to be safe.
+                  This key was once saved where your website could read it and has been moved to the admin-only store. Rotate it in Resend to be safe.
                 </p>
               )}
             </details>

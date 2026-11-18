@@ -124,7 +124,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         onPatch(updateBlocks(section, key, list => removeBlock(list, block.id))); onSelectBlock(null);
         onNotice?.("Block removed. Press Ctrl/Cmd+Z to bring it back.");
       } : onDelete}><Trash2 size={15} /></IconButton>
-      <small>{(block ? block.hidden : section.visible === false) ? "Hidden on storefront" : "Visible on storefront"}</small>
+      <small>{(block ? block.hidden : section.visible === false) ? "Hidden on your website" : "Shown on your website"}</small>
     </div>
     {!block && <div className="studio-tabs" role="tablist" aria-label="Section settings">
       {SECTION_TABS.map(t => <button role="tab" aria-selected={tab === t.id} key={t.id} onClick={() => { setTab(t.id); setSearch(""); }}>{t.label}</button>)}
@@ -189,7 +189,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
             {[["column", "Column", 1, 24], ["span", "Width", 1, 24], ["row", "Row", 1, 30], ["rowSpan", "Height", 1, 12], ["z", "Layer", 0, 20]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.grid?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("grid", String(field), e.target.value ? Number(e.target.value) : undefined)} /></label>)}
           </div>}
           {!placement?.sharedBlockId && <button className="studio-link-button" onClick={async () => { const name = await askText({ title: "Save as reusable block", label: "Name", defaultValue: title, confirmLabel: "Save block" }); if (name?.trim()) onSaveShared(block.id, name.trim()); }}>Save as reusable block</button>}
-          {placement?.sharedBlockId && <button className="studio-link-button" onClick={makeIndependent}>Stop syncing this block</button>}
+          {placement?.sharedBlockId && <button className="studio-link-button" onClick={makeIndependent}>Stop matching this block</button>}
           {block.sharedBlockId && <small>Linked to {sharedBlocks.find(s => s.id === block.sharedBlockId)?.name || "a missing reusable block"}. Content updates from its library source; layout stays local.</small>}
         </div>}
       </>}
@@ -202,7 +202,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
       {tab === "style" && <StudioSectionStyle fields={styleFields} tab="style" settings={section.settings} search={search} onPatch={onPatch} />}
       {tab === "visibility" && <>
         <div className="studio-control-card">
-          <strong>On the storefront</strong>
+          <strong>On your website</strong>
           <p className="studio-hint">{section.visible === false ? "Hidden everywhere. Shoppers don't see this section." : "Shown. Use the switches below to hide it on some screen sizes or outside a date window."}</p>
           <button className="studio-link-button" onClick={onToggle}>{section.visible === false ? "Show this section" : "Hide this section everywhere"}</button>
         </div>

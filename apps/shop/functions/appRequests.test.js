@@ -47,7 +47,7 @@ describe("order.dispatch", () => {
       "appRequests/r3": request({ ...ship, orderId: "A-3" }),
       "appRequests/r4": request({ ...ship, orderId: "A-4" }),
     });
-    expect((await applyAppRequest(db, "r1", now)).reason).toMatch(/Test orders/);
+    expect((await applyAppRequest(db, "r1", now)).reason).toMatch(/Practice orders/);
     expect((await applyAppRequest(db, "r2", now)).reason).toMatch(/on hold/);
     expect((await applyAppRequest(db, "r3", now)).reason).toMatch(/paid/);
     expect((await applyAppRequest(db, "r4", now)).reason).toMatch(/already has tracking 999/);

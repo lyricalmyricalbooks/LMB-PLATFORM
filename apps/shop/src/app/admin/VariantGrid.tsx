@@ -41,8 +41,8 @@ export function VariantGrid({ form, lowLine, onChange, onReplace, stockLocked, s
         aria-label={`Price of ${v.name || "this combination"}`} value={v.price === undefined || v.price === null ? "" : String(v.price)}
         onChange={(e) => onChange(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
     ) },
-    { key: "sku", header: "SKU", render: (v) => (
-      <input className="rp-input rp-mono be-vg-sku" aria-label={`SKU of ${v.name || "this combination"}`} value={String(v.sku || "")}
+    { key: "sku", header: "Item code", render: (v) => (
+      <input className="rp-input rp-mono be-vg-sku" aria-label={`Item code of ${v.name || "this combination"}`} value={String(v.sku || "")}
         onChange={(e) => onChange(v.id, "sku", e.target.value)} />
     ) },
     { key: "stock", header: "Stock", render: (v) => (
@@ -60,7 +60,7 @@ export function VariantGrid({ form, lowLine, onChange, onReplace, stockLocked, s
 
   return (
     <SectionCard title={w("Every combination")} foldKey="be-variant-grid"
-      description={w("One row per combination, each with its own price, SKU and stock. Shoppers pick them on the book page.")}>
+      description={w("One row per combination, each with its own price, item code and stock. Shoppers pick them on the book page.")}>
       <div className="rp-kpi-grid be-vg-figures">
         <MetricCard label="Combinations" value={sum.count} />
         <MetricCard label="In stock" value={sum.units} footer={w("copies across all of them")} />

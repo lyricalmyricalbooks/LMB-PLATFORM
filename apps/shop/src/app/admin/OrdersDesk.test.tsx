@@ -33,7 +33,7 @@ describe("OrdersDesk", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId={null} onSelect={() => {}} />);
     // The page title (Orders) comes from the admin shell; the list adds no second heading.
     expect(html).not.toContain("All orders</h2>");
-    for (const label of ["Export CSV", "Create order", "Unfulfilled", "Unpaid", "Shipped", "Refunded"]) expect(html).toContain(label);
+    for (const label of ["Export CSV", "Create order", "To ship", "Unpaid", "Shipped", "Refunded"]) expect(html).toContain(label);
     expect(html).toContain('aria-pressed="true">All<');
     expect(html).not.toContain("data-order-detail");
   });

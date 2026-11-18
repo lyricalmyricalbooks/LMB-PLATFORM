@@ -15,14 +15,14 @@ const addressKey = order => {
 const packingKey = order => JSON.stringify((order.items || []).map(i => [i.id || i.bookId || i.title, i.variantId || i.variant || "", i.quantity]));
 function labelProblem(order, operations = {}) {
  if (['pickup', 'local_delivery'].includes(order.fulfillment?.method)) return 'This local fulfillment order does not use a carrier label.';
- if (order.isTest || order.paymentStatus !== "paid" || ["cancelled", "completed"].includes(order.status) || ["shipped", "out_for_delivery", "delivered", "cancelled", "refunded"].includes(order.fulfillmentStatus)) return "Only active paid, undispatched production orders can buy labels.";
+ if (order.isTest || order.paymentStatus !== "paid" || ["cancelled", "completed"].includes(order.status) || ["shipped", "out_for_delivery", "delivered", "cancelled", "refunded"].includes(order.fulfillmentStatus)) return "Labels are only for paid, open orders that haven't shipped.";
  if (!(order.items || []).some(isPhysicalItem)) return "This order has no physical books to ship.";
  if (order.labelUrl) return "A label already exists. Reprint the existing label.";
  if (order.trackingSource === "inventory-app" && order.trackingNumber) return `A label was already bought in the inventory app (tracking ${order.trackingNumber}). Use that one, or press "Remove the inventory app label" on this order before buying another.`;
  // Tracking an app sent (appRequests.js) is a label bought elsewhere too: a second one would be paid for twice.
  if (/^app:/.test(String(order.trackingSource || "")) && order.trackingNumber) return `A shipping app already added tracking ${order.trackingNumber} to this order. Use that label, or remove its tracking before buying another.`;
  if (operations.labelPurchasePending) return "A label purchase is pending. Check Shippo before attempting another purchase.";
- if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before buying a fulfillment label.";
+ if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Finish the open return before buying a label.";
  if (order.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(order.disputeStatus))) return `This payment is disputed. Don't buy a label until the dispute is settled in ${cardName()}.`;
  { const review = reviewProblem(order, operations); if (review) return review; }
  if (operations.hold) return "Release the fulfillment hold before buying a label.";
@@ -42,12 +42,12 @@ const shippingMethod = order => ["pickup", "local_delivery"].includes(order.fulf
 const alreadyDispatched = order => ["shipped", "out_for_delivery", "delivered", "collected"].includes(order.fulfillmentStatus) || order.status === "completed";
 function externalDispatchProblem(order, operations = {}) {
  if (!order) return "This order no longer exists on the website.";
- if (order.isTest) return "Test orders cannot be fulfilled.";
- if (terminal(order) || order.paymentStatus !== "paid") return "Only active paid orders can be dispatched.";
+ if (order.isTest) return "Practice orders can't be packed or shipped.";
+ if (terminal(order) || order.paymentStatus !== "paid") return "Only paid, open orders can be shipped.";
  if (!(order.items || []).some(item => item && item.giftCard !== true && isPhysicalItem(item))) return "This order has no physical books to ship.";
- if (shippingMethod(order) !== "shipping") return "Local pickup and delivery orders cannot use carrier dispatch.";
- if (alreadyDispatched(order)) return "This order has already been dispatched.";
- if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before dispatching the order.";
+ if (shippingMethod(order) !== "shipping") return "Pickup and local delivery orders aren't sent by a carrier.";
+ if (alreadyDispatched(order)) return "This order has already shipped.";
+ if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Finish the open return before shipping the order.";
  // Stricter than Orders › Dispatch: the owner can't see the customer's request from the inventory app.
  if (order.customerRequest?.status === "open") return "The customer asked to cancel this order. Answer their request in the website's Orders before shipping.";
  if (disputeOpen(order)) return `This payment is disputed. Don't ship until the dispute is settled in ${cardName()}.`;

@@ -818,7 +818,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         stock: 0, 
         stockLevel: 0,
         photoUrl: "",
-        sku: `${prev.sku || 'SKU'}-${(prev.variants || []).length + 1}`,
+        sku: `${prev.sku || 'ITEM'}-${(prev.variants || []).length + 1}`,
         weight: prev.weight || "",
         id: crypto.randomUUID() 
       }]
@@ -834,7 +834,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       const price = Number(formData.retailPrice) || 0;
       n += 1;
       return { id: crypto.randomUUID(), price, usdPrice: Number((price * usdRate).toFixed(2)), eurPrice: Number((price * eurRate).toFixed(2)),
-        stock: 0, stockLevel: 0, photoUrl: "", sku: `${formData.sku || "SKU"}-${n}`, weight: formData.weight || "" };
+        stock: 0, stockLevel: 0, photoUrl: "", sku: `${formData.sku || "ITEM"}-${n}`, weight: formData.weight || "" };
     };
     const { variants, removed } = variantsForOptions(options, adoptEditions(options, formData.variants || []), fresh);
     if (removed.length) {
@@ -1141,7 +1141,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab, field: "description" },
     { label: "Cover image", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
     { label: "Price above $0", ok: num(formData.retailPrice) > 0 || (formData.variants || []).some((v: any) => num(v.price) > 0), tab: "pricing" as BookTab },
-    { label: "ISBN or SKU", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: "isbn" },
+    { label: "ISBN or item code", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: "isbn" },
     { label: "Category", ok: (formData.categories || []).length > 0, tab: "organize" as BookTab },
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
@@ -1335,7 +1335,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     </button>
                     <ScanBarcodeButton label="Scan the ISBN" onCode={code => { setFormData((prev: any) => ({ ...prev, isbn: code })); void fillFromIsbn(code); }} />
                   </div>}
-                  <TextField label="SKU" name="sku" value={formData.sku} onChange={handleChange} placeholder="LM-2024-…" />
+                  <TextField label="Item code" name="sku" value={formData.sku} onChange={handleChange} placeholder="LM-2024-…" />
                   <div>
                     <TextField label="Barcode / UPC" name="barcode" value={formData.barcode || ""} onChange={handleChange} placeholder="0-00000-00000-0" />
                     <ScanBarcodeButton label="Scan the barcode" onCode={code => setFormData((prev: any) => ({ ...prev, barcode: code }))} />
@@ -1765,13 +1765,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <div className="be-grid be-grid-3">
                       <TextField label="Amount name" placeholder={`e.g. ${MONEY_SIGN}25`} value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} hint="What shoppers see in the amount picker." />
                       <TextField label={`Amount (${MONEY_SIGN})`} type="number" min={1} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
-                      <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
+                      <TextField label="Item code" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
                     </div>
                     ) : (
                     <div className="be-grid be-grid-4">
                       <div className="be-span-2"><TextField label={w("Edition name")} placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)}
                         readOnly={optionsOn} hint={optionsOn ? "Made from the options above." : undefined} /></div>
-                      <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
+                      <TextField label="Item code" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
                       <WeightField label="Weight" value={v.weight || ""} onChange={(w) => updateVariant(v.id, "weight", w)} />
                       <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
                       <TextField label="Price (USD)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).usdPrice ?? 0} onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))} />
@@ -1841,7 +1841,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   Create & assign
                 </button>
               </div>
-              <p className="be-category-help">Category changes appear on the public storefront immediately and stay in sync with the Studio designer.</p>
+              <p className="be-category-help">Category changes show on your website straight away and match Studio.</p>
               <div className="be-tags">
                 <span className="be-label-xs">Tags</span>
                 <div className="be-chips">

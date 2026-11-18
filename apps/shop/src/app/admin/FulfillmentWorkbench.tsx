@@ -127,10 +127,10 @@ export function FulfillmentWorkbench({
     <section
       ref={root}
       className="rp-card fw-workbench"
-      aria-label="Fulfillment workspace"
+      aria-label="Pack and ship"
     >
       <div className="rp-card-head">
-        <h2 className="rp-card-title">Fulfillment</h2>
+        <h2 className="rp-card-title">Pack and ship</h2>
         <StatusBadge
           tone={
             queue === "Needs attention"
@@ -205,7 +205,7 @@ export function FulfillmentWorkbench({
       )}
       {queue === "Unpaid" && (
         <p className="fw-notice">
-          Payment has not been confirmed. Fulfillment will unlock when payment
+          Payment has not been confirmed. Packing and shipping open once the payment
           clears.
         </p>
       )}
@@ -434,7 +434,7 @@ export function FulfillmentWorkbench({
         </ul>
         {!order.items?.length && (
           <p className="fw-problems" role="alert">
-            This order has no items. Resolve the order data before fulfillment.
+            This order has no items, so there is nothing to pack.
           </p>
         )}
         {packingActive && (
@@ -460,14 +460,14 @@ export function FulfillmentWorkbench({
               <Truck size={18} />
             </span>
             <div>
-              <h3>Shipping & dispatch</h3>
+              <h3>Ship it</h3>
               <span className="rp-hint">
                 {queue === "In transit"
                   ? "Handed to carrier"
                   : queue === "Completed"
                     ? "Closed"
                     : order.labelUrl
-                      ? "Label purchased · awaiting dispatch"
+                      ? "Label bought · not shipped yet"
                       : shippingActive
                         ? "Now · parcel, label, then mark shipped"
                         : "After packing"}
@@ -515,7 +515,7 @@ export function FulfillmentWorkbench({
                   <p className="fw-summary" role="status">
                     <StatusBadge tone="info">Inventory app</StatusBadge> Label bought in the inventory app · {order.trackingCarrier || "Carrier"} · {order.trackingNumber}
                     {Number.isFinite(Number(order.operations?.externalLabel?.cost)) && order.operations?.externalLabel?.cost != null ? ` · ${MONEY_SIGN}${Number(order.operations.externalLabel.cost).toFixed(2)}` : ""}.
-                    {" "}Marking the parcel shipped there dispatches this order and emails the customer. Don't buy a second label here.
+                    {" "}Marking the parcel shipped there marks this order shipped and emails the customer. Don't buy a second label here.
                     {onClearAppLabel && <>{" "}<button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit" }}
                       disabled={busy} onClick={onClearAppLabel}>Remove the inventory app label</button></>}
                   </p>
@@ -656,7 +656,7 @@ export function FulfillmentWorkbench({
               </PrimaryButton>
             </div>
           ) : ["In transit", "Completed"].includes(queue) ? (
-            <p className="fw-summary">{order.fulfillmentStatus === "collected" ? "Collected by customer" : order.fulfillmentStatus === "delivered" ? "Delivered" : order.fulfillmentStatus === "out_for_delivery" ? "Out for delivery" : "Local fulfillment complete"}</p>
+            <p className="fw-summary">{order.fulfillmentStatus === "collected" ? "Collected by customer" : order.fulfillmentStatus === "delivered" ? "Delivered" : order.fulfillmentStatus === "out_for_delivery" ? "Out for delivery" : "Pickup or delivery done"}</p>
           ) : null}
         </div>
       )}

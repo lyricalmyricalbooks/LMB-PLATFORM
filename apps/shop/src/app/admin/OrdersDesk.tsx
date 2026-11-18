@@ -394,7 +394,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
               <thead>
                 <tr><th scope="col" className="od-check-col"><input type="checkbox" aria-label="Select every order shown" checked={allTicked}
                   ref={(el) => { if (el) el.indeterminate = tickedHere > 0 && !allTicked; }}
-                  onChange={(e) => setPicked((p) => { const next = new Set(p); page.forEach((o) => (e.target.checked ? next.add(o.id) : next.delete(o.id))); return next; })} /></th><th scope="col">Order</th><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Items</th><th scope="col" className="od-num-col">Total</th><th scope="col">Payment</th><th scope="col">Fulfilment</th></tr>
+                  onChange={(e) => setPicked((p) => { const next = new Set(p); page.forEach((o) => (e.target.checked ? next.add(o.id) : next.delete(o.id))); return next; })} /></th><th scope="col">Order</th><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Items</th><th scope="col" className="od-num-col">Total</th><th scope="col">Payment</th><th scope="col">Shipping</th></tr>
               </thead>
               <tbody>
                 {page.map((o) => {

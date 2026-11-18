@@ -315,7 +315,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
                   <legend className="rp-sr-only">Store status</legend>
                   <div style={{ marginBottom: 12 }}>
-                    <StatusBadge tone={status === "open" ? "success" : "warning"}>{status === "open" ? "Storefront live" : status === "maintenance" ? "Checkout paused" : "Behind construction wall"}</StatusBadge>
+                    <StatusBadge tone={status === "open" ? "success" : "warning"}>{status === "open" ? "Website open" : status === "maintenance" ? "Checkout paused" : "Behind construction wall"}</StatusBadge>
                     {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
                   </div>
                   <div className="rp-choices">
@@ -1559,8 +1559,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                   {secretStored && (
                     <div style={{ padding: 16, background: "var(--rp-warning-tint)" }}>
                       <strong>Secret key stored privately.</strong>{" "}
-                      Secret keys are kept in an admin-only store the storefront cannot read.
-                      {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe." /* Stripe shops only */}
+                      Secret keys are kept in a private place your website cannot read.
+                      {stripe.keysWerePublic && " A key was once saved where your website could read it and has since been moved — rotate it in the Stripe Dashboard to be safe." /* Stripe shops only */}
                     </div>
                   )}
                   <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>

@@ -82,7 +82,7 @@ export function useLocalFulfillmentDraft(load = true) {
       setHome({ city: text(settings.location?.city), state: text(settings.location?.state) });
       if (validateLocalFulfillment(raw).length) setNotice('Saved local configuration needs repair. Review all fields before saving.');
       setLoaded(true);
-    }).catch(() => { if (active) setNotice('Could not load local fulfillment. Reload before saving.'); });
+    }).catch(() => { if (active) setNotice('Could not load pickup and delivery. Reload the page before saving.'); });
     return () => { active = false; };
   }, [load]);
   return { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved, home };
@@ -119,7 +119,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     const problems = validateLocalFulfillment(next);
     if (problems.length) { setNotice(problems.join(' ')); return false; }
     setBusy(true);
-    try { await adminApi.updateLocalFulfillment(next); setSaved(next); setNotice('Local fulfillment saved.'); return true; }
+    try { await adminApi.updateLocalFulfillment(next); setSaved(next); setNotice('Pickup and delivery saved.'); return true; }
     catch (error) { setNotice(friendlyError(error, 'save pickup & local delivery') + ' Your changes are still here.'); return false; }
     finally { setBusy(false); }
   }
@@ -138,14 +138,14 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     // Keep the owner's other unsaved edits on screen, with the pickup switch applied.
     setConfig(current => (current === base || JSON.stringify(current) === JSON.stringify(base)) ? nextSaved : withQuickPickup(current, on));
   }
-  const noticeOk = notice === 'Local fulfillment saved.';
+  const noticeOk = notice === 'Pickup and delivery saved.';
   const quotes = quoteLocalFulfillment(config, { country: L.country, zip: postal }, subtotal === '' ? NaN : Number(subtotal), [{ quantity: 1 }]);
   return <div className="rp-stack">
     <fieldset disabled={!loaded || busy} style={{ border: 0, padding: 0, margin: 0 }} className="rp-stack">
     <SectionCard title="Pickup & local delivery" description="Pickup and nearby delivery. Off until you switch it on.">
       <Toggle label={L.quick} checked={pickupOn} onChange={on => void setQuickPickup(on)} />
       <p className="rp-hint">{pickupOn ? L.quickOn : L.quickOff}</p>
-      <Toggle label="Enable local fulfillment (pickup and delivery)" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
+      <Toggle label="Offer pickup and local delivery" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
     </SectionCard>
 
     <SectionCard title="Local pickup" description={L.pickupDesc} actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, newPickup()] })}>Add pickup location</SecondaryButton>}>
