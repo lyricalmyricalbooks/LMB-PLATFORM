@@ -6,7 +6,7 @@ import {
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
   cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue, packProblem,
-  cleanBlocks, blockOn, blockedBusy, MAX_BLOCKS,
+  cleanBlocks, blockOn, blockedBusy, MAX_BLOCKS, processingStretch,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -672,5 +672,51 @@ describe("blocked time (plan 4, 1.3)", () => {
   it("survives the settings clean", () => {
     expect(cleanBookingSettings({ ...settings, blocks: [lunch] }).blocks).toEqual([lunch]);
     expect(cleanBookingSettings(settings).blocks).toBeUndefined();
+  });
+});
+
+describe("processing time (plan 4, 1.5)", () => {
+  const colour = { id: "colour", minutes: 120, gapAfter: 0, processAfter: 30, processMinutes: 45 };
+  const trim = { id: "trim", minutes: 30, gapAfter: 0 };
+  const day = "2026-11-23";
+  const start = at(day, "10:00");
+  // Colour booked at 10:00: processing runs 10:30 to 11:15.
+  const busy = [{ start, end: start + 120 * 60_000, serviceId: "colour", free: { start: at(day, "10:30"), end: at(day, "11:15") } }];
+  it("keeps only processing that fits inside a one-to-one service", () => {
+    const base = { name: "Colour", minutes: 120 };
+    expect(cleanService({ ...base, processAfter: 30, processMinutes: 45 })).toMatchObject({ processAfter: 30, processMinutes: 45 });
+    expect(cleanService(base)).not.toHaveProperty("processMinutes");
+    expect(cleanService({ ...base, processAfter: 90, processMinutes: 30 })).toHaveProperty("problem");
+    expect(cleanService({ ...base, processAfter: 0, processMinutes: 30 })).toHaveProperty("problem");
+    expect(cleanService({ ...base, processAfter: 30, processMinutes: 5 })).toHaveProperty("problem");
+    // A class keeps its teacher the whole time.
+    expect(cleanService({ ...base, places: 6, processAfter: 30, processMinutes: 45 })).not.toHaveProperty("processMinutes");
+  });
+  it("works out the stretch, and drops it when the booking is too short for it", () => {
+    expect(processingStretch(colour, start)).toEqual({ start: at(day, "10:30"), end: at(day, "11:15") });
+    expect(processingStretch({ ...colour, minutes: 70 }, start)).toBeNull();
+    expect(processingStretch(trim, start)).toBeNull();
+  });
+  it("lets a short booking sit wholly inside another's processing, never across its edge", () => {
+    expect(placesLeft(at(day, "10:30"), trim, busy)).toBe(1);
+    expect(placesLeft(at(day, "10:45"), trim, busy)).toBe(1);
+    expect(placesLeft(at(day, "11:00"), trim, busy)).toBe(0);
+    expect(placesLeft(at(day, "10:15"), trim, busy)).toBe(0);
+    // Its rest after has to fit too.
+    expect(placesLeft(at(day, "10:45"), { ...trim, gapAfter: 15 }, busy)).toBe(0);
+    // The room stays in use while it processes.
+    expect(placesLeft(at(day, "10:30"), { ...trim, roomId: "chair" }, busy.map((b) => ({ ...b, roomId: "chair" })))).toBe(0);
+  });
+  it("lets a long booking go around a short one already booked in its processing", () => {
+    const short = [{ start: at(day, "10:40"), end: at(day, "11:10"), serviceId: "trim" }];
+    expect(placesLeft(start, colour, short)).toBe(1);
+    expect(placesLeft(at(day, "10:30"), colour, short)).toBe(0);
+  });
+  it("is the person's own free time: someone else's processing frees nobody else", () => {
+    const team = { ...cleanBookingSettings({ ...settings, staff: [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }] }), live: true, minNoticeHours: 0 };
+    const anas = busy.map((b) => ({ ...b, staffId: "ana" }));
+    expect(whoIsFree({ service: trim, settings: team, busy: anas, start: at(day, "10:30"), zone: ZONE, nowMs: NOW, staffId: "ana" })).toBe("ana");
+    expect(freeTimes({ service: trim, settings: { ...settings, step: 15 }, busy, day, zone: ZONE, nowMs: NOW }).map(hhmm)).toEqual(expect.arrayContaining(["10:30", "10:45"]));
+    expect(freeTimes({ service: trim, settings: { ...settings, step: 15 }, busy, day, zone: ZONE, nowMs: NOW }).map(hhmm)).not.toContain("11:00");
   });
 });

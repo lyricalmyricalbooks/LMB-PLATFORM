@@ -510,7 +510,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
     // With Classes on (`?ways=classes&page=classes`) the class is live and a second one runs two evenings a week.
     service("binding", "Bookbinding class", 90, 3000, 2, { active: CLASSES, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
-    service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25 }),
+    service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25, processAfter: 60, processMinutes: 60 }),
     ...(CLASSES ? [service("letterpress", "Letterpress evening", 120, 5500, 4, { places: 8, location: "Print room", classTimes: [{ weekday: 2, time: "18:30" }, { weekday: 4, time: "18:30" }] })] : []),
     // A four-week course on Wednesday mornings, starting this week: one sign-up holds a place on every date.
     ...(CLASSES ? [service("wheel", "Four-week wheel course", 120, 18000, 5, { places: 6, location: "Studio", courseDates: COURSE_DAYS.map((d) => `${d}T10:00`) })] : []),
@@ -540,6 +540,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     id, serviceId: s.id, serviceName: s.name, minutes: s.minutes, location: s.location, start, end: plus(start, s.minutes),
     customer: { name: customer, email: `${customer.split(" ")[0].toLowerCase()}@example.com` }, status: "confirmed",
     payment: s.priceMinor ? "card" : "free", priceMinor: s.priceMinor, currency: "CAD", paid: s.priceMinor > 0, source: "website",
+    ...(s.processMinutes ? { processAfter: s.processAfter, processMinutes: s.processMinutes } : {}),
     ...(TEAM ? (s.id === "riso" || s.id === "workshop" ? { staffId: "ben", staffName: "Ben Example" } : { staffId: "ana", staffName: "Ana Example" }) : {}),
     ...(TEAM && s.roomId ? { roomId: s.roomId, roomName: "Print room" } : {}), ...extra,
   });
@@ -552,6 +553,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
     booking("bk-5", services[2], at(3, 15), "Eve Example", { payment: "atShop", paid: false }),
     booking("bk-6", services[3], at(0, 9), "Flo Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false, checkInCode: "FLQW-HERE", checkedInAt: at(0, 8, 52) }),
+    // Inside Flo's ink drying (10:00 to 11:00): processing time leaves room for a short visit (plan 4, 1.5).
+    booking("bk-15", services[0], at(0, 10, 15), "Gus Example"),
     booking("bk-13", services[3], at(0, 16), "Rue Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false, checkInCode: "RUE5-TQDA", note: "Bringing my own paper." }),
     booking("bk-8", services[2], at(1, 13), "Hal Example"),
     booking("bk-12", services[1], at(2, 10), "Kai Example", { payment: "pack", priceMinor: 0, listPriceMinor: 4500, paid: true, pack: { id: "p".repeat(40), last4: "K7QD", visit: 2, visits: 5 } }),

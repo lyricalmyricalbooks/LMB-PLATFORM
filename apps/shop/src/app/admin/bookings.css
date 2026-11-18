@@ -585,3 +585,11 @@
 .rp .bkg-over strong { font-weight: 600; }
 .rp .bkg-over span { font-size: 14px; color: var(--rp-text-muted); }
 .rp .bkg-over-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: var(--rp-text-muted); font-size: 14px; }
+
+/* Processing time inside a booking (bookings plan 4, step 1.5): pale stripes where the owner is free for someone else. */
+.rp .bkg-tday-block > :is(.bkg-slot-time, .bkg-slot-who, .bkg-slot-what, .bkg-slot-tag) { position: relative; z-index: 1; }
+.rp .bkg-processing { position: absolute; left: 0; right: 0; z-index: 0; display: flex; align-items: flex-start; justify-content: flex-start; padding: 3px 6px; overflow: hidden;
+  pointer-events: none; border-top: 1px dashed var(--rp-border-strong); border-bottom: 1px dashed var(--rp-border-strong);
+  background: repeating-linear-gradient(135deg, var(--rp-surface) 0 6px, transparent 6px 12px); opacity: 0.85; }
+.rp .bkg-processing > span { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; font-weight: 600; color: var(--rp-text-muted); background: var(--rp-surface); border-radius: 6px; padding: 0 4px; }
+.rp .bkg-tday-block[data-short] .bkg-processing > span { display: none; }

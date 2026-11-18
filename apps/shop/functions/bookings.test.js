@@ -495,6 +495,30 @@ describe("booking over a taken time (plan 4, 1.4)", () => {
   });
 });
 
+describe("processing time (plan 4, 1.5)", () => {
+  test("a short booking fits inside another's processing, the day keeps it, and it moves with the booking", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 120, gapAfter: 0, payment: "free", priceMinor: 0, processAfter: 30, processMinutes: 45 });
+    await t.db.collection("bookingServices").doc("trim").set({ name: "Trim", minutes: 30, gapAfter: 0, payment: "free", priceMinor: 0 });
+    const colour = await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-20", "10:00"), ...CUSTOMER });
+    expect(colour.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${colour.body.id}`)).toMatchObject({ processAfter: 30, processMinutes: 45 });
+    expect(t.db.store.get("bookingDays/2026-11-20").items[colour.body.id].g).toEqual([Date.parse(at("2026-11-20", "10:30")), Date.parse(at("2026-11-20", "11:15"))]);
+    const times = (await t.pub({ action: "bookingTimes", serviceId: "trim", from: "2026-11-20", days: 1 })).body.days["2026-11-20"];
+    expect(times).toContain(at("2026-11-20", "10:30"));
+    expect(times).not.toContain(at("2026-11-20", "10:00"));
+    expect(times).not.toContain(at("2026-11-20", "11:00"));
+    const trim = await t.pub({ action: "bookingStart", serviceId: "trim", start: at("2026-11-20", "10:30"), name: "Cy", email: "cy@example.com" });
+    expect(trim.statusCode).toBe(200);
+    // Across the edge of the processing: still taken.
+    expect((await t.pub({ action: "bookingStart", serviceId: "trim", start: at("2026-11-20", "11:00"), name: "Di", email: "di@example.com" })).statusCode).toBe(409);
+    // The owner moves the colour: its processing goes with it.
+    expect((await t.adm({ op: "move", id: colour.body.id, start: at("2026-11-20", "13:00"), notify: false })).body.ok).toBe(true);
+    expect(t.db.store.get("bookingDays/2026-11-20").items[colour.body.id].g).toEqual([Date.parse(at("2026-11-20", "13:30")), Date.parse(at("2026-11-20", "14:15"))]);
+  });
+});
+
 describe("busy times", () => {
   test("a hold the sweep never reached stops blocking after two hours", () => {
     const snap = (items) => ({ exists: true, data: () => ({ items }) });
