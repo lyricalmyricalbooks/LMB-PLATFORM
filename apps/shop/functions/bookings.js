@@ -200,6 +200,8 @@ function busyFrom(daySnaps, nowMs, except = "") {
         ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}),
         // A class time cancelled for too few people (sweepMinimum): it closes that class then, nothing else.
         ...(item.closed === true ? { closed: true } : {}),
+        // A person's own calendar busy time (`gcal~…`): not a booking, so it never counts towards the daily limit.
+        ...(item.g === true || id.startsWith(GCAL) ? { away: true } : {}),
         // Processing time inside it (plan 4, 1.5): the person is free for a booking that fits wholly in there.
         ...(Array.isArray(item.g) && Number.isFinite(item.g[0]) && Number.isFinite(item.g[1]) && item.g[0] < item.g[1] ? { free: { start: item.g[0], end: item.g[1] } } : {}) });
     }

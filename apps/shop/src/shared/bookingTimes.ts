@@ -218,6 +218,8 @@ export type BookingSettings = {
    * ticked "Text me reminders" and gave a mobile number. Sent through the platform, billed to the shop at cost.
    */
   textReminders?: boolean;
+  /** The most bookings clients can make online on one day (plan 4, 1.8); 0 or left out: no limit. The owner can add more. */
+  dailyCap?: number;
   /** A form clients fill in once before their first visit (Services plan 2, B4). Left out while there is none. */
   intakeForm?: IntakeForm;
   /** Time the owner blocked on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly team meeting. Left out while none. */
@@ -355,7 +357,13 @@ export function formVersion(form: Pick<IntakeForm, "title" | "text" | "questions
  */
 export type Busy = { start: number; end: number; /** Whose booking it is, so a class can tell its own from another's. */ serviceId?: string; staffId?: string; roomId?: string;
   /** Processing time inside it (plan 4, 1.5): the person is free for another booking that fits wholly in here. */ free?: { start: number; end: number };
-  /** A class time cancelled for too few people: closes that class at that start, and nothing else. */ closed?: boolean };
+  /** A class time cancelled for too few people: closes that class at that start, and nothing else. */ closed?: boolean;
+  /** Not a booking: a person's own calendar busy time. It closes the time but doesn't count towards the daily limit. */ away?: boolean };
+
+/** How many bookings start on `day` (the daily limit's count, plan 4, 1.8): not a closed class time or a person's own busy time. */
+export function bookingsOnDay(busy: readonly Busy[], day: string, zone: string): number {
+  return busy.filter((b) => !b.away && !b.closed && dayOf(b.start, zone) === day).length;
+}
 
 /** What the free-time rules need of a service. Without `id` and `places` it is one customer at a time. */
 /** An add-on or option on a service: its own name, the minutes it adds (0 to 240) and the price it adds (cents). */
@@ -382,6 +390,8 @@ export function processingStretch(service: Pick<Bookable, "minutes" | "processAf
 }
 
 export const BOOKING_STEPS = [15, 30, 60] as const;
+/** The daily limit's choices (plan 4, 1.8); 0 is no limit. */
+export const DAILY_CAPS = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50] as const;
 export const MAX_SERVICES = 30;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -842,6 +852,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
     ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
     ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
+    ...((DAILY_CAPS as readonly number[]).includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),
   };
 }
 
@@ -1244,6 +1255,8 @@ function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }: {
   service: Bookable; settings: BookingSettings; busy: readonly Busy[]; day: string; zone: string; nowMs: number;
 }, windows: HoursWindow[], staffId: string): number[] {
   if (!isDay(day) || settings.daysOff.includes(day)) return [];
+  // The daily limit (plan 4, 1.8): a day with that many bookings offers nothing more online.
+  if (settings.dailyCap && bookingsOnDay(booked, day, zone) >= settings.dailyCap) return [];
   // The owner's blocked time is busy like a booking: the whole shop's for everyone, a person's for them.
   const busy = settings.blocks?.length ? [...booked, ...blockedBusy(settings.blocks, day, zone)] : booked;
   const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
@@ -1330,7 +1343,7 @@ export function keptPerson(settings: Pick<BookingSettings, "staff">, serviceId: 
 export function ownerBookingSettings(settings: BookingSettings): BookingSettings {
   const allDay = Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]);
   // Blocked time keeps clients out, never the owner: they can still put a booking there by hand.
-  return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [], specialHours: [],
+  return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [], specialHours: [], dailyCap: 0,
     staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [], specialHours: [] })) };
 }
 

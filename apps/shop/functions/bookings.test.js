@@ -519,6 +519,18 @@ describe("processing time (plan 4, 1.5)", () => {
   });
 });
 
+describe("daily limit (plan 4, 1.8)", () => {
+  test("clients can't book a day that has reached it; the owner still can", async () => {
+    const t = setup();
+    await t.seed();
+    await t.adm({ op: "saveSettings", settings: { ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, dailyCap: 1 } });
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), ...CUSTOMER })).statusCode).toBe(200);
+    expect((await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-20", days: 1 })).body.days["2026-11-20"] || []).toEqual([]);
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "14:00"), name: "Di", email: "di@example.com" })).statusCode).toBe(409);
+    expect((await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "14:00"), name: "Bo", email: "bo@example.com" })).statusCode).toBe(200);
+  });
+});
+
 describe("holiday hours (plan 4, 1.7)", () => {
   test("clients see the holiday hours, the owner still books outside them", async () => {
     const t = setup();

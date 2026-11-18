@@ -7,7 +7,7 @@ import {
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
   cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue, packProblem,
   cleanBlocks, blockOn, blockedBusy, MAX_BLOCKS, processingStretch,
-  cleanSpecialHours, hoursOnDay, personHoursOn, specialOn, MAX_SPECIAL_DAYS,
+  cleanSpecialHours, hoursOnDay, personHoursOn, specialOn, MAX_SPECIAL_DAYS, bookingsOnDay, ownerBookingSettings,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -673,6 +673,32 @@ describe("blocked time (plan 4, 1.3)", () => {
   it("survives the settings clean", () => {
     expect(cleanBookingSettings({ ...settings, blocks: [lunch] }).blocks).toEqual([lunch]);
     expect(cleanBookingSettings(settings).blocks).toBeUndefined();
+  });
+});
+
+describe("daily limit (plan 4, 1.8)", () => {
+  const day = "2026-11-23";
+  const two = [
+    { start: at(day, "10:00"), end: at(day, "11:00") },
+    { start: at(day, "12:00"), end: at(day, "13:00") },
+    { start: at(day, "14:00"), end: at(day, "15:00"), away: true },
+    { start: at(day, "15:00"), end: at(day, "16:00"), closed: true, serviceId: "yoga" },
+    { start: at("2026-11-24", "10:00"), end: at("2026-11-24", "11:00") },
+  ];
+  it("keeps only a listed limit", () => {
+    expect(cleanBookingSettings({ dailyCap: 4 }).dailyCap).toBe(4);
+    expect(cleanBookingSettings({ dailyCap: 7 })).not.toHaveProperty("dailyCap");
+    expect(cleanBookingSettings({ dailyCap: 0 })).not.toHaveProperty("dailyCap");
+  });
+  it("counts the day's bookings only, never a person's own busy time or a closed class", () => {
+    expect(bookingsOnDay(two, day, ZONE)).toBe(2);
+  });
+  it("stops online times once the day has that many, and never stops the owner", () => {
+    const capped = { ...settings, dailyCap: 2 };
+    expect(freeTimes({ service, settings: capped, busy: two, day, zone: ZONE, nowMs: NOW })).toEqual([]);
+    expect(freeTimes({ service, settings: { ...settings, dailyCap: 3 }, busy: two, day, zone: ZONE, nowMs: NOW }).length).toBeGreaterThan(0);
+    expect(freeTimes({ service, settings: capped, busy: two, day: "2026-11-24", zone: ZONE, nowMs: NOW }).length).toBeGreaterThan(0);
+    expect(freeTimes({ service, settings: ownerBookingSettings(capped), busy: two, day, zone: ZONE, nowMs: NOW }).length).toBeGreaterThan(0);
   });
 });
 
