@@ -61,6 +61,7 @@ import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { keepAdminOffline } from "./adminOffline";
 import { AdminTour, type TourPhase } from "./walkthrough/AdminTour";
+import { useSetupShowing } from "./overview/firstStep";
 import { markTourSeen, tourFor, tourSeen } from "./walkthrough/tourSteps";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./walkthrough/tourStore";
 import { stockroomBridge } from "./stockroomBridge";
@@ -440,8 +441,11 @@ export function Dashboard() {
   // admin (not seen on this device or on the shop's account), and Help or the account menu bring it back any time.
   const [tourPhase, setTourPhase] = useState<TourPhase | null>(null);
   const endTour = () => { markTourSeen(); void markTourSeenOnAccount(); };
+  // Change 3 (simpler admin): on Home the welcome waits until Get started and the setup guide are done.
+  const setupShowing = useSetupShowing();
+  const tourMayOffer = activeTab !== "overview" || setupShowing === false;
   useEffect(() => {
-    if (!user || tourSeen()) return;
+    if (!user || tourSeen() || !tourMayOffer) return;
     let alive = true;
     void tourSeenOnAccount().then((seen) => {
       if (!alive) return;
@@ -449,7 +453,7 @@ export function Dashboard() {
       else setTourPhase((p) => p ?? { kind: "welcome" });
     });
     return () => { alive = false; };
-  }, [user]);
+  }, [user, tourMayOffer]);
 
   const [adminTheme, setAdminTheme] = useState(() => {
     // Reso is the admin's primary design, not an optional storefront skin.
@@ -822,7 +826,7 @@ export function Dashboard() {
   const content = (() => {
     switch (activeTab) {
       case "overview":
-        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} services={menuKind === "services"} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
+        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} services={menuKind === "services"} tourWaiting={tourPhase !== null || !tourSeen()} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
       case "analytics":
         return <AnalyticsPage subTab={subTab} onSubTabChange={openSubTab} setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;

@@ -1,3 +1,5 @@
+import { setSetupShowing } from "./firstStep";
+import { firstWeekSteps, showFirstWeek, type FirstWeekFacts } from "../firstWeek";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "../api";
 import type { FirstWeekDoc, WelcomeDone } from "../firstWeek";
@@ -72,6 +74,13 @@ export function SetupStart({ books, orders, readiness, settings, bookings, onOpe
     books, orders, readiness, platform, bookings,
     settings: opened && settings ? { ...settings, design: { ...settings.design, showUnderConstruction: false } } : settings,
   }), [books, orders, readiness, settings, opened, platform, bookings]);
+
+  // Change 3: tell Home whether a setup step is on screen, so the tour offer and Connect Google wait their turn.
+  const guideShowing = !!doc && showFirstWeek(doc, firstWeekSteps(doc, facts as FirstWeekFacts));
+  const runStep = doc ? nextRunStep(doc, settings, platform) : null;
+  const showing = state === "loading" ? null : state === "error" || (!!doc && (!!runStep || guideShowing || celebrate));
+  useEffect(() => { setSetupShowing(showing); }, [showing]);
+  useEffect(() => () => setSetupShowing(false), []);
 
   // A shop setup never wrote a document for (most shops made before the platform) sees nothing while it loads.
   if (state === "loading") return null;

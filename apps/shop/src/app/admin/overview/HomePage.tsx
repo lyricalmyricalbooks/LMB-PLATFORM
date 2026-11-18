@@ -16,6 +16,7 @@ import { useFairToday } from "../FairToday";
 import { stockroomBridge } from "../stockroomBridge";
 import { ConnectGoogleCard } from "../ConnectGoogleCard";
 import { SetupStart } from "./SetupStart";
+import { firstStepNow, useSetupShowing } from "./firstStep";
 import { ClosingTile } from "./ClosingTile";
 import { HomeToday } from "./HomeToday";
 import { HomeServices, useHomeBookings } from "./HomeServices";
@@ -50,7 +51,9 @@ export function homeTodoCounts(orders: any[] | null, books: any[] | null, now = 
   };
 }
 
-export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = false }: {
+export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = false, tourWaiting = false }: {
+  /** The tour welcome has not been seen yet: Connect Google waits for it (change 3). */
+  tourWaiting?: boolean;
   /** A services shop that sells no products (Dashboard's menu kind): Home is its appointments, not parcels and stock. */
   services?: boolean;
   setActiveTab?: (tab: string) => void;
@@ -59,6 +62,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
   ownerName?: string;
 }) {
   const w = useShopWords();
+  const setupShowing = useSetupShowing();
   const [reloadKey, setReloadKey] = useState(0);
   // Every source loads on its own so one failure never blanks the page.
   const [allOrders, setAllOrders] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
@@ -204,8 +208,8 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
       <SetupStart books={stock.books} orders={allOrders.orders} readiness={readiness} bookings={launch.parts?.bookings}
         settings={launch.parts ? launch.parts.settings : launch.error ? null : undefined}
         onOpen={go} onSetWall={onSetWall} onRetrySettings={refresh} />
-      {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
-      <ConnectGoogleCard variant="prompt" />
+      {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected; change 3: only once setup and the tour are done. */}
+      {firstStepNow(setupShowing, tourWaiting) === "google" && <ConnectGoogleCard variant="prompt" />}
       {services ? <HomeServices ownerName={ownerName} bookings={homeBookings} todo={servicesTodoRow} extra={fundraiser} onOpen={go} /> :
       <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow} extra={fundraiser} glance={glance}
         onOpen={go} onOpenTill={() => stockroomBridge.openPage("pos")} onRetry={refresh} />}
