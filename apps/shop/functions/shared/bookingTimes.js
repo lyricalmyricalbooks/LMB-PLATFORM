@@ -9,13 +9,14 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = void 0;
+exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = void 0;
 exports.cleanBlocks = cleanBlocks;
 exports.blockSpan = blockSpan;
 exports.blockedBusy = blockedBusy;
 exports.cleanIntakeForm = cleanIntakeForm;
 exports.formVersion = formVersion;
+exports.processingStretch = processingStretch;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
 exports.giftCardPart = giftCardPart;
@@ -156,6 +157,21 @@ function formVersion(form) {
     for (let i = 0; i < source.length; i += 1)
         h = ((h * 33) ^ source.charCodeAt(i)) >>> 0;
     return `v${h.toString(36)}${source.length.toString(36)}`;
+}
+/** Processing time: it starts at least this far in, lasts at least this long, and ends before the service does. */
+exports.MIN_PROCESS_AFTER = 5;
+exports.MIN_PROCESS_MINUTES = 10;
+exports.MAX_PROCESS_MINUTES = 240;
+/**
+ * A booking's processing time as [start, end) in milliseconds (plan 4, 1.5), or null: none set, or it no longer fits
+ * inside the booking (a booking shortened on the calendar loses it).
+ */
+function processingStretch(service, start) {
+    const after = Math.round(Number(service.processAfter) || 0);
+    const length = Math.round(Number(service.processMinutes) || 0);
+    if (!Number.isFinite(start) || after < exports.MIN_PROCESS_AFTER || length < exports.MIN_PROCESS_MINUTES || after + length >= service.minutes)
+        return null;
+    return { start: start + after * 60_000, end: start + (after + length) * 60_000 };
 }
 exports.BOOKING_STEPS = [15, 30, 60];
 exports.MAX_SERVICES = 30;
@@ -394,6 +410,12 @@ function cleanService(raw, id = "") {
     const minPlaces = atSetTimes ? whole(s.minPlaces, 0, exports.MAX_PLACES, 0) : 0;
     if (minPlaces > places)
         return { problem: "The minimum to run can't be more than the places." };
+    // Processing time: one person's booking only (a class keeps its teacher the whole time).
+    const processMinutes = places === 1 && !courseDates.length ? whole(s.processMinutes, 0, exports.MAX_PROCESS_MINUTES, 0) : 0;
+    const processAfter = processMinutes ? whole(s.processAfter, 0, 8 * 60, 0) : 0;
+    if (processMinutes && (processMinutes < exports.MIN_PROCESS_MINUTES || processAfter < exports.MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
+        return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
+    }
     return {
         id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         name,
@@ -431,6 +453,7 @@ function cleanService(raw, id = "") {
         repeats: s.repeats === true && places === 1 && !courseDates.length,
         // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
         extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
+        ...(processMinutes ? { processAfter, processMinutes } : {}),
     };
 }
 /** A service's add-ons and options, cleaned: named ones only, at most MAX_EXTRAS, each with its own id. */
@@ -946,6 +969,10 @@ function placesLeft(start, service, busy, staffId = "") {
     const end = start + (service.minutes + service.gapAfter) * MINUTE;
     const places = (0, exports.isClass)(service) && service.id ? Math.round(Number(service.places)) : 1;
     const room = service.roomId || "";
+    // Processing time (plan 4, 1.5): the person is free while a booking processes, so a short booking may sit wholly
+    // inside one (theirs or this one's own); the room stays taken, so one needing the same room still clashes.
+    const own = processingStretch(service, start);
+    const inside = (a, z, gap) => !!gap && a >= gap.start && z <= gap.end;
     let taken = 0;
     for (const b of busy) {
         if (b.closed) {
@@ -959,6 +986,8 @@ function placesLeft(start, service, busy, staffId = "") {
         const mine = !staffId || !b.staffId || b.staffId === staffId;
         const sameRoom = !!room && b.roomId === room;
         if (!mine && !sameRoom)
+            continue;
+        if (!sameRoom && (inside(start, end, b.free) || inside(b.start, b.end, own)))
             continue;
         const sameClass = places > 1 && b.serviceId === service.id && b.start === start && (!staffId || (b.staffId || "") === staffId);
         if (sameClass)

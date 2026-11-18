@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -327,5 +327,17 @@ describe("blocked time on the calendar (plan 4, 1.3)", () => {
     expect(blockWhen(dentist)).toMatch(/17/);
     expect(blockHours(lunch)).toBe("12:30 PM to 1:15 PM");
     expect(blockHours({ start: "00:00", end: "24:00" })).toBe("All day");
+  });
+});
+
+describe("processing time on the calendar (plan 4, 1.5)", () => {
+  it("places the stretch inside the card and says it in words", () => {
+    const b = { minutes: 120, processAfter: 30, processMinutes: 45 };
+    expect(processingBand(b, 120)).toEqual({ top: "25%", height: "37.5%" });
+    expect(processingBand({ minutes: 60 }, 60)).toBeNull();
+    // A booking stretched shorter than its processing loses it.
+    expect(processingBand({ ...b, minutes: 60 }, 60)).toBeNull();
+    expect(processingText(b)).toBe("Processing 45 min, from 30 min in");
+    expect(processingText({ minutes: 60 })).toBe("");
   });
 });

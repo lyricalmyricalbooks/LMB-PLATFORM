@@ -39,6 +39,8 @@ export type Booking = {
   /** A standing appointment: which visit of the run this is, how many there are and how often (each is its own booking). */
   /** Add-ons and options the client ticked (each already in `minutes` and `priceMinor`). */
   extras?: BookingExtra[] | null;
+  /** Processing time kept from the service when booked (plan 4, 1.5): minutes in, and how long. */
+  processAfter?: number; processMinutes?: number;
   series?: { id: string; visit: number; visits: number; everyWeeks: number } | null;
   /** The client asked to hear if an earlier time opens (Services plan 2, B5). */
   earlierWanted?: boolean;

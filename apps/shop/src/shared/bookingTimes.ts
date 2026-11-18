@@ -98,6 +98,12 @@ export type BookingService = {
    * "Long hair, +30 min". Each adds its minutes to the booking's length and its price to the price. One-to-one only.
    */
   extras?: BookingExtra[];
+  /**
+   * Processing time (plan 4, 1.5): `processMinutes` inside the service, starting `processAfter` minutes in, when the
+   * person is free to see someone else (colour setting, a glaze drying) but the room stays in use. 0: none. One-to-one only.
+   */
+  processAfter?: number;
+  processMinutes?: number;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -296,13 +302,30 @@ export function formVersion(form: Pick<IntakeForm, "title" | "text" | "questions
  * booked (none: the whole shop, as every booking made before there were people), `roomId` the room it uses.
  */
 export type Busy = { start: number; end: number; /** Whose booking it is, so a class can tell its own from another's. */ serviceId?: string; staffId?: string; roomId?: string;
+  /** Processing time inside it (plan 4, 1.5): the person is free for another booking that fits wholly in here. */ free?: { start: number; end: number };
   /** A class time cancelled for too few people: closes that class at that start, and nothing else. */ closed?: boolean };
 
 /** What the free-time rules need of a service. Without `id` and `places` it is one customer at a time. */
 /** An add-on or option on a service: its own name, the minutes it adds (0 to 240) and the price it adds (cents). */
 export type BookingExtra = { id: string; name: string; minutes: number; priceMinor: number };
 
-export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId" | "courseDates">>;
+export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId" | "courseDates" | "processAfter" | "processMinutes">>;
+
+/** Processing time: it starts at least this far in, lasts at least this long, and ends before the service does. */
+export const MIN_PROCESS_AFTER = 5;
+export const MIN_PROCESS_MINUTES = 10;
+export const MAX_PROCESS_MINUTES = 240;
+
+/**
+ * A booking's processing time as [start, end) in milliseconds (plan 4, 1.5), or null: none set, or it no longer fits
+ * inside the booking (a booking shortened on the calendar loses it).
+ */
+export function processingStretch(service: Pick<Bookable, "minutes" | "processAfter" | "processMinutes">, start: number): { start: number; end: number } | null {
+  const after = Math.round(Number(service.processAfter) || 0);
+  const length = Math.round(Number(service.processMinutes) || 0);
+  if (!Number.isFinite(start) || after < MIN_PROCESS_AFTER || length < MIN_PROCESS_MINUTES || after + length >= service.minutes) return null;
+  return { start: start + after * 60_000, end: start + (after + length) * 60_000 };
+}
 
 export const BOOKING_STEPS = [15, 30, 60] as const;
 export const MAX_SERVICES = 30;
@@ -525,6 +548,12 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   const atSetTimes = places >= 2 && (courseDates.length > 0 || classTimes.length > 0);
   const minPlaces = atSetTimes ? whole(s.minPlaces, 0, MAX_PLACES, 0) : 0;
   if (minPlaces > places) return { problem: "The minimum to run can't be more than the places." };
+  // Processing time: one person's booking only (a class keeps its teacher the whole time).
+  const processMinutes = places === 1 && !courseDates.length ? whole(s.processMinutes, 0, MAX_PROCESS_MINUTES, 0) : 0;
+  const processAfter = processMinutes ? whole(s.processAfter, 0, 8 * 60, 0) : 0;
+  if (processMinutes && (processMinutes < MIN_PROCESS_MINUTES || processAfter < MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
+    return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
+  }
   return {
     id: text(id || s.id, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     name,
@@ -562,6 +591,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     repeats: s.repeats === true && places === 1 && !courseDates.length,
     // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
     extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
+    ...(processMinutes ? { processAfter, processMinutes } : {}),
   };
 }
 
@@ -1087,6 +1117,10 @@ export function placesLeft(start: number, service: Bookable, busy: readonly Busy
   const end = start + (service.minutes + service.gapAfter) * MINUTE;
   const places = isClass(service) && service.id ? Math.round(Number(service.places)) : 1;
   const room = service.roomId || "";
+  // Processing time (plan 4, 1.5): the person is free while a booking processes, so a short booking may sit wholly
+  // inside one (theirs or this one's own); the room stays taken, so one needing the same room still clashes.
+  const own = processingStretch(service, start);
+  const inside = (a: number, z: number, gap: { start: number; end: number } | null | undefined) => !!gap && a >= gap.start && z <= gap.end;
   let taken = 0;
   for (const b of busy) {
     if (b.closed) {
@@ -1098,6 +1132,7 @@ export function placesLeft(start: number, service: Bookable, busy: readonly Busy
     const mine = !staffId || !b.staffId || b.staffId === staffId;
     const sameRoom = !!room && b.roomId === room;
     if (!mine && !sameRoom) continue;
+    if (!sameRoom && (inside(start, end, b.free) || inside(b.start, b.end, own))) continue;
     const sameClass = places > 1 && b.serviceId === service.id && b.start === start && (!staffId || (b.staffId || "") === staffId);
     if (sameClass) taken += 1;
     else return 0;

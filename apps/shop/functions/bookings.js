@@ -70,7 +70,7 @@ const {
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanBlocks, MAX_BLOCKS, cleanCheckInCode, checkInCodeFrom,
-  cleanRun, runStarts, runSettings, runsOnline, withExtras,
+  cleanRun, runStarts, runSettings, runsOnline, withExtras, processingStretch,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -195,7 +195,9 @@ function busyFrom(daySnaps, nowMs, except = "") {
         // Whose booking it is and which room it uses (staff and rooms); an older item without them blocks everyone.
         ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}),
         // A class time cancelled for too few people (sweepMinimum): it closes that class then, nothing else.
-        ...(item.closed === true ? { closed: true } : {}) });
+        ...(item.closed === true ? { closed: true } : {}),
+        // Processing time inside it (plan 4, 1.5): the person is free for a booking that fits wholly in there.
+        ...(Array.isArray(item.g) && Number.isFinite(item.g[0]) && Number.isFinite(item.g[1]) && item.g[0] < item.g[1] ? { free: { start: item.g[0], end: item.g[1] } } : {}) });
     }
   }
   return busy;
@@ -212,6 +214,17 @@ function staffParts(settings, person, roomId) {
     item: { ...(person ? { p: person } : {}), ...(roomId ? { r: roomId } : {}) },
     record: { ...(person ? { staffId: person, staffName: who?.name || "" } : {}), ...(roomId ? { roomId, roomName: room?.name || "" } : {}) },
   };
+}
+
+/** A day item's processing time (plan 4, 1.5): `g: [from, to]`, or nothing when the booking has none. */
+function gapPart(service, start) {
+  const gap = processingStretch(service, start);
+  return gap ? { g: [gap.start, gap.end] } : {};
+}
+
+/** What a booking keeps of its service's processing time, so a later edit to the service never moves it. */
+function processingRecord(service) {
+  return processingStretch(service, 0) ? { processAfter: service.processAfter, processMinutes: service.processMinutes } : {};
 }
 
 /** "with Ana" for emails and the owner's calendar, or "". */
@@ -627,7 +640,7 @@ function bookingActions({
       const { item } = staffParts(settings, who, service.roomId);
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        items[itemKey] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, ...item, offer: true, until };
+        items[itemKey] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, ...item, ...gapPart(service, start), offer: true, until };
         tx.set(dayRef(d), { items });
       });
       tx.set(ref, { offerStart: new Date(start).toISOString(), offerUntil: new Date(until).toISOString(), offerKeyHash: hash(key) }, { merge: true });
@@ -956,7 +969,7 @@ function bookingActions({
         if (offer) delete items[offer.item];
         sessions.forEach((ms, n) => {
           if (!daysTouched(ms, ms + length, zone()).includes(d)) return;
-          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1].item : assigned.item) };
+          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1].item : assigned.item), ...(n ? {} : gapPart(service, ms)) };
         });
         tx.set(dayRef(d), { items });
       });
@@ -1056,20 +1069,22 @@ function bookingActions({
     const blockEnd = end + (b.gapAfter || 0) * MINUTE;
     const newDays = daysTouched(start, blockEnd, zone());
     const all = [...new Set([...oldDays, ...newDays])];
+    // The booking's own processing time moves with it (kept on the booking when it was made, plan 4, 1.5).
+    const checked = { ...service, minutes, processAfter: b.processAfter || 0, processMinutes: b.processMinutes || 0 };
     const moved = await db.runTransaction(async (tx) => {
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
       const nearby = snaps.filter((_, i) => newDays.includes(all[i]));
       const wanted = staffId === undefined ? keptPerson(settings, b.serviceId, b.staffId) : String(staffId || "");
       // `alsoFree`: a time held for this very booking (an earlier time it is taking) doesn't count against it, and goes.
-      const who = whoIsFree({ service, settings, busy: busyFrom(nearby, nowMs, alsoFree ? [id, alsoFree] : id), start, zone: zone(), nowMs, staffId: wanted });
+      const who = whoIsFree({ service: checked, settings, busy: busyFrom(nearby, nowMs, alsoFree ? [id, alsoFree] : id), start, zone: zone(), nowMs, staffId: wanted });
       if (check && who === null) return false;
       const assigned = staffParts(settings, who ?? wanted, service.roomId);
       all.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         delete items[id];
         if (alsoFree) delete items[alsoFree];
-        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId, ...assigned.item };
+        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId, ...assigned.item, ...gapPart(checked, start) };
         tx.set(dayRef(d), { items });
       });
       // A booking that had a person and now has none (the team was cleared) loses the old name.
@@ -2123,7 +2138,7 @@ function bookingActions({
         const key = randomKey();
         const at = new Date(nowMs).toISOString();
         const record = {
-          serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
+          serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, ...processingRecord(service), location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
@@ -2736,7 +2751,7 @@ function bookingActions({
         const key = randomKey();
         const at = now().toISOString();
         const record = {
-          serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, location: service.location,
+          serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, ...processingRecord(service), location: service.location,
           // The owner booking someone in may fill in the service's questions or leave them.
           customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: cleanAnswers(service.questions, req.body?.answers, false).answers,
           // Booked in by the owner: nothing is taken by card, so a priced service is all paid at the visit.

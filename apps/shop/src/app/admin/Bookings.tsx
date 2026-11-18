@@ -3,7 +3,7 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, CalendarOff, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
+import { BellRing, CalendarOff, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Checkbox, DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
@@ -11,8 +11,8 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -328,6 +328,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
                         style={{ top: at(blk.top), height: at(blk.height), left: `calc(${(blk.lane / blk.lanes) * 100}% + 3px)`, width: `calc(${100 / blk.lanes}% - 6px)` }}
                         aria-label={`${timeText(blk.start, ZONE)}, ${isClass ? `${blk.serviceName}, ${classCount(taken, blk.places)}` : `${first.customer.name}, ${blk.serviceName}${first.staffName ? ` with ${first.staffName}` : ""}`}`}
                         onClick={dragging.clicked(() => (isClass ? setClassOpen({ day: d, key: blk.key }) : onOpen(first)))}>
+                        {!isClass && <ProcessingBand booking={first} heightMin={blk.height} />}
                         <span className="bkg-slot-time">{timeText(blk.start, ZONE)}</span>
                         <span className="bkg-slot-who">{isClass ? blk.serviceName : first.customer.name}</span>
                         <span className="bkg-slot-what">{isClass ? classCount(taken, blk.places) : `${blk.serviceName}${first.staffName ? ` · ${first.staffName}` : ""}`}</span>
@@ -452,6 +453,12 @@ function BlockDialog({ settings, start, staffId = "", onClose, onSaved }: {
       </div>
     </Dialog>
   );
+}
+
+/** The processing stretch inside a booking's card: light stripes, so the free time inside it shows at a glance. */
+function ProcessingBand({ booking, heightMin }: { booking: Booking; heightMin: number }) {
+  const band = processingBand(booking, heightMin);
+  return band ? <i className="bkg-processing" aria-hidden style={band}><span>Processing</span></i> : null;
 }
 
 /** A block clicked on the calendar: what, who, when, and Remove. */
@@ -696,6 +703,7 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBlock, onBo
                       style={{ top: at(blk.top), height: at(blk.height), left: `calc(${(blk.lane / blk.lanes) * 100}% + 3px)`, width: `calc(${100 / blk.lanes}% - 6px)` }}
                       aria-label={`${timeText(blk.start, ZONE)}, ${many ? `${blk.serviceName}, ${blk.people.length} people` : `${first.customer.name}, ${blk.serviceName}`}`}
                       onClick={dragging.clicked(() => onOpen(first))}>
+                      {!many && <ProcessingBand booking={first} heightMin={blk.height} />}
                       <span className="bkg-slot-time">{timeText(blk.start, ZONE)}</span>
                       <span className="bkg-slot-who">{many ? `${blk.serviceName} · ${blk.people.length}` : first.customer.name}</span>
                       {!many && <span className="bkg-slot-what">{blk.serviceName}{first.roomName ? ` · ${first.roomName}` : ""}</span>}
@@ -1239,6 +1247,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
             {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : "Cancelled"}
           </StatusBadge>
         </div>
+        {!!processingText(b) && <p className="bkg-detail-line"><Hourglass size={16} aria-hidden /> {processingText(b)}: you're free for a short booking then</p>}
         {!!b.extras?.length && <p className="bkg-detail-line"><Plus size={16} aria-hidden /> Add-ons: {b.extras.map((x) => x.name).join(", ")}</p>}
         {b.earlierWanted && b.status === "confirmed" && <p className="bkg-detail-line"><Clock size={16} aria-hidden /> Wants an earlier time if one opens. They're emailed when someone cancels.</p>}
         {b.series && <p className="bkg-detail-line"><CalendarPlus size={16} aria-hidden /> Standing appointment: visit {b.series.visit} of {b.series.visits}, {b.series.everyWeeks === 1 ? "every week" : `every ${b.series.everyWeeks} weeks`}</p>}
@@ -1971,7 +1980,7 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
               <h3>{s.name}</h3>
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
-            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
+            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
             <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
@@ -2017,6 +2026,49 @@ function depositHint(price: string, deposit: string, unit: "amount" | "percent")
   const now = depositOf({ payment: "deposit", priceMinor, depositMinor: unit === "amount" ? Math.round(Number(deposit || 0) * 100) : 0, depositPercent: unit === "percent" ? Math.round(Number(deposit || 0)) : 0 });
   if (!now || now >= priceMinor) return "Less than the price.";
   return `${moneyText(now, SHOP_CURRENCY)} when they book, ${moneyText(priceMinor - now, SHOP_CURRENCY)} at the visit.`;
+}
+
+/** Choices for when processing starts and how long it lasts, in minutes. */
+const PROCESS_STARTS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 150, 180];
+const PROCESS_LENGTHS = [10, 15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240];
+
+/**
+ * Processing time (bookings plan 4, step 1.5): a stretch inside the service when the owner is free for someone else
+ * (colour setting, a glaze drying). Off by default; turning it on picks a stretch that fits.
+ */
+function ProcessingFields({ minutes, after, length, onChange }: { minutes: number; after: number; length: number; onChange: (after: number, length: number) => void }) {
+  const on = length > 0;
+  const fits = after + length < minutes;
+  const turnOn = (v: boolean) => {
+    if (!v) return onChange(0, 0);
+    // A third of the way in, for about a third of the time, never past the end.
+    const start = PROCESS_STARTS.filter((m) => m < minutes - 15).reduce((best, m) => (Math.abs(m - minutes / 3) < Math.abs(best - minutes / 3) ? m : best), 5);
+    const room = minutes - start - 5;
+    const long = PROCESS_LENGTHS.filter((m) => m <= room).reduce((best, m) => (Math.abs(m - minutes / 3) < Math.abs(best - minutes / 3) ? m : best), 10);
+    onChange(start, Math.min(long, Math.max(10, room)));
+  };
+  const withOwn = (list: number[], v: number) => (v && !list.includes(v) ? [...list, v].sort((x, y) => x - y) : list);
+  return (
+    <fieldset className="bkg-questions">
+      <legend>Processing time <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+      <Toggle label="You're free for part of it" checked={on} onChange={turnOn} />
+      <p className="bkg-questions-hint">{on
+        ? fits
+          ? `From ${after} to ${after + length} minutes in, another short booking can go in your calendar. The room stays in use.`
+          : "Processing has to end before the service does. Make it shorter or start it earlier."
+        : "Like colour setting or a glaze drying: while it runs, clients can book a short service with you."}</p>
+      {on && (
+        <div className="bkg-two">
+          <SelectField label="Starts after" value={String(after)} onChange={(e) => onChange(Number(e.target.value), length)}>
+            {withOwn(PROCESS_STARTS, after).filter((m) => m < minutes || m === after).map((m) => <option key={m} value={m}>{m} minutes</option>)}
+          </SelectField>
+          <SelectField label="Lasts" value={String(length)} onChange={(e) => onChange(after, Number(e.target.value))}>
+            {withOwn(PROCESS_LENGTHS, length).filter((m) => m < minutes || m === length).map((m) => <option key={m} value={m}>{m} minutes</option>)}
+          </SelectField>
+        </div>
+      )}
+    </fieldset>
+  );
 }
 
 export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingService; rooms: BookingRoom[]; onClose: () => void; onSaved: () => void }) {
@@ -2069,6 +2121,9 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
         meet: !!rest.meet && rest.places <= 1,
         repeats: !!rest.repeats && rest.places <= 1 && !(rest.courseDates || []).length,
+        // Processing time is one person's: a class or course never sends it.
+        ...(rest.places <= 1 && !(rest.courseDates || []).length && (rest.processMinutes || 0) > 0
+          ? { processAfter: rest.processAfter || 0, processMinutes: rest.processMinutes || 0 } : { processAfter: 0, processMinutes: 0 }),
         chargeTax: priceMinor > 0 && !!rest.chargeTax,
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
@@ -2097,6 +2152,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
             {[0, 5, 10, 15, 30, 45, 60].map((m) => <option key={m} value={m}>{m ? `${m} minutes` : "None"}</option>)}
           </SelectField>
         </div>
+        {!group && !course && <ProcessingFields minutes={form.minutes} after={form.processAfter || 0} length={form.processMinutes || 0}
+          onChange={(after, length) => setForm((f) => ({ ...f, processAfter: after, processMinutes: length }))} />}
         <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
         {Number(form.price) > 0 && (
           <fieldset className="bkg-questions">

@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, blockOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
+import { addDays, blockOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
 
@@ -630,3 +630,23 @@ export function draggedTo(b: { start: string; minutes: number }, toDay: string, 
 /** A booking the owner may drag: one person's confirmed visit (not a class or a course) that hasn't ended. */
 export const draggable = (b: Pick<Booking, "status" | "end"> & { course?: unknown }, places: number, nowMs: number): boolean =>
   b.status === "confirmed" && !b.course && places <= 1 && Date.parse(b.end) > nowMs;
+
+// ── Processing time (bookings plan 4, step 1.5) ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Where a booking's processing time sits inside its card on the calendar, as shares of the card's height (`heightMin`
+ * minutes tall), or null when it has none.
+ */
+export function processingBand(b: Pick<Booking, "minutes" | "processAfter" | "processMinutes">, heightMin: number): { top: string; height: string } | null {
+  const gap = processingStretch(b, 0);
+  if (!gap || heightMin <= 0) return null;
+  const from = gap.start / 60_000;
+  const to = Math.min(heightMin, gap.end / 60_000);
+  if (to <= from) return null;
+  return { top: `${(from / heightMin) * 100}%`, height: `${((to - from) / heightMin) * 100}%` };
+}
+
+/** "Processing 30 min, from 45 min in" for the booking drawer and the service list, or "". */
+export function processingText(s: { minutes: number; processAfter?: number; processMinutes?: number }): string {
+  return processingStretch(s, 0) ? `Processing ${s.processMinutes} min, from ${s.processAfter} min in` : "";
+}

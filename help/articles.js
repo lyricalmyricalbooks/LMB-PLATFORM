@@ -63,6 +63,17 @@ export const ARTICLES = Object.freeze([
     ],
   },
   {
+    id: "booking-calendar",
+    topic: "Selling",
+    question: "How do I use the bookings calendar?",
+    answer: [
+      "Your calendar shows the week as hours. Click an empty time to book someone in, or drag a booking to move it. Pull its bottom edge to make it longer.",
+      "Press Block time to keep clients out of a lunch, a break or a day away, once or every week. You can still book over blocked time yourself.",
+      "A taken time can be booked over after a warning, when you know you can see both clients.",
+      "For a service with a wait in the middle, like colour setting, turn on Processing time. Clients can then book a short service with you during that wait.",
+    ],
+  },
+  {
     id: "booking-reminders",
     topic: "Selling",
     question: "How do booking reminders work, and what do texts cost?",
