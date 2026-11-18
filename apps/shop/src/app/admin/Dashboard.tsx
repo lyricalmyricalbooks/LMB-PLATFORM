@@ -63,6 +63,8 @@ import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { keepAdminOffline } from "./adminOffline";
 import { AdminTour, type TourPhase } from "./walkthrough/AdminTour";
+import { PageHelpPanel, PageTour } from "./pageHelp/PageHelpPanel";
+import { pageHelpFor, pageHelpKey } from "./pageHelp/pageHelp";
 import { useSetupShowing } from "./overview/firstStep";
 import { markTourSeen, tourFor, tourSeen } from "./walkthrough/tourSteps";
 import { markTourSeenOnAccount, tourSeenOnAccount } from "./walkthrough/tourStore";
@@ -446,6 +448,9 @@ export function Dashboard() {
   // The admin walkthrough (walkthrough/AdminTour.tsx): its welcome opens by itself the first time an owner opens the
   // admin (not seen on this device or on the shop's account), and Help or the account menu bring it back any time.
   const [tourPhase, setTourPhase] = useState<TourPhase | null>(null);
+  // The "?" by the page title: its panel, or its tour of the page from one part (pageHelp/PageHelpPanel.tsx).
+  const [pageHelp, setPageHelp] = useState<{ mode: "panel" } | { mode: "tour"; start: number } | null>(null);
+  useEffect(() => { setPageHelp(null); }, [activeTab, settingsTab, subTab]);
   const endTour = () => { markTourSeen(); void markTourSeenOnAccount(); };
   // Change 3 (simpler admin): on Home the welcome waits until Get started and the setup guide are done.
   const setupShowing = useSetupShowing();
@@ -782,7 +787,10 @@ export function Dashboard() {
   const ownCopy = stockroomCopy || (COMBINED ? COMBINED_PAGES.find((p) => p.id === activeTab) : undefined);
   const pageCopy = ownCopy ? { title: ownCopy.label, description: ownCopy.description } : PAGE_COPY[activeTab] || PAGE_COPY.overview;
   const copy = { ...pageCopy, title: w(pageCopy.title), description: w(pageCopy.description) };
+  const helpForPage = pageHelpFor(pageHelpKey({ activeTab, settingsPage: settingsPageOf(settingsTab), stockroomPage: stockroomPageId }),
+    { books: hasPublisherTools(sellsAnswer), w });
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
+  const helpTitle = isSettingsPage && childLabel ? w(childLabel) : copy.title;
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
   if (selectedOrder && activeTab !== "orders") {
     trail.push({ label: "Orders", onClick: () => setSelectedOrder(null) }, { label: "Order detail" });
@@ -1088,7 +1096,7 @@ export function Dashboard() {
           title={headOverride ? headOverride.title : selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
           description={headOverride ? headOverride.description : selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
-          onHelp={activeTab !== "help" && !headOverride && !selectedOrder ? () => { void goTo("help"); } : undefined}
+          onHelp={activeTab !== "help" && !headOverride && !selectedOrder ? () => { if (helpForPage) setPageHelp({ mode: "panel" }); else void goTo("help"); } : undefined}
         />}
         {/* Settings lists its pages in a column on the left, under headings (redesign); other items show pills above. */}
         <div className="rp-page-body" data-layout={settingsColumn ? "column" : undefined} data-sub={headOverride ? "" : undefined}>
@@ -1130,6 +1138,13 @@ export function Dashboard() {
 
       <AdminTour phase={tourPhase} setPhase={setTourPhase} steps={tourSteps} combined={COMBINED} shopName={shopNameFromSettings(settings)}
         appearance={appearance} onGo={(page) => openMenuPage(page)} onClose={endTour} onOpenHelp={() => { void goTo("help"); }} />
+
+      {helpForPage && <PageHelpPanel open={pageHelp?.mode === "panel"} onClose={() => setPageHelp(null)} title={helpTitle} help={helpForPage} appearance={appearance}
+        onTour={(start) => setPageHelp({ mode: "tour", start })}
+        onMoreHelp={() => { setPageHelp(null); void goTo("help"); }}
+        onAdminTour={() => { setPageHelp(null); startTour(null); }} />}
+      {helpForPage && pageHelp?.mode === "tour" && <PageTour key={pageHelp.start} title={helpTitle} help={helpForPage} start={pageHelp.start}
+        appearance={appearance} onClose={() => setPageHelp(null)} onList={() => setPageHelp({ mode: "panel" })} />}
 
       {confirmNode}
       <LaunchChecklist appearance={appearance} open={launchOpen} blockers={openBlockersList || []} busy={ucSaving} onClose={() => setLaunchOpen(false)}
