@@ -174,14 +174,19 @@ export function Breadcrumbs({ trail }: { trail: Array<{ label: string; onClick?:
   );
 }
 
-export function PageHeader({ title, description, breadcrumbs, actions }: {
+export function PageHeader({ title, description, breadcrumbs, actions, onHelp }: {
   title: string; description?: string; breadcrumbs?: ReactNode; actions?: ReactNode;
+  /** Simpler admin, change 9: a small "?" by the title opens Help with this page's answers first. */
+  onHelp?: () => void;
 }) {
   return (
     <div className="rp-page-header">
       <div>
         {breadcrumbs}
-        <h1 className="rp-page-title">{title}</h1>
+        <div className="rp-page-titlerow">
+          <h1 className="rp-page-title">{title}</h1>
+          {onHelp && <button type="button" className="rp-page-help" onClick={onHelp} aria-label={`Help with ${title}`} title="Help with this page">?</button>}
+        </div>
         {description && <p className="rp-page-desc">{description}</p>}
       </div>
       {actions && <div className="rp-page-actions">{actions}</div>}

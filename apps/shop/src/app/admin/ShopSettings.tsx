@@ -258,7 +258,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           <FormSection title="How the shop runs" description="Sets the words in your admin and emails.">
             <WhatYouSellCard bare />
           </FormSection>
-          <WaysToSellCard />
+          <SettingsAnchor id="gs-ways"><WaysToSellCard /></SettingsAnchor>
           <SettingsAnchor id="gs-policies">
             <FormSection title="Store policies" description="Footer links. Blank ones hide.">
               {POLICY_KEYS.map((k) => {

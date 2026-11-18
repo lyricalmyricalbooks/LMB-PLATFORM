@@ -1,4 +1,6 @@
 import "../../styles/adminCompat.css";
+import { jumpWhenShown } from "./settingsLayout";
+import { NEW_DISCOUNT_KEY, type SearchJob } from "./searchActions";
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { isShopOwner, markOwnerDeviceOnSignIn } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
@@ -69,7 +71,7 @@ import { NATIVE_PAGES } from "./stockroom/nativePages";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 import { setProductSells } from "../lib/productHref";
 import { useBookingsOn } from "./bookingsApi";
-import { useWaysOn } from "./waysApi";
+import { useWaysAllowed, useWaysOn } from "./waysApi";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -321,6 +323,8 @@ export function Dashboard() {
   // Bookkeeping › Artist payouts is a book shop's (or a mixed one's); other shops never see the tab.
   // Ways to sell (beta): a page shows once the platform turned its way on and the owner switched it on in Settings.
   const waysOn = useWaysOn(!!user);
+  // The search's "turn on events" job is offered only when some way to sell can be switched on here.
+  const waysOffered = useWaysAllowed().length > 0;
   const eventsOn = waysOn.includes("events");
   const classesOn = waysOn.includes("classes");
   const givingOn = waysOn.includes("giving");
@@ -813,6 +817,14 @@ export function Dashboard() {
   ));
   const userName = user.displayName || user.email;
 
+  // Search that does things (simpler admin, change 10).
+  const runSearchJob = (job: SearchJob, order?: any) => {
+    if (job.kind === "newProduct") handleAddBook();
+    else if (job.kind === "newDiscount") { try { sessionStorage.setItem(NEW_DISCOUNT_KEY, "1"); } catch { /* opens the list instead */ } void goTo("discounts"); }
+    else if (job.kind === "order" && order) { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id: order.id }); }
+    else if (job.kind === "waysToSell") { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); jumpWhenShown("gs-ways"); }
+  };
+
   const destinations = [
     ...nav.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
     ...(COMBINED ? COMBINED_PAGES.map((p) => ({ id: p.id, label: p.label, run: () => { void goTo(p.id); } })) : []),
@@ -1011,7 +1023,7 @@ export function Dashboard() {
             {/* Phones: the wordmark sits in the top bar (the rail is a drawer there). */}
             {COMBINED && fairMode && <span className="rp-fair-pill">Fair mode · offline-ready</span>}
             <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>{shopNameFromSettings(settings)}</a>
-            <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
+            <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} onJob={runSearchJob} waysOffered={waysOffered} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
               appBooks={appSearch.books} appConnected={appSearch.connected} request={searchRequest}
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
@@ -1076,6 +1088,7 @@ export function Dashboard() {
           title={headOverride ? headOverride.title : selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
           description={headOverride ? headOverride.description : selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
+          onHelp={activeTab !== "help" && !headOverride && !selectedOrder ? () => { void goTo("help"); } : undefined}
         />}
         {/* Settings lists its pages in a column on the left, under headings (redesign); other items show pills above. */}
         <div className="rp-page-body" data-layout={settingsColumn ? "column" : undefined} data-sub={headOverride ? "" : undefined}>
