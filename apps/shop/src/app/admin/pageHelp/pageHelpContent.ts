@@ -145,10 +145,10 @@ export const PAGE_HELP: Record<string, PageHelpEntry> = {
   bookings: {
     intro: "Times customers book with you: your week, the services you offer, your hours and your team.",
     parts: [
-      { title: "Calendar", text: "Your week. Click a booking to move it, cancel it or mark it paid.", at: ["Calendar"] },
+      { title: "Calendar", text: "Your week, hour by hour. Click a booking to move, cancel or mark it paid, or an empty time to book it.", at: ["Calendar"] },
       { title: "Services", text: "What people can book, how long it takes and what it costs.", at: ["Services"] },
       { title: "Hours & rules", text: "When you're open, how far ahead people can book, and reminders.", at: ["Hours & rules"] },
-      { title: "Week or list", text: "See the week as a calendar or as a list you can search.", at: ["Week", "List"] },
+      { title: "Week or list", text: "See the week as a calendar or as a list you can search. Each person on your team has their own colour.", at: ["Week", "List"] },
       { title: "New booking", text: "Add a booking someone made by phone or in person.", at: ["New booking"] },
     ],
   },

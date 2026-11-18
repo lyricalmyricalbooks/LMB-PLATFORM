@@ -409,24 +409,89 @@ export function teamDay(rows: readonly Booking[], settings: Pick<BookingSettings
       const top = Math.max(0, minute(b.start) - startMin);
       groups.set(key, { key, start: b.start, end: b.end, serviceName: b.serviceName, people: [b], top, height: Math.max(15, minute(b.end) - startMin - top), lane: 0, lanes: 1 });
     }
-    const blocks = [...groups.values()].sort((x, y) => x.top - y.top);
-    // Side by side when they overlap: each card takes the first lane free at its start; a cluster shares one width.
-    let cluster: TeamBlock[] = [];
-    let clusterEnd = -1;
-    const close = () => { const lanes = Math.max(1, ...cluster.map((x) => x.lane + 1)); for (const x of cluster) x.lanes = lanes; cluster = []; };
-    for (const blk of blocks) {
-      if (blk.top >= clusterEnd) { close(); clusterEnd = -1; }
-      const busy = new Set(cluster.filter((x) => x.top + x.height > blk.top).map((x) => x.lane));
-      let lane = 0;
-      while (busy.has(lane)) lane += 1;
-      blk.lane = lane;
-      cluster.push(blk);
-      clusterEnd = Math.max(clusterEnd, blk.top + blk.height);
-    }
-    close();
+    const blocks = sideBySide([...groups.values()]);
     c.blocks = blocks;
   }
   return { startMin, endMin, columns, count: list.length };
+}
+
+/** Cards that overlap sit side by side: each takes the first lane free at its start; a cluster shares one width. Sorted by top. */
+function sideBySide<T extends { top: number; height: number; lane: number; lanes: number }>(cards: T[]): T[] {
+  const blocks = [...cards].sort((x, y) => x.top - y.top);
+  let cluster: T[] = [];
+  let clusterEnd = -1;
+  const close = () => { const lanes = Math.max(1, ...cluster.map((x) => x.lane + 1)); for (const x of cluster) x.lanes = lanes; cluster = []; };
+  for (const blk of blocks) {
+    if (blk.top >= clusterEnd) { close(); clusterEnd = -1; }
+    const busy = new Set(cluster.filter((x) => x.top + x.height > blk.top).map((x) => x.lane));
+    let lane = 0;
+    while (busy.has(lane)) lane += 1;
+    blk.lane = lane;
+    cluster.push(blk);
+    clusterEnd = Math.max(clusterEnd, blk.top + blk.height);
+  }
+  close();
+  return blocks;
+}
+
+// ── The week as an hour grid (bookings plan 4, step 1.1) ────────────────────────────────────────────────────────────
+
+/** Four inks a card can wear; a person keeps theirs (team order), else the service does (services order). */
+export const INKS = 4;
+/** One card on the week grid: a visit, or everyone in one start of a class. `top`/`height` are minutes from the grid's start. */
+export type WeekBlock = TeamBlock & { serviceId: string; places: number; ink: number };
+export type WeekColumn = { day: string; closed: boolean; hours: HoursWindow[]; blocks: WeekBlock[] };
+export type WeekGrid = { startMin: number; endMin: number; days: WeekColumn[] };
+
+/**
+ * The week on show as an hour grid: seven day columns, each booking placed by its time and length, overlapping ones side
+ * by side, the people in one start of a class on one card. The grid runs from the week's earliest opening to its latest
+ * close (the shop's or a person's), stretched to fit every booking, in whole hours; 9 to 5 when nothing is set.
+ */
+export function weekGrid(rows: readonly Booking[], settings: Pick<BookingSettings, "staff" | "hours" | "daysOff">, services: readonly { id: string; places?: number }[], monday: string, zone: string): WeekGrid {
+  const groups = byDay(rows, zone);
+  const staffInk = new Map((settings.staff || []).map((p, i) => [p.id, i % INKS]));
+  const serviceInk = new Map(services.map((sv, i) => [sv.id, i % INKS]));
+  const placesOf = (id: string) => services.find((sv) => sv.id === id)?.places || 1;
+  let lo = Infinity;
+  let hi = -Infinity;
+  const days = weekDays(monday).map((day) => {
+    const wd = weekdayOf(day);
+    const shut = settings.daysOff.includes(day);
+    const hours = shut ? [] : settings.hours[wd] || [];
+    for (const w of hours) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
+    if (!shut) for (const p of settings.staff || []) if (p.active && p.ownHours && !p.daysOff.includes(day)) for (const w of p.hours[wd] || []) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
+    const dayStart = zonedTime(day, "00:00", zone);
+    const list = groups.get(day) || [];
+    for (const b of list) { lo = Math.min(lo, (Date.parse(b.start) - dayStart) / 60_000); hi = Math.max(hi, (Date.parse(b.end) - dayStart) / 60_000); }
+    return { day, closed: hours.length === 0, hours, list, dayStart };
+  });
+  if (!Number.isFinite(lo)) { lo = 9 * 60; hi = 17 * 60; }
+  const startMin = Math.max(0, Math.floor(lo / 60) * 60);
+  const endMin = Math.min(24 * 60, Math.max(startMin + 60, Math.ceil(hi / 60) * 60));
+  return {
+    startMin, endMin,
+    days: days.map(({ day, closed, hours, list, dayStart }) => {
+      const minute = (iso: string) => Math.round((Date.parse(iso) - dayStart) / 60_000);
+      const cards = new Map<string, WeekBlock>();
+      for (const b of list) {
+        const places = placesOf(b.serviceId);
+        const key = places > 1 ? `${b.serviceId}|${b.start}` : b.id;
+        const found = cards.get(key);
+        if (found) { found.people.push(b); continue; }
+        const top = Math.max(0, minute(b.start) - startMin);
+        const ink = b.staffId && staffInk.has(b.staffId) ? staffInk.get(b.staffId)! : serviceInk.get(b.serviceId) ?? 0;
+        cards.set(key, { key, start: b.start, end: b.end, serviceId: b.serviceId, serviceName: b.serviceName, places, people: [b], top, height: Math.max(15, minute(b.end) - startMin - top), lane: 0, lanes: 1, ink });
+      }
+      return { day, closed, hours, blocks: sideBySide([...cards.values()]) };
+    }),
+  };
+}
+
+/** The start a tap on an empty part of a day column asks for: the minute rounded down to a quarter hour, as a time. */
+export function tappedTime(day: string, minuteOfDay: number, zone: string): string {
+  const m = Math.max(0, Math.min(24 * 60 - 15, Math.floor(minuteOfDay / 15) * 15));
+  return new Date(zonedTime(day, `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`, zone)).toISOString();
 }
 
 /** "9 AM", "12 PM", "1:30 PM" for a minute of the day on the grid's edge. */
