@@ -10,7 +10,7 @@ import { useShopWords } from "./shopWords";
 import { groupNameProblem, matchingGroup, removeGroup, saveGroup, type CustomerGroup, type GroupFilters } from "./customerGroups";
 import { customerGroupsStore } from "./customerGroupsStore";
 import {
-  buildCustomers, withMovedCustomers, withBookings, bookingsLine, clientCard, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
+  agoWords, buildCustomers, withMovedCustomers, withBookings, bookingsLine, clientCard, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
   type Consent, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
@@ -260,7 +260,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     { key: "orders", header: "Orders", numeric: true, render: (c) => c.orderCount },
     { key: "spent", header: "Net spent", numeric: true, render: (c) => money(c.totalSpent) },
     { key: "aov", header: "Avg order", numeric: true, render: (c) => money(c.avgOrder) },
-    { key: "last", header: "Last order", render: (c) => !c.lastOrderAt ? "—" : <span style={{ whiteSpace: "nowrap" }}>{`${new Date(c.lastOrderAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} (${c.daysSinceLast}d ago)`}</span> },
+    { key: "last", header: "Last order", render: (c) => !c.lastOrderAt ? "—" : <span style={{ whiteSpace: "nowrap" }}>{`${new Date(c.lastOrderAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} (${agoWords(c.daysSinceLast)})`}</span> },
   ];
 
   if (loading) return <LoadingState label="Loading customers…" />;
@@ -414,7 +414,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
           {(!services || c.orderCount > 0 || !hasCard) && <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 16px", margin: 0 }}>
             {row("Location", [c.city, c.country].filter(Boolean).join(", ") || "—")}
             {row("Avg order", c.orderCount ? money(c.avgOrder) : "—")}
-            {row("Last order", c.lastOrderAt ? `${shortDate(c.lastOrderAt)} (${c.daysSinceLast}d ago)` : "—")}
+            {row("Last order", c.lastOrderAt ? `${shortDate(c.lastOrderAt)} (${agoWords(c.daysSinceLast)})` : "—")}
             {(showBookings || booked.length > 0) && !hasCard && row("Bookings", bookedLine || "None yet")}
           </dl>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

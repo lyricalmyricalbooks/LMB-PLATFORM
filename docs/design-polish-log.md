@@ -22,3 +22,28 @@ control room (Shops, Sign-ups, Support), help, status, join, waitlist, trust, te
 - Control room Shops table: the Plan and Health columns wrap into tall rows on a laptop (control room views thread is
   active there).
 - Sign-up page: very long on a phone (two long lists of choices); left alone while services sign-up work is in flight.
+
+## 18 November 2026
+
+**Screens reviewed** (shop admin fixture, desktop 1440 and phone 390): Customers, Discounts, Gift cards, Reviews,
+Messages, Settings › Shipping, Taxes and Team, Stockroom › Invoices, Bookkeeping › Expenses and Overview, Tax centre,
+Stockists, and the phone search box.
+
+**Fixed** (one PR, shared admin look plus three small screen fixes)
+- Phone top bar: the shop name was cut to "Yo…" on every admin page (the hidden search box kept its desktop width).
+- Phone cards made of a title and a body (Bookkeeping, Tax centre, Customers…) had a double margin, and the fold arrow
+  dropped to a row of its own; they now use the full card, with the arrow beside the title.
+- Plain buttons inside white cards ("Try again" and others) had no fill or edge and read as text; they are now the
+  cream pill Settings already used.
+- Phone search: "Ctrl K" no longer sits on top of the close button.
+- Customers: "Nov 18 (0d ago)" now says "today", "yesterday" or "N days ago".
+- Gift cards: a disabled card shows its status as a tag, like Discounts.
+
+**Noticed, left for later**
+- Bookkeeping › Expenses: "Costs that may be missing" writes money without a currency sign ("You have 2167.00 of
+  website sales"); the stockroom's wording code doesn't know the shop's currency yet.
+- Customers: the table card's title "Customers" repeats the page title.
+- Settings › Shipping: the Profiles tab says 1 while the Profiles tile says 0, and "Go to Profiles" and "Manage
+  profiles" do the same thing in one card.
+- Reviews: the Hidden tile has no line under its number, so the three tiles sit unevenly.
+- Row actions such as "Remind me later" and "Mark paid" are plain text; the v4 mockup draws them as chip-buttons.

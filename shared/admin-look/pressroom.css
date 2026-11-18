@@ -1267,14 +1267,14 @@ div.rp-listcard-main { cursor: default; }
     background: var(--rp-surface); border-bottom: var(--rp-stroke) solid var(--rp-border-strong);
   }
   .rp-topbar-search[data-open] .rp-search-close { display: inline-grid; }
-  .rp-search-kbd { display: none; }
+  .rp .rp-search-kbd { display: none; } /* ".rp kbd" would show it over the close button otherwise */
   .rp-search-box .rp-search .rp-input { padding-right: 12px; }
   .rp-topbar-search .rp-search-results { left: 8px; right: 8px; top: calc(100% + 4px); }
   .rp-status-btn { padding: 0 10px; gap: 6px; }
   .rp-status-btn svg { display: none; }
   .rp-status-menu { right: auto; left: 50%; transform: translateX(-50%); position: fixed; top: calc(var(--rp-topbar-h) + 6px); }
 }
-@media (pointer: coarse) { .rp-status-btn { min-height: var(--rp-touch); } .rp-search-kbd { display: none; } }
+@media (pointer: coarse) { .rp-status-btn { min-height: var(--rp-touch); } .rp .rp-search-kbd { display: none; } }
 /* Alerts above every page: urgent first, glyph + word, close button; past two they fold. */
 .rp-alerts { display: grid; gap: 8px; margin-bottom: var(--rp-space-5); }
 .rp-alert {
@@ -1974,6 +1974,12 @@ div.rp-listcard-main { cursor: default; }
 @media (max-width: 767px) {
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-page-title, .rp-wb-h1) { font-size: 28px; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card { padding: 20px; }
+  /* A card made of a head and a body already pads both, so the card's own 20px doubled it (40px in from the edge,
+     and the fold arrow fell to a row of its own on Bookkeeping, Tax centre and Customers). Settings has its own rules. */
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card:not(.rp-settings .rp-card):has(> .rp-card-head):has(> .rp-card-body) { padding: 0; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card:not(.rp-settings .rp-card) > .rp-card-head:has(> .rp-card-fold) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px 12px; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card:not(.rp-settings .rp-card) > .rp-card-head:has(> .rp-card-fold) > .rp-card-fold { grid-column: 2; grid-row: 1; }
+  :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-card:not(.rp-settings .rp-card) > .rp-card-head:has(> .rp-card-fold) > :not(.rp-card-heading, .rp-card-fold) { grid-column: 1 / -1; }
   :root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-kpi-grid, .rp-ov-figures) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 }
 /* Top bar trial pill (Colophon handoff): "Free trial · N days left", opens Billing. */
@@ -2157,6 +2163,9 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar-search { flex: 0 1 500px; max-width: 500px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar-search .rp-input { height: 40px; min-height: 40px; border: 0; border-radius: 999px; background: var(--rp-surface); padding-left: 18px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar-search .rp-search-icon { display: none; }
+/* Phones: the search is a magnifier until opened, so it must not hold the 500px basis above (it squeezed the shop name
+   to "Yo…" in the top bar). */
+@media (max-width: 767px) { :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-topbar-search { flex: none; max-width: none; } }
 @media (min-width: 768px) { :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-status-pill { height: 36px; padding: 0 14px; border-radius: 999px; background: var(--rp-surface); } }
 /* Tables (redesign "Table card"): every table not already inside a card is a white rounded card; stacked on phones,
    each row is its own rounded card. */
@@ -2562,6 +2571,11 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-btn-secondary { border: 0; background: var(--rp-input-bg); color: var(--rp-text); box-shadow: none; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
+/* The same filled pill on every other page's cards: on a white card the plain secondary button had no fill and no edge,
+   so "Try again", "Log expense" and the like read as stray text (daily polish, 18 November 2026). */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-btn-secondary { border: 0; background: var(--rp-input-bg); color: var(--rp-text); box-shadow: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings .rp-fk-control:has(> span > .rp-select + .rp-btn) { background: transparent; box-shadow: none; }
 /* A short word beside a menu label ("Beta"): small mono capitals in a thin outline, on the rail's own colours. */
 .rp-nav-tag { margin-left: 8px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 999px; font: 500 9px/1.2 var(--rp-font-mono); letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.72; }
