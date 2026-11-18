@@ -362,6 +362,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
   ],
   "Support page": [
     { title: "The page & amounts", match: /^support(Eyebrow|Title|Subtitle|Back$|Loading|LoadError|Retry|Closed|NotReady|AmountHeading|Other|PickAmount|TooSmall|TooBig)/ },
+    { title: "Monthly gifts", match: /^support(Often|Once|Monthly|GiveMonthly|PerMonth|Pledge)/ },
     { title: "Your details & giving", match: /^support(CoverFee|Honour|InHonour|InMemory|NeedHonourName|NoTax|YourDetails|Name|NeedName|Email|NeedEmail|Note|Anonymous$|GiftRow|FeeRow|Total|Give|Working|PayNote|Error)/ },
     { title: "Thank-you after giving", match: /^support(GiftNotFound|Confirming|NotPaid|TryAgain|Thanks|Refunded|PaidRow|AnonymousNote|BackToShop)/ },
     { title: "Fundraiser & supporters wall", match: /^support(Fund|Wall)/ },

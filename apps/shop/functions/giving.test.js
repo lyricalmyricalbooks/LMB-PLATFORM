@@ -56,6 +56,8 @@ function setup({ platform = true, owner = true, checkout = "card", admin = true,
   const closed = [];
   const refunds = [];
   const sessions = new Map();
+  const subs = new Map();
+  const ended = [];
   // Per bucket and key, like the real limiter: a counter per window that never resets inside a test.
   const counts = new Map();
   const card = checkout === null ? null : {
@@ -67,6 +69,11 @@ function setup({ platform = true, owner = true, checkout = "card", admin = true,
     },
     async read(id) { return sessions.get(id) || null; },
     async close(id) { closed.push(id); const s = sessions.get(id); if (s && s.payment_status !== "paid") s.status = "expired"; },
+    ...(checkout === "card" ? { subscriptions: {
+      async read(id) { return subs.get(id) ? { id, status: subs.get(id).status, periodEnd: "2026-12-18T13:00:00.000Z", endedAt: "" } : null; },
+      async invoices(id) { return (subs.get(id)?.invoices || []).slice().reverse(); },
+      async endNow(id) { subs.get(id).status = "canceled"; ended.push(id); return { id, status: "canceled" }; },
+    } } : {}),
   };
   let n = 0;
   const desk = givingActions({
@@ -114,7 +121,7 @@ function setup({ platform = true, owner = true, checkout = "card", admin = true,
   const pay = (i = 0) => { const s = sessions.get(`cs_test_${String(i).padStart(8, "0")}`); s.payment_status = "paid"; s.status = "complete"; s.payment_intent = `pi_${i}`; };
   const doc = async (c, id) => (await db.collection(c).doc(id).get()).data();
   const blockedToday = async () => doc("givingBlocked", clock.now.toISOString().slice(0, 10));
-  return { db, desk, clock, emails, opened, closed, refunds, sessions, seed, pub, adm, later, form, give, pay, doc, blockedToday };
+  return { db, desk, clock, emails, opened, closed, refunds, sessions, subs, ended, seed, pub, adm, later, form, give, pay, doc, blockedToday };
 }
 
 describe("on only while both switches are", () => {
@@ -537,5 +544,88 @@ describe("tax receipts (G3)", () => {
     // A cancelled receipt can't be corrected, and its number is never handed out again.
     expect((await t.adm({ op: "reissueReceipt", giftId: "gift0002", name: "Bo" , address: HOME })).statusCode).toBe(409);
     expect((await t.doc("givingReceipts", "2026")).next).toBe(4);
+  });
+});
+
+describe("monthly gifts (M3d)", () => {
+  const start = async (t, extra = {}) => t.give({ monthly: true, ...extra });
+  const subscribe = (t, i = 0) => {
+    const s = t.sessions.get(`cs_test_${String(i).padStart(8, "0")}`);
+    s.status = "complete"; s.subscription = "sub_1";
+    t.subs.set("sub_1", { status: "active", invoices: [] });
+  };
+  const paidMonth = (t, n) => t.subs.get("sub_1").invoices.push({ id: `in_${n}`, status: "paid", amountMinor: 2500, currency: "CAD", paidAt: `2026-1${n}-18T13:00:00Z`, paymentIntent: `pi_m${n}` });
+
+  test("opens a monthly card page with no tax, and the Support page offers it", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.pub({ action: "givingInfo" })).body.monthly).toBe(true);
+    const r = await start(t);
+    expect(r.statusCode).toBe(200);
+    expect(r.body.pledgeId).toBe("gift0001");
+    const { params } = t.opened[0];
+    expect(params.mode).toBe("subscription");
+    expect(params.line_items[0].price_data).toMatchObject({ unit_amount: 2500, recurring: { interval: "month" } });
+    expect(params.subscription_data.metadata).toEqual({ pledge: "gift0001" });
+    expect(params.success_url).toContain("/support?pledge=gift0001&key=");
+    expect(params.client_reference_id).toBeUndefined();
+  });
+
+  test("each paid month becomes one gift with a thank-you that links to the monthly gift", async () => {
+    const t = setup();
+    await t.seed();
+    await start(t);
+    const key = "1".padStart(48, "a");
+    subscribe(t);
+    paidMonth(t, 1);
+    const v = await t.pub({ action: "pledgeView", pledgeId: "gift0001", key });
+    expect(v.body.pledge).toMatchObject({ status: "active", months: 1, amountMinor: 2500 });
+    // Read again (the sweep, an event): nothing is counted twice.
+    await t.desk.sweep();
+    await t.desk.onEvent({ data: { object: { subscription_details: { metadata: { pledge: "gift0001" } } } } });
+    const paid = [...t.db.store.entries()].filter(([k, g]) => k.startsWith("gifts/") && g.status === "paid");
+    expect(paid).toHaveLength(1);
+    expect(paid[0][1]).toMatchObject({ pledgeId: "gift0001", monthly: true, amountMinor: 2500, paymentIntent: "pi_m1" });
+    const thanks = t.emails.filter((e) => e.to === GIVER.email);
+    expect(thanks).toHaveLength(1);
+    expect(thanks[0].html).toContain("/support?pledge=gift0001&#38;key=");
+    paidMonth(t, 2);
+    t.later(7 * 3600);
+    await t.desk.sweep();
+    expect((await t.doc("givingPledges", "gift0001")).months).toBe(2);
+  });
+
+  test("the giver ends it from their link; a wrong key finds nothing", async () => {
+    const t = setup();
+    await t.seed();
+    await start(t);
+    subscribe(t);
+    expect((await t.pub({ action: "pledgeEnd", pledgeId: "gift0001", key: "b".repeat(48) })).statusCode).toBe(404);
+    const r = await t.pub({ action: "pledgeEnd", pledgeId: "gift0001", key: "1".padStart(48, "a") });
+    expect(r.body.pledge.status).toBe("ended");
+    expect(t.ended).toEqual(["sub_1"]);
+  });
+
+  test("never to a fundraiser, and an unfinished page closes as cancelled", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("fundraisers").doc("fund01").set({ status: "live", title: "Roof", goalMinor: 100000, endsOn: "2026-12-31", rewards: [] });
+    expect((await start(t, { fundraiserId: "fund01" })).body.code).toBe("monthly_fundraiser");
+    await start(t);
+    t.later(40 * 60);
+    await t.desk.sweep();
+    expect((await t.doc("givingPledges", "gift0002")).status).toBe("cancelled");
+  });
+
+  test("the owner sees running monthly gifts and can end one", async () => {
+    const t = setup();
+    await t.seed();
+    await start(t);
+    subscribe(t);
+    await t.desk.sweep();
+    const list = await t.adm({ op: "list" });
+    expect(list.body.monthlyTotals).toEqual({ givers: 0, monthMinor: 0 });
+    expect(list.body.pledges).toHaveLength(1);
+    expect((await t.adm({ op: "endPledge", pledgeId: "gift0001" })).body.pledge.status).toBe("ended");
   });
 });

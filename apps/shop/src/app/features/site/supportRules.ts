@@ -15,6 +15,13 @@ export type GivingInfo = {
   today?: string;
   /** Tax receipts (registered charities, G3): which kind, or null when the shop gives none. */
   receipts?: { kind: "ca" | "us" } | null;
+  /** Monthly gifts (M3d): the shop's card provider can take them. */
+  monthly?: boolean;
+};
+/** What the giver's own page sees of a monthly gift. */
+export type PledgeView = {
+  id: string; status: "held" | "active" | "ended" | "cancelled"; amountMinor: number; feeMinor: number; chargedMinor: number; currency: string;
+  name: string; honour: { kind: "honour" | "memory"; name: string } | null; months: number; nextAt: string; startedAt: string; endedAt: string;
 };
 export type GiftView = {
   id: string; status: "held" | "paid" | "cancelled" | "refunded"; amountMinor: number; feeMinor: number; chargedMinor: number; currency: string;
@@ -46,6 +53,14 @@ export function chargeFor(minor: number, cover: boolean): { feeMinor: number; to
 }
 
 /** The giver's own page after the card page: `?gift=…&key=…`, or null. */
+/** `?pledge=…&key=…`: the giver's own monthly gift page. */
+export function pledgeFromSearch(search: string): { id: string; key: string } | null {
+  const q = new URLSearchParams(search);
+  const id = q.get("pledge") || "";
+  const key = q.get("key") || "";
+  return /^[A-Za-z0-9_-]{6,40}$/.test(id) && /^[a-f0-9]{48}$/.test(key) ? { id, key } : null;
+}
+
 export function giftFromSearch(search: string): { id: string; key: string } | null {
   const q = new URLSearchParams(search);
   const id = q.get("gift") || "";

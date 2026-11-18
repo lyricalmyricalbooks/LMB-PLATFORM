@@ -1088,3 +1088,7 @@ reaches the site snapshot (the rules read only published pages), so `PageView` a
 member gets the page as usual; anyone else sees its title and `MembersOnlyBox` (region `membersOnlyBox`, words Text &
 labels › Custom pages & 404 › `membersOnly*`, join button in the shop's accent). The link isn't added to menus
 automatically. Only the page's words are private: a per-page section stack lives in the public design.
+**Monthly gifts (M3d):** with `givingInfo.monthly` and no fundraiser, the amounts card has Once / Every month (region
+`supportOften`, `.fm-sup-often*`); monthly sends `monthly: true`. `?pledge=<id>&key=<key>` shows `Pledge` (region
+`supportPledge`): amount, months given, next payment, End with a confirm (`.fm-sup-confirm*`), polling while held. Words
+`supportOnce`, `supportMonthly*`, `supportPledge*` (Text & labels › Support page › Monthly gifts, French twins).

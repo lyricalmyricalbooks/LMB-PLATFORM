@@ -7,7 +7,7 @@ import { previewGivingAnswer } from "./supportPreview";
 
 export type GivingAnswer = Record<string, any> & { error?: string; code?: string };
 
-export async function askGiving(action: "givingInfo" | "giftStart" | "giftView", body: Record<string, unknown> = {}): Promise<GivingAnswer> {
+export async function askGiving(action: "givingInfo" | "giftStart" | "giftView" | "pledgeView" | "pledgeEnd", body: Record<string, unknown> = {}): Promise<GivingAnswer> {
   if (isBookingPreview()) return previewGivingAnswer(action, body, shopCurrency());
   const response = await functionFetch("validateDiscountCode", {
     method: "POST",

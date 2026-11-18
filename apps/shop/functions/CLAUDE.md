@@ -1781,3 +1781,12 @@ and clears `receiptAddress`.
 (`yearlyGiverGifts`, by `customer.email`) with the total. `bulk: true`, kind `giving-yearly-summary` (orders stream: the
 giver needs it). Unsubscribed givers are skipped. A failed send frees the claim and the next sweep carries on; February
 stops it. Both records are server-only (rules emulator checks them). Tests: `givingYearly.test.js`.
+
+**Monthly giving (Memberships M3d, Beta, 18 November 2026).** `giftStart` with `monthly: true` (refused for a fundraiser,
+409 `monthly_fundraiser`, or without provider subscriptions, `monthly_unavailable`) makes `givingPledges/{id}` (server only,
+`manageKey` hashed) and a `mode: "subscription"` page (`metadata.pledge`). `refreshPledge` turns a held pledge active and
+records each paid invoice once as a gift (fixed id `monthGiftId`, `pledgeId`, `monthly: true`), then `confirmPaid` (thank-you
+email with a manage link). It runs from `onEvent` (index.js calls it for `invoice.*` and `customer.subscription.*`) and the
+sweep (every `PLEDGE_CHECK_HOURS`, 40 a run; held pledges close as `cancelled` after the page time). Public `pledgeView` /
+`pledgeEnd` (key-checked, `/support?pledge=&key=`) work even with Giving off; admin `endPledge`; `list` adds `pledges` and
+`monthlyTotals`. Square has no subscriptions until M4, so the toggle stays hidden there (`givingInfo.monthly`).

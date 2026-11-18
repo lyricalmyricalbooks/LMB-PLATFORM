@@ -2,7 +2,7 @@
 // thank-you before anyone gives, and whether or not Donations & tips is switched on. Only a real Studio preview gets these
 // (bookTimePreview.ts `isBookingPreview`); no card page opens and nothing is saved.
 import { coverFeeMinor, DEFAULT_AMOUNTS, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../../shared/givingRules";
-import type { GiftView, GivingInfo } from "./supportRules";
+import type { GiftView, GivingInfo, PledgeView } from "./supportRules";
 import { dayAfter, type PublicFundraiser } from "../../../shared/fundraiserRules";
 import { cleanReceiptAddress, type Charity } from "../../../shared/charityReceipts";
 
@@ -12,6 +12,7 @@ export const SAMPLE_GIFT_ID = "sample-gift";
 export const SAMPLE_GIFT_KEY = "0".repeat(48);
 
 let sample: GiftView | null = null;
+let pledge: PledgeView | null = null;
 
 const today = () => new Date().toISOString().slice(0, 10);
 /** `fundraiser=sample` on the preview's address, or on Studio's own around it, shows a sample fundraiser, so its bar, story
@@ -47,10 +48,23 @@ export function previewGivingAnswer(action: string, body: Record<string, any> = 
   if (action === "givingInfo") {
     return {
       on: true, currency, minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: true, amounts: [...DEFAULT_AMOUNTS],
-      otherAmount: true, coverFee: true, honour: true, form: "preview",
+      otherAmount: true, coverFee: true, honour: true, form: "preview", monthly: true,
       ...(sampleFundraiserAsked() ? { today: today(), fundraiser: SAMPLE_FUNDRAISER(today()) } : {}),
       ...(sampleReceiptsAsked() ? { receipts: { kind: SAMPLE_CHARITY.kind } } : {}),
     } satisfies GivingInfo;
+  }
+  if (action === "giftStart" && body.monthly === true) {
+    const amount = Math.round(Number(body.amountMinor)) || 2500;
+    const fee = body.coverFee === true ? coverFeeMinor(amount) : 0;
+    pledge = { id: SAMPLE_GIFT_ID, status: "active", amountMinor: amount, feeMinor: fee, chargedMinor: amount + fee, currency, name: String(body.giver?.name || "Ada Reader"),
+      honour: null, months: 1, nextAt: new Date(Date.now() + 30 * 86_400_000).toISOString(), startedAt: new Date().toISOString(), endedAt: "" };
+    return { pledgeId: SAMPLE_GIFT_ID, key: SAMPLE_GIFT_KEY, preview: true };
+  }
+  if (action === "pledgeView" || action === "pledgeEnd") {
+    pledge ||= { id: SAMPLE_GIFT_ID, status: "active", amountMinor: 2500, feeMinor: 0, chargedMinor: 2500, currency, name: "Ada Reader", honour: null, months: 3,
+      nextAt: new Date(Date.now() + 12 * 86_400_000).toISOString(), startedAt: "", endedAt: "" };
+    if (action === "pledgeEnd") pledge = { ...pledge, status: "ended", nextAt: "", endedAt: new Date().toISOString() };
+    return { pledge };
   }
   if (action === "giftStart") {
     const amount = Math.round(Number(body.amountMinor)) || 2500;

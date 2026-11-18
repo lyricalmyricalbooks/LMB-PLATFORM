@@ -19,7 +19,7 @@ import { askGiving } from "./supportAsk";
 import { isBookingPreview } from "./bookTimePreview";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { moneyText } from "./bookTimeRules";
-import { amountForReward, amountProblem, chargeFor, fundraiserFacts, giftFromSearch, rewardStock, storyParagraphs, typedMinor, type GiftView, type GivingInfo } from "./supportRules";
+import { amountForReward, amountProblem, chargeFor, fundraiserFacts, giftFromSearch, pledgeFromSearch, rewardStock, storyParagraphs, typedMinor, type GiftView, type GivingInfo, type PledgeView } from "./supportRules";
 import { cleanShipTo, type PublicFundraiser, type PublicReward, type ShipTo } from "../../../shared/fundraiserRules";
 import { currencySign } from "../../../shared/shopCurrency";
 import { cleanReceiptAddress, receiptAddressLine, type Charity, type Receipt, type ReceiptAddress } from "../../../shared/charityReceipts";
@@ -40,6 +40,7 @@ function SupportContent() {
   const c: Copy = (key, vars) => getCopy(design, key, vars);
   const { search } = useLocation();
   const gift = useMemo(() => giftFromSearch(search), [search]);
+  const pledge = useMemo(() => pledgeFromSearch(search), [search]);
   useSEO({ title: c("supportTitle"), description: c("supportSubtitle") });
 
   return (
@@ -55,7 +56,7 @@ function SupportContent() {
         </div>
       </nav>
       <main className="max-w-5xl mx-auto px-5 sm:px-8 pt-12 sm:pt-16 relative z-10">
-        {gift ? <Thanks key={gift.id} id={gift.id} giftKey={gift.key} c={c} /> : <Give c={c} />}
+        {pledge ? <Pledge key={pledge.id} id={pledge.id} pledgeKey={pledge.key} c={c} /> : gift ? <Thanks key={gift.id} id={gift.id} giftKey={gift.key} c={c} /> : <Give c={c} />}
       </main>
       <TemplateSections design={design} templateId="supportPage" books={books} />
       <GlobalSections design={design} books={books} />
@@ -93,6 +94,7 @@ function Give({ c }: { c: Copy }) {
   const [problems, setProblems] = useState<{ amount?: string; name?: string; email?: string; honour?: string; reward?: string; address?: string; receipt?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [often, setOften] = useState<"once" | "monthly">("once");
   const errorRef = useRef<HTMLDivElement>(null);
 
   const fetchInfo = () => askGiving("givingInfo").then((answer) => {
@@ -135,6 +137,8 @@ function Give({ c }: { c: Copy }) {
   const receipts = info.receipts || null;
   const asksReceipt = !!receipts && !reward && receiptOn;
   const needsAddress = asksReceipt && receipts?.kind === "ca";
+  // Monthly gifts go to the shop: offered while the provider takes them and no fundraiser is running.
+  const monthly = !!info.monthly && !fund && often === "monthly";
   const pickReward = (r: PublicReward | null) => {
     setRewardId(r?.id || "");
     setRewardNote("");
@@ -169,10 +173,12 @@ function Give({ c }: { c: Copy }) {
         amountMinor: minor, coverFee: covering, form: info.form, website: form.website, locale: pageLanguage(),
         ...(fund ? { fundraiserId: fund.id, wall: fund.showWall && wallMe && !form.anonymous } : {}),
         ...(fund && reward ? { rewardId: reward.id, ...(reward.ships ? { shipTo: { ...shipTo, name: shipTo.name.trim() || form.name } } : {}) } : {}),
+        ...(monthly ? { monthly: true } : {}),
         ...(asksReceipt ? { receipt: true, ...(needsAddress ? { receiptAddress } : {}) } : {}),
         giver: { name: form.name, email: form.email, anonymous: form.anonymous, note: form.note, honour: honourOn ? { kind: honourKind, name: honourName } : null },
       });
       if (answer.url) { window.location.assign(String(answer.url)); return; }
+      if (answer.pledgeId && answer.key) { navigate(kept(`/support?pledge=${encodeURIComponent(answer.pledgeId)}&key=${encodeURIComponent(answer.key)}`)); return; }
       if (answer.giftId && answer.key) { navigate(kept(`/support?gift=${encodeURIComponent(answer.giftId)}&key=${encodeURIComponent(answer.key)}`)); return; }
       setError(c("supportError"));
     } catch (err: any) {
@@ -185,6 +191,7 @@ function Give({ c }: { c: Copy }) {
       // The reward ran out (or the owner changed it) while the page was open: fresh counts, and the giver picks again.
       const rewardGone = ["reward_gone", "reward_unknown", "reward_min"].includes(err?.code);
       if (rewardGone) { setError(c("supportRewardChanged")); setRewardId(""); }
+      if (err?.code === "monthly_unavailable" || err?.code === "monthly_fundraiser") setOften("once");
       if (err?.code === "form" || err?.code === "fundraiser_ended" || rewardGone) fetchInfo().catch(() => {});
     } finally { setBusy(false); }
   };
@@ -197,6 +204,19 @@ function Give({ c }: { c: Copy }) {
       <form onSubmit={submit} noValidate className="fm-sup-layout">
         <section {...regionProps("supportAmounts")} className="fm-track-card p-5 sm:p-8" aria-labelledby="sup-amount">
           <h2 id="sup-amount" className="fm-track-mono mb-5">{c("supportAmountHeading")}</h2>
+          {info.monthly && !fund && (
+            <fieldset {...regionProps("supportOften")} className="fm-sup-often">
+              <legend className="sr-only">{c("supportOftenLabel")}</legend>
+              <div className="fm-sup-often-row" role="group" aria-label={c("supportOftenLabel")}>
+                {(["once", "monthly"] as const).map((o) => (
+                  <button key={o} type="button" className="fm-sup-often-btn" aria-pressed={often === o} onClick={() => setOften(o)}>
+                    {c(o === "once" ? "supportOnce" : "supportMonthly")}
+                  </button>
+                ))}
+              </div>
+              {often === "monthly" && <p className="fm-sup-note" role="status">{c("supportMonthlyNote")}</p>}
+            </fieldset>
+          )}
           {amounts.length > 0 && (
             <ul className="fm-sup-amounts">
               {amounts.map((a) => (
@@ -356,12 +376,12 @@ function Give({ c }: { c: Copy }) {
             {feeMinor > 0 && <Row label={c("supportGiftRow")} value={money(minor || 0)} />}
             {feeMinor > 0 && <Row label={c("supportFeeRow")} value={money(feeMinor)} />}
             <div className="fm-track-total">
-              <span className="fm-track-mono">{c("supportTotal")}</span>
+              <span className="fm-track-mono">{c(monthly ? "supportPerMonth" : "supportTotal")}</span>
               <strong translate="no">{totalMinor > 0 ? money(totalMinor) : "–"}</strong>
             </div>
           </div>
           <button type="submit" className="fm-track-btn w-full" disabled={busy || !info.cardsReady}>
-            {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("supportWorking")}</> : totalMinor > 0 ? c("supportGive", { amount: money(totalMinor) }) : c("supportGiveNoAmount")}
+            {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("supportWorking")}</> : totalMinor > 0 ? c(monthly ? "supportGiveMonthly" : "supportGive", { amount: money(totalMinor) }) : c("supportGiveNoAmount")}
           </button>
           <p className="fm-sup-note">{c("supportPayNote")}</p>
         </section>
@@ -413,6 +433,98 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 // ── The giver's own page ───────────────────────────────────────────────────────────────────────────────────────────
+
+/** The giver's own monthly gift (M3d): what they give, how many months, the next one, and End. */
+function Pledge({ id, pledgeKey, c }: { id: string; pledgeKey: string; c: Copy }) {
+  const [pledge, setPledge] = useState<PledgeView | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const tries = useRef(0);
+  const load = () => askGiving("pledgeView", { pledgeId: id, key: pledgeKey }).then((answer) => {
+    setFailed(false);
+    setPledge(answer.pledge as PledgeView);
+  }).catch((err: any) => { if (err?.code === "not_found" || err?.status === 404) setMissing(true); else setFailed(true); });
+  useEffect(() => { void load(); }, []);
+  const waiting = pledge?.status === "held";
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(() => { tries.current += 1; if (tries.current > 20) window.clearInterval(timer); else void load(); }, 3000);
+    return () => window.clearInterval(timer);
+  }, [waiting]);
+  const end = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const answer = await askGiving("pledgeEnd", { pledgeId: id, key: pledgeKey });
+      setPledge(answer.pledge as PledgeView);
+      setAsking(false);
+    } catch (err: any) {
+      setError(err?.code && err?.message && !/^\d+$/.test(err.message) ? err.message : c("supportError"));
+    } finally { setBusy(false); }
+  };
+
+  if (missing) return <><Intro c={c} /><div {...regionProps("supportNotice")} className="fm-track-notice" data-tone="danger" role="alert"><p>{c("supportPledgeNotFound")}</p></div></>;
+  if (failed && !pledge) {
+    return (
+      <><Intro c={c} />
+        <div className="fm-track-notice" data-tone="danger" role="alert">
+          <p>{c("supportLoadError")}</p>
+          <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => { setFailed(false); void load(); }}>{c("supportRetry")}</button>
+        </div></>
+    );
+  }
+  if (!pledge || pledge.status === "held") {
+    return <><Intro c={c} /><p role="status" className="fm-sup-empty fm-track-mono"><Loader2 size={16} className="animate-spin inline-block" aria-hidden="true" /> {c(pledge ? "supportPledgeStarting" : "supportLoading")}</p></>;
+  }
+  if (pledge.status === "cancelled") {
+    return (
+      <><Intro c={c} />
+        <div {...regionProps("supportNotice")} className="fm-track-notice" role="status">
+          <p>{c("supportPledgeNotStarted")}</p>
+          <Link to={kept("/support")} className="fm-track-btn fm-track-btn-ghost">{c("supportTryAgain")}</Link>
+        </div></>
+    );
+  }
+  const money = (minor: number) => moneyText(minor, pledge.currency || "CAD");
+  const first = pledge.name.split(" ")[0] || pledge.name;
+  const day = (iso: string) => { const t = Date.parse(iso); return Number.isFinite(t) ? new Date(t).toLocaleDateString(pageLanguage() === "fr" ? "fr-CA" : "en-CA", { year: "numeric", month: "long", day: "numeric" }) : ""; };
+  const ended = pledge.status === "ended";
+  return (
+    <>
+      <Intro c={c} title={c("supportPledgeTitle")}>
+        <p className="mt-4 text-base leading-7 fm-muted">{ended ? c("supportPledgeEnded") : c("supportPledgeText", { name: first, amount: money(pledge.chargedMinor) })}</p>
+      </Intro>
+      <section {...regionProps("supportPledge")} className="fm-track-card p-5 sm:p-8 fm-sup-thanks max-w-xl" aria-label={c("supportPledgeTitle")}>
+        <div className="fm-track-ledger">
+          <Row label={c("supportGiftRow")} value={money(pledge.amountMinor)} />
+          {pledge.feeMinor > 0 && <Row label={c("supportFeeRow")} value={money(pledge.feeMinor)} />}
+          {pledge.honour && <Row label={c(pledge.honour.kind === "memory" ? "supportInMemory" : "supportInHonour")} value={pledge.honour.name} />}
+          <Row label={c("supportPledgeMonths")} value={String(pledge.months)} />
+          {!ended && pledge.nextAt && <Row label={c("supportPledgeNext")} value={day(pledge.nextAt)} />}
+          <div className="fm-track-total">
+            <span className="fm-track-mono">{c("supportPerMonth")}</span>
+            <strong translate="no">{money(pledge.chargedMinor)}</strong>
+          </div>
+        </div>
+        {error && <div className="fm-track-notice" data-tone="danger" role="alert"><p>{error}</p></div>}
+        {!ended && !asking && <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setAsking(true)}>{c("supportPledgeEnd")}</button>}
+        {!ended && asking && (
+          <div className="fm-sup-confirm" role="group" aria-label={c("supportPledgeEnd")}>
+            <p>{c("supportPledgeEndConfirm")}</p>
+            <div className="fm-sup-confirm-row">
+              <button type="button" className="fm-track-btn" disabled={busy} onClick={end}>{busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : null} {c("supportPledgeEndYes")}</button>
+              <button type="button" className="fm-track-btn fm-track-btn-ghost" disabled={busy} onClick={() => setAsking(false)}>{c("supportPledgeKeep")}</button>
+            </div>
+          </div>
+        )}
+        <Link to={kept("/")} className="fm-track-btn">{c("supportBackToShop")}</Link>
+      </section>
+    </>
+  );
+}
 
 function Thanks({ id, giftKey, c }: { id: string; giftKey: string; c: Copy }) {
   const [gift, setGift] = useState<GiftView | null>(null);

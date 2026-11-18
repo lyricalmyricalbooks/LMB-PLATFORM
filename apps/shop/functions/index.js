@@ -3057,6 +3057,8 @@ exports.stripeWebhook = onRequest(
     // Memberships (memberships.js): a subscription or invoice event reads that membership again. Best effort: the sweep
     // reads every live membership at least daily, so a failure here only makes the change slower.
     await membershipDesk.onEvent(event).catch(err => console.warn(`stripeWebhook: membership update for ${event.type} failed:`, err?.message || err));
+    // Monthly gifts (giving.js): an invoice or subscription event for a pledge records that month now. Best effort too.
+    if (/^(invoice|customer\.subscription)\./.test(String(event.type || ""))) await givingDesk.onEvent(event).catch(err => console.warn(`stripeWebhook: monthly gift update for ${event.type} failed:`, err?.message || err));
 
     // Mark this event processed (after successful handling) for idempotency.
     await stripeEventRef.set({

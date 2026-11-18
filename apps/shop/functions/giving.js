@@ -21,6 +21,9 @@
 //                           raised again if a closed page turns out paid (the giver paid, so they get it even past the limit).
 //   givingReceipts/{year}   the next tax receipt number of that year (`test-<year>` for test gifts), raised in the same
 //                           transaction that gives a gift its receipt (G3, shared/charityReceipts): numbers never repeat
+//   givingPledges/{id}      a monthly gift (M3d): `held` while the giver is on the card page, `active` once the
+//                           subscription runs, `ended` when it stops. Each paid month becomes its own `gifts` record
+//                           (`pledgeId`, fixed id from the invoice, so never twice) and goes through confirmPaid like any gift.
 //   fundraiserUpdates/{id}  an update emailed to a fundraiser's givers (G2c, fundraiserUpdates.js, passed in as `updates`)
 //
 // Card-testing guard (people trying stolen cards with small gifts): the lowest gift is $5 (shared/givingRules MIN_GIFT_MINOR);
@@ -57,7 +60,9 @@ const BLOCK_REASONS = Object.freeze(["tooSmall", "tooMany", "bot"]);
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const KEY = /^[a-f0-9]{48}$/;
 const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
-const PUBLIC_GIVING_ACTIONS = Object.freeze(["givingInfo", "giftStart", "giftView"]);
+const PUBLIC_GIVING_ACTIONS = Object.freeze(["givingInfo", "giftStart", "giftView", "pledgeView", "pledgeEnd"]);
+/** How often the sweep re-reads a running monthly gift for new payments (an invoice event reads it at once too). */
+const PLEDGE_CHECK_HOURS = 6;
 
 const hash = (key) => crypto.createHash("sha256").update(String(key)).digest("hex");
 const sameHash = (a, b) => typeof a === "string" && typeof b === "string" && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -75,6 +80,7 @@ const WORDS = {
     reward: "Your reward", rewardPost: "We'll post it to", rewardWhen: "Expected",
     anonymous: "You asked to stay anonymous, so your name won't be shown anywhere.",
     button: "See your gift",
+    monthly: "This is your monthly gift. Thank you for giving every month.", manage: "Change or end your monthly gift",
     refundSubject: (shop) => `Your gift to ${shop} was refunded`,
     refundIntro: (shop) => `${shop} has refunded your gift.`,
     refundWhen: "The money goes back to the card you paid with, usually within 5 to 10 business days.",
@@ -93,6 +99,7 @@ const WORDS = {
     reward: "Votre récompense", rewardPost: "Nous l'enverrons à", rewardWhen: "Prévue",
     anonymous: "Vous avez demandé à rester anonyme : votre nom ne sera affiché nulle part.",
     button: "Voir votre don",
+    monthly: "Ceci est votre don mensuel. Merci de donner chaque mois.", manage: "Modifier ou arrêter votre don mensuel",
     refundSubject: (shop) => `Votre don à ${shop} a été remboursé`,
     refundIntro: (shop) => `${shop} a remboursé votre don.`,
     refundWhen: "L'argent est remis sur la carte utilisée pour le paiement, habituellement en 5 à 10 jours ouvrables.",
@@ -190,6 +197,8 @@ function givingActions({
     return doc ? { id: doc.id, data: doc.data() } : null;
   }
   const keyFits = (g, key) => KEY.test(String(key || "")) && (g.keyHashes || []).some((h) => sameHash(h, hash(key)));
+  const pledges = () => db.collection("givingPledges");
+  const pledgeUrl = (id, key) => siteLink(`/support?pledge=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
   const giftUrl = (id, key) => siteLink(`/support?gift=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
   const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
 
@@ -322,6 +331,7 @@ function givingActions({
           ${g.anonymous ? `<p style="margin:12px 0 0;">${say.anonymous}</p>` : ""}
           ${receiptHtml(g.receipt, settings.charity, say, locale, escapeHtml)}
           <div style="margin:16px 0 0;">${key ? risoButton(escapeHtml(giftUrl(id, key)), say.button, brand.accent, brand.theme) : ""}</div>
+          ${g.pledgeId && key ? `<p style="margin:16px 0 0;">${say.monthly} <a href="${escapeHtml(pledgeUrl(g.pledgeId, key))}">${say.manage}</a></p>` : ""}
         `, layout),
       });
       const owner = toOwner ? ownerEmail() : "";
@@ -445,8 +455,10 @@ function givingActions({
   /** Confirms paid pages nobody came back to and closes the ones that ran out unpaid. Runs whatever the switches say. */
   async function sweep() {
     const snap = await gifts().where("status", "==", "held").limit(100).get();
-    if (snap.empty) return { confirmed: 0, closed: 0 };
+    const pledgesWaiting = (await Promise.all(["held", "active"].map((st) => pledges().where("status", "==", st).limit(1).get()))).some((q) => !q.empty);
+    if (snap.empty && !pledgesWaiting) return { confirmed: 0, closed: 0 };
     const { checkout } = await standalone();
+    const monthly = pledgesWaiting ? await sweepPledges(checkout).catch((err) => (console.warn("giving: monthly gifts sweep failed:", err?.message || err), {})) : {};
     let confirmed = 0;
     let closed = 0;
     for (const doc of snap.docs) {
@@ -460,7 +472,136 @@ function givingActions({
       await cancelGift(doc.id, "not paid in time");
       closed += 1;
     }
-    return { confirmed, closed };
+    return { confirmed, closed, ...monthly };
+  }
+
+
+  // ── Monthly gifts (M3d) ─────────────────────────────────────────────────────────────────────────────────────
+
+  /** The gift record id for one paid invoice of a pledge: fixed, so a month is recorded once whoever reads it first. */
+  const monthGiftId = (pledgeId, invoiceId) => `m${hash(`${pledgeId}:${invoiceId}`).slice(0, 23)}`;
+
+  /**
+   * Brings a pledge up to date with the provider: a held one starts once its page finished with a subscription; a
+   * running one records every paid month as a gift (receipt, thank-you, Bookkeeping like any gift) and ends when the
+   * subscription does. Never throws for a provider read; answers the pledge as it now stands.
+   */
+  async function refreshPledge(id, p, checkout) {
+    if (!checkout?.subscriptions || p.status === "ended" || p.status === "cancelled") return p;
+    const at = now().toISOString();
+    let next = { ...p };
+    if (next.status === "held") {
+      for (const sid of (next.sessions || []).slice(-5)) {
+        if (!SESSION_ID.test(sid)) continue;
+        const session = await checkout.read(sid).catch(() => null);
+        if (!session || (session.metadata?.pledge && session.metadata.pledge !== id) || session.status !== "complete") continue;
+        const sub = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+        if (!sub) continue;
+        const started = { status: "active", subscription: sub, startedAt: at, updatedAt: at };
+        const ok = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(pledges().doc(id));
+          if (!fresh.exists || fresh.data().status !== "held") return false;
+          tx.set(pledges().doc(id), started, { merge: true });
+          return true;
+        });
+        next = ok ? { ...next, ...started } : { ...next, ...((await pledges().doc(id).get()).data() || {}) };
+        break;
+      }
+      if (next.status !== "active") return next;
+    }
+    const sub = await checkout.subscriptions.read(next.subscription).catch(() => null);
+    const invoices = await checkout.subscriptions.invoices(next.subscription, 12).catch(() => null);
+    const recorded = new Set(next.invoices || []);
+    for (const inv of (invoices || []).slice().reverse()) {
+      if (inv.status !== "paid" || !(inv.amountMinor > 0) || recorded.has(inv.id)) continue;
+      const giftId = monthGiftId(id, inv.id);
+      const gift = {
+        status: "held", pledgeId: id, monthly: true, invoice: inv.id, customer: next.customer, anonymous: next.anonymous === true,
+        honour: next.honour || null, note: "", locale: next.locale || "en", amountMinor: inv.amountMinor, feeMinor: 0, chargedMinor: inv.amountMinor,
+        currency: inv.currency || next.currency, mode: next.mode, keyHashes: next.keyHashes || [], pendingKey: next.manageKey || "", sessions: [],
+        ...(next.receiptAsked ? { receiptAsked: true, ...(next.receiptAddress ? { receiptAddress: next.receiptAddress } : {}) } : {}),
+        createdAt: inv.paidAt || at, updatedAt: at,
+      };
+      // Covered fee: the giver's monthly amount includes it, so split it back out the way giftStart priced it.
+      if (next.feeMinor > 0 && inv.amountMinor === next.chargedMinor) Object.assign(gift, { amountMinor: next.amountMinor, feeMinor: next.feeMinor });
+      const made = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(gifts().doc(giftId));
+        if (fresh.exists) return false;
+        tx.set(gifts().doc(giftId), gift);
+        return true;
+      });
+      if (made) await confirmPaid(giftId, gift, { paymentIntent: inv.paymentIntent || null });
+      recorded.add(inv.id);
+    }
+    const ended = sub && ["canceled", "incomplete_expired"].includes(sub.status);
+    const changes = {
+      invoices: [...recorded].slice(-120), months: recorded.size, checkAfter: ended ? null : new Date(now().getTime() + PLEDGE_CHECK_HOURS * HOUR).toISOString(),
+      ...(sub ? { subState: sub.status, nextAt: sub.periodEnd || "" } : {}),
+      ...(ended ? { status: "ended", endedAt: sub.endedAt || at } : {}), updatedAt: at,
+    };
+    await pledges().doc(id).set(changes, { merge: true });
+    return { ...next, ...changes };
+  }
+
+  /** What the giver's own page may see of a pledge. */
+  function publicPledge(id, p) {
+    return {
+      id, status: p.status, amountMinor: p.amountMinor || 0, feeMinor: p.feeMinor || 0, chargedMinor: p.chargedMinor || 0, currency: p.currency,
+      name: p.customer?.name || "", honour: p.honour || null, months: p.months || 0, nextAt: p.status === "active" ? p.nextAt || "" : "",
+      startedAt: p.startedAt || "", endedAt: p.endedAt || "",
+    };
+  }
+
+  /** Ends a pledge now (the giver or the owner): no further month is taken; the months given stay recorded. */
+  async function endPledge(id, p, checkout, by) {
+    if (p.status === "ended") return p;
+    const at = now().toISOString();
+    if (p.status === "active" && p.subscription) {
+      if (!checkout?.subscriptions) throw Object.assign(new Error("no provider"), { code: "not_available" });
+      await checkout.subscriptions.endNow(p.subscription);
+    }
+    for (const sid of p.status === "held" ? p.sessions || [] : []) if (SESSION_ID.test(sid)) await checkout?.close(sid).catch(() => {});
+    const changes = { status: "ended", endedAt: at, endedBy: by, checkAfter: null, updatedAt: at };
+    await pledges().doc(id).set(changes, { merge: true });
+    return { ...p, ...changes };
+  }
+
+  async function sweepPledges(checkout) {
+    let started = 0;
+    let closed = 0;
+    const held = await pledges().where("status", "==", "held").limit(100).get();
+    for (const doc of held.docs) {
+      let p = await refreshPledge(doc.id, doc.data(), checkout);
+      if (p.status !== "held") { started += 1; continue; }
+      if (Date.parse(p.createdAt || "") + PAGE_MINUTES * MINUTE > now().getTime()) continue;
+      for (const sid of p.sessions || []) if (SESSION_ID.test(sid)) await checkout?.close(sid).catch(() => {});
+      p = await refreshPledge(doc.id, p, checkout);
+      if (p.status !== "held") { started += 1; continue; }
+      await pledges().doc(doc.id).set({ status: "cancelled", cancelledAt: now().toISOString(), manageKey: null, updatedAt: now().toISOString() }, { merge: true });
+      closed += 1;
+    }
+    const due = await pledges().where("status", "==", "active").limit(200).get();
+    let checked = 0;
+    for (const doc of due.docs) {
+      if (checked >= 40) break;
+      const p = doc.data();
+      if (p.checkAfter && Date.parse(p.checkAfter) > now().getTime()) continue;
+      await refreshPledge(doc.id, p, checkout).catch((err) => console.warn("giving: a monthly gift wasn't read:", err?.message || err));
+      checked += 1;
+    }
+    return { pledgesStarted: started, pledgesClosed: closed, pledgesChecked: checked };
+  }
+
+  /** A subscription event for a pledge (invoice paid, subscription ended): read it now rather than at the next sweep. */
+  async function onEvent(event) {
+    const obj = event?.data?.object || {};
+    const pledgeId = obj.metadata?.pledge || obj.subscription_details?.metadata?.pledge || obj.parent?.subscription_details?.metadata?.pledge;
+    if (!pledgeId || !ID.test(String(pledgeId))) return false;
+    const snap = await pledges().doc(String(pledgeId)).get();
+    if (!snap.exists) return false;
+    const { checkout } = await standalone();
+    await refreshPledge(snap.id, snap.data(), checkout);
+    return true;
   }
 
   // ── Givers (validateDiscountCode actions; no sign-in) ──────────────────────────────────────────────────────────
@@ -481,12 +622,29 @@ function givingActions({
         const { charity } = view.receipt ? await readSettings() : { charity: null };
         return res.status(200).json({ gift: view, charity: view.receipt && charity ? charity : null });
       }
+      if (action === "pledgeView" || action === "pledgeEnd") {
+        // The giver's monthly gift works even after the shop stops taking gifts, so it can always be ended.
+        const id = String(req.body?.pledgeId || "");
+        const snap = ID.test(id) ? await pledges().doc(id).get() : null;
+        if (!snap?.exists || !keyFits(snap.data(), req.body?.key)) return fail(res, 404, "We couldn't find that monthly gift. Check the link in your email.", "not_found");
+        const { checkout } = await standalone();
+        let p = await refreshPledge(id, snap.data(), checkout);
+        if (action === "pledgeEnd") {
+          try {
+            p = await endPledge(id, p, checkout, "giver");
+          } catch (err) {
+            if (err?.code === "not_available") return fail(res, 409, "This monthly gift can't be ended here right now. Please contact the shop.", "not_available");
+            throw err;
+          }
+        }
+        return res.status(200).json({ pledge: publicPledge(id, p) });
+      }
       if (!(await featureOn())) return res.status(200).json({ on: false });
       const settings = await readSettings();
       if (action === "givingInfo") {
         const { checkout } = await standalone();
         return res.status(200).json({
-          on: true, currency: currency(), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: !!checkout,
+          on: true, currency: currency(), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: !!checkout, monthly: !!checkout?.subscriptions,
           amounts: settings.amounts, otherAmount: settings.otherAmount, coverFee: settings.coverFee, honour: settings.honour,
           form: await formToken(nowMs), today: shopToday(nowMs), receipts: settings.charity ? { kind: settings.charity.kind } : null, fundraiser: await liveFundraiser(shopToday(nowMs)).then((f) => (f ? publicFundraiser(f.id, f.data, shopToday(nowMs)) : null)),
         });
@@ -541,6 +699,36 @@ function givingActions({
         const id = randomId();
         const key = randomKey();
         const at = new Date(nowMs).toISOString();
+        if (req.body?.monthly === true) {
+          // A monthly gift (M3d): to the shop only, never a fundraiser or a reward. Each paid month becomes a gift.
+          if (fund) return fail(res, 409, "A monthly gift goes to the shop, not to a fundraiser. Give once to support the fundraiser.", "monthly_fundraiser");
+          if (!checkout.subscriptions) return fail(res, 409, "This shop can't take monthly gifts yet. You can still give once.", "monthly_unavailable");
+          await pledges().doc(id).set({
+            status: "held", customer: { name: giver.name, email: giver.email }, anonymous: giver.anonymous, honour: giver.honour, note: giver.note,
+            ...(receiptAsked ? { receiptAsked: true, ...(receiptAddress ? { receiptAddress } : {}) } : {}),
+            locale: french(req.body?.locale) ? "fr" : "en", ...charge, currency: currency(), mode, keyHashes: [hash(key)], manageKey: key,
+            sessions: [], invoices: [], months: 0, createdAt: at, updatedAt: at,
+          });
+          const shopLabel = shopName();
+          const name = `${shopLabel ? `${shopLabel}: ` : ""}Monthly gift${charge.feeMinor ? " (card fee covered)" : ""}`.slice(0, 250);
+          const metadata = { pledge: id };
+          let session;
+          try {
+            session = await checkout.open({
+              mode: "subscription", customer_email: giver.email, metadata, expires_at: Math.floor(nowMs / 1000) + PAGE_MINUTES * 60,
+              success_url: pledgeUrl(id, key), cancel_url: siteLink("/support"),
+              line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: charge.chargedMinor, recurring: { interval: "month" }, product_data: { name } } }],
+              subscription_data: { description: name, metadata },
+            }, `pledge-${id}`);
+          } catch (err) {
+            await pledges().doc(id).set({ status: "cancelled", cancelledAt: now().toISOString(), manageKey: null, updatedAt: now().toISOString() }, { merge: true });
+            if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+            if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
+            throw err;
+          }
+          await pledges().doc(id).set({ sessions: [session.id] }, { merge: true });
+          return res.status(200).json({ url: session.url, pledgeId: id });
+        }
         const record = {
           status: "held", customer: { name: giver.name, email: giver.email }, anonymous: giver.anonymous, honour: giver.honour, note: giver.note,
           ...(fund ? { fundraiserId: fund.id, wall: fund.data.wall !== false && req.body?.wall === true && !giver.anonymous } : {}),
@@ -618,7 +806,24 @@ function givingActions({
         const today = shopToday(nowMs);
         const funds = (await fundraisers().limit(50).get()).docs.map((d) => adminFundraiser(d.id, d.data(), today))
           .sort((a, b) => (a.state === "ended") - (b.state === "ended") || String(b.startedAt || b.createdAt).localeCompare(String(a.startedAt || a.createdAt)));
-        return res.status(200).json({ currency: currency(), settings: await readSettings(), gifts: list, totals, blocked: await blockedSince(nowMs), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, fundraisers: funds, today, updates: updates ? await updates.recent() : {} });
+        const running = (await pledges().where("status", "==", "active").limit(MAX_LISTED).get()).docs
+          .map((d) => ({ ...publicPledge(d.id, d.data()), email: d.data().customer?.email || "", test: d.data().mode === "test" }))
+          .sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)));
+        const monthlyTotals = { givers: running.filter((p) => !p.test).length, monthMinor: running.filter((p) => !p.test).reduce((sum, p) => sum + p.amountMinor, 0) };
+        return res.status(200).json({ currency: currency(), settings: await readSettings(), gifts: list, totals, pledges: running, monthlyTotals, blocked: await blockedSince(nowMs), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, fundraisers: funds, today, updates: updates ? await updates.recent() : {} });
+      }
+      if (op === "endPledge") {
+        const id = String(req.body?.pledgeId || "");
+        const snap = ID.test(id) ? await pledges().doc(id).get() : null;
+        if (!snap?.exists) return fail(res, 404, "Unknown monthly gift.");
+        const { checkout } = await standalone();
+        try {
+          const p = await endPledge(id, snap.data(), checkout, by);
+          return res.status(200).json({ ok: true, pledge: publicPledge(id, p) });
+        } catch (err) {
+          if (err?.code === "not_available") return fail(res, 409, "Card payments aren't connected, so this monthly gift can't be ended here.", "not_available");
+          throw err;
+        }
       }
       if (op === "saveFundraiser") {
         // New or edited; `start` puts it on the Support page. One runs at a time, and an ended one stays as it was.
@@ -776,7 +981,7 @@ function givingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweep, tellWebsite, featureOn, tipsTaken };
+  return { handlePublic, handleAdmin, sweep, tellWebsite, featureOn, tipsTaken, onEvent };
 }
 
 module.exports = { givingActions, PUBLIC_GIVING_ACTIONS, GIFT_PAGES_PER_HOUR, GIFT_PAGES_PER_EMAIL, FORM_MIN_SECONDS };
