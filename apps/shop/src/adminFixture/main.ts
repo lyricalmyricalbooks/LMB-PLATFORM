@@ -886,6 +886,9 @@ const known: Record<string, (...a: any[]) => any> = {
     ] };
     return {};
   },
+  digitalUpdate: async (op: string) => (op === "send"
+    ? { ok: true, latest: { id: "u1", status: "queued", audience: 12, sent: 0, failed: 0, createdAt: new Date().toISOString(), finishedAt: "", lastError: "" } }
+    : { buyers: 12, latest: null }),
   newsletterAdmin: async (op: string) => (op === "audience" ? { audience: 42 } : { ok: true, to: "owner@example.com", audience: 42 }),
 };
 // Lists answer with an empty list and everything else with nothing, as an offline shop would.

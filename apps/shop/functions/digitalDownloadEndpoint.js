@@ -4,8 +4,11 @@
 // (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own Firebase wrapper, db and
 // catalog helpers, so the vm-based handler tests' fakes still apply, and keeps the `exports.downloadDigitalAsset =` line.
 
+const pdfStamp = require("./pdfStamp");
+const { mediaKind, nextPlayCount, PLAY_LINK_MINUTES } = require("./shared/digitalFiles");
+
 function digitalDownloadEndpoint({
-  onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive,
+  onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive, applyCors = () => false,
 }) {
   // ──────────────────────────────────────────────────────────────
   // 4. HTTP Endpoint: Secure Digital Ebook Asset Downloads
@@ -13,6 +16,9 @@ function digitalDownloadEndpoint({
   const downloadDigitalAsset = onRequest(
     async (req, res) => {
       const { orderId, itemId, token } = req.query; // plus optional variantId and file (which of the files, from 0)
+      // `play=1` (Digital D3): a short link to play an audio or video file in the page, answered as JSON.
+      const play = req.query.play === "1";
+      if (play && applyCors(req, res)) return;
       if (!orderId || !itemId || !token) {
         res.status(400).send("Missing download parameters");
         return;
@@ -116,6 +122,11 @@ function digitalDownloadEndpoint({
           return;
         }
 
+        if (play) {
+          await playLink({ res, file, fileName, orderId: String(orderId), key: digitalDelivery.fileCountKey(digitalDelivery.countKey(target.bookId, target.variantId), files, fileIndex) });
+          return;
+        }
+
         // Each book + edition on the order can be fetched a limited number of times (counted atomically);
         // Order detail › Reset downloads gives the buyer a fresh allowance.
         const orderRef = db.collection("orders").doc(String(orderId));
@@ -141,7 +152,9 @@ function digitalDownloadEndpoint({
         // A fresh, short-lived link per click, saved as an attachment named after the book.
         // One file: named after the product. Several: each keeps the name the owner gave it.
         const filename = digitalDelivery.downloadFilename(files.length > 1 ? digitalDelivery.fileLabel(files[fileIndex]) : (book.title || target.line.title), fileName);
-        const [signedUrl] = await file.getSignedUrl({
+        // A stamped PDF (Digital D2b): the buyer's name and email on each page, made once per order and file.
+        const served = await stampedCopy({ bucket, book, file, fileName, order, orderId: String(orderId) });
+        const [signedUrl] = await served.getSignedUrl({
           action: "read",
           expires: Date.now() + digitalDelivery.SIGNED_URL_MINUTES * 60 * 1000,
           responseDisposition: digitalDelivery.contentDisposition(filename),
@@ -155,6 +168,54 @@ function digitalDownloadEndpoint({
       }
     }
   );
+
+  // Listen and watch (Digital D3): plays never use the download limit, but each order file gets `MAX_PLAYS` links a day
+  // (kept in `orders/<id>/plays/counts`, today's only, so a play never wakes the order's own triggers; no rule opens it to
+  // browsers). The link opens in the page (inline) and lasts `PLAY_LINK_MINUTES`; the player asks for
+  // a fresh one when it runs out. A file that isn't audio or video only downloads.
+  async function playLink({ res, file, fileName, orderId, key }) {
+    const kind = mediaKind(fileName);
+    if (!kind) {
+      res.status(400).json({ error: "This file can't be played here. Download it instead.", code: "not_media" });
+      return;
+    }
+    const countsRef = db.collection("orders").doc(orderId).collection("plays").doc("counts");
+    const day = new Date().toISOString().slice(0, 10);
+    const claim = await db.runTransaction(async tx => {
+      const fresh = await tx.get(countsRef);
+      const decision = nextPlayCount((fresh.exists ? fresh.data() : {}).counts, key, day);
+      if (decision.ok) tx.set(countsRef, { counts: decision.next });
+      return decision;
+    });
+    if (!claim.ok) {
+      res.status(429).json({ error: "This file has been played a lot today. Please try again tomorrow, or download it.", code: "play_limit" });
+      return;
+    }
+    const expires = Date.now() + PLAY_LINK_MINUTES * 60 * 1000;
+    const [url] = await file.getSignedUrl({ action: "read", expires, responseDisposition: "inline", responseType: digitalDelivery.contentTypeFor(fileName) });
+    res.set("Cache-Control", "no-store");
+    res.json({ url, kind, expiresAt: new Date(expires).toISOString() });
+  }
+
+  // The file to hand out: the original, or for a product with `stampPdf` a copy of a PDF (≤ MAX_STAMP_BYTES) with the
+  // buyer's name and email at the foot of each page, kept at digital-stamped/<order>/<file> so the next download reuses
+  // it (a new version is a new file name, so it is stamped afresh). Anything that goes wrong sends the original.
+  async function stampedCopy({ bucket, book, file, fileName, order, orderId }) {
+    if (book?.stampPdf !== true || !pdfStamp.isPdf(fileName)) return file;
+    try {
+      const copy = bucket.file(`digital-stamped/${orderId.replace(/[^A-Za-z0-9_-]/g, "_")}/${fileName}`);
+      if ((await copy.exists())[0]) return copy;
+      const [meta] = await file.getMetadata();
+      if (!(Number(meta?.size) > 0) || Number(meta.size) > pdfStamp.MAX_STAMP_BYTES) return file;
+      const [bytes] = await file.download();
+      const stamped = await pdfStamp.stampPdf(bytes, { name: order.customer?.name, email: order.customer?.email, orderId: order.orderId || orderId });
+      await copy.save(Buffer.from(stamped), { contentType: "application/pdf", resumable: false });
+      return copy;
+    } catch (err) {
+      console.warn("Sending the PDF without the buyer's name:", err?.message || err);
+      return file;
+    }
+  }
 
   return { downloadDigitalAsset };
 }

@@ -2065,6 +2065,33 @@ const { handleNewsletterAdmin } = newsletterAdminActions({
   sendEmail: message => lateSendEmail({ ...message, secret: resendSecretValue() }),
 });
 
+// Books › edit › Digital product › Tell buyers about a new version (digitalUpdates.js, Digital D2b): one job per product,
+// sent a page of orders at a time from the sweep. Orders are read by document id, only the fields the rules need.
+const { runDigitalUpdates, digitalUpdateActions, updateAudience } = require("./digitalUpdates");
+const DIGITAL_UPDATE_FIELDS = ["items", "customer", "email", "paymentStatus", "status", "disputeStatus", "downloadToken", "isTest", "sandboxPayment", "practiceOrder"];
+async function digitalEditionCheck(bookId) {
+  const snap = await db.collection("books").doc(String(bookId)).get();
+  const book = snap.exists ? snap.data() : null;
+  if (!book) return () => false;
+  // The order email's own rule: a line downloads unless it is physical; a box set's part goes by the catalog.
+  return (variantId, hit) => (hit && !hit.bundle ? !isPhysicalItem(hit.line)
+    : catalogDigital(book, variantId ? (book.variants || []).find(v => v && v.id === variantId) || null : null));
+}
+async function listDigitalUpdateOrders(afterId, limit) {
+  let query = db.collection("orders").orderBy("__name__").select(...DIGITAL_UPDATE_FIELDS);
+  if (afterId) query = query.startAfter(afterId);
+  const snap = await query.limit(limit).get();
+  return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+}
+const digitalUpdateLink = (orderId, order, line) => functionLink(shopConfig, "downloadDigitalAsset", { orderId, itemId: line.itemId, variantId: line.variantId || "", token: order.downloadToken || "" });
+const { handleDigitalUpdate } = digitalUpdateActions({
+  db, requireAdmin,
+  countBuyers: async (bookId) => {
+    const snap = await db.collection("orders").select(...DIGITAL_UPDATE_FIELDS).limit(20000).get();
+    return updateAudience(snap.docs.map(d => d.data()), bookId, await digitalEditionCheck(bookId));
+  },
+});
+
 const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin, handleMyData } = privacyActions({
   db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
   confirmedRecord, escapeHtml, findByEmailData, footerAddress, giftCardsFor, hitLimit, marketingUnsubscribeKey,
@@ -2115,6 +2142,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   privacyExport: handlePrivacyAdmin,
   privacyErase: handlePrivacyAdmin,
   newsletterAdmin: handleNewsletterAdmin,
+  digitalUpdate: handleDigitalUpdate,
   verifyStripeKeys: handleVerifyStripeKeys,
 };
 
@@ -3107,7 +3135,7 @@ exports.refundOrder = onBrowserRequest(
 );
 
 const downloads = digitalDownloadEndpoint({
-  onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive,
+  onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive, applyCors,
 });
 
 exports.downloadDigitalAsset = downloads.downloadDigitalAsset;
@@ -5240,6 +5268,16 @@ exports.unpaidPaymentSweep = onSchedule(
       });
       if (result.sent || result.status) console.log("unpaidPaymentSweep: newsletter", result);
     } catch (err) { console.error("unpaidPaymentSweep: newsletter failed:", err.message); }
+
+    // Books › Digital product › Tell buyers: the next page of a new-version email that is sending (leased, never twice).
+    try {
+      const result = await runDigitalUpdates({
+        db, escapeHtml, linkFor: digitalUpdateLink, listOrders: listDigitalUpdateOrders, digitalCheck: digitalEditionCheck,
+        shopName: (await loadNotificationSettings()).shopName,
+        sendEmail: message => sendEmail({ ...message, secret: resendSecretValue() }),
+      });
+      if (result.sent || result.status) console.log("unpaidPaymentSweep: digital updates", result);
+    } catch (err) { console.error("unpaidPaymentSweep: digital updates failed:", err.message); }
   }
 );
 

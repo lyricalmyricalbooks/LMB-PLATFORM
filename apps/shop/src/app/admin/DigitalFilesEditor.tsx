@@ -1,11 +1,14 @@
 // The download files on a product or one of its editions (Digital D1, 17 November 2026). Several files, each up to
 // 5 GB, sent in pieces so a weak connection picks up where it stopped. Each file's name is what buyers see in their
 // email and Library. The list is saved with the product (filesPatch keeps the older single-file field in step).
+// "New version" (Digital D2b) swaps one file for a newer upload, keeping its name and place; buyers get the new one
+// from their existing links, and Tell buyers (DigitalUpdateCard) can email them.
 import { useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Loader2, Trash2, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, RefreshCw, Trash2, Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { SecondaryButton, TextField, GhostButton, useConfirm } from "./riso/components";
-import { fileLabel, fileSizeText, filesOf, MAX_DIGITAL_FILE_BYTES, MAX_DIGITAL_FILES, type DigitalFile } from "../../shared/digitalFiles";
+import { fileLabel, fileSizeText, filesOf, MAX_DIGITAL_FILE_BYTES, MAX_DIGITAL_FILES, newVersionOf, type DigitalFile } from "../../shared/digitalFiles";
+import { shopCalendarDay } from "../../shared/shopTimeZone";
 
 type Sending = { name: string; share: number };
 
@@ -19,6 +22,8 @@ export function DigitalFilesEditor({ holder, onChange, label, emptyNote, notify 
 }) {
   const files = filesOf(holder);
   const input = useRef<HTMLInputElement>(null);
+  const replaceInput = useRef<HTMLInputElement>(null);
+  const [replacing, setReplacing] = useState<number | null>(null);
   const [sending, setSending] = useState<Sending | null>(null);
   const [askConfirm, confirmNode] = useConfirm();
   // Each upload adds to the list as it finishes, so later files never overwrite earlier ones.
@@ -49,6 +54,29 @@ export function DigitalFilesEditor({ holder, onChange, label, emptyNote, notify 
     if (input.current) input.current.value = "";
   };
 
+  // Upload a newer copy of file `i`: kept under a new stored name (so nothing cached hands out the old one), same name.
+  const replaceFile = async (i: number, file: File | undefined) => {
+    if (replaceInput.current) replaceInput.current.value = "";
+    const current = latest.current[i];
+    if (!file || !current) return;
+    if (file.size > MAX_DIGITAL_FILE_BYTES) { notify.err(`"${file.name}" is bigger than 5 GB, so it can't be uploaded.`); return; }
+    setSending({ name: file.name, share: 0 });
+    try {
+      const stored = `${Date.now()}-${file.name.replace(/[/\\]/g, "-")}`;
+      await adminApi.uploadStoragePathInPieces(file, `digital-assets/${stored}`, (share) => setSending({ name: file.name, share }));
+      const next = latest.current.map((f) => (f.file === current.file ? newVersionOf(f, { file: stored, size: file.size }, shopCalendarDay(new Date())) : f));
+      latest.current = next;
+      onChange(next);
+      notify.ok(`New version of ${fileLabel(current)} uploaded. Save to share it.`);
+    } catch (err) {
+      console.error("New version upload failed:", err);
+      notify.err(`"${file.name}" didn't finish uploading. Check the connection and try again.`);
+    } finally {
+      setSending(null);
+      setReplacing(null);
+    }
+  };
+
   const rename = (i: number, name: string) => onChange(files.map((f, j) => (j === i ? { ...f, name } : f)));
   const move = (i: number, by: number) => {
     const next = files.slice();
@@ -71,11 +99,13 @@ export function DigitalFilesEditor({ holder, onChange, label, emptyNote, notify 
           {files.map((f, i) => (
             <li key={f.file} className="be-dfiles-row">
               <TextField label={`File ${i + 1} name`} value={f.name ?? fileLabel(f)} maxLength={120}
-                hint={[fileSizeText(f.size), i === 0 && files.length > 1 ? "First in the list" : ""].filter(Boolean).join(" · ") || undefined}
+                hint={[fileSizeText(f.size), f.version ? `Version ${f.version}${f.updated ? `, ${f.updated}` : ""}` : "", i === 0 && files.length > 1 ? "First in the list" : ""].filter(Boolean).join(" · ") || undefined}
                 onChange={(e) => rename(i, e.target.value)} />
               <div className="be-dfiles-tools">
                 {files.length > 1 && <GhostButton size="sm" disabled={i === 0} aria-label={`Move ${fileLabel(f)} up`} onClick={() => move(i, -1)}><ArrowUp size={13} aria-hidden /></GhostButton>}
                 {files.length > 1 && <GhostButton size="sm" disabled={i === files.length - 1} aria-label={`Move ${fileLabel(f)} down`} onClick={() => move(i, 1)}><ArrowDown size={13} aria-hidden /></GhostButton>}
+                <SecondaryButton size="sm" disabled={!!sending} aria-label={`Upload a new version of ${fileLabel(f)}`}
+                  onClick={() => { setReplacing(i); replaceInput.current?.click(); }}><RefreshCw size={13} aria-hidden /> New version</SecondaryButton>
                 <SecondaryButton size="sm" onClick={() => void remove(i)} aria-label={`Remove ${fileLabel(f)}`}><Trash2 size={13} aria-hidden /> Remove</SecondaryButton>
               </div>
             </li>
@@ -89,6 +119,8 @@ export function DigitalFilesEditor({ holder, onChange, label, emptyNote, notify 
           <progress max={1} value={sending.share} aria-hidden />
         </div>
       )}
+      <input ref={replaceInput} type="file" className="hidden" aria-hidden="true" tabIndex={-1}
+        onChange={(e) => { if (replacing !== null) void replaceFile(replacing, e.target.files?.[0]); }} />
       <input ref={input} type="file" multiple className="hidden" aria-hidden="true" tabIndex={-1}
         onChange={(e) => void addFiles(Array.from(e.target.files || []))} />
       {files.length < MAX_DIGITAL_FILES && (

@@ -335,7 +335,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Order slip", match: /^co(Summary|ShowSummary|HideSummary|ItemCount|LineQty|Slip)/ },
     { title: "Contact & address fields", match: /^co(SignedIn|Google|Email|Name|Address|Country|City|State|Zip|Phone|Bill|EnterAddress)/ },
     { title: "Shipping, pickup & delivery", match: /^co(Ship|Fulfillment|Rates|ArrivesBy|FreeShip|Packed|Pickup|Carrier|Estimated|Free$|NoShipping|Preorder|TaxLater|Duties)/ },
-    { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Square|Trust|Guarantee|TestMode|PracticeMode|NoPayment|PrivacyNote|Policy|Terms|OnlyLeft|Express|OrderNote|Rates|DigitalConsent)/ },
+    { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Square|Trust|Guarantee|TestMode|PracticeMode|NoPayment|PrivacyNote|Policy|Terms|OnlyLeft|Express|OrderNote|Rates|DigitalConsent|NewsletterTick)/ },
     { title: "Discount codes", match: /^co(HaveCode|Discount|Apply)/ },
     { title: "Gift cards, automatic offers & free gifts", match: /^co(GiftCard|Auto|FreeGift|Line)/ },
     { title: "After the order", match: /^co(Thanks|Account|Pending|Continue|OrderPlaced|OrderConfirmed|Finalizing|CheckEmail|OrderNumber|ConfirmationSent|Confirming|Success|TrackOrder)/ },
@@ -382,7 +382,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Saved address", match: /^account(Address|Field|Phone|Street|SaveAddress|Abort|Cancel$|Unconfigured)/ },
     { title: "Your data", match: /^yourData/ },
     { title: "Order history", match: /^(account(History|Items|AddOn|GiftCard|FreeGift|BoxSet|Dispatch|ShipTo|Logistics|Manage|Close|Delivered|Cancelled|Awaiting|Track|Unfulfilled|Shipped|Processing|Paid|Unpaid|Refunded|PartiallyRefunded|BookCount)|carrierLabel|trackingCodeLabel)/ },
-    { title: "Downloads & library", match: /^account(Digital|Ebook|Download$|Library)/ },
+    { title: "Downloads, library & player", match: /^account(Digital|Ebook|Download$|Library|Listen|Watch|Player)/ },
     { title: "Error messages", order: -1, match: /^account.*Error$/ },
   ],
   "Product page": [

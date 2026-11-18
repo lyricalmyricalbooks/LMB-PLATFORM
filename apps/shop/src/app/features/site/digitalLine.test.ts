@@ -50,6 +50,11 @@ describe("round-2 PR 4: editions, box sets, limit", () => {
     ]);
     expect(hasDigitalFile({ digitalFiles: [{ file: "x.zip" }] })).toBe(true);
   });
+  it("marks audiobook and video files so the account can play them (Digital D3)", () => {
+    const book = { digital: true, digitalFiles: [{ file: "1-book.m4b", name: "Audiobook" }, { file: "2-talk.MP4", name: "Talk" }, { file: "3-notes.pdf", name: "Notes" }] };
+    const order = { items: [{ id: "a", title: "Tide", digital: true }] };
+    expect(digitalEntries(order, { a: book }).map((e) => e.media ?? null)).toEqual(["audio", "video", null]);
+  });
   it("shows the same limit as the server (#113)", () => {
     expect(DOWNLOAD_LIMIT).toBe(createRequire(import.meta.url)("../../../../functions/digitalDelivery").DOWNLOAD_LIMIT);
   });

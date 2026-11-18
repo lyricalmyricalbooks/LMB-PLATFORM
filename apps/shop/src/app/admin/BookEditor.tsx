@@ -56,6 +56,7 @@ import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
 import { LicenceKeysCard } from "./LicenceKeysCard";
 import { DigitalFilesEditor } from "./DigitalFilesEditor";
+import { DigitalUpdateCard } from "./DigitalUpdateCard";
 import { filesPatch } from "../../shared/digitalFiles";
 import { CardsAsSections, PageActions, PageHead, ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import { FormChoice, StatusBar, SummaryRail, formStatus } from "./riso/FormKit";
@@ -1695,9 +1696,16 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                       emptyNote={hasVariants ? w("No files yet. Editions without their own files use these.") : "No files yet. Upload what buyers get, such as a PDF, a ZIP or an audio file."}
                       onChange={(files) => setFormData((prev: any) => ({ ...prev, ...filesPatch(files), ...(files.length ? {} : { digitalFileUrl: "", digitalFilePath: "" }) }))} />
                   )}
+                  {isDigital && (
+                    <div className="mt-4">
+                      <Toggle label="Print the buyer's name and email on each PDF page" checked={formData.stampPdf === true} onChange={(v) => set("stampPdf", v)} />
+                      <p className="rp-hint mt-2">Added small at the foot of each page when they download it, so a shared copy shows whose it was. Works for PDFs up to 50 MB; bigger files and other kinds of file go out as they are.</p>
+                    </div>
+                  )}
                 </SectionCard>
               )}
               {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <LicenceKeysCard bookId={book?.id} />}
+              {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <DigitalUpdateCard bookId={book?.id} form={formData} unsaved={isDirty} />}
             </>
           </div>
           )}

@@ -1,6 +1,6 @@
 // Same rule as the server's downloadDigitalAsset: only an order line for the digital edition
 // unlocks the e-book. A paperback of a book that also sells an e-book does not.
-import { fileLabel, filesFor } from "../../../shared/digitalFiles";
+import { fileLabel, filesFor, mediaKind, type MediaKind } from "../../../shared/digitalFiles";
 
 /** Default downloads per book and edition on one order (functions/digitalDelivery.js keeps the same number; the shop can change it in Settings). */
 export const DOWNLOAD_LIMIT = 10;
@@ -34,6 +34,8 @@ export interface DigitalEntry {
   title: string;
   /** Which of the edition's files (Digital D1): 0 is the first, and the only one on most products. */
   file: number;
+  /** Digital D3: an audiobook or video file can also be played in the page (Listen / Watch). */
+  media?: MediaKind | null;
 }
 
 /**
@@ -49,8 +51,13 @@ export function digitalEntries(order: any, booksById: Record<string, any>): Digi
     if (seen.has(key)) return;
     seen.add(key);
     const files = filesFor(booksById[itemId], variantId);
-    if (files.length > 1) files.forEach((f, file) => out.push({ itemId, variantId, title: `${title}: ${fileLabel(f)}`, file }));
-    else out.push({ itemId, variantId, title, file: 0 });
+    // Only audiobooks and videos carry `media`, so every other entry keeps its old shape.
+    const entry = (f: any, title: string, file: number): DigitalEntry => {
+      const media = mediaKind(f?.file || f?.name);
+      return media ? { itemId, variantId, title, file, media } : { itemId, variantId, title, file };
+    };
+    if (files.length > 1) files.forEach((f, file) => out.push(entry(f, `${title}: ${fileLabel(f)}`, file)));
+    else out.push(entry(files[0], title, 0));
   };
   for (const item of order?.items || []) {
     if (lineIsDigital(item, booksById[item.id])) add(item.id, item.variantId || "", item.title);

@@ -11,7 +11,7 @@
 //  - The shop picks the countries buyers of downloads can be in (Settings › General › Digital downloads). Canada and the
 //    US to start; "*" opens every other country too.
 
-export type DigitalFile = { file: string; name?: string; size?: number };
+export type DigitalFile = { file: string; name?: string; size?: number; version?: number; updated?: string };
 
 /** Most files on one product or edition. */
 export const MAX_DIGITAL_FILES = 20;
@@ -29,7 +29,13 @@ function cleanFile(raw: any): DigitalFile | null {
   if (!SAFE_NAME.test(file) || file === "." || file === "..") return null;
   const name = String((raw && raw.name) || "").replace(/\s+/g, " ").trim().slice(0, 120);
   const size = Math.floor(Number(raw && raw.size));
-  return { file, ...(name ? { name } : {}), ...(Number.isFinite(size) && size > 0 ? { size } : {}) };
+  // A file replaced by a newer version (Digital D2b) carries its version number and the day it changed.
+  const version = Math.floor(Number(raw && raw.version));
+  const updated = String((raw && raw.updated) || "");
+  return {
+    file, ...(name ? { name } : {}), ...(Number.isFinite(size) && size > 0 ? { size } : {}),
+    ...(version > 1 && version < 1000 ? { version } : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(updated) ? { updated } : {}),
+  };
 }
 
 /** The files on one product or edition, in order: its list, else its single older file, else none. */
@@ -56,13 +62,26 @@ export function filesFor(book: any, variantId?: string | null): DigitalFile[] {
   return own.length ? own : filesOf(book);
 }
 
+/**
+ * A file swapped for a new version: the new stored file and size, the same name and place in the list, the version
+ * number one up and today's day. Pure.
+ */
+export function newVersionOf(f: DigitalFile, upload: { file: string; size: number }, today: string): DigitalFile {
+  return { ...f, file: upload.file, size: upload.size, version: (f.version || 1) + 1, updated: today };
+}
+
 /** What a buyer sees for a file: its name, else the stored name without the upload's time prefix. */
 export function fileLabel(f: DigitalFile): string {
   return (f.name || String(f.file || "").replace(/^\d{10,}-/, "")).trim() || "Download";
 }
 
-/** The download-count key for file `index` of a line whose old key is `lineKey` (the first file keeps the old key). */
+/**
+ * The download-count key for file `index` of a line whose old key is `lineKey` (the first file keeps the old key). A new
+ * version of the first file starts a fresh count (`__v2`), so buyers who used up their downloads can get it; later files
+ * are counted by stored name, which a new version changes anyway.
+ */
 export function fileCountKey(lineKey: string, files: DigitalFile[], index: number): string {
+  if (index <= 0 && files[0]?.version) return `${lineKey}__v${files[0].version}`;
   if (index <= 0 || !files[index]) return lineKey;
   return `${lineKey}__${files[index].file}`.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 300);
 }
@@ -94,4 +113,34 @@ export function fileSizeText(bytes: unknown): string {
   if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+// Listen and watch (Digital D3, Beta): audio and video files play in the buyer's browser, from the Library and the order
+// page. A play asks the server for a short-lived link (`PLAY_LINK_MINUTES`); the player asks again for a fresh one when a
+// link runs out, so no single link holds the whole file for long. Plays never use up the download limit, but each order
+// file has `MAX_PLAYS` of them a day (the owner can't reset it; it starts again the next day).
+export type MediaKind = "audio" | "video";
+const AUDIO = new Set(["mp3", "m4a", "m4b", "aac", "wav", "ogg", "oga", "opus", "flac"]);
+const VIDEO = new Set(["mp4", "m4v", "webm", "mov"]);
+/** Minutes a play link works. */
+export const PLAY_LINK_MINUTES = 10;
+/** Play links one order file may get in a day. */
+export const MAX_PLAYS = 200;
+
+/** "audio", "video", or null for a file that only downloads. Decided by the stored name's extension. */
+export function mediaKind(fileName: unknown): MediaKind | null {
+  const match = /\.([A-Za-z0-9]{1,5})$/.exec(String(fileName || ""));
+  const ext = match ? match[1].toLowerCase() : "";
+  return AUDIO.has(ext) ? "audio" : VIDEO.has(ext) ? "video" : null;
+}
+
+/** The play count after one more play today (UTC day), or `ok: false` past `MAX_PLAYS`. Older days are dropped. */
+export function nextPlayCount(counts: unknown, key: string, day: string, limit = MAX_PLAYS): { ok: boolean; used: number; next: Record<string, number> } {
+  const all = counts && typeof counts === "object" && !Array.isArray(counts) ? (counts as Record<string, unknown>) : {};
+  const today: Record<string, number> = {};
+  const prefix = `${day}|`;
+  for (const [k, v] of Object.entries(all)) if (k.startsWith(prefix) && Number(v) > 0) today[k] = Math.floor(Number(v));
+  const used = today[prefix + key] || 0;
+  if (used >= limit) return { ok: false, used, next: today };
+  return { ok: true, used: used + 1, next: { ...today, [prefix + key]: used + 1 } };
 }
