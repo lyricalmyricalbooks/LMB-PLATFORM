@@ -2617,3 +2617,13 @@ div.rp-listcard-main { cursor: default; }
 .rp-page-help:hover { color: var(--rp-text); border-color: var(--rp-text); }
 .rp-page-help:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-primary)); outline-offset: 2px; }
 @media (pointer: coarse) { .rp-page-help { width: 36px; height: 36px; } }
+
+/* Phone pass (simpler admin, 18 November 2026): on touch screens every small control is thumb-sized, 44px tall or wide,
+   without changing how it looks with a mouse. */
+@media (pointer: coarse) {
+  .rp-page-tab { min-height: var(--rp-touch); }
+  .rp-card-fold { width: var(--rp-touch); height: var(--rp-touch); margin-block: -8px; }
+  .rp-row-link { display: inline-flex; align-items: center; min-height: var(--rp-touch); }
+  .rp-todo-go, .rp-todo-done, .rp-home-link, .od-link { min-height: var(--rp-touch); }
+  .rp-check input { width: 24px; height: 24px; }
+}

@@ -195,3 +195,8 @@
 .be-shelf-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--rp-text-sm); font-weight: 600; color: var(--rp-text); }
 .be-shelf-field input { width: 9rem; min-height: 40px; padding: 0 12px; border: 1px solid var(--rp-border); border-radius: 10px; background: var(--rp-surface); color: var(--rp-text); font: inherit; font-weight: 400; }
 .be-shelf-count .rp-link { background: none; border: 0; padding: 0; color: var(--rp-text); text-decoration: underline; cursor: pointer; font: inherit; }
+/* Phone pass: thumb-sized checkboxes and titles on touch screens. */
+@media (pointer: coarse) {
+  .bk-list .bk-check input { width: 24px; height: 24px; }
+  .bk-list-title { min-height: var(--rp-touch); }
+}

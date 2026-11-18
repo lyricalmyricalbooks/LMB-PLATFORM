@@ -461,11 +461,12 @@ export function StatusBadge({ tone = "neutral", glyph, children }: { tone?: Badg
 export type Column<T> = { key: string; header: string; numeric?: boolean; lead?: boolean; render: (row: T) => ReactNode };
 export type RowState = "pending" | "failed" | "conflict";
 
-export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, sticky, onRowClick, rowProps, stackOnPhone }: {
+export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, sticky, onRowClick, rowProps, stackOnPhone = true }: {
   columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; caption: string; empty?: ReactNode;
   rowState?: (r: T) => RowState | undefined; sticky?: boolean;
   /** On phones (≤767px) draw each row as a small card, every cell under its column name, instead of a
-   *  table that scrolls sideways. Off by default: the table scrolls inside its own box. */
+   *  table that scrolls sideways (the simpler admin's phone pass, 18 November 2026). On by default; pass false to
+   *  keep a table that scrolls inside its own box. */
   stackOnPhone?: boolean;
   /** Pointer shortcut: clicking anywhere on a row (outside its own links/buttons). Keep a keyboard
    *  control for the same action inside the row, e.g. a button in the lead cell. */
