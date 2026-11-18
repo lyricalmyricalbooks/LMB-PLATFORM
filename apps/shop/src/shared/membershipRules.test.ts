@@ -83,3 +83,39 @@ describe.each([["shop", shop], ["server", server]])("memberships rules (%s copy)
     expect(m.planPriceWords(1500, "month", "CAD", "fr-CA").replace(/\s/g, " ")).toBe("15,00 $ par mois");
   });
 });
+
+describe.each([["shop", shop], ["server", server]])("box orders, M3b (%s copy)", (_name, m) => {
+  const { paidByCutoff, inStockWarning, shopHour, boxShortfall } = m;
+  const zone = "America/Toronto";
+  test("paid by the cut-off", () => {
+    expect(paidByCutoff({ startedAt: "2026-10-02T15:00:00Z" }, "2026-11", 15, zone)).toBe(true);
+    expect(paidByCutoff({ startedAt: "2026-11-10T15:00:00Z" }, "2026-11", 15, zone)).toBe(true);
+    expect(paidByCutoff({ startedAt: "2026-11-20T15:00:00Z" }, "2026-11", 15, zone)).toBe(false);
+    // A trial that turned into a paid membership after the cut-off waits for next month.
+    expect(paidByCutoff({ startedAt: "2026-11-01T15:00:00Z", trialEnd: "2026-11-16T15:00:00Z" }, "2026-11", 15, zone)).toBe(false);
+    expect(paidByCutoff({ startedAt: "2026-12-01T15:00:00Z" }, "2026-11", 15, zone)).toBe(false);
+  });
+  test("the warning days", () => {
+    expect(inStockWarning(12, 15)).toBe(true);
+    expect(inStockWarning(14, 15)).toBe(true);
+    expect(inStockWarning(15, 15)).toBe(false);
+    expect(inStockWarning(11, 15)).toBe(false);
+  });
+  test("the shop's hour", () => {
+    expect(shopHour(Date.parse("2026-11-18T13:30:00Z"), zone)).toBe(8);
+  });
+  test("what the boxes are short of", () => {
+    const books: Record<string, shop.BoxStockBook> = {
+      a: { title: "Salt Hours", trackInventory: true, stockLevel: 5 },
+      b: { title: "Night Songs", trackInventory: true, variants: [{ id: "v2", name: "Hardcover", stockLevel: 3 }] },
+      c: { title: "Tote", trackInventory: false, stockLevel: 0 },
+      d: { title: "Zine", trackInventory: true, allowBackorder: true, stockLevel: 0 },
+    };
+    const short = boxShortfall([{ bookId: "a", quantity: 1 }, { bookId: "b", variantId: "v2", quantity: 2 }, { bookId: "c", quantity: 1 }, { bookId: "d", quantity: 1 }, { bookId: "gone", quantity: 1 }], 4, (id) => books[id] || null);
+    expect(short).toEqual([
+      { bookId: "b", variantId: "v2", title: "Night Songs, Hardcover", need: 8, have: 3 },
+      { bookId: "gone", variantId: "", title: "A product that was removed", need: 4, have: 0 },
+    ]);
+    expect(boxShortfall([{ bookId: "a", quantity: 1 }], 0, (id) => books[id] || null)).toEqual([]);
+  });
+});

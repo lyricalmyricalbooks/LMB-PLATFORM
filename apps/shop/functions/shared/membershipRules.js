@@ -7,7 +7,7 @@
 // A plan is paid every month or every year on the shop's own card account, with an optional free trial. A member's
 // state comes from the card provider's subscription (memberState), never from the browser.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getsBox = exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
+exports.dayOrdinal = exports.inStockWarning = exports.getsBox = exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
 exports.cleanBox = cleanBox;
 exports.cleanPlan = cleanPlan;
 exports.memberState = memberState;
@@ -17,6 +17,9 @@ exports.memberFreeProduct = memberFreeProduct;
 exports.cleanBoxAddress = cleanBoxAddress;
 exports.boxMonth = boxMonth;
 exports.shopDayOfMonth = shopDayOfMonth;
+exports.shopHour = shopHour;
+exports.paidByCutoff = paidByCutoff;
+exports.boxShortfall = boxShortfall;
 exports.MAX_PLANS = 8;
 exports.MAX_PLAN_NAME = 60;
 exports.MAX_PLAN_DESCRIPTION = 400;
@@ -175,3 +178,51 @@ function shopDayOfMonth(nowMs, zone) {
 /** Who gets this month's box: paid members only (not a free trial, not a payment being retried). */
 const getsBox = (state) => state === "active" || state === "ending";
 exports.getsBox = getsBox;
+/** The shop-clock hour (0 to 23). Pure. */
+function shopHour(nowMs, zone) {
+    return Number(new Intl.DateTimeFormat("en-CA", { timeZone: zone, hour: "numeric", hourCycle: "h23" }).format(new Date(nowMs))) % 24;
+}
+/**
+ * Whether a member was paid up by this month's cut-off: their paid time (the trial's end, else the start) is before the
+ * cut-off day's end in `month`. Someone who started paying after the cut-off gets next month's box. Pure.
+ */
+function paidByCutoff(m, month, cutoffDay, zone) {
+    const from = Date.parse(m.trialEnd || m.startedAt || "");
+    if (!Number.isFinite(from))
+        return true;
+    const fromMonth = boxMonth(from, zone);
+    if (fromMonth < month)
+        return true;
+    if (fromMonth > month)
+        return false;
+    return shopDayOfMonth(from, zone) <= cutoffDay;
+}
+/** The days the owner hears about short stock: the three days before the cut-off. Pure. */
+const inStockWarning = (day, cutoffDay) => day < cutoffDay && day >= cutoffDay - 3;
+exports.inStockWarning = inStockWarning;
+/**
+ * What this month's boxes need that the shelf doesn't have: for each box line, members × quantity against the counted
+ * stock. A product not counted (stock not tracked, or backorders allowed) is never short; a missing one has 0. Pure.
+ */
+function boxShortfall(items, members, getBook) {
+    if (!(members > 0))
+        return [];
+    const need = new Map();
+    for (const item of items) {
+        const key = `${item.bookId}|${item.variantId || ""}`;
+        const book = getBook(item.bookId);
+        const variant = item.variantId ? (book?.variants || []).find((v) => v.id === item.variantId) : null;
+        const title = [book?.title || "A product that was removed", variant?.name].filter(Boolean).join(", ");
+        const counted = !book || (book.trackInventory === true && book.allowBackorder !== true);
+        if (!counted)
+            continue;
+        const have = !book ? 0 : item.variantId ? Math.max(0, Number(variant ? (variant.stockLevel ?? variant.stock) : 0) || 0) : Math.max(0, Number(book.stockLevel) || 0);
+        const line = need.get(key) || { bookId: item.bookId, variantId: item.variantId || "", title, need: 0, have };
+        line.need += members * item.quantity;
+        need.set(key, line);
+    }
+    return [...need.values()].filter((l) => l.need > l.have);
+}
+/** "15th": a day of the month in words. Pure. */
+const dayOrdinal = (n) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+exports.dayOrdinal = dayOrdinal;

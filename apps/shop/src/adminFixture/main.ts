@@ -231,7 +231,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     member("m1", "Ada Example", "ada@example.com", "active"),
     member("m2", "Ben Example", "ben@example.com", "pastDue", { card: { brand: "visa", last4: "0341" } }),
     member("m3", "Cleo Example", "cleo@example.com", "trial", { trialEnd: at(9), startedAt: at(-5), periodEnd: at(9) }),
-    member("m4", "Dev Example", "dev@example.com", "ending", { plan: { name: "Patrons", interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD" }, planId: "plan-patrons", periodEnd: at(40), card: { brand: "mastercard", last4: "4444" }, box: true, address: { name: "Dev Example", line1: "12 Sample Street", line2: "", city: "Toronto", state: "ON", postalCode: "M5V 2T6", country: "CA" } }),
+    member("m4", "Dev Example", "dev@example.com", "ending", { plan: { name: "Patrons", interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD" }, planId: "plan-patrons", periodEnd: at(40), card: { brand: "mastercard", last4: "4444" }, box: true, address: { name: "Dev Example", line1: "12 Sample Street", line2: "", city: "Toronto", state: "ON", postalCode: "M5V 2T6", country: "CA" }, lastBoxMonth: "2026-10", lastBoxOrder: "BOX-m4-2026-10", boxProblem: { month: "2026-11", text: "One of the box's products is sold out.", at: at(-1) } }),
     member("m5", "Eli Example", "eli@example.com", "ended", { endedAt: at(-20), startedAt: at(-200) }),
   ];
   const live = (m: AdminMember) => ["trial", "active", "ending", "pastDue"].includes(m.state) && !m.test;
@@ -241,6 +241,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       return {
         currency: "CAD", ready: query !== "square", members,
         plans: plans.map((p) => ({ ...p, members: counted.filter((m) => m.planId === p.id).length })),
+        boxWarnings: query === "new" ? [] : [{ planId: "plan-patrons", planName: "Patrons", cutoffDay: 15, members: 1, month: "2026-11", short: [{ bookId: "b2", variantId: "v2", title: "Second book (Signed)", need: 1, have: 0 }] }],
         totals: { members: counted.length, monthlyMinor: counted.reduce((a, m) => a + (m.plan ? (m.plan.interval === "year" ? Math.round(m.plan.priceMinor / 12) : m.plan.priceMinor) : 0), 0), pastDue: counted.filter((m) => m.state === "pastDue").length },
       };
     }

@@ -1,5 +1,5 @@
 // Admin › Members (beta): the words and small sums the page shows. Pure, so membersView.test.ts covers them.
-import { MAX_PLAN_MINOR, MIN_PLAN_MINOR, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT, cleanBox, type BoxAddress, type MemberState, type PlanBox, type PlanInterval } from "../../shared/membershipRules";
+import { MAX_PLAN_MINOR, MIN_PLAN_MINOR, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT, cleanBox, dayOrdinal, type BoxAddress, type MemberState, type PlanBox, type PlanInterval } from "../../shared/membershipRules";
 import type { AdminMember, PlanInput } from "./membersApi";
 import { dayText } from "./givingView";
 
@@ -99,7 +99,7 @@ export function boxText(box: PlanBox): string {
 }
 
 /** 1st, 2nd, 3rd, 4th … 28th. */
-export const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+export const ordinal = dayOrdinal;
 
 /** One line for where a member's boxes go. */
 export const addressText = (a: BoxAddress) => [a.name, a.line1, a.line2, `${a.city}${a.state ? `, ${a.state}` : ""} ${a.postalCode}`.trim(), a.country === "US" ? "United States" : "Canada"].filter(Boolean).join(", ");
