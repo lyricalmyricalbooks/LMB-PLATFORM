@@ -13,10 +13,12 @@ import type { PickupTimes } from "./pickupTimes";
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 type PickerProps = React.ComponentProps<typeof FulfillmentMethodPicker>;
 
-export function CheckoutDeliveryStep({ c, mark, checkoutDesign, physicalItems, fulfillmentSelection, selectFulfillment, availableRates, localQuotes, availableFulfillmentMethods, shippoRatesLoading, formatPrice, pickupNeedsAddress, labelsAbove, pinnedCountryCodes, customer, setCustomer, selectedLocalQuote, pickupTime }: {
+export function CheckoutDeliveryStep({ c, mark, checkoutDesign, physicalItems, fulfillmentSelection, selectFulfillment, availableRates, localQuotes, availableFulfillmentMethods, perishable = false, shippoRatesLoading, formatPrice, pickupNeedsAddress, labelsAbove, pinnedCountryCodes, customer, setCustomer, selectedLocalQuote, pickupTime }: {
   c: Copy; mark: (key: string) => string | null; checkoutDesign: any; physicalItems: unknown[];
   fulfillmentSelection: FulfillmentSelection; selectFulfillment: (value: FulfillmentSelection) => void;
   availableRates: PickerProps["shippingQuotes"]; localQuotes: PickerProps["localQuotes"]; availableFulfillmentMethods: FulfillmentSelection["method"][];
+  /** The bag holds a fresh product (baked goods, plants): it can't be posted, only picked up or delivered locally. */
+  perishable?: boolean;
   shippoRatesLoading: boolean; formatPrice: (priceInCAD: number) => string; pickupNeedsAddress: boolean; labelsAbove: boolean; pinnedCountryCodes: string[];
   customer: CheckoutCustomer; setCustomer: React.Dispatch<React.SetStateAction<CheckoutCustomer>>;
   selectedLocalQuote: PickerProps["localQuotes"][number] | undefined;
@@ -26,6 +28,7 @@ export function CheckoutDeliveryStep({ c, mark, checkoutDesign, physicalItems, f
   return (
     <section className="fm-co-section">
       <SectionHead marker={mark("delivery")} title={c("coDelivery")} tag={c("coDeliveryTag")} />
+      {perishable && <p className="fm-co-note" role="status" {...regionProps("checkoutPerishable")}>{availableFulfillmentMethods.length ? c("coPerishableNote") : c("coPerishableNoWay")}</p>}
       {physicalItems.length > 0 && <FulfillmentMethodPicker
         method={fulfillmentSelection.method}
         optionId={fulfillmentSelection.optionId}

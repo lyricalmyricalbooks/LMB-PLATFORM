@@ -59,7 +59,9 @@ const { sellerSection, digitalConsentSection } = require("./sellerDetails");
 const emailFrench = require("./emailFrench");
 const { emailDefaultsFor, goodsDownloadNote, productBase, sellsBooks, withShopEmailWords, wordsFor } = require("./shared/shopSells");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
-const { taxPartsByKind, discountedLineValues, chargesTax, untaxedValue } = require("./shared/taxByKind");
+const { taxPartsByKind, discountedLineValues, chargesTax, untaxedValue, productTaxGroup } = require("./shared/taxByKind");
+const { approvalTypeOf, mayPublish } = require("./shared/typeApproval");
+const { shipLimits, carrierRatesFor, NO_LIMITS } = require("./shared/shippingLimits");
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { chosenUnitPrice } = require("./shared/payWhatYouWant");
@@ -1060,7 +1062,10 @@ function shippingEstimateOf(days, terms) {
 // charges the one the customer selected (order.shippingMethod), else the
 // cheapest. Profiles without zones keep the legacy flat calculation. Returns
 // { cost, method } or throws when the destination can't be served.
-async function resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical, orderId = "") {
+// A bag with a perishable product (baked goods, plants) can't go by post (shared/shippingLimits).
+const PERISHABLE_MESSAGE = "Some items in your bag are fresh, so they can't go by post. Choose pickup or local delivery.";
+
+async function resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical, orderId = "", limits = NO_LIMITS) {
   const address = order.customer && order.customer.address;
   const selection = order.fulfillmentSelection;
   const physicalItems = items.filter(isPhysicalItem);
@@ -1079,6 +1084,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
     return { cost: 0, method: null, fulfillment: null };
   }
   if (selection && (selection.method !== 'shipping' || /^(pickup|local_delivery):/.test(String(selection.optionId || '')))) throw new Error('Choose an available fulfillment option.');
+  if (limits.perishable) throw Object.assign(new Error(PERISHABLE_MESSAGE), { code: "perishable" });
   let liveRatesTried = false;
   if (address) {
     const configDoc = await SHIPPO_CONFIG_DOC().get();
@@ -1116,12 +1122,13 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
         async: false,
       }, shippoToken);
       const quoteMoney = await liveQuoteMoney();
-      const carrierQuotes = (shipment.rates || []).map(rate => ({
+      // Ground-only products (perfume, batteries) never take a service that flies (shared/shippingLimits).
+      const carrierQuotes = carrierRatesFor((shipment.rates || []).map(rate => ({
         name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
         // Same extra the shopper was shown (getShippoRates), so the charge matches the quote.
         price: withLiveRateExtra(rateAmount(rate, quoteMoney), liveRateExtra(config)),
         estimate: shippingEstimateOf(rate.estimated_days, rate.duration_terms),
-      })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
+      })), limits).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
       if (!carrierQuotes.length) return null;
       const selectedCarrier = selection?.optionId || order.shippingMethod;
       const pickedCarrier = selection ? carrierQuotes.find(quote => quote.name === selectedCarrier) : pickQuote(carrierQuotes, selectedCarrier);
@@ -1183,7 +1190,7 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
   const afterDiscount = discountedLineValues(items, discountAmount, discount, id => booksById[id]?.categories || []);
   // Books › edit › Charge sales tax off: that product's share (after the discount) is taken out of the taxed amount.
   const taxed = item => chargesTax(booksById[item.id]);
-  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), value: taxed(item) ? afterDiscount[items.indexOf(item)] : 0 }));
+  const lineKinds = lines => lines.map(item => ({ kind: productKind(booksById[item.id]), group: productTaxGroup(booksById[item.id]), value: taxed(item) ? afterDiscount[items.indexOf(item)] : 0 }));
   const untaxedOf = lines => untaxedValue(lines, items, afterDiscount, taxed);
   if (fulfillment?.method === 'pickup') {
     const pickup = fulfillment.address;
@@ -1316,6 +1323,10 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
   // An order claimed by a member (Memberships M2a, handleMembershipPricing) pays the plan's member price on each product
   // at the shop's price. The membership and its plan are read again here every time, so it counts only while it lasts.
   const member = link || !order.memberId ? null : await membershipDesk.priceFor(order.memberId, await shopTestMode());
+  // Types that need a check (alcohol, supplements, CBD; shared/typeApproval): read the control room's answers once, only
+  // when the bag holds one, and refuse a product whose type this shop isn't cleared to sell.
+  let approvals;
+  const approvalsNow = async () => (approvals ??= (await db.collection("platform").doc("approvals").get()).data() || {});
   for (const requested of order.items || []) {
     // A free gift is never taken from the browser: it is re-added below when the order earns it.
     if (!requested || requested.promoGift === true) continue;
@@ -1325,6 +1336,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
     const problem = purchaseProblem(book, requested.variantId);
     if (problem === "choose_edition") throw new PricingError(`Choose an edition of "${book.title || label}" before checking out.`);
     if (problem) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
+    if (approvalTypeOf(book) && !mayPublish(book, await approvalsNow())) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`, "not_approved");
     const quantity = Math.max(1, Math.min(99, Math.floor(Number(requested.quantity) || 1)));
     // Sold by the metre or the gram: the quantity counts steps, and a line under the smallest amount is refused.
     const amountCheck = amountLine(book, quantity);
@@ -1518,9 +1530,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
     // A payment link ships for the amount the owner set, or nothing when there is nothing to ship.
     shipResult = link
       ? { cost: link.shipping != null && items.some(isPhysicalItem) ? Math.round(Number(link.shipping) * 100) / 100 : 0, method: link.shipping != null && items.some(isPhysicalItem) ? "Shipping" : null, fulfillment: null }
-      : await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical, orderId);
+      : await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical, orderId, shipLimits(items.filter(isPhysicalItem).map(item => booksById[item.id])));
   } catch (err) {
-    throw new PricingError(err.message, err.code === "shipping_rates_changed" || err.pickupTime ? err.code : undefined);
+    throw new PricingError(err.message, err.code === "shipping_rates_changed" || err.code === "perishable" || err.pickupTime ? err.code : undefined);
   }
   const shipping = shipResult.cost;
   let tax, taxLines;

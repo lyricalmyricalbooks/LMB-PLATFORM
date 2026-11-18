@@ -785,6 +785,8 @@ export const FRENCH_COPY: Record<string, string> = {
   coPhone: "Téléphone (facultatif)",
   coShipMethod: "Comment souhaitez-vous recevoir votre commande?",
   coShipMethodNote: "Les prix s'appliquent à cette adresse et à ces livres.",
+  coPerishableNote: "Certains articles de votre panier sont frais : nous ne pouvons pas les envoyer par la poste. Choisissez le retrait ou la livraison locale.",
+  coPerishableNoWay: "Certains articles de votre panier sont frais : nous ne pouvons pas les envoyer par la poste, et le retrait et la livraison locale ne sont pas ouverts pour le moment. Retirez-les pour payer, ou écrivez-nous.",
   coFulfillmentGroup: "Comment souhaitez-vous recevoir votre commande?",
   coFulfillmentShipping: "Livraison à l'adresse",
   coFulfillmentPickup: "Cueillette en personne",

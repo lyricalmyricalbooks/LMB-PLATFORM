@@ -205,6 +205,7 @@ async function load() {
     await loadTaxWatch();
     await loadTestShop();
     await loadShops();
+    loadApprovals();
     await loadLaunch();
     status.textContent = "";
     checkedAt = Date.now();
@@ -1193,7 +1194,7 @@ function renderToday() {
   const other = Object.entries(otherIncome).filter(([, cents]) => cents > 0).map(([code, cents]) => `${new Intl.NumberFormat(undefined, { style: "currency", currency: code, currencyDisplay: "symbol" }).format(cents / 100).replace(/\.00$/, "")}`);
   // The test shop's update failing is the platform's own problem: it goes first, so it is never folded away.
   // Most urgent first: the red lines (a shop or a payment in trouble) above the rest, each kept in its own order.
-  const needs = [...(todayExtras.update ? [todayExtras.update] : []), ...(todayExtras.checks ?? []), ...lastToday.needs]
+  const needs = [...(todayExtras.update ? [todayExtras.update] : []), ...(todayExtras.checks ?? []), ...lastToday.needs, ...(todayExtras.approvals ?? [])]
     .sort((a, b) => Number(DANGER_KINDS.has(b.kind)) - Number(DANGER_KINDS.has(a.kind)));
   const now = new Date();
   const hour = now.getHours();
@@ -1510,6 +1511,8 @@ function card(shop) {
     shop.status === "live" && shop.plan !== "stockroom" ? bookingsBetaSection(shop) : null,
     shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section" }, "Ways to sell ", el("span", { className: "rp-badge", dataset: { tone: "info" }, textContent: "Beta" })) : null,
     shop.status === "live" && shop.plan !== "stockroom" ? waysBetaSection(shop) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? el("h3", { className: "cr-section", textContent: "Products that need a check" }) : null,
+    shop.status === "live" && shop.plan !== "stockroom" ? productApprovalSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Newsletters, morning emails and changed orders" }) : null,
     shop.status === "live" ? shopFeaturesSection(shop) : null,
     shop.status === "live" ? el("h3", { className: "cr-section", textContent: "Website look" }) : null,
@@ -3644,6 +3647,64 @@ function bookingsBetaSection(shop) {
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   show();
   return slot;
+}
+
+// Products that need a check (control-room/productApproval.js): alcohol, supplements and CBD stay drafts in a shop until
+// you say yes here. A yes is a plain confirm; a no asks for one sentence the owner reads under the product.
+/** A type's name inside a sentence: "wine, beer and spirits", "supplements", but "CBD and hemp" stays. */
+const inSentence = (name) => name.replace(/^[A-Z][a-z]/, (m) => m.toLowerCase());
+const APPROVAL_STATE = { approved: ["success", "approved"], waiting: ["warning", "waiting for you"], declined: ["danger", "not approved"], "not-asked": ["neutral", "not asked"] };
+function productApprovalSection(shop) {
+  const slot = el("div", {}, el("p", { className: "rp-hint", textContent: "Reading the shop's asks…" }));
+  const name = shop.pressName ?? shop.shopId;
+  const decide = async (t, approve, control) => {
+    const answer = approve
+      ? await askBox(`Let ${name} sell ${inSentence(t.name)}? Those products can then go on sale.`, { yes: "Approve" })
+      : await askBox(`Say no to ${inSentence(t.name)} for ${name}? Those products stay drafts, and the owner reads your reason under each one.`, { yes: "Say no", danger: true, field: "Why, in one sentence" });
+    if (answer === null) return;
+    control.disabled = true;
+    try {
+      await api("POST", "/control/approvals/decide", { shopId: shop.shopId, typeId: t.typeId, approve, ...(approve ? {} : { reason: answer }) });
+      await show();
+      loadApprovals();
+    } catch (failure) {
+      control.disabled = false;
+      slot.append(el("p", { className: "rp-hint", role: "alert", textContent: failure.message }));
+    }
+  };
+  const row = (t) => {
+    const yes = t.state === "approved" ? null : button("Approve", "primary");
+    const no = t.state === "declined" ? null : button(t.state === "approved" ? "Take back" : "Say no", "ghost");
+    yes?.setAttribute("aria-label", `Approve ${t.name} for ${name}`);
+    no?.setAttribute("aria-label", `${no.textContent} ${t.name} for ${name}`);
+    yes?.addEventListener("click", () => decide(t, true, yes));
+    no?.addEventListener("click", () => decide(t, false, no));
+    return el("div", { className: "rp-card-body", style: "padding: 8px 0", dataset: { approval: t.typeId } },
+      el("div", { className: "cr-approval-row" },
+        el("div", { className: "cr-actions" }, el("strong", { textContent: t.name }), pill(...APPROVAL_STATE[t.state])),
+        el("div", { className: "cr-actions" }, yes, no)),
+      t.note && t.state === "waiting" ? el("p", { className: "rp-hint", textContent: `Their note: “${t.note}”` }) : null,
+      t.reason ? el("p", { className: "rp-hint", textContent: `Your reason: ${t.reason}` }) : null,
+      meta(t.askedAt ? `asked ${dateOnly(t.askedAt)}` : null, t.answeredAt ? `answered ${dateOnly(t.answeredAt)}` : null, t.answeredBy ? `by ${t.answeredBy}` : null));
+  };
+  const show = () => api("POST", "/control/approvals", { shopId: shop.shopId })
+    .then(({ types }) => fill(slot, ...types.map(row)))
+    .catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
+  show();
+  return slot;
+}
+
+/** Today: each shop asking for a check, oldest first. A failed read leaves Today as it was. */
+async function loadApprovals() {
+  try {
+    const { asks } = await api("GET", "/control/approvals/waiting");
+    todayExtras.approvals = asks.map((a) => ({ kind: "approval", shopId: a.shopId, words: a.typeId
+      ? `${a.pressName} asks to sell ${inSentence(a.name)}: ${a.note ? `“${a.note}”` : "no note"}${a.askedAt ? `, asked ${dateOnly(a.askedAt)}` : ""}`
+      : `${a.pressName}: couldn't read its product checks` }));
+  } catch {
+    todayExtras.approvals = [];
+  }
+  renderToday();
 }
 
 // Donations: tries the card-testing guard refused in 30 days. A few are normal; many mean someone is trying stolen cards.

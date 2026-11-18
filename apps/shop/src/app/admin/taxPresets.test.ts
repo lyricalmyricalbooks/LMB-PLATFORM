@@ -72,3 +72,19 @@ describe("the preset the Taxes page starts on (plan 10.4)", () => {
     expect(TAX_PRESETS.some((p) => p.id === suggestedTaxPresetId("clothing"))).toBe(true);
   });
 });
+
+describe("tax group presets (product types round 2)", () => {
+  test("each adds rates only for its group, beside the place's general rate", () => {
+    const general = applyTaxPreset([], preset("ca-goods")).rates;
+    const { rates, added, kept } = applyTaxPreset(general, preset("ca-kids-clothing"));
+    expect([added, kept]).toEqual([13, 0]);
+    const kids = rates.filter((r) => r.kinds?.[0] === "group:kids-clothing");
+    expect(Object.fromEntries(kids.map((r) => [r.region, r.rate]))).toMatchObject({ Ontario: "5", "New Brunswick": "15", Quebec: "14.975", "British Columbia": "5" });
+    expect(applyTaxPreset(rates, preset("ca-kids-clothing")).added).toBe(0);
+  });
+  test("groceries are 0% everywhere and the digital group pays full HST", () => {
+    expect(new Set(Object.values(preset("ca-grocery").rates))).toEqual(new Set(["0"]));
+    expect(preset("ca-digital-group").rates.ON).toBe("13");
+    expect(preset("ca-books-group").kinds).toEqual(["group:books"]);
+  });
+});

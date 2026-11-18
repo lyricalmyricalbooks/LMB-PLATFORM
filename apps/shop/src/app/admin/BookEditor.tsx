@@ -92,6 +92,8 @@ import { SoldByAmountFields } from "./SoldByAmountFields";
 import { PersonalTextFields } from "./PersonalTextFields";
 import { soldAmount, startingAmount, stepText, stockText } from "../../shared/soldByAmount";
 import { missingLawFacts, safetyForType } from "./typeFacts";
+import { TypeApprovalCard } from "./TypeApprovalCard";
+import { useTypeApproval } from "./typeApprovalApi";
 import { TypeFactsCard } from "./TypeFactsCard";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
@@ -631,6 +633,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const closeAfterSave = useRef(true);
   // The product this editor just created, for "Saved. Add another" (product types plan, change 11).
   const [justCreated, setJustCreated] = useState<any>(null);
+  // Types that need a check (alcohol, supplements, CBD): where this product's check stands, null for every other type.
+  const approval = useTypeApproval(formData);
   const handleSave = async (e?: React.FormEvent, reviewed = false, close = closeAfterSave.current) => {
     closeAfterSave.current = close;
     if (e) e.preventDefault();
@@ -645,6 +649,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       } catch { add("seo", "Sharing image must be a valid HTTPS URL."); }
     }
     if (!formData.title.trim()) found.push({ text: w("Book title is required."), tab: "details", field: "title" });
+    if (approval && approval.state !== "approved" && formData.status === "published") {
+      found.push({ text: `${typeOfProduct(formData)?.name || "This kind of product"} needs our check before it goes on sale. Save it as a draft and ask for a check under Visibility.`, tab: "details", field: "status" });
+    }
     if (formData.retailPrice < 0) add("pricing", "Retail price cannot be negative.");
     // An edition saved with a blank price would sell for $0.
     (formData.variants || []).forEach((v: any, i: number) => {
@@ -2018,8 +2025,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
 
           {onDetails && (
             <SectionCard title="Visibility" description="Where it can be bought.">
+              {approval && <TypeApprovalCard status={approval} typeName={typeOfProduct(formData)?.name || "This kind of product"} />}
               <FormChoice label="Status" value={String(formData.status || "draft")}
-                options={[{ value: "published", label: "Published" }, { value: "draft", label: "Draft" }, { value: "archived", label: "Archived" }]}
+                options={[{ value: "published", label: "Published", disabled: !!approval && approval.state !== "approved" }, { value: "draft", label: "Draft" }, { value: "archived", label: "Archived" }]}
                 onChange={(v) => set("status", v)} />
               <p className="rp-fk-hint" style={{ margin: "-8px 0 0" }}>{w("Only Published books appear in the shop.")}</p>
               <TextField label="Schedule publish date" type="date" name="scheduleDate" value={formData.scheduleDate || ""} onChange={handleChange} hint="Optional. Blank = live when published." />

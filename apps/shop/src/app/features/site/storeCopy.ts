@@ -1560,6 +1560,8 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "coPhone", label: "Field: phone", default: "Phone (optional)" },
       { key: "coShipMethod", label: "Fulfillment-choice heading", default: "How would you like to receive your order?" },
       { key: "coShipMethodNote", label: "Note under the delivery choices", default: "Prices are for this address and these books." },
+      { key: "coPerishableNote", label: "Fresh items can't be posted (pickup or delivery shown)", default: "Some items in your bag are fresh, so we can't post them. Choose pickup or local delivery.", hint: "Shown when the bag holds baked goods, plants or another fresh product type." },
+      { key: "coPerishableNoWay", label: "Fresh items can't be posted (no pickup or delivery)", default: "Some items in your bag are fresh, so we can't post them, and pickup and local delivery aren't open right now. Remove them to check out, or contact us.", hint: "Shown when the bag holds a fresh product and the shop has no pickup or local delivery switched on." },
       { key: "coFulfillmentGroup", label: "Fulfillment choices — screen-reader group", default: "How would you like to receive your order?" },
       { key: "coFulfillmentShipping", label: "Ship to address choice", default: "Ship to address" },
       { key: "coFulfillmentPickup", label: "Pickup choice", default: "Pick up in person" },

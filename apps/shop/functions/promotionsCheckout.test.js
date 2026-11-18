@@ -11,7 +11,7 @@ const { giftCardId } = realRequire('./giftCards.js');
 const CODE = 'ABCD-EFGH-JKMN-PQRS';
 const CARD_ID = giftCardId(CODE);
 
-function harness({ items, books = {}, discounts = {}, giftCards = {}, appliedDiscount = null, cards = undefined, paymentMethod = 'Stripe', taxRate = 0, collectTax, bookName } = {}) {
+function harness({ items, books = {}, discounts = {}, giftCards = {}, appliedDiscount = null, cards = undefined, paymentMethod = 'Stripe', taxRate = 0, collectTax, bookName, extraRates = [] } = {}) {
   const updates = [], stripeCalls = [];
   const order = {
     items, trackingKey: 'a'.repeat(64), paymentMethod,
@@ -23,7 +23,7 @@ function harness({ items, books = {}, discounts = {}, giftCards = {}, appliedDis
     books: { ebook: { status: 'published', format: 'E-book', retailPrice: 20, digital: true }, ...books },
     discounts,
     giftCards,
-    settings: { website: { taxes: { rates: taxRate ? [{ country: 'Canada', region: 'ON', rate: taxRate, ...(bookName ? { bookName } : {}) }] : [], ...(collectTax === undefined ? {} : { collect: collectTax }) }, payments: { stripe: { secretKey: 'sk_test_fake', connected: true } } } },
+    settings: { website: { taxes: { rates: [...(taxRate ? [{ country: 'Canada', region: 'ON', rate: taxRate, ...(bookName ? { bookName } : {}) }] : []), ...extraRates], ...(collectTax === undefined ? {} : { collect: collectTax }) }, payments: { stripe: { secretKey: 'sk_test_fake', connected: true } } } },
   };
   const snap = (name, id) => { const data = docs[name]?.[id]; return { exists: !!data, data: () => data, id }; };
   const merge = (name, id, change) => { docs[name] ||= {}; const target = (docs[name][id] ||= {}); for (const [k, v] of Object.entries(change)) { if (k.includes('.')) { const [a, b] = k.split('.'); target[a] = { ...(target[a] || {}), [b]: v }; } else target[k] = v; } };
@@ -251,6 +251,56 @@ describe('tax collection switch (Settings › Taxes)', () => {
     expect(app.order.tax).toBe(0);
     expect(app.order.taxLines).toEqual([]);
     expect(app.order.total).toBe(20);
+  });
+});
+
+describe('tax groups from the product type (product types round 2)', () => {
+  // Two digital stand-ins so shipping stays out of the way: one is "kids' clothing" by type, one has no group.
+  const books = {
+    kids: { status: 'published', format: 'E-book', retailPrice: 20, digital: true, kind: 'clothing', typeId: 'kids-clothing' },
+    tee: { status: 'published', format: 'E-book', retailPrice: 20, digital: true, kind: 'clothing', typeId: 'tops' },
+  };
+  const kidsRate = { country: 'Canada', region: 'ON', rate: 5, kinds: ['group:kids-clothing'], bookName: 'GST' };
+  test('a group rate taxes only the products of that group', async () => {
+    const app = harness({ books, items: [line('kids'), line('tee')], taxRate: 13, extraRates: [kidsRate] });
+    expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
+    expect(app.order.tax).toBeCloseTo(1 + 2.6);
+    expect(app.order.taxLines).toEqual(expect.arrayContaining([{ name: 'GST', cents: 100 }, { name: 'HST ON', cents: 260 }]));
+  });
+  test('with no group rate every product pays the place rate, as before', async () => {
+    const app = harness({ books, items: [line('kids'), line('tee')], taxRate: 13 });
+    expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
+    expect(app.order.tax).toBeCloseTo(5.2);
+  });
+});
+
+describe('fresh products are never posted (product types round 2)', () => {
+  const books = { bread: { status: 'published', format: 'Loaf', retailPrice: 8, kind: 'other', typeId: 'baked', weight: '500 g' } };
+  test('a bag with a perishable product refuses shipping in plain words, before any payment', async () => {
+    const app = harness({ books, items: [line('bread')] });
+    app.order.customer = { name: 'A', email: 'a@example.com', address: { street: '1 Main', city: 'Toronto', state: 'ON', zip: 'M6G 3H1', country: 'Canada' } };
+    const r = await app.call('createStripeCheckoutSession');
+    expect(r.code).toBe(400);
+    expect(JSON.stringify(r.value)).toMatch(/fresh/);
+    expect(app.stripeCalls).toHaveLength(0);
+  });
+});
+
+describe('types that need a check (product types round 2)', () => {
+  const books = { wine: { status: 'published', title: 'Red', format: 'Bottle', retailPrice: 30, kind: 'other', typeId: 'alcohol', digital: true } };
+  test('a wine the shop is not cleared to sell is refused before any payment', async () => {
+    const app = harness({ books, items: [line('wine')] });
+    const r = await app.call('createStripeCheckoutSession');
+    expect(r.code).toBe(400);
+    expect(JSON.stringify(r.value)).toMatch(/not available to buy/);
+    expect(app.stripeCalls).toHaveLength(0);
+  });
+  test('once the control room says yes for wine, it sells', async () => {
+    const app = harness({ books, items: [line('wine')] });
+    app.docs.platform = { approvals: { types: { alcohol: { state: 'approved' } } } };
+    const r = await app.call('createStripeCheckoutSession');
+    expect(r.code).toBe(200);
+    expect(app.stripeCalls).toHaveLength(1);
   });
 });
 

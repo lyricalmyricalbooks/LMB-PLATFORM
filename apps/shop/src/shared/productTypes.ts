@@ -233,6 +233,8 @@ const TYPE_DRAFTS: Record<TypeGroupId, Array<[id: string, name: string, draft?: 
     ["hair-care", "Hair care", { words: ["shampoo", "conditioner", "hair oil", "shampoo bar", "pomade"], google: "Health & Beauty > Personal Care > Hair Care" }],
     ["makeup", "Makeup", { words: ["lipstick", "mascara", "blush", "eyeshadow", "nail polish", "foundation"], choices: ["Shade"], sizes: [], traits: { ingredients: true, groundOnly: true }, google: "Health & Beauty > Personal Care > Cosmetics > Makeup" }],
     ["perfume", "Perfume", { words: ["perfume", "fragrance", "cologne", "eau de parfum", "solid perfume", "roll-on"], traits: { ingredients: true, groundOnly: true }, google: "Health & Beauty > Personal Care > Cosmetics > Perfume & Cologne" }],
+    ["supplements", "Supplements", { words: ["supplement", "vitamins", "protein powder", "herbal remedy", "tincture", "capsules", "adaptogen"], facts: [F.ingredients, F.howToUse, F.netAmount], traits: { ingredients: true, approval: true }, google: "Health & Beauty > Health Care > Fitness & Nutrition > Vitamins & Supplements" }],
+    ["cbd", "CBD and hemp", { words: ["cbd", "hemp oil", "hemp", "cannabidiol"], facts: [F.ingredients, F.howToUse, F.netAmount], traits: { ingredients: true, approval: true }, google: "Health & Beauty > Personal Care" }],
     ["grooming", "Grooming", { words: ["beard oil", "shaving", "razor", "deodorant", "comb", "brush"], google: "Health & Beauty > Personal Care > Shaving & Grooming" }],
   ],
   food: [
@@ -242,7 +244,8 @@ const TYPE_DRAFTS: Record<TypeGroupId, Array<[id: string, name: string, draft?: 
     ["baked", "Baked goods", { words: ["bread", "cookies", "cake", "pastry", "brownies", "granola", "baking"], sizes: [], traits: { perishable: true }, google: "Food, Beverages & Tobacco > Food Items > Bakery" }],
     ["preserves", "Jams and sauces", { words: ["jam", "sauce", "hot sauce", "honey", "pickles", "preserves", "syrup", "chutney"], sizes: ["jar"], google: "Food, Beverages & Tobacco > Food Items > Condiments & Sauces" }],
     ["spices", "Spices", { words: ["spice", "seasoning", "salt", "rub", "herbs"], sizes: ["jar"], google: "Food, Beverages & Tobacco > Food Items > Seasonings & Spices" }],
-    ["drinks", "Drinks", { words: ["juice", "kombucha", "soda", "cordial", "wine", "beer", "spirits", "cider", "alcohol"], sizes: ["bottle"], traits: { groundOnly: true, approval: true }, google: "Food, Beverages & Tobacco > Beverages" }],
+    ["drinks", "Drinks", { words: ["juice", "kombucha", "soda", "cordial", "lemonade", "syrup drink"], sizes: ["bottle"], traits: { groundOnly: true }, google: "Food, Beverages & Tobacco > Beverages" }],
+    ["alcohol", "Wine, beer and spirits", { words: ["wine", "beer", "spirits", "cider", "mead", "sake", "gin", "whisky", "alcohol", "liqueur"], sizes: ["bottle"], traits: { groundOnly: true, approval: true }, google: "Food, Beverages & Tobacco > Beverages > Alcoholic Beverages" }],
   ],
   kids: [
     ["toys", "Toys", { words: ["toy", "plush", "stuffed animal", "doll", "blocks", "wooden toy", "teddy"], google: "Toys & Games > Toys" }],

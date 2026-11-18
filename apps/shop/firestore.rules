@@ -81,7 +81,9 @@ service cloud.firestore {
       // shows them as a banner, the storefront never reads them. platform/features (Bookings beta, 14 November 2026): the
       // control room's per-shop feature switches, admin-only too; the shop's functions read them on the server.
       match /platform/{docId} {
-        allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages' || docId == 'features') && isAdmin());
+        // platform/approvals (product types plan, 18 November 2026; src/shared/typeApproval.ts): the control room's
+        // answers on product types that need a check (alcohol, supplements, CBD). Admin-only, written by no browser.
+        allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages' || docId == 'features' || docId == 'approvals') && isAdmin());
         allow write: if false;
       }
 
@@ -141,12 +143,34 @@ service cloud.firestore {
           && d.customer.keys().hasOnly(['name', 'email', 'phone', 'address', 'billingAddress']);
       }
 
+      function approvedToPublish(b) {
+        return b.get('status', '') != 'published'
+          || !(b.get('typeId', '') in ['alcohol', 'supplements', 'cbd'])
+          || get(/databases/$(database)/documents/shops/$(shopId)/platform/approvals).data.get('types', {}).get(b.typeId, {}).get('state', '') == 'approved';
+      }
+      // The owner's ask for a check on a product type (typeApproval.ts approvalAsk): admins read and write their own
+      // shop's; only a waiting ask with these fields. The control room answers on it with the Admin SDK.
+      match /approvalRequests/{typeId} {
+        allow read: if isAdmin();
+        allow create, update: if isAdmin()
+          && typeId in ['alcohol', 'supplements', 'cbd']
+          && request.resource.data.keys().hasOnly(['typeId', 'typeName', 'note', 'askedAt', 'state'])
+          && request.resource.data.typeId == typeId
+          && request.resource.data.state == 'waiting'
+          && request.resource.data.typeName is string && request.resource.data.typeName.size() <= 80
+          && request.resource.data.note is string && request.resource.data.note.size() <= 500
+          && request.resource.data.askedAt is string && request.resource.data.askedAt.size() <= 40;
+        allow delete: if false;
+      }
+
       match /books/{bookId} {
         // Shoppers see published books only (list queries must filter status == "published"); drafts, archived
         // and unreleased records are the admin's. Private fields (cost prices, shelf codes, the legacy
         // inventory key, the digital file path) live in books/{id}/private/admin, never on this document.
         allow read: if isAdminReader() || resource.data.status == "published";
-        allow write: if isAdmin();
+        // A product of a type that needs a check (APPROVAL_TYPE_IDS in src/shared/typeApproval.ts, same list; a test
+        // keeps them equal) may only be published once platform/approvals says yes for that type.
+        allow write: if isAdmin() && (request.resource == null || approvedToPublish(request.resource.data));
         match /private/{docId} {
           allow read: if isAdminReader();
           allow write: if isAdmin();

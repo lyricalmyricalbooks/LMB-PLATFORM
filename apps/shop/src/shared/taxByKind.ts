@@ -4,11 +4,35 @@
 // wins over a country-wide rate, as before. The rule for a shop that doesn't use it: when no rate lists a kind, every
 // order is taxed exactly as it was, one rate on the whole taxable amount (tested). Shared by checkout and the server.
 
+//
+// Tax groups (product types plan, round 2, 18 November 2026): a product's type may put it in a tax group (children's
+// clothing, groceries, books, digital items; `traits.taxGroup` in productTypes.ts). A rate may list the group as
+// `group:<id>` in `kinds`, and then it wins over the kind's own rate and the general one in the same place. A shop with
+// no group rate is taxed exactly as before.
+
 import { bogoPercent } from "./discountMath";
+import { typeOfProduct, type TaxGroup } from "./productTypes";
 
 export type KindRate = { country?: string; region?: string; rate?: string | number; kinds?: string[] };
-/** One order line for tax: its product's kind and its value (any unit, only the shares matter). */
-export type TaxLine = { kind: string; value: number };
+/** One order line for tax: its product's kind, its tax group key (`group:<id>`, or none) and its value (any unit, only the shares matter). */
+export type TaxLine = { kind: string; group?: string; value: number };
+
+/** The tax groups a rate can be limited to, with the words the Taxes page shows. */
+export const TAX_GROUPS: Record<TaxGroup, string> = {
+  "kids-clothing": "Children's clothing and shoes",
+  grocery: "Groceries",
+  books: "Books",
+  digital: "Digital items",
+};
+
+/** The key a rate lists to cover a tax group: `group:kids-clothing`. */
+export const taxGroupKey = (group: TaxGroup): string => `group:${group}`;
+
+/** The product's tax group key from its type (`group:grocery`), or "" when its type has none. */
+export function productTaxGroup(product: unknown): string {
+  const group = typeOfProduct(product)?.traits?.taxGroup;
+  return group ? taxGroupKey(group) : "";
+}
 export type TaxPart<R> = { rate: R | null; amount: number };
 
 const listed = (rate: KindRate): string[] => (Array.isArray(rate?.kinds) ? rate.kinds.filter((k) => typeof k === "string" && k) : []);
@@ -31,11 +55,15 @@ export function ratesUseKinds(rates: KindRate[]): boolean {
   return (rates || []).some((rate) => listed(rate).length > 0);
 }
 
-/** The rates that may tax a product of `kind`, its own first: a rate listing the kind, then the rates with no list. */
-export function ratesForKind<R extends KindRate>(rates: R[], kind: string): R[] {
+/**
+ * The rates that may tax a product of `kind` (in tax group `group`), its own first: a rate listing the group, then a
+ * rate listing the kind, then the rates with no list.
+ */
+export function ratesForKind<R extends KindRate>(rates: R[], kind: string, group = ""): R[] {
+  const grouped = group ? (rates || []).filter((rate) => listed(rate).includes(group)) : [];
   const own = (rates || []).filter((rate) => listed(rate).includes(kind));
   const general = (rates || []).filter((rate) => listed(rate).length === 0);
-  return [...own, ...general];
+  return [...grouped, ...own, ...general];
 }
 
 /**
@@ -49,10 +77,15 @@ export function taxPartsByKind<R extends KindRate>(lines: TaxLine[], amount: num
     const rate = match(rates);
     return [{ rate, amount: amount * (Number(rate?.rate || 0) / 100) }];
   }
-  const byKind = new Map<string, number>();
-  for (const line of lines) byKind.set(line.kind, (byKind.get(line.kind) || 0) + Math.max(0, line.value));
-  return [...byKind].map(([kind, value]) => {
-    const rate = match(ratesForKind(rates, kind));
+  const byKind = new Map<string, { kind: string; group: string; value: number }>();
+  for (const line of lines) {
+    const key = `${line.kind}|${line.group || ""}`;
+    const seen = byKind.get(key) || { kind: line.kind, group: line.group || "", value: 0 };
+    seen.value += Math.max(0, line.value);
+    byKind.set(key, seen);
+  }
+  return [...byKind.values()].map(({ kind, group, value }) => {
+    const rate = match(ratesForKind(rates, kind, group));
     return { rate, amount: amount * (value / total) * (Number(rate?.rate || 0) / 100) };
   });
 }

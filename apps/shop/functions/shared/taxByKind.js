@@ -6,13 +6,36 @@
 // wins over a country-wide rate, as before. The rule for a shop that doesn't use it: when no rate lists a kind, every
 // order is taxed exactly as it was, one rate on the whole taxable amount (tested). Shared by checkout and the server.
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.taxGroupKey = exports.TAX_GROUPS = void 0;
+exports.productTaxGroup = productTaxGroup;
 exports.chargesTax = chargesTax;
 exports.untaxedValue = untaxedValue;
 exports.ratesUseKinds = ratesUseKinds;
 exports.ratesForKind = ratesForKind;
 exports.taxPartsByKind = taxPartsByKind;
 exports.discountedLineValues = discountedLineValues;
+//
+// Tax groups (product types plan, round 2, 18 November 2026): a product's type may put it in a tax group (children's
+// clothing, groceries, books, digital items; `traits.taxGroup` in productTypes.ts). A rate may list the group as
+// `group:<id>` in `kinds`, and then it wins over the kind's own rate and the general one in the same place. A shop with
+// no group rate is taxed exactly as before.
 const discountMath_1 = require("./discountMath");
+const productTypes_1 = require("./productTypes");
+/** The tax groups a rate can be limited to, with the words the Taxes page shows. */
+exports.TAX_GROUPS = {
+    "kids-clothing": "Children's clothing and shoes",
+    grocery: "Groceries",
+    books: "Books",
+    digital: "Digital items",
+};
+/** The key a rate lists to cover a tax group: `group:kids-clothing`. */
+const taxGroupKey = (group) => `group:${group}`;
+exports.taxGroupKey = taxGroupKey;
+/** The product's tax group key from its type (`group:grocery`), or "" when its type has none. */
+function productTaxGroup(product) {
+    const group = (0, productTypes_1.typeOfProduct)(product)?.traits?.taxGroup;
+    return group ? (0, exports.taxGroupKey)(group) : "";
+}
 const listed = (rate) => (Array.isArray(rate?.kinds) ? rate.kinds.filter((k) => typeof k === "string" && k) : []);
 /**
  * Books › edit › Charge sales tax (`chargeTax`). Off (`false`) leaves that product out of the tax, on the page and on the
@@ -29,11 +52,15 @@ function untaxedValue(lines, all, afterDiscount, taxed) {
 function ratesUseKinds(rates) {
     return (rates || []).some((rate) => listed(rate).length > 0);
 }
-/** The rates that may tax a product of `kind`, its own first: a rate listing the kind, then the rates with no list. */
-function ratesForKind(rates, kind) {
+/**
+ * The rates that may tax a product of `kind` (in tax group `group`), its own first: a rate listing the group, then a
+ * rate listing the kind, then the rates with no list.
+ */
+function ratesForKind(rates, kind, group = "") {
+    const grouped = group ? (rates || []).filter((rate) => listed(rate).includes(group)) : [];
     const own = (rates || []).filter((rate) => listed(rate).includes(kind));
     const general = (rates || []).filter((rate) => listed(rate).length === 0);
-    return [...own, ...general];
+    return [...grouped, ...own, ...general];
 }
 /**
  * The tax parts for `amount` (the taxable money after any discount) spread over `lines` by value. `match` picks the
@@ -47,10 +74,14 @@ function taxPartsByKind(lines, amount, rates, match) {
         return [{ rate, amount: amount * (Number(rate?.rate || 0) / 100) }];
     }
     const byKind = new Map();
-    for (const line of lines)
-        byKind.set(line.kind, (byKind.get(line.kind) || 0) + Math.max(0, line.value));
-    return [...byKind].map(([kind, value]) => {
-        const rate = match(ratesForKind(rates, kind));
+    for (const line of lines) {
+        const key = `${line.kind}|${line.group || ""}`;
+        const seen = byKind.get(key) || { kind: line.kind, group: line.group || "", value: 0 };
+        seen.value += Math.max(0, line.value);
+        byKind.set(key, seen);
+    }
+    return [...byKind.values()].map(({ kind, group, value }) => {
+        const rate = match(ratesForKind(rates, kind, group));
         return { rate, amount: amount * (value / total) * (Number(rate?.rate || 0) / 100) };
     });
 }

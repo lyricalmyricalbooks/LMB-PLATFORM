@@ -190,6 +190,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "checkoutForm", label: "Checkout form", required: true }, { id: "checkoutSummary", label: "Order summary", required: true },
     { id: "checkoutFulfillment", label: "Shipping, pickup & local delivery choices", required: true, copy: "Checkout" },
     { id: "checkoutPreorder", label: "Pre-order shipping notice" },
+    { id: "checkoutPerishable", label: "Fresh items can't be posted notice" },
     { id: "checkoutHoldWarning", label: "Large-order limit warning (above Pay)" },
     { id: "checkoutDiscount", label: "Discount code box" },
     { id: "checkoutGiftCard", label: "Gift card box" },
