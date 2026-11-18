@@ -208,6 +208,15 @@ describe("customers book", () => {
     expect(body.hours.flat().every((w) => /^\d\d:\d\d$/.test(w.start) && /^\d\d:\d\d$/.test(w.end))).toBe(true);
   });
 
+  test("a booking through a ready link keeps where it came from; anything else is left out (plan 4, 2.7)", async () => {
+    const t = setup();
+    await t.seed();
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "10:00"), ...CUSTOMER, from: "instagram" });
+    expect(t.db.store.get("bookings/booking001").cameFrom).toBe("instagram");
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "13:00"), name: "Bo", email: "bo@example.com", from: "<script>" });
+    expect(t.db.store.get("bookings/booking002")).not.toHaveProperty("cameFrom");
+  });
+
   test("a free booking is confirmed at once, emailed, and its time is gone for the next customer", async () => {
     const t = setup();
     await t.seed();

@@ -887,7 +887,7 @@ export function Dashboard() {
         onTour={(start) => startTour(start)} onOpen={(page) => openMenuPage(page)} />;
       case "alerts": return alertsView(false);
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
-      case "bookings": return bookingsOn ? <Bookings /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
+      case "bookings": return bookingsOn ? <Bookings shopName={shopNameFromSettings(settings)} /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
       case "takePayment": return bookingsOn ? <TakePayment /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
       case "events": return eventsOn ? <Events /> : <EmptyState title="Events isn't on for your shop" description="It's in beta. Switch it on in Settings › Your shop › Ways to sell when it's offered to your shop." />;
       case "giving": return givingOn ? <Giving /> : <EmptyState title="Donations & tips isn't on for your shop" description="It's in beta. Switch it on in Settings › Your shop › Ways to sell when it's offered to your shop." />;

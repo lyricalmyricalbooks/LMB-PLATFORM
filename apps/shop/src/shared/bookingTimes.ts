@@ -136,6 +136,18 @@ export function approvalAllowed(s: { places?: number; courseDates?: readonly str
   return (s.places ?? 1) <= 1 && !s.courseDates?.length && (s.payment === "free" || s.payment === "atShop") && !s.holdCard;
 }
 
+/**
+ * Where a website booking came from (plan 4, 2.7): the Share dialog's ready links carry `from=<channel>`, the booking
+ * page keeps it for the visit and the server stores the channel on the booking. Anything else is no channel.
+ */
+export const BOOKING_CHANNELS = ["instagram", "facebook", "google", "qr", "button"] as const;
+export type BookingChannel = (typeof BOOKING_CHANNELS)[number];
+export function bookingChannel(value: unknown): BookingChannel | "" {
+  return typeof value === "string" && (BOOKING_CHANNELS as readonly string[]).includes(value) ? (value as BookingChannel) : "";
+}
+/** The channel in plain words, for the owner. */
+export const CHANNEL_NAMES: Record<BookingChannel, string> = { instagram: "Instagram", facebook: "Facebook", google: "Google", qr: "QR code", button: "Book now button" };
+
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
 export type ClassTime = { weekday: number; time: string };
 export const MAX_PLACES = 100;

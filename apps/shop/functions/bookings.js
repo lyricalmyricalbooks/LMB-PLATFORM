@@ -10,7 +10,7 @@
 //                            note, answers: [{ label, answer }] (the service's own questions), status: "held" | "confirmed" | "cancelled",
 //                            payment: "free" | "card" | "deposit" | "atShop", priceMinor (the whole price), depositMinor and depositPaid (payment "deposit":
 //                            the part taken by card when booked; the rest is paid at the visit), currency, paid (all of it), sessions, paidSession?, paymentIntent?, refund?, holdUntil?, manageKeyHash,
-//                            source: "website" | "admin", noShow?, history: [{ at, what, by }], createdAt, updatedAt,
+//                            source: "website" | "admin", cameFrom? (2.7: instagram, facebook, google, qr, button), noShow?, history: [{ at, what, by }], createdAt, updatedAt,
 //                            cardHold? and lateFeeMinor? (the service keeps a card on file), card? { customer, paymentMethod, brand,
 //                            last4, mode } once saved, fee? { intent, amountMinor, at, by } once a missed-booking fee is charged,
 //                            discount? { id, code, amountMinor, returned? } and listPriceMinor (a discount code typed when booking:
@@ -72,7 +72,7 @@ const {
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanBlocks, MAX_BLOCKS, cleanCheckInCode, checkInCodeFrom,
   cleanRun, runStarts, runSettings, runsOnline, withExtras, withLength, processingStretch,
   MAX_VISIT_PARTS, joinsVisit, visitService, visitTimeline, visitStaff, visitFreeTimes, visitName, visitPlan,
-  answerBy, approvalAllowed,
+  answerBy, approvalAllowed, bookingChannel,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -2361,6 +2361,8 @@ function bookingActions({
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
           pendingKey: paid || asking ? key : null,
           ...(asking ? { answerBy: new Date(answerBy(nowMs, start)).toISOString() } : {}),
+          // Which ready link it came through (plan 4, 2.7): Instagram, Facebook, Google, the QR code or the Book now button.
+          ...(bookingChannel(req.body.from) ? { cameFrom: bookingChannel(req.body.from) } : {}),
           source: "website", history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by: "customer" }], createdAt: at, updatedAt: at,
           ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
         };

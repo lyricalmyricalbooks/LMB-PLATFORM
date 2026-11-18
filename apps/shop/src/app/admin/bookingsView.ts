@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
+import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, bookingChannel, CHANNEL_NAMES, type BookingChannel, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
 
@@ -259,6 +259,8 @@ export type BookingFigures = {
   weekdays: { day: string; count: number }[];
   /** The most booked services, most first. */
   services: { name: string; count: number }[];
+  /** Where bookings came from (plan 4, 2.7), most first: each ready link, the website itself, and you. */
+  channels: { name: string; count: number }[];
 };
 
 /** The last `n` months up to the one `today` (YYYY-MM-DD) is in, oldest first, as YYYY-MM. */
@@ -295,6 +297,7 @@ export function bookingFigures(rows: readonly Booking[], zone: string, months: r
   const byMonth = new Map<string, MonthFigures>(months.map((m) => [m, { month: m, count: 0, takenMinor: 0, noShows: 0, cancelled: 0 }]));
   const weekdays = [0, 0, 0, 0, 0, 0, 0];
   const services = new Map<string, number>();
+  const channels = new Map<string, number>();
   let past = 0;
   for (const b of rows) {
     const startMs = Date.parse(b.start);
@@ -309,6 +312,9 @@ export function bookingFigures(rows: readonly Booking[], zone: string, months: r
     if (startMs < nowMs) past += 1;
     weekdays[(weekdayOf(day) + 6) % 7] += 1;
     services.set(b.serviceName, (services.get(b.serviceName) || 0) + 1);
+    const from = bookingChannel(b.cameFrom);
+    const channel = b.walkIn ? "At the desk" : b.source === "admin" || b.source === "desk" ? "By you" : from ? CHANNEL_NAMES[from] : "Your website";
+    channels.set(channel, (channels.get(channel) || 0) + 1);
   }
   const list = [...byMonth.values()];
   const sum = (pick: (m: MonthFigures) => number) => list.reduce((n, m) => n + pick(m), 0);
@@ -318,6 +324,7 @@ export function bookingFigures(rows: readonly Booking[], zone: string, months: r
     noShowPercent: past ? Math.round((noShows / past) * 100) : null,
     weekdays: weekdays.map((count, i) => ({ day: WEEKDAYS[(i + 1) % 7], count })),
     services: [...services].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 5),
+    channels: [...channels].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
   };
 }
 
@@ -637,11 +644,30 @@ export function teamPayRows(pay: TeamPay): string[][] {
  * Share your booking page (Beta, Services plan 2 extras): the link that opens the booking page, a service already picked
  * (`service`), and a person (`with`), as the booking page reads them (`wantedFromSearch` in features/site/bookTimeRules).
  */
-export function bookingShareLink(pageUrl: string, pick: { service?: string; person?: string } = {}): string {
+export function bookingShareLink(pageUrl: string, pick: { service?: string; person?: string; from?: BookingChannel } = {}): string {
   const url = new URL(pageUrl);
   if (pick.service) url.searchParams.set("service", pick.service);
   if (pick.person) url.searchParams.set("with", pick.person);
+  if (pick.from) url.searchParams.set("from", pick.from);
   return url.toString();
+}
+
+/**
+ * Where to put the booking link on each place clients find the shop (plan 4, 2.7). Each gets its own link, so Figures
+ * can say where bookings came from. The steps name what each site calls the place today.
+ */
+export const SOCIAL_PLACES: { from: Extract<BookingChannel, "instagram" | "facebook" | "google">; name: string; where: string }[] = [
+  { from: "instagram", name: "Instagram", where: "Edit profile, then Add action buttons, then Book now. Paste the link, or put it in your bio." },
+  { from: "facebook", name: "Facebook", where: "On your Page, Edit action button, then Book now, then Link to website. Paste the link." },
+  { from: "google", name: "Google", where: "In your Business Profile, Edit profile, then Booking links. Paste the link so it shows on Search and Maps." },
+];
+
+/** "On your website, from Instagram": how a booking was made, for the booking's details. */
+export function bookedThrough(b: Pick<Booking, "source" | "cameFrom" | "walkIn">): string {
+  if (b.walkIn) return "At the desk";
+  if (b.source === "admin" || b.source === "desk") return "By you";
+  const from = bookingChannel(b.cameFrom);
+  return from ? `On your website, from ${from === "qr" ? "the QR code" : from === "button" ? "your Book now button" : CHANNEL_NAMES[from]}` : "On your website";
 }
 
 const htmlText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -657,6 +683,34 @@ export function bookButtonHtml(link: string, label: string, look: "dark" | "ligh
   const mark = overlayScript ? " data-book-overlay" : "";
   const button = `<a href="${htmlText(link)}"${mark} target="_blank" rel="noopener" style="display:inline-block;padding:12px 24px;border-radius:999px;${colours};font:600 16px/1.2 system-ui,sans-serif;text-decoration:none">${htmlText(label.trim() || "Book now")}</a>`;
   return overlayScript ? `${button}\n<script src="${htmlText(overlayScript)}" async></script>` : button;
+}
+
+/**
+ * A poster to print for the window, the till or a flyer (plan 4, 2.7): the shop's name, the owner's big words, what the
+ * code opens and the QR code large enough to scan from a step away, with the address under it for anyone without a
+ * camera. Black on white, one page, the printer's own margins. Every word is the owner's or ours, made safe here.
+ */
+export function bookingPosterHtml(p: { shop: string; heading: string; what: string; qr: string; link: string }): string {
+  const shown = p.link.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${htmlText(p.heading || "Book online")}</title><style>
+@page { margin: 18mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #ffffff; color: #111111; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { min-height: calc(100vh - 2px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8mm; text-align: center; }
+.shop { margin: 0; font-size: 16pt; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+h1 { margin: 0; font-size: 54pt; line-height: 1.02; font-weight: 800; letter-spacing: -0.02em; max-width: 16ch; }
+.what { margin: 0; font-size: 20pt; line-height: 1.3; }
+img { width: 110mm; height: 110mm; image-rendering: pixelated; border: 2px solid #111111; border-radius: 6mm; padding: 6mm; }
+.scan { margin: 0; font-size: 15pt; font-weight: 600; }
+.link { margin: 0; font: 12pt/1.4 ui-monospace, Menlo, monospace; overflow-wrap: anywhere; max-width: 150mm; }
+</style></head><body><main>
+${p.shop.trim() ? `<p class="shop">${htmlText(p.shop.trim())}</p>` : ""}
+<h1>${htmlText(p.heading.trim() || "Book online")}</h1>
+${p.what.trim() ? `<p class="what">${htmlText(p.what.trim())}</p>` : ""}
+<img src="${htmlText(p.qr)}" alt="QR code">
+<p class="scan">Scan with your phone's camera</p>
+<p class="link">${htmlText(shown)}</p>
+</main></body></html>`;
 }
 
 /** The Book button's script on the shop's own address (public/book-button.js), from the booking page's address. */

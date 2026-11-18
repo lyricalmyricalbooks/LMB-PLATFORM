@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bookEmbedded, embedFromSearch, goToPayment } from "./bookEmbed";
+import { bookEmbedded, bookingFrom, embedFromSearch, goToPayment } from "./bookEmbed";
 
 const framedAs = (top: unknown) => vi.spyOn(window, "top", "get").mockReturnValue(top as Window);
 
@@ -31,5 +31,17 @@ describe("the booking page framed on another website (plan 4, 2.6)", () => {
     framedAs(top);
     goToPayment("https://pay.example/1", true);
     expect(top.location.href).toBe("https://pay.example/1");
+  });
+});
+
+describe("where a visit came from (plan 4, 2.7)", () => {
+  afterEach(() => sessionStorage.clear());
+
+  it("keeps a ready link's from for the visit, and the frame counts as the button", () => {
+    expect(bookingFrom("", false)).toBe("");
+    expect(bookingFrom("", true)).toBe("button");
+    expect(bookingFrom("?from=instagram", false)).toBe("instagram");
+    expect(bookingFrom("?service=cut", false)).toBe("instagram");
+    expect(bookingFrom("?from=qr", true)).toBe("qr");
   });
 });

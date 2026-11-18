@@ -44,3 +44,20 @@ export function goToPayment(url: string, embedded: boolean): void {
   }
   window.location.href = url;
 }
+
+const FROM = "fm-book-from";
+
+/**
+ * Where this visit came from (plan 4, 2.7): the Share dialog's ready links carry `from=instagram` and the like. The
+ * booking page's own links drop it, so the tab keeps it until the booking is made. Inside the Book now button's frame
+ * it is the button. The server keeps only the channels it knows (`bookingChannel`).
+ */
+export function bookingFrom(search: string, embedded: boolean): string {
+  const said = new URLSearchParams(search).get("from") || "";
+  try {
+    if (said) sessionStorage.setItem(FROM, said);
+    return sessionStorage.getItem(FROM) || (embedded ? "button" : "");
+  } catch {
+    return said || (embedded ? "button" : "");
+  }
+}

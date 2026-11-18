@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, bookButtonScript, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine, requestsWaiting, answerWithin } from "./bookingsView";
+import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, bookButtonScript, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine, requestsWaiting, answerWithin, bookedThrough, bookingPosterHtml } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -424,5 +424,36 @@ describe("requests to answer (plan 4, 2.5)", () => {
     expect(answerWithin({ answerBy: "2026-11-18T12:40:00.000Z", start: "x" }, now)).toBe("Answer within 40 minutes");
     expect(answerWithin({ answerBy: "2026-11-18T13:00:00.000Z", start: "x" }, now)).toBe("Answer within 1 hour");
     expect(answerWithin({ answerBy: "2026-11-18T11:00:00.000Z", start: "x" }, now)).toBe("Answer within 1 minute");
+  });
+});
+
+describe("where bookings came from (plan 4, 2.7)", () => {
+  it("gives each place its own link, after the service and person", () => {
+    expect(bookingShareLink("https://shop.example/book", { service: "cut", from: "instagram" })).toBe("https://shop.example/book?service=cut&from=instagram");
+    expect(bookingShareLink("https://shop.example/book")).toBe("https://shop.example/book");
+  });
+
+  it("says how a booking was made, in plain words", () => {
+    expect(bookedThrough({ source: "website", cameFrom: "instagram" })).toBe("On your website, from Instagram");
+    expect(bookedThrough({ source: "website", cameFrom: "qr" })).toBe("On your website, from the QR code");
+    expect(bookedThrough({ source: "website", cameFrom: "nonsense" })).toBe("On your website");
+    expect(bookedThrough({ source: "admin" })).toBe("By you");
+    expect(bookedThrough({ source: "desk", walkIn: true })).toBe("At the desk");
+  });
+
+  it("counts each place in Figures, most first", () => {
+    const f = bookingFigures([
+      b({ cameFrom: "instagram" }), b({ id: "b2", cameFrom: "instagram" }), b({ id: "b3", cameFrom: "qr" }), b({ id: "b4" }), b({ id: "b5", source: "admin" }),
+    ], ZONE, ["2026-11"], Date.parse("2026-12-01T00:00:00Z"));
+    expect(f.channels).toEqual([{ name: "Instagram", count: 2 }, { name: "By you", count: 1 }, { name: "QR code", count: 1 }, { name: "Your website", count: 1 }]);
+  });
+
+  it("prints a poster with the owner's words made safe", () => {
+    const html = bookingPosterHtml({ shop: "Paper & Co", heading: "<b>Book</b>", what: "Haircut", qr: "data:image/gif;base64,AAA", link: "https://shop.example/book?from=qr" });
+    expect(html).toContain("Paper &amp; Co");
+    expect(html).toContain("&lt;b&gt;Book&lt;/b&gt;");
+    expect(html).toContain("shop.example/book?from=qr");
+    expect(html).not.toContain("<b>Book");
+    expect(bookingPosterHtml({ shop: "", heading: " ", what: "", qr: "x", link: "https://a.example/" })).toContain("<h1>Book online</h1>");
   });
 });

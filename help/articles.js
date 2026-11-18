@@ -79,6 +79,7 @@ export const ARTICLES = Object.freeze([
       "Under Team & rooms, give each person a photo and a short bio, and they show on your booking page. On your booking page lets clients pick who they see, book anyone available with no picking, or hide names from clients altogether.",
       "If you have another website, press Share above the calendar and copy the Book now button. Paste it where that website takes code. Clients then book on top of your page without leaving it, and on a phone it opens in a new tab.",
       "To check each booking before it's confirmed, open a free or pay-at-the-shop service and turn on Ask me before confirming. Clients then send a request, and you have two days to accept or decline it from the Requests box at the top of the calendar. A request you don't answer in time is declined for you, and the client gets an email either way.",
+      "Share also has a link for each of Instagram, Facebook and Google, with where to paste it. Print a poster puts your QR code on a page for the window or the till. Figures then shows where your bookings came from.",
     ],
   },
   {

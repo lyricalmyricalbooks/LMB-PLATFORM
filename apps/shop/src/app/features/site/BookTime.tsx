@@ -8,7 +8,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Star, Users } from "lucide-react";
 import { useSEO } from "../../lib/seo";
 import { StoreChrome } from "./StoreChrome";
-import { bookEmbedded, closeEmbed, goToPayment } from "./bookEmbed";
+import { bookEmbedded, bookingFrom, closeEmbed, goToPayment } from "./bookEmbed";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
@@ -38,6 +38,8 @@ const Embedded = createContext(false);
 export default function BookTime() {
   const location = useLocation();
   const embedded = useMemo(() => bookEmbedded(location.search), [location.search]);
+  // Keep a ready link's `from` for the visit (plan 4, 2.7): the page's own links drop it.
+  useEffect(() => { bookingFrom(location.search, embedded); }, [location.search, embedded]);
   // Framed on another site: no shop header or footer, and Escape asks that site to close the frame.
   useEffect(() => {
     if (!embedded) return;
@@ -231,8 +233,9 @@ function NewBooking({ c }: { c: Copy }) {
     setBusy(true);
     setError("");
     try {
+      const from = bookingFrom(window.location.search, embedded);
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
