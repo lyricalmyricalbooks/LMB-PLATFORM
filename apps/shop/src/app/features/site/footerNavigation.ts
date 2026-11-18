@@ -15,9 +15,13 @@ export const pageInFooter = (p: any) => !!p && p.status === "published" && !!(p.
 export function automaticFooterItems(settings: any, pages: any[]): MenuItem[] {
   const d = settings?.design || {};
   const visible = (pages || []).filter(pageInFooter);
+  // A services website (servicesStorefront.ts) has nothing to shop for or track.
+  const selling = settings?.servicesStorefront !== true;
   const items: MenuItem[] = [
-    { id: "footer-shop", label: getCopy(d, "footerLinkShop"), type: "home", footerGroup: "explore" },
-    { id: "footer-track", label: getCopy(d, "footerLinkTrack"), type: "url", value: "/track", footerGroup: "connect" },
+    ...(selling ? [
+      { id: "footer-shop", label: getCopy(d, "footerLinkShop"), type: "home" as const, footerGroup: "explore" as const },
+      { id: "footer-track", label: getCopy(d, "footerLinkTrack"), type: "url" as const, value: "/track", footerGroup: "connect" as const },
+    ] : []),
     // While the shop takes bookings (the server keeps `bookingsLive` in step with the owner's switch).
     ...(settings?.bookingsLive === true ? [{ id: "footer-book", label: getCopy(d, "bookTimeFooterLink"), type: "url" as const, value: "/book", footerGroup: "connect" as const }] : []),
     // While the shop has events coming up (the server keeps `eventsLive` in step, functions/events.js).

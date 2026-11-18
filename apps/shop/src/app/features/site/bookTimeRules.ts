@@ -309,3 +309,14 @@ export function fitRun(run: BookingRun): BookingRun {
   const choices = runVisitChoices(run.everyWeeks);
   return choices.includes(run.visits) ? run : { ...run, visits: choices[choices.length - 1] ?? 2 };
 }
+
+/** Words compared without case, punctuation or a trailing "(optional)", so "Anything we should know?" matches the note box. */
+function sameQuestion(a: string, b: string): boolean {
+  const plain = (s: string) => s.toLowerCase().replace(/\([^)]*\)\s*$/, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return plain(a) !== "" && plain(a) === plain(b);
+}
+
+/** The built-in note box hides when the shop's own questions already ask the same thing, so the form never asks twice. */
+export function showNoteBox(questions: readonly { label: string }[], noteLabel: string): boolean {
+  return !questions.some((q) => sameQuestion(q.label, noteLabel));
+}

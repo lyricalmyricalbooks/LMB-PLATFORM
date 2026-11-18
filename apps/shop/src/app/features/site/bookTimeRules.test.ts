@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit, peopleFor, asPerson, ratesDiffer, withPicked } from "./bookTimeRules";
+import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit, peopleFor, asPerson, ratesDiffer, withPicked, showNoteBox } from "./bookTimeRules";
 
 const ZONE = "America/Toronto";
 
@@ -122,5 +122,18 @@ describe("tax on a picked visit", () => {
     const s = { id: "s", name: "S", description: "", minutes: 30, priceMinor: 104, payment: "full" as const, location: "", taxMinor: 14, taxPpm: 130000, extras: [{ id: "x", name: "X", minutes: 0, priceMinor: 104 }] };
     expect(withPicked(s, ["x"]).taxMinor).toBe(27);
     expect(asPerson(s, { id: "p", name: "P", serviceIds: [], rates: [{ serviceId: "s", minutes: null, priceMinor: 208 }] }).taxMinor).toBe(27);
+  });
+});
+
+describe("showNoteBox", () => {
+  const note = "Anything we should know? (optional)";
+  it("hides the note box when a question asks the same thing", () => {
+    expect(showNoteBox([{ label: "Anything we should know?" }], note)).toBe(false);
+    expect(showNoteBox([{ label: "anything we should KNOW" }], note)).toBe(false);
+  });
+  it("keeps it for other questions or none", () => {
+    expect(showNoteBox([], note)).toBe(true);
+    expect(showNoteBox([{ label: "Hair length?" }], note)).toBe(true);
+    expect(showNoteBox([{ label: "" }], "")).toBe(true);
   });
 });

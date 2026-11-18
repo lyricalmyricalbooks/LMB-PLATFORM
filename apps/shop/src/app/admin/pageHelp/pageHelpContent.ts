@@ -314,6 +314,14 @@ export const PAGE_HELP: Record<string, PageHelpEntry> = {
       { title: "Backup codes", text: "Codes to get in if you lose your phone. Keep them somewhere safe.", at: ["Backup codes"] },
     ],
   },
+  "settings/close": {
+    intro: "Leave whenever you like: take everything with you first, then close. You have 90 days to change your mind.",
+    parts: [
+      { title: "Take everything with you", text: "Download everything before you go.", at: ["Take everything with you"] },
+      { title: "Close your shop", text: "Close it to shoppers. You can still sign in, download everything or open it again.", at: ["Close your shop"] },
+      { title: "What happens next", text: "The dates: closed to shoppers, reminder emails, then deleted after 90 days.", at: ["What happens next"] },
+    ],
+  },
   "settings/plan": {
     intro: "Your plan, your card, your bills and what next month will cost.",
     parts: [
