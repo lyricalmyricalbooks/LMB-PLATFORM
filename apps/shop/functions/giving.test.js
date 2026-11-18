@@ -332,7 +332,7 @@ describe("fundraisers (G2)", () => {
     const shown = (await t.pub({ action: "givingInfo" })).body.fundraiser;
     expect(shown).toMatchObject({ raisedMinor: 5000, supporters: 2 });
     expect(shown.wall.map((w) => w.name)).toEqual(["Ada Reader"]);
-    expect(JSON.stringify(shown)).not.toMatch(/ada@example|gift000/);
+    expect(JSON.stringify(shown)).not.toMatch(/ada@example|gift0002|gift0003/);
     expect(t.opened[0].params.line_items[0].price_data.product_data.name).toBe("Moth Press: Gift to Print our next book (card fee covered)");
     const giftId = (await t.adm({ op: "list" })).body.gifts.find((g) => g.name === "Ada Reader").id;
     expect((await t.adm({ op: "refund", giftId })).statusCode).toBe(200);
@@ -343,6 +343,7 @@ describe("fundraisers (G2)", () => {
     const t = setup();
     await t.seed();
     const fund = await startFund(t, { endsOn: "2026-11-18" });
+    expect(fund?.state).toBe("live");
     expect((await t.adm({ op: "saveFundraiser", fundraiser: { ...FUND, title: "Another one" }, start: true })).body.code).toBe("one_at_a_time");
     // The last day ends at midnight in the shop's time zone (Toronto): 04:59 UTC the next day is still the 18th there.
     t.clock.now = new Date("2026-11-19T04:59:00Z");

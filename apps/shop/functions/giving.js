@@ -31,7 +31,7 @@ const crypto = require("crypto");
 const { cleanGivingSettings, startingGivingSettings, giftAmountProblem, giftCharge, cleanGiver, centsOf, MIN_GIFT_MINOR, MAX_GIFT_MINOR, GIVING_MESSAGES } = require("./shared/givingRules");
 const { waysOn } = require("./shared/waysToSell");
 const { cleanFundraiser, fundraiserState, publicFundraiser, wallWith, wallWithout } = require("./shared/fundraiserRules");
-const { dayOf } = require("./shared/bookingTimes");
+const { dayOf: shopDayOf } = require("./shared/bookingTimes");
 const { shopTimeZone } = require("./shared/shopTimeZone");
 
 /** How long a card page stays open; the sweep closes it after that. Stripe's shortest is 30 minutes. */
@@ -117,7 +117,7 @@ function givingActions({
   const blockedRef = (day) => db.collection("givingBlocked").doc(day);
   const fundraisers = () => db.collection("fundraisers");
   /** The shop's own day (YYYY-MM-DD in its time zone): a fundraiser runs to the end of its last day there. */
-  const shopToday = (ms = now().getTime()) => dayOf(ms, timeZone());
+  const shopToday = (ms = now().getTime()) => shopDayOf(ms, timeZone());
 
   /** The fundraiser running now, or null. Started ones whose last day passed count as ended. */
   async function liveFundraiser(today = shopToday()) {
