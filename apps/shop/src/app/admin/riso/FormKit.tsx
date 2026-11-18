@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 /*
  * The v4 form kit (Julian's mockups, 12 Nov 2026): every form page reads the same way. Sections are named on the
@@ -143,12 +143,43 @@ export function formStatus({ missing, create, verb = "create", dirty }: { missin
  * button on the right. The main button is dimmed while something required is missing; pressing it anyway calls
  * `onBlocked` (the page shows "Fill in the highlighted fields").
  */
+/** How far to scroll so a field's first 64px clear the status bar (0 when they already do). Below the bar counts too:
+ * the space under a floating bar is too small to type in. A tall box isn't scrolled to its end. Pure, for the test. */
+export function hiddenBehindBar(field: { top: number; bottom: number }, bar: { top: number }, gap = 16): number {
+  const visibleEnd = Math.min(field.bottom, field.top + 64);
+  return Math.max(0, Math.ceil(visibleEnd - (bar.top - gap)));
+}
+
+function scrollParentOf(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const y = getComputedStyle(node).overflowY;
+    if ((y === "auto" || y === "scroll") && node.scrollHeight > node.clientHeight) return node;
+  }
+  return (document.scrollingElement as HTMLElement | null) || null;
+}
+
 export function StatusBar({ status, primaryLabel, onPrimary, busy, blocked, onBlocked, cancelLabel, onCancel }: {
   status: FormStatus; primaryLabel: string; onPrimary: () => void; busy?: boolean; blocked?: boolean; onBlocked?: () => void;
   cancelLabel?: string; onCancel?: () => void;
 }) {
+  const bar = useRef<HTMLDivElement>(null);
+  // The bar floats over the bottom of the page, so a field you move into (Tab, a tap, a "go to" link) could sit behind
+  // it. When one does, scroll just enough to show it above the bar (plan "Add a product", change 1, 18 November 2026).
+  useEffect(() => {
+    const onFocus = (event: FocusEvent) => {
+      const el = event.target as HTMLElement | null;
+      const own = bar.current;
+      if (!el || !own || own.contains(el) || !(el.matches?.("input, textarea, select, [contenteditable='true']"))) return;
+      requestAnimationFrame(() => {
+        const hidden = hiddenBehindBar(el.getBoundingClientRect(), own.getBoundingClientRect());
+        if (hidden > 0) scrollParentOf(el)?.scrollBy({ top: hidden, behavior: "smooth" });
+      });
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
   return (
-    <div className="rp-fk-status" role="region" aria-label="Form status">
+    <div ref={bar} className="rp-fk-status" role="region" aria-label="Form status">
       <span className="rp-fk-status-text" role="status"><span className="rp-fk-dot" data-tone={status.tone} aria-hidden />{status.text}</span>
       <span className="rp-fk-status-actions">
         {onCancel && <button type="button" className="rp-fk-cancel" onClick={onCancel} disabled={busy}>{cancelLabel || "Cancel"}</button>}

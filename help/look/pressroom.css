@@ -2468,9 +2468,10 @@ div.rp-listcard-main { cursor: default; }
 }
 @media (max-width: 640px) {
   /* A long status ("3 items not counted yet") takes its own line above the buttons instead of squeezing to four lines. */
-  .rp .rp-fk-status { flex-wrap: wrap; border-radius: 24px; }
-  .rp .rp-fk-status-text { flex: 1 1 auto; min-width: 0; padding: 6px 0; }
-  .rp .rp-fk-status-actions { margin-left: auto; }
+  /* One slim row on phones (18 November 2026): a long status gets two short lines beside the buttons, so the bar stays low. */
+  .rp .rp-fk-status { flex-wrap: nowrap; border-radius: 24px; }
+  .rp .rp-fk-status-text { flex: 1 1 auto; min-width: 0; padding: 4px 0; font-size: 12.5px; line-height: 1.25; }
+  .rp .rp-fk-status-actions { margin-left: auto; flex: none; }
   .rp .rp-fk-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .rp .rp-fk-facts > div { padding: 10px 12px; }
 }
@@ -2627,4 +2628,12 @@ div.rp-listcard-main { cursor: default; }
   .rp-row-link { display: inline-flex; align-items: center; min-height: var(--rp-touch); }
   .rp-todo-go, .rp-todo-done, .rp-home-link, .od-link { min-height: var(--rp-touch); }
   .rp-check input { width: 24px; height: 24px; }
+}
+
+/* Pages without the phone's bottom menu (the product editor) keep the bar at the very bottom, not 72px up. */
+@media (max-width: 767px) {
+  .rp:not(:has(.rp-bottom-nav)) .rp-fk-status { bottom: calc(10px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 767px) {
+  .rp:not(:has(.rp-bottom-nav)) .rp-workspace:has(.rp-fk-status) { padding-bottom: 12px; }
 }
