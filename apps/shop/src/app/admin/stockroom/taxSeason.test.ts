@@ -49,8 +49,8 @@ describe("tax-season file", () => {
   it("fair and in-person sales by day, tax taken out of the prices as set", () => {
     const at = lines.indexOf('"Tax: HST ON at 13%, included in the prices."');
     expect(at).toBeGreaterThan(0);
-    expect(lines[at + 1]).toBe('"Date","Sales before tax","Shipping","Discounts","Gift cards sold","Gift cards used","Refunds","HST ON","Card fees","Net","Currency"');
-    expect(lines[at + 2]).toBe('"2026-05-02","46.90","0.00","0.00","0.00","0.00","0.00","6.10","0.00","53.00","CAD"');
+    expect(lines[at + 1]).toBe('"Date","Sales before tax","Shipping","Discounts","Gift cards sold","Gift cards used","Refunds","HST ON","Tips","Card fees","Net","Currency"');
+    expect(lines[at + 2]).toBe('"2026-05-02","46.90","0.00","0.00","0.00","0.00","0.00","6.10","0.00","0.00","53.00","CAD"');
   });
 
   it("every expense and payout, a waiting expense counted 0 and flagged", () => {
