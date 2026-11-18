@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
+import { approvalAllowed,
   groupServices, serviceGroup, servicePhoto, MAX_GROUP_LENGTH, MAX_BIO_LENGTH,
   rebookDue,
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
@@ -1007,5 +1007,20 @@ describe("team photos and bios (plan 4, 2.4)", () => {
     expect(ana).toMatchObject({ photo: "https://example.com/a.jpg", bio: "Ten years at the press." });
     expect("photo" in ben).toBe(false);
     expect(ben.bio!.length).toBeLessThanOrEqual(MAX_BIO_LENGTH);
+  });
+});
+
+describe("owner approves (plan 4, 2.5)", () => {
+  it("keeps approval only for one-to-one services paid at the shop or free, with no card kept", () => {
+    expect(cleanService({ name: "Review", minutes: 30, approval: true })).toMatchObject({ approval: true });
+    expect(cleanService({ name: "Review", minutes: 30, payment: "atShop", priceMinor: 4000, approval: true })).toMatchObject({ approval: true });
+    expect(cleanService({ name: "Review", minutes: 30, payment: "full", priceMinor: 4000, approval: true })).not.toMatchObject({ approval: true });
+    expect(cleanService({ name: "Class", minutes: 30, places: 6, approval: true })).not.toMatchObject({ approval: true });
+    expect(cleanService({ name: "Chat", minutes: 30, holdCard: true, lateFeeMinor: 2500, approval: true })).not.toMatchObject({ approval: true });
+  });
+  it("says which services can ask first", () => {
+    expect(approvalAllowed({ payment: "free" })).toBe(true);
+    expect(approvalAllowed({ payment: "deposit" })).toBe(false);
+    expect(approvalAllowed({ payment: "atShop", courseDates: ["2026-12-01"] })).toBe(false);
   });
 });

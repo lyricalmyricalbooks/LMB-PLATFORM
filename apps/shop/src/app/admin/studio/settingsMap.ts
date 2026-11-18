@@ -399,6 +399,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Check-in code", match: /^bookTime(CheckIn|CheckedIn)/ },
     { title: "Team, video calls & website sections", match: /^bookTime(With|Anyone|StaffProblem|Video|Join|HoursClosed|HoursToday|TeamAll)/ },
     { title: "Reviews of visits", match: /^bookTimeReview/ },
+    { title: "Ask before confirming", match: /^bookTime(Request|Declined)/ },
     { title: "Your booking link", match: /^bookTime(Confirmed|Held|CheckAgain|Cancelled|Refunded|Missing|What|When|Where|Paid|AddCalendar|Google|Move|Keep|Cancel|TooLate|Another)/ },
   ],
   "Customer account": [

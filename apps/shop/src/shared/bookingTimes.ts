@@ -117,7 +117,24 @@ export type BookingService = {
    */
   group?: string;
   photo?: string;
+  /**
+   * Owner approves (plan 4, 2.5): a request, not a booking. The time is held for the client until the owner accepts or
+   * declines, or for at most APPROVAL_HOURS (never past the start), then it is let go. Only for one-to-one services
+   * where nothing is paid when booking (free or paid at the visit, no card kept), never with standing appointments.
+   */
+  approval?: boolean;
 };
+
+/** How long a request waits for the owner's answer before its time is let go (plan 4, 2.5). */
+export const APPROVAL_HOURS = 48;
+/** When a request made at `createdMs` for a visit at `startMs` must be answered by: APPROVAL_HOURS later, or the start. */
+export function answerBy(createdMs: number, startMs: number): number {
+  return Math.min(createdMs + APPROVAL_HOURS * 3_600_000, startMs);
+}
+/** A service the owner may approve first: one-to-one, nothing paid when booking, no card kept. */
+export function approvalAllowed(s: { places?: number; courseDates?: readonly string[]; payment?: string; holdCard?: boolean }): boolean {
+  return (s.places ?? 1) <= 1 && !s.courseDates?.length && (s.payment === "free" || s.payment === "atShop") && !s.holdCard;
+}
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
 export type ClassTime = { weekday: number; time: string };
@@ -682,6 +699,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   // Time before: one person's booking only (a class's people all start together at the class's own time).
   const gapBefore = places === 1 && !courseDates.length ? whole(s.gapBefore, 0, MAX_GAP_BEFORE, 0) : 0;
   const processAfter = processMinutes ? whole(s.processAfter, 0, 8 * 60, 0) : 0;
+  const approval = s.approval === true && approvalAllowed({ places, courseDates, payment, holdCard });
   if (processMinutes && (processMinutes < MIN_PROCESS_MINUTES || processAfter < MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
     return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
   }
@@ -722,7 +740,9 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
     chargeTax: payment !== "free" && s.chargeTax === true,
     rebookWeeks: whole(s.rebookWeeks, 0, MAX_REBOOK_WEEKS, 0),
-    repeats: s.repeats === true && places === 1 && !courseDates.length,
+    // A request waits for the owner's answer, so a run of visits can't be booked with it.
+    repeats: s.repeats === true && places === 1 && !courseDates.length && !approval,
+    ...(approval ? { approval: true } : {}),
     // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
     extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
     ...(processMinutes ? { processAfter, processMinutes } : {}),

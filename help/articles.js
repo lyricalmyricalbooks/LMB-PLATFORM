@@ -77,6 +77,7 @@ export const ARTICLES = Object.freeze([
       "A room or machine that takes more than one booking at once, like three massage tables or two kilns, can say so under Team & rooms › Rooms and equipment. Pick how many it takes at once, and it fills only when all are in use.",
       "Clients can book several services in one visit, like a cut and a colour, with up to three services one after another. The calendar shows each service as its own card, and moving one moves the whole visit. A service can also come in several lengths, each with its own price. Open the service and press Offer several lengths. To sort your services, give each one a group, like Cuts or Colour, and a picture. Your booking page shows each group under its own heading.",
       "Under Team & rooms, give each person a photo and a short bio, and they show on your booking page. On your booking page lets clients pick who they see, book anyone available with no picking, or hide names from clients altogether.",
+      "To check each booking before it's confirmed, open a free or pay-at-the-shop service and turn on Ask me before confirming. Clients then send a request, and you have two days to accept or decline it from the Requests box at the top of the calendar. A request you don't answer in time is declined for you, and the client gets an email either way.",
     ],
   },
   {

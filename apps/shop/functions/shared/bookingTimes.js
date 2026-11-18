@@ -9,8 +9,10 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = void 0;
+exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = exports.APPROVAL_HOURS = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = exports.MAX_GROUP_LENGTH = void 0;
+exports.answerBy = answerBy;
+exports.approvalAllowed = approvalAllowed;
 exports.roomUnits = roomUnits;
 exports.cleanSpecialHours = cleanSpecialHours;
 exports.specialOn = specialOn;
@@ -91,6 +93,16 @@ exports.pickupSlots = pickupSlots;
 exports.pickupTimeProblem = pickupTimeProblem;
 exports.cleanCheckInCode = cleanCheckInCode;
 exports.checkInCodeFrom = checkInCodeFrom;
+/** How long a request waits for the owner's answer before its time is let go (plan 4, 2.5). */
+exports.APPROVAL_HOURS = 48;
+/** When a request made at `createdMs` for a visit at `startMs` must be answered by: APPROVAL_HOURS later, or the start. */
+function answerBy(createdMs, startMs) {
+    return Math.min(createdMs + exports.APPROVAL_HOURS * 3_600_000, startMs);
+}
+/** A service the owner may approve first: one-to-one, nothing paid when booking, no card kept. */
+function approvalAllowed(s) {
+    return (s.places ?? 1) <= 1 && !s.courseDates?.length && (s.payment === "free" || s.payment === "atShop") && !s.holdCard;
+}
 exports.MAX_PLACES = 100;
 exports.MAX_CLASS_TIMES = 21;
 /** A service that takes more than one person at a time. */
@@ -528,6 +540,7 @@ function cleanService(raw, id = "") {
     // Time before: one person's booking only (a class's people all start together at the class's own time).
     const gapBefore = places === 1 && !courseDates.length ? whole(s.gapBefore, 0, exports.MAX_GAP_BEFORE, 0) : 0;
     const processAfter = processMinutes ? whole(s.processAfter, 0, 8 * 60, 0) : 0;
+    const approval = s.approval === true && approvalAllowed({ places, courseDates, payment, holdCard });
     if (processMinutes && (processMinutes < exports.MIN_PROCESS_MINUTES || processAfter < exports.MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
         return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
     }
@@ -568,7 +581,9 @@ function cleanService(raw, id = "") {
         roomId: text(s.roomId, 40).replace(/[^A-Za-z0-9_-]/g, ""),
         chargeTax: payment !== "free" && s.chargeTax === true,
         rebookWeeks: whole(s.rebookWeeks, 0, exports.MAX_REBOOK_WEEKS, 0),
-        repeats: s.repeats === true && places === 1 && !courseDates.length,
+        // A request waits for the owner's answer, so a run of visits can't be booked with it.
+        repeats: s.repeats === true && places === 1 && !courseDates.length && !approval,
+        ...(approval ? { approval: true } : {}),
         // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
         extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
         ...(processMinutes ? { processAfter, processMinutes } : {}),

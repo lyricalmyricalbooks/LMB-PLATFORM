@@ -10,9 +10,9 @@ import {
   SaveBar, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
-import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_BIO_LENGTH, type TeamShown } from "../../shared/bookingTimes";
+import { bookingsAdmin, followBookings, followRequests, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
+import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -41,6 +41,8 @@ export function Bookings() {
   const [monday, setMonday] = useState(() => weekStartOf(today()));
   const [rows, setRows] = useState<Booking[] | null>(null);
   const [upcoming, setUpcoming] = useState<Booking[]>([]);
+  // Requests waiting for the owner's answer (plan 4, 2.5), whatever week they fall in.
+  const [requested, setRequested] = useState<Booking[]>([]);
   const [rowsError, setRowsError] = useState("");
   const [open, setOpen] = useState<Booking | null>(null);
   // A service of a visit drawn on its own (plan 4, 2.1) opens the whole visit.
@@ -69,8 +71,10 @@ export function Bookings() {
   }, [monday]);
   // The Next up tile looks past the week shown: the next two weeks from now.
   useEffect(() => followBookings(new Date(Date.now() - 4 * 3600_000).toISOString(), new Date(Date.now() + 15 * 86_400_000).toISOString(), setUpcoming, () => setUpcoming([])), []);
+  useEffect(() => followRequests(setRequested, () => setRequested([])), []);
   // Keep the open booking in step with live changes.
   useEffect(() => { if (open && rows) { const fresh = rows.find((r) => r.id === open.id); if (fresh && fresh !== open) setOpen(fresh); } }, [rows]);
+  useEffect(() => { if (open?.status === "requested") { const fresh = requested.find((r) => r.id === open.id); if (fresh && fresh !== open) setOpen(fresh); } }, [requested]);
 
   if (setupError) return <ErrorState title="Bookings couldn't be opened" description={setupError} onRetry={() => void reloadSetup()} />;
   if (!setup) return <LoadingState label="Opening bookings…" />;
@@ -154,6 +158,8 @@ export function Bookings() {
           {sharing && <ShareDialog services={setup.services} settings={setup.settings} live={live} onClose={() => setSharing(false)} />}
         </div>
       </section>
+
+      <RequestsPanel rows={requestsWaiting(requested, Date.now())} onOpen={setOpen} />
 
       <Tabs<Tab> label="Bookings" variant="page" value={tab} onChange={setTab}
         tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length },
@@ -336,6 +342,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
                         <span className="bkg-slot-who">{isClass ? blk.serviceName : first.customer.name}</span>
                         <span className="bkg-slot-what">{isClass ? classCount(taken, blk.places) : `${blk.serviceName}${first.staffName ? ` · ${first.staffName}` : ""}`}</span>
                         {!isClass && first.status === "held" && <span className="bkg-slot-tag">{first.clearing ? "Clearing" : "Paying"}</span>}
+                        {!isClass && first.status === "requested" && <span className="bkg-slot-tag">Request</span>}
                         {!isClass && first.noShow && <span className="bkg-slot-tag">No-show</span>}
                         {!isClass && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
                         {!isClass && draggable(first, blk.places, Date.now()) && <span className="bkg-drag-edge" data-edge aria-hidden />}
@@ -711,6 +718,7 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBlock, onBo
                       <span className="bkg-slot-who">{many ? `${blk.serviceName} · ${blk.people.length}` : first.customer.name}</span>
                       {!many && <span className="bkg-slot-what">{blk.serviceName}{first.roomName ? ` · ${first.roomName}` : ""}</span>}
                       {!many && first.status === "held" && <span className="bkg-slot-tag">{first.clearing ? "Clearing" : "Paying"}</span>}
+                      {!many && first.status === "requested" && <span className="bkg-slot-tag">Request</span>}
                       {!many && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
                       {!many && draggable(first, 1, Date.now()) && <span className="bkg-drag-edge" data-edge aria-hidden />}
                     </button>
@@ -790,7 +798,7 @@ function ListView({ services, onOpen }: { services: BookingService[]; onOpen: (b
                       <span className="bkg-list-who">{b.customer.name}<small>{b.customer.email}</small></span>
                       <span className="bkg-list-what">{visitName(b)}<small>{b.minutes} min</small></span>
                       <span className="bkg-list-pay">{paymentText(b)}</span>
-                      {tag ? <StatusBadge tone={tag === "Cancelled" || tag === "No-show" ? "danger" : "warning"}>{tag}</StatusBadge> : <span aria-hidden />}
+                      {tag ? <StatusBadge tone={tag === "Cancelled" || tag === "No-show" || tag === "Declined" ? "danger" : "warning"}>{tag}</StatusBadge> : <span aria-hidden />}
                     </button>
                   </li>
                 ); })}
@@ -1235,10 +1243,24 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
     await run("cancel", "cancel", { refundMinor: 0 }, "Booking cancelled");
   };
   const service = services.find((s) => s.id === b.serviceId);
+  // A request (plan 4, 2.5): the owner accepts or declines it instead of moving or cancelling.
+  const asking = b.status === "requested";
+  const [declining, setDeclining] = useState(false);
+  const accept = async () => {
+    setBusy("accept");
+    try {
+      await bookingsAdmin("accept", { id: b.id });
+      toast.success(`Accepted. ${b.customer.name.split(" ")[0] || "They"} gets the confirmation email.`);
+    } catch (e: any) {
+      toast.error(e?.message || "That didn't save. Please try again.");
+    } finally { setBusy(""); }
+  };
   return (
     <Drawer open onClose={onClose} title={b.customer.name} description={`${visitName(b)} · ${dayText(day, "long")}`}
-      footerStart={b.status !== "cancelled" ? <DestructiveButton onClick={() => void cancel()} busy={busy === "cancel"} disabled={!!busy}>Cancel booking</DestructiveButton> : undefined}
-      footer={b.status === "confirmed" ? <PrimaryButton onClick={() => setMoving(true)} disabled={!!busy || !service}>Move</PrimaryButton> : undefined}>
+      footerStart={asking ? <DestructiveButton onClick={() => setDeclining(true)} disabled={!!busy}>Decline</DestructiveButton>
+        : b.status !== "cancelled" ? <DestructiveButton onClick={() => void cancel()} busy={busy === "cancel"} disabled={!!busy}>Cancel booking</DestructiveButton> : undefined}
+      footer={asking ? <PrimaryButton onClick={() => void accept()} busy={busy === "accept"} disabled={!!busy}>Accept</PrimaryButton>
+        : b.status === "confirmed" ? <PrimaryButton onClick={() => setMoving(true)} disabled={!!busy || !service}>Move</PrimaryButton> : undefined}>
       <div className="bkg-detail">
         <div className="bkg-detail-when">
           <Clock size={18} aria-hidden />
@@ -1246,10 +1268,11 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
             <strong>{timeText(b.start, ZONE)} – {timeText(b.end, ZONE)}</strong>
             <span>{b.minutes} minutes</span>
           </div>
-          <StatusBadge tone={b.status === "confirmed" ? "success" : b.status === "held" ? "warning" : "neutral"}>
-            {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : "Cancelled"}
+          <StatusBadge tone={b.status === "confirmed" ? "success" : b.status === "held" || asking ? "warning" : "neutral"}>
+            {b.status === "confirmed" ? "Booked" : asking ? "Request" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : b.declined ? "Declined" : "Cancelled"}
           </StatusBadge>
         </div>
+        {asking && <p className="bkg-ask-line"><strong>{answerWithin(b, Date.now())}.</strong> If you don't, it's declined for you and {b.customer.name.split(" ")[0] || "they"} gets an email.</p>}
         {!!b.parts?.length && (
           <ol className="bkg-visit" aria-label="Services in this visit">
             {visitPlan(b).map((p, i) => (
@@ -1347,8 +1370,56 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
           {!b.parts?.length && <PersonPick settings={settings} serviceId={b.serviceId} value={moveTo} onChange={setMoveTo} />}
         </TimeDialog>
       )}
+      {declining && <DeclineDialog booking={b} onClose={() => setDeclining(false)} onDeclined={() => { setDeclining(false); onClose(); }} />}
       {confirmNode}
     </Drawer>
+  );
+}
+
+/** Requests waiting for an answer (plan 4, 2.5), soonest deadline first. Nothing shows when there are none. */
+function RequestsPanel({ rows, onOpen }: { rows: Booking[]; onOpen: (b: Booking) => void }) {
+  if (!rows.length) return null;
+  return (
+    <section className="bkg-tile bkg-tile-apricot bkg-requests" aria-label="Requests to answer">
+      <h2 className="bkg-tile-title">{rows.length === 1 ? "1 request to answer" : `${rows.length} requests to answer`}</h2>
+      <ul>
+        {rows.slice(0, 8).map((b) => (
+          <li key={b.id}>
+            <button type="button" onClick={() => onOpen(b)}>
+              <strong>{b.customer.name}</strong>
+              <span>{visitName(b)} · {dayText(dayOf(Date.parse(b.start), ZONE))}, {timeText(b.start, ZONE)}</span>
+              <em>{answerWithin(b, Date.now())}</em>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {rows.length > 8 && <p className="bkg-sub">And {rows.length - 8} more. They're on the calendar too.</p>}
+    </section>
+  );
+}
+
+/** Decline a request, with an optional reason the client reads in their email. */
+function DeclineDialog({ booking: b, onClose, onDeclined }: { booking: Booking; onClose: () => void; onDeclined: () => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const first = b.customer.name.split(" ")[0] || "They";
+  const decline = async () => {
+    setBusy(true);
+    try {
+      await bookingsAdmin("decline", { id: b.id, reason: reason.trim() });
+      toast.success(`Declined. ${first} gets an email.`);
+      onDeclined();
+    } catch (e: any) {
+      toast.error(e?.message || "That didn't save. Please try again.");
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={onClose} title="Decline this request?" description={`${first} gets an email saying you can't take it. The time opens up for others.`}
+      footer={<><SecondaryButton onClick={onClose} disabled={busy}>Keep it</SecondaryButton><DestructiveButton onClick={() => void decline()} busy={busy}>Decline</DestructiveButton></>}>
+      <TextArea label="A note for them (optional)" value={reason} maxLength={300} rows={3} onChange={(e) => setReason(e.target.value)}
+        hint="Say why, or suggest another time. It goes in their email." />
+    </Dialog>
   );
 }
 
@@ -2174,7 +2245,8 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
         depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
         holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
         meet: !!rest.meet && rest.places <= 1,
-        repeats: !!rest.repeats && rest.places <= 1 && !(rest.courseDates || []).length,
+        repeats: !!rest.repeats && rest.places <= 1 && !(rest.courseDates || []).length && !(rest.approval && approvalAllowed({ ...rest, payment: priceMinor > 0 ? pay : "free", holdCard })),
+        approval: !!rest.approval && approvalAllowed({ ...rest, payment: priceMinor > 0 ? pay : "free", holdCard }),
         // Processing time is one person's: a class or course never sends it.
         ...(rest.places <= 1 && !(rest.courseDates || []).length && (rest.processMinutes || 0) > 0
           ? { processAfter: rest.processAfter || 0, processMinutes: rest.processMinutes || 0 } : { processAfter: 0, processMinutes: 0 }),
@@ -2348,7 +2420,21 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
             ? `${rebookSpan(form.rebookWeeks).replace(/^a/, "A")} after a visit, customers get one email with a button to book again, unless they've already booked. It has an unsubscribe link.`
             : "Send customers one email to book again a set time after their visit."}</p>
         </div>
-        {!group && (
+        {(() => {
+          // Ask me first (plan 4, 2.5): only where nothing is charged online when they book.
+          const askable = approvalAllowed({ places: form.places, courseDates, payment: Number(form.price) > 0 ? form.pay : "free", holdCard: form.holdCard && !paidInFull && !square });
+          return (
+            <div className="bkg-meet">
+              <Toggle label="Ask me before confirming (Beta)" checked={!!form.approval && askable} disabled={!askable} onChange={(v) => set("approval", v)} />
+              <p className="bkg-questions-hint">{!askable
+                ? "Works for one-to-one services that are free or paid at the visit, with no card on file."
+                : form.approval
+                  ? `Clients send a request. You have ${APPROVAL_HOURS} hours to accept or decline it; if you don't, it's declined for you and they get an email.`
+                  : "Clients send a request instead of booking straight away. The time is kept for them while you decide."}</p>
+            </div>
+          );
+        })()}
+        {!group && !(form.approval) && (
           <div className="bkg-meet">
             <Toggle label="Clients can book a standing appointment" checked={!!form.repeats} onChange={(v) => set("repeats", v)} />
             <p className="bkg-questions-hint">{!form.repeats

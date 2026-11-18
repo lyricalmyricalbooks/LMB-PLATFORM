@@ -8,7 +8,8 @@ import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { cleanBookingSettings, cleanService, type BookingExtra, type BookingService, type BookingSettings, type SavedCard, type VisitPart } from "../../shared/bookingTimes";
 
-export type BookingStatus = "held" | "confirmed" | "cancelled";
+/** "requested": waiting for the owner to accept or decline (plan 4, 2.5). */
+export type BookingStatus = "held" | "requested" | "confirmed" | "cancelled";
 export type Booking = {
   id: string; serviceId: string; serviceName: string; minutes: number; location?: string; meetUrl?: string; start: string; end: string;
   customer: { name: string; email: string; phone?: string }; note?: string; answers?: { label: string; answer: string }[]; status: BookingStatus;
@@ -17,6 +18,8 @@ export type Booking = {
   /** A course: every date this one sign-up holds a place on (the first is `start`), and their shop days. */
   course?: { starts: string[]; days: string[]; /** Who takes each date, when it isn't the same person throughout. */ staff?: string[] };
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
+  /** A request (plan 4, 2.5): when it is let go unless answered; `declined` once the owner said no or ran out of time. */
+  answerBy?: string | null; declined?: boolean;
   /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */
   cardHold?: boolean; lateFeeMinor?: number; card?: SavedCard | null; fee?: { amountMinor: number; at: string; reason?: string } | null;
   /** What was left, paid later by card from the client's booking page; `restOpen` while a page to pay it is open. */
@@ -64,6 +67,7 @@ export const bookingsData = {
   readSetup: readSetupFromShop,
   follow: followFromShop,
   followCourse: followCourseFromShop,
+  followRequests: followRequestsFromShop,
   range: rangeFromShop,
   admin: adminFromServer as (op: AdminOp, body: Record<string, unknown>) => Promise<unknown>,
 };
@@ -114,6 +118,12 @@ function followCourseFromShop(days: string[], onRows: (rows: Booking[]) => void,
   const q = query(collection(db, "bookings"), where("course.days", "array-contains-any", days.slice(0, 30)), limit(500));
   return onSnapshot(q, (snap) => onRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }))), onError);
 }
+/** Requests waiting for the owner's answer (plan 4, 2.5), whatever week they are in. */
+function followRequestsFromShop(onRows: (rows: Booking[]) => void, onError: (e: Error) => void): () => void {
+  const q = query(collection(db, "bookings"), where("status", "==", "requested"), limit(100));
+  return onSnapshot(q, (snap) => onRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Booking, "id">) }))), onError);
+}
+export const followRequests = (onRows: (rows: Booking[]) => void, onError: (e: Error) => void) => bookingsData.followRequests(onRows, onError);
 /** Followed live, like the week's own bookings, so a sign-up or a cancellation shows in every week the course runs. */
 export const followCourseRows = (days: string[], onRows: (rows: Booking[]) => void, onError: (e: Error) => void) =>
   bookingsData.followCourse(days, onRows, onError);
@@ -125,7 +135,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "addBlock" | "removeBlock" | "times" | "create" | "cancel" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus" | "runCheck" | "clientForm" | "teamCalendar";
+export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "addBlock" | "removeBlock" | "times" | "create" | "cancel" | "accept" | "decline" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus" | "runCheck" | "clientForm" | "teamCalendar";
 
 /** A card reader that connects over the internet (Take a payment). */
 export type CardReader = { id: string; label: string; online: boolean | null; device?: string };

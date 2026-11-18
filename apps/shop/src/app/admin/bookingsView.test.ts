@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine } from "./bookingsView";
+import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine, requestsWaiting, answerWithin } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -394,5 +394,24 @@ describe("several services in one visit (plan 4, 2.1)", () => {
     const solo = { ...visit, parts: [part({ staffId: "ana", staffName: "Ana" })] };
     const one = teamPay([solo], staff, ZONE, "2026-11", AFTER).people.find((l) => l.id === "ana")!;
     expect([one.visits, one.takenMinor]).toEqual([1, 10000]);
+  });
+});
+
+describe("requests to answer (plan 4, 2.5)", () => {
+  const now = Date.parse("2026-11-18T12:00:00.000Z");
+  it("lists open requests, the soonest answer-by first", () => {
+    const rows = [
+      b({ id: "late", status: "requested", answerBy: "2026-11-19T12:00:00.000Z" }),
+      b({ id: "soon", status: "requested", answerBy: "2026-11-18T15:00:00.000Z" }),
+      b({ id: "gone", status: "requested", answerBy: "2026-11-18T11:00:00.000Z" }),
+      b({ id: "done", status: "confirmed" }),
+    ];
+    expect(requestsWaiting(rows, now).map((r) => r.id)).toEqual(["soon", "late"]);
+  });
+  it("says how long is left in plain words", () => {
+    expect(answerWithin({ answerBy: "2026-11-18T17:00:00.000Z", start: "x" }, now)).toBe("Answer within 5 hours");
+    expect(answerWithin({ answerBy: "2026-11-18T12:40:00.000Z", start: "x" }, now)).toBe("Answer within 40 minutes");
+    expect(answerWithin({ answerBy: "2026-11-18T13:00:00.000Z", start: "x" }, now)).toBe("Answer within 1 hour");
+    expect(answerWithin({ answerBy: "2026-11-18T11:00:00.000Z", start: "x" }, now)).toBe("Answer within 1 minute");
   });
 });

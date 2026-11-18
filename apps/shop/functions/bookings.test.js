@@ -3800,3 +3800,67 @@ describe("team on the booking page (plan 4, 2.4)", () => {
     expect(cleanBookingSettings({ teamShown: "<b>" }).teamShown).toBeUndefined();
   });
 });
+
+describe("owner approves (plan 4, 2.5)", () => {
+  async function asking() {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("visit").set({ approval: true }, { merge: true });
+    t.emails.length = 0;
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), ...CUSTOMER });
+    return { t, r };
+  }
+
+  test("a request holds the time, tells both sides, and the page says when the shop answers by", async () => {
+    const { t, r } = await asking();
+    expect(r.statusCode).toBe(200);
+    expect(r.body.status).toBe("requested");
+    const b = t.db.store.get(`bookings/${r.body.id}`);
+    expect(b).toMatchObject({ status: "requested", answerBy: "2026-11-18T13:00:00.000Z" });
+    // The time is taken while the shop decides.
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "B", email: "b@example.com" })).statusCode).toBe(409);
+    const view = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking;
+    expect(view).toMatchObject({ status: "requested", answerBy: "2026-11-18T13:00:00.000Z", canWithdraw: true, canChange: false });
+    expect(t.emails.some((m) => m.to === CUSTOMER.email)).toBe(true);
+    expect(t.emails.some((m) => /Please answer/.test(m.subject))).toBe(true);
+  });
+
+  test("accept confirms it and emails the confirmation; a second answer is refused", async () => {
+    const { t, r } = await asking();
+    t.emails.length = 0;
+    expect((await t.adm({ op: "accept", id: r.body.id })).statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ status: "confirmed", answerBy: null, pendingKey: null });
+    expect(t.emails.some((m) => m.to === CUSTOMER.email)).toBe(true);
+    expect((await t.adm({ op: "decline", id: r.body.id })).statusCode).toBe(409);
+  });
+
+  test("decline frees the time and passes on the owner's words", async () => {
+    const { t, r } = await asking();
+    t.emails.length = 0;
+    expect((await t.adm({ op: "decline", id: r.body.id, reason: "Closed for a fair that day" })).statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ status: "cancelled", declined: true });
+    const told = t.emails.find((m) => m.to === CUSTOMER.email);
+    expect(told.html).toMatch(/Closed for a fair that day/);
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking).toMatchObject({ status: "cancelled", declined: true });
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "B", email: "b@example.com" })).statusCode).toBe(200);
+  });
+
+  test("the client can withdraw it, and a request not answered in time is let go by the sweep", async () => {
+    const { t, r } = await asking();
+    expect((await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key })).statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${r.body.id}`).status).toBe("cancelled");
+    const again = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "11:30"), ...CUSTOMER })).body;
+    t.clock.now = new Date("2026-11-18T13:01:00Z");
+    t.emails.length = 0;
+    await t.desk.sweepHolds();
+    expect(t.db.store.get(`bookings/${again.id}`)).toMatchObject({ status: "cancelled", declined: true, cancelledBy: "not answered" });
+    expect(t.emails.find((m) => m.to === CUSTOMER.email).html).toMatch(/answer your request in time/);
+  });
+
+  test("a paid service can't ask first: it books as usual", async () => {
+    const t = setup();
+    await t.seed();
+    const saved = await t.adm({ op: "saveService", service: { name: "Paid visit", minutes: 30, gapAfter: 0, priceMinor: 3000, payment: "full", approval: true } });
+    expect(saved.body.service.approval).toBeUndefined();
+  });
+});
