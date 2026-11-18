@@ -151,3 +151,11 @@ describe("prices on service cards (plan 4, 2.3)", () => {
     expect(cardPrice(base)).toEqual({ minor: 4000, from: false });
   });
 });
+
+describe("team on the booking page (plan 4, 2.4)", () => {
+  const staff = [{ id: "ana", name: "Ana", serviceIds: [], photo: "https://example.com/a.jpg", bio: "Hi" }];
+  it("offers people to pick unless the shop books anyone available", () => {
+    expect(peopleFor({ staff }, "x").map((p) => p.id)).toEqual(["ana"]);
+    expect(peopleFor({ staff, staffPick: false }, "x")).toEqual([]);
+  });
+});

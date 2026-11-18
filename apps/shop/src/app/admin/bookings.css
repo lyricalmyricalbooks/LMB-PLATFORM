@@ -411,6 +411,8 @@
 .rp .bkg-person { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 14px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
 .rp .bkg-person:hover, .rp .bkg-person:focus-visible { background: var(--rp-surface-2); }
 .rp .bkg-person[data-off] { opacity: 0.7; }
+.rp .bkg-person-photo { object-fit: cover; padding: 0; }
+.rp .bkg-team-shown { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rp-border); max-width: 420px; }
 .rp .bkg-person-initial { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--rp-primary); color: var(--rp-on-primary); font-weight: 600; }
 .rp .bkg-person-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
 .rp .bkg-person-text strong { font-size: 15px; }

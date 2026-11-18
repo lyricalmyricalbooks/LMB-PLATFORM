@@ -10,7 +10,7 @@
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = void 0;
 exports.roomUnits = roomUnits;
 exports.cleanSpecialHours = cleanSpecialHours;
 exports.specialOn = specialOn;
@@ -810,6 +810,7 @@ function cleanBookingSettings(raw) {
         pickupReadyHours: whole(s.pickupReadyHours, 0, 72, exports.DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
         rooms: cleanRooms(s.rooms),
         staff: cleanStaff(s.staff, hours),
+        ...(s.teamShown === "anyone" || s.teamShown === "hidden" ? { teamShown: s.teamShown } : {}),
         thankYou: s.thankYou === true,
         reviewUrl: reviewLink(s.reviewUrl),
         siteReviews: s.siteReviews === true,
@@ -976,6 +977,12 @@ function cleanRooms(raw) {
     return out;
 }
 /** The people, cleaned: named, at most MAX_STAFF, each with its own id; own hours start from the shop's. */
+/** Longest bio of a person on the booking page (plan 4, 2.4). */
+exports.MAX_BIO_LENGTH = 280;
+/** A person's bio as saved: one paragraph, at most MAX_BIO_LENGTH characters ("" = none). */
+const personBio = (value) => text(value, exports.MAX_BIO_LENGTH);
+exports.personBio = personBio;
+exports.TEAM_SHOWN_CHOICES = ["pick", "anyone", "hidden"];
 function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
     const taken = new Set();
     const out = [];
@@ -998,6 +1005,8 @@ function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
             email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
             rates: cleanRates(p.rates),
             ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
+            ...((0, exports.servicePhoto)(p.photo) ? { photo: (0, exports.servicePhoto)(p.photo) } : {}),
+            ...((0, exports.personBio)(p.bio) ? { bio: (0, exports.personBio)(p.bio) } : {}),
         });
     }
     return out;

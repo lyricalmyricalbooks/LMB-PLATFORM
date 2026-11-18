@@ -172,6 +172,9 @@ export type StaffMember = {
   rates?: PersonRate[];
   /** Their share of what their visits take, 0.5 to 100 (Services plan 2, team pay). Shown on the pay report, never paid out. */
   commissionPercent?: number;
+  /** Their photo (an https link) and a few words about them for the booking page (plan 4, 2.4). Left out when empty. */
+  photo?: string;
+  bio?: string;
 };
 /**
  * A room, chair or machine a service needs. One booking uses it at a time, unless `units` says how many it takes at
@@ -233,6 +236,8 @@ export type BookingSettings = {
   staff: StaffMember[];
   /** Rooms and chairs services can need. */
   rooms: BookingRoom[];
+  /** How the booking page shows the team (plan 4, 2.4); left out = clients pick a person. */
+  teamShown?: TeamShown;
   /** A thank-you email a couple of hours after each visit, with Book again (and `reviewUrl` when set). */
   thankYou: boolean;
   /** Where clients leave a review (a Google review link, say): https only, "" for none. */
@@ -955,6 +960,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     pickupReadyHours: whole(s.pickupReadyHours, 0, 72, DEFAULT_BOOKING_SETTINGS.pickupReadyHours),
     rooms: cleanRooms(s.rooms),
     staff: cleanStaff(s.staff, hours),
+    ...(s.teamShown === "anyone" || s.teamShown === "hidden" ? { teamShown: s.teamShown } : {}),
     thankYou: s.thankYou === true,
     reviewUrl: reviewLink(s.reviewUrl),
     siteReviews: s.siteReviews === true,
@@ -1131,6 +1137,17 @@ export function cleanRooms(raw: unknown): BookingRoom[] {
 }
 
 /** The people, cleaned: named, at most MAX_STAFF, each with its own id; own hours start from the shop's. */
+/** Longest bio of a person on the booking page (plan 4, 2.4). */
+export const MAX_BIO_LENGTH = 280;
+/** A person's bio as saved: one paragraph, at most MAX_BIO_LENGTH characters ("" = none). */
+export const personBio = (value: unknown): string => text(value, MAX_BIO_LENGTH);
+/**
+ * How the booking page shows the team (plan 4, 2.4): "pick" (left out) lets clients choose a person, with photos and
+ * bios; "anyone" books whoever is free and names them after; "hidden" books whoever is free and names nobody to clients.
+ */
+export type TeamShown = "anyone" | "hidden";
+export const TEAM_SHOWN_CHOICES = ["pick", "anyone", "hidden"] as const;
+
 export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BOOKING_SETTINGS.hours): StaffMember[] {
   const taken = new Set<string>();
   const out: StaffMember[] = [];
@@ -1152,6 +1169,8 @@ export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BO
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
       rates: cleanRates(p.rates),
       ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
+      ...(servicePhoto(p.photo) ? { photo: servicePhoto(p.photo) } : {}),
+      ...(personBio(p.bio) ? { bio: personBio(p.bio) } : {}),
     });
   }
   return out;

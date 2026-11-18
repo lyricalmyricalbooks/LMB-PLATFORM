@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  groupServices, serviceGroup, servicePhoto, MAX_GROUP_LENGTH,
+  groupServices, serviceGroup, servicePhoto, MAX_GROUP_LENGTH, MAX_BIO_LENGTH,
   rebookDue,
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime, runStarts,
@@ -995,5 +995,17 @@ describe("service groups and photos (plan 4, 2.3)", () => {
     expect(groupServices(list).map((g) => [g.group, g.services.map((s) => s.id)])).toEqual([["Colour", ["a", "d"]], ["Cuts", ["c"]], ["", ["b", "e"]]]);
     expect(groupServices([{ id: "a" }, { id: "b" }])).toEqual([{ group: "", services: [{ id: "a" }, { id: "b" }] }]);
     expect(groupServices([])).toEqual([]);
+  });
+});
+
+describe("team photos and bios (plan 4, 2.4)", () => {
+  it("keeps an https photo and a one-paragraph bio, drops the rest", () => {
+    const [ana, ben] = cleanStaff([
+      { id: "ana", name: "Ana", photo: "https://example.com/a.jpg", bio: "  Ten years\n at the press.  " },
+      { id: "ben", name: "Ben", photo: "http://example.com/b.jpg", bio: "x".repeat(400) },
+    ]);
+    expect(ana).toMatchObject({ photo: "https://example.com/a.jpg", bio: "Ten years at the press." });
+    expect("photo" in ben).toBe(false);
+    expect(ben.bio!.length).toBeLessThanOrEqual(MAX_BIO_LENGTH);
   });
 });

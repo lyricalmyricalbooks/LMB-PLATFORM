@@ -12,7 +12,7 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_BIO_LENGTH, type TeamShown } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -2687,13 +2687,19 @@ function personLine(p: StaffMember, services: BookingService[]): string {
  * The people clients can book and the rooms they use (each takes one booking at a time, or its count). With nobody listed the shop books as
  * one calendar, as before. Saved with the rest of Hours & rules through the server (op saveSettings).
  */
+const TEAM_SHOWN_HINT: Record<"pick" | TeamShown, string> = {
+  pick: "Clients see each person's photo and bio, and can choose or take anyone free.",
+  anyone: "Clients book a time and get whoever is free. Names still show in their emails.",
+  hidden: "Clients never see who takes their booking, here or in emails.",
+};
+
 function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings; services: BookingService[]; onSaved: () => void }) {
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [roomName, setRoomName] = useState("");
   const [roomUnits, setRoomUnits] = useState(1);
   const [saving, setSaving] = useState(false);
   const [ask, confirmNode] = useConfirm();
-  const save = async (change: Partial<Pick<BookingSettings, "staff" | "rooms">>, done: string) => {
+  const save = async (change: Partial<Pick<BookingSettings, "staff" | "rooms" | "teamShown">>, done: string) => {
     setSaving(true);
     try { await bookingsAdmin("saveSettings", { settings: { ...settings, ...change } }); toast.success(done); onSaved(); return true; }
     catch (e: any) { toast.error(e?.message || "That didn't save. Please try again."); return false; }
@@ -2731,7 +2737,7 @@ function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings;
             {settings.staff.map((p) => (
               <li key={p.id}>
                 <button type="button" className="bkg-person" onClick={() => setEditing(p)} data-off={!p.active || undefined}>
-                  <span className="bkg-person-initial" aria-hidden>{p.name.slice(0, 1).toUpperCase()}</span>
+                  {p.photo ? <img className="bkg-person-initial bkg-person-photo" src={p.photo} alt="" /> : <span className="bkg-person-initial" aria-hidden>{p.name.slice(0, 1).toUpperCase()}</span>}
                   <span className="bkg-person-text">
                     <strong>{p.name}</strong>
                     <span>{personLine(p, services)}</span>
@@ -2741,6 +2747,17 @@ function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings;
               </li>
             ))}
           </ul>
+        )}
+        {settings.staff.length > 0 && (
+          <div className="bkg-team-shown">
+            <SelectField label="On your booking page" value={settings.teamShown || "pick"} disabled={saving}
+              hint={TEAM_SHOWN_HINT[settings.teamShown || "pick"]}
+              onChange={(e) => { const v = e.target.value; void save({ teamShown: v === "pick" ? undefined : v as TeamShown }, "Booking page updated"); }}>
+              <option value="pick">Clients pick who they see</option>
+              <option value="anyone">Anyone available, no picking</option>
+              <option value="hidden">Hide names from clients</option>
+            </SelectField>
+          </div>
         )}
       </section>
       <section className="bkg-tile">
@@ -2833,6 +2850,14 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
       <div className="bkg-form">
         <TextField label="Name" placeholder="Sam" hint="Clients see it when they book." value={form.name} maxLength={60} onChange={(e) => set("name", e.target.value)} />
         <Toggle label="Taking bookings" checked={form.active} onChange={(v) => set("active", v)} />
+        <fieldset className="bkg-questions">
+          <legend>How clients see them <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+          <div className="bkg-look">
+            <PhotoField photo={form.photo || ""} onChange={(url) => set("photo", url || undefined)} folder="team" shape="square" label="Photo (optional)" hint="A clear face works best." />
+            <TextArea label="Short bio (optional)" placeholder="Ten years at the bench. Ask about paper." value={form.bio || ""} maxLength={MAX_BIO_LENGTH} rows={3}
+              onChange={(e) => set("bio", e.target.value)} hint={`Shown on your booking page. ${MAX_BIO_LENGTH - (form.bio || "").length} characters left.`} />
+          </div>
+        </fieldset>
         <fieldset className="bkg-questions">
           <legend>What they do</legend>
           <Toggle label="Every service" checked={every} onChange={(v) => set("serviceIds", v ? [] : services.slice(0, 1).map((s) => s.id))} />

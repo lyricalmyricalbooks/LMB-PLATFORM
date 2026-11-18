@@ -58,3 +58,12 @@ describe("service sections", () => {
     expect(servicesFor(info, "nobody")).toHaveLength(3);
   });
 });
+
+describe("anyone available (plan 4, 2.4)", () => {
+  it("never narrows the services by person", () => {
+    const services = [{ id: "a", name: "A", minutes: 30, priceMinor: 0 }, { id: "b", name: "B", minutes: 30, priceMinor: 0 }] as BookingServiceView[];
+    const info = { on: true, services, staff: [{ id: "ana", name: "Ana", serviceIds: ["a"] }] } as BookingInfo;
+    expect(servicesFor(info, "ana").map((s) => s.id)).toEqual(["a"]);
+    expect(servicesFor({ ...info, staffPick: false }, "ana").map((s) => s.id)).toEqual(["a", "b"]);
+  });
+});
