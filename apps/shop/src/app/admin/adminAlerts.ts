@@ -32,7 +32,7 @@ const ALERT_ROUTES: Partial<Record<AdminAlert["action"], AlertRoute>> = {
   general: { tab: "settings", settingsTab: "data" },                     // Backups & export
   backups: { tab: "settings", settingsTab: "data" },                     // the combined admin opens Stockroom › Backups instead
   cardAccount: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },            // Card payments: Continue with Stripe
-  billing: { tab: "settings", settingsTab: "billing" },                                         // Running costs: where it goes, the email-me amount
+  billing: { tab: "settings", settingsTab: "plan" },                                           // Running costs: where it goes, the email-me amount
 };
 /** The page (and sub tab) an alert's button opens; null for order, orders and retry, which aren't settings pages. */
 export function alertRoute(a: Pick<AdminAlert, "action">): AlertRoute | null {

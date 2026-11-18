@@ -114,12 +114,13 @@ describe("the rules behind it", () => {
     for (const part of ["90 days", "30 and 7 days", "deleted for good", "60 days"]) expect(text).toContain(part);
   });
 
-  it("keeps Billing in the Settings menu and #settings/billing/close opening the card", () => {
-    expect(SETTINGS_SECTIONS.find((g) => g.label === "Shop")?.pages).toContain(SETTINGS_ITEM_PREFIX + "billing");
-    expect(routeFromHash("#settings/billing/close", false)).toMatchObject({ tab: "settings", settingsTab: "billing", subTab: "close-shop" });
+  it("keeps Plan & billing in the Settings menu, and #settings/plan/close (or the older billing address) opening the card", () => {
+    expect(SETTINGS_SECTIONS.find((g) => g.label === "Shop")?.pages).toContain(SETTINGS_ITEM_PREFIX + "plan");
+    expect(routeFromHash("#settings/plan/close", false)).toMatchObject({ tab: "settings", settingsTab: "plan", subTab: "close-shop" });
+    expect(routeFromHash("#settings/billing/close", false)).toMatchObject({ tab: "settings", settingsTab: "plan", subTab: "close-shop" });
   });
 
   it("points to it from the Plan page", () => {
-    expect(readFileSync(join(__dirname, "BillingHub.tsx"), "utf8")).toContain("#settings/billing/close");
+    expect(readFileSync(join(__dirname, "BillingHub.tsx"), "utf8")).toContain("#settings/plan/close");
   });
 });

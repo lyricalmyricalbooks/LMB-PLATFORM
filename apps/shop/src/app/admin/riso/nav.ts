@@ -57,9 +57,9 @@ export const NAV: NavEntry[] = [
     // Two-step sign-in with an authenticator app, for whoever is signed in (22.6).
     { id: "security", label: "Security", icon: ShieldCheck },
     // The shop's plan on the platform (plan 6.6), managed here since 22.3: compare and change plans, how you pay, cancel.
-    { id: "plan", label: "Plan", icon: Wallet },
-    // Bills, saved cards, billing details and paying a declined bill (22.3), where Shopify keeps them.
-    { id: "billing", label: "Billing", icon: FileText },
+    // Bills, saved cards, billing details and paying a declined bill (22.3) sit on the same page since the simpler admin
+    // (change 7); the old Billing address (`#settings/billing`) opens it.
+    { id: "plan", label: "Plan & billing", icon: Wallet },
   ] },
 ];
 
@@ -152,7 +152,7 @@ export const FAIR_MENU: Menu = [
  * missing here (one added later) is listed under the last group, so nothing goes missing.
  */
 export const SETTINGS_SECTIONS: { label: string; pages: string[] }[] = [
-  { label: "Shop", pages: ["general", "team", "plan", "billing"] },
+  { label: "Shop", pages: ["general", "team", "plan"] },
   { label: "Selling", pages: ["shipping", "payments", "taxes"] },
   { label: "Messages", pages: ["notifications"] },
   { label: "Connections", pages: ["google", "apps"] },
@@ -311,6 +311,6 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   general: { title: "Your shop", description: "Your name, address, web address, policies and whether the shop is open." },
   taxes: { title: "Taxes", description: "The tax rates your checkout charges." },
   team: { title: "Team", description: "People who help run your shop, and what each can do." },
-  plan: { title: "Plan", description: "Your plan and what it includes." },
+  plan: { title: "Plan & billing", description: "Your plan, your card, your bills and the next payment." },
   billing: { title: "Billing", description: "Your card, invoices and the next bill." },
 };

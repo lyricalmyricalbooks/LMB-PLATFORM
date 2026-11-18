@@ -1,5 +1,5 @@
 // The way out of Colophon (Julian, 12 November 2026): a press must always find how to download its shop, cancel and
-// close. The shop's own test (apps/shop/src/app/admin/closeShop.test.tsx) keeps the card on Settings › Billing; this one
+// close. The shop's own test (apps/shop/src/app/admin/closeShop.test.tsx) keeps the card on Settings › Plan & billing; this one
 // keeps the directions to it: the help answer, the account page's link and the timeline the card promises.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +12,7 @@ test("the help centre answers how to cancel and close, with the way there", () =
   const article = ARTICLES.find((a) => a.id === "close-shop");
   assert.ok(article, "a close-shop answer");
   assert.match(article.question, /cancel/i);
-  assert.ok(article.where.includes("Settings › Billing"));
+  assert.ok(article.where.includes("Settings › Plan & billing"));
   assert.match(article.answer.join(" "), /Close your shop/);
   assert.ok(article.steps.some((s) => /Download your shop/.test(s)) && article.steps.some((s) => /Cancel plan/.test(s)));
 });
@@ -25,7 +25,11 @@ test("the account page leads to the shop's Close your shop steps", () => {
 });
 
 test("the shop's address for the card is one it really opens", () => {
-  assert.match(read("./apps/shop/src/app/admin/adminRoute.ts"), /billing: \[\["", "billing"\], \["close", "close-shop"\]\]/);
+  // Plan and Billing became one page (simpler admin, change 7); the older #settings/billing/close the account page and
+  // shops on an older admin use still opens the card through the billing → plan alias.
+  const route = read("./apps/shop/src/app/admin/adminRoute.ts");
+  assert.match(route, /plan: \[\["", "plan"\], \["close", "close-shop"\]\]/);
+  assert.match(route, /billing: "plan"/);
 });
 
 test("the timeline on the card is the closing the platform runs", () => {

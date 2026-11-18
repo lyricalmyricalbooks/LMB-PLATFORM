@@ -59,7 +59,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     expect(el.querySelector("h1")?.textContent).toBe("Your shop");
     const settings = el.querySelector('nav[aria-label="Settings pages"]');
     expect(settings?.getAttribute("data-layout")).toBe("column");
-    expect([...settings!.querySelectorAll("a")].map((a) => a.textContent)).toEqual(expect.arrayContaining(["Your shop", "Payments", "Plan"]));
+    expect([...settings!.querySelectorAll("a")].map((a) => a.textContent)).toEqual(expect.arrayContaining(["Your shop", "Payments", "Plan & billing"]));
     const stockroom = [...el.querySelectorAll('[aria-label="Admin side"] button')].find((b) => b.textContent === "Stockroom") as HTMLButtonElement;
     act(() => stockroom.click());
     await flush();
@@ -112,7 +112,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const button = [...el.querySelectorAll("main section button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
     act(() => button.click());
     await flush();
-    expect(el.querySelector("h1")?.textContent).toBe("Plan");
+    expect(el.querySelector("h1")?.textContent).toBe("Plan & billing");
   });
 
   it("doesn't say it's ready while a step is still missing", async () => {
@@ -137,7 +137,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const button = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Create my shop") as HTMLButtonElement;
     act(() => button.click());
     await flush();
-    expect(el.querySelector("h1")?.textContent).toBe("Plan");
+    expect(el.querySelector("h1")?.textContent).toBe("Plan & billing");
     expect(d.save).not.toHaveBeenCalled();
   });
 

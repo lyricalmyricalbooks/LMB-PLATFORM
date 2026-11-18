@@ -162,8 +162,7 @@ export function ShopSettings({
           )}
           {activeTab === "apps" && <OwnAccountOnly><SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor></OwnAccountOnly>}
           {activeTab === "data" && <YourDataSettings />}
-          {activeTab === "plan" && <PlanSettings />}
-          {activeTab === "billing" && <BillingSettings focusClose={subTab === "close-shop"} />}
+          {(activeTab === "plan" || activeTab === "billing") && <div className="rp-stack" style={{ gap: 24 }}><PlanSettings /><BillingSettings focusClose={subTab === "close-shop"} /></div>}
           {/* Communications was retired: its links open Notifications. */}
           {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </m.div>

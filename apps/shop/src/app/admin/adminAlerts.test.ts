@@ -186,8 +186,8 @@ describe("the bill heads-up", () => {
     const a = billHeadsUpAlert({ headsUp }, NOV)!;
     expect([a.tone, a.title, a.action, a.key]).toEqual(["warning", "This month's bill may pass $25.00", "billing", "2026-11|$25.00"]);
     expect(a.detail).toContain("about $31.00 before tax");
-    expect(alertRoute(a)).toEqual({ tab: "settings", settingsTab: "billing" });
-    expect(hashForRoute(alertRoute(a)!)).toBe("#settings/billing");
+    expect(alertRoute(a)).toEqual({ tab: "settings", settingsTab: "plan" });
+    expect(hashForRoute(alertRoute(a)!)).toBe("#settings/plan");
   });
   it("is gone once the month is over, or with no heads-up", () => {
     expect(billHeadsUpAlert({ headsUp }, Date.parse("2026-12-01T00:00:00Z"))).toBeNull();
@@ -203,7 +203,7 @@ describe("the files note (Digital D3b)", () => {
     const a = storageCostAlert({ storageNote }, NOV)!;
     expect([a.tone, a.title, a.action]).toEqual(["info", "Your files cost $5.75 to keep this month", "billing"]);
     expect(a.detail).toContain("160.2 GB");
-    expect(alertRoute(a)).toEqual({ tab: "settings", settingsTab: "billing" });
+    expect(alertRoute(a)).toEqual({ tab: "settings", settingsTab: "plan" });
   });
   it("is gone once the month is over, or with no note", () => {
     expect(storageCostAlert({ storageNote }, Date.parse("2026-12-01T00:00:00Z"))).toBeNull();

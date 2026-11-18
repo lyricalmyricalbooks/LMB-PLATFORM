@@ -1024,7 +1024,7 @@ export function Dashboard() {
                   </PrimaryButton>
                 </span>
               )}
-              {trialPill(platformPlan ?? null) && <a className="rp-trial-pill" href="#settings/billing">{trialPill(platformPlan ?? null)}</a>}
+              {trialPill(platformPlan ?? null) && <a className="rp-trial-pill" href="#settings/plan">{trialPill(platformPlan ?? null)}</a>}
               <AlertsPill alerts={shownAlerts} onOpen={() => { void goTo("overview"); }} />
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}

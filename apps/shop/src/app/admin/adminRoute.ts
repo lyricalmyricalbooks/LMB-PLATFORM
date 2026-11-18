@@ -11,7 +11,7 @@ export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; 
 export const ADMIN_TABS = ["overview", "alerts", "help", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "channels", "socialPosts", "bookings", "takePayment", "events", "classes", "giving", "memberships", "rentals", "design", "settings"] as const;
 /** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
 // QuickBooks moved into Settings › Apps (12 November 2026): its old address opens Apps with QuickBooks open.
-export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications", bookkeeping: "apps" };
+export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications", bookkeeping: "apps", billing: "plan" };
 /** The Settings page an id really opens (an alias resolves to its page). */
 export const settingsPageOf = (id: string): string => SETTINGS_TAB_ALIASES[id] || id;
 
@@ -24,8 +24,8 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],
   analytics: [["overview", "an-overview"], ["traffic", "an-traffic"], ["products", "an-products"], ["checkout", "an-checkout"]],
   apps: [["", "apps"], ["quickbooks", "quickbooks"]],
-  // #settings/billing/close scrolls to Close your shop (the help centre and the account page link there).
-  billing: [["", "billing"], ["close", "close-shop"]],
+  // #settings/plan/close (and the older #settings/billing/close) scrolls to Close your shop (the help centre and the account page link there).
+  plan: [["", "plan"], ["close", "close-shop"]],
 };
 /** Old Settings page ids that open a particular sub tab (Email sender's address opens Sending setup). */
 const ALIAS_SUB_TABS: Record<string, string> = { communications: "email-setup", bookkeeping: "quickbooks" };
