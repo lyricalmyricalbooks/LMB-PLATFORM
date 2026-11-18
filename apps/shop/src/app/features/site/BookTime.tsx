@@ -3,11 +3,12 @@
 // the booking itself, with Add to calendar, Change time and Cancel. Every word is Text & labels › Book a time page; the
 // look is the order slip's (trackingStyle.ts) plus bookTimeStyle.ts. The server decides every time and every price
 // (functions/bookings.js); this page only shows what it answers.
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Star, Users } from "lucide-react";
 import { useSEO } from "../../lib/seo";
 import { StoreChrome } from "./StoreChrome";
+import { bookEmbedded, closeEmbed, goToPayment } from "./bookEmbed";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
@@ -31,11 +32,25 @@ const ask = askBooking;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** True while the page is framed on another website by the Book button (bookEmbed.ts). */
+const Embedded = createContext(false);
+
 export default function BookTime() {
+  const location = useLocation();
+  const embedded = useMemo(() => bookEmbedded(location.search), [location.search]);
+  // Framed on another site: no shop header or footer, and Escape asks that site to close the frame.
+  useEffect(() => {
+    if (!embedded) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeEmbed(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [embedded]);
+  if (embedded) return <Embedded.Provider value><BookTimeContent /></Embedded.Provider>;
   return <StoreChrome surface="bookingsPage"><BookTimeContent /></StoreChrome>;
 }
 
 function BookTimeContent() {
+  const embedded = useContext(Embedded);
   const { settings, books } = useSiteData();
   const design = settings?.design;
   const c: Copy = (key, vars) => getCopy(design, key, vars);
@@ -55,7 +70,9 @@ function BookTimeContent() {
       <div {...regionProps("bookingsGlow")} aria-hidden="true" className="fm-track-strip" />
       <nav {...regionProps("bookingsHeader")} className="relative z-10 border-b-2 fm-track-rule">
         <div className="max-w-5xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between gap-4">
-          <Link to="/" className="fm-track-link fm-track-mono"><ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeBack")}</Link>
+          {embedded
+            ? <button type="button" onClick={closeEmbed} className="fm-track-link fm-track-mono"><ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeEmbedClose")}</button>
+            : <Link to="/" className="fm-track-link fm-track-mono"><ArrowLeft size={14} aria-hidden="true" /> {c("bookTimeBack")}</Link>}
           <span className="fm-track-mono">{c("bookTimeEyebrow")}</span>
         </div>
       </nav>
@@ -73,6 +90,7 @@ function BookTimeContent() {
 type Step = "service" | "time" | "details";
 
 function NewBooking({ c }: { c: Copy }) {
+  const embedded = useContext(Embedded);
   const navigate = useNavigate();
   // The waiting list's email links here with the service and day already chosen.
   const { search } = useLocation();
@@ -215,7 +233,7 @@ function NewBooking({ c }: { c: Copy }) {
     try {
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
       const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
-      if (answer.url) { window.location.href = answer.url; return; }
+      if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
       setBusy(false);
@@ -710,6 +728,7 @@ function ApplyBox({ region, field, words, applied, onTry, onRemove, maxLength, c
 
 /** "Coming back?": a service's pack of visits under its times, with a name and email form that opens the card page. */
 function PackOffer({ service, currency, c }: { service: BookingServiceView; currency: string; c: Copy }) {
+  const embedded = useContext(Embedded);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -730,7 +749,7 @@ function PackOffer({ service, currency, c }: { service: BookingServiceView; curr
     setError("");
     try {
       const answer = await ask("bookingPackBuy", { serviceId: service.id, name, email });
-      if (answer?.url) { window.location.href = answer.url; return; }
+      if (answer?.url) { goToPayment(answer.url, embedded); return; }
       // Studio's preview has no card page: it opens the sample pack's own page straight away.
       if (answer?.code) { navigate(`/book?pack=${encodeURIComponent(answer.code)}`); return; }
       setBusy(false);
@@ -1318,6 +1337,7 @@ function EarlierOffer({ id, ekey, c }: { id: string; ekey: string; c: Copy }) {
 }
 
 function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c: Copy }) {
+  const embedded = useContext(Embedded);
   const [booking, setBooking] = useState<BookingView | null>(null);
   const [info, setInfo] = useState<BookingInfo | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "missing" | "failed">("loading");
@@ -1394,7 +1414,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
     setError("");
     try {
       const answer = await ask(action, { id, key: manageKey, ...(tipMinor ? { tipMinor } : {}) });
-      if (answer?.url) window.location.assign(answer.url);
+      if (answer?.url) goToPayment(answer.url, embedded);
       else { if (answer?.booking) setBooking(answer.booking); setBusy(false); }
     } catch (err: any) {
       setBusy(false);

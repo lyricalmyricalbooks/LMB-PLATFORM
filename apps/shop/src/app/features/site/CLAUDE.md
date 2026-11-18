@@ -977,6 +977,14 @@ opens `EarlierOffer` (region `bookingsEarlierOffer`): the held time, the current
 required): the shop's words, its questions, a typed name and an agree tick; `formSigned` shows a one-line date. Words:
 Text & labels › Bookings page › Form before the first visit (`bookTimeForm*`). The Studio sample booking has a form.
 
+**Book button for any website (Beta, 18 November 2026, plan 4 step 2.6).** Bookings › Share › Book now button ›
+**On top of your page** adds `data-book-overlay` to the button and the shop's `public/book-button.js` after it (plain ES5,
+no globals but a run-once flag, nothing drawn before the first click). A click on a computer opens `/book?embed=1` in a
+frame over the other website (Escape, the × or a click outside closes it); phones and a missing script keep the plain
+link. `firebase.json` lets any site frame `/book` only (`frame-ancestors *`, `hostingConfig.test.ts`). Framed,
+`bookEmbed.ts` keeps `bookEmbedded` for the frame's session, BookTime drops the shop header/footer and swaps the back link
+for `bookTimeEmbedClose`, and card pages open in the whole window (`goToPayment`). Never framed in Studio's preview.
+
 **Text me reminders on the booking page (17 November 2026).** When `bookingInfo.texts` is true, `BookTime.tsx` shows a tick
 box after the phone field (region `bookingsTexts`, words Text & labels › Bookings page `bookTimeTextOk`,
 `bookTimeTextOkHint`, `bookTimeTextOkNeedsPhone`, French twins); it is disabled until a phone is typed and is sent as

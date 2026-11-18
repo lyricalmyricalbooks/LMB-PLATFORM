@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, followRequests, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -1072,12 +1072,15 @@ function ShareDialog({ services, settings, live, onClose }: { services: BookingS
   const [person, setPerson] = useState("");
   const [words, setWords] = useState("Book now");
   const [look, setLook] = useState<"dark" | "light">("dark");
+  const [opens, setOpens] = useState<"over" | "tab">("over");
   const [qr, setQr] = useState("");
   const people = booksByPerson(settings) && service ? staffFor(settings, service) : [];
   const chosen = offered.find((s) => s.id === service);
   const who = people.find((p) => p.id === person);
   const link = bookingShareLink(bookPageUrl(), { service, person: who ? person : "" });
-  const button = bookButtonHtml(link, words, look);
+  const button = bookButtonHtml(link, words, look, opens === "over" ? bookButtonScript(bookPageUrl()) : "");
+  // The preview shows the button alone: the script only matters on the other website.
+  const shown = bookButtonHtml(link, words, look);
   useEffect(() => {
     let alive = true;
     setQr("");
@@ -1118,8 +1121,15 @@ function ShareDialog({ services, settings, live, onClose }: { services: BookingS
           {qr ? <img src={qr} alt={`QR code that opens ${what}`} width={160} height={160} /> : <span className="bkg-share-qr-wait" aria-hidden />}
         </section>
         <section className="bkg-share-part" aria-labelledby="bkg-share-button">
-          <h3 id="bkg-share-button" className="bkg-share-title">Book now button for another website</h3>
-          <p className="bkg-questions-hint">Paste the code where your other website takes HTML. The button opens {what} in a new tab.</p>
+          <h3 id="bkg-share-button" className="bkg-share-title">Book now button for another website <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h3>
+          <p className="bkg-questions-hint">Paste the code where your other website takes HTML, such as an Embed or Code block.</p>
+          <div className="bkg-seg bkg-share-opens" role="radiogroup" aria-label="Where booking opens">
+            <button type="button" role="radio" aria-checked={opens === "over"} onClick={() => setOpens("over")}>On top of your page</button>
+            <button type="button" role="radio" aria-checked={opens === "tab"} onClick={() => setOpens("tab")}>In a new tab</button>
+          </div>
+          <p className="bkg-questions-hint">{opens === "over"
+            ? `Clients book ${what} without leaving your website. On phones it opens in a new tab.`
+            : `The button opens ${what} in a new tab. Use this if your website doesn't take code with a script.`}</p>
           <div className="bkg-question-row">
             <TextField label="Button words" value={words} maxLength={40} onChange={(e) => setWords(e.target.value)} />
             <div className="bkg-seg bkg-share-look" role="radiogroup" aria-label="Button colour">
@@ -1128,7 +1138,7 @@ function ShareDialog({ services, settings, live, onClose }: { services: BookingS
             </div>
           </div>
           {/* The button as it will look: our own generated link, its words made safe by bookButtonHtml. */}
-          <div className="bkg-share-preview" dangerouslySetInnerHTML={{ __html: button }} />
+          <div className="bkg-share-preview" dangerouslySetInnerHTML={{ __html: shown }} />
           <div className="bkg-share-link"><code>{button}</code><SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void copyText(button, "Button code")}>Copy code</SecondaryButton></div>
         </section>
       </div>

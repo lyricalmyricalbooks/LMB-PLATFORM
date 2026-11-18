@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine, requestsWaiting, answerWithin } from "./bookingsView";
+import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, bookButtonScript, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine, requestsWaiting, answerWithin } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -243,6 +243,17 @@ describe("sharing the booking page", () => {
     expect(html).not.toMatch(/<script|<iframe|onclick/i);
     expect(bookButtonHtml("https://shop.example/book", "")).toContain(">Book now</a>");
     expect(bookButtonHtml("https://shop.example/book", "Go", "light")).toContain("background:#ffffff");
+  });
+
+  it("adds the shop's own script for a button that opens on top of the other website (plan 4, 2.6)", () => {
+    const script = bookButtonScript("https://shop.example/book");
+    expect(script).toBe("https://shop.example/book-button.js");
+    const html = bookButtonHtml("https://shop.example/book?service=cut", "Book", "dark", script);
+    const [link, tag, ...rest] = html.split("\n");
+    expect(rest).toEqual([]);
+    expect(link).toMatch(/^<a href="https:\/\/shop\.example\/book\?service=cut" data-book-overlay target="_blank"/);
+    expect(tag).toBe('<script src="https://shop.example/book-button.js" async></script>');
+    expect(bookButtonHtml("https://shop.example/book", "Go", "dark", 'x" onload="y')).toContain('src="x&quot; onload=&quot;y"');
   });
 });
 
