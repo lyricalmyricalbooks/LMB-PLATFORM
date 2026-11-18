@@ -188,3 +188,10 @@
 .be-main[data-essentials] [data-be-section="seo"] { display: none; }
 .be-more-parts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 0 16px; }
 .be-more-parts .rp-fk-hint { margin: 0; }
+
+/* Simpler admin, change 11: count your shelf on the product page; the stockroom's records follow. */
+.be-shelf-count { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 16px; padding: 14px 16px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius-md, 14px); background: var(--rp-surface-2); }
+.be-shelf-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.be-shelf-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--rp-text-sm); font-weight: 600; color: var(--rp-text); }
+.be-shelf-field input { width: 9rem; min-height: 40px; padding: 0 12px; border: 1px solid var(--rp-border); border-radius: 10px; background: var(--rp-surface); color: var(--rp-text); font: inherit; font-weight: 400; }
+.be-shelf-count .rp-link { background: none; border: 0; padding: 0; color: var(--rp-text); text-decoration: underline; cursor: pointer; font: inherit; }

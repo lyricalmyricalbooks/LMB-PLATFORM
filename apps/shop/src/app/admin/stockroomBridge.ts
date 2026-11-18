@@ -12,6 +12,8 @@ export interface StockroomBook {
   id: string; title: string; onHand: number; publisher: number; author: number; onConsignment: number;
   places: { name: string; qty: number }[]; stockists: { name: string; qty: number }[];
   channels: { chan: string; units: number; revenue: number; cur: string }[]; sold: number; lastSale: string | null;
+  /** The item has a print run, so its count follows its records (absent from an older answer). */
+  hasPrintRun?: boolean;
 }
 /** The stockroom book that looks like a website book (`findBook`). */
 export interface StockroomMatch { id: string; title: string; by: "isbn" | "title" }
