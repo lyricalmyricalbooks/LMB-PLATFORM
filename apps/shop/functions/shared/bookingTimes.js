@@ -9,8 +9,12 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = void 0;
+exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = void 0;
+exports.cleanSpecialHours = cleanSpecialHours;
+exports.specialOn = specialOn;
+exports.hoursOnDay = hoursOnDay;
+exports.personHoursOn = personHoursOn;
 exports.cleanBlocks = cleanBlocks;
 exports.blockSpan = blockSpan;
 exports.blockedBusy = blockedBusy;
@@ -91,6 +95,45 @@ exports.MAX_EXTRAS = 8;
 exports.MAX_EXTRA_MINUTES = 240;
 exports.MAX_STAFF = 20;
 exports.MAX_ROOMS = 10;
+exports.MAX_SPECIAL_HOURS = 30;
+/** The longest stretch, in days. */
+exports.MAX_SPECIAL_DAYS = 92;
+/** Holiday hours, cleaned: real days in order, at most MAX_SPECIAL_DAYS long, earliest first; ones ended before `today` dropped. */
+function cleanSpecialHours(raw, today = "") {
+    const taken = new Set();
+    const out = [];
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const r = item && typeof item === "object" ? item : {};
+        const from = typeof r.from === "string" && DAY.test(r.from) ? r.from : "";
+        const to = typeof r.to === "string" && DAY.test(r.to) ? r.to : from;
+        if (!from || to < from || to > addDays(from, exports.MAX_SPECIAL_DAYS - 1) || (today && to < today))
+            continue;
+        out.push({ id: ownId(r.id, "h", taken, out.length), label: text(r.label, 60), from, to, hours: cleanHours([r.hours, [], [], [], [], [], []], [[], [], [], [], [], [], []])[0] });
+    }
+    return out.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)).slice(-exports.MAX_SPECIAL_HOURS);
+}
+/** The holiday hours that cover `day`, if any (the latest-starting one). */
+function specialOn(special, day) {
+    let found;
+    for (const h of special || [])
+        if (h.from <= day && day <= h.to && (!found || h.from >= found.from))
+            found = h;
+    return found;
+}
+/** The shop's opening hours on one day: its holiday hours when a stretch covers it, else the weekday's. */
+function hoursOnDay(settings, day) {
+    return specialOn(settings.specialHours, day)?.hours ?? settings.hours[(0, exports.weekdayOf)(day)] ?? [];
+}
+/**
+ * One person's working hours on one day: their own holiday hours first, then their own weekly hours, else the shop's
+ * (holiday hours included). Days off are the caller's to apply.
+ */
+function personHoursOn(settings, p, day) {
+    const own = specialOn(p.specialHours, day);
+    if (own)
+        return own.hours;
+    return p.ownHours ? p.hours[(0, exports.weekdayOf)(day)] || [] : hoursOnDay(settings, day);
+}
 exports.MAX_BLOCKS = 100;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 /** The owner's blocks, cleaned: a real day and a start before the end; at most MAX_BLOCKS, one-off ones before `today` dropped. */
@@ -654,6 +697,7 @@ function cleanBookingSettings(raw) {
         textReminders: s.textReminders === true,
         ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
         ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
+        ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
     };
 }
 exports.MAX_REBOOK_WEEKS = 52;
@@ -829,6 +873,7 @@ function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
             ownHours,
             hours: ownHours ? cleanHours(p.hours, shopHours) : shopHours.map((d) => d.map((w) => ({ ...w }))),
             daysOff: cleanDaysOff(p.daysOff),
+            ...(() => { const specialHours = cleanSpecialHours(p.specialHours); return specialHours.length ? { specialHours } : {}; })(),
             email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
             rates: cleanRates(p.rates),
             ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
@@ -1026,19 +1071,19 @@ function bookingWindow(settings, zone, nowMs) {
 function freeTimes(args) {
     const { service, settings, day } = args;
     if (!(0, exports.booksByPerson)(settings))
-        return freeTimesFor(args, settings.hours, "");
+        return freeTimesFor(args, hoursOnDay(settings, day), "");
     const people = staffFor(settings, service.id).filter((p) => !args.staffId || p.id === args.staffId);
     const all = new Set();
     for (const p of people) {
         if (p.daysOff.includes(day))
             continue;
-        for (const ms of freeTimesFor(args, p.ownHours ? p.hours : settings.hours, p.id))
+        for (const ms of freeTimesFor(args, personHoursOn(settings, p, day), p.id))
             all.add(ms);
     }
     return [...all].sort((a, b) => a - b);
 }
 /** One calendar's free times on a day: the shop's (no person) or one person's, with their working hours. */
-function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }, hours, staffId) {
+function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }, windows, staffId) {
     if (!(0, exports.isDay)(day) || settings.daysOff.includes(day))
         return [];
     // The owner's blocked time is busy like a booking: the whole shop's for everyone, a person's for them.
@@ -1067,7 +1112,7 @@ function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }, hou
         }
         return out.sort((a, b) => a - b);
     }
-    for (const w of hours[(0, exports.weekdayOf)(day)] || []) {
+    for (const w of windows) {
         const close = minutesOf(w.end);
         for (let m = minutesOf(w.start); m + service.minutes <= close; m += settings.step) {
             const start = zonedTime(day, `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`, zone);
@@ -1110,9 +1155,9 @@ function whoIsFree(args) {
         return null;
     const day = dayOf(start, zone);
     if (!(0, exports.booksByPerson)(settings))
-        return freeTimesFor({ ...args, day }, settings.hours, "").includes(start) ? "" : null;
+        return freeTimesFor({ ...args, day }, hoursOnDay(settings, day), "").includes(start) ? "" : null;
     const people = staffFor(settings, service.id).filter((p) => (!args.staffId || p.id === args.staffId) && !p.daysOff.includes(day)
-        && freeTimesFor({ ...args, day }, p.ownHours ? p.hours : settings.hours, p.id).includes(start));
+        && freeTimesFor({ ...args, day }, personHoursOn(settings, p, day), p.id).includes(start));
     if (!people.length)
         return null;
     const teaching = (0, exports.isClass)(service) ? people.find((p) => busy.some((b) => b.staffId === p.id && b.serviceId === service.id && b.start === start)) : undefined;
@@ -1136,8 +1181,8 @@ function keptPerson(settings, serviceId, staffId) {
 function ownerBookingSettings(settings) {
     const allDay = Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]);
     // Blocked time keeps clients out, never the owner: they can still put a booking there by hand.
-    return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [],
-        staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [] })) };
+    return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [], specialHours: [],
+        staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [], specialHours: [] })) };
 }
 /** Whether `start` is free for a booking (someone can take it, or the shop's one calendar is free there). */
 function isFreeTime(args) {
@@ -1232,7 +1277,7 @@ function slotsOn(settings, day, zone) {
     if (!(0, exports.isDay)(day) || settings.daysOff.includes(day))
         return [];
     const out = [];
-    for (const w of settings.hours[(0, exports.weekdayOf)(day)] || []) {
+    for (const w of hoursOnDay(settings, day)) {
         const close = minutesOf(w.end);
         for (let m = minutesOf(w.start); m + settings.pickupSlotMinutes <= close; m += settings.pickupSlotMinutes) {
             const start = zonedTime(day, hhmm(m), zone);

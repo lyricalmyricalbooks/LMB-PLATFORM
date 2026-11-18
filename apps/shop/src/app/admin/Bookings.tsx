@@ -11,8 +11,8 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, zonedTime, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -280,12 +280,12 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
             <div className="bkg-tday-corner" aria-hidden />
             {grid.days.map(({ day: d, closed }) => {
               const list = groups.get(d) || [];
-              const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
               const waitingHere = waitingDays.get(d)?.length || 0;
+              const special = settings.daysOff.includes(d) ? undefined : specialOn(settings.specialHours, d);
               return (
-                <div key={d} className="bkg-wgrid-head" data-phone-shown={phoneDay === d || undefined} data-today={d === now || undefined} data-closed={closed || undefined}>
+                <div key={d} className="bkg-wgrid-head" data-phone-shown={phoneDay === d || undefined} data-today={d === now || undefined} data-closed={closed || undefined} data-special={special ? "" : undefined}>
                   <span className="bkg-day-name">{dayText(d)}</span>
-                  <span className="bkg-day-hours">{settings.daysOff.includes(d) ? "Day off" : hoursLine(settings.hours[wd])}</span>
+                  <span className="bkg-day-hours" title={special ? `${special.label || "Holiday hours"}: ${hoursLine(special.hours)}` : undefined}>{settings.daysOff.includes(d) ? "Day off" : hoursLine(hoursOnDay(settings, d))}</span>
                   <span className="bkg-wgrid-tools">
                     {waitingHere > 0 && <button type="button" className="bkg-waiting" onClick={() => setWaitingDay(d)}><BellRing size={13} aria-hidden /> {waitingText(waitingHere)}</button>}
                     {list.length > 0 && <IconButton label={`Who's coming on ${dayText(d, "long")}`} onClick={() => setListDay(d)}><ClipboardList size={16} aria-hidden /></IconButton>}
@@ -2464,6 +2464,11 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
           <h2 className="bkg-tile-title">Days off</h2>
           <DaysOffEditor days={form.daysOff} onChange={(daysOff) => setForm({ ...form, daysOff })} />
         </section>
+        <section className="bkg-tile">
+          <h2 className="bkg-tile-title">Holiday hours <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+          <p className="bkg-cal-text">Shorter or longer hours for a few dates, like December or a long weekend. They replace your weekly hours on those days.</p>
+          <SpecialHoursEditor list={form.specialHours} onChange={(specialHours) => setForm({ ...form, specialHours })} />
+        </section>
         <CalendarTile google={form.googleCalendar} onGoogle={(on) => setForm({ ...form, googleCalendar: on })} />
       </div>
       {active && <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={() => setForm(saved ? settings : DEFAULT_BOOKING_SETTINGS)} message={saved ? undefined : "Save your hours to start taking bookings."} />}
@@ -2500,6 +2505,67 @@ function WeekHoursEditor({ hours, onChange, who = "" }: { hours: HoursWindow[][]
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * Holiday hours (plan 4, 1.7): different hours for a stretch of dates, or closed, for the shop or one person. Coming
+ * stretches are listed with a remove button; ended ones are kept but not shown. Saved with the form around it.
+ */
+function SpecialHoursEditor({ list = [], onChange, who = "" }: { list?: SpecialHours[]; onChange: (list: SpecialHours[]) => void; who?: string }) {
+  const blank = { label: "", from: "", to: "", open: false, hours: [{ start: "10:00", end: "14:00" }] as HoursWindow[] };
+  const [draft, setDraft] = useState(blank);
+  const coming = list.filter((h) => h.to >= today());
+  const to = draft.to || draft.from;
+  const problem = !draft.from ? "" : to < draft.from ? "The last day comes before the first."
+    : to > addDays(draft.from, MAX_SPECIAL_DAYS - 1) ? `Keep it to ${MAX_SPECIAL_DAYS} days or fewer.`
+    : draft.open && draft.hours.some((w) => !w.start || !w.end || w.start >= w.end) ? "Each closing time has to come after its opening time." : "";
+  const add = () => {
+    const id = `h${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+    onChange([...list, { id, label: draft.label.trim(), from: draft.from, to, hours: draft.open ? draft.hours : [] }].sort((a, b) => a.from.localeCompare(b.from)));
+    setDraft(blank);
+  };
+  const name = who ? `${who} ` : "";
+  return (
+    <>
+      {coming.length === 0 ? <p className="bkg-day-empty">No holiday hours coming up.</p> : (
+        <ul className="bkg-special-list">
+          {coming.map((h) => (
+            <li key={h.id}>
+              <span className="bkg-special-what"><strong>{h.label || (h.hours.length ? "Holiday hours" : "Closed")}</strong><span>{specialHoursLine(h)}</span></span>
+              <IconButton label={`Remove ${h.label || specialHoursLine(h)}`} onClick={() => onChange(list.filter((x) => x.id !== h.id))}><Trash2 size={14} aria-hidden /></IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      {list.length < MAX_SPECIAL_HOURS && (
+        <div className="bkg-special-add">
+          <TextField label="Name (optional)" placeholder="December hours" maxLength={60} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
+          <div className="bkg-two">
+            <TextField label="First day" type="date" min={today()} value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value, to: draft.to && draft.to < e.target.value ? "" : draft.to })} />
+            <TextField label="Last day" hint="Leave empty for one day." type="date" min={draft.from || today()} value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
+          </div>
+          <div className="bkg-hours-row" data-closed={!draft.open || undefined}>
+            <Toggle label={who ? "Working" : "Open"} checked={draft.open} onChange={(open) => setDraft({ ...draft, open })} />
+            <div className="bkg-hours-windows">
+              {draft.open ? draft.hours.map((w, i) => (
+                <div key={i} className="bkg-window">
+                  <TextField label={`${name}holiday hours from`} hideLabel type="time" step={300} value={w.start} onChange={(e) => setDraft({ ...draft, hours: draft.hours.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)) })} />
+                  <span aria-hidden>–</span>
+                  <TextField label={`${name}holiday hours until`} hideLabel type="time" step={300} value={w.end} onChange={(e) => setDraft({ ...draft, hours: draft.hours.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)) })} />
+                  {draft.hours.length > 1 && <IconButton label="Remove these hours" onClick={() => setDraft({ ...draft, hours: draft.hours.filter((_, j) => j !== i) })}><Trash2 size={15} aria-hidden /></IconButton>}
+                </div>
+              )) : <span className="bkg-closed">{who ? "Off all day" : "Closed all day"}</span>}
+              {draft.open && draft.hours.length < 3 && (
+                <GhostButton size="sm" onClick={() => setDraft({ ...draft, hours: [...draft.hours, { start: draft.hours[draft.hours.length - 1].end, end: "18:00" }] })}>Add hours</GhostButton>
+              )}
+            </div>
+          </div>
+          {problem && <p className="bkg-error" role="alert">{problem}</p>}
+          <div><SecondaryButton disabled={!draft.from || !!problem} onClick={add}><Plus size={15} aria-hidden /> Add holiday hours</SecondaryButton></div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2709,6 +2775,11 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
           <legend>Their days off</legend>
           <p className="bkg-questions-hint">On top of the shop's days off.</p>
           <DaysOffEditor days={form.daysOff} onChange={(days) => set("daysOff", days)} label="Add a day off for them" />
+        </fieldset>
+        <fieldset className="bkg-questions">
+          <legend>Their holiday hours <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+          <p className="bkg-questions-hint">Different hours for a few dates. They replace their usual hours on those days.</p>
+          <SpecialHoursEditor list={form.specialHours} onChange={(list) => set("specialHours", list)} who={form.name.trim() || "Their"} />
         </fieldset>
         <fieldset className="bkg-questions">
           <legend>Their own day</legend>

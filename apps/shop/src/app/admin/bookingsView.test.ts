@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -339,5 +339,20 @@ describe("processing time on the calendar (plan 4, 1.5)", () => {
     expect(processingBand({ ...b, minutes: 60 }, 60)).toBeNull();
     expect(processingText(b)).toBe("Processing 45 min, from 30 min in");
     expect(processingText({ minutes: 60 })).toBe("");
+  });
+});
+
+describe("holiday hours on the calendar (plan 4, 1.7)", () => {
+  const hours = Array.from({ length: 7 }, (_, wd) => (wd === 0 ? [] : [{ start: "10:00", end: "18:00" }]));
+  const base = { ...DEFAULT_BOOKING_SETTINGS, hours, daysOff: [], staff: [] as StaffMember[] };
+  it("draws the week with its holiday hours, closed days and all", () => {
+    const g = weekGrid([], { ...base, specialHours: [{ id: "h", label: "", from: "2026-11-18", to: "2026-11-19", hours: [] }, { id: "s", label: "", from: "2026-11-22", to: "2026-11-22", hours: [{ start: "08:00", end: "11:00" }] }] }, [], "2026-11-16", ZONE);
+    expect(g.days.map((d) => d.closed)).toEqual([false, false, true, true, false, false, false]);
+    expect(g.days[6].hours).toEqual([{ start: "08:00", end: "11:00" }]);
+    expect(g.startMin).toBe(480);
+  });
+  it("says a stretch in a line", () => {
+    expect(specialHoursLine({ from: "2026-12-24", to: "2026-12-24", hours: [] })).toMatch(/Dec.*· Closed$/);
+    expect(specialHoursLine({ from: "2026-12-21", to: "2027-01-02", hours: [{ start: "10:00", end: "14:00" }] })).toMatch(/ – .*· 10:00–14:00$/);
   });
 });

@@ -593,3 +593,11 @@
   background: repeating-linear-gradient(135deg, var(--rp-surface) 0 6px, transparent 6px 12px); opacity: 0.85; }
 .rp .bkg-processing > span { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; font-weight: 600; color: var(--rp-text-muted); background: var(--rp-surface); border-radius: 6px; padding: 0 4px; }
 .rp .bkg-tday-block[data-short] .bkg-processing > span { display: none; }
+
+/* Holiday hours (plan 4, 1.7) */
+.rp .bkg-special-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+.rp .bkg-special-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 6px 8px 14px; border-radius: 14px; background: var(--rp-surface-2); }
+.rp .bkg-special-what { display: grid; gap: 2px; min-width: 0; font-size: 14px; }
+.rp .bkg-special-what span { color: var(--rp-text-muted); font-size: 13px; }
+.rp .bkg-special-add { display: grid; gap: 12px; padding-top: 4px; }
+.rp .bkg-wgrid-head[data-special] .bkg-day-hours { color: var(--rp-primary-text); font-weight: 600; }

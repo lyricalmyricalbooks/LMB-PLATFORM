@@ -519,6 +519,20 @@ describe("processing time (plan 4, 1.5)", () => {
   });
 });
 
+describe("holiday hours (plan 4, 1.7)", () => {
+  test("clients see the holiday hours, the owner still books outside them", async () => {
+    const t = setup();
+    await t.seed();
+    await t.adm({ op: "saveSettings", settings: { ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, specialHours: [{ from: "2026-11-20", to: "2026-11-20", hours: [{ start: "13:00", end: "15:00" }] }] } });
+    expect(t.db.store.get("bookingSettings/main").specialHours).toEqual([expect.objectContaining({ from: "2026-11-20", to: "2026-11-20" })]);
+    const times = (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-20", days: 1 })).body.days["2026-11-20"];
+    expect(times[0]).toBe(at("2026-11-20", "13:00"));
+    expect(times).not.toContain(at("2026-11-20", "10:00"));
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), ...CUSTOMER })).statusCode).toBe(409);
+    expect((await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "Bo", email: "bo@example.com" })).statusCode).toBe(200);
+  });
+});
+
 describe("time before (plan 4, 1.6)", () => {
   test("the day keeps the time before free, and a move takes it along", async () => {
     const t = setup();

@@ -7,6 +7,7 @@ import {
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
   cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue, packProblem,
   cleanBlocks, blockOn, blockedBusy, MAX_BLOCKS, processingStretch,
+  cleanSpecialHours, hoursOnDay, personHoursOn, specialOn, MAX_SPECIAL_DAYS,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -672,6 +673,57 @@ describe("blocked time (plan 4, 1.3)", () => {
   it("survives the settings clean", () => {
     expect(cleanBookingSettings({ ...settings, blocks: [lunch] }).blocks).toEqual([lunch]);
     expect(cleanBookingSettings(settings).blocks).toBeUndefined();
+  });
+});
+
+describe("holiday hours (plan 4, 1.7)", () => {
+  // Monday 2026-11-23 is normally 10:00 to 17:00.
+  const short = { id: "h1", label: "Short week", from: "2026-11-23", to: "2026-11-27", hours: [{ start: "12:00", end: "14:00" }] };
+  const closed = { id: "h2", label: "", from: "2026-11-25", to: "2026-11-25", hours: [] };
+  it("cleans the stretches: real days in order, not too long, ended ones dropped when asked", () => {
+    const list = cleanSpecialHours([
+      closed, short,
+      { from: "2026-12-10", to: "2026-12-01" },
+      { from: "2026-12-01", to: addDays("2026-12-01", MAX_SPECIAL_DAYS) },
+      { from: "2026-12-24", hours: [{ start: "15:00", end: "11:00" }] },
+      { from: "nope" },
+    ]);
+    expect(list.map((h) => h.from)).toEqual(["2026-11-23", "2026-11-25", "2026-12-24"]);
+    expect(list[2]).toMatchObject({ to: "2026-12-24", hours: [] });
+    expect(cleanSpecialHours([short, closed], "2026-11-26").map((h) => h.id)).toEqual(["h1"]);
+    expect(cleanBookingSettings({ specialHours: [short] }).specialHours).toHaveLength(1);
+    expect(cleanBookingSettings({})).not.toHaveProperty("specialHours");
+  });
+  it("replaces the weekly hours on its days, the later-starting stretch first", () => {
+    const s = { ...settings, specialHours: [short, closed] };
+    expect(hoursOnDay(s, "2026-11-23")).toEqual(short.hours);
+    expect(hoursOnDay(s, "2026-11-25")).toEqual([]);
+    expect(specialOn(s.specialHours, "2026-11-25")?.id).toBe("h2");
+    expect(hoursOnDay(s, "2026-11-30")).toEqual(settings.hours[1]);
+    expect(freeTimes({ service, settings: s, busy: [], day: "2026-11-23", zone: ZONE, nowMs: NOW }).map(hhmm)).toEqual(["12:00", "12:30", "13:00"]);
+    expect(freeTimes({ service, settings: s, busy: [], day: "2026-11-25", zone: ZONE, nowMs: NOW })).toEqual([]);
+    // A Sunday that's normally closed can open for the stretch.
+    const sunday = { ...settings, specialHours: [{ id: "s", label: "", from: "2026-11-29", to: "2026-11-29", hours: [{ start: "11:00", end: "13:00" }] }] };
+    expect(freeTimes({ service, settings: sunday, busy: [], day: "2026-11-29", zone: ZONE, nowMs: NOW }).map(hhmm)).toEqual(["11:00", "11:30", "12:00"]);
+  });
+  it("goes for one person too: theirs first, then their own week, else the shop's holiday hours", () => {
+    const team = cleanBookingSettings({ ...settings, live: true, minNoticeHours: 0, specialHours: [short], staff: [
+      { id: "ana", name: "Ana" },
+      { id: "ben", name: "Ben", specialHours: [{ id: "b", from: "2026-11-23", to: "2026-11-23", hours: [{ start: "16:00", end: "18:00" }] }] },
+      { id: "cy", name: "Cy", ownHours: true, hours: settings.hours },
+    ] });
+    const [ana, ben, cy] = team.staff;
+    expect(personHoursOn(team, ana, "2026-11-23")).toEqual(short.hours);
+    expect(personHoursOn(team, ben, "2026-11-23")).toEqual([{ start: "16:00", end: "18:00" }]);
+    expect(personHoursOn(team, cy, "2026-11-23")).toEqual(settings.hours[1]);
+    expect(whoIsFree({ service, settings: team, busy: [], start: at("2026-11-23", "16:00"), zone: ZONE, nowMs: NOW, staffId: "ben" })).toBe("ben");
+    expect(whoIsFree({ service, settings: team, busy: [], start: at("2026-11-23", "16:00"), zone: ZONE, nowMs: NOW, staffId: "ana" })).toBeNull();
+  });
+  it("moves pickup times with the shop's hours", () => {
+    const pick = cleanBookingSettings({ pickupTimes: true, pickupSlotMinutes: 60, pickupReadyHours: 0, specialHours: [closed] });
+    const slots = pickupSlots({ settings: pick, zone: ZONE, nowMs: NOW });
+    expect(slots["2026-11-25"]).toBeUndefined();
+    expect(slots["2026-11-24"]).toBeDefined();
   });
 });
 

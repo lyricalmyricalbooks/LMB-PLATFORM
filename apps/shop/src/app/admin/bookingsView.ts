@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, blockOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
+import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
 
@@ -207,6 +207,14 @@ export function weekFigures(rows: readonly Booking[]): { count: number; hours: n
 /** The opening hours one line per day ("Mon 10:00–17:00"). */
 export const hoursLine = (windows: { start: string; end: string }[]): string => (windows.length ? windows.map((w) => `${w.start}–${w.end}`).join(", ") : "Closed");
 
+/** Holiday hours in a line (plan 4, 1.7): "24 Dec – 2 Jan · 10:00–14:00", one day as "Thu 25 Dec · Closed". */
+export function specialHoursLine(h: { from: string; to: string; hours: { start: string; end: string }[] }): string {
+  const short = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const when = h.from === h.to ? dayText(h.from, "long") : `${short(h.from)} – ${short(h.to)}`;
+  return `${when} · ${hoursLine(h.hours)}`;
+}
+
+
 // ── Figures (the Figures tab): the last few months, by each booking's own day in the shop's zone ──────────────────
 
 export type MonthFigures = { month: string; count: number; takenMinor: number; noShows: number; cancelled: number };
@@ -375,8 +383,7 @@ const minutesOf = (hhmm: string): number => { const [h, m] = hhmm.split(":").map
  * the earliest opening (the shop's or a person's) to the latest close, stretched to fit every booking, in whole hours.
  * Cards that overlap in one column sit side by side (`lane` of `lanes`).
  */
-export function teamDay(rows: readonly Booking[], settings: Pick<BookingSettings, "staff" | "hours" | "daysOff">, day: string, zone: string): TeamDay {
-  const wd = weekdayOf(day);
+export function teamDay(rows: readonly Booking[], settings: Pick<BookingSettings, "staff" | "hours" | "daysOff" | "specialHours">, day: string, zone: string): TeamDay {
   const shopOff = settings.daysOff.includes(day);
   const dayStart = zonedTime(day, "00:00", zone);
   const list = (byDay(rows, zone).get(day) || []);
@@ -386,7 +393,7 @@ export function teamDay(rows: readonly Booking[], settings: Pick<BookingSettings
   const columns: TeamColumn[] = staff
     .filter((p) => p.active || list.some((b) => b.staffId === p.id))
     .map((p) => {
-      const hours = shopOff || p.daysOff.includes(day) ? [] : (p.ownHours ? p.hours[wd] : settings.hours[wd]) || [];
+      const hours = shopOff || p.daysOff.includes(day) ? [] : personHoursOn(settings, p, day);
       return { id: p.id, name: p.name, off: hours.length === 0, hours, blocks: [] };
     });
   if (list.some((b) => whose(b) === NOBODY)) columns.push({ id: NOBODY, name: "Not assigned", off: false, hours: [], blocks: [] });
@@ -394,7 +401,7 @@ export function teamDay(rows: readonly Booking[], settings: Pick<BookingSettings
   let lo = Infinity;
   let hi = -Infinity;
   for (const c of columns) for (const w of c.hours) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
-  if (!shopOff) for (const w of settings.hours[wd] || []) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
+  if (!shopOff) for (const w of hoursOnDay(settings, day)) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
   for (const b of list) { lo = Math.min(lo, minute(b.start)); hi = Math.max(hi, minute(b.end)); }
   if (!Number.isFinite(lo)) { lo = 9 * 60; hi = 17 * 60; }
   const startMin = Math.max(0, Math.floor(lo / 60) * 60);
@@ -448,7 +455,7 @@ export type WeekGrid = { startMin: number; endMin: number; days: WeekColumn[] };
  * by side, the people in one start of a class on one card. The grid runs from the week's earliest opening to its latest
  * close (the shop's or a person's), stretched to fit every booking, in whole hours; 9 to 5 when nothing is set.
  */
-export function weekGrid(rows: readonly Booking[], settings: Pick<BookingSettings, "staff" | "hours" | "daysOff">, services: readonly { id: string; places?: number }[], monday: string, zone: string): WeekGrid {
+export function weekGrid(rows: readonly Booking[], settings: Pick<BookingSettings, "staff" | "hours" | "daysOff" | "specialHours">, services: readonly { id: string; places?: number }[], monday: string, zone: string): WeekGrid {
   const groups = byDay(rows, zone);
   const staffInk = new Map((settings.staff || []).map((p, i) => [p.id, i % INKS]));
   const serviceInk = new Map(services.map((sv, i) => [sv.id, i % INKS]));
@@ -456,11 +463,10 @@ export function weekGrid(rows: readonly Booking[], settings: Pick<BookingSetting
   let lo = Infinity;
   let hi = -Infinity;
   const days = weekDays(monday).map((day) => {
-    const wd = weekdayOf(day);
     const shut = settings.daysOff.includes(day);
-    const hours = shut ? [] : settings.hours[wd] || [];
+    const hours = shut ? [] : hoursOnDay(settings, day);
     for (const w of hours) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
-    if (!shut) for (const p of settings.staff || []) if (p.active && p.ownHours && !p.daysOff.includes(day)) for (const w of p.hours[wd] || []) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
+    if (!shut) for (const p of settings.staff || []) if (p.active && (p.ownHours || p.specialHours?.length) && !p.daysOff.includes(day)) for (const w of personHoursOn(settings, p, day)) { lo = Math.min(lo, minutesOf(w.start)); hi = Math.max(hi, minutesOf(w.end)); }
     const dayStart = zonedTime(day, "00:00", zone);
     const list = groups.get(day) || [];
     for (const b of list) { lo = Math.min(lo, (Date.parse(b.start) - dayStart) / 60_000); hi = Math.max(hi, (Date.parse(b.end) - dayStart) / 60_000); }
