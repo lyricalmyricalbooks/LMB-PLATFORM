@@ -114,6 +114,7 @@ function Plans({ c }: { c: Copy }) {
               <p className="fm-mbr-price"><strong translate="no">{price}</strong> <span className="fm-muted">{c(planEveryKey(plan.interval))}</span></p>
               {plan.trialDays > 0 && <p className="fm-track-mono">{c("membershipTrial", { days: plan.trialDays })}</p>}
               {(plan.memberPercent || 0) > 0 && <p className="fm-mbr-member-price">{c("membershipMemberPrice", { percent: plan.memberPercent || 0 })}</p>}
+              {plan.box && <p className="fm-mbr-member-price">{c("membershipBoxLine")}</p>}
               {plan.description && <p className="fm-mbr-desc">{plan.description}</p>}
               {plan.perks.length > 0 && (
                 <ul className="fm-mbr-perks" aria-label={c("membershipPerksLabel", { name: plan.name })}>

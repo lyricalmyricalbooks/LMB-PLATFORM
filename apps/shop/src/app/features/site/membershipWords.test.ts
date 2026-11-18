@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { memberCan, memberNext, membershipErrorKey, memberStateKey, planEveryKey } from "./membershipWords";
+import { addressLine, memberCan, memberNext, membershipErrorKey, memberStateKey, planEveryKey } from "./membershipWords";
 import { COPY_SCHEMA } from "./storeCopy";
 
 const keys = new Set(COPY_SCHEMA.flatMap((g) => g.fields.map((f) => f.key)));
@@ -8,9 +8,10 @@ describe("membership words", () => {
   test("every word the page and the card may pick is in Text & labels", () => {
     const picked = [
       planEveryKey("month"), planEveryKey("year"),
-      ...["member", "off", "plan", "not_available", "too_many", "state", "x"].map((c) => membershipErrorKey(c)),
+      ...["member", "off", "plan", "not_available", "too_many", "state", "address", "x"].map((c) => membershipErrorKey(c)),
       ...(["pending", "trial", "active", "pastDue", "ending", "ended"] as const).map(memberStateKey),
       "accountMemberTrialEnds", "accountMemberNextPayment", "accountMemberEnds", "accountMemberEnded", "accountMemberPastDue",
+      "accountMemberAddAddress", "accountMemberChangeAddress", "accountMemberAddressSaved", "membershipBoxLine",
     ];
     for (const k of picked) expect(keys.has(k), k).toBe(true);
   });
@@ -22,6 +23,11 @@ describe("membership words", () => {
     expect(memberNext({ state: "active", periodEnd: "2026-12-01", trialEnd: "", endedAt: "" })).toEqual({ key: "accountMemberNextPayment", at: "2026-12-01" });
     expect(memberNext({ state: "trial", periodEnd: "", trialEnd: "2026-12-02", endedAt: "" })?.key).toBe("accountMemberTrialEnds");
     expect(memberNext({ state: "pending", periodEnd: "", trialEnd: "", endedAt: "" })).toBeNull();
+  });
+  test("an address on one line", () => {
+    expect(addressLine({ line1: "12 Main St", line2: "", city: "Toronto", state: "ON", postalCode: "M6G 3H1", country: "CA" })).toBe("12 Main St, Toronto, ON M6G 3H1, CA");
+    expect(addressLine({ line1: "1 Elm", line2: "Apt 3", city: "Austin", state: "", postalCode: "78701", country: "US" })).toBe("1 Elm, Apt 3, Austin, 78701, US");
+    expect(addressLine(null)).toBe("");
   });
   test("what a member may do", () => {
     expect(memberCan("ending")).toEqual({ cancel: false, resume: true, card: true });

@@ -30,6 +30,28 @@ describe.each([["shop", shop], ["server", server]])("memberships rules (%s copy)
     expect(m.memberUnitPrice(25, 80)).toBe(12.5);
   });
 
+  test("a plan can ship a box: up to ten products and a cut-off day (M3)", () => {
+    const base = { name: "Book club", interval: "month", priceMinor: 2500 };
+    expect(m.cleanPlan(base)).not.toHaveProperty("plan.box");
+    const ok = m.cleanPlan({ ...base, box: { items: [{ bookId: "b1" }, { bookId: "b2", variantId: "pb", quantity: 2 }, { bookId: "b1", quantity: 1 }, { bookId: "../x" }], cutoffDay: 15 } });
+    expect(ok).toMatchObject({ plan: { box: { items: [{ bookId: "b1", quantity: 2 }, { bookId: "b2", variantId: "pb", quantity: 2 }], cutoffDay: 15 } } });
+    expect(m.cleanPlan({ ...base, box: { items: [], cutoffDay: 15 } })).toMatchObject({ field: "box", problem: m.PLAN_MESSAGES.boxItems });
+    expect(m.cleanPlan({ ...base, box: { items: [{ bookId: "b1" }], cutoffDay: 29 } })).toMatchObject({ field: "box", problem: m.PLAN_MESSAGES.cutoff });
+    expect(m.cleanPlan({ ...base, box: { items: [{ bookId: "b1", quantity: 11 }], cutoffDay: 1 } })).toMatchObject({ field: "box" });
+  });
+
+  test("a box goes to a full Canadian or US address, in its month on the shop's clock, to paid members", () => {
+    const addr = { name: " Ada  Reader ", line1: "12 Ink Lane", city: "Toronto", state: "on", postal_code: "m6g 3h1", country: "ca" };
+    expect(m.cleanBoxAddress(addr)).toEqual({ name: "Ada Reader", line1: "12 Ink Lane", line2: "", city: "Toronto", state: "ON", postalCode: "M6G 3H1", country: "CA" });
+    expect(m.cleanBoxAddress({ ...addr, country: "FR" })).toBeNull();
+    expect(m.cleanBoxAddress({ ...addr, line1: "" })).toBeNull();
+    const t = Date.parse("2026-12-01T03:00:00Z");
+    expect(m.boxMonth(t, "America/Toronto")).toBe("2026-11");
+    expect(m.shopDayOfMonth(t, "America/Toronto")).toBe(30);
+    expect(m.boxMonth(t, "UTC")).toBe("2026-12");
+    expect(["trial", "active", "ending", "pastDue", "ended", "pending"].map((x) => m.getsBox(x as any))).toEqual([false, true, true, false, false, false]);
+  });
+
   test("only downloads can be Free for members", () => {
     expect(m.memberFreeProduct({ memberFree: true, digital: true })).toBe(true);
     expect(m.memberFreeProduct({ memberFree: true, format: "PDF" })).toBe(true);

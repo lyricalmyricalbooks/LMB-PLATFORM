@@ -26,10 +26,10 @@
 "use strict";
 
 const crypto = require("crypto");
-const { cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, MAX_PLANS, MAX_MEMBER_PERCENT } = require("./shared/membershipRules");
+const { cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, cleanBoxAddress, MAX_PLANS, MAX_MEMBER_PERCENT, BOX_COUNTRIES } = require("./shared/membershipRules");
 const { waysOn } = require("./shared/waysToSell");
 
-const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage"]);
+const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress"]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,99}$/;
 /** How long a card page stays open. */
 const PAGE_MINUTES = 60;
@@ -99,13 +99,20 @@ const WORDS = {
 };
 
 /** A plan as anyone sees it. */
-const publicPlan = (id, p, currency) => ({ id, name: p.name, description: p.description || "", perks: p.perks || [], interval: p.interval, priceMinor: p.priceMinor, trialDays: p.trialDays || 0, memberPercent: percentOf(p), currency });
+const publicPlan = (id, p, currency) => ({ id, name: p.name, description: p.description || "", perks: p.perks || [], interval: p.interval, priceMinor: p.priceMinor, trialDays: p.trialDays || 0, memberPercent: percentOf(p), currency, ...(p.box ? { box: p.box } : {}) });
+/** The address the card page took (Stripe's older and newer places for it), cleaned; null when there is none (M3a). */
+function sessionAddress(session) {
+  const ship = session?.collected_information?.shipping_details || session?.shipping_details || null;
+  if (!ship?.address) return null;
+  return cleanBoxAddress({ name: ship.name, ...ship.address });
+}
 /** A plan's member price percent (M2a), 0 when it has none or it isn't a whole 1 to 50. */
 const percentOf = (p) => (Number.isInteger(p?.memberPercent) && p.memberPercent > 0 && p.memberPercent <= MAX_MEMBER_PERCENT ? p.memberPercent : 0);
 /** A membership as its member sees it (never ids of the provider or keys). */
 const memberView = (id, m) => ({
   id, state: m.state || "pending", plan: m.plan || null, periodEnd: m.periodEnd || "", trialEnd: m.trialEnd || "", card: m.card || null,
   startedAt: m.startedAt || "", endedAt: m.endedAt || "", test: m.mode === "test", cardPending: (m.cardSessions || []).some((c) => !c.done),
+  ...(m.box ? { box: true, address: m.address || null } : {}),
 });
 /** A membership as the owner sees it. */
 const adminMember = (id, m) => ({ ...memberView(id, m), name: m.customer?.name || "", email: m.customer?.email || "", planId: m.planId || "", createdAt: m.createdAt || "", checkedAt: m.checkedAt || "" });
@@ -243,7 +250,11 @@ function membershipActions({
       if (!subId) continue;
       const sub = await acc.subscriptions.read(subId);
       if (sub && sub.metadata?.membership && sub.metadata.membership !== id) continue;
-      if (sub) return apply(id, sub);
+      if (!sub) continue;
+      // A box plan's card page took the address the boxes go to (M3a); the member can change it later.
+      const address = m.box && !m.address ? sessionAddress(session) : null;
+      if (address) await members().doc(id).set({ address, updatedAt: now().toISOString() }, { merge: true });
+      return apply(id, sub);
     }
     return null;
   }
@@ -415,6 +426,7 @@ function membershipActions({
           planId, plan: { name: plan.name, interval: plan.interval, priceMinor: plan.priceMinor, trialDays: plan.trialDays || 0, currency: currency() },
           customer: { email: who.email, name: String(who.name || "").slice(0, 100), uid: who.uid || "" }, state: "pending", mode, sessions: [], cardSessions: [],
           locale: french(req.body?.locale) ? "fr" : "en", createdAt: at, updatedAt: at, checkAfter: nextCheck("pending", "", nowMs),
+          ...(plan.box ? { box: true } : {}),
         };
         await members().doc(id).set(record);
         const shop = shopName();
@@ -429,6 +441,8 @@ function membershipActions({
             success_url: accountUrl(`?joined=${encodeURIComponent(id)}`), cancel_url: siteLink("/membership"),
             line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: plan.priceMinor, recurring: { interval: plan.interval }, product_data: { name } } }],
             subscription_data: { description: name, metadata, ...(plan.trialDays ? { trial_period_days: plan.trialDays } : {}) },
+            // A plan that ships a box asks where to send it, on the provider's own page (M3a).
+            ...(plan.box ? { shipping_address_collection: { allowed_countries: [...BOX_COUNTRIES] } } : {}),
           }, `membership-${id}`);
         } catch (err) {
           await members().doc(id).set({ state: "ended", neverStarted: true, checkAfter: null, updatedAt: now().toISOString() }, { merge: true });
@@ -444,6 +458,14 @@ function membershipActions({
       const snap = ID.test(id) ? await members().doc(id).get() : null;
       if (!snap?.exists || snap.data().customer?.email !== who.email) return fail(res, 404, "We couldn't find that membership.", "not_found");
       const m = snap.data();
+      if (action === "membershipAddress") {
+        // Where the boxes go (M3a): only on a box membership that hasn't ended.
+        if (!m.box || m.state === "ended") return fail(res, 409, "That membership doesn't send boxes.", "state");
+        const address = cleanBoxAddress(req.body?.address);
+        if (!address) return fail(res, 400, "Enter a full address in Canada or the United States.", "address");
+        await members().doc(id).set({ address, updatedAt: now().toISOString() }, { merge: true });
+        return res.status(200).json({ membership: memberView(id, { ...m, address }) });
+      }
       const acc = await account(m.mode);
       if (!acc.subscriptions || !m.subscription) return fail(res, 409, "That membership can't be changed right now. Please contact the shop.", "not_available");
       if (action === "membershipCancel") {
@@ -528,7 +550,14 @@ function membershipActions({
           if (before.priceMinor !== clean.plan.priceMinor || before.interval !== clean.plan.interval) {
             return fail(res, 409, "A plan's price and how often it is paid can't change after it is made, because members joined at that price. Make a new plan and hide this one.", "price");
           }
-          await plans().doc(asked).set({ ...clean.plan, updatedAt: at }, { merge: true });
+          // `box: null` takes a box off (a merge would keep the old one).
+          await plans().doc(asked).set({ ...clean.plan, box: clean.plan.box || null, updatedAt: at }, { merge: true });
+          // A box added to a plan people already joined: their memberships send boxes too, and each member is asked for
+          // an address in their account (M3a).
+          if (clean.plan.box && !before.box) {
+            const joined = await members().where("planId", "==", asked).limit(MAX_LISTED).get();
+            await Promise.all(joined.docs.filter((d) => d.data().state !== "ended" && !d.data().box).map((d) => members().doc(d.id).set({ box: true, updatedAt: at }, { merge: true })));
+          }
           return res.status(200).json({ ok: true, id: asked });
         }
         if ((await plans().limit(MAX_PLANS + 1).get()).size >= MAX_PLANS) return fail(res, 409, `A shop can have up to ${MAX_PLANS} plans. Hide one you no longer need instead.`, "too_many");

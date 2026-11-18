@@ -7,12 +7,16 @@
 // A plan is paid every month or every year on the shop's own card account, with an optional free trial. A member's
 // state comes from the card provider's subscription (memberState), never from the browser.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
+exports.getsBox = exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
+exports.cleanBox = cleanBox;
 exports.cleanPlan = cleanPlan;
 exports.memberState = memberState;
 exports.planPriceWords = planPriceWords;
 exports.memberUnitPrice = memberUnitPrice;
 exports.memberFreeProduct = memberFreeProduct;
+exports.cleanBoxAddress = cleanBoxAddress;
+exports.boxMonth = boxMonth;
+exports.shopDayOfMonth = shopDayOfMonth;
 exports.MAX_PLANS = 8;
 exports.MAX_PLAN_NAME = 60;
 exports.MAX_PLAN_DESCRIPTION = 400;
@@ -25,6 +29,13 @@ exports.MAX_PLAN_MINOR = 500_000;
 exports.MAX_TRIAL_DAYS = 60;
 /** The most a plan can take off the shop's prices for its members (M2a). */
 exports.MAX_MEMBER_PERCENT = 50;
+/** Products in one plan's box (M3), and how many of each. */
+exports.MAX_BOX_ITEMS = 10;
+exports.MAX_BOX_QUANTITY = 10;
+/** The latest cut-off day: every month has it. */
+exports.MAX_CUTOFF_DAY = 28;
+/** Where a box can be sent (the provider's own address step asks for these). */
+exports.BOX_COUNTRIES = Object.freeze(["CA", "US"]);
 exports.PLAN_INTERVALS = Object.freeze(["month", "year"]);
 exports.PLAN_MESSAGES = Object.freeze({
     name: "Give the plan a name.",
@@ -32,7 +43,40 @@ exports.PLAN_MESSAGES = Object.freeze({
     price: (min, max) => `Enter a price from ${min} to ${max}.`,
     trial: `A free trial can be up to ${exports.MAX_TRIAL_DAYS} days.`,
     percent: `A member price can take 0 to ${exports.MAX_MEMBER_PERCENT}% off.`,
+    boxItems: "Pick at least one product for the box.",
+    boxQuantity: `Each product in the box can be 1 to ${exports.MAX_BOX_QUANTITY}.`,
+    cutoff: `Choose a cut-off day from 1 to ${exports.MAX_CUTOFF_DAY}.`,
 });
+const DOC_ID = /^[A-Za-z0-9_-]{1,128}$/;
+/** A plan's box, cleaned, or the problem. `undefined` or `null` (no box) gives null. Pure. */
+function cleanBox(raw) {
+    if (raw === undefined || raw === null || raw === false)
+        return { box: null };
+    const b = typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const items = [];
+    for (const it of (Array.isArray(b.items) ? b.items : []).slice(0, exports.MAX_BOX_ITEMS)) {
+        const x = it && typeof it === "object" ? it : {};
+        const bookId = typeof x.bookId === "string" && DOC_ID.test(x.bookId) ? x.bookId : "";
+        if (!bookId)
+            continue;
+        const variantId = typeof x.variantId === "string" && DOC_ID.test(x.variantId) ? x.variantId : "";
+        const quantity = x.quantity === undefined || x.quantity === "" ? 1 : Number(x.quantity);
+        if (!Number.isInteger(quantity) || quantity < 1 || quantity > exports.MAX_BOX_QUANTITY)
+            return { problem: exports.PLAN_MESSAGES.boxQuantity };
+        const same = items.find((i) => i.bookId === bookId && (i.variantId || "") === variantId);
+        if (same) {
+            same.quantity = Math.min(exports.MAX_BOX_QUANTITY, same.quantity + quantity);
+            continue;
+        }
+        items.push({ bookId, ...(variantId ? { variantId } : {}), quantity });
+    }
+    if (!items.length)
+        return { problem: exports.PLAN_MESSAGES.boxItems };
+    const cutoffDay = Number(b.cutoffDay);
+    if (!Number.isInteger(cutoffDay) || cutoffDay < 1 || cutoffDay > exports.MAX_CUTOFF_DAY)
+        return { problem: exports.PLAN_MESSAGES.cutoff };
+    return { box: { items, cutoffDay } };
+}
 const text = (value, max) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 /** The owner's plan, cleaned, or the first problem with the field it is about. Prices are whole cents. Pure. */
 function cleanPlan(raw) {
@@ -54,7 +98,10 @@ function cleanPlan(raw) {
     if (!Number.isInteger(memberPercent) || memberPercent < 0 || memberPercent > exports.MAX_MEMBER_PERCENT)
         return { problem: exports.PLAN_MESSAGES.percent, field: "percent" };
     const perks = (Array.isArray(p.perks) ? p.perks : []).map((x) => text(x, exports.MAX_PERK)).filter(Boolean).slice(0, exports.MAX_PERKS);
-    return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, exports.MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent } };
+    const boxed = cleanBox(p.box);
+    if ("problem" in boxed)
+        return { problem: boxed.problem, field: "box" };
+    return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, exports.MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent, ...(boxed.box ? { box: boxed.box } : {}) } };
 }
 /** A member's state from the provider's subscription status (Stripe's words). Pure. */
 function memberState(status, cancelAtPeriodEnd = false) {
@@ -106,3 +153,25 @@ function memberFreeProduct(book, variant) {
         return variant.digital === true || variant.isDigital === true;
     return book.digital === true || book.isDigital === true || DIGITAL_FORMAT.test(String(book.format || ""));
 }
+function cleanBoxAddress(raw) {
+    const a = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const field = (v, max) => text(v, max);
+    const country = field(a.country, 2).toUpperCase();
+    const out = { name: field(a.name, 100), line1: field(a.line1, 120), line2: field(a.line2, 120), city: field(a.city, 80), state: field(a.state, 40).toUpperCase(), postalCode: field(a.postalCode ?? a.postal_code, 12).toUpperCase(), country };
+    if (!out.name || !out.line1 || !out.city || !out.postalCode || !exports.BOX_COUNTRIES.includes(country))
+        return null;
+    return out;
+}
+/** "2026-12": the month a box belongs to, on the shop's clock. Pure. */
+function boxMonth(nowMs, zone) {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit" }).formatToParts(new Date(nowMs));
+    const get = (t) => parts.find((p) => p.type === t)?.value || "";
+    return `${get("year")}-${get("month")}`;
+}
+/** The day of the month on the shop's clock (1 to 31). Pure. */
+function shopDayOfMonth(nowMs, zone) {
+    return Number(new Intl.DateTimeFormat("en-CA", { timeZone: zone, day: "numeric" }).format(new Date(nowMs)));
+}
+/** Who gets this month's box: paid members only (not a free trial, not a payment being retried). */
+const getsBox = (state) => state === "active" || state === "ending";
+exports.getsBox = getsBox;
