@@ -25,7 +25,17 @@ describe("book editor extras", () => {
     expect(html).toContain("This product is a box set of other books");
   });
   it("describes gift-card amounts", () => {
-    const html = renderToStaticMarkup(<ProductTypeCard form={{ productType: "giftCard" }} onChange={noop} onKind={noop} />);
+    const html = renderToStaticMarkup(<ProductTypeCard form={{ productType: "giftCard" }} onType={noop} />);
     expect(html).toContain("Each edition is an amount, e.g. CA$25");
+    expect(html).toContain("Gift cards");
+  });
+  it("names the product's type and group, or its kind before types", () => {
+    const candle = renderToStaticMarkup(<ProductTypeCard form={{ kind: "other", typeId: "candles" }} onType={noop} />);
+    expect(candle).toContain("Candles");
+    expect(candle).toContain("Home and living");
+    expect(candle).toContain("Change type");
+    const shirt = renderToStaticMarkup(<ProductTypeCard form={{ kind: "clothing" }} onType={noop} />);
+    expect(shirt).toContain("Clothing");
+    expect(shirt).toContain("Choose a type");
   });
 });
