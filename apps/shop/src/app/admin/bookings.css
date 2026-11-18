@@ -579,3 +579,9 @@
 .rp .bkg-block-instead { margin: 4px 0 0; color: var(--rp-text-muted); font-size: 14px; }
 .rp .bkg-block-instead button { padding: 0; border: 0; background: none; color: var(--rp-text); font: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--rp-primary); text-underline-offset: 3px; cursor: pointer; }
 .rp .bkg-block-instead button:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); border-radius: 4px; }
+
+/* Booking over a taken time (plan 4, 1.4): the warning, and the offer to book over the tapped time. */
+.rp .bkg-over { display: grid; gap: 4px; margin: 4px 0; padding: 12px 14px; border-radius: 14px; background: var(--rp-warning-tint); color: var(--rp-text); }
+.rp .bkg-over strong { font-weight: 600; }
+.rp .bkg-over span { font-size: 14px; color: var(--rp-text-muted); }
+.rp .bkg-over-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: var(--rp-text-muted); font-size: 14px; }

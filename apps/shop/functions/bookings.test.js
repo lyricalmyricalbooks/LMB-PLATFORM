@@ -475,6 +475,26 @@ describe("blocked time (plan 4, 1.3)", () => {
   });
 });
 
+describe("booking over a taken time (plan 4, 1.4)", () => {
+  test("the owner may double-book a one-to-one time on purpose, never a class or a standing run", async () => {
+    const t = setup();
+    await t.seed();
+    const first = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "10:00"), ...CUSTOMER });
+    expect((await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "Cy", email: "cy@example.com" })).body.code).toBe("taken");
+    const over = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "Cy", email: "cy@example.com", over: true });
+    expect(over.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${over.body.id}`).history[0].what).toMatch(/over a taken time/);
+    // Both stay on the day, so a client still can't take that time.
+    const items = t.db.store.get("bookingDays/2026-11-20").items;
+    expect(items[first.body.id] && items[over.body.id]).toBeTruthy();
+    // Moving onto a taken time: refused, then allowed with the owner's yes.
+    const other = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "14:00"), name: "Di", email: "di@example.com" });
+    expect((await t.adm({ op: "move", id: other.body.id, start: at("2026-11-20", "10:00"), notify: false })).body.code).toBe("taken");
+    expect((await t.adm({ op: "move", id: other.body.id, start: at("2026-11-20", "10:00"), notify: false, over: true })).body.ok).toBe(true);
+    expect(t.db.store.get(`bookings/${other.body.id}`).start).toBe(at("2026-11-20", "10:00"));
+  });
+});
+
 describe("busy times", () => {
   test("a hold the sweep never reached stops blocking after two hours", () => {
     const snap = (items) => ({ exists: true, data: () => ({ items }) });

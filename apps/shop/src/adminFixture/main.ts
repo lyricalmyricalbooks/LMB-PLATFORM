@@ -716,6 +716,13 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "chargeFee") rows = rows.map((b) => (b.id === id ? { ...b, fee: { amountMinor: Number(body.amountMinor ?? b.lateFeeMinor), at: new Date().toISOString(), reason: "missed booking" } } : b));
     if (op === "paidAtShop") rows = rows.map((b) => (b.id === id ? { ...b, paid: true } : b));
     if (op === "move") {
+      // A taken time is refused until the owner says to book over it (plan 4, 1.4).
+      const self = rows.find((b) => b.id === id);
+      const startMs = Date.parse(String(body.start));
+      const endMs = startMs + Number(body.minutes ?? self?.minutes ?? 60) * 60_000;
+      const clash = rows.some((b) => b.id !== id && b.status === "confirmed" && Date.parse(b.start) < endMs && Date.parse(b.end) > startMs
+        && (!b.staffId || !self?.staffId || b.staffId === (typeof body.staffId === "string" ? body.staffId : self.staffId)));
+      if (clash && body.over !== true) throw Object.assign(new Error("That time clashes with another booking."), { code: "taken" });
       const to = typeof body.staffId === "string" ? settings.staff.find((p) => p.id === body.staffId) : undefined;
       rows = rows.map((b) => (b.id === id ? { ...b, start: String(body.start), end: plus(String(body.start), b.minutes), ...(to ? { staffId: to.id, staffName: to.name } : {}) } : b));
     }

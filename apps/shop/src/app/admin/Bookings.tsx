@@ -543,31 +543,52 @@ function useBookingDrag(onLand: (l: Landing) => void) {
 }
 
 /** "Move this booking?": the new time (and length), and whether the client hears about it. */
+/** The warning before booking over a taken time (plan 4, 1.4): plain, and the choice stays the owner's. */
+function OverWarning({ what }: { what: string }) {
+  return (
+    <div className="bkg-over" role="alert">
+      <strong>{what}</strong>
+      <span>You can still book over it. Both bookings stay on your calendar, so make sure someone can see both clients.</span>
+    </div>
+  );
+}
+
 function MoveDialog({ landing: l, settings, onClose }: { landing: Landing; settings: BookingSettings; onClose: () => void }) {
   const b = l.booking;
   const [tell, setTell] = useState(Boolean(b.customer.email));
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState("");
+  // The time is taken (plan 4, 1.4): say so, and let the owner move it there anyway.
+  const [clash, setClash] = useState(false);
   const end = new Date(Date.parse(l.start) + l.minutes * 60_000).toISOString();
   const person = l.staffId !== undefined ? (settings.staff.find((p) => p.id === l.staffId)?.name || "Not assigned") : "";
   const first = b.customer.name.split(" ")[0] || "them";
-  const save = async () => {
+  const save = async (over = false) => {
     setSaving(true); setProblem("");
     try {
-      await bookingsAdmin("move", { id: b.id, start: l.start, ...(l.minutes !== b.minutes ? { minutes: l.minutes } : {}), ...(l.staffId !== undefined ? { staffId: l.staffId } : {}), notify: tell });
+      await bookingsAdmin("move", { id: b.id, start: l.start, ...(l.minutes !== b.minutes ? { minutes: l.minutes } : {}), ...(l.staffId !== undefined ? { staffId: l.staffId } : {}), notify: tell, ...(over ? { over: true } : {}) });
       toast.success(tell ? `Moved. ${first} has an email with the new time.` : "Moved");
       onClose();
-    } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); setSaving(false); }
+    } catch (e: any) {
+      setSaving(false);
+      if (e?.code === "taken" && !over) { setClash(true); return; }
+      setProblem(e?.message || "That didn't save. Please try again.");
+    }
   };
+  const label = l.start === b.start && l.minutes !== b.minutes ? "Change length" : "Move";
   return (
     <Dialog open onClose={onClose} title={l.minutes !== b.minutes && l.start === b.start ? "Change the length?" : "Move this booking?"} description={`${b.customer.name} · ${b.serviceName}`}
-      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving}>{l.start === b.start && l.minutes !== b.minutes ? "Change length" : "Move"}</PrimaryButton></>}>
+      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+        {clash
+          ? <PrimaryButton onClick={() => void save(true)} busy={saving}>{label} anyway</PrimaryButton>
+          : <PrimaryButton onClick={() => void save()} busy={saving}>{label}</PrimaryButton>}</>}>
       <dl className="bkg-move-facts">
         <dt>Was</dt><dd>{dayText(dayOf(Date.parse(b.start), ZONE), "long")}, {timeText(b.start, ZONE)}–{timeText(b.end, ZONE)}{b.staffName ? ` · ${b.staffName}` : ""}</dd>
         <dt>Now</dt><dd><strong>{dayText(l.day, "long")}, {timeText(l.start, ZONE)}–{timeText(end, ZONE)}{person ? ` · ${person}` : b.staffName ? ` · ${b.staffName}` : ""}</strong></dd>
       </dl>
       {l.minutes !== b.minutes && <p className="bkg-questions-hint">{l.minutes} minutes instead of {b.minutes}. The price stays as booked.</p>}
       {b.customer.email ? <Toggle label={`Email ${first} the new time`} checked={tell} onChange={setTell} /> : <p className="bkg-questions-hint">No email on this booking, so tell them yourself.</p>}
+      {clash && <OverWarning what={person || b.staffName ? `${person || b.staffName} already has a booking then.` : "That time already has a booking."} />}
       {problem && <p className="bkg-error" role="alert">{problem}</p>}
     </Dialog>
   );
@@ -1668,22 +1689,26 @@ function CancelDialog({ booking: b, laterVisits = 0, onClose, onCancel }: { book
 }
 
 /** Picks a day and one of its free times for a service. `onPick` throws to keep the dialog open. */
-function TimeDialog({ title, description, service, initialDay, wanted = "", except = "", staffId = "", extras = [], confirmLabel, onClose, onPick, children, ready = true, after }: {
+function TimeDialog({ title, description, service, initialDay, wanted = "", except = "", staffId = "", extras = [], confirmLabel, onClose, onPick, children, ready = true, after, allowOver = false }: {
   title: string; description?: string; service: BookingService; initialDay: string; except?: string;
   /** A start asked for (a tap on the calendar): picked as soon as the times load, if it is free. */ wanted?: string;
   /** The add-ons ticked (New booking): the free times fit the longer booking. */ extras?: string[];
   /** Only this person's free times ("" = anyone on the team, or the shop's one calendar). */ staffId?: string; confirmLabel: string;
-  onClose: () => void; onPick: (startIso: string) => Promise<void>; children?: React.ReactNode; ready?: boolean;
+  onClose: () => void; onPick: (startIso: string, over: boolean) => Promise<void>; children?: React.ReactNode; ready?: boolean;
+  /** The tapped time may be booked even when it isn't free (plan 4, 1.4: book over, after a warning). One-to-one only. */ allowOver?: boolean;
   /** Shown under the times once one is picked (New booking › Repeat lists the run's dates). */ after?: (startIso: string) => React.ReactNode;
 }) {
   const [day, setDay] = useState(initialDay);
   const [times, setTimes] = useState<string[] | null>(null);
   const [picked, setPicked] = useState("");
+  // Picked the tapped time though it isn't free: booked over, with the warning shown.
+  const [over, setOver] = useState(false);
   const [problem, setProblem] = useState("");
   const [saving, setSaving] = useState(false);
+  const pick = (t: string, isOver = false) => { setPicked(t); setOver(isOver); };
   useEffect(() => {
     let live = true;
-    setTimes(null); setPicked("");
+    setTimes(null); setPicked(""); setOver(false);
     bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId, ...(extras.length ? { extras } : {}) }).then((r) => {
       if (!live) return;
       setTimes(r.times);
@@ -1694,7 +1719,7 @@ function TimeDialog({ title, description, service, initialDay, wanted = "", exce
   }, [day, service.id, staffId, extras.join(",")]);
   const save = async () => {
     setSaving(true); setProblem("");
-    try { await onPick(picked); } catch (e: any) { setProblem(e?.message || "That didn't save."); } finally { setSaving(false); }
+    try { await onPick(picked, over); } catch (e: any) { setProblem(e?.message || "That didn't save."); } finally { setSaving(false); }
   };
   return (
     <Dialog open onClose={onClose} title={title} description={description}
@@ -1707,12 +1732,17 @@ function TimeDialog({ title, description, service, initialDay, wanted = "", exce
           <IconButton label="Day after" onClick={() => setDay(addDays(day, 1))}><ChevronRight size={18} aria-hidden /></IconButton>
         </div>
         {times !== null && wanted && dayOf(Date.parse(wanted), ZONE) === day && !times.some((t) => Date.parse(t) === Date.parse(wanted)) && (
-          <p className="bkg-questions-hint" role="status">{timeText(wanted, ZONE)} isn't free for {service.name}. Pick another time.</p>
+          over ? <OverWarning what={`${timeText(wanted, ZONE)} isn't free for ${service.name}.`} /> : (
+            <div className="bkg-over-ask" role="status">
+              <span>{timeText(wanted, ZONE)} isn't free for {service.name}. Pick another time{allowOver ? ", or book over it." : "."}</span>
+              {allowOver && <SecondaryButton size="sm" onClick={() => pick(wanted, true)}>Book at {timeText(wanted, ZONE)} anyway</SecondaryButton>}
+            </div>
+          )
         )}
         <fieldset className="bkg-times">
           <legend>{dayText(day, "long")}</legend>
           {times === null ? <LoadingState label="Finding free times…" /> : times.length === 0 ? <p className="bkg-day-empty">No free time this day.</p> : times.map((t) => (
-            <button key={t} type="button" className="bkg-time" aria-pressed={picked === t} onClick={() => setPicked(t)}>{timeText(t, ZONE)}</button>
+            <button key={t} type="button" className="bkg-time" aria-pressed={picked === t} onClick={() => pick(t)}>{timeText(t, ZONE)}</button>
           ))}
         </fieldset>
         {picked && after?.(picked)}
@@ -1837,9 +1867,10 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked, star
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
     <TimeDialog key={service.id} title={initial?.name ? "Book again" : "New booking"} service={service} initialDay={startAt ? dayOf(Date.parse(startAt), ZONE) : today()} wanted={startAt} staffId={staffId} extras={extras} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
+      allowOver={!!startAt && !run && service.places <= 1 && !(service.courseDates || []).length}
       after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} extras={extras} onFree={setRunFree} /> : undefined}
-      onPick={async (start) => {
-        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}), ...(extras.length ? { extras } : {}) });
+      onPick={async (start, over) => {
+        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}), ...(extras.length ? { extras } : {}), ...(over ? { over: true } : {}) });
         toast.success(run ? `${who.name.trim()} is booked in for ${visits} visits` : `${who.name.trim()} is booked in`);
         onBooked?.();
         onClose();
