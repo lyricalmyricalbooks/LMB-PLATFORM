@@ -15,9 +15,11 @@ export type MyMembership = {
   periodEnd: string; trialEnd: string; card: { brand: string; last4: string } | null; startedAt: string; endedAt: string; test: boolean; cardPending: boolean;
   /** A box membership (M3a): where the boxes go, null until the member gives one. */
   box?: boolean; address?: BoxAddress | null;
+  /** Skip and pause (M3c): the box month skipped (YYYY-MM, "" none) and when a pause began. */
+  skipMonth?: string; pausedAt?: string;
 };
 
-export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard" | "membershipPage" | "membershipAddress";
+export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard" | "membershipPage" | "membershipAddress" | "membershipSkip" | "membershipUnskip" | "membershipPause" | "membershipUnpause";
 
 export async function askMembership(action: MembershipAction, body: Record<string, unknown> = {}, user?: User | null): Promise<Record<string, any>> {
   if (isBookingPreview()) return previewMembershipAnswer(action, body, shopCurrency());

@@ -24,7 +24,8 @@ export const memberStateKey = (state: MemberState) => `accountMemberState_${stat
 /**
  * The account card's "what happens next" line and its date, or null when there is nothing to say. `day` writes a date.
  */
-export function memberNext(m: { state: MemberState; periodEnd: string; trialEnd: string; endedAt: string }): { key: string; at: string } | null {
+export function memberNext(m: { state: MemberState; periodEnd: string; trialEnd: string; endedAt: string; pausedAt?: string }): { key: string; at: string } | null {
+  if (m.state === "paused") return { key: "accountMemberPausedSince", at: m.pausedAt || "" };
   if (m.state === "trial" && m.trialEnd) return { key: "accountMemberTrialEnds", at: m.trialEnd };
   if (m.state === "active" && m.periodEnd) return { key: "accountMemberNextPayment", at: m.periodEnd };
   if (m.state === "ending" && m.periodEnd) return { key: "accountMemberEnds", at: m.periodEnd };
@@ -37,6 +38,10 @@ export function memberNext(m: { state: MemberState; periodEnd: string; trialEnd:
 export const memberCan = (state: MemberState) => ({
   cancel: state === "trial" || state === "active" || state === "pastDue",
   resume: state === "ending",
+  // Skip and pause (M3c): only while paid up; skipping is offered on box memberships only.
+  pause: state === "active",
+  unpause: state === "paused",
+  skip: state === "active",
   card: state !== "ended" && state !== "pending",
 });
 

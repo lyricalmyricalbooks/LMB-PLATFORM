@@ -7,7 +7,7 @@
 // A plan is paid every month or every year on the shop's own card account, with an optional free trial. A member's
 // state comes from the card provider's subscription (memberState), never from the browser.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.dayOrdinal = exports.inStockWarning = exports.getsBox = exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
+exports.mayPause = exports.dayOrdinal = exports.inStockWarning = exports.getsBox = exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
 exports.cleanBox = cleanBox;
 exports.cleanPlan = cleanPlan;
 exports.memberState = memberState;
@@ -20,6 +20,7 @@ exports.shopDayOfMonth = shopDayOfMonth;
 exports.shopHour = shopHour;
 exports.paidByCutoff = paidByCutoff;
 exports.boxShortfall = boxShortfall;
+exports.nextBoxMonth = nextBoxMonth;
 exports.MAX_PLANS = 8;
 exports.MAX_PLAN_NAME = 60;
 exports.MAX_PLAN_DESCRIPTION = 400;
@@ -107,7 +108,10 @@ function cleanPlan(raw) {
     return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, exports.MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent, ...(boxed.box ? { box: boxed.box } : {}) } };
 }
 /** A member's state from the provider's subscription status (Stripe's words). Pure. */
-function memberState(status, cancelAtPeriodEnd = false) {
+function memberState(status, cancelAtPeriodEnd = false, pausedForever = false) {
+    // Paused by the member (M3c): payments held with no end date. A skipped month has an end date and stays active.
+    if (pausedForever && !cancelAtPeriodEnd && (status === "active" || status === "trialing"))
+        return "paused";
     switch (String(status || "")) {
         case "trialing": return cancelAtPeriodEnd ? "ending" : "trial";
         case "active": return cancelAtPeriodEnd ? "ending" : "active";
@@ -226,3 +230,17 @@ function boxShortfall(items, members, getBook) {
 /** "15th": a day of the month in words. Pure. */
 const dayOrdinal = (n) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
 exports.dayOrdinal = dayOrdinal;
+/**
+ * The box month a "Skip next box" applies to (M3c): this month while its cut-off is still to come (shop time), else
+ * next month. Pure.
+ */
+function nextBoxMonth(nowMs, cutoffDay, zone) {
+    const month = boxMonth(nowMs, zone);
+    if (shopDayOfMonth(nowMs, zone) < cutoffDay)
+        return month;
+    const [y, m] = month.split("-").map(Number);
+    return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+/** Whether a member may skip or pause now (M3c): only while paid up and not set to end. */
+const mayPause = (state) => state === "active";
+exports.mayPause = mayPause;

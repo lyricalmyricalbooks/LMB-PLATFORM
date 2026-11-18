@@ -116,10 +116,12 @@ export function cleanPlan(raw: unknown): { plan: MembershipPlan } | { problem: s
  *   ending    asked to end; perks last to the end of the paid period
  *   ended     over (ended at the period's end, ended at once, or never paid)
  */
-export type MemberState = "pending" | "trial" | "active" | "pastDue" | "ending" | "ended";
+export type MemberState = "pending" | "trial" | "active" | "pastDue" | "ending" | "paused" | "ended";
 
 /** A member's state from the provider's subscription status (Stripe's words). Pure. */
-export function memberState(status: unknown, cancelAtPeriodEnd = false): MemberState {
+export function memberState(status: unknown, cancelAtPeriodEnd = false, pausedForever = false): MemberState {
+  // Paused by the member (M3c): payments held with no end date. A skipped month has an end date and stays active.
+  if (pausedForever && !cancelAtPeriodEnd && (status === "active" || status === "trialing")) return "paused";
   switch (String(status || "")) {
     case "trialing": return cancelAtPeriodEnd ? "ending" : "trial";
     case "active": return cancelAtPeriodEnd ? "ending" : "active";
@@ -242,3 +244,17 @@ export function boxShortfall(items: BoxItem[], members: number, getBook: (id: st
 
 /** "15th": a day of the month in words. Pure. */
 export const dayOrdinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+
+/**
+ * The box month a "Skip next box" applies to (M3c): this month while its cut-off is still to come (shop time), else
+ * next month. Pure.
+ */
+export function nextBoxMonth(nowMs: number, cutoffDay: number, zone: string): string {
+  const month = boxMonth(nowMs, zone);
+  if (shopDayOfMonth(nowMs, zone) < cutoffDay) return month;
+  const [y, m] = month.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+/** Whether a member may skip or pause now (M3c): only while paid up and not set to end. */
+export const mayPause = (state: MemberState) => state === "active";

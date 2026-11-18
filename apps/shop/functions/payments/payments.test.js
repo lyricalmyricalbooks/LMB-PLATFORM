@@ -506,7 +506,7 @@ describe("memberships (M1)", () => {
   };
   test("keeps a plain shape of the subscription, the period read from the item on newer API versions", () => {
     expect(memberSubscription(sub)).toEqual({
-      id: "sub_1", status: "active", customer: "cus_1", cancelAtPeriodEnd: false,
+      id: "sub_1", status: "active", customer: "cus_1", cancelAtPeriodEnd: false, paused: false, pausedUntil: "",
       periodStart: "2027-01-01T00:00:00.000Z", periodEnd: "2027-02-01T00:00:00.000Z", trialEnd: "", endedAt: "", canceledAt: "",
       card: { brand: "visa", last4: "4242" }, amountMinor: 1500, currency: "CAD", interval: "month", metadata: { membership: "m1" },
     });

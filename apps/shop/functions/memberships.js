@@ -29,14 +29,16 @@ const { shopTimeZone } = require("./shared/shopTimeZone");
 const crypto = require("crypto");
 const {
   cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, cleanBoxAddress, MAX_PLANS, MAX_MEMBER_PERCENT, BOX_COUNTRIES,
-  boxMonth, shopDayOfMonth, shopHour, dayOrdinal, getsBox, paidByCutoff, inStockWarning, boxShortfall,
+  boxMonth, shopDayOfMonth, shopHour, dayOrdinal, getsBox, paidByCutoff, inStockWarning, boxShortfall, nextBoxMonth, mayPause,
 } = require("./shared/membershipRules");
 const { waysOn } = require("./shared/waysToSell");
 
-const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress"]);
+const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress", "membershipSkip", "membershipUnskip", "membershipPause", "membershipUnpause"]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,99}$/;
 /** How long a card page stays open. */
 const PAGE_MINUTES = 60;
+/** Skips and pauses one member may ask for in an hour (M3c). */
+const CHANGES_PER_HOUR = 10;
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -116,7 +118,8 @@ const percentOf = (p) => (Number.isInteger(p?.memberPercent) && p.memberPercent 
 const memberView = (id, m) => ({
   id, state: m.state || "pending", plan: m.plan || null, periodEnd: m.periodEnd || "", trialEnd: m.trialEnd || "", card: m.card || null,
   startedAt: m.startedAt || "", endedAt: m.endedAt || "", test: m.mode === "test", cardPending: (m.cardSessions || []).some((c) => !c.done),
-  ...(m.box ? { box: true, address: m.address || null } : {}),
+  ...(m.box ? { box: true, address: m.address || null, skipMonth: m.skipMonth || "" } : {}),
+  ...(m.state === "paused" ? { pausedAt: m.pausedAt || "" } : {}),
 });
 /** A membership as the owner sees it. */
 const adminMember = (id, m) => ({
@@ -227,12 +230,14 @@ function membershipActions({
       const snap = await tx.get(members().doc(id));
       if (!snap.exists) return null;
       const before = snap.data();
-      const state = memberState(sub.status, sub.cancelAtPeriodEnd);
+      const state = memberState(sub.status, sub.cancelAtPeriodEnd, sub.paused === true && !sub.pausedUntil);
       const fields = {
         state, subscription: sub.id, stripeCustomer: sub.customer || before.stripeCustomer || "", periodEnd: sub.periodEnd || before.periodEnd || "",
         trialEnd: sub.trialEnd || "", card: sub.card || before.card || null, checkedAt: at, checkAfter: nextCheck(state, sub.periodEnd, nowMs), updatedAt: at,
         ...(state !== "pending" && !before.startedAt ? { startedAt: at } : {}),
         ...(state === "ended" && !before.endedAt ? { endedAt: sub.endedAt || at } : {}),
+        // Paused (M3c): when it started; cleared when it isn't any more.
+        ...(state === "paused" ? (before.pausedAt ? {} : { pausedAt: at }) : (before.pausedAt ? { pausedAt: null } : {})),
       };
       // Each email once: welcome on starting, failed once per period, ending once per period, ended once.
       const emails = [];
@@ -392,7 +397,7 @@ function membershipActions({
       const { items, cutoffDay } = plan.data.box;
       if (!inStockWarning(day, cutoffDay)) continue;
       const snap = await members().where("planId", "==", plan.id).limit(MAX_LISTED).get();
-      const count = snap.docs.map((d) => d.data()).filter((m) => m.box && (m.mode || "live") === mode && (getsBox(m.state) || m.state === "trial")).length;
+      const count = snap.docs.map((d) => d.data()).filter((m) => m.box && (m.mode || "live") === mode && (getsBox(m.state) || m.state === "trial") && m.skipMonth !== boxMonth(nowMs, z)).length;
       const books = new Map();
       for (const item of items) if (!books.has(item.bookId)) books.set(item.bookId, await readBook(item.bookId));
       const short = boxShortfall(items, count, (id) => books.get(id) || null);
@@ -437,7 +442,7 @@ function membershipActions({
       for (const doc of snap.docs) {
         if (tried >= BOXES_PER_RUN) return { made };
         const m = doc.data();
-        if (!m.box || !getsBox(m.state) || !m.address || m.lastBoxMonth === month) continue;
+        if (!m.box || !getsBox(m.state) || !m.address || m.lastBoxMonth === month || m.skipMonth === month) continue;
         if (!paidByCutoff(m, month, cutoffDay, z)) continue;
         if (m.boxProblem?.month === month && nowMs - Date.parse(m.boxProblem.at || "") < BOX_RETRY) continue;
         tried += 1;
@@ -569,6 +574,44 @@ function membershipActions({
       }
       const acc = await account(m.mode);
       if (!acc.subscriptions || !m.subscription) return fail(res, 409, "That membership can't be changed right now. Please contact the shop.", "not_available");
+      if (["membershipSkip", "membershipUnskip", "membershipPause", "membershipUnpause"].includes(action)
+        && !(await hitLimit(db, "membershipChange", req, { max: CHANGES_PER_HOUR, windowMs: HOUR }, { key: `member:${who.email}` }))) {
+        return fail(res, 429, "You've made several changes in a short while. Please wait an hour and try again.", "too_many");
+      }
+      if (action === "membershipSkip" || action === "membershipUnskip") {
+        // Skip next box (M3c): no box that month, and on a monthly plan the next payment is held (voided, never taken
+        // later) until a day after the paid period ends. Only before that month's cut-off.
+        if (!m.box) return fail(res, 409, "That membership doesn't send boxes.", "state");
+        if (!mayPause(m.state)) return fail(res, 409, "Only a paid-up membership can skip a box.", "state");
+        const planSnap = await plans().doc(String(m.planId || "")).get();
+        const box = planSnap.exists ? planSnap.data().box : null;
+        if (!box) return fail(res, 409, "That membership doesn't send boxes.", "state");
+        const month = nextBoxMonth(nowMs, box.cutoffDay, zone());
+        const monthly = (m.plan?.interval || planSnap.data().interval) === "month";
+        if (action === "membershipSkip") {
+          if (m.skipMonth === month) return fail(res, 409, "You've already skipped that box.", "state");
+          if (monthly && m.periodEnd) await apply(id, await acc.subscriptions.pause(m.subscription, new Date(Date.parse(m.periodEnd) + DAY).toISOString()));
+          await members().doc(id).set({ skipMonth: month, updatedAt: now().toISOString() }, { merge: true });
+        } else {
+          if (!m.skipMonth || m.skipMonth < boxMonth(nowMs, zone()) || m.lastBoxMonth === m.skipMonth) return fail(res, 409, "There's no skipped box to bring back.", "state");
+          if (monthly) await apply(id, await acc.subscriptions.unpause(m.subscription));
+          await members().doc(id).set({ skipMonth: null, updatedAt: now().toISOString() }, { merge: true });
+        }
+        const fresh = (await members().doc(id).get()).data();
+        return res.status(200).json({ membership: memberView(id, fresh) });
+      }
+      if (action === "membershipPause") {
+        // Pause (M3c): payments held with no end date, perks and boxes stop until the member resumes.
+        if (!mayPause(m.state)) return fail(res, 409, m.state === "paused" ? "Your membership is already paused." : "Only a paid-up membership can be paused.", "state");
+        const saved = await apply(id, await acc.subscriptions.pause(m.subscription));
+        return res.status(200).json({ membership: memberView(id, saved || m) });
+      }
+      if (action === "membershipUnpause") {
+        if (m.state !== "paused") return fail(res, 409, "Your membership isn't paused.", "state");
+        const saved = await apply(id, await acc.subscriptions.unpause(m.subscription));
+        await members().doc(id).set({ skipMonth: null }, { merge: true });
+        return res.status(200).json({ membership: memberView(id, { ...(saved || m), skipMonth: null }) });
+      }
       if (action === "membershipCancel") {
         if (!["trial", "active", "pastDue"].includes(m.state)) return fail(res, 409, m.state === "ending" ? "Your membership is already set to end." : "That membership has ended.", "state");
         const saved = await apply(id, await acc.subscriptions.cancelAtEnd(m.subscription));

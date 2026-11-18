@@ -12,6 +12,7 @@ export function stateBadge(state: MemberState): { label: string; tone: Tone } {
     case "active": return { label: "Active", tone: "success" };
     case "pastDue": return { label: "Payment failed", tone: "danger" };
     case "ending": return { label: "Ending", tone: "warning" };
+    case "paused": return { label: "Paused", tone: "neutral" };
     case "ended": return { label: "Ended", tone: "neutral" };
     default: return { label: "Not paid yet", tone: "neutral" };
   }
@@ -22,6 +23,7 @@ export const everyText = (interval: PlanInterval) => (interval === "year" ? "a y
 
 /** The line under a member's name: what happens next, in plain words. */
 export function nextText(m: Pick<AdminMember, "state" | "periodEnd" | "trialEnd" | "endedAt">): string {
+  if (m.state === "paused") return "Paused by the member: no payments, perks or boxes until they resume";
   if (m.state === "trial") return m.trialEnd ? `Trial ends ${dayText(m.trialEnd)}, first payment then` : "In the free trial";
   if (m.state === "active") return m.periodEnd ? `Next payment ${dayText(m.periodEnd)}` : "Paid up";
   if (m.state === "pastDue") return "The card provider is trying the card again over the next few days";

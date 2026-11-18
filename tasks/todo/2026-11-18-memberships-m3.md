@@ -24,10 +24,10 @@ twice for one member and month; records stay in the shop's folder; words in Text
       boxes" with what is short (members × quantity against stock), and the 8 a.m. email says so.
 
 ## M3c: skip a month and pause
-- [ ] Skip next box: the member's account offers it until the cut-off; the provider pauses that period's charge
+- [x] Skip next box: the member's account offers it until the cut-off; the provider pauses that period's charge
       (`pause_collection` void until the next period) and no box is made.
-- [ ] Pause: stops charges and boxes until the member resumes (perks stop while paused); Resume restarts both.
-- [ ] Both are server actions with rate limits, shown to the owner on the member row.
+- [x] Pause: stops charges and boxes until the member resumes (perks stop while paused); Resume restarts both.
+- [x] Both are server actions with rate limits, shown to the owner on the member row.
 
 ## M3d: monthly giving
 - [ ] The Support page offers Give monthly beside one-off gifts: an amount (the same $5 lowest), charged every month on
