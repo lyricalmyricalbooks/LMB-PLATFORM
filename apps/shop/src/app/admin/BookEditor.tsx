@@ -86,6 +86,7 @@ import { VariantGrid } from "./VariantGrid";
 import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
 import { Part, PartsFold, revealPart } from "./BookEditorParts";
+import { hasColourChoice, nextProductStart } from "./addAnother";
 import { typeById, typeOfProduct, type OwnType, type ProductType } from "../../shared/productTypes";
 import { missingLawFacts, safetyForType } from "./typeFacts";
 import { TypeFactsCard } from "./TypeFactsCard";
@@ -157,6 +158,8 @@ interface BookEditorProps {
   prefill?: Record<string, any> | null;
   /** A new book only: called once with its id after the first save creates it. */
   onCreated?: (id: string) => void;
+  /** A new product only: after it is saved, start the next one from it (product types plan, change 11). */
+  onAddAnother?: (start: Record<string, any>) => void;
 }
 
 const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] = [
@@ -173,7 +176,7 @@ const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] =
 // The combined admin (shop + stockroom plan): the book page has a Stock and sales tab from the stockroom.
 const COMBINED_ADMIN = combinedAdmin();
 
-export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated }: BookEditorProps) {
+export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated, onAddAnother }: BookEditorProps) {
   const { rates } = useCurrency();
   // The record being edited: the opened book, or the new one once a first Save has created it.
   const [book, setBook] = useState<Book | null>(bookProp);
@@ -620,6 +623,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   };
 
   const closeAfterSave = useRef(true);
+  // The product this editor just created, for "Saved. Add another" (product types plan, change 11).
+  const [justCreated, setJustCreated] = useState<any>(null);
   const handleSave = async (e?: React.FormEvent, reviewed = false, close = closeAfterSave.current) => {
     closeAfterSave.current = close;
     if (e) e.preventDefault();
@@ -680,8 +685,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         setBook({ ...(book as any), ...toSave, id: book.id });
       } else {
         const created = await adminApi.createBook(toSave);
-        toast.success("New title added to library");
+        if (!onAddAnother) toast.success("New title added to library");
         onCreated?.(created.id);
+        setJustCreated({ ...toSave, id: created.id });
         // Further saves update this record instead of creating another copy.
         setBook({ ...toSave, id: created.id } as any);
       }
@@ -1269,6 +1275,31 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         </div>
       )}
       {confirmNode}
+      {justCreated && onAddAnother && (() => {
+        const type = typeOfProduct(justCreated);
+        const kindName = (justCreated.typeName || type?.name || "").trim();
+        const live = justCreated.status === "published";
+        return (
+          <div role="status" className="be-created">
+            <p><strong>Saved.</strong> {justCreated.title || w("Your product")} {live ? "is live in your shop." : "is saved as a draft."}</p>
+            <div className="be-created-actions">
+              <button type="button" className="rp-btn rp-btn-primary rp-btn-sm" title={kindName ? `Starts a new ${kindName} with the same maker, price and sizes` : undefined}
+                onClick={() => { onAddAnother(nextProductStart(justCreated, "another")); toast.success("Started the next one with the same maker, price and sizes."); }}>
+                <Plus size={14} aria-hidden /> {w("Add another")}
+              </button>
+              {hasColourChoice(justCreated) && (
+                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => { onAddAnother(nextProductStart(justCreated, "colour")); toast.success("Copied without its colour, photos or web address. Add the new colour under Options."); }}>Add it in a new colour</button>
+              )}
+              {live && justCreated.slug && (
+                <a className="rp-btn rp-btn-ghost rp-btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(justCreated.slug)}`} target="_blank" rel="noreferrer">
+                  View in shop <ExternalLink size={13} aria-hidden />
+                </a>
+              )}
+              <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setJustCreated(null)}>Keep editing this one</button>
+            </div>
+          </div>
+        );
+      })()}
       {validationErrors.length > 0 && (
         <div role="alert" className="be-alert">
           <strong>⚠ Fix {validationErrors.length === 1 ? "this" : `these ${validationErrors.length} things`} before saving:</strong>

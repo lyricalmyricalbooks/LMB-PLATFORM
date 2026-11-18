@@ -201,3 +201,8 @@
   .bk-list .bk-check input { width: 24px; height: 24px; }
   .bk-list-title { min-height: var(--rp-touch); }
 }
+
+/* Product types plan, change 11: saved, add another. */
+.be-created { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin: 0 0 20px; padding: 16px 18px 16px 22px; border-radius: 22px; background: var(--rp-success-tint, var(--rp-surface-2)); color: var(--rp-text); }
+.be-created p { margin: 0; font-size: 15px; line-height: 1.4; }
+.be-created-actions { display: flex; flex-wrap: wrap; gap: 8px; }
