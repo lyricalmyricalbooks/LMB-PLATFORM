@@ -1024,3 +1024,27 @@ describe("owner approves (plan 4, 2.5)", () => {
     expect(approvalAllowed({ payment: "atShop", courseDates: ["2026-12-01"] })).toBe(false);
   });
 });
+
+describe("visits at the client's place (plan 4, 2.8)", () => {
+  it("keeps postal code starts once, upper case, and matches by the start", async () => {
+    const { cleanAreas, inArea } = await import("./bookingTimes");
+    expect(cleanAreas("m6g, M5V 1; m6g\n 90210")).toEqual(["M6G", "M5V1", "90210"]);
+    expect(inArea("m6g 3h1", ["M6G"])).toBe(true);
+    expect(inArea("M5V 2T6", ["M6G", "M5V1"])).toBe(false);
+    expect(inArea("anything", [])).toBe(true);
+    expect(inArea("", ["M6G"])).toBe(false);
+  });
+  it("needs street, city and postal code, and writes them on one line", async () => {
+    const { cleanVisitAddress, addressLine } = await import("./bookingTimes");
+    expect(cleanVisitAddress({ street: "1 Ink Lane", city: "Toronto" })).toBeNull();
+    const at = cleanVisitAddress({ street: " 1  Ink Lane ", city: "Toronto", postcode: "m6g 3h1" })!;
+    expect(addressLine(at)).toBe("1 Ink Lane, Toronto M6G 3H1");
+  });
+  it("lets only a one-to-one service visit the client", () => {
+    const base = { id: "s", name: "Haircut at home", minutes: 60, atClient: true, areas: "m6g" };
+    const one = cleanService(base);
+    expect("problem" in one ? null : [one.atClient, one.areas]).toEqual([true, ["M6G"]]);
+    const cls = cleanService({ ...base, places: 4 });
+    expect("problem" in cls ? null : cls.atClient).toBeUndefined();
+  });
+});

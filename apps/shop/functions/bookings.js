@@ -72,7 +72,7 @@ const {
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanBlocks, MAX_BLOCKS, cleanCheckInCode, checkInCodeFrom,
   cleanRun, runStarts, runSettings, runsOnline, withExtras, withLength, processingStretch,
   MAX_VISIT_PARTS, joinsVisit, visitService, visitTimeline, visitStaff, visitFreeTimes, visitName, visitPlan,
-  answerBy, approvalAllowed, bookingChannel,
+  answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -2002,10 +2002,12 @@ function bookingActions({
           // With "anyone available" the page lists them (the Your team section) but offers no choice; with names hidden, nobody.
           staff: booksByPerson(settings) && settings.teamShown !== "hidden" ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates, photo, bio }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}), ...(photo ? { photo } : {}), ...(bio ? { bio } : {}) })) : [],
           ...(settings.teamShown === "anyone" ? { staffPick: false } : {}),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras, lengths, group, photo, approval }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras, lengths, group, photo, approval, atClient, areas }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // The owner accepts each booking first (plan 4, 2.5): the page says it is a request.
             ...(approval ? { approval: true } : {}),
+            // At the client's address (plan 4, 2.8): the form asks for it, and checks the postal code against the area.
+            ...(atClient ? { atClient: true, areas: areas || [] } : {}),
             // Its group heading and photo on the booking page (plan 4, 2.3).
             ...(group ? { group } : {}),
             ...(photo ? { photo } : {}),
@@ -2272,6 +2274,10 @@ function bookingActions({
         // The service's own questions: a required one left empty stops the booking, with the question named.
         const answered = cleanAnswers(service.questions, req.body?.answers);
         if (answered.problem) return fail(res, 400, answered.problem, "answers");
+        // At the client's address (plan 4, 2.8): the visit's address is needed, inside the area the shop travels to.
+        const visitAt = service.atClient ? cleanVisitAddress(req.body?.address) : null;
+        if (service.atClient && !visitAt) return fail(res, 400, "Please give the address for the visit: street, city and postal code.", "address");
+        if (visitAt && !inArea(visitAt.postcode, service.areas)) return fail(res, 400, "Sorry, that address is outside the area this service travels to.", "area");
         // A standing appointment: a run of visits booked at once, each its own booking (services that take no card).
         const run = cleanRun(req.body?.run);
         if (run?.problem) return fail(res, 400, run.problem, "run");
@@ -2345,7 +2351,9 @@ function bookingActions({
         const key = randomKey();
         const at = new Date(nowMs).toISOString();
         const record = {
-          serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, ...processingRecord(service), location: service.location,
+          serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, ...processingRecord(service),
+          // A visit at the client's place happens at their address: emails, calendars and the day list all show it.
+          location: visitAt ? addressLine(visitAt) : service.location, ...(visitAt ? { atClient: true } : {}),
           customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : asking ? "requested" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),

@@ -18,7 +18,7 @@ import { askBooking } from "./bookTimeAsk";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { servicesFor } from "./serviceSections";
-import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
+import { addDays, bookingIcs, googleCalendarLink, inArea } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
@@ -124,7 +124,9 @@ function NewBooking({ c }: { c: Copy }) {
   }, [listed, info, staffId, picked.join(","), alsoKey, lengthId]);
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false });
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
+  const [problems, setProblems] = useState<{ name?: string; email?: string; address?: string; answers?: Record<string, string> }>({});
+  // A visit at the client's place (plan 4, 2.8): where to go.
+  const [place, setPlace] = useState({ street: "", city: "", postcode: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // A discount code the server accepted for the chosen service (cleared when the service changes).
@@ -225,17 +227,19 @@ function NewBooking({ c }: { c: Copy }) {
     const found = {
       ...(form.name.trim() ? {} : { name: c("bookTimeNeedName") }),
       ...(EMAIL.test(form.email.trim()) ? {} : { email: c("bookTimeNeedEmail") }),
+      ...(!service.atClient ? {} : !(place.street.trim() && place.city.trim() && place.postcode.trim()) ? { address: c("bookTimeNeedAddress") }
+        : !inArea(place.postcode, service.areas) ? { address: c("bookTimeOutsideArea") } : {}),
       ...(Object.keys(unanswered).length ? { answers: unanswered } : {}),
     };
     setProblems(found);
-    const first = found.name ? "bt-name" : found.email ? "bt-email" : found.answers ? `bt-q-${Object.keys(unanswered)[0]}` : "";
+    const first = found.name ? "bt-name" : found.email ? "bt-email" : found.address ? (place.street.trim() ? (place.city.trim() ? "bt-postcode" : "bt-city") : "bt-street") : found.answers ? `bt-q-${Object.keys(unanswered)[0]}` : "";
     if (first) { document.getElementById(first)?.focus(); return; }
     setBusy(true);
     setError("");
     try {
       const from = bookingFrom(window.location.search, embedded);
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...(service.atClient ? { address: place } : {}), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -257,6 +261,8 @@ function NewBooking({ c }: { c: Copy }) {
       if (err?.code === "gift") { setGift(null); setError(c("bookTimeGiftProblem")); return; }
       // The pack ran out or closed meanwhile: take it off so the price shows, and say so.
       if (err?.code === "pack") { setPack(null); setError(c("bookTimePackProblem")); return; }
+      // The address is missing or outside the area the shop travels to: say so beside it.
+      if (err?.code === "address" || err?.code === "area") { setProblems({ address: c(err.code === "area" ? "bookTimeOutsideArea" : "bookTimeNeedAddress") }); document.getElementById("bt-postcode")?.focus(); return; }
       setError(c("bookTimeError"));
     }
   };
@@ -298,7 +304,7 @@ function NewBooking({ c }: { c: Copy }) {
               {s.description && <p>{s.description}</p>}
               <span className="fm-book-meta fm-track-mono">
                 <span><Clock size={12} aria-hidden="true" /> {(s.lengths?.length || 0) >= 2 ? s.lengths!.map((l) => lengthText(l.minutes)).join(" · ") : lengthText(s.minutes)}</span>
-                {s.location && <span><MapPin size={12} aria-hidden="true" /> {s.location}</span>}
+                {(s.atClient || s.location) && <span><MapPin size={12} aria-hidden="true" /> {s.atClient ? c("bookTimeAtYourPlace") : s.location}</span>}
                 {(s.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: s.places! })}</span>}
                 {!!s.introPriceMinor && s.introPriceMinor < s.priceMinor && <span translate="no">{c("bookTimeIntroPrice", { price: moneyText(s.introPriceMinor, currency) })}</span>}
                 {!!s.minPlaces && <span>{c("bookTimeClassMinimum", { count: s.minPlaces })}</span>}
@@ -401,6 +407,27 @@ function NewBooking({ c }: { c: Copy }) {
               <input id="bt-phone" type="tel" className="fm-track-input" autoComplete="tel" value={form.phone} maxLength={40}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </Field>
+            {service.atClient && (
+              <fieldset {...regionProps("bookingsAddress")} className="fm-book-address min-w-0 border-0 p-0 m-0 space-y-3" aria-describedby={problems.address ? "bt-address-err" : "bt-address-hint"}>
+                <legend className="fm-track-mono">{c("bookTimeAddress")}</legend>
+                <p id="bt-address-hint" className="fm-muted text-xs">{c("bookTimeAddressHint")}</p>
+                <Field id="bt-street" label={c("bookTimeStreet")}>
+                  <input id="bt-street" className="fm-track-input" autoComplete="street-address" value={place.street} maxLength={120}
+                    aria-invalid={!!problems.address && !place.street.trim()} onChange={(e) => setPlace({ ...place, street: e.target.value })} />
+                </Field>
+                <div className="fm-book-address-row grid gap-3 sm:grid-cols-[2fr_1fr]">
+                  <Field id="bt-city" label={c("bookTimeCity")}>
+                    <input id="bt-city" className="fm-track-input" autoComplete="address-level2" value={place.city} maxLength={60}
+                      aria-invalid={!!problems.address && !place.city.trim()} onChange={(e) => setPlace({ ...place, city: e.target.value })} />
+                  </Field>
+                  <Field id="bt-postcode" label={c("bookTimePostcode")}>
+                    <input id="bt-postcode" className="fm-track-input" autoComplete="postal-code" value={place.postcode} maxLength={12}
+                      aria-invalid={!!problems.address} onChange={(e) => setPlace({ ...place, postcode: e.target.value })} />
+                  </Field>
+                </div>
+                {problems.address && <p id="bt-address-err" className="fm-book-error">{problems.address}</p>}
+              </fieldset>
+            )}
             {info.texts && (
               <div {...regionProps("bookingsTexts")} className="text-sm leading-6">
                 <label htmlFor="bt-text-ok" className="flex items-start gap-2.5">
@@ -895,7 +922,7 @@ function ServiceMeta({ service, currency, c, paidWith = "" }: { service: Booking
     <p className="mt-4 fm-book-meta fm-track-mono">
       <span><Clock size={12} aria-hidden="true" /> {lengthText(service.minutes)}</span>
       <span translate="no">{paidWith || (service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree"))}{!paidWith && !!service.taxMinor && service.priceMinor > 0 && <> {c("bookTimePlusTax")}</>}</span>
-      {service.location && <span><MapPin size={12} aria-hidden="true" /> {service.location}</span>}
+      {(service.atClient || service.location) && <span><MapPin size={12} aria-hidden="true" /> {service.atClient ? c("bookTimeAtYourPlace") : service.location}</span>}
       {(service.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: service.places! })}</span>}
       {service.approval && <span>{c("bookTimeRequestTag")}</span>}
     </p>

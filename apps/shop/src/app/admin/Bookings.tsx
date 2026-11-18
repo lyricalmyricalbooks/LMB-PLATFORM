@@ -12,7 +12,7 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, followRequests, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -2140,7 +2140,7 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
                   {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
                 </div>
                 <p className="bkg-service-meta">{s.gapBefore ? `${s.gapBefore} min before + ` : ""}{(s.lengths || []).length >= 2 ? (s.lengths || []).map((l) => lengthName(l)).join(" / ") : `${s.minutes} min`}{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
-                <p className="bkg-service-price">{(s.lengths || []).length >= 2 && s.priceMinor > 0 ? `From ${moneyText(Math.min(...(s.lengths || []).map((l) => l.priceMinor)), SHOP_CURRENCY)}` : s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
+                <p className="bkg-service-price">{(s.lengths || []).length >= 2 && s.priceMinor > 0 ? `From ${moneyText(Math.min(...(s.lengths || []).map((l) => l.priceMinor)), SHOP_CURRENCY)}` : s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{s.atClient ? <span className="bkg-service-pay">At the client's place</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
                 {s.description && <p className="bkg-service-desc">{s.description}</p>}
                 <div className="bkg-service-actions">
                   <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -2253,6 +2253,8 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
     extraRows: (service.extras || []).map((e) => ({ id: e.id, name: e.name, minutes: e.minutes ? String(e.minutes) : "", price: e.priceMinor ? (e.priceMinor / 100).toFixed(2) : "" })),
     // Lengths and prices clients choose from (two or more), as typed: the first is the service's own.
     lengthRows: (service.lengths || []).map((l) => ({ id: l.id, name: l.name, minutes: String(l.minutes), price: l.priceMinor ? (l.priceMinor / 100).toFixed(2) : "" })),
+    // The postal code starts a visit at the client's place travels to, as typed ("M6G, M5V").
+    areasText: (service.areas || []).join(", "),
   });
   // Card on file: only where something is left to charge (not paid in full), and only on Stripe.
   const paidInFull = Number(form.price) > 0 && form.pay === "full";
@@ -2280,7 +2282,7 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
   const save = async () => {
     setSaving(true); setProblem("");
     try {
-      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, lengthRows: sizes, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, lengthRows: sizes, areasText, ...rest } = form;
       // Lengths only for one-to-one services; the rows that have minutes, with the first one's time and price as the service's.
       const lengths = rest.places > 1 || (rest.courseDates || []).length ? [] : sizes.filter((x) => Number(x.minutes) > 0).map((x) => ({
         id: x.id, name: x.name.trim(), minutes: Math.round(Number(x.minutes)), priceMinor: Math.round(Number(x.price || 0) * 100),
@@ -2298,6 +2300,9 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
         depositPercent: share && depositUnit === "percent" ? Math.round(Number(deposit || 0)) : 0,
         holdCard, lateFeeMinor: holdCard ? Math.round(Number(lateFee || 0) * 100) : 0,
         meet: !!rest.meet && rest.places <= 1,
+        // A visit at the client's place: one-to-one only, with the postal code starts it travels to.
+        atClient: !!rest.atClient && rest.places <= 1 && !(rest.courseDates || []).length,
+        areas: rest.atClient && rest.places <= 1 && !(rest.courseDates || []).length ? cleanAreas(areasText) : [],
         repeats: !!rest.repeats && rest.places <= 1 && !(rest.courseDates || []).length && !(rest.approval && approvalAllowed({ ...rest, payment: priceMinor > 0 ? pay : "free", holdCard })),
         approval: !!rest.approval && approvalAllowed({ ...rest, payment: priceMinor > 0 ? pay : "free", holdCard }),
         // Processing time is one person's: a class or course never sends it.
@@ -2448,7 +2453,7 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
               : "The price is all they pay. Turn this on to add your sales tax on top."}</p>
           </div>
         )}
-        <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />
+        {!form.atClient && <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />}
         {(rooms.length > 0 || form.roomId) && (
           <SelectField label="Room or chair" hint="Only one booking can use it at a time, whoever does it." value={form.roomId} onChange={(e) => set("roomId", e.target.value)}>
             <option value="">No room needed</option>
@@ -2462,6 +2467,18 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
             <p className="bkg-questions-hint">{form.meet
               ? "Each booking gets its own Meet link, in the customer's emails and on their booking page. It needs Google Calendar turned on under Hours & rules."
               : "For times held online: each booking gets its own Google Meet link."}</p>
+          </div>
+        )}
+        {!group && !course && (
+          <div className="bkg-meet">
+            <div className="flex items-center gap-2"><Toggle label="Visit them at their place" checked={!!form.atClient} onChange={(v) => set("atClient", v)} /><StatusBadge tone="info" glyph={false}>Beta</StatusBadge></div>
+            <p className="bkg-questions-hint">{form.atClient
+              ? "Clients give their address when they book. Set Time before to your travel time, so you get there."
+              : "For mobile work: you go to the client instead of them coming to you."}</p>
+            {form.atClient && (
+              <TextField label="Postal codes you travel to (optional)" hint="The start of each code, with commas: M6G, M5V. Leave blank to go anywhere."
+                value={form.areasText} onChange={(e) => set("areasText", e.target.value)} />
+            )}
           </div>
         )}
         <div className="bkg-meet">

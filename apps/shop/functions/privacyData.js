@@ -107,7 +107,9 @@ function bookingPaid(booking) {
   return !!(booking && (booking.paid || booking.refund));
 }
 function redactedBookingFields(booking, now) {
-  const base = { note: "", answers: [], pendingKey: null, manageKeyHash: "", reminderKeyHash: "", reminderSentAt: now, privacyRedactedAt: now, updatedAt: now };
+  // A visit at the client's place (plan 4, 2.8) keeps their address as its place: it goes too.
+  const base = { note: "", answers: [], pendingKey: null, manageKeyHash: "", reminderKeyHash: "", reminderSentAt: now, privacyRedactedAt: now, updatedAt: now,
+    ...(booking && booking.atClient ? { location: "" } : {}) };
   return bookingPaid(booking)
     ? { ...base, "customer.phone": "" }
     : { ...base, customer: { name: BOOKING_NAME_REMOVED, email: "", phone: "" } };

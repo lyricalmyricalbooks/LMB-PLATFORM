@@ -14,6 +14,7 @@ export type BookingServiceView = { id: string; name: string; description: string
   joining?: { missed: number; of: number; fullPriceMinor: number };
   /** Clients may book it as a standing appointment: the same time every few weeks, several visits at once. */ repeats?: boolean;
   /** The shop answers each booking first: the client sends a request (plan 4, 2.5). */ approval?: boolean;
+  /** At the client's address (plan 4, 2.8): the form asks for it; `areas` are the postal code starts it travels to. */ atClient?: boolean; areas?: string[];
   /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number;
   /** Its pack is a class pass: it books any weekly class. */ packAnyClass?: boolean;
   /** What someone new to the shop pays the first time (the server decides who is new). */ introPriceMinor?: number;

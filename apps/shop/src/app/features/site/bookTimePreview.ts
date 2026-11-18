@@ -24,6 +24,7 @@ const SERVICES: BookingServiceView[] = [
   { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8, group: "Classes" },
   { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "", repeats: true },
   { id: "sample-review", name: "Portfolio review", description: "The shop answers each request before it's booked.", minutes: 45, priceMinor: 0, payment: "free", location: "The studio", approval: true },
+  { id: "sample-home", name: "Home visit", description: "We come to you, in the postal codes we travel to.", minutes: 60, priceMinor: 0, payment: "free", location: "", atClient: true, areas: ["M6G", "M5V"] },
 ];
 /** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */
 const CLASS_LEFT = [8, 3, 0, 1, 6];
