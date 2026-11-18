@@ -9,8 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = exports.addressLine = exports.MAX_AREAS = exports.CHANNEL_NAMES = exports.BOOKING_CHANNELS = exports.APPROVAL_HOURS = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = void 0;
+exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.formsFor = exports.FORM_RENEW_CHOICES = exports.MAX_FORMS = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = exports.addressLine = exports.MAX_AREAS = exports.CHANNEL_NAMES = exports.BOOKING_CHANNELS = exports.APPROVAL_HOURS = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = void 0;
 exports.answerBy = answerBy;
 exports.approvalAllowed = approvalAllowed;
 exports.bookingChannel = bookingChannel;
@@ -26,6 +26,9 @@ exports.cleanBlocks = cleanBlocks;
 exports.blockSpan = blockSpan;
 exports.blockedBusy = blockedBusy;
 exports.cleanIntakeForm = cleanIntakeForm;
+exports.cleanIntakeForms = cleanIntakeForms;
+exports.formRunsOut = formRunsOut;
+exports.formStillSigned = formStillSigned;
 exports.formVersion = formVersion;
 exports.bookingsOnDay = bookingsOnDay;
 exports.processingStretch = processingStretch;
@@ -257,19 +260,65 @@ function blockedBusy(blocks, day, zone) {
     return out;
 }
 exports.MAX_FORM_TEXT = 6000;
+/** How many forms a shop can ask for. */
+exports.MAX_FORMS = 5;
+/** How long a signature lasts, in months (0: until the words change). */
+exports.FORM_RENEW_CHOICES = [0, 6, 12, 24];
 /** The form as saved: words trimmed and capped, its questions cleaned; null when it has no words at all. */
-function cleanIntakeForm(raw) {
+function cleanIntakeForm(raw, fallbackId = "main") {
     const f = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
     const body = typeof f.text === "string" ? f.text.trim().slice(0, exports.MAX_FORM_TEXT) : "";
     const questions = cleanQuestions(f.questions);
     if (!body && !questions.length)
         return null;
     const serviceIds = [...new Set((Array.isArray(f.serviceIds) ? f.serviceIds : []).filter((x) => typeof x === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(x)))].slice(0, exports.MAX_SERVICES);
-    return { on: f.on === true, title: text(f.title, 80) || "Before your first visit", text: body, questions, serviceIds };
+    const id = typeof f.id === "string" && /^[A-Za-z0-9_-]{1,24}$/.test(f.id) ? f.id : fallbackId;
+    const renew = Number(f.renewMonths);
+    const renewMonths = exports.FORM_RENEW_CHOICES.includes(renew) ? renew : 0;
+    return { id, on: f.on === true, title: text(f.title, 80) || "Before your first visit", text: body, questions, serviceIds, renewMonths };
 }
-/** Whether a booking of this service asks for the form. */
-const formFor = (form, serviceId) => form?.on && (!form.serviceIds.length || form.serviceIds.includes(serviceId)) ? form : null;
+/** The shop's forms, cleaned: at most MAX_FORMS, ids unique (the first keeps "main"), an older single `intakeForm` read as one. */
+function cleanIntakeForms(list, older) {
+    const raw = Array.isArray(list) ? list : older ? [older] : [];
+    const out = [];
+    for (const [i, f] of raw.entries()) {
+        const form = cleanIntakeForm(f, i === 0 ? "main" : `f${i + 1}`);
+        if (!form)
+            continue;
+        while (out.some((o) => o.id === form.id))
+            form.id = `${form.id}x`.slice(-24);
+        out.push(form);
+        if (out.length >= exports.MAX_FORMS)
+            break;
+    }
+    return out;
+}
+/** The forms a booking of this service asks for, in the shop's order. */
+const formsFor = (forms, serviceId) => (forms || []).filter((f) => f.on && (!f.serviceIds.length || f.serviceIds.includes(serviceId)));
+exports.formsFor = formsFor;
+/** The first form a booking of this service asks for (older callers). */
+const formFor = (forms, serviceId) => (0, exports.formsFor)(forms, serviceId)[0] || null;
 exports.formFor = formFor;
+/** When a signature made at `signedAt` stops counting: never (null) without renewal. */
+function formRunsOut(signedAt, renewMonths) {
+    if (!renewMonths)
+        return null;
+    const d = new Date(signedAt);
+    if (!Number.isFinite(d.getTime()))
+        return 0;
+    d.setUTCMonth(d.getUTCMonth() + renewMonths);
+    return d.getTime();
+}
+/**
+ * Whether a signed record still counts for a visit at `atMs`: this wording, and not run out by then. A record with no
+ * signature (or another form's) never counts.
+ */
+function formStillSigned(record, form, atMs) {
+    if (!record?.signedAt || record.version !== formVersion(form))
+        return false;
+    const ends = formRunsOut(record.signedAt, form.renewMonths);
+    return ends === null || ends > atMs;
+}
 /** Which wording of the form a client signed: changing the title, words or questions asks everyone again. */
 function formVersion(form) {
     const source = JSON.stringify([form.title, form.text, form.questions.map((q) => [q.label, q.long, q.required])]);
@@ -873,7 +922,7 @@ function cleanBookingSettings(raw) {
         reviewUrl: reviewLink(s.reviewUrl),
         siteReviews: s.siteReviews === true,
         textReminders: s.textReminders === true,
-        ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
+        ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
         ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
         ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
         ...(exports.DAILY_CAPS.includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),

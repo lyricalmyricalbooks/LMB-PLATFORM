@@ -144,8 +144,11 @@ export type BookingView = {
   courseStarts?: string[]; canMove?: boolean;
   /** "Tell me if an earlier time opens": whether this visit can ask, and whether it has. */
   canEarlier?: boolean; earlier?: boolean;
-  /** The shop's form before the first visit, while this client hasn't signed it; or when they signed it. */
-  form?: { title: string; text: string; questions: BookingQuestion[] }; formSigned?: string;
+  /**
+   * The next form to sign before the visit (plan 4, 3.1: several, `renew` when a signature ran out) with how many are
+   * left, while any is waiting; or when the last was signed.
+   */
+  form?: { id?: string; title: string; text: string; questions: BookingQuestion[]; renew?: boolean }; formsLeft?: number; formSigned?: string;
   /** Several services in one visit: each in turn, with its time and who takes it (the first is the booking's own). */
   visit?: { serviceName: string; staffName: string; start: string; end: string }[];
   /** Add-ons and options booked with it (minutes and priceMinor already include them). */

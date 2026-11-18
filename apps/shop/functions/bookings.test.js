@@ -3618,15 +3618,18 @@ describe("a form before the first visit", () => {
   };
 
   test("the settings keep a form only with words, and say which services ask", () => {
-    expect(cleanBookingSettings({ intakeForm: { on: true, text: "  " } }).intakeForm).toBeUndefined();
-    expect(cleanBookingSettings({ intakeForm: { on: true, text: "Hi", serviceIds: ["visit", "bad id", "visit"] } }).intakeForm).toEqual({ on: true, title: "Before your first visit", text: "Hi", questions: [], serviceIds: ["visit"] });
+    expect(cleanBookingSettings({ intakeForm: { on: true, text: "  " } }).intakeForms).toBeUndefined();
+    // An older single form is read as the first of the list.
+    expect(cleanBookingSettings({ intakeForm: { on: true, text: "Hi", serviceIds: ["visit", "bad id", "visit"] } }).intakeForms).toEqual([{ id: "main", on: true, title: "Before your first visit", text: "Hi", questions: [], serviceIds: ["visit"], renewMonths: 0 }]);
+    expect(cleanBookingSettings({ intakeForms: [], intakeForm: { on: true, text: "Hi" } }).intakeForms).toBeUndefined();
   });
 
   test("the booking page asks for it, the confirmation says so, and signing keeps the name, tick, date and answers", async () => {
     const { t, b } = await withForm();
     expect(t.emails.find((m) => /^Booked/.test(m.subject)).html).toContain("please fill in \"Health form\" on your booking page");
     const view = (await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking;
-    expect(view.form).toEqual({ title: "Health form", text: FORM.text, questions: FORM.questions });
+    expect(view.form).toEqual({ id: "main", title: "Health form", text: FORM.text, questions: FORM.questions });
+    expect(view.formsLeft).toBe(1);
     expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", agree: true, answers: {} })).body.code).toBe("answer");
     expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", answers: { allergies: "None" } })).body.code).toBe("no_agree");
     expect((await t.pub({ action: "bookingForm", id: b.id, key: "f".repeat(48), signedName: "Ada L", agree: true, answers: { allergies: "None" } })).statusCode).toBe(404);
@@ -3650,6 +3653,55 @@ describe("a form before the first visit", () => {
     expect((await t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada", agree: true, answers: { allergies: "x" } })).statusCode).toBe(409);
     const off = await withForm({ ...FORM, on: false });
     expect((await off.t.pub({ action: "bookingView", id: off.b.id, key: off.b.key })).body.booking.form).toBeUndefined();
+  });
+});
+
+describe("waivers and contracts: several forms, signed again after a while (plan 4, 3.1)", () => {
+  const HEALTH = { id: "main", on: true, title: "Health form", text: "Anything we should know.", questions: [], serviceIds: [], renewMonths: 0 };
+  const WAIVER = { id: "waiver", on: true, title: "Waiver", text: "I take part at my own risk.", questions: [], serviceIds: [], renewMonths: 12 };
+  const shop = async (forms) => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, maxDaysAhead: 365, intakeForms: forms });
+    return t;
+  };
+  const sign = (t, b, extra = {}) => t.pub({ action: "bookingForm", id: b.id, key: b.key, signedName: "Ada L", agree: true, answers: {}, ...extra });
+
+  test("each form is asked in turn, the email names them all, and the owner sees each one", async () => {
+    const t = await shop([HEALTH, WAIVER]);
+    const b = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "15:00"), name: "Ada", email: "ada@example.com" })).body;
+    expect(t.emails.find((m) => /^Booked/.test(m.subject)).html).toContain("please fill in \"Health form\" and \"Waiver\"");
+    let view = (await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking;
+    expect(view).toMatchObject({ form: { id: "main", title: "Health form" }, formsLeft: 2 });
+    view = (await sign(t, b)).body.booking;
+    expect(view).toMatchObject({ form: { id: "waiver", title: "Waiver" }, formsLeft: 1 });
+    // A form named straight away is signed on its own.
+    expect((await sign(t, b, { formId: "nope" })).statusCode).toBe(409);
+    view = (await sign(t, b, { formId: "waiver" })).body.booking;
+    expect(view.form).toBeUndefined();
+    expect(view.formSigned).toBe("2026-11-16T13:00:00.000Z");
+    const card = (await t.adm({ op: "clientForm", email: "ada@example.com" })).body;
+    expect(card.forms.map((f) => [f.id, f.signed?.signedName, f.signed?.runsOut])).toEqual([["main", "Ada L", undefined], ["waiver", "Ada L", "2027-11-16T13:00:00.000Z"]]);
+    // The first form keeps the bare email record (older signatures still count); the others have their own.
+    expect([...t.db.store.keys()].filter((k) => k.startsWith("bookingForms/")).map((k) => k.endsWith("-waiver"))).toEqual([false, true]);
+  });
+
+  test("a waiver signed more than six months before the visit is asked again; the health form is not", async () => {
+    const t = await shop([HEALTH, { ...WAIVER, renewMonths: 6 }]);
+    const b = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "15:00"), name: "Ada", email: "ada@example.com" })).body;
+    await sign(t, b);
+    await sign(t, b);
+    const later = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2027-06-01", "15:00"), name: "Ada", email: "ada@example.com" })).body;
+    const view = (await t.pub({ action: "bookingView", id: later.id, key: later.key })).body.booking;
+    expect(view).toMatchObject({ form: { id: "waiver", renew: true }, formsLeft: 1 });
+    // The visit next week still counts it.
+    expect((await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking.form).toBeUndefined();
+  });
+
+  test("a form for some services only asks those", async () => {
+    const t = await shop([HEALTH, { ...WAIVER, serviceIds: ["review"] }]);
+    const b = (await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "15:00"), name: "Ada", email: "ada@example.com" })).body;
+    expect((await t.pub({ action: "bookingView", id: b.id, key: b.key })).body.booking.formsLeft).toBe(1);
   });
 });
 

@@ -1267,8 +1267,8 @@ function CheckInCode({ code, c }: { code: string; c: Copy }) {
 }
 
 /** The shop's form before the first visit: its words, its questions, a typed name and a tick. Signed once per client. */
-function FirstVisitForm({ form, id, manageKey, onSigned, c }: {
-  form: NonNullable<BookingView["form"]>; id: string; manageKey: string; onSigned: (b: BookingView) => void; c: Copy;
+function FirstVisitForm({ form, left = 1, id, manageKey, onSigned, c }: {
+  form: NonNullable<BookingView["form"]>; left?: number; id: string; manageKey: string; onSigned: (b: BookingView) => void; c: Copy;
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
@@ -1285,7 +1285,7 @@ function FirstVisitForm({ form, id, manageKey, onSigned, c }: {
     setBusy(true);
     setError("");
     try {
-      onSigned((await ask("bookingForm", { id, key: manageKey, signedName: name.trim(), agree: true, answers })).booking);
+      onSigned((await ask("bookingForm", { id, key: manageKey, ...(form.id ? { formId: form.id } : {}), signedName: name.trim(), agree: true, answers })).booking);
     } catch (err: any) {
       setError(err?.message || c("bookTimeError"));
     } finally {
@@ -1295,8 +1295,9 @@ function FirstVisitForm({ form, id, manageKey, onSigned, c }: {
   return (
     <form {...regionProps("bookingsIntake")} className="fm-track-card p-5 sm:p-8 space-y-5" onSubmit={(e) => void sign(e)} noValidate>
       <div className="space-y-2">
+        {left > 1 && <p className="fm-track-mono text-xs uppercase tracking-wide">{c("bookTimeFormsLeft", { count: left })}</p>}
         <h2 className="fm-track-display text-3xl">{form.title}</h2>
-        <p className="text-sm leading-6 fm-muted">{c("bookTimeFormIntro")}</p>
+        <p className="text-sm leading-6 fm-muted">{c(form.renew ? "bookTimeFormRenew" : "bookTimeFormIntro")}</p>
       </div>
       {form.text && <div className="fm-book-form-text">{form.text}</div>}
       {form.questions.map((q) => {
@@ -1616,7 +1617,7 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
             </div>
           ) : <p className="text-sm leading-6 fm-muted">{c("bookTimeTooLate")}</p>}
           {booking.canChange && <p className="text-sm leading-6 fm-muted">{c("bookTimeCancelRule", { hours: booking.cancelHours })}</p>}
-          {booking.form && <FirstVisitForm form={booking.form} id={id} manageKey={manageKey} onSigned={setBooking} c={c} />}
+          {booking.form && <FirstVisitForm key={booking.form.id || "form"} form={booking.form} left={booking.formsLeft} id={id} manageKey={manageKey} onSigned={setBooking} c={c} />}
           {booking.formSigned && <p className="text-sm leading-6 fm-muted">{c("bookTimeFormSigned", { date: new Date(booking.formSigned).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) })}</p>}
           {booking.canEarlier && (
             <label {...regionProps("bookingsEarlier")} className="fm-book-extra fm-book-earlier">

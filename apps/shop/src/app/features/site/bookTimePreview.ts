@@ -76,7 +76,8 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
     status: "confirmed", payment: deposit ? "deposit" : service.priceMinor > 0 ? "card" : "free", paid: !deposit && service.priceMinor > 0, priceMinor: service.priceMinor, currency,
     ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service), canPayRest: true, restPaidMinor: 0, tipPercents: [15, 18, 20], tipLimitMinor: 10_000 } : {}),
     name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24, canEarlier: (listed.places || 1) <= 1 && !listed.courseStarts?.length, earlier: false,
-    form: { title: "Before your first visit", text: "Please tell us about anything that could affect your visit, like allergies or a recent treatment.", questions: [{ id: "allergies", label: "Any allergies?", long: false, required: false }] },
+    form: { id: "main", title: "Before your first visit", text: "Please tell us about anything that could affect your visit, like allergies or a recent treatment.", questions: [{ id: "allergies", label: "Any allergies?", long: false, required: false }] },
+    formsLeft: 2,
     // The review box shows on the sample so it can be designed (a real one shows only after the visit).
     canReview: true,
     ...(service.holdCard ? { cardHold: true, cardLast4: "4242", lateFeeMinor: service.lateFeeMinor } : {}),
@@ -225,7 +226,12 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   }
   sample ||= sampleBooking(zone, currency, nowMs);
   if (action === "bookingEarlier") sample = { ...sample, earlier: body.on === true };
-  if (action === "bookingForm") sample = { ...sample, form: undefined, formSigned: new Date(nowMs).toISOString() };
+  // Two forms: the health form, then a waiver; then both are signed.
+  if (action === "bookingForm") {
+    sample = sample.form?.id === "main"
+      ? { ...sample, form: { id: "waiver", title: "Waiver", text: "I understand the treatment and take part at my own risk.", questions: [] }, formsLeft: 1 }
+      : { ...sample, form: undefined, formsLeft: undefined, formSigned: new Date(nowMs).toISOString() };
+  }
   if (action === "bookingMove" && typeof body.start === "string") sample = { ...sampleBooking(zone, currency, nowMs, sample.serviceId, body.start, sample.discountCode), giftCardLast4: sample.giftCardLast4, giftMinor: sample.giftMinor };
   // Paying what is left: no card page in the preview, it just shows as paid in full.
   if (action === "bookingPayRest") sample = { ...sample, canPayRest: false, restPaidMinor: sample.dueMinor || 0, dueMinor: 0, tipMinor: Number(body.tipMinor) || 0 };
