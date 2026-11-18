@@ -96,6 +96,34 @@ export function membershipsUse(members, posts = []) {
     posts: posts.filter(Boolean).length,
   };
 }
+/**
+ * How a shop uses Rentals (R3): items and units (out for repair, written off or sold), rentals still to come and out
+ * now, deposit cards held on rentals not yet back, fees charged and pay links waiting. Written by the shop's
+ * functions/rentals.js; no customer's name, email or card is read into the line. Test rentals are left out.
+ */
+export function rentalsUse(items, rentals, nowMs) {
+  const real = rentals.filter((r) => r && r.mode !== "test");
+  const count = (list) => (Array.isArray(list) ? list.length : 0);
+  const fees = real.flatMap((r) => (Array.isArray(r.fees) ? r.fees : []));
+  return {
+    items: items.filter(Boolean).length,
+    units: items.reduce((sum, i) => sum + (Number.isInteger(i?.units) ? i.units : 0), 0),
+    repair: items.reduce((sum, i) => sum + count(i?.repair), 0),
+    gone: items.reduce((sum, i) => sum + count(i?.gone), 0),
+    coming: real.filter((r) => r.status === "paid" && r.startMs > nowMs).length,
+    out: real.filter((r) => r.status === "out").length,
+    late: real.filter((r) => r.status === "out" && r.endMs < nowMs).length,
+    held: real.filter((r) => r.status === "held").length,
+    cardsKept: real.filter((r) => r.card && ["paid", "out"].includes(r.status)).length,
+    fees: fees.length,
+    feesMinor: fees.reduce((sum, f) => sum + (Number.isFinite(f?.amountMinor) && f.amountMinor > 0 ? f.amountMinor : 0), 0),
+    payLinks: real.reduce((sum, r) => sum + (Array.isArray(r.extraPages) ? r.extraPages.filter((p) => Date.parse(p?.closesAt || "") > nowMs).length : 0), 0),
+    currency: real.find((r) => r.currency)?.currency ?? "CAD",
+  };
+}
+/** The most rental items and rentals read (the shop's own caps, rentalRules.ts MAX_ITEMS and the admin list's 500). */
+const MAX_RENTAL_ITEMS = 60;
+const MAX_RENTALS = 500;
 /** The most members' posts read (the shop's own cap, membershipRules.ts MAX_POSTS). */
 const MAX_POSTS = 100;
 /** The most memberships read for the use line (the admin's own list, functions/memberships.js MAX_LISTED, reads as many). */
@@ -174,6 +202,15 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
               shopData.find(shopId, "memberPosts", { limit: MAX_POSTS }),
             ]);
             use.memberships = membershipsUse(members.map((d) => d.data), posts.map((d) => d.data));
+          } catch { /* the line is left out */ }
+        }
+        if (allowed.includes("rentals") && shopData.find) {
+          try {
+            const [items, rentals] = await Promise.all([
+              shopData.find(shopId, "rentalItems", { limit: MAX_RENTAL_ITEMS }),
+              shopData.find(shopId, "rentals", { limit: MAX_RENTALS }),
+            ]);
+            use.rentals = rentalsUse(items.map((d) => d.data), rentals.map((d) => d.data), now().getTime());
           } catch { /* the line is left out */ }
         }
         return {

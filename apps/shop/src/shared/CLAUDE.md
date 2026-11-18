@@ -126,3 +126,5 @@ browsers may write (mirroring `firestore.rules`).
   basis, prices, shortest and longest, cleaning time, opening hours), the cheapest fair price (`rentalPrice`), when an
   asked rental starts and ends (`rentalWhen`), and which unit is free (`freeUnit`, `unitsFree`, `hourChoices`,
   `dayChoices`; spans on `rentalCalendar/{itemId}`). The server's records are in `functions/rentals.js`.
+
+**rentalRules (R2):** `lateLength`, `lateFeeFor` (capped by the deposit left) and `feeRoom` are shared by the admin and the server; a late fee needs a deposit.

@@ -13,6 +13,8 @@ export const RENTALS_CSS = [
   `${S} .fm-rnt-body{display:flex;flex-direction:column;gap:10px;padding:20px 22px 22px;flex:1;}`,
   `${S} .fm-rnt-item h2{margin:0;font-size:22px;line-height:1.25;font-weight:700;overflow-wrap:anywhere;}`,
   `${S} .fm-rnt-price{margin:0;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+${S} .fm-rnt-paylink{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border, currentColor);}
+${S} .fm-rnt-paylink p{margin:0;}
 ${S} .fm-rnt-tax{display:block;font-weight:400;opacity:.75;font-size:.85em;margin-top:2px;}`,
   `${S} .fm-rnt-desc{margin:0;font-size:15px;line-height:1.55;white-space:pre-line;color:var(--muted, currentColor);}`,
   `${S} .fm-rnt-item .fm-track-btn{margin-top:auto;width:100%;}`,

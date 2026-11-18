@@ -48,3 +48,15 @@
   .rp .rnt-tl-row { grid-template-columns: 52px minmax(0, 1fr); }
   .rp .rnt-tl-scale span:nth-child(even) { visibility: hidden; }
 }
+.rp .rnt-money { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 13px; color: var(--rp-text-muted); }
+.rp .rnt-money li { overflow-wrap: anywhere; }
+.rp .rnt-late { margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid var(--rp-danger); background: var(--rp-danger-tint); font-size: 13px; line-height: 1.45; }
+
+/* R3: units out for repair, written off or sold. */
+.rp .rnt-units { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rp .rnt-unit { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--rp-border); border-radius: 14px; background: var(--rp-surface); }
+.rp .rnt-unit[data-state="repair"] { background: var(--rp-surface-2); }
+.rp .rnt-unit[data-state="writtenOff"], .rp .rnt-unit[data-state="sold"] { color: var(--rp-text-muted); }
+.rp .rnt-unit .rp-field { margin: 0; min-width: 12rem; }
+.rp .rnt-stuck { padding: 14px; border-radius: 14px; background: var(--rp-danger-tint); display: grid; gap: 8px; }
+.rp .rnt-stuck ul { margin: 0; padding-left: 18px; }

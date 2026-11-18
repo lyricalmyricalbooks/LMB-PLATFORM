@@ -362,6 +362,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Your tickets", match: /^events(Going|Held|Ended|Refunded|TicketsCancelled|CodeQr$|TicketUsed|OrderNotFound|When|Where|NameRow|Tax|Paid|YourTickets|TicketNumber|ShowCode|JoinOnline|AddCalendar|GoogleCalendar|TryAgain)/ },
   ],
   "Rentals page": [
+    { title: "Deposits, fees & pay links", match: /^rentals(Deposit|Fee|ExtraPaid|PayLink)/ },
     { title: "The page & things to rent", match: /^rentals(Eyebrow|Title|Subtitle|Back|Loading|LoadError|Retry|Closed|PerHour|DayCap|PerDay|PerWeek|PlusTax|Rent|Close|FooterLink)/ },
     { title: "Choosing when & paying", match: /^rentals(PickHeading|Day$|Pickup|HowLong|Hour|Return|StartTimes|FreeDays|NoTimes|Name|Email|DayOne|Days|PickTime|PickDays|TaxNote|Pay|Working|Cancel|HoldNote|Need|Taken|NotReady|Error)/ },
     { title: "Your rental", match: /^rentals(Done|CancelledEyebrow|PayingEyebrow|NotFound)/ },

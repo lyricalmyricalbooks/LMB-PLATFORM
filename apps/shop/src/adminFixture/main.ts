@@ -292,8 +292,8 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   const day0 = new Date(new Date().toDateString()).getTime();
   const fresh = new URLSearchParams(window.location.search).get("rentals") === "new";
   let items: RentalItem[] = fresh ? [] : [
-    cleanRentalItem({ name: "Camera kit", description: "Body, two lenses, batteries and a bag.", units: 2, basis: "hour", hourMinor: 2000, dayMinor: 9000, minLength: 2, maxLength: 8, cleanMinutes: 30, opens: "09:00", closes: "18:00", chargeTax: true }, "kit00001") as RentalItem,
-    cleanRentalItem({ name: "Kayak", units: 3, basis: "day", dayMinor: 4500, weekMinor: 22000, minLength: 1, maxLength: 14, opens: "08:00", closes: "19:00", repair: [3] }, "kayak001") as RentalItem,
+    cleanRentalItem({ name: "Camera kit", description: "Body, two lenses, batteries and a bag.", units: 2, basis: "hour", hourMinor: 2000, dayMinor: 9000, minLength: 2, maxLength: 8, cleanMinutes: 30, opens: "09:00", closes: "18:00", chargeTax: true, depositMinor: 30000, lateFeeMinor: 1500 }, "kit00001") as RentalItem,
+    cleanRentalItem({ name: "Kayak", units: 4, basis: "day", dayMinor: 4500, weekMinor: 22000, minLength: 1, maxLength: 14, opens: "08:00", closes: "19:00", repair: [3], gone: [4] }, "kayak001") as RentalItem,
   ];
   const r = (id: string, itemId: string, unit: number, startMs: number, endMs: number, status: AdminRental["status"], name: string, chargedMinor: number): AdminRental => ({
     id, status, itemId, itemName: itemId === "kit00001" ? "Camera kit" : "Kayak", unit, startMs, endMs, length: itemId === "kit00001" ? Math.round((endMs - startMs) / H) : Math.round((endMs - startMs) / (24 * H)) + 1,
@@ -306,6 +306,10 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     r("r3", "kayak001", 1, day0 - 2 * 24 * H + 8 * H, day0 - 24 * H + 9 * H, "out", "Cleo Example", 9000),
     r("r4", "kayak001", 2, day0 + 2 * 24 * H + 8 * H, day0 + 5 * 24 * H + 19 * H, "paid", "Dev Example", 18000),
     r("r5", "kit00001", 1, day0 + 3 * 24 * H + 12 * H, day0 + 3 * 24 * H + 14 * H, "paid", "Eli Example", 4000),
+    // R2: a kit brought back three hours late yesterday, its card kept for the deposit, one fee already charged.
+    { ...r("r6", "kit00001", 2, day0 - 24 * H + 10 * H, day0 - 24 * H + 13 * H, "returned", "Fay Example", 6000), returnedAt: new Date(day0 - 24 * H + 16 * H).toISOString(),
+      depositMinor: 30000, lateFeeMinor: 1500, card: "Visa ending 4242", feeRoomMinor: 25000, lateBy: 3, suggestedLateMinor: 4500,
+      fees: [{ amountMinor: 5000, reason: "damage", note: "Cracked lens hood", at: new Date(day0 - 20 * H).toISOString(), by: "owner@example.com" }], extrasPaid: [], payLinks: [] },
   ];
   rentalsData.admin = async (op, body) => {
     if (op === "list") return { zone: "America/Toronto", currency: "CAD", items, rentals };
@@ -321,6 +325,24 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       const status = op === "pickedUp" ? "out" : op === "returned" ? "returned" : "cancelled";
       rentals = rentals.map((x) => (x.id === body.id ? { ...x, status, ...(op === "cancel" ? { refundedMinor: x.chargedMinor } : {}) } : x));
       return { ok: true, rental: rentals.find((x) => x.id === body.id) };
+    }
+    if (op === "chargeFee" || op === "payLink") return { ok: true, url: "https://pay.example/sample" };
+    if (op === "unitState") {
+      // Like the server: a unit's coming rentals need another unit; a gone unit with one waits for the owner's say.
+      const unit = Number(body.unit);
+      const coming = rentals.filter((x) => x.itemId === body.itemId && x.unit === unit && x.status === "paid" && x.startMs > Date.now());
+      if (body.state !== "ok" && coming.length && body.state === "gone" && !body.cancelStuck) throw Object.assign(new Error("A rental can't move."), { code: "stuck", stuck: coming });
+      items = items.map((i) => {
+        if (i.id !== body.itemId) return i;
+        const repair = (i.repair || []).filter((n) => n !== unit);
+        const gone = (i.gone || []).filter((n) => n !== unit);
+        if (body.state === "repair") repair.push(unit);
+        if (body.state === "gone") gone.push(unit);
+        return { ...i, repair, gone, goneWhy: { ...((i as { goneWhy?: object }).goneWhy || {}), ...(body.state === "gone" ? { [unit]: { why: body.why } } : {}) } } as RentalItem;
+      });
+      const cancelled = body.cancelStuck ? coming.length : 0;
+      if (cancelled) rentals = rentals.map((x) => (coming.includes(x) ? { ...x, status: "cancelled", refundedMinor: x.chargedMinor } : x));
+      return { ok: true, moved: body.state === "repair" ? coming.length : 0, cancelled, failed: [] };
     }
     return { ok: true, rentalsLive: true };
   };

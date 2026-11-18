@@ -35,9 +35,18 @@ export type RentalItem = {
   daysAhead: number;
   chargeTax: boolean;
   status: "live" | "draft";
+  /** Most the shop may charge the kept card for lateness or damage (R2), cents; 0 = no card kept. */
+  depositMinor: number;
+  /** Fee for each late hour (hourly items) or day (daily ones), cents; 0 = none. Charged only when the owner taps. */
+  lateFeeMinor: number;
   /** Units out for repair (R3), by number from 1. */
   repair?: number[];
+  /** Units written off or sold (R3), by number from 1: never rented again, kept so the numbers stay the same. */
+  gone?: number[];
 };
+
+/** Why a unit is gone, for the owner's own records. */
+export type GoneWhy = "writtenOff" | "sold";
 
 export const MAX_ITEMS = 60;
 export const MAX_UNITS = 50;
@@ -48,6 +57,10 @@ export const MAX_DAYS_AHEAD = 365;
 /** Spans kept on one item's calendar (past ones are dropped as rentals end). */
 export const MAX_SPANS = 600;
 export const MINUTE = 60_000;
+/** The largest deposit a shop may ask for, cents. */
+export const MAX_DEPOSIT_MINOR = 500_000;
+/** Time after the end before a return counts as late: hourly items, daily ones. */
+export const LATE_GRACE_MINUTES = { hour: 15, day: 60 } as const;
 export const HOUR = 60 * MINUTE;
 
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -82,15 +95,23 @@ export function cleanRentalItem(raw: unknown, id = ""): RentalItem | { problem: 
   const closes = typeof r.closes === "string" && TIME.test(r.closes) ? r.closes : "18:00";
   if (minutesOf(closes) <= minutesOf(opens)) return { problem: "Closing time must be after opening time." };
   if (basis === "hour" && minLength * 60 > minutesOf(closes) - minutesOf(opens)) return { problem: "The shortest rental doesn't fit between your opening and closing times." };
+  const depositMinor = money(r.depositMinor ?? 0);
+  const lateFeeMinor = money(r.lateFeeMinor ?? 0);
+  if (depositMinor < 0 || lateFeeMinor < 0) return { problem: "Prices must be amounts of money." };
+  if ((depositMinor > 0 && depositMinor < 50) || (lateFeeMinor > 0 && lateFeeMinor < 50)) return { problem: "A price must be at least 0.50, or left empty." };
+  if (depositMinor > MAX_DEPOSIT_MINOR) return { problem: "A deposit can be at most 5,000.00." };
+  if (lateFeeMinor > 0 && !depositMinor) return { problem: "Set a deposit too: a late fee is charged to the card kept for it." };
   const units = whole(r.units, 1, MAX_UNITS, 1);
   const repair = Array.isArray(r.repair) ? [...new Set(r.repair.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= units))].sort((a, b) => a - b) : [];
+  const gone = Array.isArray(r.gone) ? [...new Set(r.gone.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= units))].sort((a, b) => a - b) : [];
+  const fixing = repair.filter((n) => !gone.includes(n));
   const photo = typeof r.photo === "string" && /^https:\/\/\S{1,1900}$/.test(r.photo) ? r.photo : "";
   return {
     id: text(id || r.id, 40), name, description: typeof r.description === "string" ? r.description.trim().slice(0, 4000) : "", photo,
-    units, basis, ...prices, minLength, maxLength,
+    units, basis, ...prices, minLength, maxLength, depositMinor, lateFeeMinor,
     cleanMinutes: whole(r.cleanMinutes, 0, MAX_CLEAN_MINUTES, 0), opens, closes,
     daysAhead: whole(r.daysAhead, 1, MAX_DAYS_AHEAD, 90), chargeTax: r.chargeTax === true,
-    status: r.status === "draft" ? "draft" : "live", ...(repair.length ? { repair } : {}),
+    status: r.status === "draft" ? "draft" : "live", ...(fixing.length ? { repair: fixing } : {}), ...(gone.length ? { gone } : {}),
   };
 }
 
@@ -143,6 +164,16 @@ export function rentalWhen(item: RentalItem, ask: RentalAsk, zone: string, nowMs
 }
 
 /** One rental on an item's calendar: which unit, from when, busy until (end plus cleaning), held or confirmed. */
+/** A unit that can't be rented now: out for repair, or gone. */
+export const unitOff = (item: Pick<RentalItem, "repair" | "gone">, unit: number): boolean => Boolean(item.repair?.includes(unit) || item.gone?.includes(unit));
+
+/** Units that can be rented now. */
+export const unitsInUse = (item: Pick<RentalItem, "units" | "repair" | "gone">): number => {
+  let n = 0;
+  for (let unit = 1; unit <= item.units; unit += 1) if (!unitOff(item, unit)) n += 1;
+  return n;
+};
+
 export type RentalSpan = { id: string; unit: number; from: number; until: number; held?: boolean; holdUntil?: number };
 
 /** The spans that still block: confirmed ones, and holds whose time hasn't run out. */
@@ -152,23 +183,23 @@ export const liveSpans = (spans: readonly RentalSpan[] | null | undefined, nowMs
 const overlaps = (a: { from: number; until: number }, b: { from: number; until: number }): boolean => a.from < b.until && b.from < a.until;
 
 /** The first free unit for this time (out-for-repair units never), or 0 when every unit is taken. */
-export function freeUnit(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number, skipId = ""): number {
+export function freeUnit(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair" | "gone">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number, skipId = ""): number {
   const want = { from: when.startMs, until: when.endMs + item.cleanMinutes * MINUTE };
   const busy = liveSpans(spans, nowMs).filter((s) => s.id !== skipId);
   for (let unit = 1; unit <= item.units; unit += 1) {
-    if (item.repair?.includes(unit)) continue;
+    if (unitOff(item, unit)) continue;
     if (!busy.some((s) => s.unit === unit && overlaps(s, want))) return unit;
   }
   return 0;
 }
 
 /** How many units are free for this time. */
-export function unitsFree(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number): number {
+export function unitsFree(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair" | "gone">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number): number {
   const want = { from: when.startMs, until: when.endMs + item.cleanMinutes * MINUTE };
   const busy = liveSpans(spans, nowMs);
   let free = 0;
   for (let unit = 1; unit <= item.units; unit += 1) {
-    if (item.repair?.includes(unit)) continue;
+    if (unitOff(item, unit)) continue;
     if (!busy.some((s) => s.unit === unit && overlaps(s, want))) free += 1;
   }
   return free;
@@ -202,3 +233,22 @@ export const RENTAL_MESSAGES = {
   taken: "Someone has just taken the last one for that time. Please pick another.",
   closed: "This item can't be rented right now.",
 } as const;
+
+/** How many hours (hourly items) or days (daily ones) late a return is, after the grace time. */
+export function lateLength(basis: RentalBasis, endMs: number, backMs: number): number {
+  const over = backMs - endMs - LATE_GRACE_MINUTES[basis] * MINUTE;
+  if (!(over > 0)) return 0;
+  return Math.ceil((backMs - endMs) / (basis === "hour" ? HOUR : 24 * HOUR));
+}
+
+type FeeRental = { basis: RentalBasis; endMs: number; lateFeeMinor?: number; depositMinor?: number; fees?: { amountMinor: number }[] };
+
+/** The late fee a return at backMs would carry, capped by what is left of the deposit. A suggestion: the owner decides. */
+export function lateFeeFor(r: FeeRental, backMs: number): number {
+  return Math.min(lateLength(r.basis, r.endMs, backMs) * (r.lateFeeMinor || 0), feeRoom(r));
+}
+
+/** What is left of the deposit for fees still to charge. */
+export function feeRoom(r: Pick<FeeRental, "depositMinor" | "fees">): number {
+  return Math.max(0, (r.depositMinor || 0) - (r.fees || []).reduce((sum, f) => sum + (f.amountMinor || 0), 0));
+}

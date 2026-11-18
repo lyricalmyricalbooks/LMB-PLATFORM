@@ -3680,6 +3680,12 @@ function waysBetaSection(shop) {
         w.use.paused ? `${w.use.paused} paused` : null, w.use.posts ? `${w.use.posts} ${w.use.posts === 1 ? "post" : "posts"}` : null) : null,
       w.use && w.id === "memberships" && w.use.plans?.length ? meta(...w.use.plans.map((p) => `${p.name}: ${p.members}`)) : null,
       w.use && w.id === "memberships" && w.use.pastDue ? pill("warning", `${w.use.pastDue} ${w.use.pastDue === 1 ? "payment" : "payments"} failed`) : null,
+      w.use && w.id === "rentals" ? meta(`${w.use.items} ${w.use.items === 1 ? "item" : "items"}, ${w.use.units} ${w.use.units === 1 ? "unit" : "units"}`,
+        w.use.repair ? `${w.use.repair} out for repair` : null, w.use.gone ? `${w.use.gone} written off or sold` : null,
+        `${w.use.coming} coming`, `${w.use.out} out now`) : null,
+      w.use && w.id === "rentals" ? meta(`${w.use.cardsKept} deposit ${w.use.cardsKept === 1 ? "card" : "cards"} held`, `${w.use.held} unpaid ${w.use.held === 1 ? "hold" : "holds"}`,
+        `${w.use.fees} ${w.use.fees === 1 ? "fee" : "fees"} charged, ${money(w.use.feesMinor, w.use.currency)}`, w.use.payLinks ? `${w.use.payLinks} pay ${w.use.payLinks === 1 ? "link" : "links"} waiting` : null) : null,
+      w.use && w.id === "rentals" && w.use.late ? pill("warning", `${w.use.late} ${w.use.late === 1 ? "rental" : "rentals"} late`) : null,
       w.on ? meta(w.ownerOn ? "owner switched it on" : "owner hasn't switched it on yet", w.changedAt ? `turned on ${dateOnly(w.changedAt)}${w.changedBy ? ` by ${w.changedBy}` : ""}` : null) : null)));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   show();
