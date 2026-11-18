@@ -57,6 +57,7 @@ import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow }
 import { LicenceKeysCard } from "./LicenceKeysCard";
 import { DigitalFilesEditor } from "./DigitalFilesEditor";
 import { DigitalUpdateCard } from "./DigitalUpdateCard";
+import { SampleFileField } from "./SampleFileField";
 import { filesPatch } from "../../shared/digitalFiles";
 import { CardsAsSections, PageActions, PageHead, ActionMenu, SecondaryButton, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import { FormChoice, StatusBar, SummaryRail, formStatus } from "./riso/FormKit";
@@ -1702,6 +1703,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                       <p className="rp-hint mt-2">Added small at the foot of each page when they download it, so a shared copy shows whose it was. Works for PDFs up to 50 MB; bigger files and other kinds of file go out as they are.</p>
                     </div>
                   )}
+                  {/* A free sample anyone can try on the product page (Digital D3b); printed books can have one too. */}
+                  <div className="mt-4">
+                    <SampleFileField book={formData} notify={digitalNotify}
+                      onChange={(sample) => setFormData((prev: any) => ({ ...prev, sample: sample || null }))} />
+                  </div>
                 </SectionCard>
               )}
               {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <LicenceKeysCard bookId={book?.id} />}

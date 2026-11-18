@@ -122,8 +122,12 @@ needed a Google organization before any shop could be made ("In the queue") and 
   counted, the press told in plain words, a look every five minutes, a person told after a day), and the owner gets
   the "your address works" email when it does.
 - **What each shop uses (the meters).** The shared server writes one usage line per request, change and tick
-  (`functions/usageLog.js`: the shop and its time) and the front door one per page answered (the shop and its size).
-  Two log-based metrics in the shared project count them by shop (`server/setup-usage-metrics.js`, run once with `--apply`).
+  (`functions/usageLog.js`: the shop and its time), the front door one per page answered (the shop and its size) and
+  the download link one per bought file handed out (Digital D3: each download, and an order file's first play of the
+  day, by the file's size). Three log-based metrics in the shared project count them by shop
+  (`server/setup-usage-metrics.js`, run with `--apply` once, and again after a metric is added: `shop_file_bytes` came
+  on 17 November 2026; until it exists the meters read no downloads). Downloads are priced as web traffic (`egressGb`)
+  and kept apart as `fileGb` for the control room and the owner's tracker.
   Each night `services/usage/meters.js` writes every shop's month so far to `usage/{shopId}_{YYYY-MM}` in the
   platform's database: server time, memory time, web traffic, files kept (the bucket under `shops/<id>/`) and emails
   sent. From the 3rd it splits last month's bill for the shared project across the shops by their use at list prices,

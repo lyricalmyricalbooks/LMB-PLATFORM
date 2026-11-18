@@ -7,7 +7,7 @@
 // in the platform project), else its own project's net cost in Google's billing export (services/costs `costPerShop`
 // over `reader.read(month)`). A shop with neither is left for a later day, never billed nothing by mistake.
 import { costPerShop, monthOf } from "../costs/costs.js";
-import { monthPace, previousMonth, runningCostCents } from "./runningCost.js";
+import { monthPace, previousMonth, runningCostCents, storageMonthCents } from "./runningCost.js";
 
 /** The day of the month from which last month is billed (the export settles by then). */
 export const BILL_FROM_DAY = 3;
@@ -48,6 +48,17 @@ export async function monthEndsFor({ rows, month, meters = null, now }) {
   return out;
 }
 
+/** Each metered shop's files kept this month, { [shopId]: { gb, cents } } in the home currency (Digital D3b). */
+export async function storageFor({ rows, month, meters = null }) {
+  const out = {};
+  if (!meters) return out;
+  for (const row of rows) {
+    const record = await meters.get(row.shopId, month);
+    if (record && Number(record.storageGb) > 0) out[row.shopId] = { gb: Number(record.storageGb), cents: storageMonthCents(record) };
+  }
+  return out;
+}
+
 /** One run: bill last month (from the 3rd) and send this month's heads-ups. Safe to run any number of times a day. */
 export async function runRunningCosts({ billing, registry, meters = null, reader = null, now = () => new Date() }) {
   const today = now();
@@ -59,8 +70,9 @@ export async function runRunningCosts({ billing, registry, meters = null, reader
   }
   const thisMonth = monthOf(today);
   const told = await billing.runningCostAlerts({ month: thisMonth, soFar: await costsFor({ rows, month: thisMonth, meters, reader }), monthEnd: await monthEndsFor({ rows, month: thisMonth, meters, now: today.getTime() }) });
+  const filesNoted = billing.storageNotes ? await billing.storageNotes({ month: thisMonth, storage: await storageFor({ rows, month: thisMonth, meters }) }) : [];
   return {
-    summary: `${billed ? `${billed.month}: billed ${billed.billed.length}, waiting for costs ${billed.missing.length}${billed.waiting?.length ? `, waiting for the exchange rate ${billed.waiting.length}` : ""}` : `bills from day ${BILL_FROM_DAY}`}; heads-ups sent ${told.length}`,
-    billed, told,
+    summary: `${billed ? `${billed.month}: billed ${billed.billed.length}, waiting for costs ${billed.missing.length}${billed.waiting?.length ? `, waiting for the exchange rate ${billed.waiting.length}` : ""}` : `bills from day ${BILL_FROM_DAY}`}; heads-ups sent ${told.length}${filesNoted.length ? `; files notes ${filesNoted.length}` : ""}`,
+    billed, told, filesNoted,
   };
 }

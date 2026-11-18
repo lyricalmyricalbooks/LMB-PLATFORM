@@ -30,7 +30,7 @@ test("a month's bill is split by use, and the shares add up to it exactly", () =
 
 test("a shop's numbers come from its server time, traffic, files and emails", () => {
   assert.deepEqual(metersFrom({ work: { count: 40, ms: 8000 }, bytes: 2.5e9, storageBytes: 1e8, emails: 3 }), {
-    invocations: 40, computeGbSeconds: 8 * MEMORY_GB, egressGb: 2.5, storageGb: 0.1, emails: 3, reads: 0, writes: 0, deletes: 0, firestoreGb: 0,
+    invocations: 40, computeGbSeconds: 8 * MEMORY_GB, egressGb: 2.5, fileGb: 0, storageGb: 0.1, emails: 3, reads: 0, writes: 0, deletes: 0, firestoreGb: 0,
   });
   assert.equal("storageGb" in metersFrom({}), false, "storage left as it was when not measured");
   assert.deepEqual(monthBounds("2026-12"), { start: "2026-12-01T00:00:00.000Z", end: "2027-01-01T00:00:00.000Z" });
@@ -122,11 +122,14 @@ test("a shop's files are counted under its own folder in every shared bucket", a
 });
 
 test("the sources together give each shop its meters", async () => {
-  const monitoring = { sums: async (metric) => (metric === USAGE_METRICS.work ? { "press-a": { count: 2, sum: 4000 } } : { "press-a": { count: 1, sum: 1e9 } }) };
+  const monitoring = { sums: async (metric) => (metric === USAGE_METRICS.work ? { "press-a": { count: 2, sum: 4000 } } : metric === USAGE_METRICS.files ? { "press-a": { count: 3, sum: 5e8 } } : { "press-a": { count: 1, sum: 1e9 } }) };
   const storage = { bytes: async () => 2e9 };
   const sentLog = { countInMonth: async (shopId, month) => (shopId === "press-a" && month === "2026-11" ? 5 : 0) };
   const out = await usageSources({ monitoring, storage, sentLog }).read("2026-11", ["press-a", "press-b"]);
-  assert.deepEqual(out["press-a"], { invocations: 2, computeGbSeconds: 4 * MEMORY_GB, egressGb: 1, storageGb: 2, emails: 5, reads: 0, writes: 0, deletes: 0, firestoreGb: 0 });
+  // Downloads (Digital D3) are web traffic too, and fileGb says how much of it.
+  assert.deepEqual(out["press-a"], { invocations: 2, computeGbSeconds: 4 * MEMORY_GB, egressGb: 1.5, fileGb: 0.5, storageGb: 2, emails: 5, reads: 0, writes: 0, deletes: 0, firestoreGb: 0 });
+  const noFileMetric = { sums: async (metric) => { if (metric === USAGE_METRICS.files) throw new Error("no such metric yet"); return monitoring.sums(metric); } };
+  assert.equal((await usageSources({ monitoring: noFileMetric, storage, sentLog }).read("2026-11", ["press-a"]))["press-a"].egressGb, 1, "a missing file metric reads as no downloads");
   assert.equal(out["press-b"].invocations, 0);
   assert.equal("storageGb" in (await usageSources({ monitoring, storage, sentLog }).read("2026-11", ["press-a"], { measureStorage: false }))["press-a"], false);
 });

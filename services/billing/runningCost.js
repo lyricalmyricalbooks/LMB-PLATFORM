@@ -142,3 +142,11 @@ export const examples = (feeCents) => EXAMPLE_SHOPS.map(({ id, name, line, meter
 
 /** The bill a press's running cost may pass before they're told, unless they choose their own: $25. */
 export const DEFAULT_ALERT_CENTS = 2500;
+
+/**
+ * Above this many cents a month of files kept (storageGb, the platform's home currency) the shop's admin says so on its
+ * Alerts page (Digital D3b, the plan's decision 4: big download files and videos add up). A month of storage is priced
+ * whole, as monthPace does for sizes.
+ */
+export const STORAGE_NOTE_CENTS = 500;
+export const storageMonthCents = (meters) => Math.round(amountOf(meters?.storageGb) * UNIT_PRICES.storageGb.micros / 10_000);

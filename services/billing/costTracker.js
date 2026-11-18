@@ -19,7 +19,8 @@ const count = (n, one, many) => `${whole(n)} ${Math.round(n) === 1 ? one : many}
 
 /** The groups a press sees, each made of the meters it adds up, with the words for how much was used. */
 export const COST_GROUPS = Object.freeze([
-  Object.freeze({ id: "visitors", words: "Visitors", kinds: ["egressGb"], used: (m) => (amountOf(m.egressGb) ? `${sized(m.egressGb)} of pages and photos shown` : "") }),
+  // fileGb is the part of the traffic that was bought files handed out (Digital D3), already inside egressGb.
+  Object.freeze({ id: "visitors", words: "Visitors", kinds: ["egressGb"], used: (m) => (amountOf(m.egressGb) ? `${sized(m.egressGb)} of pages and photos shown${amountOf(m.fileGb) ? `, ${sized(m.fileGb)} of it downloads` : ""}` : "") }),
   Object.freeze({ id: "storage", words: "Photos and files", kinds: ["storageGb"], used: (m) => (amountOf(m.storageGb) ? `${sized(m.storageGb)} kept` : "") }),
   Object.freeze({ id: "work", words: "Orders and upkeep", kinds: ["invocations", "computeGbSeconds"], used: (m) => (amountOf(m.invocations) ? count(m.invocations, "task run", "tasks run") : "") }),
   // The shop's share of the shared database (services/usage/meters.js shareDatabase), so the words say "about".

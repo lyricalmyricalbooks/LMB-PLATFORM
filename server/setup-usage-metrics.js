@@ -1,4 +1,4 @@
-// The two log-based metrics the usage meters read (services/usage, docs/shared-system.md), made once in the shared
+// The log-based metrics the usage meters read (services/usage, docs/shared-system.md), made once in the shared
 // project and kept as written here. They count the shared server's usage lines (apps/shop/functions/usageLog.js) by
 // shop, so Cloud Monitoring can say each shop's month of server time and web traffic in one read.
 //
@@ -38,6 +38,13 @@ export const METRIC_DEFINITIONS = Object.freeze([
     name: USAGE_METRICS.pages,
     description: "The front door's answers for each shop, by size.",
     filter: 'jsonPayload.shopUsage.kind="page"',
+    value: "jsonPayload.shopUsage.bytes",
+    unit: "By",
+  }),
+  distribution({
+    name: USAGE_METRICS.files,
+    description: "Bought files handed out for each shop (downloads, and each day's first play), by size.",
+    filter: 'jsonPayload.shopUsage.kind="file"',
     value: "jsonPayload.shopUsage.bytes",
     unit: "By",
   }),

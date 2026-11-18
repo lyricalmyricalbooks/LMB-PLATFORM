@@ -31,6 +31,8 @@ export type PlatformPlan = {
   changing: { adding: PlanApp[]; closing: { apps: PlanApp[]; at: string | null } | null } | null;
   /** This month's "your bill may pass" heads-up, sent by the platform's daily check (also emailed). */
   headsUp: { month: string; projected: string; limit: string } | null;
+  /** This month's "your files cost more than $5" note (Digital D3b), from the platform's daily check. */
+  storageNote?: { month: string; amount: string; size: string } | null;
 };
 
 export type PlanApp = "shop" | "stockroom";
@@ -69,6 +71,7 @@ export function parsePlatformPlan(raw: any): PlatformPlan | null {
     closing,
     changing: parseChanging(raw.changing),
     headsUp: parseHeadsUp(raw.headsUp),
+    storageNote: parseStorageNote(raw.storageNote),
   };
 }
 
@@ -77,6 +80,12 @@ function parseHeadsUp(raw: any): PlatformPlan["headsUp"] {
   if (!raw || typeof raw !== "object" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month ?? "")) return null;
   if (!MONEY_WORDS.test(raw.projected ?? "") || !MONEY_WORDS.test(raw.limit ?? "")) return null;
   return { month: raw.month, projected: raw.projected, limit: raw.limit };
+}
+
+function parseStorageNote(raw: any): PlatformPlan["storageNote"] {
+  if (!raw || typeof raw !== "object" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month ?? "")) return null;
+  if (!MONEY_WORDS.test(raw.amount ?? "") || !/^\d+(\.\d)? GB$/.test(raw.size ?? "")) return null;
+  return { month: raw.month, amount: raw.amount, size: raw.size };
 }
 
 /** Can the admin's own Plan and Billing pages reach the platform? Older plan documents have no hub yet. */

@@ -235,6 +235,24 @@ export function billHeadsUpAlert(plan: Pick<PlatformPlan, "headsUp"> | null | un
   };
 }
 
+/**
+ * The files note (Digital D3b): this month the shop's photos and files cost more than $5 to keep. Shown for the rest of
+ * that month; big download files and videos are the usual cause.
+ */
+export function storageCostAlert(plan: Pick<PlatformPlan, "storageNote"> | null | undefined, now = Date.now()): AdminAlert | null {
+  const n = plan?.storageNote;
+  if (!n || n.month !== new Date(now).toISOString().slice(0, 7)) return null;
+  return {
+    id: "storage-cost",
+    tone: "info",
+    title: `Your files cost ${n.amount} to keep this month`,
+    detail: `You keep ${n.size} of photos and files. Big download files and videos add up: remove versions you no longer sell, or see where the cost goes in Billing.`,
+    orderIds: [],
+    key: `${n.month}|${n.amount}`,
+    action: "billing",
+  };
+}
+
 /** Labels bought in the stockroom that the website refused for an order (the link's `shipmentIssues`). */
 export function inventoryLinkAlerts(state: any): AdminAlert[] {
   if (!state || typeof state.startDay !== "string" || !state.startDay) return [];

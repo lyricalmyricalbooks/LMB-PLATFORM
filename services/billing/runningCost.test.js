@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createBilling } from "./billing.js";
 import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "./fakes.js";
-import { DEFAULT_ALERT_CENTS, EXAMPLE_SHOPS, examples, meterCost, monthWords, paidShare, previousMonth, projectedCents, runningCostCents } from "./runningCost.js";
+import { DEFAULT_ALERT_CENTS, STORAGE_NOTE_CENTS, storageMonthCents, EXAMPLE_SHOPS, examples, meterCost, monthWords, paidShare, previousMonth, projectedCents, runningCostCents } from "./runningCost.js";
 import { createStripeApi } from "../payments/stripeApi.js";
 import { platformSettings } from "../settings.js";
 import { TEMPLATES } from "../email/templates.js";
@@ -194,4 +194,15 @@ test("text messages go on the next bill at cost, once per shop and month, never 
   await w.stores.subscriptions.set("moth-press", { ...(await w.stores.subscriptions.get("moth-press")), textBills: {} });
   assert.deepEqual((await w.billing.billTexts({ month: "2026-11", texts: { "moth-press": { texts: 90, parts: 120 } }, cents })).billed, [{ shopId: "moth-press", cents: 192 }]);
   assert.equal(w.stripe.world.invoiceItems.size, 1);
+});
+
+test("a shop whose files cost more than $5 this month gets one files note on its plan (Digital D3b)", async () => {
+  const w = make();
+  await w.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "both" });
+  assert.deepEqual(await w.billing.storageNotes({ month: "2026-12", storage: { "moth-press": { gb: 100, cents: 359 } } }), [], "under $5");
+  assert.deepEqual(await w.billing.storageNotes({ month: "2026-12", storage: { "moth-press": { gb: 160.24, cents: 575 } } }), ["moth-press"]);
+  assert.deepEqual((await w.stores.subscriptions.get("moth-press")).costAlert.storage, { month: "2026-12", gb: 160.2, cents: 575, amount: "$5.75", size: "160.2 GB" });
+  assert.deepEqual(await w.billing.storageNotes({ month: "2026-12", storage: { "moth-press": { gb: 200, cents: 718 } } }), [], "once a month");
+  assert.equal(STORAGE_NOTE_CENTS, 500);
+  assert.equal(storageMonthCents({ storageGb: 160.24 }), 575);
 });

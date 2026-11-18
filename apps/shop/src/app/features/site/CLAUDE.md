@@ -1015,4 +1015,14 @@ is kept in this browser (`listenPlace.ts`, `lm:listen:<order>:<item>|<edition>|<
 end). A failed load or a link close to running out asks for a new one and carries on from the same second; two failures
 in a row show Try again. Words: Text & labels › Customer account › Downloads, library & player (`accountListen`,
 `accountWatch`, `accountPlayer*`, French twins). Not built yet: free samples on product pages, storage and download
-traffic per shop in the control room.
+traffic per shop in the control room (both since built, Digital D3b).
+
+## Free samples on product pages (Digital D3b, Beta, 18 November 2026)
+Books › edit › Digital product › **Free sample** (`admin/SampleFileField.tsx`, any product but gift cards, printed ones
+too) uploads one public file to `products/samples/` (`uploadWithProgress`, storage.rules `products/**`) and saves the
+book's `sample` `{ url, kind: audio|video|read, name, size }`; Remove saves `null`. Rules in
+`extras/pdp-sample/sample.ts` (`sampleFileKind`, `sampleProblem`: audio, video or PDF, ≤ `MAX_SAMPLE_BYTES` 50 MB,
+`productSample` reads only an https link of a known kind). `PdpSample.tsx` (region `productSample`, above the buy
+buttons, sold out or not) plays audio/video with `preload="none"` (nothing loads before play) and opens a PDF in a new
+tab. Words: Text & labels › Product page › `pdpSample*` (French twins). Every play is the shop's storage traffic, not
+metered by the download meter (that counts bought files only).

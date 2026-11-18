@@ -20,6 +20,7 @@ test("the groups are plain words, biggest first, and add up to the month's cost 
   assert.deepEqual(groups.map((g) => g.cents), [...groups.map((g) => g.cents)].sort((a, b) => b - a));
   const by = Object.fromEntries(groups.map((g) => [g.id, g]));
   assert.equal(by.visitors.used, "6 GB of pages and photos shown");
+  assert.equal(costGroups({ ...TYPICAL, fileGb: 0.4 }, 1, total).find((g) => g.id === "visitors").used, "6 GB of pages and photos shown, 400 MB of it downloads");
   assert.equal(by.emails.used, "500 emails sent");
   assert.equal(by.storage.used, "2 GB kept");
   for (const g of groups) assert.doesNotMatch(`${g.words} ${g.used}`, /database|egress|invocation|firestore|compute/i);

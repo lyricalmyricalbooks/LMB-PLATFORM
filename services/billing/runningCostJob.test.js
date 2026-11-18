@@ -60,3 +60,12 @@ test("heads-ups get each metered shop's month end at the tracker's pace", async 
   await runRunningCosts({ billing, registry: { listShops: async () => rows }, meters: m, now: () => new Date(now) });
   assert.deepEqual(billing.calls.at(-1)[1].monthEnd, ends);
 });
+
+test("each metered shop's files kept go to the files note every day (Digital D3b)", async () => {
+  const notes = [];
+  const billing = { ...fakeBilling(), storageNotes: async (args) => { notes.push(args); return ["moth-press"]; } };
+  const m = { get: async (shopId, month) => (shopId === "moth-press" && month === "2026-12" ? { storageGb: 160.24 } : shopId === "late-press" ? { egressGb: 1 } : null) };
+  const run = await runRunningCosts({ billing, registry, meters: m, now: () => new Date("2026-12-02T03:00:00Z") });
+  assert.deepEqual(notes, [{ month: "2026-12", storage: { "moth-press": { gb: 160.24, cents: 575 } } }]);
+  assert.match(run.summary, /files notes 1$/);
+});

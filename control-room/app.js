@@ -3439,7 +3439,7 @@ async function loadUsage(month) {
         columns: [
           { header: "Shop", lead: true, render: (row) => el("div", {}, el("p", { className: "cr-title", textContent: row.pressName }), meta(row.shopId, row.measured ? null : "nothing measured yet")) },
           { header: "Server work", end: true, render: (row) => el("div", {}, num(row.computeGbSeconds, (n) => `${Number(n.toFixed(1))} GB-s`), meta(row.invocations == null ? null : plural(row.invocations, "request"))) },
-          { header: "Pages served", end: true, render: (row) => num(row.egressGb, gbWords) },
+          { header: "Pages served", end: true, render: (row) => el("div", {}, num(row.egressGb, gbWords), meta(row.fileGb ? `${gbWords(row.fileGb)} of it downloads` : null)) },
           { header: "Files kept", end: true, render: (row) => num(row.storageGb, gbWords) },
           { header: "Emails", end: true, render: (row) => num(row.emails) },
           // Booking reminders by text: their own line on the shop's next bill, at cost (services/texts).
