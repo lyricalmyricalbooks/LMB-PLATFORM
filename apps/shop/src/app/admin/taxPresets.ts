@@ -27,8 +27,10 @@ import { regionsFor } from "../features/site/postalRegion";
 import { suggestedTaxBookName } from "../../shared/taxBooks";
 import type { TaxRate } from "./taxRatesEdit";
 import { sellsBooks } from "../../shared/shopSells";
+import { taxGroupKey } from "../../shared/taxByKind";
 
-export type TaxPreset = { id: string; label: string; description: string; country: string; rates: Record<string, string> };
+/** `kinds`, when set, limits every rate the preset adds to those products (a tax group, product types round 2). */
+export type TaxPreset = { id: string; label: string; description: string; country: string; rates: Record<string, string>; kinds?: string[] };
 
 const HST_RATES = { ON: "13", NS: "14", NB: "15", NL: "15", PE: "15" };
 /** GST and the provincial sales tax added together: BC 5 + 7, SK 5 + 6, MB 5 + 7, QC 5 + 9.975. */
@@ -66,11 +68,55 @@ export const TAX_PRESETS: TaxPreset[] = [
     country: "Canada",
     rates: { ...everywhere("5"), ...HST_RATES, ...GST_PLUS_PROVINCIAL },
   },
+  // Tax groups (product types plan, round 2): rates only for the products whose type is in the group, added beside the
+  // shop's general rates. How each tax treats them (checked November 2026; not tax advice, the owner checks them):
+  // - Children's clothing and shoes: GST applies everywhere. Ontario, Nova Scotia and Prince Edward Island give back the
+  //   provincial part of HST at the till; British Columbia and Saskatchewan exempt them from PST, Manitoba from RST
+  //   (under $150 an item). New Brunswick and Newfoundland and Labrador charge full HST; Quebec charges QST.
+  // - Basic groceries are zero-rated for GST/HST and carry no provincial sales tax. Snacks, candy, drinks and single
+  //   servings are taxable, which the description says.
+  // - Books and digital items: the two book presets above, limited to the group.
+  {
+    id: "ca-kids-clothing",
+    label: "Canada: children's clothing and shoes",
+    description: "Only for products whose type is children's or baby clothing or children's shoes. 5% GST in Ontario, Nova Scotia and Prince Edward Island (they give back their part of HST at the till), and in British Columbia, Saskatchewan and Manitoba (no provincial tax on children's clothing). 15% HST in New Brunswick and Newfoundland and Labrador, and 14.975% in Quebec if you are registered for QST. 5% GST everywhere else.",
+    country: "Canada",
+    rates: { ...everywhere("5"), NB: HST_RATES.NB, NL: HST_RATES.NL, QC: GST_PLUS_PROVINCIAL.QC },
+    kinds: [taxGroupKey("kids-clothing")],
+  },
+  {
+    id: "ca-grocery",
+    label: "Canada: groceries",
+    description: "Only for products whose type is food, coffee or tea. Basic groceries pay no GST, HST or provincial sales tax, so this adds 0% everywhere. Snacks, candy, soft drinks and food sold to eat right away are taxed: give those another type, or switch tax on for them by hand.",
+    country: "Canada",
+    rates: everywhere("0"),
+    kinds: [taxGroupKey("grocery")],
+  },
+  {
+    id: "ca-books-group",
+    label: "Canada: books, beside your other goods",
+    description: "Only for printed books and children's books. 5% GST everywhere: the HST provinces give back their part on printed books, and no province charges its own sales tax on them (Quebec only when the book has an ISBN).",
+    country: "Canada",
+    rates: everywhere("5"),
+    kinds: [taxGroupKey("books")],
+  },
+  {
+    id: "ca-digital-group",
+    label: "Canada: digital items, beside your other goods",
+    description: "Only for e-books, downloads and digital music. 13% HST in Ontario, 14% in Nova Scotia and 15% in New Brunswick, Newfoundland and Labrador and Prince Edward Island; 14.975% in Quebec if you are registered for QST; 5% GST everywhere else. British Columbia, Saskatchewan and Manitoba can charge their own tax on some downloads: add it there if you are registered.",
+    country: "Canada",
+    rates: { ...everywhere("5"), ...HST_RATES, QC: GST_PLUS_PROVINCIAL.QC },
+    kinds: [taxGroupKey("digital")],
+  },
 ];
 
 const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+const firstKind = (kinds?: string[]) => norm(kinds?.[0]);
 
-/** The rates with the preset's added for every place that has none yet; `added` and `kept` count the places. */
+/**
+ * The rates with the preset's added for every place that has none yet for the same products (a group preset sits
+ * beside the place's general rate); `added` and `kept` count the places.
+ */
 export function applyTaxPreset(rates: TaxRate[], preset: TaxPreset): { rates: TaxRate[]; added: number; kept: number } {
   const names = new Map((regionsFor(preset.country) || []).map(([code, name]) => [code, name]));
   const next = [...rates];
@@ -79,8 +125,8 @@ export function applyTaxPreset(rates: TaxRate[], preset: TaxPreset): { rates: Ta
   for (const [code, rate] of Object.entries(preset.rates)) {
     const region = names.get(code);
     if (!region) continue;
-    if (next.some((r) => norm(r.country) === norm(preset.country) && norm(r.region) === norm(region))) { kept += 1; continue; }
-    next.push({ country: preset.country, region, rate, bookName: suggestedTaxBookName({ country: preset.country, region, rate }) });
+    if (next.some((r) => norm(r.country) === norm(preset.country) && norm(r.region) === norm(region) && firstKind(r.kinds) === firstKind(preset.kinds))) { kept += 1; continue; }
+    next.push({ country: preset.country, region, rate, bookName: suggestedTaxBookName({ country: preset.country, region, rate }), ...(preset.kinds?.length ? { kinds: [...preset.kinds] } : {}) });
     added += 1;
   }
   return { rates: next, added, kept };

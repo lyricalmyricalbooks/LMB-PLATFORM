@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chargesTax, discountedLineValues, ratesForKind, ratesUseKinds, taxPartsByKind, untaxedValue } from "./taxByKind";
+import { chargesTax, discountedLineValues, productTaxGroup, ratesForKind, ratesUseKinds, taxPartsByKind, untaxedValue } from "./taxByKind";
 
 const ca = { country: "Canada", rate: 13 };
 const first = (rates: any[]) => rates[0] ?? null;
@@ -22,6 +22,37 @@ describe("tax by product kind", () => {
   });
   it("keeps an empty bag or no amount on the plain path", () => {
     expect(taxPartsByKind([], 0, [ca, { country: "Canada", rate: 0, kinds: ["art"] }], first)).toEqual([{ rate: ca, amount: 0 }]);
+  });
+});
+
+describe("tax groups from the product's type (product types round 2)", () => {
+  const on = { country: "Canada", region: "ON", rate: 13 };
+  const kidsOn = { country: "Canada", region: "ON", rate: 5, kinds: ["group:kids-clothing"] };
+  const clothingOn = { country: "Canada", region: "ON", rate: 13, kinds: ["clothing"] };
+  const grocery = { country: "Canada", rate: 0, kinds: ["group:grocery"] };
+  const onFirst = (rates: any[]) => rates.find((r) => r.region === "ON") ?? rates.find((r) => !r.region) ?? null;
+  it("reads the group from the product's type, and none for types without one", () => {
+    expect(productTaxGroup({ typeId: "kids-clothing", kind: "clothing" })).toBe("group:kids-clothing");
+    expect(productTaxGroup({ typeId: "coffee", kind: "other" })).toBe("group:grocery");
+    expect(productTaxGroup({ typeId: "tops", kind: "clothing" })).toBe("");
+    // A product with no kind is a printed book, as everywhere else.
+    expect(productTaxGroup({})).toBe("group:books");
+  });
+  it("puts the group's rate before the kind's and the general one", () => {
+    expect(ratesForKind([on, clothingOn, kidsOn], "clothing", "group:kids-clothing")).toEqual([kidsOn, clothingOn, on]);
+    expect(ratesForKind([on, clothingOn, kidsOn], "clothing")).toEqual([clothingOn, on]);
+  });
+  it("taxes kids' clothes at the group rate and adult clothes at the place's rate in one bag", () => {
+    const parts = taxPartsByKind([{ kind: "clothing", group: "group:kids-clothing", value: 20 }, { kind: "clothing", value: 20 }], 40, [on, kidsOn], onFirst);
+    expect(parts.map((p) => p.amount)).toEqual([20 * 0.05, 20 * 0.13]);
+  });
+  it("a province's general rate still beats a country-wide group rate", () => {
+    const parts = taxPartsByKind([{ kind: "other", group: "group:grocery", value: 10 }], 10, [on, grocery], onFirst);
+    expect(parts[0].rate).toBe(on);
+  });
+  it("a group with no rate of its own is taxed as before", () => {
+    const parts = taxPartsByKind([{ kind: "other", group: "group:digital", value: 10 }, { kind: "other", value: 10 }], 20, [on, kidsOn], onFirst);
+    expect(parts.reduce((sum, p) => sum + p.amount, 0)).toBeCloseTo(20 * 0.13, 6);
   });
 });
 

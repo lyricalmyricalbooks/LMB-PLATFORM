@@ -14,6 +14,8 @@ import { applyTaxPreset, suggestedTaxPresetId, TAX_PRESETS } from "./taxPresets"
 import { useShopSells } from "./shopWords";
 import { registrationWords, answerTaxRegistration, provincialPlaces, provincialQuestion, taxRegistration } from "./taxRegistration";
 import { SHOP_COUNTRY, US_SHOP } from "./moneySign";
+import { TAX_GROUPS, taxGroupKey } from "../../shared/taxByKind";
+import type { TaxGroup } from "../../shared/productTypes";
 import { useShopWords } from "./shopWords";
 
 const WORDS = registrationWords(SHOP_COUNTRY);
@@ -22,6 +24,9 @@ const WORDS = registrationWords(SHOP_COUNTRY);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
 // Each rate's "name in your books" (bookName, plan 7.11) is what orders and the bookkeeping file call that tax.
 const KIND_LABELS: Record<string, string> = { book: "Printed books", ebook: "E-books", clothing: "Clothing", shoes: "Shoes", jewelry: "Jewelry", art: "Art and prints", music: "Music", other: "Other items" };
+// Tax groups come from each product's type (product types round 2): a group's rate wins over its kind's.
+const GROUP_LABELS: Record<string, string> = Object.fromEntries((Object.keys(TAX_GROUPS) as TaxGroup[]).map((g) => [taxGroupKey(g), TAX_GROUPS[g]]));
+const appliesLabel = (kind: string) => GROUP_LABELS[kind] || KIND_LABELS[kind] || kind;
 
 export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
   const w = useShopWords();
@@ -61,6 +66,11 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const registration = taxRegistration(settings);
   const usePreset = async () => {
     if (registration === "no" && !(await ask(WORDS.unregisteredPreset))) return;
+    if (preset.kinds?.length && !(await ask({
+      title: `Add rates for ${appliesLabel(preset.kinds[0]).toLowerCase()}?`,
+      message: `${preset.description} These rates apply only to those products; everything else keeps your other rates. Check them before you save.`,
+      confirmLabel: "Add these rates",
+    }))) return;
     const places = provincialPlaces(preset);
     if (places.length && !(await ask(provincialQuestion(places)))) return;
     const result = applyTaxPreset(rates, preset);
@@ -81,7 +91,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   const columns: Column<TaxRate & { index: number }>[] = [
     { key: "place", header: "Where", lead: true, render: (r) => <>{r.country}{r.region ? ` · ${r.region}` : <span className="rp-hint"> · whole country</span>}</> },
-    { key: "kinds", header: "Applies to", render: (r) => (r.kinds?.length ? KIND_LABELS[r.kinds[0]] || r.kinds[0] : <span className="rp-hint">Everything else</span>) },
+    { key: "kinds", header: "Applies to", render: (r) => (r.kinds?.length ? appliesLabel(r.kinds[0]) : <span className="rp-hint">Everything else</span>) },
     { key: "rate", header: "Rate", numeric: true, render: (r) => <span className="rp-mono">{r.rate}%</span> },
     { key: "book", header: "In your books", render: (r) => (
       <TextField label={`Name in your books for ${r.country}${r.region ? ` ${r.region}` : ""}`} hideLabel list="tax-book-names" maxLength={TAX_BOOK_NAME_MAX}
@@ -182,7 +192,12 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           )}
           <SelectField label="Applies to" value={kind} onChange={(e) => setKind(e.target.value)}>
             <option value="">{w("Everything (all products)")}</option>
-            {Object.entries(KIND_LABELS).map(([id, name]) => <option key={id} value={id}>{name} only</option>)}
+            <optgroup label="Kinds of product">
+              {Object.entries(KIND_LABELS).map(([id, name]) => <option key={id} value={id}>{name} only</option>)}
+            </optgroup>
+            <optgroup label="Tax groups (from each product's type)">
+              {Object.entries(GROUP_LABELS).map(([id, name]) => <option key={id} value={id}>{name} only</option>)}
+            </optgroup>
           </SelectField>
           <TextField label="Rate (%)" inputMode="decimal" data-tax-rate value={rate} placeholder="13" error={tried && problem ? problem : undefined}
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />

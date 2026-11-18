@@ -66,7 +66,7 @@ import { bagPreorder } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, emailDomainAllowed, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
-import { chargesTax, discountedLineValues, taxPartsByKind, untaxedValue } from "../shared/taxByKind";
+import { chargesTax, discountedLineValues, productTaxGroup, taxPartsByKind, untaxedValue } from "../shared/taxByKind";
 import { productKind } from "../shared/productOptions";
 import { bagNote, orderNoteBoxOn, rememberBagNote } from "./features/site/bagNote";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
@@ -89,6 +89,7 @@ import { CheckoutOrderSummary } from "./features/site/CheckoutOrderSummary";
 import { practiceCheckout } from "./lib/practiceCheckout";
 import { practiceHint } from "./lib/practiceHint";
 import { lineAmountText } from "../shared/soldByAmount";
+import { carrierRatesFor, profileRatesFor, shipLimits } from "../shared/shippingLimits";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -649,6 +650,9 @@ export function Checkout() {
   });
 
   const catalogItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
+  // What the parcel's products allow (src/shared/shippingLimits.ts, as the server): a perishable product can't be
+  // posted, a ground-only one never takes an air service.
+  const parcelLimits = useMemo(() => shipLimits((catalogItems || []).filter(item => item.physical).map(item => booksMap.get(item.id))), [catalogItems, booksMap]);
 
   // Same arithmetic as the server (one shared copy, src/shared/discountMath.ts):
   // gift cards are never discounted; a code replaces automatic offers; a free gift is a line
@@ -754,7 +758,7 @@ export function Checkout() {
     const shippableItems = items.filter((item, index) => physicalIds.has(`${cart[index].id}:${cart[index].variantId || ""}`));
     // A physical free gift travels in the parcel too (the server weighs it the same way).
     if (freeGiftRef.current) shippableItems.push(freeGiftRef.current);
-    const quotes = quoteShipping(shippableItems, { country: customer.address.country || homeCountryName(), state: customer.address.state, zip: customer.address.zip }, shippingProfiles).filter(q => q.type !== "pickup");
+    const quotes = profileRatesFor(quoteShipping(shippableItems, { country: customer.address.country || homeCountryName(), state: customer.address.state, zip: customer.address.zip }, shippingProfiles).filter(q => q.type !== "pickup"), parcelLimits);
     setAvailableRates(quotes.map((q) => ({ id: q.id, name: q.name, price: q.price, deliveryDays: q.deliveryDays })));
   };
 
@@ -765,6 +769,11 @@ export function Checkout() {
     // regular profile/zone path below.
     // E-books only: nothing to ship, so no carrier quote (the server charges $0 too).
     if (catalogItems && !catalogItems.some(item => item.physical)) {
+      setAvailableRates([]);
+      return;
+    }
+    // Fresh products are never posted: pickup or local delivery only.
+    if (parcelLimits.perishable) {
       setAvailableRates([]);
       return;
     }
@@ -811,7 +820,7 @@ export function Checkout() {
         if (res.ok) {
           const data = await res.json();
           if (!ratesGuard.current.isCurrent(ticket)) return;
-          const liveRates = Array.isArray(data.rates) ? liveCheckoutRates(data.rates) : [];
+          const liveRates = Array.isArray(data.rates) ? carrierRatesFor(liveCheckoutRates(data.rates), parcelLimits) : [];
           if (liveRates.length > 0) {
             setAvailableRates(liveRates.map((rate: any) => ({ ...rate, id: rate.name })));
             setShippoRatesLoading(false);
@@ -837,7 +846,7 @@ export function Checkout() {
       request.abort();
       setShippoRatesLoading(false);
     };
-  }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems, freeGift?.id, ratesRefresh]);
+  }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems, freeGift?.id, ratesRefresh, parcelLimits]);
 
 
   useEffect(() => {
@@ -871,11 +880,17 @@ export function Checkout() {
   useEffect(() => { if (digitalConsent) setDigitalConsentError(false); }, [digitalConsent]);
   const availableFulfillmentMethods = useMemo<FulfillmentSelection["method"][]>(() => {
     if (!physicalItems.length) return [];
-    const methods: FulfillmentSelection["method"][] = ["shipping"];
+    const methods: FulfillmentSelection["method"][] = parcelLimits.perishable ? [] : ["shipping"];
     if (settings?.localFulfillment?.enabled && settings.localFulfillment.pickupLocations?.some((location: any) => location.enabled)) methods.push("pickup");
     if (settings?.localFulfillment?.enabled && settings.localFulfillment.deliveryZones?.some((zone: any) => zone.enabled)) methods.push("local_delivery");
     return methods;
-  }, [physicalItems.length, settings?.localFulfillment]);
+  }, [physicalItems.length, settings?.localFulfillment, parcelLimits.perishable]);
+  // A bag that can't be posted moves off shipping to the first way it can go.
+  useEffect(() => {
+    if (availableFulfillmentMethods.length && !availableFulfillmentMethods.includes(fulfillmentSelection.method)) {
+      setFulfillmentSelection({ method: availableFulfillmentMethods[0], optionId: "" });
+    }
+  }, [availableFulfillmentMethods, fulfillmentSelection.method]);
   // A pickup limited to an area (e.g. Toronto, "M") needs the shopper's address to check eligibility.
   const pickupNeedsAddress = !!settings?.localFulfillment?.pickupLocations?.some((location: any) => location.enabled && Array.isArray(location.postalPrefixes) && location.postalPrefixes.length);
   const physicalSubtotalAfterDiscount = useMemo(() => taxLines
@@ -931,7 +946,7 @@ export function Checkout() {
     const afterDiscount = discountedLineValues(allLines, discountAmount, activeDiscount, (id: string) => booksMap.get(id)?.categories || []);
     // Books › edit › Charge sales tax off: that product's share is left out of the tax, as on the server.
     const taxed = (item: any) => chargesTax(booksMap.get(item.id));
-    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), value: taxed(item) ? afterDiscount[allLines.indexOf(item)] : 0 }));
+    const kindLines = (lines: any[]) => lines.map(item => ({ kind: productKind(booksMap.get(item.id)), group: productTaxGroup(booksMap.get(item.id)), value: taxed(item) ? afterDiscount[allLines.indexOf(item)] : 0 }));
     const untaxedOf = (lines: any[]) => untaxedValue(lines, allLines, afterDiscount, taxed);
     const taxOf = (lines: any[], amount: number, address: any) => taxPartsByKind(kindLines(lines), Math.max(0, amount - untaxedOf(lines)), taxRates, (set: any[]) => rateFor(set, address)).reduce((sum, part) => sum + part.amount, 0);
     const taxable = Math.max(0, cartTotal - giftCardLinesTotal + freeGiftPrice - discountAmount);
@@ -2127,7 +2142,7 @@ export function Checkout() {
 
             {!digitalOnly && (
             <CheckoutDeliveryStep c={c} mark={mark} checkoutDesign={checkoutDesign} physicalItems={physicalItems} fulfillmentSelection={fulfillmentSelection} selectFulfillment={selectFulfillment}
-              availableRates={availableRates} localQuotes={localQuotes} availableFulfillmentMethods={availableFulfillmentMethods} shippoRatesLoading={shippoRatesLoading} formatPrice={formatPrice}
+              availableRates={availableRates} localQuotes={localQuotes} availableFulfillmentMethods={availableFulfillmentMethods} perishable={physicalItems.length > 0 && parcelLimits.perishable} shippoRatesLoading={shippoRatesLoading} formatPrice={formatPrice}
               pickupNeedsAddress={pickupNeedsAddress} labelsAbove={labelsAbove} pinnedCountryCodes={pinnedCountryCodes} customer={customer} setCustomer={setCustomer} selectedLocalQuote={selectedLocalQuote}
               pickupTime={{ times: pickupTimes, loading: pickupTimesLoading, value: pickupAt, invalid: pickupTimeError, onChange: (iso) => { setPickupAt(iso); if (iso) setPickupTimeError(false); } }} />
             )}

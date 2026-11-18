@@ -85,6 +85,7 @@ import { createTookData, tookDataRoutes } from "../control-room/tookData.js";
 import { createSalesChannels, salesChannelsRoutes } from "../control-room/salesChannels.js";
 import { createShopFeatures, shopFeaturesRoutes } from "../control-room/shopFeatures.js";
 import { bookingsBetaRoutes, createBookingsBeta } from "../control-room/bookingsBeta.js";
+import { createProductApproval, productApprovalRoutes } from "../control-room/productApproval.js";
 import { createWaysBeta, waysBetaRoutes } from "../control-room/waysBeta.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
@@ -297,6 +298,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const driftDesk = createDriftDesk({ admins, registry, settings, activity, now: clock.date });
   const shopFeatures = createShopFeatures({ admins, registry, shopData, now: clock.date });
   const bookingsBeta = createBookingsBeta({ admins, registry, auditLog, shopData, activity, now: clock.date });
+  const productApproval = createProductApproval({ admins, registry, auditLog, shopData, activity, now: clock.date });
   const shopLooks = createShopLooks({ admins, registry, shopData, now: clock.date });
   const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
   const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
@@ -362,6 +364,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...salesChannelsRoutes(salesChannels),
     ...shopFeaturesRoutes(shopFeatures),
     ...bookingsBetaRoutes(bookingsBeta),
+    ...productApprovalRoutes(productApproval),
     ...waysBetaRoutes(createWaysBeta({ admins, registry, auditLog, shopData, activity, now: clock.date })),
     ...shopLooksRoutes(shopLooks),
     ...shopEmailsRoutes(shopEmails),

@@ -8,6 +8,7 @@ const { labelProblem, shippoTransactionOutcome, shippoDefiniteRefusal, terminal:
 const { addressMissing } = require("./shared/addressRules");
 const { isPhysicalItem } = require("./shared/localFulfillment");
 const { lineCopyGrams, parcelGrams, FALLBACK_COPY_GRAMS } = require("./parcelWeight");
+const { shipLimits, airService } = require("./shared/shippingLimits");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isHomeCarrierRate, homeCarrierName, soldName } = require("./labelRates");
 const { needsCustoms, customsItems, customsDeclaration, parcelContents } = require("./customs");
 
@@ -353,6 +354,15 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
           catch (err) { console.warn("Could not create the Shippo order for the label:", err?.message || err); return null; }
         };
 
+        // Ground-only products (perfume, batteries) never fly: air services are neither offered nor bought for them
+        // (shared/shippingLimits, the same rule checkout uses).
+        const groundOnly = async () => {
+          const ids = [...new Set((order.items || []).filter(item => item && isPhysicalItem(item)).map(item => item.id).filter(Boolean))];
+          const docs = await Promise.all(ids.map(id => db.collection("books").doc(String(id)).get()));
+          return shipLimits(docs.filter(doc => doc.exists).map(doc => doc.data())).groundOnly;
+        };
+        const flies = (rate) => airService(`${rate?.provider || ""} ${rate?.servicelevel?.name || rate?.servicelevel?.token || ""}`);
+
         if (mode === "purchase") {
           if (!shipmentId || !rateId) {
             res.status(400).json({ error: "Choose a rate before buying the label." });
@@ -362,6 +372,10 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
           const chosenRate = (quotedShipment.rates || []).find(rate => rate.object_id === rateId);
           if (!chosenRate || !isPurchasableRate(chosenRate, order, shopCountry())) {
             res.status(400).json({ error: "That rate is no longer available. Refresh the choices and try again." });
+            return;
+          }
+          if (flies(chosenRate) && await groundOnly()) {
+            res.status(400).json({ error: "Something in this order can't go by air. Choose a ground service." });
             return;
           }
           const shippoOrderId = await linkedShippoOrder();
@@ -445,7 +459,7 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
         if (mode === "rates") {
           await operationsRef.set({ quotedShipmentId: shipment.object_id, quotedAddress: JSON.stringify(order.customer.address) }, { merge: true });
           // The shop's own post office, plus the exact service the customer paid for when checkout sold another carrier's.
-          const offered = labelRatesFor(rates, order, 5, shopCountry());
+          const offered = labelRatesFor((await groundOnly()) ? rates.filter(rate => !flies(rate)) : rates, order, 5, shopCountry());
           res.status(200).json({ shipmentId: shipment.object_id, customs: !!customsDeclarationId, rates: offered.map(rate => ({
             id: rate.object_id,
             name: isHomeCarrierRate(rate, shopCountry()) ? (rate.servicelevel?.name || homeCarrierName(shopCountry())) : soldName(rate),

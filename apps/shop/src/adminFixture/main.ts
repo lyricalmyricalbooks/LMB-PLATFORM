@@ -25,6 +25,7 @@ import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsA
 import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type BookingService, type BookingSettings } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
+import { typeApprovalData } from "../app/admin/typeApprovalApi";
 import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
@@ -1554,6 +1555,29 @@ if (/page=stockroom(\/|%2F)backups/.test(window.location.search)) {
     { id: "r2", app: "Parcel Pal", what: "Marked order 1039 sent (Canada Post 7023 1100 4388)", when: "2026-11-04T15:02:00Z", state: "refused", reason: "Order on hold: waiting on the author's signature." },
     { id: "r1", app: "Mailchimp", what: "Took away 2 of moth-songs", when: "2026-11-04T11:40:00Z", state: "done", reason: "" },
   ];
+}
+
+// ── Types that need a check (product types round 2): ?approval=ask|waiting|declined|approved is a shop with a wine
+// (`&page=catalog/book/wine`). The control room's answer and the owner's ask are in memory; asking turns it to waiting. ──
+{
+  const state = new URLSearchParams(location.search).get("approval");
+  if (state) {
+    const wine: any = { id: "wine", slug: "house-red", title: "House Red", kind: "other", typeId: "alcohol", retailPrice: 24, status: "draft",
+      trackInventory: true, stockLevel: 12, categories: ["Wine"], photos: (A11Y_BOOKS[0] as any).photos, description: "<p>A light red.</p>" };
+    const products = [wine, ...A11Y_BOOKS.map((b: any) => ({ ...b, kind: "other" }))];
+    const api = adminApi as any;
+    api.getFirstWeek = async () => ({ publishes: "food", welcome: { at: "2026-11-01T10:00:00.000Z", theme: "riso" } });
+    api.getBooks = async () => products;
+    api.getAllBooks = async () => products;
+    api.getBook = async (id: string) => products.find((b) => b.id === id) ?? null;
+    const answers = state === "approved" ? { types: { alcohol: { state: "approved", at: "2026-11-18T15:00:00.000Z" } } }
+      : state === "declined" ? { types: { alcohol: { state: "declined", reason: "We need your provincial liquor licence number to check this.", at: "2026-11-18T15:00:00.000Z" } } } : null;
+    let ask: any = state === "waiting" || state === "declined" ? { state: "waiting", askedAt: "2026-11-17T10:00:00.000Z" } : null;
+    const watchers = new Set<(a: any) => void>();
+    typeApprovalData.watchAnswers = (onChange) => { onChange(answers); return () => {}; };
+    typeApprovalData.watchAsk = (_typeId, onChange) => { watchers.add(onChange); onChange(ask); return () => watchers.delete(onChange); };
+    typeApprovalData.ask = async () => { ask = { state: "waiting", askedAt: new Date().toISOString() }; watchers.forEach((w) => w(ask)); };
+  }
 }
 
 // ── Product variants (variants worker, 11 November 2026): ?variants=1 is a clothing shop with a tee sold in sizes and

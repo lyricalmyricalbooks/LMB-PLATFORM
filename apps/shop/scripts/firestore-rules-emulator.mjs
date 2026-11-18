@@ -632,6 +632,31 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("another shop's owner can't read this shop's bookings", assertFails(getDoc(doc(ownerThereInS1, "bookings/b1"))));
 }
 
+// Product types that need a check (src/shared/typeApproval.ts): a wine stays a draft until platform/approvals says yes
+// for wine in this shop; another shop's yes never counts here. The owner may ask (approvalRequests) but never answer.
+{
+  const ask = { typeId: "alcohol", typeName: "Wine, beer and spirits", note: "Licence 123", askedAt: "2026-11-18T12:00:00Z", state: "waiting" };
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), "shops/s2/platform/approvals"), { types: { alcohol: { state: "approved" } } }));
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  await check("owner saves a wine as a draft", assertSucceeds(setDoc(doc(owner, "books/wine1"), { title: "Red", typeId: "alcohol", status: "draft" })));
+  await check("owner can't publish a wine before it is checked", assertFails(setDoc(doc(owner, "books/wine1"), { title: "Red", typeId: "alcohol", status: "published" })));
+  await check("another shop's yes doesn't count here", assertFails(setDoc(doc(owner, "books/wine2"), { title: "White", typeId: "alcohol", status: "published" })));
+  await check("a type with no check publishes as before", assertSucceeds(setDoc(doc(owner, "books/tee1"), { title: "Tee", typeId: "tops", status: "published" })));
+  await check("owner asks for a check", assertSucceeds(setDoc(doc(owner, "approvalRequests/alcohol"), ask)));
+  await check("owner reads its ask", assertSucceeds(getDoc(doc(owner, "approvalRequests/alcohol"))));
+  await check("owner can't answer its own ask", assertFails(setDoc(doc(owner, "approvalRequests/alcohol"), { ...ask, state: "approved" })));
+  await check("owner can't ask for a type that needs no check", assertFails(setDoc(doc(owner, "approvalRequests/tops"), { ...ask, typeId: "tops" })));
+  await check("owner can't approve itself", assertFails(setDoc(doc(owner, "platform/approvals"), { types: { alcohol: { state: "approved" } } })));
+  await check("anon can't read the ask", assertFails(getDoc(doc(anon, "approvalRequests/alcohol"))));
+  await check("another shop's owner can't read this shop's ask", assertFails(getDoc(doc(ownerThereInS1, "approvalRequests/alcohol"))));
+  await check("another shop's owner can't ask in this shop", assertFails(setDoc(doc(ownerThereInS1, "approvalRequests/cbd"), { ...ask, typeId: "cbd" })));
+  await check("owner reads its own answers", assertSucceeds(getDoc(doc(owner, "platform/approvals"))));
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(folder(ctx.firestore()), "platform/approvals"), { types: { alcohol: { state: "approved" } } }));
+  await check("once checked here, the wine goes on sale", assertSucceeds(setDoc(doc(owner, "books/wine1"), { title: "Red", typeId: "alcohol", status: "published" })));
+  await check("a yes for wine doesn't cover CBD", assertFails(setDoc(doc(owner, "books/cbd1"), { title: "Oil", typeId: "cbd", status: "published" })));
+}
+
 // Events and tickets (beta, functions/events.js): events, places and ticket orders are server-only. No browser reads or
 // writes them, in its own shop or another: the admin and the website ask the server.
 {

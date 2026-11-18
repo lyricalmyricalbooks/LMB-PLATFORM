@@ -5,6 +5,7 @@
 
 const { withPlatformKey } = require("./platformKey");
 const { perShop } = require("./shopScope");
+const { shipLimits, carrierRatesFor } = require("./shared/shippingLimits");
 function shippoEndpoints({
   onBrowserRequest, onRequest, db, applyCors, requireAdmin, hitLimit, LIMITS, IS_EMULATOR, RESEND_API_KEY,
   SHIPPO_API_TOKEN, SHIPPO_CONFIG_DOC, ADDRESS_ACTIONS, FALLBACK_COPY_GRAMS, addressKeyProblem, addressMissing,
@@ -170,6 +171,7 @@ function shippoEndpoints({
         // Same parcel weight as the charge path (resolveShipping): physical items only,
         // catalog weights read as grams ("450 g", "0.5 kg", bare numbers = grams).
         let totalWeightG = 0;
+        const travelling = [];
         for (const [index, item] of items.entries()) {
           const bookDoc = bookDocs[index];
           if (!bookDoc.exists) continue;
@@ -177,6 +179,7 @@ function shippoEndpoints({
           const variant = item.variantId ? (book.variants || []).find(v => v.id === item.variantId) || null : null;
           const line = { format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant) };
           if (!isPhysicalItem(line)) continue;
+          travelling.push(book);
           const qty = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
           let grams = Number(itemWeightGrams(book, variant));
           // A box set without its own weight weighs what its books weigh (as priceOrder does).
@@ -195,6 +198,12 @@ function shippoEndpoints({
         }
         if (totalWeightG === 0) {
           res.status(200).json({ rates: [], useRegularRates: true });
+          return;
+        }
+        // Perishable products never go by post; ground-only ones never fly (shared/shippingLimits, as resolveShipping).
+        const limits = shipLimits(travelling);
+        if (limits.perishable) {
+          res.status(200).json({ rates: [], perishable: true });
           return;
         }
 
@@ -217,7 +226,7 @@ function shippoEndpoints({
         const rates = shipment.rates || [];
         const extra = liveRateExtra(config);
         const money = liveQuoteMoney ? await liveQuoteMoney() : undefined;
-        const formattedRates = rates.map((rate) => checkoutRate(rate, money)).filter((rate) => Number.isFinite(rate.price)).map((rate) => extra ? { ...rate, price: withLiveRateExtra(rate.price, extra), base: withLiveRateExtra(rate.base, extra) } : rate);
+        const formattedRates = carrierRatesFor(rates.map((rate) => checkoutRate(rate, money)).filter((rate) => Number.isFinite(rate.price)).map((rate) => extra ? { ...rate, price: withLiveRateExtra(rate.price, extra), base: withLiveRateExtra(rate.base, extra) } : rate), limits);
 
         res.status(200).json({ rates: formattedRates });
       } catch (err) {

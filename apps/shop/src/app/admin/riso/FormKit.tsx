@@ -64,7 +64,7 @@ export function FormField({ label, hint, error, required, empty, prefix, suffix,
 
 /** Up to four short choices as pill buttons (long lists use a select instead). */
 export function FormChoice<T extends string>({ label, options, value, onChange }: {
-  label: string; options: { value: T; label: string }[]; value: T; onChange: (v: T) => void;
+  label: string; options: { value: T; label: string; disabled?: boolean }[]; value: T; onChange: (v: T) => void;
 }) {
   const id = useId();
   return (
@@ -72,7 +72,7 @@ export function FormChoice<T extends string>({ label, options, value, onChange }
       <span id={id} className="rp-fk-label">{label}</span>
       <div className="rp-fk-choice" role="radiogroup" aria-labelledby={id}>
         {options.map((o) => (
-          <button key={o.value} type="button" role="radio" aria-checked={o.value === value} onClick={() => onChange(o.value)}>{o.label}</button>
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value} disabled={o.disabled || undefined} onClick={() => onChange(o.value)}>{o.label}</button>
         ))}
       </div>
     </div>
