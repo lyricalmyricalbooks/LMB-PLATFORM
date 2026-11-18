@@ -23,7 +23,7 @@ import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, earlierFromSearch, type EarlierOfferView, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
-  peopleFor, withPicked, pricedPicks, asPerson, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
+  peopleFor, withPicked, pricedPicks, asPerson, showNoteBox, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -368,10 +368,12 @@ function NewBooking({ c }: { c: Copy }) {
                 </Field>
               );
             })}
-            <Field id="bt-note" label={c("bookTimeNote")}>
-              <textarea id="bt-note" className="fm-track-input" value={form.note} maxLength={1000}
-                onChange={(e) => setForm({ ...form, note: e.target.value })} />
-            </Field>
+            {showNoteBox(questions, c("bookTimeNote")) && (
+              <Field id="bt-note" label={c("bookTimeNote")}>
+                <textarea id="bt-note" className="fm-track-input" value={form.note} maxLength={1000}
+                  onChange={(e) => setForm({ ...form, note: e.target.value })} />
+              </Field>
+            )}
             {(!!service.packVisits || pack) && !applied && !gift && !run && !pricedPicks(listed, picked) && (
               <ApplyBox region={regionProps("bookingsPackCode")} field="bt-pack" c={c} words={{ open: "bookTimePackOpen", label: "bookTimePackLabel", problem: "bookTimePackProblem" }}
                 applied={pack ? c("bookTimePackApplied", { last4: pack.last4, left: pack.left }) : ""}

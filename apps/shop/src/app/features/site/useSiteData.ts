@@ -31,6 +31,7 @@ import { loadCatalog, newestFirst } from "./loadCatalog";
 import { currentStorefrontData, fetchStorefrontDataFile } from "./storefrontDataFile";
 import { inThemePreview, loadThemePreview } from "./themePreview";
 import { withShopStartFor } from "../../admin/sells";
+import { withServicesStorefront } from "./servicesStorefront";
 import { shopProfile } from "../../../lib/shopProfile";
 import { setProductSells } from "../../lib/productHref";
 
@@ -306,7 +307,9 @@ export function useSiteData() {
   useEffect(() => { setRentalsLive(rentalsLive); }, [rentalsLive]);
   // The phone menu's social icons (shopSocial.ts), in the owner's order.
   useEffect(() => { setShopSocial(settings); }, [settings]);
-  return { books: sellableBooks, settings: { ...started, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };
+  // A services shop with nothing on sale: a booking website, without the bag, wishlist, currency or shipping links.
+  const shown = useMemo(() => withServicesStorefront(started, sellableBooks.length), [started, sellableBooks.length]);
+  return { books: sellableBooks, settings: { ...shown, design: resolveSurfaceDesign(shown.design, location.pathname) }, pages, loading, fresh, loadError, retry };
 }
 
 /**

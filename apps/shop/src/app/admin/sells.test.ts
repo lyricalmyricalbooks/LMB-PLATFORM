@@ -182,3 +182,13 @@ describe("withShopStartFor", () => {
     expect({ ...shown, design: { ...shown.design, hero: books.design.hero } }).toEqual(books);
   });
 });
+
+describe("a services shop's starting words (bookings plan 4, fix 2)", () => {
+  it("talks about booking, not made things", async () => {
+    const { starterWords, withShopStartFor: start, SERVICES_ANNOUNCEMENT } = await import("./sells");
+    expect(starterWords("hair").footerAbout).toMatch(/book a time/);
+    expect(starterWords("clothing").footerAbout).toMatch(/carefully made/);
+    const out = start({ sells: "hair", design: { announcementText: GOODS_ANNOUNCEMENT }, info: { name: "Cut Above" } } as any);
+    expect(out.design.announcementText).toBe(SERVICES_ANNOUNCEMENT);
+  });
+});
