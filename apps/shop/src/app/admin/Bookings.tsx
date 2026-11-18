@@ -12,7 +12,7 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -2604,12 +2604,13 @@ function personLine(p: StaffMember, services: BookingService[]): string {
 }
 
 /**
- * The people clients can book and the rooms only one booking can use at a time. With nobody listed the shop books as
+ * The people clients can book and the rooms they use (each takes one booking at a time, or its count). With nobody listed the shop books as
  * one calendar, as before. Saved with the rest of Hours & rules through the server (op saveSettings).
  */
 function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings; services: BookingService[]; onSaved: () => void }) {
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [roomName, setRoomName] = useState("");
+  const [roomUnits, setRoomUnits] = useState(1);
   const [saving, setSaving] = useState(false);
   const [ask, confirmNode] = useConfirm();
   const save = async (change: Partial<Pick<BookingSettings, "staff" | "rooms">>, done: string) => {
@@ -2621,7 +2622,11 @@ function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings;
   const addRoom = async () => {
     const name = roomName.trim();
     if (!name) return;
-    if (await save({ rooms: [...settings.rooms, { id: shortId("room"), name }] }, `${name} added`)) setRoomName("");
+    if (await save({ rooms: [...settings.rooms, { id: shortId("room"), name, ...(roomUnits > 1 ? { units: roomUnits } : {}) }] }, `${name} added`)) { setRoomName(""); setRoomUnits(1); }
+  };
+  const setUnits = async (r: BookingRoom, units: number) => {
+    const rooms = settings.rooms.map((x) => (x.id === r.id ? { id: x.id, name: x.name, ...(units > 1 ? { units } : {}) } : x));
+    await save({ rooms }, `${r.name} now ${roomUnitsText(units)}`);
   };
   const removeRoom = async (r: BookingRoom) => {
     const using = services.filter((s) => s.roomId === r.id).map((s) => s.name);
@@ -2659,19 +2664,32 @@ function TeamPanel({ settings, services, onSaved }: { settings: BookingSettings;
         )}
       </section>
       <section className="bkg-tile">
-        <h2 className="bkg-tile-title">Rooms and chairs</h2>
-        <p className="bkg-questions-hint">A room only one booking can use at a time. Pick it on each service that needs it.</p>
+        <h2 className="bkg-tile-title">Rooms and equipment</h2>
+        <p className="bkg-questions-hint">Pick a room on each service that needs it. One that takes several bookings at once, like three tables or two kilns, fills only when all are in use.</p>
         {settings.rooms.length > 0 && (
-          <ul className="bkg-chips">
+          <ul className="bkg-rooms">
             {settings.rooms.map((r) => (
-              <li key={r.id}><span className="bkg-room-name"><DoorOpen size={14} aria-hidden /> {r.name}</span><IconButton label={`Remove ${r.name}`} disabled={saving} onClick={() => void removeRoom(r)}><Trash2 size={14} aria-hidden /></IconButton></li>
+              <li key={r.id}>
+                <span className="bkg-room-name"><DoorOpen size={16} aria-hidden /> {r.name}</span>
+                <SelectField label={`How many bookings ${r.name} takes at once`} hideLabel className="bkg-room-units" value={r.units || 1} disabled={saving}
+                  onChange={(e) => void setUnits(r, Number(e.target.value))}>
+                  {ROOM_UNIT_CHOICES.map((n) => <option key={n} value={n}>{roomUnitsText(n)}</option>)}
+                </SelectField>
+                <IconButton label={`Remove ${r.name}`} disabled={saving} onClick={() => void removeRoom(r)}><Trash2 size={14} aria-hidden /></IconButton>
+              </li>
             ))}
           </ul>
         )}
+        {settings.rooms.length > 0 && !booksByPerson(settings) && settings.rooms.some((r) => (r.units || 1) > 1) && (
+          <p className="bkg-questions-hint">With no people listed, your one calendar still takes one booking at a time. Add your team to share a room.</p>
+        )}
         {settings.rooms.length < MAX_ROOMS && (
           <div className="bkg-dayoff-add bkg-room-add">
-            <TextField label="Add a room or chair" placeholder="Treatment room" value={roomName} maxLength={60} onChange={(e) => setRoomName(e.target.value)}
+            <TextField label="Add a room or equipment" placeholder="Treatment room" value={roomName} maxLength={60} onChange={(e) => setRoomName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addRoom(); } }} />
+            <SelectField label="Takes at once" value={roomUnits} onChange={(e) => setRoomUnits(Number(e.target.value))}>
+              {ROOM_UNIT_CHOICES.map((n) => <option key={n} value={n}>{roomUnitsText(n)}</option>)}
+            </SelectField>
             <SecondaryButton disabled={!roomName.trim() || saving} onClick={() => void addRoom()}>Add</SecondaryButton>
           </div>
         )}

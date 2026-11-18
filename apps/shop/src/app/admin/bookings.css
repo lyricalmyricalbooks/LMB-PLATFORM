@@ -408,9 +408,21 @@
 .rp .bkg-person-text span { font-size: 13px; color: var(--rp-text-muted); overflow-wrap: anywhere; }
 .rp .bkg-person-services { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 12px; margin-top: 8px; }
 .rp .bkg-chips li .bkg-room-name { display: inline-flex; align-items: center; gap: 6px; }
-.rp .bkg-room-add { margin: 12px 0 0; }
+.rp .bkg-room-add { margin: 12px 0 0; grid-template-columns: minmax(0, 1fr) minmax(0, 150px) auto; }
+/* Rooms and equipment: one row each, its name, how many it takes at once, remove (plan 4, 1.9). */
+.rp .bkg-rooms { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp .bkg-rooms li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rp-divider); }
+.rp .bkg-rooms li:last-child { border-bottom: 0; }
+.rp .bkg-rooms .bkg-room-name { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.rp .bkg-rooms .bkg-room-name svg { flex: none; }
+.rp .bkg-rooms .rp-field { margin: 0; flex: none; width: 150px; }
 @media (max-width: 767px) {
   .rp .bkg-team { grid-template-columns: minmax(0, 1fr); }
+  .rp .bkg-room-add { grid-template-columns: minmax(0, 1fr) auto; }
+  .rp .bkg-room-add .rp-field:first-child { grid-column: 1 / -1; }
+  .rp .bkg-rooms li { flex-wrap: wrap; }
+  .rp .bkg-rooms .bkg-room-name { flex-basis: 100%; }
+  .rp .bkg-rooms .rp-field { flex: 1; width: auto; }
 }
 /* Check someone in (CheckInDialog): the code field, then who it is in a tile (mint checked in, sky already, apricot refused). */
 .rp .bkg-checkin-form { display: grid; gap: 12px; }

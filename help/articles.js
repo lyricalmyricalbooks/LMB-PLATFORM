@@ -74,6 +74,7 @@ export const ARTICLES = Object.freeze([
       "If you need set-up or travel time before a service, set Time before when you edit it. That much time is kept free before each booking, so nobody is booked right up to it.",
       "For different hours on a few dates, like December or a long weekend, add Holiday hours under Hours & rules. They replace your weekly hours on those days, and you can mark a day closed. Each person on your team can have their own too.",
       "To keep a day from getting too full, set Most online bookings a day under Hours & rules. Once a day has that many, clients can't book it online, but you can still add more yourself.",
+      "A room or machine that takes more than one booking at once, like three massage tables or two kilns, can say so under Team & rooms › Rooms and equipment. Pick how many it takes at once, and it fills only when all are in use.",
     ],
   },
   {

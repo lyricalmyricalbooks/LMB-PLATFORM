@@ -2255,6 +2255,23 @@ describe("staff and rooms", () => {
     expect((await t.pub({ action: "bookingStart", serviceId: "review", start, ...CUSTOMER, staffId: "ana" })).statusCode).toBe(409);
   });
 
+  test("a room that takes two holds two bookings at once, then refuses the next (plan 4, 1.9)", async () => {
+    const t = setup();
+    await team(t, {
+      rooms: [{ id: "studio", name: "The studio", units: 2 }],
+      staff: [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }, { id: "cy", name: "Cy" }],
+    });
+    await t.db.collection("bookingServices").doc("visit").set({ name: "Studio visit", minutes: 60, gapAfter: 0, payment: "free", priceMinor: 0, roomId: "studio" });
+    const start = at("2026-11-18", "11:00");
+    expect((await book(t, start, { staffId: "ana" })).statusCode).toBe(200);
+    expect((await book(t, start, { staffId: "ben", name: "Bo", email: "bo@example.com" })).statusCode).toBe(200);
+    const third = await book(t, start, { staffId: "cy", name: "Cy Client", email: "cyc@example.com" });
+    expect(third.statusCode).toBe(409);
+    const anyone = (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-18", days: 1 })).body.days["2026-11-18"];
+    expect(anyone).not.toContain(start);
+    expect(anyone).toContain(at("2026-11-18", "12:00"));
+  });
+
   test("a move keeps the person, and the owner can move a booking to someone else", async () => {
     const t = setup();
     await team(t);

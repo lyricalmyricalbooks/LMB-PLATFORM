@@ -158,8 +158,22 @@ export type StaffMember = {
   /** Their share of what their visits take, 0.5 to 100 (Services plan 2, team pay). Shown on the pay report, never paid out. */
   commissionPercent?: number;
 };
-/** A room or chair that only one booking can use at a time. */
-export type BookingRoom = { id: string; name: string };
+/**
+ * A room, chair or machine a service needs. One booking uses it at a time, unless `units` says how many it takes at
+ * once (equipment counts, plan 4, 1.9: three massage tables in one room, two kilns).
+ */
+export type BookingRoom = { id: string; name: string; units?: number };
+export const MAX_ROOM_UNITS = 20;
+/** The counts the admin offers for a room. */
+export const ROOM_UNIT_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20] as const;
+/** "One at a time" or "3 at once". */
+export const roomUnitsText = (n: number): string => (n > 1 ? `${n} at once` : "One at a time");
+
+/** How many bookings a room takes at once (1 when it isn't listed or has no count). */
+export function roomUnits(settings: { rooms?: readonly BookingRoom[] }, roomId: string | undefined): number {
+  const units = roomId ? settings.rooms?.find((r) => r.id === roomId)?.units : undefined;
+  return units && units > 1 ? units : 1;
+}
 export const MAX_STAFF = 20;
 export const MAX_ROOMS = 10;
 
@@ -1014,7 +1028,8 @@ export function cleanRooms(raw: unknown): BookingRoom[] {
     const r = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
     const name = text(r.name, 60);
     if (!name || out.length >= MAX_ROOMS) continue;
-    out.push({ id: ownId(r.id, "room", taken, out.length), name });
+    const units = Math.round(Number(r.units));
+    out.push({ id: ownId(r.id, "room", taken, out.length), name, ...(units > 1 ? { units: Math.min(units, MAX_ROOM_UNITS) } : {}) });
   }
   return out;
 }
@@ -1183,7 +1198,7 @@ export function daysTouched(start: number, end: number, zone: string): string[] 
  * How many more people can book `service` at `start`: 0 when anything else overlaps it (its rest included). A group
  * class shares its time only with bookings of the same class at the very same start, up to its places.
  */
-export function placesLeft(start: number, service: Bookable, busy: readonly Busy[], staffId = ""): number {
+export function placesLeft(start: number, service: Bookable, busy: readonly Busy[], staffId = "", units = 1): number {
   const end = start + (service.minutes + service.gapAfter) * MINUTE;
   // Time before (plan 4, 1.6): set-up or travel is kept free too, like the rest after.
   const begin = start - (Math.round(Number(service.gapBefore)) || 0) * MINUTE;
@@ -1194,6 +1209,7 @@ export function placesLeft(start: number, service: Bookable, busy: readonly Busy
   const own = processingStretch(service, start);
   const inside = (a: number, z: number, gap: { start: number; end: number } | null | undefined) => !!gap && a >= gap.start && z <= gap.end;
   let taken = 0;
+  const inRoom: Busy[] = [];
   for (const b of busy) {
     if (b.closed) {
       if (b.serviceId === service.id && b.start === start) return 0;
@@ -1204,12 +1220,23 @@ export function placesLeft(start: number, service: Bookable, busy: readonly Busy
     const mine = !staffId || !b.staffId || b.staffId === staffId;
     const sameRoom = !!room && b.roomId === room;
     if (!mine && !sameRoom) continue;
-    if (!sameRoom && (inside(begin, end, b.free) || inside(b.start, b.end, own))) continue;
     const sameClass = places > 1 && b.serviceId === service.id && b.start === start && (!staffId || (b.staffId || "") === staffId);
-    if (sameClass) taken += 1;
-    else return 0;
+    if (sameClass) { taken += 1; continue; }
+    // The room stays in use for the whole booking, processing included; it is full only at its count (plan 4, 1.9).
+    if (sameRoom) inRoom.push(b);
+    if (mine && !inside(begin, end, b.free) && !inside(b.start, b.end, own)) return 0;
   }
+  if (inRoom.length && mostAtOnce(inRoom, begin, end) >= Math.max(1, units)) return 0;
   return Math.max(0, places - taken);
+}
+
+/** The most of `list` in use at one moment between `from` and `to` (each starts or is already running at some point). */
+function mostAtOnce(list: readonly Busy[], from: number, to: number): number {
+  let most = 0;
+  for (const at of [from, ...list.map((b) => b.start).filter((t) => t > from && t < to)]) {
+    most = Math.max(most, list.filter((b) => b.start <= at && at < b.end).length);
+  }
+  return most;
 }
 
 /** The people who can be booked for a service: active, and doing it (nobody listed for a service means everyone). */
@@ -1261,7 +1288,8 @@ function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }: {
   const busy = settings.blocks?.length ? [...booked, ...blockedBusy(settings.blocks, day, zone)] : booked;
   const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
   if (day < dayOf(nowMs, zone)) return [];
-  const open = (start: number) => placesLeft(start, service, busy, staffId) > 0;
+  const units = roomUnits(settings, service.roomId);
+  const open = (start: number) => placesLeft(start, service, busy, staffId, units) > 0;
   // A course is signed up for at its first session only, however far ahead it starts and whatever the opening hours
   // say. (The server checks a place in every later session when it takes the sign-up.)
   if (isCourse(service)) {
@@ -1328,10 +1356,11 @@ export function whoIsFree(args: { service: Bookable; settings: BookingSettings; 
 }
 
 /** A class's places left at `start` for whoever could run it (the most any one person has), or the one person asked for. */
-export function classPlacesLeft(start: number, service: Bookable, settings: Pick<BookingSettings, "staff">, busy: readonly Busy[], staffId = ""): number {
-  if (!booksByPerson(settings)) return placesLeft(start, service, busy);
+export function classPlacesLeft(start: number, service: Bookable, settings: Pick<BookingSettings, "staff"> & { rooms?: readonly BookingRoom[] }, busy: readonly Busy[], staffId = ""): number {
+  const units = roomUnits(settings, service.roomId);
+  if (!booksByPerson(settings)) return placesLeft(start, service, busy, "", units);
   const people = staffFor(settings, service.id).filter((p) => !staffId || p.id === staffId);
-  return people.reduce((most, p) => Math.max(most, placesLeft(start, service, busy, p.id)), 0);
+  return people.reduce((most, p) => Math.max(most, placesLeft(start, service, busy, p.id, units)), 0);
 }
 
 /** The person to keep when a booking moves: theirs while they still do the service, else "" (anyone free). */
