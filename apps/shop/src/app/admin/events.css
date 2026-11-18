@@ -29,12 +29,6 @@
 .rp .evt-extras-hint { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
 .rp .evt-tickets > .rp-btn { justify-self: start; }
 
-.rp .evt-photo { display: grid; gap: 8px; }
-.rp .evt-photo-label { font-size: 13px; font-weight: 600; }
-.rp .evt-photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.rp .evt-photo-thumb { display: grid; place-items: center; width: 128px; aspect-ratio: 16 / 9; border-radius: 12px; border: 1px solid var(--rp-border); background: var(--rp-surface-2); color: var(--rp-text-muted); object-fit: cover; }
-.rp .evt-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.rp .evt-photo-hint { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
 
 /* Who's coming */
 .rp .evt-door { display: grid; gap: 14px; margin: 0 0 20px; padding: 18px; border: 1px solid var(--rp-border); border-radius: 20px; background: var(--rp-surface-2); }

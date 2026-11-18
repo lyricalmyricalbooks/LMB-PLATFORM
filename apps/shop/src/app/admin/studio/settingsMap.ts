@@ -391,7 +391,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Courses", match: /^bookTimeCourse/ },
     { title: "Add-ons", match: /^bookTimeExtra/ },
     { title: "Several services in one visit", match: /^bookTimeAlso/ },
-    { title: "Lengths and prices", match: /^bookTime(LengthHeading|FromPrice|LengthProblem)/ },
+    { title: "Lengths, prices and groups", match: /^bookTime(LengthHeading|FromPrice|LengthProblem|GroupOther)/ },
     { title: "Earlier times", match: /^bookTimeSooner/ },
     { title: "Form before the first visit", match: /^bookTimeForm/ },
     { title: "Standing appointments", match: /^bookTime(Repeat|Run|CancelJustThis|CancelLater)/ },

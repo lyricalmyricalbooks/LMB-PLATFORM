@@ -12,7 +12,7 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -21,6 +21,7 @@ import { daySheetHtml, printDaySheet } from "./bookingsDaySheet";
 import { toCsv } from "./spreadsheetFile";
 import { qrPicture } from "./stockroom/qrCodesStore";
 import { saveFile } from "./xlsxWriter";
+import { PhotoField } from "./PhotoField";
 import "./bookings.css";
 
 type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures" | "pay";
@@ -1996,30 +1997,43 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
     if (!(await ask({ title: `Delete ${s.name}?`, message: "Customers can't book it any more. Bookings already made stay as they are.", confirmLabel: "Delete" }))) return;
     try { await bookingsAdmin("deleteService", { id: s.id }); toast.success("Service deleted"); onChanged(); } catch (e: any) { toast.error(e.message); }
   };
+  // Grouped as the booking page shows them (plan 4, 2.3); one list with no headings until a service has a group.
+  const grouped = groupServices(services);
+  const heads = grouped.some((g) => g.group);
+  const sections = grouped.length ? grouped : [{ group: "", services: [] as BookingService[] }];
+  const groupNames = grouped.map((g) => g.group).filter(Boolean);
   return (
     <div className="bkg-services">
-      <div className="bkg-services-grid">
-        {services.map((s) => (
-          <article key={s.id} className="bkg-tile bkg-service" data-off={!s.active || undefined}>
-            <div className="bkg-service-top">
-              <h3>{s.name}</h3>
-              {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
-            </div>
-            <p className="bkg-service-meta">{s.gapBefore ? `${s.gapBefore} min before + ` : ""}{(s.lengths || []).length >= 2 ? (s.lengths || []).map((l) => lengthName(l)).join(" / ") : `${s.minutes} min`}{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
-            <p className="bkg-service-price">{(s.lengths || []).length >= 2 && s.priceMinor > 0 ? `From ${moneyText(Math.min(...(s.lengths || []).map((l) => l.priceMinor)), SHOP_CURRENCY)}` : s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
-            {s.description && <p className="bkg-service-desc">{s.description}</p>}
-            <div className="bkg-service-actions">
-              <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
-              <IconButton label={`Delete ${s.name}`} tone="danger" onClick={() => void remove(s)}><Trash2 size={16} aria-hidden /></IconButton>
-            </div>
-          </article>
-        ))}
-        <button type="button" className="bkg-tile bkg-add" onClick={() => setEditing({ ...EMPTY_SERVICE, order: services.length })}>
-          <Plus size={22} aria-hidden />
-          <span>Add a service</span>
-        </button>
-      </div>
-      {editing && <ServiceDialog service={editing} rooms={rooms} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onChanged(); }} />}
+      {sections.map(({ group, services: inGroup }, i) => (
+        <section key={group || "-"} className="bkg-service-group" aria-label={heads ? group || "No group" : undefined}>
+          {heads && <h3 className="bkg-service-group-name">{group || "No group"} <span>{inGroup.length}</span></h3>}
+          <div className="bkg-services-grid">
+            {inGroup.map((s) => (
+              <article key={s.id} className="bkg-tile bkg-service" data-off={!s.active || undefined}>
+                <div className="bkg-service-top">
+                  {s.photo && <img className="bkg-service-photo" src={s.photo} alt="" loading="lazy" />}
+                  <h3>{s.name}</h3>
+                  {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
+                </div>
+                <p className="bkg-service-meta">{s.gapBefore ? `${s.gapBefore} min before + ` : ""}{(s.lengths || []).length >= 2 ? (s.lengths || []).map((l) => lengthName(l)).join(" / ") : `${s.minutes} min`}{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
+                <p className="bkg-service-price">{(s.lengths || []).length >= 2 && s.priceMinor > 0 ? `From ${moneyText(Math.min(...(s.lengths || []).map((l) => l.priceMinor)), SHOP_CURRENCY)}` : s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
+                {s.description && <p className="bkg-service-desc">{s.description}</p>}
+                <div className="bkg-service-actions">
+                  <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
+                  <IconButton label={`Delete ${s.name}`} tone="danger" onClick={() => void remove(s)}><Trash2 size={16} aria-hidden /></IconButton>
+                </div>
+              </article>
+            ))}
+            {i === sections.length - 1 && (
+              <button type="button" className="bkg-tile bkg-add" onClick={() => setEditing({ ...EMPTY_SERVICE, order: services.length })}>
+                <Plus size={22} aria-hidden />
+                <span>Add a service</span>
+              </button>
+            )}
+          </div>
+        </section>
+      ))}
+      {editing && <ServiceDialog service={editing} rooms={rooms} groups={groupNames} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onChanged(); }} />}
       {confirmNode}
     </div>
   );
@@ -2096,7 +2110,7 @@ function ProcessingFields({ minutes, after, length, onChange }: { minutes: numbe
   );
 }
 
-export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: BookingService; rooms: BookingRoom[]; onClose: () => void; onSaved: () => void }) {
+export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }: { service: BookingService; rooms: BookingRoom[]; /** The groups other services use, offered as the owner types. */ groups?: string[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     ...service, price: service.priceMinor ? (service.priceMinor / 100).toFixed(2) : "",
     // When they pay (only asked once there is a price), and the deposit as the owner types it: an amount or a percent.
@@ -2409,6 +2423,12 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
           )}
         </fieldset>
         <TextArea label="About it (optional)" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+        <div className="bkg-look">
+          <TextField label="Group (optional)" placeholder="Cuts, Colour, Treatments" maxLength={MAX_GROUP_LENGTH} list="bkg-group-names" value={form.group || ""} onChange={(e) => set("group", e.target.value)}
+            hint="Services in the same group sit together under its name on your booking page." />
+          <datalist id="bkg-group-names">{groups.filter((g) => g !== service.group).map((g) => <option key={g} value={g} />)}</datalist>
+          <PhotoField photo={form.photo || ""} onChange={(photo) => set("photo", photo)} folder="services" shape="square" hint="Shown on the service's card when clients book. A square picture works best." />
+        </div>
         {!group && !course && (
           <fieldset className="bkg-questions">
             <legend>Add-ons and options <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>

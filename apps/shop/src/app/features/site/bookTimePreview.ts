@@ -14,14 +14,14 @@ export const isBookingPreview = () => typeof window !== "undefined"
   && new URLSearchParams(window.location.search).get("preview") === "true" && Boolean((window as any).__studioPreviewState);
 
 const SERVICES: BookingServiceView[] = [
-  { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio", holdCard: true, lateFeeMinor: 1500,
+  { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio", holdCard: true, lateFeeMinor: 1500, group: "Visits",
     // Offered in two lengths (plan 4, 2.2). Not on the one-to-one session: its sample person has her own length there.
     lengths: [{ id: "l1", name: "", minutes: 30, priceMinor: 0 }, { id: "l2", name: "", minutes: 45, priceMinor: 0 }] },
-  { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio",
+  { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio", group: "Visits",
     packVisits: 5, packPriceMinor: 18000, packDays: 365,
     extras: [{ id: "x1", name: "Longer session", minutes: 30, priceMinor: 2000 }, { id: "x2", name: "Printed notes", minutes: 0, priceMinor: 500 }],
     questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
-  { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8 },
+  { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8, group: "Classes" },
   { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "", repeats: true },
 ];
 /** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */

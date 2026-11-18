@@ -84,7 +84,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
   { id: "bookingsLayout", title: "Book a time · layout & elements", copy: "Bookings page", files: ["features/site/BookTime.tsx"], regions: [
     { id: "bookingsHeader", label: "Booking page navigation" }, { id: "bookingsSteps", label: "Step markers (1, 2, 3)" },
     { id: "bookingsIntro", label: "Booking heading & description" },
-    { id: "bookingsServices", label: "Service list", required: true }, { id: "bookingsService", label: "Service card", required: true },
+    { id: "bookingsServices", label: "Service list", required: true }, { id: "bookingsService", label: "Service card", required: true }, { id: "bookingsGroup", label: "Service group heading" },
     { id: "bookingsTimes", label: "Day and time picker", required: true }, { id: "bookingsForm", label: "Your details form", required: true },
     { id: "bookingsSummary", label: "Booking summary (when, where, price)" },
     { id: "bookingsCode", label: "Discount code box" },

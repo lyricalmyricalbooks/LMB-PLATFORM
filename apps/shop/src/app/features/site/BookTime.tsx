@@ -23,7 +23,7 @@ import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, earlierFromSearch, type EarlierOfferView, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
-  peopleFor, withPicked, pricedPicks, asPerson, withLengthPick, fromPrice, lengthLabel, type BookingLengthView, canJoinVisit, visitChoices, withVisit, type VisitPick, showNoteBox, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
+  peopleFor, withPicked, pricedPicks, asPerson, withLengthPick, cardPrice, groupServices, lengthLabel, type BookingLengthView, canJoinVisit, visitChoices, withVisit, type VisitPick, showNoteBox, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -266,10 +266,14 @@ function NewBooking({ c }: { c: Copy }) {
 
       {step === "service" && (
         <div {...regionProps("bookingsServices")} className="fm-book-list">
-          {offered.map((s) => (
-            <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" onClick={() => { setListed(s); setStart(""); setAnswers({}); setProblems({}); setError(""); setStep("time"); }}>
-              <h2>{s.name}</h2>
-              <span className="fm-book-price" translate="no">{(s.lengths?.length || 0) >= 2 ? c("bookTimeFromPrice", { price: moneyText(fromPrice(s), currency) }) : s.priceMinor > 0 ? moneyText(s.priceMinor, currency) : c("bookTimeFree")}{!!s.taxMinor && <small> {c("bookTimePlusTax")}</small>}</span>
+          {groupServices(offered).map(({ group, services: inGroup }, gi, all) => (
+          <section key={group || "-"} className="fm-book-group" aria-labelledby={all.length > 1 || group ? `fm-book-group-${gi}` : undefined}>
+          {(all.length > 1 || group) && <h2 {...regionProps("bookingsGroup")} id={`fm-book-group-${gi}`} className="fm-book-group-name fm-track-mono">{group || c("bookTimeGroupOther")}</h2>}
+          {inGroup.map((s) => { const shown = cardPrice(s, wanted.person ? [] : peopleFor(info, s.id)); return (
+            <button key={s.id} {...regionProps("bookingsService")} type="button" className="fm-book-service" data-photo={s.photo ? "true" : undefined} onClick={() => { setListed(s); setStart(""); setAnswers({}); setProblems({}); setError(""); setStep("time"); }}>
+              {s.photo && <img className="fm-book-service-photo" src={s.photo} alt="" loading="lazy" decoding="async" />}
+              <h3>{s.name}</h3>
+              <span className="fm-book-price" translate="no">{shown.from ? c("bookTimeFromPrice", { price: moneyText(shown.minor, currency) }) : shown.minor > 0 ? moneyText(shown.minor, currency) : c("bookTimeFree")}{!!s.taxMinor && <small> {c("bookTimePlusTax")}</small>}</span>
               {s.description && <p>{s.description}</p>}
               <span className="fm-book-meta fm-track-mono">
                 <span><Clock size={12} aria-hidden="true" /> {(s.lengths?.length || 0) >= 2 ? s.lengths!.map((l) => lengthText(l.minutes)).join(" · ") : lengthText(s.minutes)}</span>
@@ -284,6 +288,8 @@ function NewBooking({ c }: { c: Copy }) {
                 {!!s.packVisits && <span translate="no">{c("bookTimePackOffer", { visits: s.packVisits, price: `${moneyText(s.packPriceMinor || 0, currency)}${s.taxMinor ? ` ${c("bookTimePlusTax")}` : ""}` })}{s.packAnyClass ? ` · ${c("bookTimePackAnyClass")}` : ""}</span>}
               </span>
             </button>
+          ); })}
+          </section>
           ))}
         </div>
       )}

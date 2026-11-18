@@ -14,7 +14,7 @@ import { fb } from "./sectionFallbacks";
 import { bookingInfoOnce } from "../features/site/bookTimeAsk";
 import { isBookingPreview } from "../features/site/bookTimePreview";
 import { useBookingsLive } from "../features/site/bookingsLive";
-import { lengthText, moneyText as bookingMoney, sectionServices, type BookingInfo } from "../features/site/bookTimeRules";
+import { cardPrice, groupServices, lengthText, moneyText as bookingMoney, peopleFor, sectionServices, type BookingInfo } from "../features/site/bookTimeRules";
 import { bookWithHref, directionsUrl, hoursRows, menuServices, personWords, teamRows } from "../features/site/serviceSections";
 import { faqAnchors, faqJsonLd, filterFaq, groupFaq, safeJson, type FaqItem } from "../features/site/faqHelp";
 import { submitContactMessage } from "../features/site/contactMessages";
@@ -2218,11 +2218,12 @@ export function BookTimeSection({ settings, enableAnimations }: any) {
         <ul className="fm-booktime-grid list-none m-0 p-0" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {services.map((s) => (
             <li key={s.id} className="flex flex-col gap-3 p-6 border border-white/15 bg-white/[0.03] text-left" style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
+              {s.photo && <img src={s.photo} alt="" loading="lazy" decoding="async" className="w-full aspect-[4/3] object-cover" style={{ borderRadius: "var(--rp-card-radius, 0px)" }} />}
               <div className="flex items-start justify-between gap-4">
                 <h3 className="text-xl font-bold text-white leading-tight" style={hStyle(settings)}>{s.name}</h3>
                 {settings.showPrice !== false && (
                   <span className="shrink-0 text-xs font-bold tracking-[0.08em] text-white whitespace-nowrap" translate="no" style={bStyle(settings)}>
-                    {s.priceMinor > 0 ? bookingMoney(s.priceMinor, currency) : c("bookTimeFree")}
+                    {(() => { const shown = cardPrice(s, peopleFor(info, s.id)); return shown.from ? c("bookTimeFromPrice", { price: bookingMoney(shown.minor, currency) }) : shown.minor > 0 ? bookingMoney(shown.minor, currency) : c("bookTimeFree"); })()}
                   </span>
                 )}
               </div>
@@ -2267,8 +2268,11 @@ export function ServiceMenuSection({ settings, enableAnimations }: any) {
     <section className="fm-svc-menu" style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
       <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-3xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <BookingHeading settings={settings} type="ServiceMenuSection" enableAnimations={enableAnimations} />
+        {groupServices(services).map(({ group, services: inGroup }, gi, all) => (
+        <div key={group || "-"} className={gi ? "mt-10" : ""}>
+        {(all.length > 1 || group) && <p className="fm-svc-menu-group mb-3 text-[11px] tracking-[0.2em] font-bold uppercase text-white/60" style={bStyle(settings)}>{group || c("bookTimeGroupOther")}</p>}
         <ul className="list-none m-0 p-0 border-t border-white/15">
-          {services.map((s) => (
+          {inGroup.map((s) => { const shown = cardPrice(s, peopleFor(info, s.id)); return (
             <li key={s.id} className="grid items-start gap-x-6 gap-y-2 py-6 border-b border-white/15 text-left" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
               <div className="min-w-0">
                 <h3 className="text-lg md:text-xl font-bold text-white leading-snug" style={hStyle(settings)}>{s.name}</h3>
@@ -2282,8 +2286,8 @@ export function ServiceMenuSection({ settings, enableAnimations }: any) {
               </div>
               <div className="flex flex-col items-end gap-3 text-right">
                 <span className="text-base font-bold text-white whitespace-nowrap" translate="no" style={bStyle(settings)}>
-                  {s.priceMinor > 0 ? bookingMoney(s.priceMinor, currency) : c("bookTimeFree")}
-                  {s.priceMinor > 0 && !!s.taxMinor && <small className="block text-[11px] font-normal text-white/60">{c("bookTimePlusTax")}</small>}
+                  {shown.from ? c("bookTimeFromPrice", { price: bookingMoney(shown.minor, currency) }) : shown.minor > 0 ? bookingMoney(shown.minor, currency) : c("bookTimeFree")}
+                  {shown.minor > 0 && !!s.taxMinor && <small className="block text-[11px] font-normal text-white/60">{c("bookTimePlusTax")}</small>}
                 </span>
                 {settings.showBook !== false && (
                   <a href={siteHref(`/book?service=${encodeURIComponent(s.id)}`)} aria-label={`${book}: ${s.name}`}
@@ -2293,8 +2297,10 @@ export function ServiceMenuSection({ settings, enableAnimations }: any) {
                 )}
               </div>
             </li>
-          ))}
+          ); })}
         </ul>
+        </div>
+        ))}
       </div>
     </section>
   );

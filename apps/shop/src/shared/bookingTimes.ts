@@ -111,6 +111,12 @@ export type BookingService = {
    * 90.00"). Two or more, or none; the first is the service's own `minutes` and `priceMinor`. One-to-one only.
    */
   lengths?: BookingLength[];
+  /**
+   * Service groups and photos (plan 4, 2.3): the heading the service sits under on the booking page ("Cuts", "Colour"),
+   * up to 40 characters, and one https picture. Both left out when empty.
+   */
+  group?: string;
+  photo?: string;
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -581,6 +587,32 @@ export function feeChargeable(b: { card?: SavedCard | null; fee?: unknown; lateF
 }
 
 /** A service as the owner typed it, cleaned, or { problem } in plain words. */
+/** Longest group name (plan 4, 2.3). */
+export const MAX_GROUP_LENGTH = 40;
+/** A service's group as saved: one line, at most MAX_GROUP_LENGTH characters ("" = no group). */
+export const serviceGroup = (value: unknown): string => text(value, MAX_GROUP_LENGTH);
+/** A service's photo as saved: an https link with no spaces or quotes ("" = none). */
+export const servicePhoto = (value: unknown): string => {
+  const link = text(value, 500);
+  return /^https:\/\/[^\s<>"']+$/i.test(link) ? link : "";
+};
+/**
+ * The services under their group headings, in the order the owner put them: each group where its first service
+ * sits, and the services with no group last under "" (plan 4, 2.3). With no groups at all, one list under "".
+ */
+export function groupServices<S extends { group?: string }>(services: readonly S[]): Array<{ group: string; services: S[] }> {
+  const groups: Array<{ group: string; services: S[] }> = [];
+  const loose: S[] = [];
+  for (const s of services) {
+    const name = s.group || "";
+    if (!name) { loose.push(s); continue; }
+    const found = groups.find((g) => g.group.toLowerCase() === name.toLowerCase());
+    if (found) found.services.push(s);
+    else groups.push({ group: name, services: [s] });
+  }
+  return loose.length ? [...groups, { group: "", services: loose }] : groups;
+}
+
 export function cleanService(raw: unknown, id = ""): BookingService | { problem: string } {
   const s = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const name = text(s.name, 80);
@@ -660,6 +692,8 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     depositMinor,
     depositPercent,
     location: text(s.location, 160),
+    ...(serviceGroup(s.group) ? { group: serviceGroup(s.group) } : {}),
+    ...(servicePhoto(s.photo) ? { photo: servicePhoto(s.photo) } : {}),
     active: s.active !== false,
     order: whole(s.order, 0, 999, 0),
     questions: cleanQuestions(s.questions),

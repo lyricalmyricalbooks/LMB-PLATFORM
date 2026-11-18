@@ -5,13 +5,14 @@
 // The guest list is also the door (E2): type or scan a ticket's code and the server marks it used, once.
 // Each order can be refunded from the list (E3): the server sends the money back and puts the places on sale again.
 // Or moved to another event: same ticket codes, no money moves, the guest gets an email with the new date.
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRightLeft, CalendarPlus, Check, Download, ImagePlus, Mail, Pencil, Plus, ScanLine, Ticket, Trash2, Undo2, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRightLeft, CalendarPlus, Check, Download, Mail, Pencil, Plus, ScanLine, Ticket, Trash2, Undo2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Checkbox, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField,
   StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
+import { PhotoField } from "./PhotoField";
 import { eventsAdmin, type AdminEvent, type CancelAnswer, type DoorAnswer, type MoveAnswer, type RefundAnswer, type TicketOrder } from "./eventsApi";
 import {
   arrivedCount, blankExtra, blankForm, blankTicket, extrasText, countsOfCodes, eventFigures, eventFromForm, eventState, findGuests, formFromEvent, guestCsv, moneyText, soldLine, splitEvents, STATE_WORDS,
@@ -210,7 +211,7 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
         <TextField label="Online link (optional)" type="url" value={form.onlineUrl} onChange={(e) => set({ onlineUrl: e.target.value })}
           placeholder="https://" hint="Only people with a ticket get this link, in their ticket email." />
 
-        <PhotoField photo={form.photo} onChange={(photo) => set({ photo })} />
+        <PhotoField photo={form.photo} onChange={(photo) => set({ photo })} folder="events" hint="Shown on the event's page on your website. A wide picture works best." />
 
         <fieldset className="evt-tickets">
           <legend>Tickets</legend>
@@ -632,38 +633,3 @@ function RefundDialog({ order, currency, onClose, onDone }: { order: TicketOrder
   );
 }
 
-/** The event's picture for its page on the website: one photo, made smaller in the browser, kept with the shop's other pictures. */
-function PhotoField({ photo, onChange }: { photo: string; onChange: (url: string) => void }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const choose = async (file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Choose a picture (JPG, PNG or WebP)."); return; }
-    setBusy(true);
-    try {
-      const [{ prepareProductImage }, { adminApi }] = await Promise.all([import("./prepareImage"), import("./api")]);
-      const ready = await prepareProductImage(file, 1600);
-      const ext = (ready.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-      onChange(await adminApi.uploadFile(ready, `assets/events/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`));
-    } catch {
-      toast.error("The picture couldn't be added. Try again.");
-    } finally {
-      setBusy(false);
-      if (input.current) input.current.value = "";
-    }
-  };
-  return (
-    <div className="evt-photo">
-      <span className="evt-photo-label">Picture (optional)</span>
-      <div className="evt-photo-row">
-        {photo ? <img src={photo} alt="" className="evt-photo-thumb" /> : <span className="evt-photo-thumb" data-empty aria-hidden><ImagePlus size={20} /></span>}
-        <div className="evt-photo-actions">
-          <SecondaryButton onClick={() => input.current?.click()} busy={busy}>{photo ? "Change picture" : "Add a picture"}</SecondaryButton>
-          {photo && <GhostButton onClick={() => onChange("")} disabled={busy}>Remove</GhostButton>}
-        </div>
-      </div>
-      <p className="evt-photo-hint">Shown on the event's page on your website. A wide picture works best.</p>
-      <input ref={input} type="file" accept="image/*" hidden aria-label="Event picture" onChange={(e) => { void choose(e.target.files?.[0]); }} />
-    </div>
-  );
-}

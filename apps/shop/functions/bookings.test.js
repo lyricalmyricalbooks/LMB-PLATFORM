@@ -3727,3 +3727,21 @@ describe("several services in one visit (plan 4, 2.1)", () => {
     expect(Object.keys(t.db.store.get("bookingDays/2026-11-19").items)).toEqual([]);
   });
 });
+
+describe("service groups and photos (plan 4, 2.3)", () => {
+  test("the owner saves a group and an https photo; the booking page gets both, and a bad photo is dropped", async () => {
+    const t = setup();
+    await t.seed();
+    const ok = await t.adm({ op: "saveService", service: { name: "Cut", minutes: 45, payment: "atShop", priceMinor: 4000, group: "  Cuts   and  styling ", photo: "https://example.com/cut.jpg" } });
+    expect(ok.body.service).toMatchObject({ group: "Cuts and styling", photo: "https://example.com/cut.jpg" });
+    const bad = await t.adm({ op: "saveService", service: { name: "Colour", minutes: 90, payment: "atShop", priceMinor: 9000, group: "", photo: "javascript:alert(1)" } });
+    expect(bad.body.service.group).toBeUndefined();
+    expect(bad.body.service.photo).toBeUndefined();
+    const info = await t.pub({ action: "bookingInfo" });
+    const cut = info.body.services.find((s) => s.name === "Cut");
+    expect(cut).toMatchObject({ group: "Cuts and styling", photo: "https://example.com/cut.jpg" });
+    const colour = info.body.services.find((s) => s.name === "Colour");
+    expect("group" in colour).toBe(false);
+    expect("photo" in colour).toBe(false);
+  });
+});

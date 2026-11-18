@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit, peopleFor, asPerson, ratesDiffer, withPicked, showNoteBox } from "./bookTimeRules";
+import { firstOpenDay, groupTimes, lengthText, manageFromSearch, wantedFromSearch, sectionServices, monthLabel, pageDays, pageStep, paysUpFront, withCode, takesDeposit, peopleFor, asPerson, ratesDiffer, withPicked, showNoteBox, cardPrice } from "./bookTimeRules";
 
 const ZONE = "America/Toronto";
 
@@ -135,5 +135,19 @@ describe("showNoteBox", () => {
     expect(showNoteBox([], note)).toBe(true);
     expect(showNoteBox([{ label: "Hair length?" }], note)).toBe(true);
     expect(showNoteBox([{ label: "" }], "")).toBe(true);
+  });
+});
+
+describe("prices on service cards (plan 4, 2.3)", () => {
+  const base = { id: "cut", name: "Cut", description: "", minutes: 45, priceMinor: 4000, payment: "atShop" as const, location: "" };
+  it("says From the cheapest length", () => {
+    expect(cardPrice({ ...base, lengths: [{ id: "a", name: "", minutes: 30, priceMinor: 3000 }, { id: "b", name: "", minutes: 60, priceMinor: 5000 }] })).toEqual({ minor: 3000, from: true });
+  });
+  it("says From when the people who do it charge different amounts, and the plain price when they don't", () => {
+    const junior = { id: "j", name: "Jo", serviceIds: [], rates: [{ serviceId: "cut", priceMinor: 3500 }] };
+    const senior = { id: "s", name: "Sam", serviceIds: [], rates: [{ serviceId: "cut", priceMinor: 5500 }] };
+    expect(cardPrice(base, [junior, senior])).toEqual({ minor: 3500, from: true });
+    expect(cardPrice(base, [{ id: "x", name: "Al", serviceIds: [] }])).toEqual({ minor: 4000, from: false });
+    expect(cardPrice(base)).toEqual({ minor: 4000, from: false });
   });
 });

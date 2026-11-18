@@ -9,8 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = void 0;
+exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = void 0;
 exports.roomUnits = roomUnits;
 exports.cleanSpecialHours = cleanSpecialHours;
 exports.specialOn = specialOn;
@@ -29,6 +29,7 @@ exports.giftCardPart = giftCardPart;
 exports.cleanTipPercents = cleanTipPercents;
 exports.tipOpen = tipOpen;
 exports.feeChargeable = feeChargeable;
+exports.groupServices = groupServices;
 exports.cleanService = cleanService;
 exports.cleanLengths = cleanLengths;
 exports.lengthName = lengthName;
@@ -413,6 +414,38 @@ function feeChargeable(b, nowMs) {
     return b.status === "confirmed" && Date.parse(b.start || "") <= nowMs;
 }
 /** A service as the owner typed it, cleaned, or { problem } in plain words. */
+/** Longest group name (plan 4, 2.3). */
+exports.MAX_GROUP_LENGTH = 40;
+/** A service's group as saved: one line, at most MAX_GROUP_LENGTH characters ("" = no group). */
+const serviceGroup = (value) => text(value, exports.MAX_GROUP_LENGTH);
+exports.serviceGroup = serviceGroup;
+/** A service's photo as saved: an https link with no spaces or quotes ("" = none). */
+const servicePhoto = (value) => {
+    const link = text(value, 500);
+    return /^https:\/\/[^\s<>"']+$/i.test(link) ? link : "";
+};
+exports.servicePhoto = servicePhoto;
+/**
+ * The services under their group headings, in the order the owner put them: each group where its first service
+ * sits, and the services with no group last under "" (plan 4, 2.3). With no groups at all, one list under "".
+ */
+function groupServices(services) {
+    const groups = [];
+    const loose = [];
+    for (const s of services) {
+        const name = s.group || "";
+        if (!name) {
+            loose.push(s);
+            continue;
+        }
+        const found = groups.find((g) => g.group.toLowerCase() === name.toLowerCase());
+        if (found)
+            found.services.push(s);
+        else
+            groups.push({ group: name, services: [s] });
+    }
+    return loose.length ? [...groups, { group: "", services: loose }] : groups;
+}
 function cleanService(raw, id = "") {
     const s = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
     const name = text(s.name, 80);
@@ -510,6 +543,8 @@ function cleanService(raw, id = "") {
         depositMinor,
         depositPercent,
         location: text(s.location, 160),
+        ...((0, exports.serviceGroup)(s.group) ? { group: (0, exports.serviceGroup)(s.group) } : {}),
+        ...((0, exports.servicePhoto)(s.photo) ? { photo: (0, exports.servicePhoto)(s.photo) } : {}),
         active: s.active !== false,
         order: whole(s.order, 0, 999, 0),
         questions: cleanQuestions(s.questions),
