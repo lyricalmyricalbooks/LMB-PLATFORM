@@ -49,6 +49,7 @@ export const EVENTS_CSS = [
   `${S} .fm-evt-step:disabled{opacity:.3;cursor:default;}`,
   `${S} .fm-evt-step:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:-3px;}`,
   `${S} .fm-evt-gone{font-family:var(--t-mono);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.7;}`,
+  `${S} .fm-evt-member-links{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:8px;}`,
   `${S} .fm-evt-form{display:grid;gap:18px;}`,
   `${S} .fm-evt-codes{display:grid;gap:12px;margin:22px 0 0;padding:0;list-style:none;}`,
   `@media (min-width:641px){${S} .fm-evt-codes{grid-template-columns:repeat(2,minmax(0,1fr));}}`,

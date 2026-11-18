@@ -23,6 +23,15 @@ describe("the event form", () => {
     const out = eventFromForm(form, ZONE);
     expect(out).toMatchObject({ event: { id: "ev1", start: "2026-12-06T00:00:00.000Z", end: "2026-12-06T03:00:00.000Z", tickets: [{ id: "gen", priceMinor: 1500, places: 40 }] } });
   });
+  test("members book first until a day and time on the shop's clock (Memberships M2c)", () => {
+    const form = formFromEvent(event({ publicFrom: "2026-11-25T14:00:00.000Z" }), ZONE);
+    expect(form).toMatchObject({ publicDay: "2026-11-25", publicTime: "09:00" });
+    expect(eventFromForm(form, ZONE)).toMatchObject({ event: { publicFrom: "2026-11-25T14:00:00.000Z" } });
+    expect(eventFromForm({ ...form, publicTime: "" }, ZONE)).toMatchObject({ event: { publicFrom: "2026-11-25T14:00:00.000Z" } });
+    expect(eventFromForm({ ...form, publicDay: "", publicTime: "" }, ZONE)).toMatchObject({ event: { publicFrom: "" } });
+    expect(eventFromForm({ ...form, publicDay: "2026-12-06" }, ZONE)).toHaveProperty("problem");
+    expect(eventFromForm({ ...form, publicDay: "" }, ZONE)).toHaveProperty("problem");
+  });
   test("an end before the start is the next morning", () => {
     const out = eventFromForm({ ...formFromEvent(event(), ZONE), time: "21:00", endTime: "01:00" }, ZONE);
     expect(out).toMatchObject({ event: { start: "2026-12-06T02:00:00.000Z", end: "2026-12-06T06:00:00.000Z" } });

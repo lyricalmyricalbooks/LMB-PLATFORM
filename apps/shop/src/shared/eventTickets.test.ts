@@ -35,6 +35,22 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
       expect(lib.salesOpen(event, Date.parse(event.start))).toBe(false);
     });
 
+    test("members book first until the time everyone can (Memberships M2c)", () => {
+      const early = lib.cleanEvent({ ...EVENT, publicFrom: "2026-11-20T12:00:00Z" }, "ev000001") as shop.ShopEvent;
+      expect(early.publicFrom).toBe("2026-11-20T12:00:00.000Z");
+      expect(lib.cleanEvent({ ...EVENT, publicFrom: EVENT.start })).toHaveProperty("problem");
+      expect(lib.cleanEvent({ ...EVENT, publicFrom: "soon" })).not.toHaveProperty("publicFrom");
+      expect(lib.salesStage(early, NOW, true)).toBe("members");
+      expect(lib.salesStage(early, NOW, false)).toBe("open");
+      expect(lib.salesStage(early, Date.parse("2026-11-20T12:00:00Z"), true)).toBe("open");
+      expect(lib.salesStage(event, NOW, true)).toBe("open");
+      expect(lib.salesStage({ ...early, status: "draft" }, NOW, true)).toBe("closed");
+      expect(lib.maySell("open", false)).toBe(true);
+      expect(lib.maySell("members", false)).toBe(false);
+      expect(lib.maySell("members", true)).toBe(true);
+      expect(lib.maySell("closed", true)).toBe(false);
+    });
+
     test("places left count sold tickets and holds still running, not ones that ran out", () => {
       const places = { sold: { gen: 1 }, held: { a: { until: new Date(NOW + 60_000).toISOString(), lines: { gen: 1 } }, b: { until: new Date(NOW - 1).toISOString(), lines: { gen: 1, stu: 2 } } } };
       expect(lib.placesLeft(event, places, NOW)).toEqual({ gen: 1, stu: 2 });

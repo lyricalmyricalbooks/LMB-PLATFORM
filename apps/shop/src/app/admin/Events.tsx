@@ -20,6 +20,7 @@ import {
 } from "./eventsView";
 import { cleanTicketCode, MAX_EXTRAS, MAX_TICKET_KINDS, moveKinds, refundMinorFor, type EventStatus } from "../../shared/eventTickets";
 import { ScanBarcodeButton } from "./ScanBarcodeButton";
+import { useWaysOn } from "./waysApi";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { saveFile } from "./xlsxWriter";
@@ -161,6 +162,8 @@ function EventRow({ event, zone, currency, nowMs, onEdit, onGuests }: { event: A
 
 function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm; zone: string; sold: Record<string, number>; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState(start);
+  // Members book first shows once Memberships are on (or the event already has a head start, so it can be cleared).
+  const membersOn = useWaysOn().includes("memberships");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const [ask, confirmNode] = useConfirm();
@@ -246,6 +249,18 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
 
         <TextField label="Booking fee per paid ticket (optional)" inputMode="decimal" value={form.fee} onChange={(e) => set({ fee: e.target.value })} placeholder="None"
           hint="Yours to keep, to help with card costs. Buyers see it before they pay. Free tickets never carry it." />
+
+        {(membersOn || !!form.publicDay) && (
+          <fieldset className="evt-tickets">
+            <legend>Members book first (optional)</legend>
+            <p className="evt-extras-hint">Give your members a head start. Until this day and time only members can get tickets; then everyone can. Leave it empty for no head start.</p>
+            <div className="evt-grid-2">
+              <TextField label="Everyone can book from" type="date" value={form.publicDay} onChange={(e) => set({ publicDay: e.target.value })} />
+              <TextField label="At" type="time" value={form.publicTime} onChange={(e) => set({ publicTime: e.target.value })} placeholder="09:00" hint="9 in the morning if left empty." />
+            </div>
+            {!!form.publicDay && <GhostButton onClick={() => set({ publicDay: "", publicTime: "" })}>No head start</GhostButton>}
+          </fieldset>
+        )}
 
         <SelectField label="Where it stands" value={form.status} onChange={(e) => set({ status: e.target.value as EventStatus })}
           hint={STATUS_CHOICES.find((c) => c.id === form.status)?.hint}>

@@ -27,7 +27,7 @@
 
 const crypto = require("crypto");
 const {
-  cleanEvent, salesOpen, placesLeft, soldCount, orderLines, extraLines, bookingFeeMinor, withHold, withSold, withoutHold, withReturned, refundMinorFor, withArrived, moveKinds, movedLines, placesLeft: leftAt, ticketCodeFrom, cleanTicketCode, eventWhen,
+  cleanEvent, salesOpen, salesStage, maySell, placesLeft, soldCount, orderLines, extraLines, bookingFeeMinor, withHold, withSold, withoutHold, withReturned, refundMinorFor, withArrived, moveKinds, movedLines, placesLeft: leftAt, ticketCodeFrom, cleanTicketCode, eventWhen,
   TICKET_MESSAGES, MAX_EVENTS,
 } = require("./shared/eventTickets");
 const { waysOn } = require("./shared/waysToSell");
@@ -103,10 +103,13 @@ const WORDS = {
 };
 
 /** What the shop's page may show of an event: never how many places it has in all, only what is left to buy now. */
-function publicEvent(event, places, nowMs, taxOf) {
+function publicEvent(event, places, nowMs, taxOf, membersOn = false) {
   const left = placesLeft(event, places, nowMs);
   const open = salesOpen(event, nowMs);
+  // Members book first (M2c): the page says until when, and the server checks the buyer's membership.
+  const membersUntil = salesStage(event, nowMs, membersOn) === "members" ? event.publicFrom : "";
   return {
+    ...(membersUntil ? { membersUntil } : {}),
     id: event.id, title: event.title, description: event.description, start: event.start, end: event.end, venue: event.venue,
     address: event.address, photo: event.photo, online: !!event.onlineUrl, open, cancelled: event.status === "cancelled",
     tickets: event.tickets.map((t) => ({
@@ -163,6 +166,9 @@ function eventActions({
   // Discount codes on tickets (index.js): async (code, email) → the shop's discount after its usual checks, or throws
   // in the customer's words (an error with a `code` is the database failing). None: no code box.
   findDiscount = null,
+  // Members book first (Memberships M2c, index.js): { on: async () → Memberships are on for this shop,
+  // isMember: async (req) → the signed-in, verified customer has a membership with perks }. None: everyone books.
+  membersFirst = null,
 }) {
   const events = () => db.collection("events");
   const orders = () => db.collection("eventOrders");
@@ -175,6 +181,11 @@ function eventActions({
       db.collection("firstWeek").doc("start").get().catch(() => null),
     ]);
     return waysOn(features?.exists ? features.data() : null, start?.exists ? start.data() : null).includes("events");
+  }
+  /** Whether members-first applies: only asked when one of these events uses it, and never without the hook. */
+  async function membersAreOn(list) {
+    if (!membersFirst || !list.some((e) => e.publicFrom)) return false;
+    return membersFirst.on().catch(() => false);
   }
   /** Still to come for the website: on sale and not over (one with no end shows until a few hours after it starts). */
   const endMs = (e) => Date.parse(e.end || "") || Date.parse(e.start) + 4 * 60 * MINUTE;
@@ -459,8 +470,9 @@ function eventActions({
         const coming = comingLive(await readEvents(), nowMs).slice(0, MAX_SHOWN);
         const calc = coming.some((e) => e.chargeTax) && shopTax ? await shopTax().catch(() => null) : null;
         const places = await Promise.all(coming.map((e) => readPlaces(e.id)));
+        const membersOn = await membersAreOn(coming);
         const codes = coming.some((e) => e.tickets.some((t) => t.priceMinor > 0)) && (await codesOffered());
-        return res.status(200).json({ on: true, zone: zone(), currency: currency(), codes, events: coming.map((e, i) => publicEvent(e, places[i], nowMs, calc)) });
+        return res.status(200).json({ on: true, zone: zone(), currency: currency(), codes, events: coming.map((e, i) => publicEvent(e, places[i], nowMs, calc, membersOn)) });
       }
       if (action === "eventCode") {
         // Tries a code on the tickets picked: what comes off and what there is to pay. Nothing is held or counted.
@@ -484,6 +496,10 @@ function eventActions({
         if (buyer.problem) return fail(res, 400, buyer.problem);
         const seen = await readEvent(eventId);
         if (!seen || !salesOpen(seen, nowMs)) return fail(res, 409, TICKET_MESSAGES.closed, "closed");
+        // Before the time everyone can book, only a signed-in member can (asked once; the transaction keeps the answer).
+        const membersOn = await membersAreOn([seen]);
+        const member = salesStage(seen, nowMs, membersOn) === "members" ? await membersFirst.isMember(req).catch(() => false) : false;
+        if (!maySell(salesStage(seen, nowMs, membersOn), member)) return fail(res, 403, TICKET_MESSAGES.members, "members");
         const calc = await taxCalc(seen);
         const { checkout, mode } = await standalone();
         const id = randomId();
@@ -512,6 +528,7 @@ function eventActions({
           const eSnap = await tx.get(events().doc(eventId));
           const event = eSnap.exists ? cleanEvent(eSnap.data(), eventId) : null;
           if (!event || event.problem || !salesOpen(event, nowMs)) return { problem: TICKET_MESSAGES.closed, code: "closed" };
+          if (!maySell(salesStage(event, nowMs, membersOn), member)) return { problem: TICKET_MESSAGES.members, code: "members", status: 403 };
           const pSnap = await tx.get(placesRef(eventId));
           const before = pSnap.exists ? pSnap.data() : null;
           const order = askedOf(event, req.body, placesLeft(event, before, nowMs));

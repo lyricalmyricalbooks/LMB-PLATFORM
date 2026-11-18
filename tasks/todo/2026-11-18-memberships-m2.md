@@ -23,7 +23,7 @@ Rule kept throughout: who is a member and what they pay is decided on the server
       and it lands in their Library.
 
 ## M2c: early tickets
-- [ ] Events and classes get "Members can book from" (a date and time before sales open to everyone); the server refuses
+- [x] Events get "Members can book from" (done; classes and courses later) (a date and time before sales open to everyone); the server refuses
       a non-member before then.
 
 ## Checks

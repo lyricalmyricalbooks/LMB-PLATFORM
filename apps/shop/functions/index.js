@@ -2043,6 +2043,15 @@ const eventDesk = require("./events").eventActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
   escapeHtml, risoLayout, risoButton, shopTax: () => serviceTax(),
+  // Members book first (Memberships M2c). membershipDesk is made further down, so it is looked up when asked.
+  membersFirst: {
+    on: () => membershipDesk.featureOn(),
+    isMember: async (req) => {
+      const who = await orderRequestIdentity(req);
+      if (!who?.email || who.email_verified !== true) return false;
+      return membershipDesk.hasMembership(String(who.email).trim().toLowerCase(), await shopTestMode());
+    },
+  },
   // Discount codes on tickets: checkout's own checks (eventDiscount.js says which codes and how much).
   findDiscount: async (code, email) => {
     const discount = await fetchValidDiscount(code);

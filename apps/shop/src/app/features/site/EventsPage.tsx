@@ -16,6 +16,7 @@ import { TRACKING_CSS } from "./trackingStyle";
 import { EVENTS_CSS } from "./eventsStyle";
 import { regionProps } from "./storefrontRegions";
 import { askEvents } from "./eventsAsk";
+import { restoredUser } from "../../../lib/authSession";
 import { isBookingPreview } from "./bookTimePreview";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { bookingIcs, googleCalendarLink } from "../../../shared/bookingTimes";
@@ -240,6 +241,9 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [applied, setApplied] = useState<TicketCode | null>(null);
+  // A buyer the server turned away because members book first: shown with ways to sign in or join.
+  const [membersOnly, setMembersOnly] = useState(false);
+  const membersUntil = event.membersUntil ? eventWhenText(event.membersUntil, undefined, zone) : "";
   const state = eventState(event);
   const [extraPicks, setExtraPicks] = useState<Record<string, number>>({});
   const cart = cartOf(event, picks);
@@ -278,14 +282,18 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
     if (first) { document.getElementById(first)?.focus(); return; }
     setBusy(true);
     setError("");
+    setMembersOnly(false);
     try {
-      const answer = await askEvents("eventStart", { eventId: event.id, name: form.name.trim(), email: form.email.trim(), locale: navigator.language || "en", tickets: cart.tickets, ...(Object.keys(added.extras).length ? { extras: added.extras } : {}), ...(applied ? { code: applied.code } : {}) });
+      // Members book first: the sign-in on this browser (if any) goes along, so the server can find the membership.
+      const user = event.membersUntil ? await restoredUser(4000).catch(() => null) : null;
+      const answer = await askEvents("eventStart", { eventId: event.id, name: form.name.trim(), email: form.email.trim(), locale: navigator.language || "en", tickets: cart.tickets, ...(Object.keys(added.extras).length ? { extras: added.extras } : {}), ...(applied ? { code: applied.code } : {}) }, user);
       if (answer.on === false) { setBusy(false); setError(c("eventsSalesClosed")); return; }
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(within(`order=${encodeURIComponent(answer.orderId)}&key=${answer.key}`));
     } catch (err: any) {
       setBusy(false);
       // Someone else got there first: show what is left now, with the picks trimmed to it.
+      if (err?.code === "members") { setMembersOnly(true); return; }
       if (err?.code === "code") { setApplied(null); setError(c("eventsCodeProblem")); return; }
       if (err?.code === "extras") { await onStale(); setExtraPicks({}); setError(c("eventsExtrasChanged")); return; }
       if (err?.code === "tickets" || err?.code === "closed") {
@@ -372,6 +380,16 @@ function OneEvent({ event, zone, currency, codes, c, headingRef, onStale }: {
         {state === "open" ? (
           <form {...regionProps("eventsForm")} onSubmit={submit} noValidate className="fm-track-card p-5 sm:p-8 fm-evt-form">
             <h2 className="fm-track-mono">{c("eventsYourDetails")}</h2>
+            {membersUntil && !membersOnly && <div className="fm-track-notice" role="status"><p>{c("eventsMembersFirst", { date: membersUntil })}</p></div>}
+            {membersOnly && (
+              <div className="fm-track-notice" data-tone="danger" role="alert">
+                <p>{c("eventsMembersOnly", { date: membersUntil })}</p>
+                <p className="fm-evt-member-links">
+                  <Link to="/account" className="fm-track-link">{c("eventsMembersSignIn")}</Link>
+                  <Link to="/membership" className="fm-track-link">{c("eventsMembersJoin")}</Link>
+                </p>
+              </div>
+            )}
             {error && <div className="fm-track-notice" data-tone="danger" role="alert"><p>{error}</p></div>}
             <Field id="evt-name" label={c("eventsName")} problem={problems.name}>
               <input id="evt-name" className="fm-track-input" autoComplete="name" maxLength={100} value={form.name} aria-invalid={!!problems.name}

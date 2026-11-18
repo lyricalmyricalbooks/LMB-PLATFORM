@@ -15,6 +15,8 @@ export type EventForm = {
   photo: string; status: EventStatus; chargeTax: boolean; tickets: TicketForm[]; extras: ExtraForm[];
   /** The shop's own booking fee for each paid ticket, as typed ("" = none). */
   fee: string;
+  /** Members book first (Memberships M2c): the day and time everyone else can book, on the shop's clock ("" = no head start). */
+  publicDay: string; publicTime: string;
 };
 
 /** "19:00" on the shop's clock for an ISO time. */
@@ -43,7 +45,7 @@ export const blankExtra = (): ExtraForm => ({ id: `x${Date.now().toString(36)}${
 export function blankForm(zone: string, nowMs: number): EventForm {
   return {
     id: "", title: "", description: "", day: addDays(dayOf(nowMs, zone), 14), time: "19:00", endTime: "", venue: "", address: "", onlineUrl: "", photo: "",
-    status: "draft", chargeTax: false, tickets: [blankTicket("General")], extras: [], fee: "",
+    status: "draft", chargeTax: false, tickets: [blankTicket("General")], extras: [], fee: "", publicDay: "", publicTime: "",
   };
 }
 
@@ -55,6 +57,8 @@ export function formFromEvent(event: AdminEvent, zone: string): EventForm {
     tickets: event.tickets.map((t) => ({ id: t.id, name: t.name, price: priceText(t.priceMinor), places: String(t.places), maxPerOrder: String(t.maxPerOrder) })),
     extras: (event.extras ?? []).map((x) => ({ id: x.id, name: x.name, price: priceText(x.priceMinor), maxPerOrder: String(x.maxPerOrder) })),
     fee: priceText(event.feeMinor || 0),
+    publicDay: event.publicFrom ? dayOf(Date.parse(event.publicFrom), zone) : "",
+    publicTime: event.publicFrom ? clockOf(event.publicFrom, zone) : "",
   };
 }
 
@@ -93,12 +97,19 @@ export function eventFromForm(form: EventForm, zone: string): { event: Record<st
   }
   const feeMinor = priceMinorOf(form.fee);
   if (!Number.isFinite(feeMinor) || feeMinor > MAX_FEE_MINOR) return { problem: `The booking fee doesn't look right. Use a number up to ${(MAX_FEE_MINOR / 100).toFixed(2)}, or leave it empty for none.` };
+  let publicFrom = "";
+  if (form.publicDay || form.publicTime) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.publicDay)) return { problem: "Say which day everyone else can book, or clear the members' head start." };
+    const at = zonedTime(form.publicDay, /^\d{2}:\d{2}$/.test(form.publicTime) ? form.publicTime : "09:00", zone);
+    if (at >= start) return { problem: "Everyone else can book only before the event starts. Pick an earlier day." };
+    publicFrom = new Date(at).toISOString();
+  }
   const link = form.onlineUrl.trim();
   if (link && !/^https:\/\/\S+$/i.test(link)) return { problem: "The online link starts with https://" };
   return {
     event: {
       ...(form.id ? { id: form.id } : {}), title: form.title, description: form.description, start: new Date(start).toISOString(), end,
-      venue: form.venue, address: form.address, onlineUrl: link, photo: form.photo, status: form.status, chargeTax: form.chargeTax, tickets, extras, feeMinor,
+      venue: form.venue, address: form.address, onlineUrl: link, photo: form.photo, status: form.status, chargeTax: form.chargeTax, tickets, extras, feeMinor, publicFrom,
     },
   };
 }

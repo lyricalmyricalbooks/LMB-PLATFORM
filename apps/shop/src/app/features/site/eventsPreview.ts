@@ -22,7 +22,7 @@ export function sampleEvents(nowMs: number): EventView[] {
       ],
       extras: [{ id: "programme", name: "Printed programme", priceMinor: 500, maxPerOrder: 6 }, { id: "drink", name: "Welcome drink", priceMinor: 800, maxPerOrder: 6 }], feeMinor: 100 },
     { id: "sample-talk", title: "In conversation: making things by hand", description: "A free evening talk, in the room or online.",
-      start: at(20, 23), end: at(21, 0), venue: "The studio", address: "", photo: "", online: true, open: true, cancelled: false,
+      start: at(20, 23), end: at(21, 0), venue: "The studio", address: "", photo: "", online: true, open: true, cancelled: false, membersUntil: at(5, 14),
       tickets: [{ id: "seat", name: "A seat", priceMinor: 0, maxPerOrder: 4, left: 4, soldOut: false }] },
     { id: "sample-market", title: "Winter market", description: "Stalls, hot drinks and gifts.",
       start: at(33, 16), end: at(33, 22), venue: "Market Hall", address: "", photo: "", online: false, open: true, cancelled: false,
