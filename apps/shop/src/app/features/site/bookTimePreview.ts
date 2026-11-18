@@ -5,7 +5,7 @@
 // saved and no email is sent.
 import { addDays, dayOf, weekdayOf, zonedTime } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import { fitRun, takesDeposit, upFrontMinor, withCode, type RunVisit, type BookingCode, type BookingInfo, type BookingPackView, type BookingServiceView, type BookingView, type VisitReview } from "./bookTimeRules";
+import { fitRun, lengthLabel, takesDeposit, upFrontMinor, withCode, type RunVisit, type BookingCode, type BookingInfo, type BookingPackView, type BookingServiceView, type BookingView, type VisitReview } from "./bookTimeRules";
 
 export const SAMPLE_BOOKING_ID = "sample-booking";
 export const SAMPLE_BOOKING_KEY = "0".repeat(48);
@@ -14,7 +14,9 @@ export const isBookingPreview = () => typeof window !== "undefined"
   && new URLSearchParams(window.location.search).get("preview") === "true" && Boolean((window as any).__studioPreviewState);
 
 const SERVICES: BookingServiceView[] = [
-  { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio", holdCard: true, lateFeeMinor: 1500 },
+  { id: "sample-visit", name: "Studio visit", description: "Sample service. Yours show here once you add them under Bookings.", minutes: 30, priceMinor: 0, payment: "free", location: "The studio", holdCard: true, lateFeeMinor: 1500,
+    // Offered in two lengths (plan 4, 2.2). Not on the one-to-one session: its sample person has her own length there.
+    lengths: [{ id: "l1", name: "", minutes: 30, priceMinor: 0 }, { id: "l2", name: "", minutes: 45, priceMinor: 0 }] },
   { id: "sample-session", name: "One-to-one session", description: "An hour together, paid by card when booked.", minutes: 60, priceMinor: 4500, payment: "full", location: "The studio",
     packVisits: 5, packPriceMinor: 18000, packDays: 365,
     extras: [{ id: "x1", name: "Longer session", minutes: 30, priceMinor: 2000 }, { id: "x2", name: "Printed notes", minutes: 0, priceMinor: 500 }],
@@ -154,6 +156,12 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
       const run = fitRun({ everyWeeks: Math.max(1, Number(body.run.everyWeeks) || 1), visits: Math.max(2, Number(body.run.visits) || 2) });
       sample = { ...sample, run: { visit: 1, visits: run.visits, everyWeeks: run.everyWeeks } };
       sampleRun = sampleRunStarts(body.start, run, zone).map((start, n) => ({ id: n ? `${SAMPLE_BOOKING_ID}-${n + 1}` : SAMPLE_BOOKING_ID, start, status: "confirmed" as const, ...(n ? {} : { current: true }) }));
+    }
+    // A length chosen of a service offered in several: its minutes and price, named in the service.
+    const sized = (SERVICES.find((x) => x.id === body.serviceId)?.lengths || []).find((l) => l.id === body.length);
+    if (sized) {
+      sample = { ...sample, serviceName: `${sample.serviceName}, ${lengthLabel(sized)}`, lengthId: sized.id, minutes: sized.minutes, priceMinor: sized.priceMinor,
+        end: new Date(Date.parse(sample.start) + sized.minutes * 60_000).toISOString() };
     }
     const ticked = (SERVICES.find((x) => x.id === body.serviceId)?.extras || []).filter((x) => Array.isArray(body.extras) && body.extras.includes(x.id));
     if (ticked.length) {

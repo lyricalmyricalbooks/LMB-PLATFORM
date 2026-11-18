@@ -511,6 +511,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     // With Classes on (`?ways=classes&page=classes`) the class is live and a second one runs two evenings a week.
     service("binding", "Bookbinding class", 90, 3000, 2, { active: CLASSES, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25, processAfter: 60, processMinutes: 60 }),
+    // Sold in three lengths (Lengths and prices): the first is the service's own time and price.
+    service("consult", "Studio consultation", 30, 3000, 4, { payment: "atShop", lengths: [{ id: "l30", name: "", minutes: 30, priceMinor: 3000 }, { id: "l60", name: "", minutes: 60, priceMinor: 5500 }, { id: "l90", name: "Full studio walk-through", minutes: 90, priceMinor: 8000 }] }),
     ...(CLASSES ? [service("letterpress", "Letterpress evening", 120, 5500, 4, { places: 8, location: "Print room", classTimes: [{ weekday: 2, time: "18:30" }, { weekday: 4, time: "18:30" }] })] : []),
     // A four-week course on Wednesday mornings, starting this week: one sign-up holds a place on every date.
     ...(CLASSES ? [service("wheel", "Four-week wheel course", 120, 18000, 5, { places: 6, location: "Studio", courseDates: COURSE_DAYS.map((d) => `${d}T10:00`) })] : []),

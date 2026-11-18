@@ -106,6 +106,11 @@ export type BookingService = {
    */
   processAfter?: number;
   processMinutes?: number;
+  /**
+   * Service options (plan 4, 2.2): one service in several lengths, each with its own price ("30 min, 50.00", "60 min,
+   * 90.00"). Two or more, or none; the first is the service's own `minutes` and `priceMinor`. One-to-one only.
+   */
+  lengths?: BookingLength[];
 };
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
@@ -124,6 +129,10 @@ export type BookingQuestion = { id: string; label: string; /** A few lines inste
 /** What the customer answered, kept with the question's words as they were asked. */
 export type BookingAnswer = { label: string; answer: string };
 export const MAX_QUESTIONS = 5;
+/** One length of a service with options: its own minutes and price, and an optional name ("Full set"). */
+export type BookingLength = { id: string; name: string; minutes: number; priceMinor: number };
+/** The most lengths one service can be offered in. */
+export const MAX_LENGTHS = 6;
 /** Add-ons and options on one service, and the most minutes one may add. */
 export const MAX_EXTRAS = 8;
 export const MAX_EXTRA_MINUTES = 240;
@@ -597,6 +606,11 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   }
   // Card on file, for a fee after a missed booking. Paid in full has nothing left to charge, so it never holds a card.
   const holdCard = s.holdCard === true && payment !== "full";
+  // Lengths are for one person at a time; a class or course keeps one length.
+  const lengths = Number(s.places) > 1 || (Array.isArray(s.courseDates) && s.courseDates.length) ? [] : cleanLengths(s.lengths, payment !== "free");
+  if (lengths.length && payment === "deposit" && depositMinor && lengths.some((l) => depositMinor >= l.priceMinor)) {
+    return { problem: "A deposit is less than the price of every length. Lower it, or raise the shortest length's price." };
+  }
   // A pack of visits: only for a priced service, two visits or more, at least the smallest card payment.
   const packVisits = payment !== "free" ? whole(s.packVisits, 0, MAX_PACK_VISITS, 0) : 0;
   let packPriceMinor = 0;
@@ -673,7 +687,55 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
     extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
     ...(processMinutes ? { processAfter, processMinutes } : {}),
+    ...(lengths.length ? { lengths, minutes: lengths[0].minutes, priceMinor: lengths[0].priceMinor } : {}),
   };
+}
+
+/**
+ * A service's lengths, cleaned: each 5 minutes to 8 hours, at least 0.50 on a paid service (nothing on a free one),
+ * named or left for "60 min", no two the same length. Fewer than two is none: one length is just the service.
+ */
+export function cleanLengths(raw: unknown, priced = true): BookingLength[] {
+  const out: BookingLength[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const e = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const minutes = Math.round(Number(e.minutes));
+    if (!Number.isFinite(minutes) || minutes < 5 || minutes > 8 * 60 || out.length >= MAX_LENGTHS) continue;
+    const price = Math.round(Number(e.priceMinor));
+    const priceMinor = priced ? (Number.isFinite(price) && price >= 50 ? Math.min(price, 1_000_000) : -1) : 0;
+    if (priceMinor < 0 || out.some((o) => o.minutes === minutes && o.name === text(e.name, 40))) continue;
+    let id = text(e.id, 24).replace(/[^A-Za-z0-9_-]/g, "") || `l${out.length + 1}`;
+    while (out.some((o) => o.id === id)) id += "x";
+    out.push({ id, name: text(e.name, 40), minutes, priceMinor });
+  }
+  return out.length >= 2 ? out : [];
+}
+
+/** What a length is called: its own name, else its length ("1 h 30 min"). */
+export function lengthName(length: Pick<BookingLength, "name" | "minutes">): string {
+  if (length.name) return length.name;
+  const h = Math.floor(length.minutes / 60), m = length.minutes % 60;
+  return h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
+}
+
+/**
+ * The service as booked in the length the client chose (an id; none = the first): its minutes and price are that
+ * length's, and its name says which ("Massage, 90 min"), so the calendar, emails and receipts all say it. A person's
+ * own rates don't apply to a service with lengths. Processing time stays only while it still fits inside. Refused for
+ * a length the service no longer has.
+ */
+export function withLength<T extends Pick<BookingService, "name" | "minutes" | "priceMinor"> & { lengths?: BookingLength[]; processAfter?: number; processMinutes?: number }>(
+  service: T, raw: unknown,
+): { service: T; length?: BookingLength } | { problem: string } {
+  const lengths = service.lengths || [];
+  if (lengths.length < 2) return { service };
+  const id = typeof raw === "string" ? raw : "";
+  const length = id ? lengths.find((l) => l.id === id) : lengths[0];
+  if (!length) return { problem: "That length isn't offered any more. Please choose again." };
+  const fits = (service.processAfter || 0) + (service.processMinutes || 0) < length.minutes;
+  const { processAfter: _a, processMinutes: _m, ...rest } = service;
+  const kept = service.processMinutes && fits ? { processAfter: service.processAfter, processMinutes: service.processMinutes } : {};
+  return { service: { ...(rest as T), ...kept, name: `${service.name}, ${lengthName(length)}`, minutes: length.minutes, priceMinor: length.priceMinor, lengthId: length.id }, length };
 }
 
 /** A service's add-ons and options, cleaned: named ones only, at most MAX_EXTRAS, each with its own id. */
@@ -1094,7 +1156,7 @@ export function cleanRates(raw: unknown): PersonRate[] {
 export function forPerson<T extends Pick<BookingService, "id" | "minutes" | "priceMinor" | "payment"> & { places?: number; courseDates?: readonly string[] }>(
   service: T, settings: Pick<BookingSettings, "staff">, staffId: unknown,
 ): T {
-  if ((service.places || 1) > 1 || isCourse(service)) return service;
+  if ((service.places || 1) > 1 || isCourse(service) || ((service as { lengths?: unknown[] }).lengths?.length || 0) >= 2) return service;
   const id = keptPerson(settings, service.id, staffId);
   const rate = id ? (settings.staff || []).find((p) => p.id === id)?.rates?.find((r) => r.serviceId === service.id) : undefined;
   if (!rate) return service;

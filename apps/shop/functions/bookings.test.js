@@ -3417,6 +3417,61 @@ describe("add-ons and options", () => {
   });
 });
 
+describe("lengths and prices", () => {
+  const LENGTHS = [
+    { id: "short", name: "", minutes: 60, priceMinor: 4500 },
+    { id: "long", name: "Deep tissue", minutes: 90, priceMinor: 6500 },
+  ];
+  const lengthsSetup = async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("massage").set({ name: "Massage", minutes: 60, gapAfter: 0, payment: "atShop", priceMinor: 4500, lengths: LENGTHS });
+    return t;
+  };
+
+  test("the owner saves lengths; one length, a class or a paid length under 0.50 keeps none", async () => {
+    const t = await lengthsSetup();
+    const ok = await t.adm({ op: "saveService", service: { name: "Massage", minutes: 30, payment: "atShop", priceMinor: 100, lengths: LENGTHS } });
+    expect(ok.body.service).toMatchObject({ lengths: LENGTHS, minutes: 60, priceMinor: 4500 });
+    const one = await t.adm({ op: "saveService", service: { name: "Solo", minutes: 30, payment: "atShop", priceMinor: 4500, lengths: [LENGTHS[0]] } });
+    expect(one.body.service.lengths).toBeUndefined();
+    const cls = await t.adm({ op: "saveService", service: { name: "Yoga", minutes: 60, places: 8, lengths: LENGTHS } });
+    expect(cls.body.service.lengths).toBeUndefined();
+    const cheap = await t.adm({ op: "saveService", service: { name: "Cheap", minutes: 30, payment: "atShop", priceMinor: 4500, lengths: [LENGTHS[0], { id: "c", name: "", minutes: 15, priceMinor: 10 }] } });
+    expect(cheap.body.service.lengths).toBeUndefined();
+  });
+
+  test("a chosen length sets the free times, the booking's time, price and name", async () => {
+    const t = await lengthsSetup();
+    expect((await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === "massage").lengths).toEqual(LENGTHS);
+    const plain = await t.pub({ action: "bookingTimes", serviceId: "massage", from: "2026-11-17", days: 1 });
+    const longer = await t.pub({ action: "bookingTimes", serviceId: "massage", from: "2026-11-17", days: 1, length: "long" });
+    expect(plain.body.days["2026-11-17"].at(-1)).toBe(at("2026-11-17", "16:00"));
+    expect(longer.body.days["2026-11-17"].at(-1)).toBe(at("2026-11-17", "15:30"));
+    const r = await t.pub({ action: "bookingStart", serviceId: "massage", start: at("2026-11-17", "10:00"), ...CUSTOMER, length: "long" });
+    expect(r.body.status).toBe("confirmed");
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ minutes: 90, priceMinor: 6500, lengthId: "long", serviceName: "Massage, Deep tissue" });
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking.lengthId).toBe("long");
+    // Moving keeps the length: 15:30 fits 90 minutes before closing, and the booking stays 90 minutes.
+    const m = await t.pub({ action: "bookingMove", id: r.body.id, key: r.body.key, start: at("2026-11-18", "15:30") });
+    expect(m.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${r.body.id}`)).toMatchObject({ minutes: 90, lengthId: "long" });
+  });
+
+  test("no length means the first, an unknown one is refused, and the owner books a length too", async () => {
+    const t = await lengthsSetup();
+    const first = await t.pub({ action: "bookingStart", serviceId: "massage", start: at("2026-11-17", "10:00"), ...CUSTOMER });
+    expect(t.db.store.get(`bookings/${first.body.id}`)).toMatchObject({ minutes: 60, priceMinor: 4500, lengthId: "short" });
+    const bad = await t.pub({ action: "bookingStart", serviceId: "massage", start: at("2026-11-17", "13:00"), ...CUSTOMER, length: "nope" });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.body.code).toBe("length");
+    const own = await t.adm({ op: "create", serviceId: "massage", start: at("2026-11-18", "09:00"), name: "Bo", email: "bo@example.com", length: "long" });
+    expect(own.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${own.body.id}`)).toMatchObject({ minutes: 90, priceMinor: 6500, lengthId: "long" });
+  });
+});
+
 describe("prices by person", () => {
   const STAFF = [
     { id: "ana", name: "Ana", rates: [{ serviceId: "cut", minutes: 60, priceMinor: 9000 }, { serviceId: "visit", minutes: null, priceMinor: 5000 }] },

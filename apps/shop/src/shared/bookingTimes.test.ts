@@ -10,6 +10,7 @@ import {
   cleanSpecialHours, hoursOnDay, personHoursOn, specialOn, MAX_SPECIAL_DAYS, bookingsOnDay, ownerBookingSettings,
   roomUnits, roomUnitsText, MAX_ROOM_UNITS, classPlacesLeft,
   visitService, visitTimeline, visitStaff, visitFreeTimes, fitsAt, joinsVisit, MAX_VISIT_PARTS,
+  cleanLengths, lengthName, withLength, MAX_LENGTHS, forPerson,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -938,5 +939,43 @@ describe("several services in one visit (plan 4, 2.1)", () => {
     expect(fitsAt({ service: colour, settings: team, busy: [], start: at(day, "16:00"), zone: ZONE, nowMs: NOW })).toBeNull();
     expect(fitsAt({ service: colour, settings: { ...team, daysOff: [day] }, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
     expect(fitsAt({ service: { ...colour, places: 4 }, settings: team, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+  });
+});
+
+describe("lengths and prices (one service in several lengths)", () => {
+  const L = [{ id: "a", name: "", minutes: 30, priceMinor: 3000 }, { id: "b", name: "Long", minutes: 90, priceMinor: 7000 }];
+  it("keeps two or more good lengths, at most MAX_LENGTHS", () => {
+    expect(cleanLengths(L)).toEqual(L);
+    expect(cleanLengths([L[0]])).toEqual([]);
+    expect(cleanLengths([L[0], { minutes: 3, priceMinor: 100 }])).toEqual([]);
+    expect(cleanLengths([L[0], { minutes: 600, priceMinor: 100 }])).toEqual([]);
+    expect(cleanLengths([L[0], { minutes: 45, priceMinor: 20 }])).toEqual([]);
+    expect(cleanLengths([L[0], { minutes: 45 }], false)).toEqual([{ ...L[0], priceMinor: 0 }, { id: "l2", name: "", minutes: 45, priceMinor: 0 }]);
+    const many = Array.from({ length: 9 }, (_, i) => ({ id: `m${i}`, minutes: 15 * (i + 1), priceMinor: 1000 }));
+    expect(cleanLengths(many)).toHaveLength(MAX_LENGTHS);
+  });
+  it("names a length by its own name, else its time", () => {
+    expect(lengthName({ name: "", minutes: 90 })).toBe("1 h 30 min");
+    expect(lengthName({ name: "", minutes: 45 })).toBe("45 min");
+    expect(lengthName({ name: "", minutes: 120 })).toBe("2 h");
+    expect(lengthName({ name: "Long", minutes: 90 })).toBe("Long");
+  });
+  it("books the chosen length (none = the first) and refuses an unknown one", () => {
+    const s = { name: "Massage", minutes: 30, priceMinor: 3000, lengths: L };
+    expect(withLength(s, "b")).toMatchObject({ service: { name: "Massage, Long", minutes: 90, priceMinor: 7000, lengthId: "b" } });
+    expect(withLength(s, undefined)).toMatchObject({ service: { name: "Massage, 30 min", minutes: 30, lengthId: "a" } });
+    expect(withLength(s, "zz")).toHaveProperty("problem");
+    expect(withLength({ name: "Cut", minutes: 45, priceMinor: 0 }, "b")).toEqual({ service: { name: "Cut", minutes: 45, priceMinor: 0 } });
+  });
+  it("keeps processing time only while it fits inside the length", () => {
+    const s = { name: "Colour", minutes: 90, priceMinor: 9000, processAfter: 20, processMinutes: 30, lengths: [{ id: "s", name: "", minutes: 45, priceMinor: 5000 }, { id: "l", name: "", minutes: 120, priceMinor: 12000 }] };
+    const short = withLength(s, "s"), long = withLength(s, "l");
+    expect("service" in short && short.service.processMinutes).toBeFalsy();
+    expect("service" in long && long.service.processMinutes).toBe(30);
+  });
+  it("a person's own rate doesn't change a service sold in lengths", () => {
+    const s = { id: "m", name: "Massage", minutes: 30, priceMinor: 3000, lengths: L } as never;
+    const set = { ...DEFAULT_BOOKING_SETTINGS, staff: [{ id: "p", name: "Pat", active: true, services: [], rates: { m: { minutes: 50, priceMinor: 9900 } } }] } as never;
+    expect(forPerson(s, set, "p")).toBe(s);
   });
 });
