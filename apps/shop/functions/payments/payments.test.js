@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const { createPayments, PROVIDER_NAMES, INTERFACE } = require("./index.js");
-const { createStripeProvider, wrongAccount } = require("./stripe.js");
+const { createStripeProvider, wrongAccount, memberSubscription } = require("./stripe.js");
 
 function fakeStripe(behaviour = {}) {
   const made = [];
@@ -22,6 +22,8 @@ function fakeStripe(behaviour = {}) {
       this.paymentIntents = { retrieve: call("paymentIntents.retrieve", { id: "pi_x", metadata: {} }), create: call("paymentIntents.create", { id: "pi_fee", status: "succeeded" }) };
       this.checkout = { sessions: { retrieve: call("checkout.sessions.retrieve", { id: "cs_x" }) } };
       this.disputes = { list: call("disputes.list", { data: [] }) };
+      this.subscriptions = { retrieve: call("subscriptions.retrieve", { id: "sub_x" }), update: call("subscriptions.update", { id: "sub_x" }), cancel: call("subscriptions.cancel", { id: "sub_x", status: "canceled" }) };
+      this.invoices = { list: call("invoices.list", { data: [] }) };
       this.refunds = { list: call("refunds.list", { data: [] }), create: call("refunds.create", { id: "re_1", status: "succeeded", amount: 1000, currency: "cad" }) };
       this.webhooks = { constructEvent: (body, sig, secret) => {
         calls.push({ key, name: "constructEvent", args: [body, sig, secret] });
@@ -492,6 +494,42 @@ describe("one door", () => {
   test("no other file uses the Stripe provider's own helper names", async () => {
     const STRIPE_HELPERS = /\b(getStripeClientForMode|readStripeKeys|withPrivateStripeKeys|stripeSecretFor|createStripeProvider|refundPayment)\b/;
     expect((await outside()).filter(({ text }) => STRIPE_HELPERS.test(text)).map(({ f }) => f)).toEqual([]);
+  });
+});
+
+describe("memberships (M1)", () => {
+  const website = { payments: { stripe: { testSecretKey: "sk_test_saved" } } };
+  const sub = {
+    id: "sub_1", status: "active", customer: "cus_1", cancel_at_period_end: false, trial_end: null, ended_at: null, canceled_at: null,
+    default_payment_method: { id: "pm_1", card: { brand: "visa", last4: "4242" } }, metadata: { membership: "m1" },
+    items: { data: [{ current_period_start: 1798761600, current_period_end: 1801440000, price: { unit_amount: 1500, currency: "cad", recurring: { interval: "month" } } }] },
+  };
+  test("keeps a plain shape of the subscription, the period read from the item on newer API versions", () => {
+    expect(memberSubscription(sub)).toEqual({
+      id: "sub_1", status: "active", customer: "cus_1", cancelAtPeriodEnd: false,
+      periodStart: "2027-01-01T00:00:00.000Z", periodEnd: "2027-02-01T00:00:00.000Z", trialEnd: "", endedAt: "", canceledAt: "",
+      card: { brand: "visa", last4: "4242" }, amountMinor: 1500, currency: "CAD", interval: "month", metadata: { membership: "m1" },
+    });
+    expect(memberSubscription({ ...sub, items: undefined, current_period_end: 1801440000 }).periodEnd).toBe("2027-02-01T00:00:00.000Z");
+    expect(memberSubscription(null)).toBeNull();
+  });
+  test("reads, ends at the period's end, resumes, changes the card and ends now on the press's account", async () => {
+    const { payments, calls } = make({ website, behaviour: {
+      "subscriptions.retrieve": () => sub,
+      "subscriptions.update": (_k, id, p) => ({ ...sub, id, cancel_at_period_end: p.cancel_at_period_end ?? false, default_payment_method: p.default_payment_method ?? sub.default_payment_method }),
+      "subscriptions.cancel": (_k, id) => ({ ...sub, id, status: "canceled", ended_at: 1799000000 }),
+      "invoices.list": () => ({ data: [{ id: "in_1", status: "paid", amount_paid: 1500, currency: "cad", status_transitions: { paid_at: 1798761600 }, period_start: 1798761600, period_end: 1801440000, payment_intent: "pi_9" }] }),
+    } });
+    const { subscriptions } = await payments.standaloneCheckout("test");
+    expect((await subscriptions.read("sub_1")).card).toEqual({ brand: "visa", last4: "4242" });
+    expect(calls.at(-1).args.slice(0, 2)).toEqual(["sub_1", { expand: ["default_payment_method"] }]);
+    expect((await subscriptions.cancelAtEnd("sub_1")).cancelAtPeriodEnd).toBe(true);
+    expect((await subscriptions.resume("sub_1")).cancelAtPeriodEnd).toBe(false);
+    await subscriptions.setCard("sub_1", "pm_2");
+    expect(calls.at(-1).args.slice(0, 2)).toEqual(["sub_1", { default_payment_method: "pm_2" }]);
+    expect((await subscriptions.endNow("sub_1")).status).toBe("canceled");
+    expect(await subscriptions.invoices("sub_1")).toEqual([{ id: "in_1", status: "paid", amountMinor: 1500, currency: "CAD", paidAt: "2027-01-01T00:00:00.000Z", periodStart: "2027-01-01T00:00:00.000Z", periodEnd: "2027-02-01T00:00:00.000Z", paymentIntent: "pi_9" }]);
+    expect(calls.every((c) => c.key === "sk_test_saved")).toBe(true);
   });
 });
 

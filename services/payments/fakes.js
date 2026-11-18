@@ -24,7 +24,7 @@ export function fakeStripeFetch(answers = []) {
   const requests = [];
   const byKey = new Map();
   let next = 1;
-  const world = { accounts: new Map(), intents: new Map(), sessions: new Map(), events: new Map(), refunds: [], paymentDomains: [], balanceTransactions: [] };
+  const world = { accounts: new Map(), intents: new Map(), sessions: new Map(), subscriptions: new Map(), events: new Map(), refunds: [], paymentDomains: [], balanceTransactions: [] };
 
   const missing = (what) => ({ status: 404, body: { error: { type: "invalid_request_error", code: "resource_missing", message: `No such ${what}` } } });
 
@@ -71,6 +71,20 @@ export function fakeStripeFetch(answers = []) {
       if (!session || session.account !== account) return missing("checkout.session");
       if (m[2]) session.status = "expired";
       return { status: 200, body: session };
+    }
+    // Memberships (M1): subscriptions on the press's account; `world.subscriptions` is filled by a test.
+    if ((m = path.match(/^\/v1\/subscriptions\/(sub_\w+)$/))) {
+      const sub = world.subscriptions.get(m[1]);
+      if (!sub || sub.account !== account) return missing("subscription");
+      if (method === "DELETE") sub.status = "canceled";
+      if (method === "POST") {
+        if (params.cancel_at_period_end !== undefined) sub.cancel_at_period_end = params.cancel_at_period_end === "true";
+        if (params.default_payment_method !== undefined) sub.default_payment_method = params.default_payment_method;
+      }
+      return { status: 200, body: sub };
+    }
+    if (method === "GET" && path === "/v1/invoices") {
+      return { status: 200, body: { object: "list", data: (world.subscriptions.get(params.subscription)?.invoices ?? []).filter(() => world.subscriptions.get(params.subscription)?.account === account) } };
     }
     if (method === "POST" && path === "/v1/refunds") {
       const refund = { id: `re_fake${next++}`, object: "refund", amount: Number(params.amount ?? 0), status: "succeeded", payment_intent: params.payment_intent };

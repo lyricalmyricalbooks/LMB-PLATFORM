@@ -489,6 +489,30 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
         amount: amountMinor, currency, customer, payment_method: paymentMethod, off_session: true, confirm: true, description, metadata,
       }, { ...requestOptions, idempotencyKey }),
       reader: cardReader(stripe, requestOptions, mode === "test"),
+      subscriptions: memberSubscriptions(stripe, requestOptions),
+    });
+  }
+
+  // Memberships (M1): a member's subscription on the press's account. Each answer is the plain shape the shop keeps
+  // (memberSubscription), never Stripe's whole object. A subscription page itself is opened with `open` (mode
+  // "subscription"); the card is changed through a setup page, then `setCard`.
+  function memberSubscriptions(stripe, requestOptions) {
+    const shaped = (sub) => memberSubscription(sub);
+    return Object.freeze({
+      read: async (id) => shaped(await stripe.subscriptions.retrieve(id, { expand: ["default_payment_method"] }, requestOptions)),
+      cancelAtEnd: async (id) => shaped(await stripe.subscriptions.update(id, { cancel_at_period_end: true }, requestOptions)),
+      resume: async (id) => shaped(await stripe.subscriptions.update(id, { cancel_at_period_end: false }, requestOptions)),
+      setCard: async (id, paymentMethod) => shaped(await stripe.subscriptions.update(id, { default_payment_method: paymentMethod }, requestOptions)),
+      endNow: async (id) => shaped(await stripe.subscriptions.cancel(id, {}, requestOptions)),
+      async invoices(id, limit = 12) {
+        const page = await stripe.invoices.list({ subscription: id, limit }, requestOptions);
+        return (page?.data || []).map((inv) => ({
+          id: inv.id, status: String(inv.status || ""), amountMinor: Number(inv.amount_paid ?? inv.amount_due ?? 0) || 0, currency: String(inv.currency || "").toUpperCase(),
+          paidAt: inv.status_transitions?.paid_at ? new Date(inv.status_transitions.paid_at * 1000).toISOString() : "",
+          periodStart: inv.period_start ? new Date(inv.period_start * 1000).toISOString() : "", periodEnd: inv.period_end ? new Date(inv.period_end * 1000).toISOString() : "",
+          paymentIntent: typeof inv.payment_intent === "string" ? inv.payment_intent : inv.payment_intent?.id || "",
+        }));
+      },
     });
   }
 
@@ -566,4 +590,25 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
   };
 }
 
-module.exports = { createStripeProvider, wrongAccount };
+/**
+ * A Stripe subscription as the shop keeps it (Memberships M1). Stripe's newer API versions moved the period from the
+ * subscription to its items, so both are read. Times are ISO strings ("" when Stripe gave none).
+ */
+function memberSubscription(sub) {
+  if (!sub || typeof sub !== "object") return null;
+  const item = sub.items?.data?.[0] || {};
+  const time = (s) => (Number.isFinite(s) && s > 0 ? new Date(s * 1000).toISOString() : "");
+  const method = sub.default_payment_method;
+  return {
+    id: String(sub.id || ""), status: String(sub.status || ""), customer: typeof sub.customer === "string" ? sub.customer : String(sub.customer?.id || ""),
+    cancelAtPeriodEnd: sub.cancel_at_period_end === true,
+    periodStart: time(sub.current_period_start ?? item.current_period_start), periodEnd: time(sub.current_period_end ?? item.current_period_end),
+    trialEnd: time(sub.trial_end), endedAt: time(sub.ended_at), canceledAt: time(sub.canceled_at),
+    card: method && typeof method === "object" ? { brand: String(method.card?.brand || ""), last4: String(method.card?.last4 || "") } : null,
+    amountMinor: Number(item.price?.unit_amount ?? item.plan?.amount ?? 0) || 0, currency: String(item.price?.currency || sub.currency || "").toUpperCase(),
+    interval: String(item.price?.recurring?.interval || item.plan?.interval || ""),
+    metadata: sub.metadata && typeof sub.metadata === "object" ? { ...sub.metadata } : {},
+  };
+}
+
+module.exports = { createStripeProvider, wrongAccount, memberSubscription };

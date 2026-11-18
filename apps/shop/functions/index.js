@@ -164,6 +164,7 @@ const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
 const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
 const { PUBLIC_EVENT_ACTIONS } = require("./events");
 const { PUBLIC_GIVING_ACTIONS } = require("./giving");
+const { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS } = require("./memberships");
 const { checkoutTipProblem, MIN_TIP_MINOR, MAX_TIP_MINOR } = require("./shared/givingRules");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
@@ -2096,6 +2097,18 @@ const givingDesk = require("./giving").givingActions({
   emailBrand: givingEmailLayout,
 });
 
+// Memberships & subscriptions (beta, memberships.js). A member is a signed-in customer with a verified email.
+const membershipDesk = membershipActions({
+  db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
+  currency: () => shopCurrency(), sendEmail: message => sendEmail(message), ownerEmail: () => ADMIN_TO(),
+  escapeHtml, risoLayout, risoButton, emailBrand: givingEmailLayout,
+  identify: async (req) => {
+    const who = await orderRequestIdentity(req);
+    if (!who?.email || who.email_verified !== true) return null;
+    return { email: String(who.email).trim().toLowerCase(), uid: who.uid || "", name: who.name || "" };
+  },
+});
+
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
 const { runNewsletterIssues, newsletterAdminActions, audienceCount, pastBuyerEmails, recipientRows } = require("./newsletterSend");
 async function newsletterOptedOutIds() {
@@ -2207,6 +2220,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   bookingsAdmin: (req, res) => bookingDesk.handleAdmin(req, res),
   eventsAdmin: (req, res) => eventDesk.handleAdmin(req, res),
   givingAdmin: (req, res) => givingDesk.handleAdmin(req, res),
+  membershipsAdmin: (req, res) => membershipDesk.handleAdmin(req, res),
   invoicePayOpen: handleInvoicePayOpen,
   addToOrder: handleCustomerAddOn,
   privacyRequest: handlePrivacyRequest,
@@ -2941,6 +2955,10 @@ exports.stripeWebhook = onRequest(
         return;
       }
     }
+
+    // Memberships (memberships.js): a subscription or invoice event reads that membership again. Best effort: the sweep
+    // reads every live membership at least daily, so a failure here only makes the change slower.
+    await membershipDesk.onEvent(event).catch(err => console.warn(`stripeWebhook: membership update for ${event.type} failed:`, err?.message || err));
 
     // Mark this event processed (after successful handling) for idempotency.
     await stripeEventRef.set({
@@ -4534,6 +4552,7 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   // Events and tickets (beta): the events page's own actions (events.js, rate limited there).
   if (typeof req.body?.action === "string" && PUBLIC_EVENT_ACTIONS.includes(req.body.action)) return eventDesk.handlePublic(req, res);
   if (PUBLIC_GIVING_ACTIONS.includes(req.body?.action)) return givingDesk.handlePublic(req, res); // Donations (giving.js)
+  if (PUBLIC_MEMBERSHIP_ACTIONS.includes(req.body?.action)) return membershipDesk.handlePublic(req, res); // Memberships (memberships.js)
 
   // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
   // the server will charge. Customer lists and usage counts stay private.
@@ -4954,6 +4973,9 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   // Gifts (giving.js): a paid card page is confirmed, an unpaid one closed.
   const given = await givingDesk.sweep().catch(err => { console.warn("bookingSweep: the gifts sweep failed:", err?.message || err); return {}; });
   if (given.confirmed || given.closed) console.log(`bookingSweep: ${given.confirmed} gifts confirmed, ${given.closed} closed`);
+  // Memberships (memberships.js): unfinished card pages closed, memberships due a read read again from the provider.
+  const membered = await membershipDesk.sweep().catch(err => { console.warn("bookingSweep: the memberships sweep failed:", err?.message || err); return {}; });
+  if (membered.read || membered.closed) console.log(`bookingSweep: ${membered.read} memberships read, ${membered.closed} closed`);
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

@@ -77,6 +77,13 @@ function platformStripeClient(call, mode) {
       list: (p) => call("refunds.list", mode, { params: p }),
     },
     disputes: { list: (p) => call("disputes.list", mode, { params: p }) },
+    // Memberships (M1): a member's subscription, and its invoices.
+    subscriptions: {
+      retrieve: (id, p) => call("subscriptions.retrieve", mode, { id, ...params(p) }),
+      update: (id, p) => call("subscriptions.update", mode, { id, params: p }),
+      cancel: (id) => call("subscriptions.cancel", mode, { id }),
+    },
+    invoices: { list: (p) => call("invoices.list", mode, { params: p }) },
     events: { retrieve: (id) => call("events.retrieve", mode, { id }) },
     // What a payout paid in (code plan 7.10).
     balanceTransactions: { list: (p) => call("balanceTransactions.list", mode, { params: p }) },

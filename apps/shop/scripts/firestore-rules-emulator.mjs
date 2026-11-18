@@ -697,6 +697,32 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("anon can't move a receipt counter back", assertFails(setDoc(doc(anon, "givingReceipts/2026"), { next: 1 })));
 }
 
+// Memberships (beta, functions/memberships.js): plans and memberships are server-only. The owner's Members page and the
+// member's account tab ask the server; no browser reads or writes them, in its own shop or another.
+{
+  await env.withSecurityRulesDisabled(ctx => Promise.all([
+    setDoc(doc(folder(ctx.firestore()), "membershipPlans/p1"), { name: "Friends", interval: "month", priceMinor: 1500 }),
+    setDoc(doc(folder(ctx.firestore()), "memberships/m1"), { state: "active", customer: { email: "reader@example.com", uid: "u1" }, planId: "p1" }),
+    setDoc(doc(ctx.firestore(), "shops/s2/membershipPlans/p2"), { name: "Patrons", interval: "year", priceMinor: 9000 }),
+    setDoc(doc(ctx.firestore(), "shops/s2/memberships/m2"), { state: "active", customer: { email: "reader@example.com", uid: "u1" } }),
+  ]));
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
+  const ownerS2 = signedIn("o1", { email: "owner@example.com", email_verified: true }, { shop: "s2" });
+  const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  for (const path of ["membershipPlans/p1", "memberships/m1"]) {
+    await check(`owner can't read ${path} directly`, assertFails(getDoc(doc(owner, path))));
+    await check(`owner can't write ${path}`, assertFails(setDoc(doc(owner, path), { state: "ended" }, { merge: true })));
+    await check(`anon can't read ${path}`, assertFails(getDoc(doc(anon, path))));
+    await check(`anon can't write ${path}`, assertFails(setDoc(doc(anon, path), { state: "active" }, { merge: true })));
+    await check(`another shop's owner can't read this shop's ${path}`, assertFails(getDoc(doc(ownerThereInS1, path))));
+  }
+  await check("the member can't read their membership directly", assertFails(getDoc(doc(reader, "memberships/m1"))));
+  await check("the member can't make themselves a member", assertFails(setDoc(doc(reader, "memberships/m9"), { state: "active", customer: { email: "reader@example.com" } })));
+  await check("owner can't read another shop's plans", assertFails(getDoc(doc(ownerS2, "membershipPlans/p2"))));
+  await check("owner can't read another shop's members", assertFails(getDoc(doc(ownerS2, "memberships/m2"))));
+}
+
 // Walls between shops (docs/shared-system.md). Shop s2 has its own records; nobody from s1's sign-in list may touch
 // them, and nobody from s2's (or from no list at all) may touch s1's, whatever role or address the pass carries.
 {

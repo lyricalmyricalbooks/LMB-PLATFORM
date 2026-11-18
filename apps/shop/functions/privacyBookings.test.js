@@ -122,6 +122,12 @@ function setup() {
       v1: { client: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', email: 'ada@example.com', day: '2026-11-10', note: 'Formula 6N + 20 vol', photos: [{ path: 'client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg', kind: 'before' }, { path: '../elsewhere.jpg', kind: 'after' }] },
       v2: { client: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', email: 'bo@example.com', day: '2026-11-11', note: 'Trim', photos: [{ path: 'client-photos/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/after-1-y.jpg', kind: 'after' }] },
     },
+    // Memberships (memberships.js): one of Ada's that ended, one never started, and Bo's running one.
+    memberships: {
+      m1: { state: 'ended', startedAt: '2026-10-01T00:00:00.000Z', plan: { name: 'Friends' }, customer: { name: 'Ada', email: 'ada@example.com', uid: 'u1' }, card: { brand: 'visa', last4: '4242' }, sessions: ['cs_m'], subscription: 'sub_1', stripeCustomer: 'cus_1', mode: 'test' },
+      m2: { state: 'ended', neverStarted: true, customer: { name: 'Ada', email: 'ada@example.com', uid: 'u1' }, sessions: ['cs_n'] },
+      m3: { state: 'active', customer: { name: 'Bo', email: 'bo@example.com', uid: 'u2' } },
+    },
     // "Tell me if an earlier time opens".
     bookingEarlier: {
       free1: { bookingId: 'free1', serviceName: 'Studio visit', start: '2026-11-20T15:00:00.000Z', name: 'Ada', email: 'ada@example.com' },
@@ -213,6 +219,36 @@ describe("the owner's privacy export and erase", () => {
     // Only a path inside the client-photos folder is ever deleted.
     expect(deletedFiles).toEqual(['client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg']);
     expect(out.body.deleted).toMatchObject({ clientVisits: 1, clientPhotos: 1 });
+  });
+});
+
+describe("memberships in the privacy export and erase", () => {
+  it("the export carries the person's memberships without provider ids or card pages", async () => {
+    const { res, handlePrivacyAdmin } = setup();
+    const out = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyExport', email: 'ada@example.com' } }, out);
+    expect(out.body.memberships.map(m => m.id)).toEqual(['m1']);
+    for (const key of ['sessions', 'subscription', 'stripeCustomer', 'mode']) expect(out.body.memberships[0]).not.toHaveProperty(key);
+  });
+
+  it("the erase is refused while a membership runs, then clears the name and card of ended ones", async () => {
+    const { db, res, handlePrivacyAdmin } = setup();
+    db.store.get('memberships').set('m4', { state: 'active', customer: { name: 'Ada', email: 'ada@example.com' } });
+    const refused = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyErase', email: 'ada@example.com' } }, refused);
+    expect(refused.code).toBe(409);
+    expect(refused.body).toMatchObject({ code: 'membership_running', memberships: ['m4'] });
+    expect(db.store.get('bookingForms').has('f1')).toBe(true);
+
+    db.store.get('memberships').get('m4').state = 'ended';
+    const out = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyErase', email: 'ada@example.com' } }, out);
+    expect(out.code).toBe(200);
+    const m = db.store.get('memberships');
+    // Started: the email stays as a payment record. Never started: it goes too.
+    expect(m.get('m1')).toMatchObject({ customer: { name: '', email: 'ada@example.com', uid: '' }, card: null });
+    expect(m.get('m2')).toMatchObject({ customer: { name: '', email: '', uid: '' } });
+    expect(m.get('m3')).toMatchObject({ customer: { name: 'Bo', email: 'bo@example.com' } });
   });
 });
 

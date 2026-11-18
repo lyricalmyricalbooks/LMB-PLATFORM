@@ -247,6 +247,49 @@ test("a shop can never route money or set the fee itself", async () => {
   assert.equal(stripe.requests.length, 0);
 });
 
+// ── Memberships (M1): subscription pages and a member's subscription ──────────────────────────────────────────────
+
+const subscriptionPage = (fields = {}) => ({
+  params: { mode: "subscription", customer_email: "reader@example.com", client_reference_id: "m1", line_items: [{ quantity: 1, price_data: { currency: "cad", unit_amount: 1500, recurring: { interval: "month" }, product_data: { name: "Friends of the press" } } }], ...fields },
+  idempotencyKey: "membership-m1",
+});
+
+test("a subscription page takes the fee as a share of every invoice, never a one-off amount", async () => {
+  const none = await world();
+  assert.equal((await none.call("checkout.sessions.create", subscriptionPage())).status, 200);
+  assert.equal(none.stripe.requests[0].params["subscription_data[application_fee_percent]"], undefined);
+  assert.equal(none.stripe.requests[0].params["payment_intent_data[application_fee_amount]"], undefined);
+  const fee = await world({ env: { PLATFORM_FEE_BASIS_POINTS: "250" } });
+  assert.equal((await fee.call("checkout.sessions.create", subscriptionPage({ subscription_data: { trial_period_days: 14 } }))).status, 200);
+  assert.equal(fee.stripe.requests[0].params["subscription_data[application_fee_percent]"], "2.5");
+  assert.equal(fee.stripe.requests[0].params["subscription_data[trial_period_days]"], "14");
+  assert.equal(fee.stripe.requests[0].params["payment_intent_data[application_fee_amount]"], undefined);
+  // The shop can't set the share itself, or slip a one-off fee onto a subscription page.
+  const own = await fee.call("checkout.sessions.create", subscriptionPage({ subscription_data: { application_fee_percent: 0 } }));
+  assert.deepEqual([own.status, own.body.error.code], [400, "money_routing"]);
+  assert.equal((await fee.call("checkout.sessions.create", subscriptionPage({ payment_intent_data: { description: "x" } }))).status, 400);
+});
+
+test("a member's subscription can be read, ended at the period's end, given a new card or ended now, and nothing else", async () => {
+  const w = await world();
+  w.stripe.world.subscriptions.set("sub_m1", { id: "sub_m1", object: "subscription", status: "active", cancel_at_period_end: false, account: "acct_moth", invoices: [{ id: "in_1", status: "paid" }] });
+  w.stripe.world.subscriptions.set("sub_other", { id: "sub_other", object: "subscription", status: "active", account: "acct_someone_else" });
+  assert.equal((await w.call("subscriptions.retrieve", { id: "sub_m1", params: { expand: ["default_payment_method"] } })).body.status, "active");
+  assert.equal((await w.call("subscriptions.retrieve", { id: "sub_other" })).status, 404);
+  assert.equal((await w.call("subscriptions.retrieve", { id: "sub_m1", params: { expand: ["customer"] } })).status, 400);
+  assert.equal((await w.call("subscriptions.update", { id: "sub_m1", params: { cancel_at_period_end: true } })).body.cancel_at_period_end, true);
+  assert.equal((await w.call("subscriptions.update", { id: "sub_m1", params: { default_payment_method: "pm_new" } })).body.default_payment_method, "pm_new");
+  for (const params of [{ items: [{ price: "price_cheap" }] }, { cancel_at_period_end: "yes" }, { default_payment_method: "card_x" }, {}]) {
+    assert.equal((await w.call("subscriptions.update", { id: "sub_m1", params })).status, 400, JSON.stringify(params));
+  }
+  assert.equal((await w.call("subscriptions.update", { id: "sub_m1", params: { metadata: "x" } })).status, 400);
+  assert.equal((await w.call("subscriptions.update", { id: "sub_m1", params: { metadata: { membership: "m1" } } })).status, 200);
+  assert.equal((await w.call("invoices.list", { params: { subscription: "sub_m1", limit: 10 } })).body.data.length, 1);
+  assert.equal((await w.call("invoices.list", { params: { customer: "cus_1" } })).status, 400);
+  assert.equal((await w.call("subscriptions.cancel", { id: "sub_m1" })).body.status, "canceled");
+  assert.equal((await w.call("subscriptions.cancel", { id: "../accounts" })).status, 400);
+});
+
 test("creates and refunds need an idempotency key", async () => {
   const { call } = await world();
   assert.equal((await call("paymentIntents.create", { params: intentArgs().params })).status, 400);
@@ -448,6 +491,8 @@ test("every call a shop can make is listed", () => {
   assert.deepEqual([...SHOP_OP_NAMES].sort(), [
     "account.onboardingLink", "account.paymentDomain", "account.status", "balanceTransactions.list", "checkout.sessions.create", "checkout.sessions.expire", "checkout.sessions.retrieve", "disputes.list",
     "events.retrieve", "paymentIntents.cancel", "paymentIntents.create", "paymentIntents.retrieve", "refunds.create", "refunds.list",
+    // Memberships (M1)
+    "invoices.list", "subscriptions.cancel", "subscriptions.retrieve", "subscriptions.update",
     // Square shops (square.js, plan 2.2b)
     "account.connectLink", "square.checkout.create", "square.checkout.delete", "square.checkout.retrieve", "square.disputes.forPayment",
     "square.payments.cancel", "square.payments.retrieve", "square.refunds.create", "square.refunds.forPayment", "square.refunds.retrieve",

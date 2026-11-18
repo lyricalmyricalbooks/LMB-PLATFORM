@@ -89,7 +89,7 @@ export class ServiceError extends Error {
 }
 
 const ACCOUNT_ID = /^acct_[A-Za-z0-9]+$/;
-const ids = { tml: /^tml_[A-Za-z0-9_]+$/, tmc: /^tmc_[A-Za-z0-9_]+$/, tmr: /^tmr_[A-Za-z0-9_]+$/, pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
+const ids = { tml: /^tml_[A-Za-z0-9_]+$/, tmc: /^tmc_[A-Za-z0-9_]+$/, tmr: /^tmr_[A-Za-z0-9_]+$/, pi: /^pi_[A-Za-z0-9_]+$/, cs: /^cs_[A-Za-z0-9_]+$/, evt: /^evt_[A-Za-z0-9_]+$/, sub: /^sub_[A-Za-z0-9_]+$/, pm: /^pm_[A-Za-z0-9_]+$/, po: /^po_[A-Za-z0-9_]+$/, txn: /^txn_[A-Za-z0-9_]+$/ };
 
 // Parameters that would move money anywhere but the press's own account, or set the platform's fee. A shop never
 // sets them: the service adds the fee itself, and any of these from a shop is refused, at any depth.
@@ -230,6 +230,25 @@ const locationUpdateParams = (params) => {
   return out;
 };
 
+// Memberships (M1): what a shop may change on a member's subscription. Ending at the period's end (or taking that back),
+// the card it charges, and its notes; never its price, plan or fee.
+const subscriptionUpdateParams = (params) => {
+  const out = only(params, ["cancel_at_period_end", "default_payment_method", "metadata"]);
+  if (!Object.keys(out).length) throw bad("nothing to change");
+  if (out.cancel_at_period_end !== undefined && typeof out.cancel_at_period_end !== "boolean") throw bad("cancel_at_period_end must be true or false");
+  if (out.default_payment_method !== undefined) idFor("pm", out.default_payment_method);
+  if (out.metadata !== undefined && (!plainObject(out.metadata) || !Object.values(out.metadata).every((v) => typeof v === "string" && v.length <= 500))) throw bad("metadata must be short text values");
+  return out;
+};
+const invoiceListParams = (params) => {
+  const out = only(params, ["subscription", "limit", "status", "starting_after"]);
+  idFor("sub", out.subscription);
+  limitOk(out.limit);
+  if (out.status !== undefined && !["draft", "open", "paid", "uncollectible", "void"].includes(out.status)) throw bad("status isn't one Stripe knows");
+  if (out.starting_after !== undefined && (typeof out.starting_after !== "string" || !/^in_[A-Za-z0-9_]+$/.test(out.starting_after))) throw bad("starting_after must be an in_… id");
+  return out;
+};
+
 /** The Stripe calls a shop may ask for. Each names Stripe's path and checks the shop's parameters. */
 const SHOP_OPS = Object.freeze({
   "paymentIntents.create": { method: "POST", path: () => "/v1/payment_intents", create: "top" },
@@ -240,6 +259,10 @@ const SHOP_OPS = Object.freeze({
   // The card a booking page saved (card on file): its setup or payment intent, with the card's brand and last four.
   "checkout.sessions.retrieve": { method: "GET", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}`, params: (p) => expandOnly(p, ["setup_intent.payment_method", "payment_intent.payment_method"]) },
   "checkout.sessions.expire": { method: "POST", path: (a) => `/v1/checkout/sessions/${idFor("cs", a.id)}/expire`, params: (p) => only(p, []) },
+  "subscriptions.retrieve": { method: "GET", path: (a) => `/v1/subscriptions/${idFor("sub", a.id)}`, params: (p) => expandOnly(p, ["default_payment_method", "latest_invoice"]) },
+  "subscriptions.update": { method: "POST", path: (a) => `/v1/subscriptions/${idFor("sub", a.id)}`, params: subscriptionUpdateParams },
+  "subscriptions.cancel": { method: "DELETE", path: (a) => `/v1/subscriptions/${idFor("sub", a.id)}`, params: (p) => only(p, []) },
+  "invoices.list": { method: "GET", path: () => "/v1/invoices", params: invoiceListParams },
   "refunds.create": { method: "POST", path: () => "/v1/refunds", refund: true },
   "refunds.list": { method: "GET", path: () => "/v1/refunds", params: refundListParams },
   "disputes.list": { method: "GET", path: () => "/v1/disputes", params: listParams },
@@ -475,6 +498,7 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (!plainObject(params)) throw bad("parameters are needed");
     const routing = routingKey(params);
     if (routing) throw new ServiceError(400, "money_routing", `${routing} is set by the platform, never by a shop`);
+    if (where !== "top" && params.mode === "subscription") return subscriptionParams(params, fee);
     if (!takesFee(fee)) return params;
     const amount = where === "top" ? params.amount : sessionAmount(params);
     if (where !== "top" && amount === null) {
@@ -487,6 +511,14 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     if (!applicationFee) return params;
     if (where === "top") return { ...params, application_fee_amount: applicationFee };
     return { ...params, payment_intent_data: { ...(params.payment_intent_data ?? {}), application_fee_amount: applicationFee } };
+  }
+
+  // Memberships (M1): a subscription page charges every period, so the fee is a share of each invoice
+  // (`subscription_data.application_fee_percent`), never a one-off amount; `payment_intent_data` isn't allowed there.
+  function subscriptionParams(params, fee) {
+    if (params.payment_intent_data !== undefined) throw bad("a subscription page takes subscription_data, not payment_intent_data");
+    if (!takesFee(fee)) return params;
+    return { ...params, subscription_data: { ...(params.subscription_data ?? {}), application_fee_percent: fee.basisPoints / 100 } };
   }
 
   function refundParams(params, fee) {
@@ -651,7 +683,11 @@ export function createPaymentService({ stripe, registry, auditLog, accounts, del
     const terms = op.create || op.refund ? termsFor(row) : null;
     let params;
     let held = null;
-    if (op.create && terms) {
+    if (op.create && terms && op.create !== "top" && args.params?.mode === "subscription") {
+      // Pay as you sell counts books sold; a membership isn't one. No fee on subscriptions yet (M1 decision), logged.
+      console.warn(`pay as you sell: no fee on the subscription page of ${row.shopId}`);
+      params = createParams(op.create, args.params, { basisPoints: 0 });
+    } else if (op.create && terms) {
       createParams(op.create, args.params, { basisPoints: 0 });
       const top = op.create === "top";
       held = await payAsYouSellFee(row, terms, {
