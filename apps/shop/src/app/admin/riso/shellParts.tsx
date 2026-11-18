@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { jobLabel, orderByNumber, searchJobs, type SearchJob } from "../searchActions";
 import { ChevronDown, Construction, DoorOpen, MoreHorizontal, Search, SlidersHorizontal, X } from "lucide-react";
 import { adminApi } from "../api";
 import { getOrdersCached } from "../ordersCache";
@@ -24,7 +25,7 @@ export type SearchTarget = { key: string; label: string; kind: string; run: () =
 /** Opens the inventory app at this address through the app switch (a plain new tab when the switch can't). */
 const openInApp = (url: string = INVENTORY_APP_URL) => { if (!openInventoryApp(window, url)) window.open(url, "_blank", "noopener"); };
 
-export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCustomer, shortcut = true, appBooks = null, appConnected = false, request }: {
+export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCustomer, shortcut = true, appBooks = null, appConnected = false, request, onJob, waysOffered = false }: {
   destinations: Array<{ id: string; label: string; run: () => void }>;
   onOpenBook: (book: any) => void;
   onOpenOrder?: (id: string) => void;
@@ -37,6 +38,10 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
   appConnected?: boolean;
   /** Open the search with this text (a `#search=` link from the inventory app); `n` makes a repeat count. */
   request?: { q: string; n: number } | null;
+  /** Search that does things (simpler admin, change 10): runs a job typed in the box ("add product", "refund 1042"). */
+  onJob?: (job: SearchJob, order?: any) => void;
+  /** Some way to sell can be switched on (Settings › Your shop shows the card): offer "turn on …". */
+  waysOffered?: boolean;
 }) {
   const w = useShopWords();
   const [q, setQ] = useState("");
@@ -114,8 +119,13 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
       })),
       { key: "app-search", label: `Search the inventory app for “${q.trim()}”`, kind: APP_KIND, run: () => openInApp(inventorySearchUrl(q)) },
     ] : [];
-    return [...nav, ...bk, ...ord, ...cust, ...inApp];
-  }, [q, books, booksState, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer, appBooks, appConnected]);
+    const jobs = onJob ? searchJobs(q, [w("product"), "product", "book", "item"]).flatMap((job) => {
+      const order = job.kind === "order" ? orderByNumber(orders || [], job.number) : undefined;
+      if ((job.kind === "order" && !order) || (job.kind === "waysToSell" && !waysOffered)) return [];
+      return [{ key: `do-${job.kind}-${job.kind === "order" ? job.number : ""}`, label: jobLabel(order ? { ...job, number: String(order.orderId || order.id).replace(/^#/, "") } : job, w("product")), kind: "Do", run: () => onJob(job, order) }];
+    }) : [];
+    return [...jobs, ...nav, ...bk, ...ord, ...cust, ...inApp];
+  }, [q, books, booksState, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer, appBooks, appConnected, onJob, waysOffered, w]);
   // What this admin found itself (the inventory app rows don't count as "something found").
   const ownCount = results.filter((r) => r.kind !== APP_KIND).length;
 
@@ -159,6 +169,7 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
       {open && !q.trim() && (
         <div className="rp-search-results rp-search-tip" role="note">
           {w("Type a book title, author or ISBN, an order number (with or without #), a customer's name or email, or a page such as")} <em>Shipping</em>.
+          {onJob && <> {w("Jobs work too:")} <em>{w("add product")}</em>, <em>make a discount</em>, <em>refund 1042</em>{waysOffered && <>, <em>turn on events</em></>}.</>}
           {appConnected && " Books in the inventory app are found too."}
         </div>
       )}

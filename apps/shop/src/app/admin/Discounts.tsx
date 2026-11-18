@@ -1,4 +1,5 @@
 import { plainError } from "./plainError";
+import { NEW_DISCOUNT_KEY } from "./searchActions";
 import { useState, useEffect, useMemo } from "react";
 import { Link2, Plus, Trash2, Upload } from "lucide-react";
 import { DiscountMoveDialog } from "./DiscountMoveDialog";
@@ -384,6 +385,10 @@ export function Discounts() {
   const [failed, setFailed] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  // "make a discount" typed in the admin search opens the new discount page straight away (simpler admin, change 10).
+  useEffect(() => {
+    try { if (sessionStorage.getItem(NEW_DISCOUNT_KEY)) { sessionStorage.removeItem(NEW_DISCOUNT_KEY); setEditing(null); setFormOpen(true); } } catch { /* the list shows */ }
+  }, []);
   const [deleting, setDeleting] = useState<any | null>(null);
   const [books, setBooks] = useState<any[] | null>(null);
   const [shopCategories, setShopCategories] = useState<any[] | null>(null);
