@@ -105,6 +105,31 @@ function chargeFrom(payment, refunds, disputes) {
   };
 }
 
+/**
+ * A Square subscription (the payment service's subscriptionShape) in the shape stripe.js memberSubscription gives, so
+ * memberships.js and giving.js read both alike. Square's dates are days; they become the start of that day (UTC).
+ */
+const isoDay = (day, addMonths = 0) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ""))) return "";
+  const d = new Date(`${day}T00:00:00.000Z`);
+  if (addMonths) d.setUTCMonth(d.getUTCMonth() + addMonths);
+  return d.toISOString();
+};
+function squareMemberSubscription(sub) {
+  if (!sub || typeof sub !== "object" || !sub.id) return null;
+  const ended = sub.status === "CANCELED" || sub.status === "DEACTIVATED";
+  const skip = sub.pausePending && sub.pausePending.cycles ? sub.pausePending : null;
+  const paused = sub.status === "PAUSED" || !!sub.pausePending;
+  return {
+    id: String(sub.id), status: ended ? "canceled" : "active", customer: String(sub.customerId || ""),
+    cancelAtPeriodEnd: !!sub.cancelPending, paused,
+    pausedUntil: skip ? isoDay(skip.date, skip.cycles) : "",
+    periodStart: isoDay(sub.startDate), periodEnd: isoDay(sub.chargedThroughDate), trialEnd: "",
+    endedAt: ended ? isoDay(sub.canceledDate) : "", canceledAt: ended ? isoDay(sub.canceledDate) : "",
+    card: null, amountMinor: 0, currency: "", interval: "", metadata: {},
+  };
+}
+
 const newestFirst = (list) => [...list].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
 /**
@@ -463,9 +488,51 @@ function createSquareProvider({ db, platform = null }) {
       if (after?.payment_status === "paid") return after;
       return { ...before, status: "expired" };
     }
+    // ── Memberships and monthly gifts (M4) ── A subscription page is a Square payment link on a plan variation; the
+    // membership or pledge it pays for is kept beside it (Square links hold no metadata), and the subscription is
+    // found through the payment's customer once the page is paid.
+    async function openSubscription(params, idempotencyKey) {
+      const item = params?.line_items?.[0]?.price_data;
+      if (!item || !Number.isInteger(item.unit_amount) || !item.recurring?.interval) throw new Error("A repeating payment needs one priced line with how often it repeats.");
+      const metadata = { ...(params.metadata || {}) };
+      const made = await call("square.subscriptions.page", linkMode, {
+        params: {
+          name: String(item.product_data?.name || "Membership").slice(0, 250), priceMinor: item.unit_amount, currency: String(item.currency || "").toUpperCase(),
+          interval: item.recurring.interval, trialDays: Number(params.subscription_data?.trial_period_days) || 0,
+          redirectUrl: String(params.success_url || ""), ...(params.customer_email ? { buyerEmail: String(params.customer_email) } : {}),
+        },
+        idempotencyKey: String(idempotencyKey),
+      });
+      const id = squareCheckoutId(made.id);
+      const expiresAt = Number.isFinite(params.expires_at) ? params.expires_at : null;
+      await kept(id).set({ subscriptionPage: true, planVariationId: made.planVariationId, metadata, mode: linkMode, open: true, expiresAt, createdAt: new Date().toISOString() });
+      return { id, object: "checkout.session", url: made.url, status: "open", payment_status: "unpaid", expires_at: expiresAt, metadata };
+    }
+    async function readSubscriptionPage(id, fair) {
+      const base = { id, object: "checkout.session", metadata: { ...(fair.metadata || {}) } };
+      if (fair.subscription) return { ...base, status: "complete", payment_status: "paid", subscription: fair.subscription };
+      if (fair.open === false && !fair.paidAtClose) return { ...base, status: "expired", payment_status: "unpaid" };
+      const found = await call("square.subscriptions.forCheckout", linkMode, { id: squareIdOf(id), planVariationId: fair.planVariationId });
+      if (found?.subscription?.id) {
+        await kept(id).set({ ...fair, open: false, subscription: found.subscription.id, paidAt: new Date().toISOString() });
+        return { ...base, status: "complete", payment_status: "paid", subscription: found.subscription.id };
+      }
+      // Paid, but Square hasn't made the subscription yet: still finishing, never closed.
+      if (found?.paid) return { ...base, status: "open", payment_status: "unpaid" };
+      if (Number.isFinite(fair.expiresAt) && fair.expiresAt * 1000 <= Date.now()) {
+        await call("square.checkout.delete", linkMode, { id: squareIdOf(id) }).catch(() => {});
+        await kept(id).set({ ...fair, open: false, closedAt: new Date().toISOString() });
+        return { ...base, status: "expired", payment_status: "unpaid" };
+      }
+      return { ...base, status: "open", payment_status: "unpaid" };
+    }
+
     return Object.freeze({
       reader: terminalReader(linkMode),
+      subscriptions: memberSubscriptions(linkMode),
       async open(params, idempotencyKey) {
+        if (params?.mode === "setup") throw Object.assign(new Error("Square can't take a new card for a repeating payment here. Please contact the shop."), { code: "not_available", statusCode: 409 });
+        if (params?.mode === "subscription") return openSubscription(params, idempotencyKey);
         const item = params?.line_items?.[0]?.price_data;
         const metadata = params?.metadata || {};
         // A fair sale names its sale and helper; an invoice pay link (invoicePay.js) names its link; a booking (bookings.js) its booking.
@@ -520,6 +587,7 @@ function createSquareProvider({ db, platform = null }) {
         const snap = await kept(id).get();
         const fair = snap.exists ? snap.data() : null;
         if (!fair || fair.mode !== linkMode) return null;
+        if (fair.subscriptionPage) return readSubscriptionPage(id, fair);
         // Closed here, unpaid: Square has deleted the link, so answer without asking it.
         if (fair.open === false && fair.closedAt && !fair.paidAtClose) {
           return { id, object: "checkout.session", status: "expired", payment_status: "unpaid", metadata: keptMetadata(fair) };
@@ -541,6 +609,7 @@ function createSquareProvider({ db, platform = null }) {
         let closed = 0;
         for (const doc of snap.docs) {
           const fair = doc.data();
+          if (fair.subscriptionPage) continue;
           if (fair.mode !== linkMode || !Number.isFinite(fair.expiresAt) || fair.expiresAt * 1000 > nowMs) continue;
           try {
             const session = await expire(doc.id, fair);
@@ -550,6 +619,33 @@ function createSquareProvider({ db, platform = null }) {
           }
         }
         return { closed };
+      },
+    });
+  }
+
+  // Memberships (M4), in the words memberships.js and giving.js use for Stripe (stripe.js memberSubscriptions). Square
+  // always ends a subscription at the end of its paid period, so `endNow` ends it then too; a new card can't be taken
+  // here (`cardChange: false`).
+  function memberSubscriptions(mode) {
+    const shaped = (sub) => squareMemberSubscription(sub);
+    const ask = async (op, args) => shaped(await call(op, mode, args));
+    return Object.freeze({
+      cardChange: false,
+      read: (id) => ask("square.subscriptions.retrieve", { id }),
+      cancelAtEnd: (id) => ask("square.subscriptions.cancel", { id }),
+      resume: (id) => ask("square.subscriptions.undoCancel", { id }),
+      endNow: (id) => ask("square.subscriptions.cancel", { id }),
+      setCard: async () => { throw Object.assign(new Error("Square can't take a new card for a repeating payment here."), { code: "not_available", statusCode: 409 }); },
+      // A date means one skipped period (the pause ends by itself); none holds until `unpause`.
+      pause: (id, resumesAt = "") => ask("square.subscriptions.pause", { id, ...(resumesAt ? { cycles: 1 } : {}) }),
+      unpause: (id) => ask("square.subscriptions.resume", { id }),
+      async invoices(id, limit = 12) {
+        const answer = await call("square.subscriptions.invoices", mode, { id, limit: Math.min(24, Math.max(1, limit)) });
+        return (answer?.data || []).map((inv) => ({
+          id: String(inv.id || ""), status: inv.status === "PAID" ? "paid" : lower(inv.status || ""), amountMinor: Number(inv.amountMinor) || 0,
+          currency: String(inv.currency || "").toUpperCase(), paidAt: inv.status === "PAID" ? String(inv.updatedAt || "") : "",
+          periodStart: "", periodEnd: "", paymentIntent: "",
+        }));
       },
     });
   }
@@ -627,4 +723,4 @@ function createSquareProvider({ db, platform = null }) {
   };
 }
 
-module.exports = { createSquareProvider, intentFrom, refundFrom, disputeFrom, chargeFrom, isFairReference, FAIR_PAYMENTS };
+module.exports = { squareMemberSubscription, createSquareProvider, intentFrom, refundFrom, disputeFrom, chargeFrom, isFairReference, FAIR_PAYMENTS };

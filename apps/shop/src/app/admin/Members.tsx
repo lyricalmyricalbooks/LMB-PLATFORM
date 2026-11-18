@@ -63,7 +63,17 @@ export function Members() {
           <span className="rp-alert-glyph" aria-hidden="true">!</span>
           <div className="rp-alert-text">
             <strong className="rp-alert-title">Your card payments can't take memberships yet.</strong>
-            <span className="rp-alert-detail">Memberships work with card payments through Stripe for now. Nobody can join until then.</span>
+            <span className="rp-alert-detail">Memberships work with card payments through Stripe, or Square on the monthly plan. Nobody can join until then.</span>
+          </div>
+        </div>
+      )}
+
+      {data.ready && data.square && (
+        <div role="note" className="rp-alert" data-tone="info">
+          <span className="rp-alert-glyph" aria-hidden="true">i</span>
+          <div className="rp-alert-text">
+            <strong className="rp-alert-title">Square memberships need the monthly plan.</strong>
+            <span className="rp-alert-detail">On pay as you sell, Square can't take repeating payments, so nobody can join. Switch to the monthly plan in Settings, Billing, or take payments with Stripe. Members change their card with you, not on your website.</span>
           </div>
         </div>
       )}
