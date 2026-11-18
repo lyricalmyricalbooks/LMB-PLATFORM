@@ -1426,3 +1426,12 @@ shoppers see, Send a test. **Deliveries** (`EmailDeliveries.tsx`): tiles, the re
 (cards on phones); Fix opens `#customers?q=<address>`. Pure rules in `emailSenderView.ts` (tested); Firestore and server calls go
 through `emailSenderApi.ts` (`emailSenderData`), which the fixture swaps: `admin-fixture.html?page=settings/notifications`
 (`&emails=empty|error|gmail`). Not built: Resume for a shopper who marked an email as spam (no server step exists).
+
+## Rentals (beta, R1, 18 November 2026)
+
+Admin › Rentals (`Rentals.tsx`, `rentals.css`, pure `rentalsView.ts`, calls `rentalsApi.ts` action `rentalsAdmin`).
+Shown while the Rentals way is on (`useWaysOn`). Bento tiles (out now, late back, next 7 days, this month), each item
+with a seven-day timeline per unit (`timelineRows`: a late rental runs on to now, a repair unit is striped), the rentals
+coming up with Picked up / Returned / Cancel and refund, and the item drawer. Fixture:
+`admin-fixture.html?ways=rentals&page=rentals` (`&rentals=new`). The switch stays unbuilt (`shared/ways/ways.js`) until
+the customer page exists.

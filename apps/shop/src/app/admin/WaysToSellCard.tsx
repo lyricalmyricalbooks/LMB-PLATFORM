@@ -9,6 +9,7 @@ import { WAYS, waysIn, type Way, type WayId } from "../../shared/waysToSell";
 import { useWaysAllowed } from "./waysApi";
 import { eventsAdmin } from "./eventsApi";
 import { givingAdmin } from "./givingApi";
+import { rentalsAdmin } from "./rentalsApi";
 import { membersAdmin } from "./membersApi";
 import { bookingsData } from "./bookingsApi";
 import { FormSection } from "./riso/FormKit";
@@ -75,6 +76,7 @@ export function WaysToSellCard() {
       if (way.id === "giving") void givingAdmin("hint").catch(() => {});
       // And the website's Membership links (functions/memberships.js).
       if (way.id === "memberships") void membersAdmin("hint").catch(() => {});
+      if (way.id === "rentals") void rentalsAdmin("hint").catch(() => {});
       toast.success(waySavedWords(way, on));
     } catch {
       toast.error("Couldn't save that. Check your connection and try again.");

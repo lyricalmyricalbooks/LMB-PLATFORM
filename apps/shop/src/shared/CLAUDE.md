@@ -122,3 +122,7 @@ browsers may write (mirroring `firestore.rules`).
 - Memberships (beta, 18 November 2026): `membershipRules.ts` holds what a plan may be (`cleanPlan`: monthly or yearly,
   $2 to $5,000, a free trial up to 60 days, up to 8 perks), the member's state from the card provider's subscription
   status (`memberState`), `hasPerks`, `mayJoin` and `planPriceWords`. The server's records are in `functions/memberships.js`.
+- Rentals (beta, 18 November 2026): `rentalRules.ts` holds what a rental item is (`cleanRentalItem`: units, hour or day
+  basis, prices, shortest and longest, cleaning time, opening hours), the cheapest fair price (`rentalPrice`), when an
+  asked rental starts and ends (`rentalWhen`), and which unit is free (`freeUnit`, `unitsFree`, `hourChoices`,
+  `dayChoices`; spans on `rentalCalendar/{itemId}`). The server's records are in `functions/rentals.js`.
