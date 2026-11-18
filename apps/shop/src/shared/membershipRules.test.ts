@@ -8,7 +8,7 @@ const server = createRequire(import.meta.url)("../../functions/shared/membership
 describe.each([["shop", shop], ["server", server]])("memberships rules (%s copy)", (_name, m) => {
   test("a plan needs a name, monthly or yearly, a price in range and a trial up to 60 days", () => {
     expect(m.cleanPlan({ name: "  Friends  of the press ", interval: "month", priceMinor: 1500, perks: ["10% off", " ", "Early tickets"], trialDays: "" })).toEqual({
-      plan: { name: "Friends of the press", description: "", perks: ["10% off", "Early tickets"], interval: "month", priceMinor: 1500, trialDays: 0, hidden: false },
+      plan: { name: "Friends of the press", description: "", perks: ["10% off", "Early tickets"], interval: "month", priceMinor: 1500, trialDays: 0, hidden: false, memberPercent: 0 },
     });
     expect(m.cleanPlan({ interval: "month", priceMinor: 1500 })).toMatchObject({ field: "name" });
     expect(m.cleanPlan({ name: "A", interval: "week", priceMinor: 1500 })).toMatchObject({ field: "interval" });
@@ -17,6 +17,17 @@ describe.each([["shop", shop], ["server", server]])("memberships rules (%s copy)
     expect(m.cleanPlan({ name: "A", interval: "year", priceMinor: 500001 })).toMatchObject({ field: "price" });
     expect(m.cleanPlan({ name: "A", interval: "year", priceMinor: 5000, trialDays: 61 })).toMatchObject({ field: "trial" });
     expect(m.cleanPlan({ name: "A", interval: "year", priceMinor: 5000, trialDays: 14, hidden: true })).toMatchObject({ plan: { trialDays: 14, hidden: true } });
+  });
+
+  test("a member price takes a whole percent from 0 to 50 off, to the cent", () => {
+    expect(m.cleanPlan({ name: "A", interval: "month", priceMinor: 1500, memberPercent: 10 })).toMatchObject({ plan: { memberPercent: 10 } });
+    expect(m.cleanPlan({ name: "A", interval: "month", priceMinor: 1500, memberPercent: "" })).toMatchObject({ plan: { memberPercent: 0 } });
+    for (const bad of [51, -1, 12.5, "lots"]) expect(m.cleanPlan({ name: "A", interval: "month", priceMinor: 1500, memberPercent: bad })).toMatchObject({ field: "percent" });
+    expect(m.memberUnitPrice(25, 10)).toBe(22.5);
+    expect(m.memberUnitPrice(19.99, 15)).toBe(16.99);
+    expect(m.memberUnitPrice(0.05, 50)).toBe(0.03);
+    expect(m.memberUnitPrice(25, 0)).toBe(25);
+    expect(m.memberUnitPrice(25, 80)).toBe(12.5);
   });
 
   test("a member's state follows the provider, and perks last while a payment is retried or the end is ahead", () => {

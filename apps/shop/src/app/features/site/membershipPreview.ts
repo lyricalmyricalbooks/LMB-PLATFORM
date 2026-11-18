@@ -4,7 +4,7 @@
 
 const PLANS = (currency: string) => [
   { id: "sample-friends", name: "Friends of the press", description: "Help us print more. Sample plan: yours show here once you add them under Members.",
-    perks: ["10% off every order", "Early news of new releases"], interval: "month", priceMinor: 1000, trialDays: 14, currency },
+    perks: ["A new print each season", "Early news of new releases"], interval: "month", priceMinor: 1000, trialDays: 14, memberPercent: 10, currency },
   { id: "sample-patron", name: "Patron", description: "Everything in Friends, and a print each season.",
     perks: ["Everything in Friends", "A signed print each season", "Your name in our books"], interval: "year", priceMinor: 12000, trialDays: 0, currency },
 ];

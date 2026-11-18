@@ -15,6 +15,8 @@ export const MIN_PLAN_MINOR = 200;
 /** The highest price one payment takes. */
 export const MAX_PLAN_MINOR = 500_000;
 export const MAX_TRIAL_DAYS = 60;
+/** The most a plan can take off the shop's prices for its members (M2a). */
+export const MAX_MEMBER_PERCENT = 50;
 
 export type PlanInterval = "month" | "year";
 export const PLAN_INTERVALS: readonly PlanInterval[] = Object.freeze(["month", "year"]);
@@ -30,6 +32,8 @@ export type MembershipPlan = {
   trialDays: number;
   /** A hidden plan takes no new members; its members stay. */
   hidden: boolean;
+  /** Whole percent off the shop's products for its members at checkout (0: none). The server applies it (M2a). */
+  memberPercent: number;
 };
 
 export const PLAN_MESSAGES = Object.freeze({
@@ -37,12 +41,13 @@ export const PLAN_MESSAGES = Object.freeze({
   interval: "Choose monthly or yearly.",
   price: (min: string, max: string) => `Enter a price from ${min} to ${max}.`,
   trial: `A free trial can be up to ${MAX_TRIAL_DAYS} days.`,
+  percent: `A member price can take 0 to ${MAX_MEMBER_PERCENT}% off.`,
 });
 
 const text = (value: unknown, max: number) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 
 /** The owner's plan, cleaned, or the first problem with the field it is about. Prices are whole cents. Pure. */
-export function cleanPlan(raw: unknown): { plan: MembershipPlan } | { problem: string; field: "name" | "interval" | "price" | "trial" } {
+export function cleanPlan(raw: unknown): { plan: MembershipPlan } | { problem: string; field: "name" | "interval" | "price" | "trial" | "percent" } {
   const p = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const name = text(p.name, MAX_PLAN_NAME);
   if (!name) return { problem: PLAN_MESSAGES.name, field: "name" };
@@ -54,8 +59,10 @@ export function cleanPlan(raw: unknown): { plan: MembershipPlan } | { problem: s
   }
   const trialDays = p.trialDays === undefined || p.trialDays === "" || p.trialDays === null ? 0 : Number(p.trialDays);
   if (!Number.isInteger(trialDays) || trialDays < 0 || trialDays > MAX_TRIAL_DAYS) return { problem: PLAN_MESSAGES.trial, field: "trial" };
+  const memberPercent = p.memberPercent === undefined || p.memberPercent === "" || p.memberPercent === null ? 0 : Number(p.memberPercent);
+  if (!Number.isInteger(memberPercent) || memberPercent < 0 || memberPercent > MAX_MEMBER_PERCENT) return { problem: PLAN_MESSAGES.percent, field: "percent" };
   const perks = (Array.isArray(p.perks) ? p.perks : []).map((x) => text(x, MAX_PERK)).filter(Boolean).slice(0, MAX_PERKS);
-  return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true } };
+  return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent } };
 }
 
 /**
@@ -96,4 +103,14 @@ export function planPriceWords(priceMinor: number, interval: PlanInterval, curre
   const money = new Intl.NumberFormat(fr ? "fr-CA" : "en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(priceMinor / 100);
   if (fr) return `${money} par ${interval === "year" ? "année" : "mois"}`;
   return `${money} a ${interval}`;
+}
+
+/**
+ * A product's member price: the shop's unit price less the plan's percent, to the cent (rounded half up), never below
+ * zero. 0 percent, or a price that isn't a number, gives the price back. Pure; the server uses it in priceOrder (M2a).
+ */
+export function memberUnitPrice(price: number, percent: number): number {
+  if (!Number.isFinite(price) || price <= 0 || !Number.isInteger(percent) || percent <= 0) return price;
+  const cents = Math.round(price * 100);
+  return Math.max(0, Math.round(cents * (100 - Math.min(percent, MAX_MEMBER_PERCENT)) / 100)) / 100;
 }

@@ -219,8 +219,8 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   const at = (days: number) => new Date(Date.now() + days * DAY).toISOString();
   const query = new URLSearchParams(window.location.search).get("members") || "";
   let plans: AdminPlan[] = query === "new" ? [] : [
-    { id: "plan-friends", name: "Friends of the press", description: "Keep the press running.", perks: ["A new print each season", "10% off everything in the shop", "First look at new books"], interval: "month", priceMinor: 1500, trialDays: 14, currency: "CAD", hidden: false, members: 3 },
-    { id: "plan-patrons", name: "Patrons", description: "", perks: ["Every book we publish, posted to you", "Your name in the back of each book"], interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD", hidden: false, members: 1 },
+    { id: "plan-friends", name: "Friends of the press", description: "Keep the press running.", perks: ["A new print each season", "Early tickets to launches", "First look at new books"], interval: "month", priceMinor: 1500, trialDays: 14, currency: "CAD", hidden: false, members: 3, memberPercent: 10 },
+    { id: "plan-patrons", name: "Patrons", description: "", perks: ["Every book we publish, posted to you", "Your name in the back of each book"], interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD", hidden: false, members: 1, memberPercent: 0 },
   ];
   const friends = { name: "Friends of the press", interval: "month" as const, priceMinor: 1500, trialDays: 14, currency: "CAD" };
   const member = (id: string, name: string, email: string, state: AdminMember["state"], extra: Partial<AdminMember> = {}): AdminMember => ({

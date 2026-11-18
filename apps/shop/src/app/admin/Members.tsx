@@ -12,7 +12,7 @@ import { membersAdmin, type AdminMember, type AdminPlan, type MembersList } from
 import { blankPlanForm, everyText, nextText, planFormOf, planFromForm, stateBadge, type PlanForm } from "./membersView";
 import { moneyText } from "./eventsView";
 import { dayText } from "./givingView";
-import { MAX_PERKS, MAX_PLAN_DESCRIPTION, MAX_PLAN_NAME, MAX_PLANS, MAX_TRIAL_DAYS } from "../../shared/membershipRules";
+import { MAX_PERKS, MAX_PLAN_DESCRIPTION, MAX_PLAN_NAME, MAX_PLANS, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT } from "../../shared/membershipRules";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./bookings.css";
 import "./members.css";
@@ -106,6 +106,7 @@ export function Members() {
               </div>
               <p className="mbr-price"><span>{money(p.priceMinor)}</span> {everyText(p.interval)}</p>
               {p.trialDays > 0 && <p className="mbr-meta">{p.trialDays === 1 ? "1 day free" : `${p.trialDays} days free`} before the first payment</p>}
+              {p.memberPercent > 0 && <p className="mbr-meta">Members pay {p.memberPercent}% less for your products</p>}
               {p.perks.length > 0 && <ul className="mbr-perks">{p.perks.map((perk, i) => <li key={i}>{perk}</li>)}</ul>}
               <div className="mbr-plan-foot">
                 <span className="mbr-meta">{p.members === 1 ? "1 member" : `${p.members} members`}</span>
@@ -200,7 +201,7 @@ function PlanDrawer({ start, money, onClose, onSaved }: { start: AdminPlan | nul
       onSaved();
     } catch (e) {
       const code = (e as { code?: string })?.code || "";
-      setProblem({ field: ["name", "price", "trial", "interval"].includes(code) ? code : "form", text: problemOf(e, "That didn't save. Check your connection and try again.") });
+      setProblem({ field: ["name", "price", "trial", "interval", "percent"].includes(code) ? code : "form", text: problemOf(e, "That didn't save. Check your connection and try again.") });
     } finally { setBusy(false); }
   };
 
@@ -219,9 +220,10 @@ function PlanDrawer({ start, money, onClose, onSaved }: { start: AdminPlan | nul
         </div>
         {fixed && <p className="mbr-hint">The price and how often it's paid stay as they are, because members joined at that price. To change them, make a new plan and hide this one.</p>}
         <TextField label="Free days before the first payment (optional)" inputMode="numeric" placeholder="0" hint={`Up to ${MAX_TRIAL_DAYS} days.`} value={form.trial} error={err("trial")} onChange={(e) => set({ trial: e.target.value })} />
+        <TextField label="Member price: % off your products (optional)" inputMode="numeric" placeholder="0" hint={`Members pay this much less for every product at checkout, worked out by the shop when they're signed in. Gift cards stay at full price. Up to ${MAX_MEMBER_PERCENT}%.`} value={form.percent} error={err("percent")} onChange={(e) => set({ percent: e.target.value })} />
         <TextArea label="What members get (optional)" rows={4} hint={`One line each, up to ${MAX_PERKS}. Shown as a list on your Membership page.`} value={form.perks} error={err("perks")} onChange={(e) => set({ perks: e.target.value })} />
         <Toggle label="Hide this plan: take no new members (current members stay)" checked={form.hidden} onChange={(hidden) => set({ hidden })} />
-        {problem && !["name", "price", "trial", "perks"].includes(problem.field) && <p className="mbr-problem" role="alert">{problem.text}</p>}
+        {problem && !["name", "price", "trial", "perks", "percent"].includes(problem.field) && <p className="mbr-problem" role="alert">{problem.text}</p>}
       </div>
     </Drawer>
   );

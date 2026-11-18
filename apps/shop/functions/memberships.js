@@ -26,7 +26,7 @@
 "use strict";
 
 const crypto = require("crypto");
-const { cleanPlan, memberState, mayJoin, planPriceWords, MAX_PLANS } = require("./shared/membershipRules");
+const { cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, MAX_PLANS, MAX_MEMBER_PERCENT } = require("./shared/membershipRules");
 const { waysOn } = require("./shared/waysToSell");
 
 const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard"]);
@@ -98,7 +98,9 @@ const WORDS = {
 };
 
 /** A plan as anyone sees it. */
-const publicPlan = (id, p, currency) => ({ id, name: p.name, description: p.description || "", perks: p.perks || [], interval: p.interval, priceMinor: p.priceMinor, trialDays: p.trialDays || 0, currency });
+const publicPlan = (id, p, currency) => ({ id, name: p.name, description: p.description || "", perks: p.perks || [], interval: p.interval, priceMinor: p.priceMinor, trialDays: p.trialDays || 0, memberPercent: percentOf(p), currency });
+/** A plan's member price percent (M2a), 0 when it has none or it isn't a whole 1 to 50. */
+const percentOf = (p) => (Number.isInteger(p?.memberPercent) && p.memberPercent > 0 && p.memberPercent <= MAX_MEMBER_PERCENT ? p.memberPercent : 0);
 /** A membership as its member sees it (never ids of the provider or keys). */
 const memberView = (id, m) => ({
   id, state: m.state || "pending", plan: m.plan || null, periodEnd: m.periodEnd || "", trialEnd: m.trialEnd || "", card: m.card || null,
@@ -543,7 +545,35 @@ function membershipActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweep, onEvent, featureOn, tellWebsite };
+  // ── Member prices (M2a) ────────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * The member price one membership gives right now, or null: Memberships is on, the membership has its perks (trial,
+   * active, ending or a payment being retried), it lives in the same mode as the checkout (a test membership never lowers
+   * a real order's prices) and its plan takes a percent off. Read again on every pricing, so a membership that ends
+   * after checkout claimed it stops counting at once.
+   */
+  async function priceFor(membershipId, testMode) {
+    if (typeof membershipId !== "string" || !ID.test(membershipId)) return null;
+    const snap = await members().doc(membershipId).get();
+    const m = snap.exists ? snap.data() : null;
+    if (!m || !hasPerks(m.state) || (m.mode === "test") !== (testMode === true) || !m.planId) return null;
+    const plan = await plans().doc(String(m.planId)).get();
+    const percent = plan.exists ? percentOf(plan.data()) : 0;
+    if (!percent || !(await featureOn())) return null;
+    return { membershipId, percent, plan: String(plan.data().name || "") };
+  }
+  /** The signed-in customer's membership that gives the best member price in this mode, or null. */
+  async function bestFor(email, testMode) {
+    let best = null;
+    for (const r of await mine(email)) {
+      const price = await priceFor(r.id, testMode);
+      if (price && (!best || price.percent > best.percent)) best = price;
+    }
+    return best;
+  }
+
+  return { handlePublic, handleAdmin, sweep, onEvent, featureOn, tellWebsite, priceFor, bestFor };
 }
 
 module.exports = { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS, nextCheck, mergePayments, PAGE_MINUTES };

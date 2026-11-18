@@ -785,3 +785,57 @@ test('digital D1: a download-only bag is read from the billing country', async (
   expect((await app.priceOrder(billingOnly('Canada'))).subtotal).toBe(12);
   await expect(app.priceOrder(billingOnly('France'))).rejects.toMatchObject({ code: 'digital_country' });
 });
+
+// ── Member prices (Memberships M2a): a plan's percent off for a signed-in member ─────────────────────────────────────
+const memberDocs = (extra = {}) => stockistDocs({
+  platform: { features: { ways: { memberships: true } } },
+  firstWeek: { start: { ways: { memberships: true } } },
+  membershipPlans: { friends: { name: 'Friends', interval: 'month', priceMinor: 1500, memberPercent: 10 }, plain: { name: 'Plain', interval: 'month', priceMinor: 500, memberPercent: 0 } },
+  memberships: {
+    mem_active1: { state: 'active', mode: 'live', planId: 'friends', customer: { email: 'reader@example.com' } },
+    mem_ended01: { state: 'ended', mode: 'live', planId: 'friends', customer: { email: 'gone@example.com' } },
+    mem_testmd1: { state: 'active', mode: 'test', planId: 'friends', customer: { email: 'tester@example.com' } },
+  },
+  ...extra,
+});
+
+test('member prices: a claimed membership takes its plan\'s percent off each product, read again on every pricing', async () => {
+  const app = harness({ docs: memberDocs() });
+  expect(unitPrices(await app.priceOrder(stockistOrder()))).toEqual([40, 66, 20]);
+  const member = await app.priceOrder(stockistOrder({ memberId: 'mem_active1' }));
+  expect(unitPrices(member)).toEqual([36, 59.4, 18]);
+  expect(member.items.map(item => item.memberPrice === true)).toEqual([true, true, true]);
+  expect(member.subtotal).toBe(149.4);
+  // The browser can't mark a line or pick a membership that doesn't count.
+  for (const memberId of ['mem_ended01', 'mem_testmd1', 'nope', '../x']) expect(unitPrices(await app.priceOrder(stockistOrder({ memberId })))).toEqual([40, 66, 20]);
+  const forged = await app.priceOrder(stockistOrder({ items: [{ id: 'tee', quantity: 1, memberPrice: true, price: 1 }] }));
+  expect([forged.items[0].price, forged.items[0].memberPrice]).toEqual([40, undefined]);
+});
+
+test('member prices: the lower of trade and member price wins, and switching Memberships off stops them', async () => {
+  const both = harness({ docs: memberDocs() });
+  const priced = await both.priceOrder(stockistOrder({ memberId: 'mem_active1', stockistId: 'shop@boutique.example' }));
+  expect(unitPrices(priced)).toEqual([20, 33, 18]);
+  expect(priced.items.map(item => [item.wholesale === true, item.memberPrice === true])).toEqual([[true, false], [true, false], [false, true]]);
+  const off = harness({ docs: memberDocs({ firstWeek: { start: { ways: {} } } }) });
+  expect(unitPrices(await off.priceOrder(stockistOrder({ memberId: 'mem_active1' })))).toEqual([40, 66, 20]);
+  const zero = harness({ docs: memberDocs({ memberships: { mem_active1: { state: 'trial', mode: 'live', planId: 'plain', customer: { email: 'reader@example.com' } } } }) });
+  expect(unitPrices(await zero.priceOrder(stockistOrder({ memberId: 'mem_active1' })))).toEqual([40, 66, 20]);
+});
+
+test('member prices: only a signed-in member claims them, on an unpaid order they can open', async () => {
+  const docs = () => memberDocs({ orders: { o1: { ...stockistOrder(), paymentStatus: 'unpaid', status: 'pending_payment', trackingKey: 'a'.repeat(64) }, paid: { ...stockistOrder(), paymentStatus: 'paid', status: 'open', trackingKey: 'a'.repeat(64) } } });
+  const app = harness({ docs: docs(), identity: { email: 'Reader@Example.com', email_verified: true, uid: 'r1' } });
+  const ok = await app.call('createStripeCheckoutSession', { action: 'membershipPricing', orderId: 'o1' });
+  expect([ok.code, ok.value]).toEqual([200, { member: true, percent: 10, plan: 'Friends' }]);
+  expect(app.docs.orders.o1.memberId).toBe('mem_active1');
+  expect((await app.call('createStripeCheckoutSession', { action: 'membershipPricing', orderId: 'paid' })).code).toBe(409);
+  expect((await app.call('createStripeCheckoutSession', { action: 'membershipPricing', orderId: 'o1' }, { orderKey: 'b'.repeat(64) })).code).toBe(403);
+  for (const identity of [{ email: 'gone@example.com', email_verified: true, uid: 'g' }, { email: 'tester@example.com', email_verified: true, uid: 't' }]) {
+    const other = harness({ docs: docs(), identity });
+    expect((await other.call('createStripeCheckoutSession', { action: 'membershipPricing', orderId: 'o1' })).value).toEqual({ member: false });
+    expect(other.docs.orders.o1.memberId).toBeUndefined();
+  }
+  const unverified = harness({ docs: docs(), identity: { email: 'reader@example.com', email_verified: false, uid: 'r1' } });
+  expect((await unverified.call('createStripeCheckoutSession', { action: 'membershipPricing', orderId: 'o1' })).code).toBe(401);
+});

@@ -1399,6 +1399,7 @@ switch in Ways to sell sends `hint` so the website's Support link follows. Fixtu
 Amounts & choices also has **Tip at checkout** (switch and percents, `percentsFromText`); an order's Tip shows on its page.
 Gifts reach the money pages through `stockroom/moneyRecords.ts` (`giftSales` in `serviceSales.ts`, op `list`): a Gift row (`sourceType` `gift`) on the paid day with what the giver paid, kept out of gross sales, tax periods and year figures; refunded and test gifts and the giver's name are left out.
 Membership payments reach them the same way (`membershipSales`, op `payments` of `membersAdmin`): a Membership row (`sourceType` `membership`) per paid invoice on its paid day, counted in gross sales, the year figures (a Memberships line) and the tax period (its own channel, no tax charged, with an open check); test payments are left out and no member's name goes in. Refunds of a membership payment are not taken off yet.
+The plan drawer's **Member price** (`percentFromText`, `memberPercent`) shows on the plan card; the server applies it at checkout (functions/CLAUDE.md › Memberships).
 **Fundraiser (G2a):** a Fundraiser section above the gifts (`Fundraisers`, `FundraiserCard`, `FundraiserDrawer` in
 `Giving.tsx`; `goalFromText` and `fundraiserLines` in `givingView.ts`), ops `saveFundraiser` / `endFundraiser`. Home shows
 `overview/HomeFundraiser.tsx` after To do while one runs (passed as `extra` to HomeToday and HomeServices). The fixture

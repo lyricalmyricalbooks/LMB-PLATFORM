@@ -39,6 +39,7 @@ import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { subscribePreview } from "./features/site/previewTab";
 import { dutiesNote } from "./features/site/importDuties";
 import { claimTradePricing, tradeInvoiceTerms, tradeAuthHeader, INVOICE_METHOD_ID } from "./lib/tradePricing";
+import { claimMemberPricing } from "./lib/memberPricing";
 import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
@@ -1550,7 +1551,8 @@ export function Checkout() {
         if (!clientSecret) {
           // An approved trade account (signed in with its approved email) is priced at wholesale by the server; the
           // total check below then shows the shopper the real amount before anything is charged.
-          await claimTradePricing(orderId, savedOrderAccess(orderId));
+          // A signed-in member (Memberships beta) gets their plan's member price the same way.
+          const [, memberPriced] = await Promise.all([claimTradePricing(orderId, savedOrderAccess(orderId)), claimMemberPricing(orderId, savedOrderAccess(orderId))]);
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1572,7 +1574,8 @@ export function Checkout() {
           if (totalNeedsConfirming(Number(intentData.amount), shownMinor, String(intentData.currency || currency))) {
             pendingCardOrder.current = madeAttempt;
             setInlineAttemptStarted(false);
-            setNotice({ tone: "error", text: c("coTotalChanged", { amount: amountIn(Number(intentData.amount) / 100, intentData.currency) }) });
+            const lower = memberPriced && Number(intentData.amount) < shownMinor;
+            setNotice({ tone: lower ? "info" : "error", text: c(lower ? "coMemberPriceOn" : "coTotalChanged", { amount: amountIn(Number(intentData.amount) / 100, intentData.currency) }) });
             return;
           }
           // The shop switched test/live mode after this page loaded: the card form's key
