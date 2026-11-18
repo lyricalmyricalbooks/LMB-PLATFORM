@@ -9,8 +9,9 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = void 0;
+exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = void 0;
+exports.roomUnits = roomUnits;
 exports.cleanSpecialHours = cleanSpecialHours;
 exports.specialOn = specialOn;
 exports.hoursOnDay = hoursOnDay;
@@ -94,6 +95,17 @@ exports.MAX_QUESTIONS = 5;
 /** Add-ons and options on one service, and the most minutes one may add. */
 exports.MAX_EXTRAS = 8;
 exports.MAX_EXTRA_MINUTES = 240;
+exports.MAX_ROOM_UNITS = 20;
+/** The counts the admin offers for a room. */
+exports.ROOM_UNIT_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
+/** "One at a time" or "3 at once". */
+const roomUnitsText = (n) => (n > 1 ? `${n} at once` : "One at a time");
+exports.roomUnitsText = roomUnitsText;
+/** How many bookings a room takes at once (1 when it isn't listed or has no count). */
+function roomUnits(settings, roomId) {
+    const units = roomId ? settings.rooms?.find((r) => r.id === roomId)?.units : undefined;
+    return units && units > 1 ? units : 1;
+}
 exports.MAX_STAFF = 20;
 exports.MAX_ROOMS = 10;
 exports.MAX_SPECIAL_HOURS = 30;
@@ -858,7 +870,8 @@ function cleanRooms(raw) {
         const name = text(r.name, 60);
         if (!name || out.length >= exports.MAX_ROOMS)
             continue;
-        out.push({ id: ownId(r.id, "room", taken, out.length), name });
+        const units = Math.round(Number(r.units));
+        out.push({ id: ownId(r.id, "room", taken, out.length), name, ...(units > 1 ? { units: Math.min(units, exports.MAX_ROOM_UNITS) } : {}) });
     }
     return out;
 }
@@ -1023,7 +1036,7 @@ function daysTouched(start, end, zone) {
  * How many more people can book `service` at `start`: 0 when anything else overlaps it (its rest included). A group
  * class shares its time only with bookings of the same class at the very same start, up to its places.
  */
-function placesLeft(start, service, busy, staffId = "") {
+function placesLeft(start, service, busy, staffId = "", units = 1) {
     const end = start + (service.minutes + service.gapAfter) * MINUTE;
     // Time before (plan 4, 1.6): set-up or travel is kept free too, like the rest after.
     const begin = start - (Math.round(Number(service.gapBefore)) || 0) * MINUTE;
@@ -1034,6 +1047,7 @@ function placesLeft(start, service, busy, staffId = "") {
     const own = processingStretch(service, start);
     const inside = (a, z, gap) => !!gap && a >= gap.start && z <= gap.end;
     let taken = 0;
+    const inRoom = [];
     for (const b of busy) {
         if (b.closed) {
             if (b.serviceId === service.id && b.start === start)
@@ -1047,15 +1061,28 @@ function placesLeft(start, service, busy, staffId = "") {
         const sameRoom = !!room && b.roomId === room;
         if (!mine && !sameRoom)
             continue;
-        if (!sameRoom && (inside(begin, end, b.free) || inside(b.start, b.end, own)))
-            continue;
         const sameClass = places > 1 && b.serviceId === service.id && b.start === start && (!staffId || (b.staffId || "") === staffId);
-        if (sameClass)
+        if (sameClass) {
             taken += 1;
-        else
+            continue;
+        }
+        // The room stays in use for the whole booking, processing included; it is full only at its count (plan 4, 1.9).
+        if (sameRoom)
+            inRoom.push(b);
+        if (mine && !inside(begin, end, b.free) && !inside(b.start, b.end, own))
             return 0;
     }
+    if (inRoom.length && mostAtOnce(inRoom, begin, end) >= Math.max(1, units))
+        return 0;
     return Math.max(0, places - taken);
+}
+/** The most of `list` in use at one moment between `from` and `to` (each starts or is already running at some point). */
+function mostAtOnce(list, from, to) {
+    let most = 0;
+    for (const at of [from, ...list.map((b) => b.start).filter((t) => t > from && t < to)]) {
+        most = Math.max(most, list.filter((b) => b.start <= at && at < b.end).length);
+    }
+    return most;
 }
 /** The people who can be booked for a service: active, and doing it (nobody listed for a service means everyone). */
 function staffFor(settings, serviceId) {
@@ -1102,7 +1129,8 @@ function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }, win
     const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
     if (day < dayOf(nowMs, zone))
         return [];
-    const open = (start) => placesLeft(start, service, busy, staffId) > 0;
+    const units = roomUnits(settings, service.roomId);
+    const open = (start) => placesLeft(start, service, busy, staffId, units) > 0;
     // A course is signed up for at its first session only, however far ahead it starts and whatever the opening hours
     // say. (The server checks a place in every later session when it takes the sign-up.)
     if ((0, exports.isCourse)(service)) {
@@ -1179,10 +1207,11 @@ function whoIsFree(args) {
 }
 /** A class's places left at `start` for whoever could run it (the most any one person has), or the one person asked for. */
 function classPlacesLeft(start, service, settings, busy, staffId = "") {
+    const units = roomUnits(settings, service.roomId);
     if (!(0, exports.booksByPerson)(settings))
-        return placesLeft(start, service, busy);
+        return placesLeft(start, service, busy, "", units);
     const people = staffFor(settings, service.id).filter((p) => !staffId || p.id === staffId);
-    return people.reduce((most, p) => Math.max(most, placesLeft(start, service, busy, p.id)), 0);
+    return people.reduce((most, p) => Math.max(most, placesLeft(start, service, busy, p.id, units)), 0);
 }
 /** The person to keep when a booking moves: theirs while they still do the service, else "" (anyone free). */
 function keptPerson(settings, serviceId, staffId) {

@@ -8,6 +8,7 @@ import {
   cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue, packProblem,
   cleanBlocks, blockOn, blockedBusy, MAX_BLOCKS, processingStretch,
   cleanSpecialHours, hoursOnDay, personHoursOn, specialOn, MAX_SPECIAL_DAYS, bookingsOnDay, ownerBookingSettings,
+  roomUnits, roomUnitsText, MAX_ROOM_UNITS, classPlacesLeft,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -673,6 +674,53 @@ describe("blocked time (plan 4, 1.3)", () => {
   it("survives the settings clean", () => {
     expect(cleanBookingSettings({ ...settings, blocks: [lunch] }).blocks).toEqual([lunch]);
     expect(cleanBookingSettings(settings).blocks).toBeUndefined();
+  });
+});
+
+describe("equipment counts (plan 4, 1.9)", () => {
+  const facial = { id: "facial", minutes: 60, gapAfter: 0, roomId: "r1" };
+  const ten = at("2026-11-16", "10:00");
+  const hour = 3_600_000;
+  const people = [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }, { id: "cy", name: "Cy" }];
+  const shop = (units?: number) => ({ ...cleanBookingSettings({ ...settings, rooms: [{ id: "r1", name: "Tables", units }], staff: people }), live: true, minNoticeHours: 0 });
+  const using = (who: string, start = ten) => ({ start, end: start + hour, serviceId: "facial", staffId: who, roomId: "r1" });
+
+  it("keeps a count from 2 to 20 and reads anything else as one", () => {
+    expect(cleanRooms([{ name: "A", units: 3 }, { name: "B", units: 1 }, { name: "C", units: 99 }, { name: "D", units: "x" }]).map((r) => r.units))
+      .toEqual([3, undefined, MAX_ROOM_UNITS, undefined]);
+    expect(roomUnits({ rooms: [{ id: "r1", name: "A", units: 3 }] }, "r1")).toBe(3);
+    expect(roomUnits({ rooms: [{ id: "r1", name: "A" }] }, "r1")).toBe(1);
+    expect(roomUnits({}, undefined)).toBe(1);
+    expect(roomUnitsText(1)).toBe("One at a time");
+    expect(roomUnitsText(3)).toBe("3 at once");
+  });
+
+  it("lets a room that takes two hold two bookings by different people, and refuses a third", () => {
+    const s2 = shop(2);
+    expect(whoIsFree({ service: facial, settings: s2, busy: [using("ana")], start: ten, zone: ZONE, nowMs: NOW })).toBe("ben");
+    expect(whoIsFree({ service: facial, settings: s2, busy: [using("ana"), using("ben")], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+    // Half an hour later it is still full; once the first ends, there is room again.
+    expect(whoIsFree({ service: facial, settings: s2, busy: [using("ana"), using("ben")], start: ten + hour / 2, zone: ZONE, nowMs: NOW })).toBeNull();
+    expect(whoIsFree({ service: facial, settings: s2, busy: [using("ana"), using("ben", ten + hour)], start: ten + hour / 2, zone: ZONE, nowMs: NOW })).toBe("cy");
+    // Two that never overlap each other leave room for a third between them.
+    expect(whoIsFree({ service: facial, settings: s2, busy: [using("ana"), using("ben", ten + 2 * hour)], start: ten + hour, zone: ZONE, nowMs: NOW })).not.toBeNull();
+  });
+
+  it("behaves as before for a room with no count", () => {
+    expect(whoIsFree({ service: facial, settings: shop(), busy: [using("ana")], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+    expect(freeTimes({ service: facial, settings: shop(), busy: [using("ana")], day: "2026-11-16", zone: ZONE, nowMs: NOW }).map(hhmm)).not.toContain("10:00");
+    expect(freeTimes({ service: facial, settings: shop(3), busy: [using("ana"), using("ben")], day: "2026-11-16", zone: ZONE, nowMs: NOW }).map(hhmm)).toContain("10:00");
+  });
+
+  it("still keeps one person to one booking, whatever the room takes", () => {
+    expect(whoIsFree({ service: facial, settings: shop(3), busy: [using("ana")], start: ten, zone: ZONE, nowMs: NOW, staffId: "ana" })).toBeNull();
+  });
+
+  it("counts a class's places against the room too", () => {
+    const yoga = { id: "yoga", minutes: 60, gapAfter: 0, places: 5, roomId: "r1" };
+    const other = { start: ten, end: ten + hour, serviceId: "facial", staffId: "cy", roomId: "r1" };
+    expect(classPlacesLeft(ten, yoga, shop(), [other])).toBe(0);
+    expect(classPlacesLeft(ten, yoga, shop(2), [other])).toBe(5);
   });
 });
 
