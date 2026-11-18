@@ -19,6 +19,7 @@ import { SetupStart } from "./SetupStart";
 import { ClosingTile } from "./ClosingTile";
 import { HomeToday } from "./HomeToday";
 import { HomeServices, useHomeBookings } from "./HomeServices";
+import { HomeFundraiser } from "./HomeFundraiser";
 import { servicesDay } from "./servicesHome";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import { RunRow, RunTiles } from "./OverviewParts";
@@ -192,6 +193,9 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
     </ul>
   ) : null;
 
+  // Donations & tips (beta): the fundraiser running now, if any, after To do.
+  const fundraiser = <HomeFundraiser onOpen={() => go("giving")} />;
+
   return (
     <>
       {/* A cancelled plan: the day the shop closes, with the download and Keep my plan (ClosingTile.tsx). */}
@@ -202,8 +206,8 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
         onOpen={go} onSetWall={onSetWall} onRetrySettings={refresh} />
       {/* Plan 6.17: Connect Google, on a shop run by Colophon, until it is connected. */}
       <ConnectGoogleCard variant="prompt" />
-      {services ? <HomeServices ownerName={ownerName} bookings={homeBookings} todo={servicesTodoRow} onOpen={go} /> :
-      <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow} glance={glance}
+      {services ? <HomeServices ownerName={ownerName} bookings={homeBookings} todo={servicesTodoRow} extra={fundraiser} onOpen={go} /> :
+      <HomeToday ownerName={ownerName} orders={shopOrders} ordersFailed={allOrders.error} fair={fair} combined={COMBINED} todo={todoRow} extra={fundraiser} glance={glance}
         onOpen={go} onOpenTill={() => stockroomBridge.openPage("pos")} onRetry={refresh} />}
     </>
   );

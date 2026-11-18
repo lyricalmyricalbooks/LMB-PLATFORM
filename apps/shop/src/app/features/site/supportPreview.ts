@@ -3,11 +3,26 @@
 // (bookTimePreview.ts `isBookingPreview`); no card page opens and nothing is saved.
 import { coverFeeMinor, DEFAULT_AMOUNTS, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../../shared/givingRules";
 import type { GiftView, GivingInfo } from "./supportRules";
+import { dayAfter, type PublicFundraiser } from "../../../shared/fundraiserRules";
 
 export const SAMPLE_GIFT_ID = "sample-gift";
 export const SAMPLE_GIFT_KEY = "0".repeat(48);
 
 let sample: GiftView | null = null;
+
+const today = () => new Date().toISOString().slice(0, 10);
+/** `fundraiser=sample` on the preview's address, or on Studio's own around it, shows a sample fundraiser, so its bar, story
+ *  and wall can be checked before one runs. */
+function sampleFundraiserAsked(): boolean {
+  if (typeof window === "undefined") return false;
+  const asks = (search: string) => new URLSearchParams(search).get("fundraiser") === "sample";
+  try { return asks(window.location.search) || (window.parent !== window && asks(window.parent.location.search)); } catch { return asks(window.location.search); }
+}
+const SAMPLE_FUNDRAISER = (day: string): PublicFundraiser => ({
+  id: "sample-fundraiser", title: "Reprint our first book", goalMinor: 300000, raisedMinor: 187500, supporters: 42, endsOn: dayAfter(day, 20), state: "live",
+  story: "Our first book sold out in a month. With your help we can print 500 more on the same paper.\n\nEvery gift counts toward the reprint.",
+  showWall: true, wall: [{ name: "Ada Reader", at: "" }, { name: "Ben Example", at: "" }, { name: "Cleo Example", at: "" }],
+});
 
 function sampleGift(currency: string, amountMinor = 2500, cover = true, name = "Ada Reader", honour: GiftView["honour"] = null, anonymous = false): GiftView {
   const feeMinor = cover ? coverFeeMinor(amountMinor) : 0;
@@ -22,6 +37,7 @@ export function previewGivingAnswer(action: string, body: Record<string, any> = 
     return {
       on: true, currency, minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: true, amounts: [...DEFAULT_AMOUNTS],
       otherAmount: true, coverFee: true, honour: true, form: "preview",
+      ...(sampleFundraiserAsked() ? { today: today(), fundraiser: SAMPLE_FUNDRAISER(today()) } : {}),
     } satisfies GivingInfo;
   }
   if (action === "giftStart") {

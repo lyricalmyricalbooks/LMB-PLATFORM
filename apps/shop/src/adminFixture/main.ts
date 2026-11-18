@@ -29,8 +29,9 @@ import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
-import { givingData, type AdminGift } from "../app/admin/givingApi";
+import { givingData, type AdminFundraiser, type AdminGift } from "../app/admin/givingApi";
 import { cleanGivingSettings } from "../shared/givingRules";
+import { cleanFundraiser, dayAfter } from "../shared/fundraiserRules";
 import { refundMinorFor } from "../shared/eventTickets";
 import { waysIn } from "../shared/waysToSell";
 
@@ -71,7 +72,34 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     gift("g4", "Dev Example", "dev@example.com", 2500, 40, { status: "refunded", refundedAt: ago(39) }),
   ];
   let settings = cleanGivingSettings({ amounts: [1000, 2500, 5000, 10000] });
+  const today = new Date().toISOString().slice(0, 10);
+  const fund = (id: string, f: Partial<AdminFundraiser>): AdminFundraiser => ({
+    id, title: "", story: "", goalMinor: 100000, raisedMinor: 0, supporters: 0, endsOn: dayAfter(today, 20), state: "live", status: "live",
+    wall: [], showWall: true, createdAt: ago(10), startedAt: ago(10), endedAt: "", ...f,
+  });
+  let funds: AdminFundraiser[] = !gifts.length ? [] : [
+    fund("f1", { title: "Reprint our first book", story: "Our first book sold out in a month. Help us print 500 more on the same paper.", goalMinor: 300000, raisedMinor: 187500, supporters: 42,
+      wall: [{ name: "Ada Example", at: ago(1) }, { name: "Cleo Example", at: ago(3) }] }),
+    fund("f0", { title: "A new risograph drum", goalMinor: 150000, raisedMinor: 162000, supporters: 51, state: "ended", status: "ended", endsOn: dayAfter(today, -60), endedAt: ago(60) }),
+  ];
   givingData.admin = async (op, body) => {
+    if (op === "saveFundraiser") {
+      const clean = cleanFundraiser(body.fundraiser, today);
+      if ("problem" in clean) throw Object.assign(new Error(clean.problem), { code: clean.field });
+      const id = String(body.id || `f${Date.now()}`);
+      const was = funds.find((f) => f.id === id);
+      const status = body.start === true || was?.status === "live" ? "live" : "draft";
+      const next = fund(id, { ...was, ...clean, showWall: clean.wall, wall: was?.wall || [], status, state: status, startedAt: status === "live" ? was?.startedAt || new Date().toISOString() : "" });
+      funds = [next, ...funds.filter((f) => f.id !== id)];
+      return { ok: true, fundraiser: next };
+    }
+    if (op === "endFundraiser") {
+      const was = funds.find((f) => f.id === body.id);
+      if (was?.state === "draft") { funds = funds.filter((f) => f.id !== body.id); return { ok: true, removed: true }; }
+      const next = was && { ...was, state: "ended" as const, status: "ended" as const, endedAt: new Date().toISOString() };
+      funds = funds.map((f) => (f.id === body.id && next ? next : f));
+      return { ok: true, fundraiser: next };
+    }
     if (op === "list") {
       const paid = gifts.filter((g) => g.status === "paid" && !g.test);
       const month = new Date().toISOString().slice(0, 7);
@@ -79,6 +107,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
         currency: "CAD", settings, gifts, minMinor: 500, maxMinor: 1_000_000,
         totals: { givenMinor: paid.reduce((a, g) => a + g.amountMinor, 0), monthMinor: paid.filter((g) => g.paidAt.startsWith(month)).reduce((a, g) => a + g.amountMinor, 0), gifts: paid.length, givers: new Set(paid.map((g) => g.email)).size },
         blocked: gifts.length ? { tooSmall: 3, tooMany: 1, bot: 11, total: 15 } : { tooSmall: 0, tooMany: 0, bot: 0, total: 0 },
+        fundraisers: funds, today,
       };
     }
     if (op === "saveSettings") { settings = cleanGivingSettings(body.settings); return { ok: true, settings }; }

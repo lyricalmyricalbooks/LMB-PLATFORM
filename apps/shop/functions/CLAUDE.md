@@ -1739,3 +1739,9 @@ reads the order's `tipMinor` through `checkoutTipFor`: refused (`tip_rejected`) 
 $1,000, or on a payment link; never taxed or discounted, added before gift cards (a gift card may cover it), saved as `tip`
 (public order field). The card page has a Tip line; both order emails a Tip row (French "Pourboire"). Bookkeeping's
 `tipsCents` keeps it out of sales.
+**Fundraisers (G2a, `tasks/todo/2026-11-18-giving-g2.md`):** `fundraisers/{id}` (server only; rules shared in
+`shared/fundraiserRules`). One runs at a time (`saveFundraiser` with `start`, 409 `one_at_a_time`); an ended one can't be
+edited; `endFundraiser` deletes a draft. `giftStart` takes `fundraiserId`, accepted only for the one running on the shop's
+day (`liveFundraiser`), else 409 `fundraiser_ended`, and `wall` (never for an anonymous giver). The total, supporter count
+and wall line change only inside `confirmPaid`'s paid transaction, and a refund takes them back off, so a browser can't
+move them. `givingInfo` sends `fundraiser` (`publicFundraiser`: no gift ids or emails) and `today`.

@@ -102,3 +102,9 @@
 .rp-home-needs li:first-child { border-top: 0; }
 .rp-home-needs span { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; font-size: var(--rp-text-sm); }
 .rp-home-needs small { opacity: .75; font-size: var(--rp-text-xs); }
+
+/* The fundraiser card (HomeFundraiser.tsx, Donations beta): title, what is in, the goal bar (giving.css) and the facts. */
+.rp-home-fund { gap: 10px; }
+.rp-home-fund-title { font: 600 20px/1.25 var(--rp-font-body); letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.rp-home-fund-raised { font: 700 28px/1.1 var(--rp-font-body); letter-spacing: -0.02em; margin-right: 4px; }
+.rp-home-fund .rp-home-empty { margin: 0; }

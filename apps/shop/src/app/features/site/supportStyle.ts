@@ -4,6 +4,7 @@
 //   fm-sup-amounts       the suggested amount buttons (aria-pressed)    fm-sup-other   the other-amount box
 //   fm-sup-check         a tick box with its words                      fm-sup-honour  honour or memory, and the name
 //   fm-sup-trap          the hidden field only bots fill in             fm-sup-thanks  the thank-you after giving
+//   fm-sup-fund          the fundraiser: raised line, bar, facts, story fm-sup-wall    the supporters wall
 const S = ".fm-track";
 
 export const SUPPORT_CSS = [
@@ -32,5 +33,19 @@ export const SUPPORT_CSS = [
   `${S} .fm-sup-thanks{display:grid;gap:18px;}`,
   `${S} .fm-sup-thanks .fm-track-btn{justify-self:start;}`,
   `${S} .fm-sup-empty{padding:28px 0;text-align:center;}`,
+  `${S} .fm-sup-fund{display:grid;gap:20px;max-width:48rem;}`,
+  `${S} .fm-sup-raised{margin:0 0 14px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;}`,
+  `${S} .fm-sup-raised strong{font-size:clamp(32px,6vw,44px);line-height:1;font-weight:800;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;}`,
+  `${S} .fm-sup-raised span{font-size:16px;color:var(--muted, currentColor);}`,
+  `${S} .fm-sup-bar{height:14px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);overflow:hidden;background:transparent;}`,
+  `${S} .fm-sup-bar span{display:block;height:100%;background:var(--accent);transition:width .4s ease;}`,
+  `@media (prefers-reduced-motion:reduce){${S} .fm-sup-bar span{transition:none;}}`,
+  `${S} .fm-sup-facts{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 18px;margin:12px 0 0;}`,
+  `${S} .fm-sup-story{display:grid;gap:12px;margin-top:22px;padding-top:20px;border-top:var(--t-edge-w) solid var(--t-edge);font-size:16px;line-height:1.65;white-space:pre-line;}`,
+  `${S} .fm-sup-story p{margin:0;}`,
+  `${S} .fm-sup-wall{display:grid;gap:12px;}`,
+  `${S} .fm-sup-wall h2{margin:0;}`,
+  `${S} .fm-sup-wall ul{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none;}`,
+  `${S} .fm-sup-wall li{padding:6px 14px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);font-size:14px;font-weight:600;overflow-wrap:anywhere;}`,
   `@media (max-width:640px){${S} .fm-sup-amounts{grid-template-columns:repeat(2,minmax(0,1fr));}${S} .fm-sup-thanks .fm-track-btn{justify-self:stretch;}}`,
 ].join("\n");

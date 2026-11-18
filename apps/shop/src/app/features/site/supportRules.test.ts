@@ -1,6 +1,6 @@
 // Support page (Donations & tips beta): the other-amount box, the amount checks, covering the fee and the giver's link.
 import { describe, expect, test } from "vitest";
-import { amountProblem, chargeFor, giftFromSearch, typedMinor } from "./supportRules";
+import { amountProblem, chargeFor, fundraiserFacts, giftFromSearch, storyParagraphs, typedMinor } from "./supportRules";
 import { previewGivingAnswer, SAMPLE_GIFT_ID, SAMPLE_GIFT_KEY } from "./supportPreview";
 
 describe("the other-amount box", () => {
@@ -43,5 +43,21 @@ describe("Studio's preview", () => {
     const start = previewGivingAnswer("giftStart", { amountMinor: 2500, coverFee: true, giver: { name: "Ada Reader" } }, "CAD");
     expect(start).toEqual({ giftId: SAMPLE_GIFT_ID, key: SAMPLE_GIFT_KEY, preview: true });
     expect(previewGivingAnswer("giftView", { giftId: SAMPLE_GIFT_ID }, "CAD").gift).toMatchObject({ status: "paid", amountMinor: 2500, feeMinor: 106, name: "Ada Reader" });
+  });
+});
+
+describe("the fundraiser on the Support page", () => {
+  const f = { id: "f1", title: "Reprint", story: "", goalMinor: 300000, raisedMinor: 187500, supporters: 42, endsOn: "2026-11-20", state: "live" as const, wall: [], showWall: true };
+  test("supporters and days left as copy keys", () => {
+    expect(fundraiserFacts(f, "2026-11-18")).toEqual({ bar: 62, reached: false, supporters: ["supportFundSupporters", { count: 42 }], when: ["supportFundDaysLeft", { days: 3 }] });
+    expect(fundraiserFacts({ ...f, supporters: 1, endsOn: "2026-11-18" }, "2026-11-18")).toMatchObject({ supporters: ["supportFundOneSupporter", {}], when: ["supportFundLastDay", {}] });
+    expect(fundraiserFacts({ ...f, raisedMinor: 300000 }, "2026-11-18")).toMatchObject({ bar: 100, reached: true });
+  });
+  test("a blank line starts a new paragraph", () => {
+    expect(storyParagraphs("One\nstill one\n\n  Two  \n\n\n")).toEqual(["One\nstill one", "Two"]);
+    expect(storyParagraphs("")).toEqual([]);
+  });
+  test("Studio's preview has no fundraiser unless asked", () => {
+    expect(previewGivingAnswer("givingInfo").fundraiser).toBeUndefined();
   });
 });

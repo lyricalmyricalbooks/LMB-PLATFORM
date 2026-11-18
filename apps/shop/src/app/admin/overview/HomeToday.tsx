@@ -53,7 +53,7 @@ const PILL: Record<string, { tone: BadgeTone; word: string }> = {
 
 const initials = (title: string) => title.split(/\s+/).filter((w) => /^[\p{L}\p{N}]/u.test(w) && !/^(the|a|an|of|and)$/i.test(w)).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "•";
 
-export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, todo, glance, onOpen, onOpenTill, onRetry }: {
+export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, todo, extra, glance, onOpen, onOpenTill, onRetry }: {
   ownerName: string;
   /** The shop's orders (the owner's own test orders left out); null while loading. */
   orders: Order[] | null;
@@ -63,6 +63,8 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
   combined: boolean;
   /** The To do tiles (HomePage's RunTiles). */
   todo: ReactNode;
+  /** Cards after To do, such as a running fundraiser (HomeFundraiser). */
+  extra?: ReactNode;
   /** Shop + stockroom: the Both sides at a glance tiles (HomePage's GlanceTiles). */
   glance?: ReactNode;
   onOpen: (tab: string) => void;
@@ -95,6 +97,7 @@ export function HomeToday({ ownerName, orders, ordersFailed, fair, combined, tod
         <h2 className="rp-home-h2" id="home-todo">To do <small>{combined ? "Website and stockroom, most urgent first" : "Most urgent first"}</small></h2>
         {todo}
       </section>
+      {extra}
 
       {glance && (
         <section aria-labelledby="home-glance">

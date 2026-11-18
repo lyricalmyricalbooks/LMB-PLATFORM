@@ -1398,3 +1398,7 @@ switch in Ways to sell sends `hint` so the website's Support link follows. Fixtu
 (`&giving=new` for the empty page).
 Amounts & choices also has **Tip at checkout** (switch and percents, `percentsFromText`); an order's Tip shows on its page.
 Gifts reach the money pages through `stockroom/moneyRecords.ts` (`giftSales` in `serviceSales.ts`, op `list`): a Gift row (`sourceType` `gift`) on the paid day with what the giver paid, kept out of gross sales, tax periods and year figures; refunded and test gifts and the giver's name are left out.
+**Fundraiser (G2a):** a Fundraiser section above the gifts (`Fundraisers`, `FundraiserCard`, `FundraiserDrawer` in
+`Giving.tsx`; `goalFromText` and `fundraiserLines` in `givingView.ts`), ops `saveFundraiser` / `endFundraiser`. Home shows
+`overview/HomeFundraiser.tsx` after To do while one runs (passed as `extra` to HomeToday and HomeServices). The fixture
+has a running and a past fundraiser.

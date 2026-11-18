@@ -3,17 +3,20 @@
 import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { GivingSettings, Honour } from "../../shared/givingRules";
+import type { FundraiserStatus, PublicFundraiser } from "../../shared/fundraiserRules";
 
 /** One gift as the owner sees it: the giver's details are the owner's to see, even when the giver stays anonymous to others. */
 export type AdminGift = {
   id: string; status: "paid" | "refunded"; name: string; email: string; anonymous: boolean; honour: Honour | null; note: string;
-  amountMinor: number; feeMinor: number; chargedMinor: number; currency: string; createdAt: string; paidAt: string; refundedAt: string; test: boolean;
+  amountMinor: number; feeMinor: number; chargedMinor: number; currency: string; createdAt: string; paidAt: string; refundedAt: string; test: boolean; fundraiserId?: string;
 };
+/** A fundraiser as the owner sees it: the Support page's view plus when it was made, started and ended. */
+export type AdminFundraiser = PublicFundraiser & { status: FundraiserStatus; createdAt: string; startedAt: string; endedAt: string };
 /** Tries the card-testing guard refused in the last 30 days, per reason. */
 export type BlockedTries = { tooSmall: number; tooMany: number; bot: number; total: number };
 export type GivingTotals = { givenMinor: number; monthMinor: number; gifts: number; givers: number };
-export type GivingList = { currency: string; settings: GivingSettings; gifts: AdminGift[]; totals: GivingTotals; blocked: BlockedTries; minMinor: number; maxMinor: number };
-export type GivingAdminOp = "list" | "saveSettings" | "resendThanks" | "refund" | "hint";
+export type GivingList = { currency: string; settings: GivingSettings; gifts: AdminGift[]; totals: GivingTotals; blocked: BlockedTries; minMinor: number; maxMinor: number; fundraisers?: AdminFundraiser[]; today?: string };
+export type GivingAdminOp = "list" | "saveSettings" | "resendThanks" | "refund" | "hint" | "saveFundraiser" | "endFundraiser";
 
 /** One object so the admin fixture (src/adminFixture/main.ts) can swap in sample gifts. */
 export const givingData = {

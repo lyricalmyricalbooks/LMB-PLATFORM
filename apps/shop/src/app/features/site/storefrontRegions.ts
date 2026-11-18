@@ -136,6 +136,8 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
   { id: "supportLayout", title: "Support · layout & elements", copy: "Support page", files: ["features/site/SupportPage.tsx"], regions: [
     { id: "supportHeader", label: "Support page navigation" },
     { id: "supportIntro", label: "Support heading & description" },
+    { id: "supportFundraiser", label: "Fundraiser: goal bar and story" },
+    { id: "supportWall", label: "Fundraiser supporters wall" },
     { id: "supportAmounts", label: "Amount buttons and other amount", required: true },
     { id: "supportForm", label: "Your details and Give button", required: true },
     { id: "supportSummary", label: "What you give summary" },
