@@ -37,6 +37,7 @@ import { cleanCharity, cleanReceiptAddress } from "../shared/charityReceipts";
 import { cleanFundraiser, dayAfter } from "../shared/fundraiserRules";
 import { refundMinorFor } from "../shared/eventTickets";
 import { waysIn } from "../shared/waysToSell";
+import { emailSenderData } from "../app/admin/emailSenderApi";
 
 // Stockroom › To-do: two titles, one nearly sold out and one with nothing waiting (`?stock=empty`: nothing at all).
 // Read at load: the fixture puts the address back to the page it opens, so later reads would miss it.
@@ -49,6 +50,45 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   // Author entries waiting on a title (the old stockroom's author inbox).
   submissions: { "night-songs": { sales: { s1: true }, expenses: { e1: true, e2: true } } },
 });
+
+// ── Settings › Email sender (`?page=settings/notifications`): a morning of deliveries with problems, a spam mark and one
+// email waiting for another try. `&emails=empty`: nothing sent yet; `&emails=error`: the list doesn't load; `&emails=gmail`:
+// the shop sends from its own Gmail. In memory; Retry and Stop answer at once. ──
+{
+  const mode = new URLSearchParams(window.location.search).get("emails") || "sample";
+  const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+  type Row = { id: string; at: string; to: string; subject: string; status: string; error?: string; outboxId?: string; keySource?: string; attempt?: number };
+  let log: Row[] = mode === "empty" || mode === "error" ? [] : [
+    { id: "l1", at: at(4), to: "ada@mail.example", subject: "Order confirmed: LM-98241", status: "failed", error: "552 Mailbox full", outboxId: "q1" },
+    { id: "l2", at: at(33), to: "ben@mail.example", subject: "Your order is on the way!", status: "bounced", error: "550 No such user here" },
+    { id: "l3", at: at(50), to: "cleo@mail.example", subject: "Did you forget something?", status: "complained" },
+    { id: "l4", at: at(75), to: "dan@mail.example", subject: "Your order is on the way!", status: "sent", keySource: mode === "gmail" ? "gmail" : "platform" },
+    { id: "l5", at: at(103), to: "eve@mail.example", subject: "Order confirmed: LM-98236", status: "sent" },
+    { id: "l6", at: at(117), to: "finn@mail.example", subject: "Order confirmed: LM-98235", status: "failed", error: "Message rejected by the receiving provider's policy" },
+    { id: "l7", at: at(155), to: "gia@mail.example", subject: "Order confirmed: LM-98233", status: "sent", attempt: 2 },
+    { id: "l8", at: at(60 * 26), to: "hal@mail.example", subject: "How are you finding your book?", status: "sent" },
+    { id: "l9", at: at(60 * 27), to: "ivy@mail.example", subject: "Order refunded: LM-98201", status: "sent" },
+  ];
+  let queue = mode === "empty" || mode === "error" ? [] : [
+    { id: "q1", to: "ada@mail.example", subject: "Order confirmed: LM-98241", kind: "order_confirmation", status: "pending", attempts: 2, nextAttemptAt: at(-20), lastError: "552 Mailbox full", createdAt: at(30) },
+  ];
+  emailSenderData.readLog = async (count: number) => {
+    if (mode === "error") throw new Error("offline");
+    return log.slice(0, count);
+  };
+  emailSenderData.call = async (body: Record<string, unknown>) => {
+    if (body.action === "emailQueue") return { entries: queue };
+    if (body.action === "senderStatus") return { gmailAddress: mode === "gmail" ? "yourpress@gmail.example" : "", backup: "platform" };
+    if (body.action === "retryEmail" || body.action === "cancelEmail") {
+      const entry = queue.find((q) => q.id === body.id);
+      queue = queue.filter((q) => q.id !== body.id);
+      if (entry && body.action === "retryEmail") log = [{ id: `l${log.length + 1}`, at: at(0), to: entry.to, subject: entry.subject, status: "sent", outboxId: entry.id, attempt: entry.attempts + 1 }, ...log];
+      return { status: body.action === "retryEmail" ? "sent" : "cancelled" };
+    }
+    if (body.email) { log = [{ id: `l${log.length + 1}`, at: at(0), to: String(body.email), subject: "Test: Order confirmed", status: "sent" }, ...log]; return { ok: true }; }
+    return {};
+  };
+}
 
 // ── Settings › General › Ways to sell (beta): `?ways=events,classes` are the ways the platform turned on for the shop
 // (none without it, so the section stays hidden). In memory. ──

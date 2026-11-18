@@ -312,7 +312,7 @@ The private operations, label purchase safeguards, payment authority and server 
   prompt on the Overview and in Marketing & traffic until connected. The platform writes the same
   `settings/website.analytics.ga4MeasurementId` and `adminSecrets/googleAnalytics` fields the older cards do, so the tag
   and reports below work unchanged. `useGoogleConnect().mode === "own"` (no link) keeps the older cards. On those shops
-  Email sender shows `PlatformSenderCard` instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
+  Email sender › Sending setup shows the "Send from" choices (Colophon's address, Connect Google, your own web address) instead of the Gmail app-password panel (`senderStatus.backup === "platform"`).
 - **Settings › Google (4 November 2026):** `GoogleSettings.tsx` (+ `google.css`, pure card states in `googleHub.ts`) is
   the one page for every Google service: hero (headline, account, "n of m working" meter, chips that scroll to parts
   needing a look), **Included with your sign-in** cards (analytics, search, Shopping, email, web address: badge, two
@@ -1413,3 +1413,15 @@ subject, message, Send me a test, Send to N people (confirmed), and Your updates
 `charityKindText`; a server refusal shows under its field by `code`). A gift row shows `receiptText` and, while issued,
 **Correct** → `ReceiptDrawer` (op `reissueReceipt`, confirmed). The fixture's settings have a charity; g2 has an issued
 receipt and g4 a cancelled one.
+
+## Email sender redesign (18 November 2026, Julian's mockups)
+Settings › Email sender (`NotificationEditor.tsx`, styles `emailSender.css`, `.es-*`, tokens only, laid out by its own width
+through the `es` container) has three tabs. **Emails:** a list (Orders, Cart, More ▾) beside the editor (Send automatically
+switch, English/French, insert tokens, Test to) and the live preview (Desktop/Phone, sample order); chips count waiting,
+problems, emails to check and emails off. **Sending setup** (`EmailSendingSetup.tsx`): status banner (`senderHealth`), Send from
+(platform shops: Colophon's address, Your Gmail → `#settings/google`, Your own web address → `#settings/general/details`; own
+accounts: Gmail and the backup mail service, whose panels pass in as `gmailCard` / `backup`), Name and replies, Email look, What
+shoppers see, Send a test. **Deliveries** (`EmailDeliveries.tsx`): tiles, the retry queue, filter pills, search and the table
+(cards on phones); Fix opens `#customers?q=<address>`. Pure rules in `emailSenderView.ts` (tested); Firestore and server calls go
+through `emailSenderApi.ts` (`emailSenderData`), which the fixture swaps: `admin-fixture.html?page=settings/notifications`
+(`&emails=empty|error|gmail`). Not built: Resume for a shopper who marked an email as spam (no server step exists).
