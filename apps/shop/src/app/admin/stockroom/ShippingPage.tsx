@@ -51,7 +51,7 @@ export function ShippingBoard({ view: base }: { view: ShippingView }) {
           columns={[
             { key: "to", header: "To", lead: true, render: (o) => <>{o.customer}<div className="rp-hint">{[o.num ? hash(o.num) : "", o.destination].filter(Boolean).join(" · ")}</div></> },
             { key: "items", header: "Contents", render: (o) => `${o.qty} × ${o.titles.join(", ") || w("book")}` },
-            { key: "status", header: "", render: (o) => <StatusBadge glyph={false} tone={o.late ? "danger" : "warning"}>To post · {ago(o.days)}</StatusBadge> },
+            { key: "status", header: "Status", render: (o) => <StatusBadge glyph={false} tone={o.late ? "danger" : "warning"}>To post · {ago(o.days)}</StatusBadge> },
             { key: "label", header: "", render: (o) => (o.shopOrderId
               ? <PrimaryButton size="sm" onClick={() => setLabelFor(o)}>Buy label</PrimaryButton>
               : null) },

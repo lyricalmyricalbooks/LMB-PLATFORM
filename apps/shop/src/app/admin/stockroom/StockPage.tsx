@@ -154,6 +154,6 @@ export function StockPage({ bookId, load = stockroomApi.load }: { bookId?: strin
   }
   const currency = String((records.books[0] as Record<string, any> | undefined)?.currency || SHOP_CURRENCY);
   return <div className="rp-stock"><WebsiteOrdersCard />
-    <div className="rp-stock-add"><EditDetailsButton book={{ currency, maxPrint: 100, listPrice: 40, threshold: 10, productionCost: 0 }} onSaved={read} /></div>
+    <EditDetailsButton inHeader book={{ currency, maxPrint: 100, listPrice: 40, threshold: 10, productionCost: 0 }} onSaved={read} />
     <StockList records={records} onPick={setPicked} /></div>;
 }

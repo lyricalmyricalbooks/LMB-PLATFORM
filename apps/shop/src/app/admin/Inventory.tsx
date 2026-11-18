@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Download, History, Minus, PackagePlus, Plus } from "lucide-react";
 import { adminApi } from "./api";
 import { useShopWords } from "./shopWords";
@@ -329,12 +329,16 @@ function InventoryPage({ onEditBook }: InventoryProps) {
           ? <button type="button" className="rp-row-link"
               onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in ${w("Books")}`}>{r.title}</button>
           : <div className="rp-row-link" style={{ cursor: "default", textDecoration: "none" }}>{r.title}</div>}
-        <div className="rp-hint">
-          {[r.edition, r.format].filter(Boolean).join(" · ") || "—"}
-          {r.sku && <> · Item code <span className="rp-mono">{r.sku}</span></>}
-          {r.shelfLocation && <> · Shelf <span className="rp-mono">{r.shelfLocation}</span></>}
-          {r.archived && " · Archived"}{r.draft && " · Draft"}{r.backorder && r.editable && " · Backorders on"}
-        </div>
+        {/* Only the parts the item has, joined by dots; nothing at all (not a lone dash) when it has none. */}
+        {(() => {
+          const parts: ReactNode[] = [
+            [r.edition, r.format].filter(Boolean).join(" · "),
+            r.sku && <>Item code <span className="rp-mono">{r.sku}</span></>,
+            r.shelfLocation && <>Shelf <span className="rp-mono">{r.shelfLocation}</span></>,
+            r.archived && "Archived", r.draft && "Draft", r.backorder && r.editable && "Backorders on",
+          ].filter(Boolean);
+          return parts.length ? <div className="rp-hint">{parts.map((p, i) => <Fragment key={i}>{i ? " · " : ""}{p}</Fragment>)}</div> : null;
+        })()}
       </div>
     ) },
     { key: "stock", header: "On hand", render: stockCell },

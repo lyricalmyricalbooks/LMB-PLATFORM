@@ -68,3 +68,28 @@ Social posts, Settings › General, Payments, Google, Apps, Security, Plan.
 - Orders: the footer row scatters "3 of 3", "Bring past orders over" and the switch across the width.
 - Google settings error box: "Try again" reads as plain text.
 - Security page is blank in the local preview (needs a signed-in user), so it wasn't reviewed.
+
+## 18 November 2026 (third pass, desktop only)
+
+**Screens reviewed** (shop admin fixture, desktop 1440 and 1280, the stockroom side): Stock and sales, Count, Reorder,
+All sales, Record a sale, Parcels, Buyers in person, Quotes, Repeating invoices, Bills to pay, Receipts, Artist payouts,
+Reports, Backups.
+
+**Fixed** (one PR)
+- All sales: "Money taken" broke a sum in the middle ("CA$4,990.0 / 0 · US$25.00"); each currency now has its own line
+  and the figures fit their tile. On a laptop the three tiles stay in one row instead of leaving a hole.
+- Stock and sales: "Add book" floated alone as plain text between two cards; it is the page's button by the title now.
+- Repeating invoices: "Start again" and "Delete" stacked on one row while the others sat side by side, and the table
+  squeezed every column on a laptop; how each invoice is sent now sits under the customer's name.
+- Artist payouts: the table had square top corners and no edge; it sits in the same card as Bills to pay, and "Settle"
+  is a button like "Mark paid".
+- Parcels: the status column had no heading.
+- Reorder: "Download Excel" comes before "Download CSV", as on every other download.
+- Count: a product with no format showed a lone dash under its name.
+
+**Noticed, left for later**
+- Stock and sales and Count: the search box sits further from its table than on other pages.
+- Stock and sales: the Sold and Out at stores tiles have no line under the number, so the tiles sit unevenly.
+- All sales: "Best channel" has no line under it (its share of sales would fit).
+- Backups and Receipts: row actions ("Open", "Choose", "Check and add") are still plain text, unlike "Mark paid".
+- Quotes, Bills and Repeating draw their table inside a padded card; Parcels and All sales run the rows to the card's edge.

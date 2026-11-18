@@ -1,14 +1,14 @@
 // Stockroom › Stock › one item › Edit details (catalogEdit.ts). Saved through updateSetting("catalog").
 import { useState } from "react";
 
-import { Dialog, PrimaryButton, SecondaryButton, TextField } from "../riso/components";
+import { Dialog, PageActions, PrimaryButton, SecondaryButton, TextField } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { detailsFormOf, type DetailsForm, withDetails, withNewItem } from "./catalogEdit";
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import { SHOP_CURRENCY } from "../moneySign";
 
-/** Edit an item (`id` + `book`), or add one when `id` is left out. */
-export function EditDetailsButton({ id, book, onSaved }: { id?: string; book: Record<string, any>; onSaved: () => void }) {
+/** Edit an item (`id` + `book`), or add one when `id` is left out. `inHeader` puts the button by the page title. */
+export function EditDetailsButton({ id, book, onSaved, inHeader }: { id?: string; book: Record<string, any>; onSaved: () => void; inHeader?: boolean }) {
   const w = useShopWords();
   const [form, setForm] = useState<DetailsForm | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,9 +27,13 @@ export function EditDetailsButton({ id, book, onSaved }: { id?: string; book: Re
     }
     setBusy(false);
   }
+  const open = () => { setMsg(null); setForm(detailsFormOf(book)); };
+  const label = id ? "Edit details" : w("Add book");
   return (
     <>
-      <SecondaryButton size="sm" onClick={() => { setMsg(null); setForm(detailsFormOf(book)); }}>{id ? "Edit details" : w("Add book")}</SecondaryButton>
+      {inHeader
+        ? <PageActions><PrimaryButton onClick={open}>{label}</PrimaryButton></PageActions>
+        : <SecondaryButton size="sm" onClick={open}>{label}</SecondaryButton>}
       {form && (
         <Dialog open onClose={() => setForm(null)} title={id ? "Edit details" : w("Add book")}
           footer={<><SecondaryButton onClick={() => setForm(null)}>Cancel</SecondaryButton><PrimaryButton busy={busy} onClick={() => void save()}>{id ? "Save changes" : w("Add book")}</PrimaryButton></>}>

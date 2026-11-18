@@ -41,3 +41,11 @@
 .rp-formrows > .rp-field > .rp-field-control { grid-area: control; justify-self: end; display: flex; align-items: center; gap: 8px; }
 @media (max-width: 767px) { .rp-formrows > .rp-field > .rp-field-control { justify-self: start; } }
 .rp-sheet-foot { margin: 12px 4px 0; }
+/* All sales tiles (design polish, 18 November 2026): three across from a laptop up, the figures sized to their tile so a
+   sum never breaks in the middle ("CA$4,990.0 / 0"), and each currency on a line of its own. */
+.rp-sr > .rp-tiles { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.rp-sr > .rp-tiles > .rp-tile { container-type: inline-size; }
+.rp-sr > .rp-tiles .rp-tile-value { font-size: clamp(28px, 17cqi, 40px); overflow-wrap: normal; }
+.rp-sr-amounts { display: grid; gap: 2px; font-size: min(1em, 14cqi); }
+.rp-sr-amounts[data-many] { font-size: min(.75em, 14cqi); }
+.rp-sr-amounts > span { white-space: nowrap; }

@@ -16,7 +16,12 @@ import "./sales.css";
 
 const PAGE = 50;
 const money = (n: number | null, code: string) => (n == null ? "—" : fmt(n, code));
-const moneyList = (by: Record<string, number>) => Object.entries(by).map(([code, n]) => fmt(n, code)).join(" · ") || "—";
+/** One line per currency, never added across currencies, and never broken inside a sum. */
+function MoneyLines({ by }: { by: Record<string, number> }) {
+  const sums = Object.entries(by);
+  if (!sums.length) return <>—</>;
+  return <span className="rp-sr-amounts" data-many={sums.length > 1 || undefined}>{sums.map(([code, n]) => <span key={code}>{fmt(n, code)}</span>)}</span>;
+}
 /** Channel chips take a tile colour each, as in the mockup: website mint, fairs lilac, stockists sky, the rest apricot. */
 const channelTone = (c: string): BadgeTone => {
   const k = c.toLowerCase();
@@ -109,7 +114,7 @@ export function SalesRecords({ records: loaded }: { records: StockroomRecords })
       <div className="rp-tiles">
         <div className="rp-tile" data-tone="mint">
           <span className="rp-tile-label">Money taken</span>
-          <span className="rp-tile-value">{moneyList(totals.revenue)}</span>
+          <span className="rp-tile-value"><MoneyLines by={totals.revenue} /></span>
           <span className="rp-tile-sub">{totals.sales} sales{totals.voided ? ` · ${totals.voided} voided, not counted` : ""}</span>
         </div>
         <div className="rp-tile">
