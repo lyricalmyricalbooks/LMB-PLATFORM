@@ -98,6 +98,7 @@ import { releaseArrived } from "../features/site/liveBook";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 import { productHref } from "../lib/productHref";
 import { MONEY_SIGN } from "./moneySign";
+import { useWaysOn } from "./waysApi";
 
 const MAX_BOOK_PHOTOS = 50;
 
@@ -1121,6 +1122,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   // Digital D1: a book format that is a download, or the "Digital product" switch any kind of shop has.
   const digitalFormat = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
   const isDigital = digitalFormat || formData.digital === true;
+  const membershipsOn = useWaysOn().includes("memberships");
   const digitalNotify = { ok: (m: string) => toast.success(m), err: (m: string) => toast.error(m) };
   // Plan 10.4: what a blank customs box means follows the product's kind (a printed book when it has none).
   const customsDefaults = customsDefaultsFor(formData);
@@ -1701,6 +1703,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <div className="mt-4">
                       <Toggle label="Print the buyer's name and email on each PDF page" checked={formData.stampPdf === true} onChange={(v) => set("stampPdf", v)} />
                       <p className="rp-hint mt-2">Added small at the foot of each page when they download it, so a shared copy shows whose it was. Works for PDFs up to 50 MB; bigger files and other kinds of file go out as they are.</p>
+                    </div>
+                  )}
+                  {/* Free for members (Memberships M2b): shown while Memberships is on, or to turn it back off. */}
+                  {isDigital && (membershipsOn || formData.memberFree === true) && (
+                    <div className="mt-4">
+                      <Toggle label="Free for members (Beta)" checked={formData.memberFree === true} onChange={(v) => set("memberFree", v)} />
+                      <p className="rp-hint mt-2">Signed-in members get it at no cost at checkout, on any plan. Everyone else pays the price above.</p>
                     </div>
                   )}
                   {/* A free sample anyone can try on the product page (Digital D3b); printed books can have one too. */}

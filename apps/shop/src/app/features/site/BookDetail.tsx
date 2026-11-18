@@ -59,6 +59,9 @@ import PdpAskQuestion from "./extras/pdp-ask-question/PdpAskQuestion";
 import PdpBulkQuote from "./extras/pdp-bulk-quote/PdpBulkQuote";
 import PdpInBag from "./extras/pdp-in-bag/PdpInBag";
 import PayWhatYouWant from "./extras/pdp-pay-what-you-want/PayWhatYouWant";
+import MemberFree from "./extras/pdp-member-free/MemberFree";
+import { memberFreeProduct } from "../../../shared/membershipRules";
+import { useMembershipsLive } from "./membershipLive";
 import PdpSample from "./extras/pdp-sample/PdpSample";
 import { productSample } from "./extras/pdp-sample/sample";
 import { readAmount } from "./extras/pdp-pay-what-you-want/payWhatYouWantBox";
@@ -162,6 +165,7 @@ export default function BookDetail() {
   const [addOnError, setAddOnError]   = useState("");
   // Pay what you want (Digital D2): what the buyer typed, and why it can't be used ("low" | "high" | "number").
   const [pwywTyped, setPwywTyped]     = useState("");
+  const membershipsLive = useMembershipsLive();
   const [pwywError, setPwywError]     = useState("");
   const [editionError, setEditionError] = useState("");
   // Option buttons (plan 10.2): the shopper's picks so far, for a product saved with options (Size, Colour).
@@ -1191,6 +1195,10 @@ export default function BookDetail() {
                       formatPrice={formatPrice}
                       currencySign={formatPrice(0).replace(/[0-9.,\s]/g, "")}
                     />
+                  )}
+                  {/* Free for members (Memberships M2b, Beta): a download the owner gives to members. */}
+                  {!isOutOfStock && membershipsLive && memberFreeProduct(book, selectedVariant || undefined) && regionVisible(regionDesign, "productMemberFree") && (
+                    <MemberFree design={regionDesign} />
                   )}
                   {/* Free sample (Digital D3b, Beta): shown whenever the product has one, sold out or not. */}
                   {book && productSample(book) && regionVisible(regionDesign, "productSample") && (

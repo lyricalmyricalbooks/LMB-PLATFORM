@@ -252,10 +252,10 @@ function EventEditor({ start, zone, sold, onClose, onSaved }: { start: EventForm
 
         {(membersOn || !!form.publicDay) && (
           <fieldset className="evt-tickets">
-            <legend>Members book first (optional)</legend>
+            <legend>Members get tickets first (optional)</legend>
             <p className="evt-extras-hint">Give your members a head start. Until this day and time only members can get tickets; then everyone can. Leave it empty for no head start.</p>
             <div className="evt-grid-2">
-              <TextField label="Everyone can book from" type="date" value={form.publicDay} onChange={(e) => set({ publicDay: e.target.value })} />
+              <TextField label="Everyone can get tickets from" type="date" value={form.publicDay} onChange={(e) => set({ publicDay: e.target.value })} />
               <TextField label="At" type="time" value={form.publicTime} onChange={(e) => set({ publicTime: e.target.value })} placeholder="09:00" hint="9 in the morning if left empty." />
             </div>
             {!!form.publicDay && <GhostButton onClick={() => set({ publicDay: "", publicTime: "" })}>No head start</GhostButton>}

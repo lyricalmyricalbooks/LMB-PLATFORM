@@ -566,7 +566,7 @@ function membershipActions({
   /**
    * The member price one membership gives right now, or null: Memberships is on, the membership has its perks (trial,
    * active, ending or a payment being retried), it lives in the same mode as the checkout (a test membership never lowers
-   * a real order's prices) and its plan takes a percent off. Read again on every pricing, so a membership that ends
+   * a real order's prices) and its plan still exists (its percent may be 0: Free for members still counts). Read again on every pricing, so a membership that ends
    * after checkout claimed it stops counting at once.
    */
   async function priceFor(membershipId, testMode) {
@@ -576,7 +576,8 @@ function membershipActions({
     if (!m || !hasPerks(m.state) || (m.mode === "test") !== (testMode === true) || !m.planId) return null;
     const plan = await plans().doc(String(m.planId)).get();
     const percent = plan.exists ? percentOf(plan.data()) : 0;
-    if (!percent || !(await featureOn())) return null;
+    // A plan with no percent still counts: its members get products marked Free for members (M2b).
+    if (!plan.exists || !(await featureOn())) return null;
     return { membershipId, percent, plan: String(plan.data().name || "") };
   }
   /** Whether this customer has a membership with perks in this mode (members-only pages, M2b). */

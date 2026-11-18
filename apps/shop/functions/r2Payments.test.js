@@ -823,6 +823,22 @@ test('member prices: the lower of trade and member price wins, and switching Mem
   expect(unitPrices(await zero.priceOrder(stockistOrder({ memberId: 'mem_active1' })))).toEqual([40, 66, 20]);
 });
 
+test('free for members: a download the owner gives to members costs a member nothing, and others the shop price', async () => {
+  const pattern = { status: 'published', title: 'Pattern', format: 'PDF', digital: true, retailPrice: 12, memberFree: true };
+  const docs = (extra = {}) => memberDocs({ books: { pattern, tee: { status: 'published', title: 'Tee', format: 'Apparel', retailPrice: 40, memberFree: true } }, ...extra });
+  const order = (extra = {}) => stockistOrder({ items: [{ id: 'pattern', quantity: 1 }, { id: 'tee', quantity: 1 }], ...extra });
+  const app = harness({ docs: docs() });
+  expect(unitPrices(await app.priceOrder(order()))).toEqual([12, 40]);
+  // Only downloads are given away: the tee (not digital) gets the plan's percent.
+  const member = await app.priceOrder(order({ memberId: 'mem_active1' }));
+  expect(unitPrices(member)).toEqual([0, 36]);
+  expect(member.items[0].memberPrice).toBe(true);
+  // A plan with no percent still gives the download away; an ended membership doesn't.
+  const plain = harness({ docs: docs({ memberships: { mem_active1: { state: 'active', mode: 'live', planId: 'plain', customer: { email: 'reader@example.com' } } } }) });
+  expect(unitPrices(await plain.priceOrder(order({ memberId: 'mem_active1' })))).toEqual([0, 40]);
+  expect(unitPrices(await app.priceOrder(order({ memberId: 'mem_ended01' })))).toEqual([12, 40]);
+});
+
 test('member prices: only a signed-in member claims them, on an unpaid order they can open', async () => {
   const docs = () => memberDocs({ orders: { o1: { ...stockistOrder(), paymentStatus: 'unpaid', status: 'pending_payment', trackingKey: 'a'.repeat(64) }, paid: { ...stockistOrder(), paymentStatus: 'paid', status: 'open', trackingKey: 'a'.repeat(64) } } });
   const app = harness({ docs: docs(), identity: { email: 'Reader@Example.com', email_verified: true, uid: 'r1' } });

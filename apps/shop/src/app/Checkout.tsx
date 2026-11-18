@@ -123,6 +123,8 @@ export function Checkout() {
   const submitPurchase = useRef(createCheckoutSubmission());
   const purchaseNavigating = useRef(false);
   const serverSaysFree = useRef(false);
+  // A signed-in member's prices were claimed on the last card attempt (says why the server found nothing to charge).
+  const memberClaimed = useRef(false);
   // Starts from the bag's note (Style › Cart drawer › Order note box) and keeps it in step.
   const [orderNote, setOrderNoteState] = useState(() => bagNote());
   const setOrderNote = (value: string) => setOrderNoteState(rememberBagNote(value));
@@ -1409,6 +1411,8 @@ export function Checkout() {
       if (finalTotal === 0 || serverSaysFree.current) {
         serverSaysFree.current = false;
         const freeOrderId = await adminApi.createOrder({ ...orderData, paymentMethod: "Free" }, consentNotes);
+        // A member's download that is Free for members: the server needs the membership on this order too.
+        if (memberClaimed.current) await claimMemberPricing(freeOrderId, savedOrderAccess(freeOrderId));
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1553,6 +1557,7 @@ export function Checkout() {
           // total check below then shows the shopper the real amount before anything is charged.
           // A signed-in member (Memberships beta) gets their plan's member price the same way.
           const [, memberPriced] = await Promise.all([claimTradePricing(orderId, savedOrderAccess(orderId)), claimMemberPricing(orderId, savedOrderAccess(orderId))]);
+          memberClaimed.current = memberPriced;
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1635,7 +1640,7 @@ export function Checkout() {
       if (err?.nothingToCharge) {
         // Pressing Pay again places the order with nothing to charge (the server checks its own total).
         serverSaysFree.current = true;
-        setNotice({ tone: "info", text: c("coGiftCardCovers") });
+        setNotice({ tone: "info", text: c(memberClaimed.current ? "coMemberPriceFree" : "coGiftCardCovers") });
         return;
       }
       if (err?.giftCardRejected) {

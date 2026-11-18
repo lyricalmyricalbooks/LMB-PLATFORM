@@ -143,7 +143,7 @@ function cleanEvent(raw, id = "") {
     const status = e.status === "live" || e.status === "cancelled" ? e.status : "draft";
     const publicFrom = isoTime(e.publicFrom);
     if (publicFrom && Date.parse(publicFrom) >= Date.parse(start))
-        return { problem: "Members book first only before the event starts: pick an earlier time for everyone else." };
+        return { problem: "The members' head start ends before the event starts: pick an earlier time for everyone else." };
     return {
         id, title, description: longText(e.description, 4000), start, end, venue: text(e.venue, 120), address: text(e.address, 240),
         onlineUrl: webLink(e.onlineUrl), photo: webLink(e.photo), status, chargeTax: e.chargeTax === true, tickets,
@@ -199,7 +199,7 @@ exports.TICKET_MESSAGES = Object.freeze({
     closed: "Tickets for this event aren't on sale right now.",
     unknown: "One of those tickets isn't offered any more. Refresh the page and try again.",
     extraGone: "One of those extras isn't offered any more. Refresh the page and try again.",
-    members: "Members can book these tickets first. Sign in with the email on your membership, or come back when everyone can book.",
+    members: "Members can get these tickets first. Sign in with the email on your membership, or come back when everyone can get them.",
 });
 /**
  * What an order of tickets is: its lines and total before tax, or why it can't be made. `wanted` is ticket id → how

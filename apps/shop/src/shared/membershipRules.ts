@@ -114,3 +114,14 @@ export function memberUnitPrice(price: number, percent: number): number {
   const cents = Math.round(price * 100);
   return Math.max(0, Math.round(cents * (100 - Math.min(percent, MAX_MEMBER_PERCENT)) / 100)) / 100;
 }
+
+const DIGITAL_FORMAT = /digital|e-book|ebook|epub|pdf|audiobook/i;
+/**
+ * Free for members (Memberships M2b): a download the owner gives to members at no cost. Only downloads count: the
+ * chosen edition must be digital, or, with none chosen, the product itself. The server prices it; the page only says so.
+ */
+export function memberFreeProduct(book: any, variant?: any): boolean {
+  if (!book || book.memberFree !== true) return false;
+  if (variant) return variant.digital === true || variant.isDigital === true;
+  return book.digital === true || book.isDigital === true || DIGITAL_FORMAT.test(String(book.format || ""));
+}
