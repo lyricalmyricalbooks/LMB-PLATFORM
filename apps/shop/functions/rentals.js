@@ -18,7 +18,7 @@
 "use strict";
 
 const crypto = require("crypto");
-const { cleanRentalItem, rentalPrice, rentalWhen, liveSpans, freeUnit, hourChoices, dayChoices, RENTAL_MESSAGES, MAX_ITEMS, MAX_SPANS, MINUTE } = require("./shared/rentalRules");
+const { cleanRentalItem, rentalPrice, rentalWhen, liveSpans, freeUnit, hourChoices, dayChoices, lateFeeFor, lateLength, feeRoom, RENTAL_MESSAGES, MAX_ITEMS, MAX_SPANS, MINUTE } = require("./shared/rentalRules");
 const { waysOn } = require("./shared/waysToSell");
 
 const HOLD_MINUTES = 10;
@@ -30,6 +30,12 @@ const SESSION_ID = /^(cs_[A-Za-z0-9_]{8,200}|sqlink_[A-Za-z0-9_-]{1,192})$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PUBLIC_RENTAL_ACTIONS = Object.freeze(["rentalsInfo", "rentalTimes", "rentalStart", "rentalView"]);
+// R2: a pay link for an amount the owner asks after the rental (a repair the deposit didn't cover, a fee on a shop
+// that can't keep cards). Most it can ask, cents; a page stays open a day; at most this many open at once.
+const MAX_EXTRA_MINOR = 1_000_000;
+const EXTRA_PAGE_HOURS = 23;
+const MAX_OPEN_EXTRAS = 3;
+const FEE_REASONS = ["late", "damage", "other"];
 const OWNER_STEPS = { pickedUp: { from: ["paid"], to: "out", at: "pickedUpAt" }, returned: { from: ["paid", "out"], to: "returned", at: "returnedAt" } };
 
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
@@ -59,12 +65,20 @@ const WORDS = {
     when: "Pick up and return", paid: "Paid", tax: "Includes tax", button: "See your booking",
     cancelSubject: (item) => `Your rental was cancelled: ${item}`, cancelHeading: "Your rental was cancelled",
     cancelIntro: (shop) => `${shop} has cancelled the rental below.`, refunded: "Refunded", refundWhen: "The money goes back to the card you paid with, usually within 5 to 10 business days.",
+    deposit: (amount) => `Your card is kept on file for up to ${amount} if the rental comes back late or damaged. Nothing more is charged unless the shop tells you why.`,
+    feeSubject: (item) => `A charge for your rental: ${item}`, feeHeading: "A charge for your rental", feeIntro: (shop) => `${shop} has charged the card you rented with.`,
+    feeReason: { late: "Brought back late", damage: "Damage or repair", other: "Other charge" }, amount: "Amount", note: "Note",
+    linkSubject: (item) => `Payment asked for your rental: ${item}`, linkHeading: "A payment for your rental", linkIntro: (shop) => `${shop} asks you to pay the amount below for your rental.`, payButton: "Pay now",
   },
   fr: {
     subject: (item) => `Votre location : ${item}`, heading: "Votre location est réservée", intro: (shop) => `Merci. ${shop} aura votre location prête pour le moment ci-dessous.`,
     when: "Ramassage et retour", paid: "Payé", tax: "Taxes incluses", button: "Voir votre réservation",
     cancelSubject: (item) => `Votre location a été annulée : ${item}`, cancelHeading: "Votre location a été annulée",
     cancelIntro: (shop) => `${shop} a annulé la location ci-dessous.`, refunded: "Remboursé", refundWhen: "L'argent est remis sur la carte utilisée pour le paiement, habituellement en 5 à 10 jours ouvrables.",
+    deposit: (amount) => `Votre carte est gardée au dossier jusqu'à ${amount} si la location revient en retard ou abîmée. Rien de plus n'est débité sans que la boutique vous dise pourquoi.`,
+    feeSubject: (item) => `Des frais pour votre location : ${item}`, feeHeading: "Des frais pour votre location", feeIntro: (shop) => `${shop} a débité la carte utilisée pour la location.`,
+    feeReason: { late: "Retour en retard", damage: "Dommage ou réparation", other: "Autres frais" }, amount: "Montant", note: "Note",
+    linkSubject: (item) => `Paiement demandé pour votre location : ${item}`, linkHeading: "Un paiement pour votre location", linkIntro: (shop) => `${shop} vous demande de payer le montant ci-dessous pour votre location.`, payButton: "Payer",
   },
 };
 
@@ -74,6 +88,7 @@ function publicItem(item) {
     id: item.id, name: item.name, description: item.description, photo: item.photo, basis: item.basis,
     hourMinor: item.hourMinor, dayMinor: item.dayMinor, weekMinor: item.weekMinor, minLength: item.minLength, maxLength: item.maxLength,
     opens: item.opens, closes: item.closes, daysAhead: item.daysAhead, plusTax: item.chargeTax,
+    ...(item.depositMinor ? { depositMinor: item.depositMinor, lateFeeMinor: item.lateFeeMinor || 0 } : {}),
   };
 }
 
@@ -82,6 +97,10 @@ function publicRental(id, r) {
     id, status: r.status, itemId: r.itemId, itemName: r.itemName, basis: r.basis, startMs: r.startMs, endMs: r.endMs, length: r.length,
     name: r.customer?.name || "", totalMinor: r.totalMinor || 0, taxMinor: r.taxMinor || 0, chargedMinor: r.chargedMinor || 0, currency: r.currency,
     refundedMinor: r.refundedMinor || 0, holdUntil: r.status === "held" ? r.holdUntil || null : null,
+    ...(r.card ? { depositMinor: r.depositMinor || 0, lateFeeMinor: r.lateFeeMinor || 0, cardLast4: r.card.last4 || "" } : {}),
+    fees: (r.fees || []).map((x) => ({ amountMinor: x.amountMinor, reason: x.reason, note: x.note || "", at: x.at })),
+    extrasPaid: (r.extrasPaid || []).map((x) => ({ amountMinor: x.amountMinor, note: x.note || "", at: x.at })),
+    payLinks: (r.extraPages || []).filter((p) => p.url && Date.parse(p.closesAt || "") > Date.now()).map((p) => ({ amountMinor: p.amountMinor, note: p.note || "", url: p.url })),
   };
 }
 
@@ -160,6 +179,7 @@ function rentalActions({
           <p style="margin:0 0 16px;">${escapeHtml(cancelled ? say.cancelIntro(shop) : say.intro(shop))}</p>
           <p style="margin:0 0 4px;"><strong>${say.when}:</strong> ${escapeHtml(whenWords(r, zone(), locale))}</p>
           <p style="margin:0 0 4px;"><strong>${say.paid}:</strong> ${escapeHtml(moneyWords(r.chargedMinor, r.currency, locale))}</p>
+          ${r.cardHold && !cancelled ? `<p style="margin:0 0 4px;">${escapeHtml(say.deposit(moneyWords(r.depositMinor, r.currency, locale)))}</p>` : ""}
           ${r.taxMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.tax}:</strong> ${escapeHtml(moneyWords(r.taxMinor, r.currency, locale))}</p>` : ""}
           ${cancelled?.refundedMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${say.refunded}:</strong> ${escapeHtml(moneyWords(cancelled.refundedMinor, r.currency, locale))}</p><p style="margin:0 0 16px;">${say.refundWhen}</p>` : ""}
           ${key && !cancelled ? risoButton(escapeHtml(rentalUrl(id, key)), say.button, brand.accent, brand.theme) : ""}
@@ -182,11 +202,43 @@ function rentalActions({
     }
   }
 
+  /** Tells the customer about a fee charged to their card (`fee`) or a pay link (`link`). Never throws. */
+  async function tellAboutMoney(id, r, kind, { amountMinor, reason = "other", note = "", url = "" }) {
+    try {
+      const to = r.customer?.email;
+      if (!to || !EMAIL.test(to)) return false;
+      const fr = french(r.locale);
+      const say = fr ? WORDS.fr : WORDS.en;
+      const locale = fr ? "fr-CA" : "en-CA";
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const layout = { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop };
+      await sendEmail({
+        to,
+        subject: kind === "fee" ? say.feeSubject(r.itemName) : say.linkSubject(r.itemName),
+        html: risoLayout(`
+          <h4 style="margin:0 0 8px;">${kind === "fee" ? say.feeHeading : say.linkHeading}</h4>
+          <h2 style="margin:0 0 12px;">${escapeHtml(r.itemName)}</h2>
+          <p style="margin:0 0 16px;">${escapeHtml(kind === "fee" ? say.feeIntro(shop) : say.linkIntro(shop))}</p>
+          <p style="margin:0 0 4px;"><strong>${say.when}:</strong> ${escapeHtml(whenWords(r, zone(), locale))}</p>
+          ${kind === "fee" ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(say.feeReason[reason] || say.feeReason.other)}</strong></p>` : ""}
+          <p style="margin:0 0 4px;"><strong>${say.amount}:</strong> ${escapeHtml(moneyWords(amountMinor, r.currency, locale))}</p>
+          ${note ? `<p style="margin:0 0 16px;"><strong>${say.note}:</strong> ${escapeHtml(note)}</p>` : ""}
+          ${url ? risoButton(escapeHtml(url), say.payButton, brand.accent, brand.theme) : ""}
+        `, layout),
+      });
+      return true;
+    } catch (err) {
+      console.warn("rentals: the email failed:", err?.message || err);
+      return false;
+    }
+  }
+
   /** Marks a held rental paid, once: its span becomes confirmed (kept even if the hold ran out: the money was taken). */
-  async function confirmPaid(id, r, { session = "", paymentIntent = null } = {}) {
+  async function confirmPaid(id, r, { session = "", paymentIntent = null, card = null } = {}) {
     const at = now().toISOString();
     const nowMs = now().getTime();
-    const changes = { status: "paid", paidAt: at, paidSession: session || null, paymentIntent, holdUntil: null, pendingKey: null, updatedAt: at };
+    const changes = { status: "paid", paidAt: at, paidSession: session || null, paymentIntent, holdUntil: null, pendingKey: null, updatedAt: at, ...(card ? { card } : {}) };
     const done = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(rentals().doc(id));
       if (!fresh.exists || !["held", "cancelled"].includes(fresh.data()?.status) || fresh.data()?.paidAt) return false;
@@ -210,9 +262,36 @@ function rentalActions({
       const session = await checkout.read(sid).catch(() => null);
       if (!session || (session.metadata?.rentalOrder && session.metadata.rentalOrder !== id) || session.payment_status !== "paid") continue;
       if (Number.isFinite(session.amount_total) && session.amount_total !== r.chargedMinor) continue;
-      return confirmPaid(id, r, { session: sid, paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null });
+      // A rental with a deposit keeps the card it was paid with (Stripe shops), for a fee the owner may charge later.
+      const card = r.cardHold && checkout.savedCard ? await checkout.savedCard(sid).catch((err) => { console.warn(`rentals: ${id}'s saved card couldn't be read:`, err?.message || err); return null; }) : null;
+      return confirmPaid(id, r, { session: sid, paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null, card: card ? { ...card, mode: r.mode === "test" ? "test" : "live" } : null });
     }
     return r;
+  }
+
+  /** Reads a rental's open pay links (R2); a paid one moves to `extrasPaid`, once, and one past its time is let go. */
+  async function refreshExtras(id, r, checkout) {
+    const open = r.extraPages || [];
+    if (!open.length || !checkout) return r;
+    const paid = [];
+    const still = [];
+    for (const p of open) {
+      const session = SESSION_ID.test(p.session || "") ? await checkout.read(p.session).catch(() => null) : null;
+      if (session?.payment_status === "paid" && session.metadata?.rentalOrder === id && session.amount_total === p.amountMinor) {
+        paid.push({ amountMinor: p.amountMinor, note: p.note || "", session: p.session, intent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null, at: now().toISOString() });
+      } else if (Date.parse(p.closesAt || "") > now().getTime()) still.push(p);
+    }
+    if (still.length === open.length) return r;
+    const changes = await db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(rentals().doc(id))).data() || {};
+      const known = new Set((fresh.extrasPaid || []).map((x) => x.session));
+      const add = paid.filter((x) => !known.has(x.session));
+      const left = (fresh.extraPages || []).filter((p) => still.some((q) => q.session === p.session));
+      const next = { extraPages: left, extraOpen: left.length > 0, extrasPaid: [...(fresh.extrasPaid || []), ...add].slice(-20), updatedAt: now().toISOString() };
+      tx.set(rentals().doc(id), next, { merge: true });
+      return next;
+    });
+    return { ...r, ...changes };
   }
 
   /** Lets a rental go: its span leaves the calendar and it is kept as cancelled. */
@@ -229,9 +308,10 @@ function rentalActions({
   }
 
   async function sweep() {
-    const snap = await rentals().where("status", "==", "held").limit(100).get();
-    if (snap.empty) return { confirmed: 0, freed: 0 };
+    const [snap, extras] = await Promise.all([rentals().where("status", "==", "held").limit(100).get(), rentals().where("extraOpen", "==", true).limit(50).get()]);
+    if (snap.empty && extras.empty) return { confirmed: 0, freed: 0 };
     const { checkout } = await standalone();
+    for (const doc of extras.docs) await refreshExtras(doc.id, doc.data(), (await payments.standaloneCheckout(doc.data().mode === "test" ? "test" : "live").catch(() => null)) || checkout).catch((err) => console.warn("rentals: a pay link couldn't be read:", err?.message || err));
     let confirmed = 0;
     let freed = 0;
     for (const doc of snap.docs) {
@@ -270,7 +350,8 @@ function rentalActions({
         const id = String(req.body?.rentalId || "");
         const snap = ID.test(id) ? await rentals().doc(id).get() : null;
         if (!snap?.exists || !keyFits(snap.data(), req.body?.key)) return fail(res, 404, "We couldn't find that booking. Check the link in your email.", "not_found");
-        const r = await refreshRental(id, snap.data(), snap.data().status === "held" ? (await standalone()).checkout : null);
+        let r = await refreshRental(id, snap.data(), snap.data().status === "held" ? (await standalone()).checkout : null);
+        if (r.extraOpen) r = await refreshExtras(id, r, await payments.standaloneCheckout(r.mode === "test" ? "test" : "live").catch(() => null));
         return res.status(200).json({ rental: publicRental(id, r), zone: zone() });
       }
       if (!(await featureOn())) return res.status(200).json({ on: false });
@@ -321,7 +402,9 @@ function rentalActions({
           const spans = tidy(cSnap.exists ? cSnap.data().spans || [] : [], nowMs);
           const unit = freeUnit(item, spans, when, nowMs);
           if (!unit) return { problem: RENTAL_MESSAGES.taken, code: "taken" };
+          const cardHold = item.depositMinor > 0 && typeof checkout.savedCard === "function" && typeof checkout.chargeSaved === "function";
           const record = {
+            ...(cardHold ? { cardHold: true, depositMinor: item.depositMinor, lateFeeMinor: item.lateFeeMinor || 0 } : {}),
             itemId, itemName: item.name, basis: item.basis, unit, startMs: when.startMs, endMs: when.endMs, length: when.length, day: when.day, endDay: when.endDay,
             cleanMinutes: item.cleanMinutes, customer, locale: french(req.body?.locale) ? "fr" : "en",
             totalMinor: price.totalMinor, ...(price.taxMinor ? { taxMinor: price.taxMinor, taxLines: price.taxLines } : {}), chargedMinor: price.chargedMinor,
@@ -342,7 +425,8 @@ function rentalActions({
             customer_email: customer.email, metadata, mode: "payment", expires_at: Math.floor(nowMs / 1000) + PAGE_MINUTES * 60,
             success_url: rentalUrl(id, key),
             line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: r.chargedMinor, product_data: { name: description } } }],
-            payment_intent_data: { description, metadata },
+            payment_intent_data: { description, metadata, ...(r.cardHold ? { setup_future_usage: "off_session" } : {}) },
+            ...(r.cardHold ? { customer_creation: "always" } : {}),
           }, `rental-${id}`);
         } catch (err) {
           await freeRental(id, r, "the card page didn't open");
@@ -367,6 +451,13 @@ function rentalActions({
     name: r.customer?.name || "", email: r.customer?.email || "", totalMinor: r.totalMinor || 0, taxMinor: r.taxMinor || 0, chargedMinor: r.chargedMinor || 0,
     currency: r.currency, refundedMinor: r.refundedMinor || 0, test: r.mode === "test", createdAt: r.createdAt || "", paidAt: r.paidAt || "",
     pickedUpAt: r.pickedUpAt || "", returnedAt: r.returnedAt || "", holdUntil: r.status === "held" ? r.holdUntil || "" : "",
+    depositMinor: r.card ? r.depositMinor || 0 : 0, lateFeeMinor: r.lateFeeMinor || 0, card: r.card ? `${r.card.brand || "Card"} ending ${r.card.last4 || ""}`.trim() : "",
+    feeRoomMinor: r.card ? feeRoom(r) : 0,
+    lateBy: ["out", "returned"].includes(r.status) ? lateLength(r.basis, r.endMs, Date.parse(r.returnedAt || "") || now().getTime()) : 0,
+    suggestedLateMinor: r.card && ["out", "returned"].includes(r.status) ? lateFeeFor(r, Date.parse(r.returnedAt || "") || now().getTime()) : 0,
+    fees: (r.fees || []).map((x) => ({ amountMinor: x.amountMinor, reason: x.reason, note: x.note || "", at: x.at, by: x.by || "" })),
+    extrasPaid: (r.extrasPaid || []).map((x) => ({ amountMinor: x.amountMinor, note: x.note || "", at: x.at })),
+    payLinks: (r.extraPages || []).map((p) => ({ amountMinor: p.amountMinor, note: p.note || "", url: p.url, closesAt: p.closesAt })),
   });
 
   async function handleAdmin(req, res) {
@@ -429,6 +520,82 @@ function rentalActions({
         });
         if (!done) return fail(res, 409, "This rental has already moved on. Refresh to see where it is.", "stale");
         return res.status(200).json({ ok: true, rental: adminRental(id, (await rentals().doc(id).get()).data()) });
+      }
+      if (op === "chargeFee") {
+        // Charges the card kept with a deposit, only when the owner taps, never past the deposit.
+        const id = String(req.body?.id || "");
+        const reason = FEE_REASONS.includes(req.body?.reason) ? req.body.reason : "other";
+        const note = text(req.body?.note, 300);
+        const amount = Number(req.body?.amountMinor);
+        const snap = ID.test(id) ? await rentals().doc(id).get() : null;
+        const r = snap?.exists ? snap.data() : null;
+        if (!r || !["paid", "out", "returned"].includes(r.status)) return fail(res, 409, "Fees can be charged on a paid rental only.", "stale");
+        if (!r.card?.customer || !r.card?.paymentMethod) return fail(res, 409, "No card was kept for this rental. Send a pay link instead.", "no_card");
+        if (!Number.isInteger(amount) || amount < 50) return fail(res, 400, "A fee must be at least 0.50.", "amount");
+        if (amount > feeRoom(r)) return fail(res, 400, `This rental's deposit leaves ${moneyWords(feeRoom(r), r.currency)} to charge. Send a pay link for more.`, "amount");
+        const nth = (r.fees || []).length + 1;
+        const claimed = await db.runTransaction(async (tx) => {
+          const fresh = (await tx.get(rentals().doc(id))).data() || {};
+          if ((fresh.fees || []).length + 1 !== nth || (fresh.feeCharging && Date.parse(fresh.feeCharging) > nowMs - 2 * 60_000)) return false;
+          tx.set(rentals().doc(id), { feeCharging: new Date(nowMs).toISOString() }, { merge: true });
+          return true;
+        });
+        if (!claimed) return fail(res, 409, "A fee is already being charged. Give it a moment and refresh.", "charging");
+        let intent;
+        try {
+          const checkout = await payments.standaloneCheckout(r.card.mode === "test" ? "test" : "live");
+          if (!checkout?.chargeSaved) throw Object.assign(new Error("This shop's card provider can't charge a saved card."), { code: "not_available" });
+          intent = await checkout.chargeSaved({
+            customer: r.card.customer, paymentMethod: r.card.paymentMethod, amountMinor: amount, currency: String(r.currency || currency()).toLowerCase(),
+            description: `${shopName() ? `${shopName()}: ` : ""}${r.itemName}, ${reason} fee`.slice(0, 250), metadata: { rentalOrder: id, fee: reason },
+          }, `rental-fee-${id}-${nth}`);
+        } catch (err) {
+          await rentals().doc(id).set({ feeCharging: null }, { merge: true });
+          const declined = err?.statusCode === 402 || err?.type === "StripeCardError" || /card_declined|authentication_required|expired_card|insufficient_funds|incorrect_cvc/.test(String(err?.code || err?.decline_code || ""));
+          console.error(`rentals: ${id}'s fee failed:`, err?.type || "", err?.code || "", err?.message || err);
+          if (declined) return fail(res, 402, "Their card was declined, so nothing was taken. Send them a pay link instead.", "declined");
+          return fail(res, 502, "The fee couldn't be charged just now, and nothing was taken. Try again in a minute.");
+        }
+        const at = now().toISOString();
+        const fee = { intent: intent?.id || null, amountMinor: amount, reason, note, at, by };
+        await rentals().doc(id).set({ fees: [...(r.fees || []), fee], feeCharging: null, updatedAt: at }, { merge: true });
+        if (req.body?.notify !== false) await tellAboutMoney(id, r, "fee", { amountMinor: amount, reason, note });
+        return res.status(200).json({ ok: true, rental: adminRental(id, (await rentals().doc(id).get()).data()) });
+      }
+      if (op === "payLink") {
+        // A card page for an amount the owner asks after the rental; the customer pays it from the email or their page.
+        const id = String(req.body?.id || "");
+        const note = text(req.body?.note, 300);
+        const amount = Number(req.body?.amountMinor);
+        const snap = ID.test(id) ? await rentals().doc(id).get() : null;
+        const r = snap?.exists ? snap.data() : null;
+        if (!r || !["paid", "out", "returned"].includes(r.status)) return fail(res, 409, "Pay links are for paid rentals only.", "stale");
+        if (!Number.isInteger(amount) || amount < 50 || amount > MAX_EXTRA_MINOR) return fail(res, 400, "Ask for an amount between 0.50 and 10,000.00.", "amount");
+        const open = (r.extraPages || []).filter((p) => Date.parse(p.closesAt || "") > nowMs);
+        if (open.length >= MAX_OPEN_EXTRAS) return fail(res, 409, "This rental already has three pay links waiting. Wait for one to be paid or to close.", "too_many");
+        const checkout = await payments.standaloneCheckout(r.mode === "test" ? "test" : "live").catch(() => null);
+        if (!checkout) return fail(res, 409, "This shop can't take card payments yet.", "not_available");
+        const n = (r.extraPages || []).length + (r.extrasPaid || []).length + 1;
+        const description = `${shopName() ? `${shopName()}: ` : ""}${r.itemName}${note ? `, ${note}` : ""}`.slice(0, 250);
+        // The card page comes back to the customer's own rental page, with a key of its own.
+        const backKey = randomKey();
+        let session;
+        try {
+          session = await checkout.open({
+            customer_email: r.customer?.email, metadata: { rentalOrder: id, extra: String(n) }, mode: "payment",
+            expires_at: Math.floor(nowMs / 1000) + EXTRA_PAGE_HOURS * 3600,
+            success_url: rentalUrl(id, backKey),
+            line_items: [{ quantity: 1, price_data: { currency: String(r.currency || currency()).toLowerCase(), unit_amount: amount, product_data: { name: description } } }],
+            payment_intent_data: { description, metadata: { rentalOrder: id, extra: String(n) } },
+          }, `rental-extra-${id}-${n}`);
+        } catch (err) {
+          console.error("rentals: a pay link didn't open:", err?.message || err);
+          return fail(res, 502, "The pay link couldn't be made just now. Try again in a minute.");
+        }
+        const page = { session: session.id, url: session.url, amountMinor: amount, note, openedAt: new Date(nowMs).toISOString(), closesAt: new Date(nowMs + EXTRA_PAGE_HOURS * 3_600_000).toISOString(), by };
+        await rentals().doc(id).set({ extraPages: [...open, page], extraOpen: true, keyHashes: [...(r.keyHashes || []).slice(0, 1), ...(r.keyHashes || []).slice(1).slice(-8), hash(backKey)], updatedAt: page.openedAt }, { merge: true });
+        if (req.body?.send !== false) await tellAboutMoney(id, r, "link", { amountMinor: amount, note, url: session.url });
+        return res.status(200).json({ ok: true, url: session.url, rental: adminRental(id, (await rentals().doc(id).get()).data()) });
       }
       if (op === "cancel") {
         // Cancels a paid rental that hasn't been picked up; the money goes back first when `refund` is set.

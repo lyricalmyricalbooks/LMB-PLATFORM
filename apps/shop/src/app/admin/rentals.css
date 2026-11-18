@@ -48,3 +48,6 @@
   .rp .rnt-tl-row { grid-template-columns: 52px minmax(0, 1fr); }
   .rp .rnt-tl-scale span:nth-child(even) { visibility: hidden; }
 }
+.rp .rnt-money { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 13px; color: var(--rp-text-muted); }
+.rp .rnt-money li { overflow-wrap: anywhere; }
+.rp .rnt-late { margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid var(--rp-danger); background: var(--rp-danger-tint); font-size: 13px; line-height: 1.45; }

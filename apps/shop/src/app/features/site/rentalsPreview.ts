@@ -4,7 +4,7 @@ import { rentalPrice } from "../../../shared/rentalRules";
 import type { PublicRentalItem } from "./rentalsAsk";
 
 const ITEMS: PublicRentalItem[] = [
-  { id: "sample-kit", name: "Camera kit", description: "A body, two lenses, batteries and a padded bag.", photo: "", basis: "hour", hourMinor: 2000, dayMinor: 9000, weekMinor: 0, minLength: 2, maxLength: 8, opens: "09:00", closes: "18:00", daysAhead: 60, plusTax: true },
+  { id: "sample-kit", name: "Camera kit", description: "A body, two lenses, batteries and a padded bag.", photo: "", basis: "hour", hourMinor: 2000, dayMinor: 9000, weekMinor: 0, minLength: 2, maxLength: 8, opens: "09:00", closes: "18:00", daysAhead: 60, plusTax: true, depositMinor: 20000, lateFeeMinor: 1500 },
   { id: "sample-bike", name: "Cargo bike", description: "Carries two boxes of books or a small table. Helmet and lock included.", photo: "", basis: "day", hourMinor: 0, dayMinor: 4500, weekMinor: 22000, minLength: 1, maxLength: 14, opens: "09:00", closes: "18:00", daysAhead: 60, plusTax: false },
 ];
 const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -28,5 +28,5 @@ export function previewRentalAnswer(action: string, body: Record<string, unknown
   }
   if (action === "rentalStart") return { rentalId: "sample-rental", url: "" };
   const start = Date.parse(`${addDays(today(), 2)}T15:00:00Z`);
-  return { zone: "America/Toronto", rental: { status: "paid", itemName: "Camera kit", basis: "hour", startMs: start, endMs: start + 3 * 3_600_000, length: 3, name: "Ada Reader", chargedMinor: 6900, taxMinor: 900, currency, refundedMinor: 0 } };
+  return { zone: "America/Toronto", rental: { status: "paid", itemName: "Camera kit", basis: "hour", startMs: start, endMs: start + 3 * 3_600_000, length: 3, name: "Ada Reader", chargedMinor: 6900, taxMinor: 900, currency, refundedMinor: 0, depositMinor: 20000, lateFeeMinor: 1500, cardLast4: "4242", fees: [], extrasPaid: [], payLinks: [] } };
 }

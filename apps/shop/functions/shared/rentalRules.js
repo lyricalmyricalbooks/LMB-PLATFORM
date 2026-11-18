@@ -1,7 +1,7 @@
 // GENERATED from src/shared/rentalRules.ts by scripts/build-shared.mjs. Do not edit: change the .ts and run the script.
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RENTAL_MESSAGES = exports.liveSpans = exports.minutesOf = exports.HOUR = exports.MINUTE = exports.MAX_SPANS = exports.MAX_DAYS_AHEAD = exports.MAX_CLEAN_MINUTES = exports.MAX_DAYS = exports.MAX_HOURS = exports.MAX_UNITS = exports.MAX_ITEMS = void 0;
+exports.RENTAL_MESSAGES = exports.liveSpans = exports.minutesOf = exports.HOUR = exports.LATE_GRACE_MINUTES = exports.MAX_DEPOSIT_MINOR = exports.MINUTE = exports.MAX_SPANS = exports.MAX_DAYS_AHEAD = exports.MAX_CLEAN_MINUTES = exports.MAX_DAYS = exports.MAX_HOURS = exports.MAX_UNITS = exports.MAX_ITEMS = void 0;
 exports.cleanRentalItem = cleanRentalItem;
 exports.rentalPrice = rentalPrice;
 exports.rentalWhen = rentalWhen;
@@ -9,6 +9,9 @@ exports.freeUnit = freeUnit;
 exports.unitsFree = unitsFree;
 exports.hourChoices = hourChoices;
 exports.dayChoices = dayChoices;
+exports.lateLength = lateLength;
+exports.lateFeeFor = lateFeeFor;
+exports.feeRoom = feeRoom;
 // Rentals (beta, R1; LMB-PLATFORM tasks/todo/2026-11-18-rentals.md). A shop lends things out by the hour or by the
 // day: an item has identical units ("3 camera kits"), prices per hour, day and week, a shortest and longest rental,
 // time between rentals to check and clean, and the hours it can be picked up and brought back. One copy for the shop's
@@ -27,6 +30,10 @@ exports.MAX_DAYS_AHEAD = 365;
 /** Spans kept on one item's calendar (past ones are dropped as rentals end). */
 exports.MAX_SPANS = 600;
 exports.MINUTE = 60_000;
+/** The largest deposit a shop may ask for, cents. */
+exports.MAX_DEPOSIT_MINOR = 500_000;
+/** Time after the end before a return counts as late: hourly items, daily ones. */
+exports.LATE_GRACE_MINUTES = { hour: 15, day: 60 };
 exports.HOUR = 60 * exports.MINUTE;
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const text = (v, max) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, max) : "");
@@ -69,12 +76,22 @@ function cleanRentalItem(raw, id = "") {
         return { problem: "Closing time must be after opening time." };
     if (basis === "hour" && minLength * 60 > (0, exports.minutesOf)(closes) - (0, exports.minutesOf)(opens))
         return { problem: "The shortest rental doesn't fit between your opening and closing times." };
+    const depositMinor = money(r.depositMinor ?? 0);
+    const lateFeeMinor = money(r.lateFeeMinor ?? 0);
+    if (depositMinor < 0 || lateFeeMinor < 0)
+        return { problem: "Prices must be amounts of money." };
+    if ((depositMinor > 0 && depositMinor < 50) || (lateFeeMinor > 0 && lateFeeMinor < 50))
+        return { problem: "A price must be at least 0.50, or left empty." };
+    if (depositMinor > exports.MAX_DEPOSIT_MINOR)
+        return { problem: "A deposit can be at most 5,000.00." };
+    if (lateFeeMinor > 0 && !depositMinor)
+        return { problem: "Set a deposit too: a late fee is charged to the card kept for it." };
     const units = whole(r.units, 1, exports.MAX_UNITS, 1);
     const repair = Array.isArray(r.repair) ? [...new Set(r.repair.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= units))].sort((a, b) => a - b) : [];
     const photo = typeof r.photo === "string" && /^https:\/\/\S{1,1900}$/.test(r.photo) ? r.photo : "";
     return {
         id: text(id || r.id, 40), name, description: typeof r.description === "string" ? r.description.trim().slice(0, 4000) : "", photo,
-        units, basis, ...prices, minLength, maxLength,
+        units, basis, ...prices, minLength, maxLength, depositMinor, lateFeeMinor,
         cleanMinutes: whole(r.cleanMinutes, 0, exports.MAX_CLEAN_MINUTES, 0), opens, closes,
         daysAhead: whole(r.daysAhead, 1, exports.MAX_DAYS_AHEAD, 90), chargeTax: r.chargeTax === true,
         status: r.status === "draft" ? "draft" : "live", ...(repair.length ? { repair } : {}),
@@ -195,3 +212,18 @@ exports.RENTAL_MESSAGES = {
     taken: "Someone has just taken the last one for that time. Please pick another.",
     closed: "This item can't be rented right now.",
 };
+/** How many hours (hourly items) or days (daily ones) late a return is, after the grace time. */
+function lateLength(basis, endMs, backMs) {
+    const over = backMs - endMs - exports.LATE_GRACE_MINUTES[basis] * exports.MINUTE;
+    if (!(over > 0))
+        return 0;
+    return Math.ceil((backMs - endMs) / (basis === "hour" ? exports.HOUR : 24 * exports.HOUR));
+}
+/** The late fee a return at backMs would carry, capped by what is left of the deposit. A suggestion: the owner decides. */
+function lateFeeFor(r, backMs) {
+    return Math.min(lateLength(r.basis, r.endMs, backMs) * (r.lateFeeMinor || 0), feeRoom(r));
+}
+/** What is left of the deposit for fees still to charge. */
+function feeRoom(r) {
+    return Math.max(0, (r.depositMinor || 0) - (r.fees || []).reduce((sum, f) => sum + (f.amountMinor || 0), 0));
+}

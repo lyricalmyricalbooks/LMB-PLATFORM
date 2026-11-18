@@ -59,5 +59,16 @@ for (const [side, lib] of [["shop", shop], ["server", server]] as const) {
       expect(lib.hourChoices(kit, spans, "2026-11-20", 2, ZONE, NOW).find((c) => c.start === "10:00")?.free).toBe(1);
       expect(lib.dayChoices(press, [], "2026-11-20", 3, ZONE, NOW).map((d) => d.free)).toEqual([1, 1, 1]);
     });
+
+    test("a deposit and late fee: checked, and the late fee counts whole hours or days after the grace time", () => {
+      expect(lib.cleanRentalItem({ name: "x", hourMinor: 1000, lateFeeMinor: 500 })).toEqual({ problem: "Set a deposit too: a late fee is charged to the card kept for it." });
+      expect(lib.cleanRentalItem({ name: "x", hourMinor: 1000, depositMinor: 600_000 })).toEqual({ problem: "A deposit can be at most 5,000.00." });
+      expect(lib.lateLength("hour", 0, 14 * shop.MINUTE)).toBe(0);
+      expect(lib.lateLength("hour", 0, 16 * shop.MINUTE)).toBe(1);
+      expect(lib.lateLength("day", 0, 25 * shop.HOUR)).toBe(2);
+      const r = { basis: "hour" as const, endMs: 0, lateFeeMinor: 1500, depositMinor: 4000, fees: [{ amountMinor: 1000 }] };
+      expect(lib.feeRoom(r)).toBe(3000);
+      expect(lib.lateFeeFor(r, 3 * shop.HOUR)).toBe(3000);
+    });
   });
 }

@@ -292,7 +292,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   const day0 = new Date(new Date().toDateString()).getTime();
   const fresh = new URLSearchParams(window.location.search).get("rentals") === "new";
   let items: RentalItem[] = fresh ? [] : [
-    cleanRentalItem({ name: "Camera kit", description: "Body, two lenses, batteries and a bag.", units: 2, basis: "hour", hourMinor: 2000, dayMinor: 9000, minLength: 2, maxLength: 8, cleanMinutes: 30, opens: "09:00", closes: "18:00", chargeTax: true }, "kit00001") as RentalItem,
+    cleanRentalItem({ name: "Camera kit", description: "Body, two lenses, batteries and a bag.", units: 2, basis: "hour", hourMinor: 2000, dayMinor: 9000, minLength: 2, maxLength: 8, cleanMinutes: 30, opens: "09:00", closes: "18:00", chargeTax: true, depositMinor: 30000, lateFeeMinor: 1500 }, "kit00001") as RentalItem,
     cleanRentalItem({ name: "Kayak", units: 3, basis: "day", dayMinor: 4500, weekMinor: 22000, minLength: 1, maxLength: 14, opens: "08:00", closes: "19:00", repair: [3] }, "kayak001") as RentalItem,
   ];
   const r = (id: string, itemId: string, unit: number, startMs: number, endMs: number, status: AdminRental["status"], name: string, chargedMinor: number): AdminRental => ({
@@ -306,6 +306,10 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     r("r3", "kayak001", 1, day0 - 2 * 24 * H + 8 * H, day0 - 24 * H + 9 * H, "out", "Cleo Example", 9000),
     r("r4", "kayak001", 2, day0 + 2 * 24 * H + 8 * H, day0 + 5 * 24 * H + 19 * H, "paid", "Dev Example", 18000),
     r("r5", "kit00001", 1, day0 + 3 * 24 * H + 12 * H, day0 + 3 * 24 * H + 14 * H, "paid", "Eli Example", 4000),
+    // R2: a kit brought back three hours late yesterday, its card kept for the deposit, one fee already charged.
+    { ...r("r6", "kit00001", 2, day0 - 24 * H + 10 * H, day0 - 24 * H + 13 * H, "returned", "Fay Example", 6000), returnedAt: new Date(day0 - 24 * H + 16 * H).toISOString(),
+      depositMinor: 30000, lateFeeMinor: 1500, card: "Visa ending 4242", feeRoomMinor: 25000, lateBy: 3, suggestedLateMinor: 4500,
+      fees: [{ amountMinor: 5000, reason: "damage", note: "Cracked lens hood", at: new Date(day0 - 20 * H).toISOString(), by: "owner@example.com" }], extrasPaid: [], payLinks: [] },
   ];
   rentalsData.admin = async (op, body) => {
     if (op === "list") return { zone: "America/Toronto", currency: "CAD", items, rentals };
@@ -322,6 +326,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       rentals = rentals.map((x) => (x.id === body.id ? { ...x, status, ...(op === "cancel" ? { refundedMinor: x.chargedMinor } : {}) } : x));
       return { ok: true, rental: rentals.find((x) => x.id === body.id) };
     }
+    if (op === "chargeFee" || op === "payLink") return { ok: true, url: "https://pay.example/sample" };
     return { ok: true, rentalsLive: true };
   };
 }

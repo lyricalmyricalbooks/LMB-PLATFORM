@@ -8,22 +8,24 @@ export type ItemForm = {
   id: string; name: string; description: string; photo: string; units: string; basis: "hour" | "day";
   hour: string; day: string; week: string; minLength: string; maxLength: string; cleanMinutes: string;
   opens: string; closes: string; daysAhead: string; chargeTax: boolean; status: "live" | "draft"; repair: number[];
+  deposit: string; lateFee: string;
 };
 
 export const blankItem = (): ItemForm => ({
   id: "", name: "", description: "", photo: "", units: "1", basis: "day", hour: "", day: "", week: "", minLength: "1", maxLength: "14",
-  cleanMinutes: "0", opens: "10:00", closes: "18:00", daysAhead: "90", chargeTax: true, status: "live", repair: [],
+  cleanMinutes: "0", opens: "10:00", closes: "18:00", daysAhead: "90", chargeTax: true, status: "live", repair: [], deposit: "", lateFee: "",
 });
 
 export const formFromItem = (i: RentalItem): ItemForm => ({
   id: i.id, name: i.name, description: i.description, photo: i.photo, units: String(i.units), basis: i.basis,
   hour: priceText(i.hourMinor), day: priceText(i.dayMinor), week: priceText(i.weekMinor), minLength: String(i.minLength), maxLength: String(i.maxLength),
   cleanMinutes: String(i.cleanMinutes), opens: i.opens, closes: i.closes, daysAhead: String(i.daysAhead), chargeTax: i.chargeTax, status: i.status, repair: i.repair || [],
+  deposit: priceText(i.depositMinor || 0), lateFee: priceText(i.lateFeeMinor || 0),
 });
 
 /** What the form sends, or the problem in plain words (the server checks the rest). */
 export function itemToSave(f: ItemForm): Record<string, unknown> | { problem: string } {
-  const prices = { hourMinor: priceMinorOf(f.hour), dayMinor: priceMinorOf(f.day), weekMinor: priceMinorOf(f.week) };
+  const prices = { hourMinor: priceMinorOf(f.hour), dayMinor: priceMinorOf(f.day), weekMinor: priceMinorOf(f.week), depositMinor: priceMinorOf(f.deposit), lateFeeMinor: priceMinorOf(f.lateFee) };
   if (Object.values(prices).some((p) => Number.isNaN(p))) return { problem: "Type prices as amounts, like 25 or 12.50." };
   const whole = (s: string) => (/^\d+$/.test(s.trim()) ? Number(s) : NaN);
   const nums = { units: whole(f.units), minLength: whole(f.minLength), maxLength: whole(f.maxLength), cleanMinutes: whole(f.cleanMinutes || "0"), daysAhead: whole(f.daysAhead) };
@@ -86,4 +88,20 @@ export function timelineRows(item: RentalItem, rentals: AdminRental[], fromMs: n
         return { rental: r, left, width: Math.max(1, right - left), late: r.status === "out" && r.endMs === nowMs && nowMs > fromMs };
       }),
   }));
+}
+
+/** Rentals handed back in the last fortnight, newest first: where a late or damage fee is decided. */
+export const recentlyBack = (rentals: AdminRental[], nowMs: number) =>
+  rentals.filter((r) => r.status === "returned" && Date.parse(r.returnedAt) > nowMs - 14 * 86_400_000).sort((a, b) => Date.parse(b.returnedAt) - Date.parse(a.returnedAt));
+
+export const FEE_REASONS = { late: "Brought back late", damage: "Damage or repair", other: "Other charge" } as const;
+
+/** The money lines under a rental: the card kept, fees charged and extra payments, in plain words. */
+export function moneyLines(r: AdminRental, money: (m: number) => string): string[] {
+  const lines: string[] = [];
+  if (r.card) lines.push(`${r.card} kept for up to ${money(r.depositMinor || 0)}${r.fees?.length ? `, ${money(r.feeRoomMinor || 0)} left` : ""}`);
+  for (const f of r.fees || []) lines.push(`${FEE_REASONS[f.reason] || FEE_REASONS.other}: ${money(f.amountMinor)} charged${f.note ? ` (${f.note})` : ""}`);
+  for (const x of r.extrasPaid || []) lines.push(`Paid by link: ${money(x.amountMinor)}${x.note ? ` (${x.note})` : ""}`);
+  for (const p of r.payLinks || []) lines.push(`Waiting to be paid: ${money(p.amountMinor)}${p.note ? ` (${p.note})` : ""}`);
+  return lines;
 }

@@ -1825,3 +1825,5 @@ never rented twice) and `rentals/{id}` (`held` → `paid` → `out` → `returne
 `settings/website.rentalsLive`), `list`, `saveItem` (refuses fewer units than have rentals coming), `deleteItem`,
 `pickedUp`, `returned` (frees the unit from now plus cleaning), `cancel` (refunds first, key `rental-refund-<id>`). The
 sweep runs inside `bookingSweep`. Rate limit bucket `rental`. Not yet: privacy export/erase of `rentals`, the shop page.
+
+**Rentals R2: deposits, fees and pay links (18 November 2026).** An item's `depositMinor` (≤ `MAX_DEPOSIT_MINOR`) keeps the card at checkout (`cardHold`, Stripe only; Square shops use pay links). Admin ops `chargeFee` (≤ `feeRoom`, `feeCharging` claim, key `rental-fee-<id>-<n>`, 402 on decline) and `payLink` (23-hour card page, key `rental-extra-<id>-<n>`, ≤ 3 open); `refreshExtras` moves paid links into `extrasPaid` once each. Late fee suggestion: `lateFeeFor` in `shared/rentalRules.ts` (grace 15 min / 60 min). Never charged without the owner's tap.

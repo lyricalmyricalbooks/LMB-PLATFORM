@@ -106,6 +106,7 @@ function Items({ c }: { c: Copy }) {
             <div className="fm-rnt-body">
               <h2>{item.name}</h2>
               <p className="fm-rnt-price">{priceWords(item, currency, c)}{item.plusTax && <span className="fm-rnt-tax">{c("rentalsPlusTax")}</span>}</p>
+              {(item.depositMinor || 0) > 0 && <p className="fm-rnt-hint">{c("rentalsDepositLine", { amount: moneyText(item.depositMinor || 0, currency) })}</p>}
               {item.description && <p className="fm-rnt-desc">{item.description}</p>}
               <button type="button" className="fm-track-btn" aria-expanded={open?.id === item.id} onClick={() => setOpen(open?.id === item.id ? null : item)}>
                 {c(open?.id === item.id ? "rentalsClose" : "rentalsRent")}
@@ -240,6 +241,7 @@ function Picker({ c, item, currency, zone, onClose }: { c: Copy; item: PublicRen
         </button>
         <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={onClose}>{c("rentalsCancel")}</button>
       </div>
+      {(item.depositMinor || 0) > 0 && <p className="fm-rnt-hint">{c(item.lateFeeMinor ? "rentalsDepositAgreeLate" : "rentalsDepositAgree", { amount: money(item.depositMinor || 0), fee: money(item.lateFeeMinor || 0) })}</p>}
       <p className="fm-rnt-hint">{c("rentalsHoldNote")}</p>
     </form>
   );
@@ -274,6 +276,15 @@ function Booked({ c, id, rentalKey }: { c: Copy; id: string; rentalKey: string }
       <h2>{r.itemName}</h2>
       <p>{c("rentalsDoneWhen", { from: when(r.startMs), until: when(r.endMs) })}</p>
       {paid && <p>{c("rentalsDonePaid", { amount: moneyText(r.chargedMinor, r.currency) })}</p>}
+      {paid && (r.depositMinor || 0) > 0 && <p className="fm-rnt-hint">{c("rentalsDoneDeposit", { amount: moneyText(r.depositMinor || 0, r.currency), last4: r.cardLast4 || "" })}</p>}
+      {(r.fees || []).map((f) => <p key={f.at}>{c("rentalsFeeLine", { reason: c(f.reason === "late" ? "rentalsFeeLate" : f.reason === "damage" ? "rentalsFeeDamage" : "rentalsFeeOther"), amount: moneyText(f.amountMinor, r.currency) })}{f.note ? ` (${f.note})` : ""}</p>)}
+      {(r.extrasPaid || []).map((x) => <p key={x.at}>{c("rentalsExtraPaid", { amount: moneyText(x.amountMinor, r.currency) })}{x.note ? ` (${x.note})` : ""}</p>)}
+      {(r.payLinks || []).map((p) => (
+        <div key={p.url} className="fm-rnt-paylink">
+          <p>{c("rentalsPayLinkLine", { amount: moneyText(p.amountMinor, r.currency) })}{p.note ? ` (${p.note})` : ""}</p>
+          <a className="fm-track-btn" href={p.url}>{c("rentalsPayLinkButton")}</a>
+        </div>
+      ))}
       {paid && <p className="fm-rnt-hint">{c("rentalsDoneEmail")}</p>}
     </section>
   );

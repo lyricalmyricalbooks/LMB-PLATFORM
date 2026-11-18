@@ -10,11 +10,18 @@ export type RentalAction = "rentalsInfo" | "rentalTimes" | "rentalStart" | "rent
 export type PublicRentalItem = {
   id: string; name: string; description: string; photo: string; basis: "hour" | "day"; hourMinor: number; dayMinor: number; weekMinor: number;
   minLength: number; maxLength: number; opens: string; closes: string; daysAhead: number; plusTax: boolean;
+  /** The card is kept for up to this much (R2); the late fee per hour or day. */
+  depositMinor?: number; lateFeeMinor?: number;
 };
 export type RentalsInfo = { on: boolean; zone?: string; currency?: string; items?: PublicRentalItem[] };
 export type RentalQuote = { totalMinor: number; taxMinor: number; chargedMinor: number; free: boolean; length: number } | { problem: string };
 export type RentalTimes = { day: string; times?: { start: string; free: boolean }[]; days?: { day: string; free: boolean }[]; quote?: RentalQuote | null };
-export type RentalView = { status: "held" | "paid" | "out" | "returned" | "cancelled"; itemName: string; basis: "hour" | "day"; startMs: number; endMs: number; length: number; name: string; chargedMinor: number; taxMinor: number; currency: string; refundedMinor: number };
+export type RentalView = { status: "held" | "paid" | "out" | "returned" | "cancelled"; itemName: string; basis: "hour" | "day"; startMs: number; endMs: number; length: number; name: string; chargedMinor: number; taxMinor: number; currency: string; refundedMinor: number;
+  depositMinor?: number; lateFeeMinor?: number; cardLast4?: string;
+  fees?: { amountMinor: number; reason: "late" | "damage" | "other"; note: string; at: string }[];
+  extrasPaid?: { amountMinor: number; note: string; at: string }[];
+  payLinks?: { amountMinor: number; note: string; url: string }[];
+};
 
 export async function askRentals(action: RentalAction, body: Record<string, unknown> = {}): Promise<Record<string, any>> {
   if (isBookingPreview()) return previewRentalAnswer(action, body, shopCurrency());

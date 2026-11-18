@@ -39,16 +39,21 @@ function res() {
 const KIT = { name: "Camera kit", units: 1, basis: "hour", hourMinor: 2000, dayMinor: 9000, minLength: 2, maxLength: 8, cleanMinutes: 30, opens: "09:00", closes: "17:00" };
 const ASK = { action: "rentalStart", itemId: "kit00001", day: "2026-11-20", start: "10:00", hours: 2, name: "Ada Reader", email: "ada@example.com" };
 
-function setup({ platform = true, owner = true } = {}) {
+function setup({ platform = true, owner = true, keepsCards = false } = {}) {
   const db = fakeDb();
   const clock = { now: new Date("2026-11-18T12:00:00Z") };
   const emails = [];
   const refunds = [];
   const sessions = new Map();
+  const charges = [];
   const card = {
     async open(params) { const id = `cs_test_${String(sessions.size).padStart(8, "0")}`; sessions.set(id, { id, payment_status: "unpaid", amount_total: params.line_items[0].price_data.unit_amount, metadata: params.metadata }); return { id, url: `https://pay.example/${id}` }; },
     async read(id) { return sessions.get(id) || null; },
     async close() {},
+    ...(keepsCards ? {
+      async savedCard() { return { customer: "cus_1", paymentMethod: "pm_1", brand: "Visa", last4: "4242" }; },
+      async chargeSaved(a, key) { charges.push({ ...a, key }); if (a.amountMinor === 666) throw Object.assign(new Error("declined"), { statusCode: 402 }); return { id: `pi_fee_${charges.length}` }; },
+    } : {}),
   };
   let n = 0;
   const desk = rentalActions({
@@ -68,7 +73,7 @@ function setup({ platform = true, owner = true } = {}) {
   const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
   const pay = (i) => Object.assign(sessions.get(`cs_test_${String(i).padStart(8, "0")}`), { payment_status: "paid", payment_intent: `pi_${i}` });
   const doc = async (c, id) => (await db.collection(c).doc(id).get()).data();
-  return { db, desk, clock, emails, refunds, seed, pub, adm, pay, doc };
+  return { db, desk, clock, emails, refunds, seed, pub, adm, pay, doc, charges, sessions };
 }
 
 describe("rentals", () => {
@@ -146,5 +151,55 @@ describe("rentals", () => {
     expect((await t.adm({ op: "saveItem", item: { ...KIT, id: "kit00001", units: 1 } })).body.code).toBe("booked");
     expect((await t.adm({ op: "deleteItem", id: "kit00001" })).body.code).toBe("booked");
     expect((await t.adm({ op: "list" })).body.rentals).toHaveLength(2);
+  });
+
+  test("R2: a deposit keeps the card; fees only on the owner's tap, never past the deposit, and a pay link for more", async () => {
+    const t = setup({ keepsCards: true });
+    await t.seed();
+    await t.db.collection("rentalItems").doc("kit00001").set({ ...KIT, depositMinor: 10000, lateFeeMinor: 1500 });
+    const info = (await t.pub({ action: "rentalsInfo" })).body;
+    expect(info.items[0]).toMatchObject({ depositMinor: 10000, lateFeeMinor: 1500 });
+    const started = (await t.pub(ASK)).body;
+    t.pay(0);
+    await t.desk.sweep();
+    const r = await t.doc("rentals", started.rentalId);
+    expect(r).toMatchObject({ status: "paid", cardHold: true, depositMinor: 10000, card: { customer: "cus_1", last4: "4242", mode: "test" } });
+    expect(t.emails[0].html).toContain("kept on file");
+    expect(t.charges).toEqual([]);
+    // Brought back two hours late: the fee is suggested, never charged by itself.
+    await t.adm({ op: "pickedUp", id: started.rentalId });
+    t.clock.now = new Date(r.endMs + 2 * 3_600_000);
+    await t.adm({ op: "returned", id: started.rentalId });
+    const listed = (await t.adm({ op: "list" })).body.rentals[0];
+    expect(listed).toMatchObject({ lateBy: 2, suggestedLateMinor: 3000, feeRoomMinor: 10000, card: "Visa ending 4242" });
+    expect(t.charges).toEqual([]);
+    const charged = await t.adm({ op: "chargeFee", id: started.rentalId, amountMinor: 3000, reason: "late" });
+    expect(charged.body.rental).toMatchObject({ feeRoomMinor: 7000, fees: [{ amountMinor: 3000, reason: "late" }] });
+    expect(t.charges[0]).toMatchObject({ customer: "cus_1", paymentMethod: "pm_1", amountMinor: 3000, key: `rental-fee-${started.rentalId}-1` });
+    expect((await t.adm({ op: "chargeFee", id: started.rentalId, amountMinor: 8000, reason: "damage" })).body.code).toBe("amount");
+    expect((await t.adm({ op: "chargeFee", id: started.rentalId, amountMinor: 666, reason: "damage" })).statusCode).toBe(402);
+    expect((await t.doc("rentals", started.rentalId)).fees).toHaveLength(1);
+    // More than the deposit covers: a pay link the customer pays from the email.
+    const link = (await t.adm({ op: "payLink", id: started.rentalId, amountMinor: 12000, note: "New lens cap" })).body;
+    expect(link.url).toMatch(/^https:\/\/pay\.example\//);
+    expect(t.emails.at(-1).html).toContain("New lens cap");
+    t.pay(1);
+    await t.desk.sweep();
+    const after = await t.doc("rentals", started.rentalId);
+    expect(after).toMatchObject({ extraOpen: false, extraPages: [], extrasPaid: [{ amountMinor: 12000, note: "New lens cap" }] });
+    await t.desk.sweep();
+    expect((await t.doc("rentals", started.rentalId)).extrasPaid).toHaveLength(1);
+  });
+
+  test("R2: a shop that can't keep cards takes no deposit card and fees go by pay link", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("rentalItems").doc("kit00001").set({ ...KIT, depositMinor: 10000 });
+    const started = (await t.pub(ASK)).body;
+    t.pay(0);
+    await t.desk.sweep();
+    expect((await t.doc("rentals", started.rentalId)).cardHold).toBeUndefined();
+    expect((await t.adm({ op: "chargeFee", id: started.rentalId, amountMinor: 1000 })).body.code).toBe("no_card");
+    expect((await t.adm({ op: "payLink", id: started.rentalId, amountMinor: 1000 })).statusCode).toBe(200);
   });
 });
