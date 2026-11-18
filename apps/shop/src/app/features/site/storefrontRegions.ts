@@ -156,6 +156,9 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "membershipNotice", label: "Closed and not-ready messages", required: true },
     { id: "membershipGlow", label: "Membership page top strip" },
   ] },
+  { id: "membersOnlyLayout", title: "Custom pages · members-only box", copy: "Custom pages & 404", files: ["features/site/membersPage.tsx"], regions: [
+    { id: "membersOnlyBox", label: "Box on a members-only page", required: true },
+  ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
     { id: "stripePaymentPanel", label: "Stripe payment panel", required: true },
     { id: "stripePaymentHeader", label: "Stripe payment method selector", required: true },

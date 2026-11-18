@@ -15,7 +15,7 @@ export type MyMembership = {
   periodEnd: string; trialEnd: string; card: { brand: string; last4: string } | null; startedAt: string; endedAt: string; test: boolean; cardPending: boolean;
 };
 
-export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard";
+export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard" | "membershipPage";
 
 export async function askMembership(action: MembershipAction, body: Record<string, unknown> = {}, user?: User | null): Promise<Record<string, any>> {
   if (isBookingPreview()) return previewMembershipAnswer(action, body, shopCurrency());

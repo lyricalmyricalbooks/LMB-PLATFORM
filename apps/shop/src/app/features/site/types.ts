@@ -154,7 +154,8 @@ export type Page = {
   title: string;
   slug: string;
   body: string;
-  status: "published" | "draft";
+  /** "members": published for signed-in members only (Memberships beta); no rule lets a shopper read it. */
+  status: "published" | "draft" | "members";
   showInNav: boolean;
   /** Linked from the footer only (Studio › Pages › Where the link shows › Footer only); ignored when showInNav is on. */
   showInFooter?: boolean;

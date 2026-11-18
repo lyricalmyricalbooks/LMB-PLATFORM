@@ -23,6 +23,7 @@ const LINK_PLACEMENTS = [
 const linkPlacement = (p: Partial<Page>) => (p.showInNav ?? true) ? "both" : p.showInFooter ? "footer" : "none";
 import { useConfirm } from "../riso/components";
 import { friendlyError } from "./friendlyError";
+import { useWaysOn } from "../waysApi";
 
 const btn =
   "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold border border-neutral-300 rounded-lg bg-white hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed";
@@ -65,6 +66,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   const media = useMediaPicker();
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState<Partial<Page> | null>(null);
+  // Members only (Memberships beta): offered while Memberships is on, or on a page that already is.
+  const membershipsOn = useWaysOn(active).includes("memberships");
   const [original, setOriginal] = useState("");
   const [isNew, setIsNew] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
@@ -249,7 +252,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         {confirmNode}
         <div className="flex items-center gap-2">
           <button className={btn} onClick={back} disabled={saving}><ArrowLeft size={14} /> All pages</button>
-          {!isNew && editing.status === "published" && (
+          {!isNew && (editing.status === "published" || editing.status === "members") && (
             <a className={btn} href={publicUrl(editing.slug)} target="_blank" rel="noreferrer"><ExternalLink size={13} /> View</a>
           )}
         </div>
@@ -270,7 +273,10 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
           <PageBodyEditor value={editing.body || ""} onChange={(v) => set({ body: v })} onUploading={setUploading} title={editing.title} />
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
-          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.status === "published"} onChange={(e) => set({ status: e.target.checked ? "published" : "draft" })} /> Published <span className="font-normal text-neutral-500">(drafts are hidden from the shop)</span></label>
+          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.status === "published" || editing.status === "members"} onChange={(e) => set({ status: e.target.checked ? (editing.status === "members" ? "members" : "published") : "draft" })} /> Published <span className="font-normal text-neutral-500">(drafts are hidden from the shop)</span></label>
+          {(membershipsOn || editing.status === "members") && (
+            <label className="flex items-start gap-2 text-xs font-bold"><input type="checkbox" className="mt-0.5" checked={editing.status === "members"} onChange={(e) => set({ status: e.target.checked ? "members" : "published" })} /> <span>Members only <span className="font-normal text-neutral-500">(Beta. Only signed-in members can read it; everyone else sees its title and a box to join. Add its link to a menu yourself.)</span></span></label>
+          )}
           <fieldset className="space-y-1">
             <legend className="text-xs font-bold">Where the link shows</legend>
             {LINK_PLACEMENTS.map(({ id, label, hint }) => (
@@ -389,7 +395,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
             <button className={iconBtn} onClick={() => remove(p)} aria-label={`Delete ${p.title}`}><Trash2 size={14} /></button>
           </div>
           <p className="text-[11px] text-neutral-600">
-            {p.status === "published" ? "✓ Published" : "○ Draft"} · {LINK_PLACEMENTS.find(x => x.id === linkPlacement({ ...p, showInNav: !!p.showInNav }))?.short}
+            {p.status === "published" ? "✓ Published" : p.status === "members" ? "✓ Members only" : "○ Draft"} · {LINK_PLACEMENTS.find(x => x.id === linkPlacement({ ...p, showInNav: !!p.showInNav }))?.short}
           </p>
         </div>
       ))}

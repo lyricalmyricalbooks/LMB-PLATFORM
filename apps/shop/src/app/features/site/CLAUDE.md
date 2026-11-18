@@ -1079,3 +1079,12 @@ on `/account/membership`, or with a return parameter (each ask costs the shop). 
 member). The footer link (`footer-membership`, word `membershipFooterLink`) follows `settings/website.membershipsLive` (kept
 by `functions/memberships.js` `tellWebsite`; `membershipLive.ts`). Words: Text & labels › **Membership page**
 (`membership*`) and Customer account › Membership (`accountMember*`), French twins. The Studio fixture takes `?membership=1`.
+
+## Members-only pages (Memberships beta, M2b, 18 November 2026)
+
+Studio › Pages › a page › **Members only** (shown while Memberships is on) saves `status: "members"`. Such a page never
+reaches the site snapshot (the rules read only published pages), so `PageView` asks the server through
+`membersPage.tsx` `useMembersPage` once the fresh read has no page at that address and `useMembershipsLive()` is on: a
+member gets the page as usual; anyone else sees its title and `MembersOnlyBox` (region `membersOnlyBox`, words Text &
+labels › Custom pages & 404 › `membersOnly*`, join button in the shop's accent). The link isn't added to menus
+automatically. Only the page's words are private: a per-page section stack lives in the public design.

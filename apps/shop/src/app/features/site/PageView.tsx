@@ -18,6 +18,8 @@ import { useSEO } from "../../lib/seo";
 import { shopOrigin } from "../../lib/canonicalUrl";
 import { breadcrumbData } from "../../lib/bookSeo";
 import { firstBodyImage } from "./pageBody";
+import { useMembershipsLive } from "./membershipLive";
+import { MembersOnlyBox, MEMBERS_ONLY_CSS, useMembersPage } from "./membersPage";
 import { contentMaxWidth, isFullWidth } from "./headerNav";
 
 
@@ -66,9 +68,15 @@ export function PageView() {
   // second Firestore request. Studio snapshots and background refreshes still
   // update this same collection.
   // The Studio preview may show an unpublished page; shoppers only ever receive published ones.
-  const page = pages.find(p => p.slug === slug && (p.status === "published" || isStudioPreview()));
+  const published = pages.find(p => p.slug === slug && (p.status === "published" || isStudioPreview()));
   // Store policies (Settings › General) are served as synthetic pages at /page/policy-<key>.
   const policyPage = policyPageFor(slug, (settings as any)?.policies, (settings as any)?.design);
+  // A members-only page (Memberships beta) never reaches the snapshot: once the fresh read has no page here and the shop
+  // takes members, the server says whether this shopper may read it (membersPage.tsx).
+  const membersLive = useMembershipsLive();
+  const members = useMembersPage(slug, !published && !policyPage && !loadError && !siteLoading && !!fresh && membersLive);
+  const lockedPage = members.state === "locked" ? { id: "members", slug: slug || "", title: members.title, body: "", status: "members" as const } : null;
+  const page = published || (members.state === "open" ? members.page : null) || lockedPage;
 
   // Tab title + description follow Text & labels › Site & sharing (title format, site name).
   const seoPage: any = policyPage || page;
@@ -117,7 +125,8 @@ export function PageView() {
   const themedText = d?.textColor || "#f3f1ee";
 
   const shown = page || policyPage;
-  const missing = !shown && !loadError && !siteLoading && !!fresh;
+  const membersAsking = members.state === "asking";
+  const missing = !shown && !loadError && !siteLoading && !!fresh && !membersAsking;
   useMissingRedirect(missing);
   // Google Analytics: only once the fresh read confirms the page doesn't exist.
   useEffect(() => { if (missing) ga4PageNotFound(); }, [missing, slug]);
@@ -136,7 +145,7 @@ export function PageView() {
       </div>
     );
   }
-  if (!shown && (siteLoading || !fresh)) {
+  if (!shown && (siteLoading || !fresh || membersAsking)) {
     return (
       <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">
         <StorefrontThemeStyle design={settings?.design} />
@@ -175,7 +184,15 @@ export function PageView() {
       {/* Content — the same "Page content" renderer Studio uses, with its
           default settings, so every custom page looks identical whether or
           not it has its own section stack. */}
-      {!hidePageBody && (
+      {lockedPage && shown === lockedPage ? (
+        <main className="w-full flex-1">
+          <style>{MEMBERS_ONLY_CSS}</style>
+          <CurrentPageContext.Provider value={{ title: shown.title, body: "", pageStyle }}>
+            <PageContentSection settings={{ showTitle: true, showBody: false }} enableAnimations />
+          </CurrentPageContext.Provider>
+          <MembersOnlyBox design={settings?.design} signedIn={members.state === "locked" && members.signedIn} />
+        </main>
+      ) : !hidePageBody && (
         <main className="w-full flex-1">
           <CurrentPageContext.Provider value={{ title: shown.title, body: useHistoryCopy ? historyHtml : shown.body, pageStyle }}>
             <PageContentSection settings={{ showTitle: true, showBody: true }} enableAnimations />

@@ -372,6 +372,11 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
     fields: [
       { key: "pageLoading", label: "Page loading text", default: "Loading…" },
       { key: "pageEyebrow", label: "Page eyebrow", default: "Page" },
+      { key: "membersOnlyHeading", label: "Members-only page: heading", default: "This page is for members" },
+      { key: "membersOnlyText", label: "Members-only page: signed out", multiline: true, default: "Become a member to read it. Already a member? Sign in to your account." },
+      { key: "membersOnlyNotMember", label: "Members-only page: not a member", multiline: true, default: "Your account doesn't have a membership yet. Join to read this page." },
+      { key: "membersOnlyJoin", label: "Members-only page: join button", default: "See membership plans" },
+      { key: "membersOnlySignIn", label: "Members-only page: sign in button", default: "Sign in" },
       { key: "errorTitle", label: "Crash screen message", default: "Something went wrong" },
       { key: "errorReload", label: "Crash screen button", default: "Reload" },
       { key: "pageHomeLink", label: "Header 'home' link", default: "HOME" },

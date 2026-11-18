@@ -17,7 +17,7 @@ Rule kept throughout: who is a member and what they pay is decided on the server
       checkout, gift cards untouched.
 
 ## M2b: members-only pages and downloads
-- [ ] A custom page can be "Members only": its body is kept server-side and served by a function to a signed-in member;
+- [x] A custom page can be "Members only": its body is kept server-side and served by a function to a signed-in member;
       everyone else sees a "For members" box with Join.
 - [ ] A digital product can be "Free for members": a member claims it from the product page (a free order, server-made),
       and it lands in their Library.
