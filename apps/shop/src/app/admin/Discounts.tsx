@@ -468,7 +468,7 @@ export function Discounts() {
 
       {discounts.length === 0 ? (
         <SectionCard>
-          <EmptyState icon="🏷️" title="No discounts yet" description="Create a code shoppers type at checkout, or an automatic offer that applies by itself: a percentage, fixed amount, free shipping, buy-X-get-Y, tiered discount or a free gift with purchase."
+          <EmptyState sketch="rows" icon="🏷️" title="No discounts yet" description="Create a code shoppers type at checkout, or an automatic offer that applies by itself: a percentage, fixed amount, free shipping, buy-X-get-Y, tiered discount or a free gift with purchase."
             action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
               <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setFormOpen(true); }}>New discount</PrimaryButton>
               {bringButton}

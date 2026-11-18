@@ -14,7 +14,9 @@ const ACTION_LABEL: Record<string, string> = {
   payments: "Open Payments", invoices: "Open invoices", bills: "Open bills to pay", cardAccount: "Open Payments", webhook: "Open payment checks", order: "Open order", billing: "See running costs",
 };
 
-export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInvoices, onOpenBills, onOpenRoute, onRetry }: {
+export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenBackups, onOpenInvoices, onOpenBills, onOpenRoute, onRetry, onHome = false }: {
+  /** Drawn inside Home's To do (simpler admin, change 4): nothing when there is nothing, and no All clear tile of its own. */
+  onHome?: boolean;
   /** The alerts still showing (`visibleAlerts`). */
   alerts: AdminAlert[];
   /** How many are hidden in this browser; they can be brought back. */
@@ -50,9 +52,10 @@ export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpe
     else runAction(a);
   };
 
+  if (onHome && !alerts.length && !hiddenCount) return null;
   return (
-    <div className="rp-stack">
-      <ul className="rp-todo-tiles" aria-label={`Alerts (${alerts.length})`}>
+    <div className="rp-stack" style={onHome ? { marginBottom: "var(--rp-space-4, 16px)" } : undefined}>
+      <ul className="rp-todo-tiles" aria-label={onHome ? "Needs a look" : `Alerts (${alerts.length})`}>
         {alerts.map((a) => (
           <li key={a.id} className="rp-todo-tile" data-tone={TONE[a.tone] || "plain"} role={a.tone === "danger" ? "alert" : undefined}>
             <span className="rp-todo-kind">{KIND[a.tone] || "Reminder"}</span>
@@ -64,7 +67,7 @@ export function AlertsPage({ alerts, hiddenCount, onDismiss, onShowHidden, onOpe
             </span>
           </li>
         ))}
-        {!alerts.length && (
+        {!alerts.length && !onHome && (
           <li className="rp-todo-tile" data-quiet="" data-clear="">
             <span className="rp-todo-title">All clear</span>
             <span className="rp-todo-body">Nothing needs you right now. New alerts show up here and in the top bar.</span>

@@ -668,7 +668,19 @@ function stateIcon(icon: ReactNode) {
   return typeof icon === "string" ? <Inbox size={24} strokeWidth={2} aria-hidden /> : icon;
 }
 
-export function EmptyState({ title, description, action, icon, inline }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode; inline?: boolean }) {
+/** A faint drawing of what an empty page will hold once it fills (simpler admin, change 5). Decoration only. */
+export type EmptySketch = "rows" | "cards" | "calendar";
+
+function SketchOf({ kind }: { kind: EmptySketch }) {
+  const n = kind === "calendar" ? 7 : kind === "cards" ? 3 : 3;
+  return (
+    <div className="rp-state-sketch" data-kind={kind} aria-hidden="true">
+      {Array.from({ length: n }, (_, i) => <span key={i}><i /><i /></span>)}
+    </div>
+  );
+}
+
+export function EmptyState({ title, description, action, icon, inline, sketch }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode; inline?: boolean; sketch?: EmptySketch }) {
   if (inline) {
     return (
       <div className="rp-state" data-inline="" style={{ alignItems: "flex-start", textAlign: "left", gap: 6, padding: "16px 20px", minHeight: 0 }}>
@@ -679,7 +691,8 @@ export function EmptyState({ title, description, action, icon, inline }: { title
     );
   }
   return (
-    <div className="rp-state">
+    <div className="rp-state" data-sketch={sketch || undefined}>
+      {sketch && <SketchOf kind={sketch} />}
       <div className="rp-state-icon" aria-hidden="true">{stateIcon(icon || "📭")}</div>
       <h3 className="rp-state-title">{title}</h3>
       {description && <p className="rp-state-desc">{description}</p>}

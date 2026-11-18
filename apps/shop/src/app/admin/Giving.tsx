@@ -87,7 +87,7 @@ export function Giving() {
       <h2 className="gvg-section-title">Gifts</h2>
       {data.gifts.length === 0 ? (
         <div className="bkg-tile">
-          <EmptyState icon={<HeartHandshake size={24} aria-hidden />} title="No gifts yet"
+          <EmptyState sketch="rows" icon={<HeartHandshake size={24} aria-hidden />} title="No gifts yet"
             description="When someone gives from your Support page, their gift shows here with anything they wrote."
             action={<SecondaryButton icon={<ExternalLink size={16} aria-hidden />} onClick={() => window.open("/support", "_blank", "noopener")}>View Support page</SecondaryButton>} />
         </div>

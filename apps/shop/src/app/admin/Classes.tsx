@@ -76,7 +76,7 @@ export function Classes() {
       </div>
 
       {classes.length === 0 ? (
-        <EmptyState title="No classes yet" description="Add a class with its weekly times, places and price. People sign up and pay on your website."
+        <EmptyState sketch="calendar" title="No classes yet" description="Add a class with its weekly times, places and price. People sign up and pay on your website."
           action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={startNew}>New class</PrimaryButton>} />
       ) : (
         <>

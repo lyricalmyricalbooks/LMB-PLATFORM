@@ -222,8 +222,8 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
               <EmptyState title="No messages match" description={`Nothing in this folder mentions “${q.trim()}”.`}
                 action={<SecondaryButton onClick={() => setQ("")}>Clear search</SecondaryButton>} />
             ) : (
-              <EmptyState title={filter === "archived" ? "Nothing archived" : filter === "replied" ? "No replies yet" : filter === "unread" ? "All caught up" : "No messages yet"}
-                description={filter === "unread" ? "Every message has been opened." : filter === "archived" ? "Archived messages land here. Nothing is deleted when you archive." : "Messages sent from the Contact Form section on your website appear here (and in your email)."} />
+              <EmptyState sketch={filter === "inbox" ? "rows" : undefined} title={filter === "archived" ? "Nothing archived" : filter === "replied" ? "No replies yet" : filter === "unread" ? "All caught up" : "No messages yet"}
+                description={filter === "unread" ? "Every message has been opened." : filter === "archived" ? "Archived messages land here. Nothing is deleted when you archive." : "Messages from your website's contact form land here, and in your email."} />
             )
           ) : (
             <>

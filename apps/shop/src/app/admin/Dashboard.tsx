@@ -54,7 +54,7 @@ import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdenti
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
 import { hasPublisherTools, sellsServices } from "../../shared/shopSells";
-import { FAIR_MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, adminMenu, itemSections, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages, type MenuKind } from "./riso/nav";
+import { FAIR_MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, adminMenu, itemSections, menuItemFor, menuWithout, sideMenu, sideOf, sidebarItems, type MenuKind } from "./riso/nav";
 import { FairCard, SideSwitch, rememberFair, rememberSide, rememberedFair, rememberedSide } from "./SideSwitch";
 import { PhoneNav } from "./PhoneNav";
 import { useStockroomTodos } from "./overview/StockroomTodos";
@@ -823,20 +823,8 @@ export function Dashboard() {
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
   const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "takePayment" || activeTab === "events" || activeTab === "classes" || activeTab === "giving" || activeTab === "memberships" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
-  const content = (() => {
-    switch (activeTab) {
-      case "overview":
-        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} services={menuKind === "services"} tourWaiting={tourPhase !== null || !tourSeen()} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
-      case "analytics":
-        return <AnalyticsPage subTab={subTab} onSubTabChange={openSubTab} setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
-      case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
-      case "customers": return <Customers initialQuery={searchCustomerQuery} />;
-      case "inventory": return <Inventory onEditBook={handleEditBook} />;
-      case "discounts": return <Discounts />;
-      case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} askUrl={askPersonPage(platformPlan)}
-        fromPage={helpFrom.current?.page} fromLabel={helpFrom.current?.label}
-        onTour={(start) => startTour(start)} onOpen={(page) => openMenuPage(page)} />;
-      case "alerts": return <AlertsPage alerts={shownAlerts} hiddenCount={allAlerts.length - shownAlerts.length}
+  // Change 4 (simpler admin): alerts show at the top of Home's To do; #alerts still opens them on their own.
+  const alertsView = (onHome: boolean) => (<AlertsPage onHome={onHome} alerts={shownAlerts} hiddenCount={allAlerts.length - shownAlerts.length}
         onDismiss={alertHides.dismiss} onShowHidden={alertHides.showAll}
         onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
         onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
@@ -853,7 +841,21 @@ export function Dashboard() {
           setShowEditor(false);
           setSelectedOrder(null);
         }}
-        onRetry={() => refreshAlertsRef.current()} />;
+        onRetry={() => refreshAlertsRef.current()} />);
+  const content = (() => {
+    switch (activeTab) {
+      case "overview":
+        return <HomePage setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes" || tab === "designer" || tab === "security") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} ownerName={user.displayName || ""} services={menuKind === "services"} tourWaiting={tourPhase !== null || !tourSeen()} alerts={alertsView(true)} onSetWall={(on: boolean) => toggleUnderConstruction(on, { checked: true })} />;
+      case "analytics":
+        return <AnalyticsPage subTab={subTab} onSubTabChange={openSubTab} setActiveTab={(tab: string) => { if (tab === "google" || tab === "general") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} />;
+      case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
+      case "customers": return <Customers initialQuery={searchCustomerQuery} />;
+      case "inventory": return <Inventory onEditBook={handleEditBook} />;
+      case "discounts": return <Discounts />;
+      case "help": return <HelpPage combined={COMBINED} sells={sellsAnswer} askUrl={askPersonPage(platformPlan)}
+        fromPage={helpFrom.current?.page} fromLabel={helpFrom.current?.label}
+        onTour={(start) => startTour(start)} onOpen={(page) => openMenuPage(page)} />;
+      case "alerts": return alertsView(false);
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "bookings": return bookingsOn ? <Bookings /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
       case "takePayment": return bookingsOn ? <TakePayment /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
@@ -918,8 +920,8 @@ export function Dashboard() {
     rememberFair(on); setFairMode(on);
     void openMenuPage(on ? FAIR_MENU[0].pages[0] : sideMenu("stockroom", menuKind)[0].pages[0]);
   };
-  const railMenu = COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide, menuKind)) : ADMIN_MENU;
-  const railItems = withoutPages(sidebarItems(nav, railMenu), hiddenPages).map((n) => {
+  const railMenu = menuWithout(COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide, menuKind)) : ADMIN_MENU, hiddenPages);
+  const railItems = sidebarItems(nav, railMenu).map((n) => {
     // Orders counts open cancel/return requests too (they sit in Needs attention).
     // Privacy requests are handled in Settings › General.
     const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -930,7 +932,7 @@ export function Dashboard() {
     return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
   });
   const activePageId = navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive;
-  const activeItemId = menuItemFor(activePageId, COMBINED && fairMode && FAIR_MENU.some((g) => g.pages.includes(activePageId)) ? FAIR_MENU : ADMIN_MENU);
+  const activeItemId = menuItemFor(activePageId, COMBINED && fairMode && FAIR_MENU.some((g) => g.pages.includes(activePageId)) ? FAIR_MENU : menuWithout(ADMIN_MENU, hiddenPages));
   const activeItem = railItems.find((n) => n.id === activeItemId);
   const sections = activeItem?.children ? itemSections(railMenu, activeItemId, activeItem.children) : null;
   const settingsColumn = !showEditor && !selectedOrder && !!sections && (activeItem?.children?.length ?? 0) > 1;
@@ -1020,7 +1022,7 @@ export function Dashboard() {
                 </span>
               )}
               {trialPill(platformPlan ?? null) && <a className="rp-trial-pill" href="#settings/billing">{trialPill(platformPlan ?? null)}</a>}
-              <AlertsPill alerts={shownAlerts} onOpen={() => { void goTo("alerts"); }} />
+              <AlertsPill alerts={shownAlerts} onOpen={() => { void goTo("overview"); }} />
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
                 checkoutPaused={maintenanceOn}

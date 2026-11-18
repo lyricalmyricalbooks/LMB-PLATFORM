@@ -119,7 +119,7 @@ export function Members() {
       </div>
       {data.plans.length === 0 ? (
         <div className="bkg-tile">
-          <EmptyState icon={<BadgeCheck size={24} aria-hidden />} title="No plans yet"
+          <EmptyState sketch="cards" icon={<BadgeCheck size={24} aria-hidden />} title="No plans yet"
             description="Make a plan with a price, how often it's paid and what members get. It shows on your Membership page."
             action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setEditing("new")}>New plan</PrimaryButton>} />
         </div>

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 // Home (the menu's first item): Get started for a new shop, the Connect Google prompt, then HomeToday (greeting, To do
 // tiles, today's figures). It reads only what those need: settings for the launch checks, every order, every book and the
 // server's to-do counts. The figures board, Google Analytics and the traffic counters belong to Analytics and are not
@@ -51,7 +52,9 @@ export function homeTodoCounts(orders: any[] | null, books: any[] | null, now = 
   };
 }
 
-export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = false, tourWaiting = false }: {
+export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = false, tourWaiting = false, alerts = null }: {
+  /** The shop's alerts, drawn first in To do (change 4). */
+  alerts?: ReactNode;
   /** The tour welcome has not been seen yet: Connect Google waits for it (change 3). */
   tourWaiting?: boolean;
   /** A services shop that sells no products (Dashboard's menu kind): Home is its appointments, not parcels and stock. */
@@ -139,6 +142,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
 
   const todoRow = (
     <section className="rp-todo-row" aria-label="To do">
+      {alerts}
       <RunTiles>
         <RunRow kind="Orders" label="paid orders waiting to ship" one="paid order waiting to ship" count={todo ? todo.fulfil.length : null} loading={ordersLoading}
           detail={todo && todo.fulfil[0] ? (todo.fulfil[0].ageDays < 1 ? "Oldest was ordered today" : `Oldest has waited ${todo.fulfil[0].ageDays} day${todo.fulfil[0].ageDays === 1 ? "" : "s"}`) : ""}
@@ -169,6 +173,7 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
   const unpaid = Array.isArray(homeBookings) ? servicesDay(homeBookings, Date.now(), shopTimeZone()).unpaid.length : null;
   const servicesTodoRow = (
     <section className="rp-todo-row" aria-label="To do">
+      {alerts}
       <RunTiles>
         <RunRow kind="Calendar" label="appointments to mark paid" one="appointment to mark paid" count={unpaid} loading={homeBookings === null}
           detail="Finished, to be paid at your desk" onOpen={() => go("bookings")} openLabel="Open Calendar" />

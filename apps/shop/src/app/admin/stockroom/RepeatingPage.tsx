@@ -112,7 +112,7 @@ export function RepeatingBoard({ initial }: { initial: StockroomRecords }) {
           <DataTable caption="Repeating invoices" columns={columns} rows={rows} rowKey={(r) => r.id} stackOnPhone />
         </section>
         <p className="rp-hint">Invoices are made when their day comes, while your admin is open on a weekday between 9 and 6. Each one then shows under Invoices, and late ones get your usual reminders.</p>
-      </> : <section className="rp-card rp-reorder-card"><EmptyState inline icon="🔁" title="No repeating invoices yet" description={w(canMake ? "Bill a stockist or a subscriber on a schedule. Each invoice is made and emailed for you." : "Add a title first, then set up repeating invoices here.")} /></section>}
+      </> : <section className="rp-card rp-reorder-card"><EmptyState sketch="rows" icon="🔁" title="No repeating invoices yet" description={w(canMake ? "Bill a stockist or a subscriber on a schedule. Each invoice is made and emailed for you." : "Add a title first, then set up repeating invoices here.")} /></section>}
       {confirmNode}
     </div>
   );

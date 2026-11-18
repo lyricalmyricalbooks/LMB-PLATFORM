@@ -281,7 +281,7 @@ export function StockistsList({ view, onSaved, onNewInvoice, books, states }: { 
             </ul>
           </section>
         )}
-      </>) : <EmptyState inline icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add one with Add a stockist.")} />}
+      </>) : <EmptyState sketch="rows" icon="🏪" title="No stockists yet" description={w("Shops that hold your books on consignment appear here, with what they owe you. Add one with Add a stockist.")} />}
       {view.overdueCount > 0 && (
         <p className="rp-sr-status" role="status">{view.overdueCount === 1 ? "1 invoice is" : `${view.overdueCount} invoices are`} overdue: {moneyText(view.overdueTotals)}.</p>
       )}

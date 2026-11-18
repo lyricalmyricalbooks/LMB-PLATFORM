@@ -114,7 +114,7 @@ export function Events() {
       {shown.length === 0 ? (
         <div className="bkg-tile">
           {tab === "coming"
-            ? <EmptyState icon={<Ticket size={24} aria-hidden />} title="No events coming up" description="A reading, a launch, a workshop, a market day: add it here and sell tickets for it."
+            ? <EmptyState sketch="cards" icon={<Ticket size={24} aria-hidden />} title="No events coming up" description="A reading, a launch, a workshop, a market day: add it here and sell tickets for it."
               action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={startNew}>New event</PrimaryButton>} />
             : <EmptyState icon={<Ticket size={24} aria-hidden />} title="No past events yet" description="Events that are over or cancelled are kept here, with who came." />}
         </div>

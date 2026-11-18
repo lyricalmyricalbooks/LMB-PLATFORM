@@ -165,7 +165,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   // A queued email's newest row is its outcome: one later sent (or stopped) by the retry queue no longer alarms.
   const current = currentRows(emailLog);
   const queuedEmails = current.filter(e => e.status === "queued");
-  if (queuedEmails.length) out.push({ id: "email-queued", tone: "warning", title: `${plural(queuedEmails.length, "email is", "emails are")} waiting to be sent again`, detail: "The shop keeps trying by itself. Check Email sender, then press Retry now.", orderIds: queuedEmails.map(e => String(e.outboxId)), action: "notifications" });
+  if (queuedEmails.length) out.push({ id: "email-queued", tone: "warning", title: `${plural(queuedEmails.length, "email is", "emails are")} waiting to be sent again`, detail: "The shop keeps trying by itself. Check Emails, then press Retry now.", orderIds: queuedEmails.map(e => String(e.outboxId)), action: "notifications" });
   const failedEmails = current.filter(e => ["failed", "bounced", "complained"].includes(e.status) && now - Date.parse(e.at || "") <= 7 * DAY);
   if (failedEmails.length) out.push({ id: "email-failed", tone: "warning", title: `${plural(failedEmails.length, "email to a customer", "emails to customers")} didn't go through`, detail: "See which ones, fix what stopped them, then send them again.", orderIds: failedEmails.map(e => String(e.id || e.at)), action: "notifications" });
   return out;

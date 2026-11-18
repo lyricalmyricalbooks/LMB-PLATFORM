@@ -178,7 +178,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   if (books.length === 0) {
     return (
       <SectionCard>
-        <EmptyState icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it shows on your website as soon as it's published.")}
+        <EmptyState sketch="cards" icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it shows on your website as soon as it's published.")}
           action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
             <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import spreadsheet</SecondaryButton>

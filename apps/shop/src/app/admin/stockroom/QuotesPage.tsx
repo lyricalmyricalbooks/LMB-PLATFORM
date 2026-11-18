@@ -148,7 +148,7 @@ export function QuotesBoard({ initial, onOpen }: { initial: StockroomRecords; on
             {listed.length > shown && <SecondaryButton size="sm" onClick={() => setShown((n) => n + 20)}>Show more ({listed.length - shown} left)</SecondaryButton>}
           </> : <EmptyState inline icon="📝" title="Nothing here" description="No quotes with this status." />}
         </section>
-      </> : <section className="rp-card rp-reorder-card"><EmptyState inline icon="📝" title="No quotes yet" description={w(canMake ? "Send a price before the sale. When they say yes, it becomes an invoice in one click." : "Add a title first, then send quotes from here.")} /></section>}
+      </> : <section className="rp-card rp-reorder-card"><EmptyState sketch="rows" icon="📝" title="No quotes yet" description={w(canMake ? "Send a price before the sale. When they say yes, it becomes an invoice in one click." : "Add a title first, then send quotes from here.")} /></section>}
       {confirmNode}
       {current && (
         <Dialog open size="lg" onClose={acting ? () => undefined : () => setOpen(null)} title={current.num || "Quote"} description={`${current.billedTo} · ${fmt(current.total, current.code)} · ${STATUS[current.status].word}`}
