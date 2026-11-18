@@ -1,7 +1,7 @@
 // Support page (/support, Donations & tips beta): what the server answers and the page's own small rules, kept apart from
 // SupportPage.tsx so they can be tested. The server (functions/giving.js) checks every amount again.
 import { coverFeeMinor, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../../shared/givingRules";
-import { daysLeft, goalProgress, type PublicFundraiser } from "../../../shared/fundraiserRules";
+import { daysLeft, goalProgress, type PublicFundraiser, type PublicReward } from "../../../shared/fundraiserRules";
 
 export type GivingInfo = {
   on: boolean; currency?: string; minMinor?: number; maxMinor?: number; cardsReady?: boolean;
@@ -16,6 +16,7 @@ export type GivingInfo = {
 export type GiftView = {
   id: string; status: "held" | "paid" | "cancelled" | "refunded"; amountMinor: number; feeMinor: number; chargedMinor: number; currency: string;
   name: string; anonymous: boolean; honour: { kind: "honour" | "memory"; name: string } | null; paidAt: string; refunded: boolean;
+  reward?: { title: string; ships: boolean; when: string; sent: boolean } | null;
 };
 
 /** What the giver typed in the other-amount box as cents, or null when it isn't a whole amount of money. */
@@ -60,3 +61,18 @@ export function fundraiserFacts(f: PublicFundraiser, today: string): { bar: numb
 
 /** The fundraiser's story as paragraphs: a blank line starts a new one. */
 export const storyParagraphs = (story: string): string[] => String(story || "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+
+/** The words under a reward's name for how many are left: none for no limit, "Last one", "3 left" or "All gone". */
+export function rewardStock(r: Pick<PublicReward, "left" | "gone">): [string, Record<string, number>] | null {
+  if (r.gone) return ["supportRewardGone", {}];
+  if (r.left == null) return null;
+  return r.left === 1 ? ["supportRewardLastOne", {}] : ["supportRewardLeft", { count: r.left }];
+}
+
+/** Picking a reward with a gift below its smallest: the amount to raise the gift to (a suggested amount when one fits). */
+export function amountForReward(minor: number | null, reward: Pick<PublicReward, "minMinor">, amounts: readonly number[]): { picked: number | "other"; typed?: string } | null {
+  if (minor != null && minor >= reward.minMinor) return null;
+  const fits = amounts.find((a) => a === reward.minMinor);
+  if (fits != null) return { picked: fits };
+  return { picked: "other", typed: (reward.minMinor / 100).toFixed(reward.minMinor % 100 ? 2 : 0) };
+}

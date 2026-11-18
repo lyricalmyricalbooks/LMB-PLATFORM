@@ -15,7 +15,10 @@
 //   givingSecret/key        the shop's own key for the page's form token
 //   fundraisers/{id}        a fundraiser (G2): title, story, goal, last day, `draft`/`live`/`ended`, and the server's own
 //                           count of what it raised (`raisedMinor`, `supporters`, `wallEntries`), changed only when a
-//                           gift given to it is paid or refunded. One runs at a time.
+//                           gift given to it is paid or refunded. One runs at a time. Its `rewards` (G2b) each carry the
+//                           server's `taken`: raised when a gift claims one at giftStart (inside the same transaction, so
+//                           a limit can't be passed), lowered when that gift's page closes unpaid or it is refunded, and
+//                           raised again if a closed page turns out paid (the giver paid, so they get it even past the limit).
 //
 // Card-testing guard (people trying stolen cards with small gifts): the lowest gift is $5 (shared/givingRules MIN_GIFT_MINOR);
 // one visitor may open GIFT_PAGES_PER_HOUR card pages an hour and one email GIFT_PAGES_PER_EMAIL; the page's form token
@@ -30,7 +33,7 @@
 const crypto = require("crypto");
 const { cleanGivingSettings, startingGivingSettings, giftAmountProblem, giftCharge, cleanGiver, centsOf, MIN_GIFT_MINOR, MAX_GIFT_MINOR, GIVING_MESSAGES } = require("./shared/givingRules");
 const { waysOn } = require("./shared/waysToSell");
-const { cleanFundraiser, fundraiserState, publicFundraiser, wallWith, wallWithout } = require("./shared/fundraiserRules");
+const { cleanFundraiser, fundraiserState, publicFundraiser, wallWith, wallWithout, rewardProblem, rewardsWithTaken, cleanShipTo } = require("./shared/fundraiserRules");
 const { dayOf: shopDayOf } = require("./shared/bookingTimes");
 const { shopTimeZone } = require("./shared/shopTimeZone");
 
@@ -65,6 +68,7 @@ const WORDS = {
     heading: "Thank you",
     intro: (shop) => `Your gift to ${shop} came through. It makes a real difference.`,
     gift: "Your gift", fee: "Card fee you covered", total: "Paid", honour: "In honour of", memory: "In memory of",
+    reward: "Your reward", rewardPost: "We'll post it to", rewardWhen: "Expected",
     anonymous: "You asked to stay anonymous, so your name won't be shown anywhere.",
     button: "See your gift",
     refundSubject: (shop) => `Your gift to ${shop} was refunded`,
@@ -76,6 +80,7 @@ const WORDS = {
     heading: "Merci",
     intro: (shop) => `Votre don à ${shop} a bien été reçu. Il fait une vraie différence.`,
     gift: "Votre don", fee: "Frais de carte que vous avez couverts", total: "Payé", honour: "En l'honneur de", memory: "À la mémoire de",
+    reward: "Votre récompense", rewardPost: "Nous l'enverrons à", rewardWhen: "Prévue",
     anonymous: "Vous avez demandé à rester anonyme : votre nom ne sera affiché nulle part.",
     button: "Voir votre don",
     refundSubject: (shop) => `Votre don à ${shop} a été remboursé`,
@@ -89,6 +94,7 @@ function publicGift(id, g) {
   return {
     id, status: g.status, amountMinor: g.amountMinor || 0, feeMinor: g.feeMinor || 0, chargedMinor: g.chargedMinor || 0, currency: g.currency,
     name: g.customer?.name || "", anonymous: g.anonymous === true, honour: g.honour || null, paidAt: g.paidAt || "", refunded: g.status === "refunded",
+    reward: g.reward ? { title: g.reward.title || "", ships: g.reward.ships === true, when: g.reward.when || "", sent: !!g.reward.sentAt } : null,
   };
 }
 
@@ -98,11 +104,18 @@ const adminGift = (id, g) => ({
   amountMinor: g.amountMinor || 0, feeMinor: g.feeMinor || 0, chargedMinor: g.chargedMinor || 0, currency: g.currency,
   createdAt: g.createdAt || "", paidAt: g.paidAt || "", refundedAt: g.refundedAt || "", test: g.mode === "test",
   fundraiserId: g.fundraiserId || "",
+  reward: g.reward ? { id: g.reward.id || "", title: g.reward.title || "", ships: g.reward.ships === true, when: g.reward.when || "", sentAt: g.reward.sentAt || "" } : null,
+  shipTo: g.shipTo || null,
 });
+
+/** One line of an address, for the emails and the admin. */
+const shipToLine = (a) => (a ? [a.name, a.street, a.street2, a.city, a.state, a.zip, a.country].filter(Boolean).join(", ") : "");
 
 /** A fundraiser as the owner sees it: what anyone sees, plus when it started and ended. */
 const adminFundraiser = (id, f, today) => ({
   ...publicFundraiser(id, f, today), status: f.status || "draft", createdAt: f.createdAt || "", startedAt: f.startedAt || "", endedAt: f.endedAt || "",
+  // The owner sees every reward in full, with how many were taken.
+  rewards: (Array.isArray(f.rewards) ? f.rewards : []).map((r) => ({ id: r.id, title: r.title || "", description: r.description || "", minMinor: r.minMinor || 0, limit: r.limit || 0, ships: r.ships === true, when: r.when || "", taken: r.taken || 0 })),
 });
 
 function givingActions({
@@ -252,6 +265,9 @@ function givingActions({
           ${g.feeMinor > 0 ? line(say.fee, moneyWords(g.feeMinor, g.currency, locale)) : ""}
           ${g.feeMinor > 0 ? line(say.total, moneyWords(g.chargedMinor, g.currency, locale)) : ""}
           ${g.honour ? line(g.honour.kind === "memory" ? say.memory : say.honour, g.honour.name) : ""}
+          ${g.reward ? line(say.reward, g.reward.title) : ""}
+          ${g.reward?.when ? line(say.rewardWhen, g.reward.when) : ""}
+          ${g.reward?.ships && g.shipTo ? line(say.rewardPost, shipToLine(g.shipTo)) : ""}
           ${g.anonymous ? `<p style="margin:12px 0 0;">${say.anonymous}</p>` : ""}
           <div style="margin:16px 0 0;">${key ? risoButton(escapeHtml(giftUrl(id, key)), say.button, brand.accent, brand.theme) : ""}</div>
         `, layout),
@@ -264,6 +280,7 @@ function givingActions({
           subject: `[GIFT] ${who} gave ${moneyWords(g.amountMinor, g.currency)}`,
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(who)} gave ${escapeHtml(moneyWords(g.amountMinor, g.currency))}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(g.customer?.email || "")}${g.honour ? ` · ${g.honour.kind === "memory" ? "In memory of" : "In honour of"} ${escapeHtml(g.honour.name)}` : ""}</p>
+            ${g.reward ? `<p style="margin:8px 0 0;"><strong>Reward:</strong> ${escapeHtml(g.reward.title)}${g.reward.ships && g.shipTo ? ` · post to ${escapeHtml(shipToLine(g.shipTo))}` : ""}</p>` : ""}
             ${g.note ? `<p style="margin:8px 0 0;white-space:pre-line;">“${escapeHtml(g.note)}”</p>` : ""}
             <div style="margin:16px 0 0;">${risoButton(escapeHtml(siteLink("/admin#giving")), "Open Gifts", brand.accent, brand.theme)}</div>`, layout),
         });
@@ -316,10 +333,14 @@ function givingActions({
       if (fund?.exists) {
         const f = fund.data();
         const entry = gift.wall === true && !gift.anonymous && gift.customer?.name ? { gift: id, name: String(gift.customer.name).slice(0, 80), at } : null;
+        // A closed page that turns out paid takes its reward back (the giver paid, even if that passes the limit).
+        const reclaim = gift.reward?.id && gift.rewardHeld !== true;
         tx.set(fundraisers().doc(gift.fundraiserId), {
           raisedMinor: (Number(f.raisedMinor) || 0) + (Number(gift.amountMinor) || 0), supporters: (Number(f.supporters) || 0) + 1,
-          ...(entry ? { wallEntries: wallWith(Array.isArray(f.wallEntries) ? f.wallEntries : [], entry) } : {}), updatedAt: at,
+          ...(entry ? { wallEntries: wallWith(Array.isArray(f.wallEntries) ? f.wallEntries : [], entry) } : {}),
+          ...(reclaim ? { rewards: rewardsWithTaken(f.rewards, gift.reward.id, 1) } : {}), updatedAt: at,
         }, { merge: true });
+        if (reclaim) tx.set(gifts().doc(id), { rewardHeld: true }, { merge: true });
       }
       return true;
     });
@@ -347,7 +368,12 @@ function givingActions({
     await db.runTransaction(async (tx) => {
       const fresh = await tx.get(gifts().doc(id));
       if (!fresh.exists || fresh.data()?.status !== "held") return;
-      tx.set(gifts().doc(id), { status: "cancelled", cancelledAt: at, cancelledBy: why, pendingKey: null, updatedAt: at }, { merge: true });
+      const g = fresh.data();
+      // An unpaid page gives its reward back for someone else.
+      const release = g.rewardHeld === true && g.reward?.id && g.fundraiserId;
+      const fund = release ? await tx.get(fundraisers().doc(g.fundraiserId)) : null;
+      tx.set(gifts().doc(id), { status: "cancelled", cancelledAt: at, cancelledBy: why, pendingKey: null, updatedAt: at, ...(release ? { rewardHeld: false } : {}) }, { merge: true });
+      if (fund?.exists) tx.set(fundraisers().doc(g.fundraiserId), { rewards: rewardsWithTaken(fund.data().rewards, g.reward.id, -1), updatedAt: at }, { merge: true });
     });
   }
 
@@ -427,6 +453,17 @@ function givingActions({
           fund = await liveFundraiser(shopToday(nowMs));
           if (!fund || fund.id !== String(req.body.fundraiserId)) return fail(res, 409, "This fundraiser has ended. You can still give to the shop: reload the page.", "fundraiser_ended");
         }
+        // A reward: checked here for a quick answer, then claimed with the gift in one transaction below.
+        const rewardId = fund && req.body?.rewardId ? String(req.body.rewardId) : "";
+        let shipTo = null;
+        if (rewardId) {
+          const check = rewardProblem(fund.data.rewards, rewardId, amountMinor);
+          if ("problem" in check) return fail(res, 409, check.problem, check.code);
+          if (check.reward.ships) {
+            shipTo = cleanShipTo(req.body?.shipTo);
+            if ("problem" in shipTo) return fail(res, 400, shipTo.problem, shipTo.code);
+          }
+        }
         const { checkout, mode } = await standalone();
         if (!checkout) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
         const charge = giftCharge(amountMinor, req.body?.coverFee, settings);
@@ -438,7 +475,20 @@ function givingActions({
           ...(fund ? { fundraiserId: fund.id, wall: fund.data.wall !== false && req.body?.wall === true && !giver.anonymous } : {}),
           locale: french(req.body?.locale) ? "fr" : "en", ...charge, currency: currency(), mode, keyHashes: [hash(key)], pendingKey: key, sessions: [], createdAt: at, updatedAt: at,
         };
-        await gifts().doc(id).set(record);
+        if (rewardId) {
+          const claimed = await db.runTransaction(async (tx) => {
+            const snap = await tx.get(fundraisers().doc(fund.id));
+            const check = rewardProblem(snap.exists ? snap.data().rewards : [], rewardId, amountMinor);
+            if ("problem" in check) return check;
+            const r = check.reward;
+            tx.set(fundraisers().doc(fund.id), { rewards: rewardsWithTaken(snap.data().rewards, rewardId, 1), updatedAt: at }, { merge: true });
+            tx.set(gifts().doc(id), { ...record, reward: { id: r.id, title: r.title, ships: r.ships, when: r.when }, rewardHeld: true, ...(r.ships ? { shipTo } : {}) });
+            return { ok: true };
+          });
+          if ("problem" in claimed) return fail(res, 409, claimed.problem, claimed.code);
+        } else {
+          await gifts().doc(id).set(record);
+        }
         const shop = shopName();
         const description = `${shop ? `${shop}: ` : ""}Gift${fund ? ` to ${fund.data.title}` : ""}${charge.feeMinor ? " (card fee covered)" : ""}`.slice(0, 250);
         const metadata = { gift: id };
@@ -498,8 +548,8 @@ function givingActions({
       if (op === "saveFundraiser") {
         // New or edited; `start` puts it on the Support page. One runs at a time, and an ended one stays as it was.
         const today = shopToday(nowMs);
-        const clean = cleanFundraiser(req.body?.fundraiser, today);
-        if ("problem" in clean) return fail(res, 400, clean.problem, clean.field);
+        const first = cleanFundraiser(req.body?.fundraiser, today);
+        if ("problem" in first && first.field !== "rewards") return fail(res, 400, first.problem, first.field);
         const start = req.body?.start === true;
         const at = new Date(nowMs).toISOString();
         const asked = String(req.body?.id || "");
@@ -511,6 +561,9 @@ function givingActions({
           if (asked && !snap.exists) return { error: [404, "Unknown fundraiser."] };
           const before = snap.exists ? snap.data() : null;
           if (before && fundraiserState(before, today) === "ended") return { error: [409, "This fundraiser has ended, so it can't be changed.", "ended"] };
+          // Rewards are cleaned against what is stored now, so a gift claimed meanwhile keeps its count.
+          const clean = cleanFundraiser(req.body?.fundraiser, today, before?.rewards || []);
+          if ("problem" in clean) return { error: [400, clean.problem, clean.field] };
           const live = before && fundraiserState(before, today) === "live";
           if (start && !live && running && running.id !== id) return { error: [409, `"${running.data.title}" is running now. End it first: one fundraiser runs at a time.`, "one_at_a_time"] };
           const next = {
@@ -547,6 +600,16 @@ function givingActions({
         await tellWebsite();
         return res.status(200).json({ ok: true, settings });
       }
+      if (op === "rewardSent") {
+        // The owner marks a gift's reward sent (or not yet, with `sent: false`).
+        const id = String(req.body?.giftId || "");
+        const snap = ID.test(id) ? await gifts().doc(id).get() : null;
+        if (!snap?.exists || snap.data().status !== "paid" || !snap.data().reward) return fail(res, 404, "That gift has no reward to send.");
+        const at = new Date(nowMs).toISOString();
+        const sentAt = req.body?.sent === false ? "" : at;
+        await gifts().doc(id).set({ reward: { ...snap.data().reward, sentAt, sentBy: sentAt ? by : "" }, updatedAt: at }, { merge: true });
+        return res.status(200).json({ ok: true, gift: adminGift(id, { ...snap.data(), reward: { ...snap.data().reward, sentAt } }) });
+      }
       if (op === "resendThanks") {
         const id = String(req.body?.giftId || "");
         const snap = ID.test(id) ? await gifts().doc(id).get() : null;
@@ -579,13 +642,15 @@ function givingActions({
           if (!fresh.exists || fresh.data()?.status !== "paid") return false;
           const fundId = fresh.data().fundraiserId;
           const fund = fundId ? await tx.get(fundraisers().doc(fundId)) : null;
-          tx.set(gifts().doc(id), { status: "refunded", refundedAt: at, refundedBy: by, refundedMinor: g.chargedMinor, updatedAt: at }, { merge: true });
+          const giveBack = fresh.data().rewardHeld === true && fresh.data().reward?.id;
+          tx.set(gifts().doc(id), { status: "refunded", refundedAt: at, refundedBy: by, refundedMinor: g.chargedMinor, updatedAt: at, ...(giveBack ? { rewardHeld: false } : {}) }, { merge: true });
           // A refunded gift no longer counts toward its fundraiser, and leaves the wall.
           if (fund?.exists) {
             const f = fund.data();
             tx.set(fundraisers().doc(fundId), {
               raisedMinor: Math.max(0, (Number(f.raisedMinor) || 0) - (Number(fresh.data().amountMinor) || 0)), supporters: Math.max(0, (Number(f.supporters) || 0) - 1),
-              wallEntries: wallWithout(Array.isArray(f.wallEntries) ? f.wallEntries : [], id), updatedAt: at,
+              wallEntries: wallWithout(Array.isArray(f.wallEntries) ? f.wallEntries : [], id),
+              ...(giveBack ? { rewards: rewardsWithTaken(f.rewards, fresh.data().reward.id, -1) } : {}), updatedAt: at,
             }, { merge: true });
           }
           return true;

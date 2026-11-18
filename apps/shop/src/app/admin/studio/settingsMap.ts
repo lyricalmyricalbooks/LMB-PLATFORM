@@ -364,6 +364,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Your details & giving", match: /^support(CoverFee|Honour|InHonour|InMemory|NeedHonourName|NoTax|YourDetails|Name|NeedName|Email|NeedEmail|Note|Anonymous$|GiftRow|FeeRow|Total|Give|Working|PayNote|Error)/ },
     { title: "Thank-you after giving", match: /^support(GiftNotFound|Confirming|NotPaid|TryAgain|Thanks|Refunded|PaidRow|AnonymousNote|BackToShop)/ },
     { title: "Fundraiser & supporters wall", match: /^support(Fund|Wall)/ },
+    { title: "Fundraiser rewards & posting address", match: /^support(Reward|Ship|NeedAddress)/ },
   ],
   "Bookings page": [
     { title: "Choosing a service and time", match: /^bookTime(Eyebrow|Title|Subtitle|Closed|Loading|LoadError|Retry|Step|Free|PayAtShop|Select|Change|Earlier|Later|NoTimes|ShowLater|Morning|Afternoon|Evening|Zone|Continue|Back)/ },

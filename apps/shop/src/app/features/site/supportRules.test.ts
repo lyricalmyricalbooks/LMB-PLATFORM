@@ -1,6 +1,6 @@
 // Support page (Donations & tips beta): the other-amount box, the amount checks, covering the fee and the giver's link.
 import { describe, expect, test } from "vitest";
-import { amountProblem, chargeFor, fundraiserFacts, giftFromSearch, storyParagraphs, typedMinor } from "./supportRules";
+import { amountForReward, amountProblem, chargeFor, fundraiserFacts, giftFromSearch, rewardStock, storyParagraphs, typedMinor } from "./supportRules";
 import { previewGivingAnswer, SAMPLE_GIFT_ID, SAMPLE_GIFT_KEY } from "./supportPreview";
 
 describe("the other-amount box", () => {
@@ -59,5 +59,35 @@ describe("the fundraiser on the Support page", () => {
   });
   test("Studio's preview has no fundraiser unless asked", () => {
     expect(previewGivingAnswer("givingInfo").fundraiser).toBeUndefined();
+  });
+});
+
+describe("fundraiser rewards on the Support page (G2b)", () => {
+  test("how many are left reads in plain words", () => {
+    expect(rewardStock({ left: null, gone: false })).toBe(null);
+    expect(rewardStock({ left: 1, gone: false })).toEqual(["supportRewardLastOne", {}]);
+    expect(rewardStock({ left: 4, gone: false })).toEqual(["supportRewardLeft", { count: 4 }]);
+    expect(rewardStock({ left: 0, gone: true })).toEqual(["supportRewardGone", {}]);
+  });
+  test("picking a reward raises a smaller gift to its smallest, using a suggested amount when one fits", () => {
+    expect(amountForReward(5000, { minMinor: 2500 }, [1000, 2500])).toBe(null);
+    expect(amountForReward(1000, { minMinor: 2500 }, [1000, 2500])).toEqual({ picked: 2500 });
+    expect(amountForReward(null, { minMinor: 7500 }, [1000, 2500])).toEqual({ picked: "other", typed: "75" });
+    expect(amountForReward(1000, { minMinor: 1250 }, [])).toEqual({ picked: "other", typed: "12.50" });
+  });
+});
+
+describe("fundraiser rewards on the Support page (G2b)", () => {
+  test("how many are left reads in plain words", () => {
+    expect(rewardStock({ left: null, gone: false })).toBe(null);
+    expect(rewardStock({ left: 1, gone: false })).toEqual(["supportRewardLastOne", {}]);
+    expect(rewardStock({ left: 4, gone: false })).toEqual(["supportRewardLeft", { count: 4 }]);
+    expect(rewardStock({ left: 0, gone: true })).toEqual(["supportRewardGone", {}]);
+  });
+  test("picking a reward raises a smaller gift to its smallest, using a suggested amount when one fits", () => {
+    expect(amountForReward(5000, { minMinor: 2500 }, [1000, 2500])).toBe(null);
+    expect(amountForReward(1000, { minMinor: 2500 }, [1000, 2500])).toEqual({ picked: 2500 });
+    expect(amountForReward(null, { minMinor: 7500 }, [1000, 2500])).toEqual({ picked: "other", typed: "75" });
+    expect(amountForReward(1000, { minMinor: 1250 }, [])).toEqual({ picked: "other", typed: "12.50" });
   });
 });

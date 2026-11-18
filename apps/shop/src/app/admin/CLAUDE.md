@@ -1402,3 +1402,6 @@ Gifts reach the money pages through `stockroom/moneyRecords.ts` (`giftSales` in 
 `Giving.tsx`; `goalFromText` and `fundraiserLines` in `givingView.ts`), ops `saveFundraiser` / `endFundraiser`. Home shows
 `overview/HomeFundraiser.tsx` after To do while one runs (passed as `extra` to HomeToday and HomeServices). The fixture
 has a running and a past fundraiser.
+**Rewards (G2b):** the drawer's Thank-you rewards (`RewardRow`, `rewardRowsOf`, `rewardsFromRows` in `givingView.ts`; a
+taken one can't be removed), the card lists each with `rewardLine`, and a gift with one shows it (mint until sent) with
+the posting address and **Mark sent** / Not sent yet (op `rewardSent`). The fixture's f1 has three rewards.

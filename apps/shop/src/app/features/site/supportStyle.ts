@@ -5,6 +5,7 @@
 //   fm-sup-check         a tick box with its words                      fm-sup-honour  honour or memory, and the name
 //   fm-sup-trap          the hidden field only bots fill in             fm-sup-thanks  the thank-you after giving
 //   fm-sup-fund          the fundraiser: raised line, bar, facts, story fm-sup-wall    the supporters wall
+//   fm-sup-rewards       the thank-you rewards to pick from            fm-sup-ship    the posting address for one
 const S = ".fm-track";
 
 export const SUPPORT_CSS = [
@@ -47,5 +48,21 @@ export const SUPPORT_CSS = [
   `${S} .fm-sup-wall h2{margin:0;}`,
   `${S} .fm-sup-wall ul{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none;}`,
   `${S} .fm-sup-wall li{padding:6px 14px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);font-size:14px;font-weight:600;overflow-wrap:anywhere;}`,
+  `${S} .fm-sup-rewards{display:grid;gap:10px;margin:22px 0 0;padding:0;border:0;min-width:0;}`,
+  `${S} .fm-sup-rewards legend{margin-bottom:12px;padding:0;}`,
+  `${S} .fm-sup-reward{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);cursor:pointer;transition:background .12s ease;}`,
+  `${S} .fm-sup-reward:hover{background:rgba(var(--fg-rgb),0.05);}`,
+  `${S} .fm-sup-reward[data-picked]{box-shadow:inset 0 0 0 2px var(--accent);}`,
+  `${S} .fm-sup-reward[data-gone]{cursor:not-allowed;opacity:0.55;border-style:dashed;}`,
+  `${S} .fm-sup-reward input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:var(--accent);}`,
+  `${S} .fm-sup-reward:has(input:focus-visible){outline:2px solid var(--rp-focus, var(--accent));outline-offset:3px;}`,
+  `${S} .fm-sup-reward-body{display:grid;gap:4px;min-width:0;}`,
+  `${S} .fm-sup-reward-name{font-size:16px;font-weight:700;line-height:1.35;overflow-wrap:anywhere;}`,
+  `${S} .fm-sup-reward-from{font-size:14px;font-variant-numeric:tabular-nums;}`,
+  `${S} .fm-sup-reward-text{font-size:14px;line-height:1.5;color:var(--muted, currentColor);overflow-wrap:anywhere;}`,
+  `${S} .fm-sup-reward-facts{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:2px;}`,
+  `${S} .fm-sup-ship{display:grid;gap:14px;margin:0;padding:16px;border:var(--t-edge-w) dashed var(--t-edge);border-radius:var(--rp-card-radius, 0px);min-width:0;}`,
+  `${S} .fm-sup-ship legend{padding:0 6px;}`,
+  `@media (prefers-reduced-motion:reduce){${S} .fm-sup-reward{transition:none;}}`,
   `@media (max-width:640px){${S} .fm-sup-amounts{grid-template-columns:repeat(2,minmax(0,1fr));}${S} .fm-sup-thanks .fm-track-btn{justify-self:stretch;}}`,
 ].join("\n");

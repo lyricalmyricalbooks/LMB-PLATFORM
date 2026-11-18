@@ -138,6 +138,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "supportIntro", label: "Support heading & description" },
     { id: "supportFundraiser", label: "Fundraiser: goal bar and story" },
     { id: "supportWall", label: "Fundraiser supporters wall" },
+    { id: "supportRewards", label: "Fundraiser rewards picker" },
     { id: "supportAmounts", label: "Amount buttons and other amount", required: true },
     { id: "supportForm", label: "Your details and Give button", required: true },
     { id: "supportSummary", label: "What you give summary" },

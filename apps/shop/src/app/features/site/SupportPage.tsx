@@ -19,8 +19,8 @@ import { askGiving } from "./supportAsk";
 import { isBookingPreview } from "./bookTimePreview";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { moneyText } from "./bookTimeRules";
-import { amountProblem, chargeFor, fundraiserFacts, giftFromSearch, storyParagraphs, typedMinor, type GiftView, type GivingInfo } from "./supportRules";
-import type { PublicFundraiser } from "../../../shared/fundraiserRules";
+import { amountForReward, amountProblem, chargeFor, fundraiserFacts, giftFromSearch, rewardStock, storyParagraphs, typedMinor, type GiftView, type GivingInfo } from "./supportRules";
+import { cleanShipTo, type PublicFundraiser, type PublicReward, type ShipTo } from "../../../shared/fundraiserRules";
 import { currencySign } from "../../../shared/shopCurrency";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -84,7 +84,10 @@ function Give({ c }: { c: Copy }) {
   const [honourName, setHonourName] = useState("");
   const [form, setForm] = useState({ name: "", email: "", anonymous: false, note: "", website: "" });
   const [wallMe, setWallMe] = useState(false);
-  const [problems, setProblems] = useState<{ amount?: string; name?: string; email?: string; honour?: string }>({});
+  const [rewardId, setRewardId] = useState("");
+  const [rewardNote, setRewardNote] = useState("");
+  const [shipTo, setShipTo] = useState<ShipTo>({ name: "", street: "", street2: "", city: "", state: "", zip: "", country: "" });
+  const [problems, setProblems] = useState<{ amount?: string; name?: string; email?: string; honour?: string; reward?: string; address?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -123,6 +126,20 @@ function Give({ c }: { c: Copy }) {
   const { feeMinor, totalMinor } = chargeFor(minor && minor > 0 ? minor : 0, covering);
   const limits = { min: money(info.minMinor || 500), max: money(info.maxMinor || 1_000_000) };
   const fund = info.fundraiser && info.fundraiser.state === "live" ? info.fundraiser : null;
+  const rewards = fund?.rewards || [];
+  const reward = rewards.find((r) => r.id === rewardId && !r.gone) || null;
+  const pickReward = (r: PublicReward | null) => {
+    setRewardId(r?.id || "");
+    setRewardNote("");
+    setProblems({ ...problems, reward: undefined, address: undefined });
+    if (!r) return;
+    // A gift below the reward's smallest is raised to it, and the giver is told.
+    const raise = amountForReward(minor, r, amounts);
+    if (!raise) return;
+    setPicked(raise.picked);
+    if (raise.typed) setTyped(raise.typed);
+    setRewardNote(c("supportRewardRaised", { amount: money(r.minMinor) }));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +149,8 @@ function Give({ c }: { c: Copy }) {
       name: form.name.trim() ? undefined : c("supportNeedName"),
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim()) ? undefined : c("supportNeedEmail"),
       honour: honourOn && !honourName.trim() ? c("supportNeedHonourName") : undefined,
+      reward: reward && (!minor || minor < reward.minMinor) ? c("supportRewardTooSmall", { amount: money(reward.minMinor) }) : undefined,
+      address: reward?.ships && "problem" in cleanShipTo({ ...shipTo, name: shipTo.name.trim() || form.name }) ? c("supportNeedAddress") : undefined,
     };
     setProblems(next);
     if (Object.values(next).some(Boolean)) return;
@@ -141,6 +160,7 @@ function Give({ c }: { c: Copy }) {
       const answer = await askGiving("giftStart", {
         amountMinor: minor, coverFee: covering, form: info.form, website: form.website, locale: pageLanguage(),
         ...(fund ? { fundraiserId: fund.id, wall: fund.showWall && wallMe && !form.anonymous } : {}),
+        ...(fund && reward ? { rewardId: reward.id, ...(reward.ships ? { shipTo: { ...shipTo, name: shipTo.name.trim() || form.name } } : {}) } : {}),
         giver: { name: form.name, email: form.email, anonymous: form.anonymous, note: form.note, honour: honourOn ? { kind: honourKind, name: honourName } : null },
       });
       if (answer.url) { window.location.assign(String(answer.url)); return; }
@@ -152,7 +172,10 @@ function Give({ c }: { c: Copy }) {
       // A form token used up or too old: a fresh one for the next try.
       // The fundraiser ended while the page was open: say so, and show the page without it so the gift can go to the shop.
       if (err?.code === "fundraiser_ended") setError(c("supportFundEnded"));
-      if (err?.code === "form" || err?.code === "fundraiser_ended") fetchInfo().catch(() => {});
+      // The reward ran out (or the owner changed it) while the page was open: fresh counts, and the giver picks again.
+      const rewardGone = ["reward_gone", "reward_unknown", "reward_min"].includes(err?.code);
+      if (rewardGone) { setError(c("supportRewardChanged")); setRewardId(""); }
+      if (err?.code === "form" || err?.code === "fundraiser_ended" || rewardGone) fetchInfo().catch(() => {});
     } finally { setBusy(false); }
   };
 
@@ -186,6 +209,36 @@ function Give({ c }: { c: Copy }) {
             </div>
           )}
           {problems.amount && <p id="sup-amount-err" className="fm-sup-error" role="alert">{problems.amount}</p>}
+          {rewards.length > 0 && (
+            <fieldset {...regionProps("supportRewards")} className="fm-sup-rewards" aria-describedby={problems.reward ? "sup-reward-err" : rewardNote ? "sup-reward-note" : undefined}>
+              <legend className="fm-track-mono">{c("supportRewardHeading")}</legend>
+              <label className="fm-sup-reward" data-picked={!reward || undefined}>
+                <input type="radio" name="sup-reward" checked={!reward} onChange={() => pickReward(null)} />
+                <span className="fm-sup-reward-name">{c("supportRewardNone")}</span>
+              </label>
+              {rewards.map((r) => {
+                const stock = rewardStock(r);
+                return (
+                  <label key={r.id} className="fm-sup-reward" data-picked={reward?.id === r.id || undefined} data-gone={r.gone || undefined}>
+                    <input type="radio" name="sup-reward" checked={reward?.id === r.id} disabled={r.gone} onChange={() => pickReward(r)} />
+                    <span className="fm-sup-reward-body">
+                      <span className="fm-sup-reward-name">{r.title}</span>
+                      <span className="fm-sup-reward-from" translate="no">{c("supportRewardFrom", { amount: money(r.minMinor) })}</span>
+                      {r.description && <span className="fm-sup-reward-text">{r.description}</span>}
+                      {(r.when || stock) && (
+                        <span className="fm-sup-reward-facts fm-track-mono">
+                          {r.when && <span>{c("supportRewardWhen", { when: r.when })}</span>}
+                          {stock && <span>{c(...stock)}</span>}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+              {rewardNote && !problems.reward && <p id="sup-reward-note" className="fm-sup-note" role="status">{rewardNote}</p>}
+              {problems.reward && <p id="sup-reward-err" className="fm-sup-error" role="alert">{problems.reward}</p>}
+            </fieldset>
+          )}
           <div className="fm-sup-form mt-6">
             {info.coverFee && (
               <label className="fm-sup-check">
@@ -232,6 +285,24 @@ function Give({ c }: { c: Copy }) {
           <Field id="sup-note" label={c("supportNote")}>
             <textarea id="sup-note" className="fm-track-input" maxLength={500} rows={3} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
           </Field>
+          {reward?.ships && (
+            <fieldset className="fm-sup-ship">
+              <legend className="fm-track-mono">{c("supportShipHeading")}</legend>
+              {problems.address && <p className="fm-sup-error" role="alert">{problems.address}</p>}
+              {([
+                ["name", "supportShipName", "shipping name", 80], ["street", "supportShipStreet", "shipping address-line1", 120],
+                ["street2", "supportShipStreet2", "shipping address-line2", 120], ["city", "supportShipCity", "shipping address-level2", 80],
+                ["state", "supportShipState", "shipping address-level1", 60], ["zip", "supportShipZip", "shipping postal-code", 20],
+                ["country", "supportShipCountry", "shipping country-name", 60],
+              ] as const).map(([key, label, auto, max]) => (
+                <Field key={key} id={`sup-ship-${key}`} label={c(label)}>
+                  <input id={`sup-ship-${key}`} className="fm-track-input" autoComplete={auto} maxLength={max}
+                    value={key === "name" && !shipTo.name ? "" : shipTo[key]} placeholder={key === "name" ? form.name : undefined}
+                    onChange={(e) => { setShipTo({ ...shipTo, [key]: e.target.value }); setProblems({ ...problems, address: undefined }); }} />
+                </Field>
+              ))}
+            </fieldset>
+          )}
           <label className="fm-sup-check">
             <input type="checkbox" checked={form.anonymous} onChange={(e) => setForm({ ...form, anonymous: e.target.checked })} />
             <span>{c("supportAnonymous")}</span>
@@ -363,6 +434,7 @@ function Thanks({ id, giftKey, c }: { id: string; giftKey: string; c: Copy }) {
           <Row label={c("supportGiftRow")} value={money(gift.amountMinor)} />
           {gift.feeMinor > 0 && <Row label={c("supportFeeRow")} value={money(gift.feeMinor)} />}
           {gift.honour && <Row label={c(gift.honour.kind === "memory" ? "supportInMemory" : "supportInHonour")} value={gift.honour.name} />}
+          {gift.reward && <Row label={c("supportRewardRow")} value={gift.reward.when ? `${gift.reward.title} · ${c("supportRewardWhen", { when: gift.reward.when })}` : gift.reward.title} />}
           <div className="fm-track-total">
             <span className="fm-track-mono">{c("supportPaidRow")}</span>
             <strong translate="no">{money(gift.chargedMinor)}</strong>

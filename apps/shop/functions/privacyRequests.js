@@ -288,7 +288,19 @@ function privacyActions({
       // them. Either way the buyer's links stop working. The tickets themselves still work at the door.
       for (const d of data.ticketOrders) ops.push(b => b.update(d.ref, redactedTicketOrderFields(d.data(), now)));
       // Gifts: the same rule. A gift paid by card stays a payment record with its name and email; any other loses them.
-      for (const d of data.gifts || []) ops.push(b => b.update(d.ref, redactedTicketOrderFields(d.data(), now)));
+      // The posting address for a reward and the gift's place on a fundraiser's wall go either way (G2b).
+      const walls = new Map();
+      for (const d of data.gifts || []) {
+        ops.push(b => b.update(d.ref, { ...redactedTicketOrderFields(d.data(), now), shipTo: null, wall: false }));
+        const fund = d.data()?.fundraiserId;
+        if (fund && d.data()?.wall === true) walls.set(fund, [...(walls.get(fund) || []), d.id]);
+      }
+      for (const [fund, ids] of walls) {
+        const ref = db.collection("fundraisers").doc(String(fund));
+        const snap = await ref.get().catch(() => null);
+        const entries = snap?.exists && Array.isArray(snap.data().wallEntries) ? snap.data().wallEntries : null;
+        if (entries) ops.push(b => b.set(ref, { wallEntries: entries.filter((w) => !ids.includes(w?.gift)), updatedAt: now }, { merge: true }));
+      }
       for (let i = 0; i < ops.length; i += 400) {
         const batch = db.batch();
         for (const op of ops.slice(i, i + 400)) op(batch);

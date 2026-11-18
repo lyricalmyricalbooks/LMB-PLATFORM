@@ -117,4 +117,5 @@ browsers may write (mirroring `firestore.rules`).
   Tips at checkout (G1c): `checkoutTip`, `tipPercents`, `cleanTipPercents`, `tipChoices`, `checkoutTipProblem`,
   `MIN_TIP_MINOR` (100) and `MAX_TIP_MINOR` (100000). `bookkeeping.ts` gives tips their own `tipsCents`, never in sales.
   Fundraisers (G2): `fundraiserRules.ts` (`cleanFundraiser`, `fundraiserState`, `daysLeft`, `goalProgress`, the wall and
-  `publicFundraiser`); `fundraiserRules.test.ts` runs both copies.
+  `publicFundraiser`); `fundraiserRules.test.ts` runs both copies. Rewards (G2b): `cleanRewards`, `rewardProblem`,
+  `rewardsWithTaken`, `rewardsLeft`, `cleanShipTo` (uses `addressRules`).
