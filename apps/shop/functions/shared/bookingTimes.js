@@ -9,8 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = void 0;
+exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = void 0;
 exports.cleanBlocks = cleanBlocks;
 exports.blockSpan = blockSpan;
 exports.blockedBusy = blockedBusy;
@@ -160,6 +160,8 @@ function formVersion(form) {
 }
 /** Processing time: it starts at least this far in, lasts at least this long, and ends before the service does. */
 exports.MIN_PROCESS_AFTER = 5;
+/** The most time before a booking (set-up or travel), in minutes. */
+exports.MAX_GAP_BEFORE = 120;
 exports.MIN_PROCESS_MINUTES = 10;
 exports.MAX_PROCESS_MINUTES = 240;
 /**
@@ -412,6 +414,8 @@ function cleanService(raw, id = "") {
         return { problem: "The minimum to run can't be more than the places." };
     // Processing time: one person's booking only (a class keeps its teacher the whole time).
     const processMinutes = places === 1 && !courseDates.length ? whole(s.processMinutes, 0, exports.MAX_PROCESS_MINUTES, 0) : 0;
+    // Time before: one person's booking only (a class's people all start together at the class's own time).
+    const gapBefore = places === 1 && !courseDates.length ? whole(s.gapBefore, 0, exports.MAX_GAP_BEFORE, 0) : 0;
     const processAfter = processMinutes ? whole(s.processAfter, 0, 8 * 60, 0) : 0;
     if (processMinutes && (processMinutes < exports.MIN_PROCESS_MINUTES || processAfter < exports.MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
         return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
@@ -422,6 +426,7 @@ function cleanService(raw, id = "") {
         description: typeof s.description === "string" ? s.description.trim().slice(0, 600) : "",
         minutes,
         gapAfter: whole(s.gapAfter, 0, 120, 0),
+        ...(gapBefore ? { gapBefore } : {}),
         priceMinor,
         payment,
         depositMinor,
@@ -967,6 +972,8 @@ function daysTouched(start, end, zone) {
  */
 function placesLeft(start, service, busy, staffId = "") {
     const end = start + (service.minutes + service.gapAfter) * MINUTE;
+    // Time before (plan 4, 1.6): set-up or travel is kept free too, like the rest after.
+    const begin = start - (Math.round(Number(service.gapBefore)) || 0) * MINUTE;
     const places = (0, exports.isClass)(service) && service.id ? Math.round(Number(service.places)) : 1;
     const room = service.roomId || "";
     // Processing time (plan 4, 1.5): the person is free while a booking processes, so a short booking may sit wholly
@@ -980,14 +987,14 @@ function placesLeft(start, service, busy, staffId = "") {
                 return 0;
             continue;
         }
-        if (!(start < b.end && end > b.start))
+        if (!(begin < b.end && end > b.start))
             continue;
         // With people, a stretch matters when it is this person's, the whole shop's, or in the room this service needs.
         const mine = !staffId || !b.staffId || b.staffId === staffId;
         const sameRoom = !!room && b.roomId === room;
         if (!mine && !sameRoom)
             continue;
-        if (!sameRoom && (inside(start, end, b.free) || inside(b.start, b.end, own)))
+        if (!sameRoom && (inside(begin, end, b.free) || inside(b.start, b.end, own)))
             continue;
         const sameClass = places > 1 && b.serviceId === service.id && b.start === start && (!staffId || (b.staffId || "") === staffId);
         if (sameClass)

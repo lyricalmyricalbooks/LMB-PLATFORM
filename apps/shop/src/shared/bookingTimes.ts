@@ -20,6 +20,8 @@ export type BookingService = {
   minutes: number;
   /** Rest after each booking, in minutes, so the owner isn't booked back to back. */
   gapAfter: number;
+  /** Time before each booking, in minutes (plan 4, 1.6): set-up or travel, kept free like the rest after. One-to-one only. */
+  gapBefore?: number;
   /** In the shop's smallest money unit (cents). 0 with payment "free". */
   priceMinor: number;
   payment: BookingPayment;
@@ -309,10 +311,12 @@ export type Busy = { start: number; end: number; /** Whose booking it is, so a c
 /** An add-on or option on a service: its own name, the minutes it adds (0 to 240) and the price it adds (cents). */
 export type BookingExtra = { id: string; name: string; minutes: number; priceMinor: number };
 
-export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId" | "courseDates" | "processAfter" | "processMinutes">>;
+export type Bookable = Pick<BookingService, "minutes" | "gapAfter"> & Partial<Pick<BookingService, "id" | "places" | "classTimes" | "roomId" | "courseDates" | "processAfter" | "processMinutes" | "gapBefore">>;
 
 /** Processing time: it starts at least this far in, lasts at least this long, and ends before the service does. */
 export const MIN_PROCESS_AFTER = 5;
+/** The most time before a booking (set-up or travel), in minutes. */
+export const MAX_GAP_BEFORE = 120;
 export const MIN_PROCESS_MINUTES = 10;
 export const MAX_PROCESS_MINUTES = 240;
 
@@ -550,6 +554,8 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   if (minPlaces > places) return { problem: "The minimum to run can't be more than the places." };
   // Processing time: one person's booking only (a class keeps its teacher the whole time).
   const processMinutes = places === 1 && !courseDates.length ? whole(s.processMinutes, 0, MAX_PROCESS_MINUTES, 0) : 0;
+  // Time before: one person's booking only (a class's people all start together at the class's own time).
+  const gapBefore = places === 1 && !courseDates.length ? whole(s.gapBefore, 0, MAX_GAP_BEFORE, 0) : 0;
   const processAfter = processMinutes ? whole(s.processAfter, 0, 8 * 60, 0) : 0;
   if (processMinutes && (processMinutes < MIN_PROCESS_MINUTES || processAfter < MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
     return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
@@ -560,6 +566,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     description: typeof s.description === "string" ? s.description.trim().slice(0, 600) : "",
     minutes,
     gapAfter: whole(s.gapAfter, 0, 120, 0),
+    ...(gapBefore ? { gapBefore } : {}),
     priceMinor,
     payment,
     depositMinor,
@@ -1115,6 +1122,8 @@ export function daysTouched(start: number, end: number, zone: string): string[] 
  */
 export function placesLeft(start: number, service: Bookable, busy: readonly Busy[], staffId = ""): number {
   const end = start + (service.minutes + service.gapAfter) * MINUTE;
+  // Time before (plan 4, 1.6): set-up or travel is kept free too, like the rest after.
+  const begin = start - (Math.round(Number(service.gapBefore)) || 0) * MINUTE;
   const places = isClass(service) && service.id ? Math.round(Number(service.places)) : 1;
   const room = service.roomId || "";
   // Processing time (plan 4, 1.5): the person is free while a booking processes, so a short booking may sit wholly
@@ -1127,12 +1136,12 @@ export function placesLeft(start: number, service: Bookable, busy: readonly Busy
       if (b.serviceId === service.id && b.start === start) return 0;
       continue;
     }
-    if (!(start < b.end && end > b.start)) continue;
+    if (!(begin < b.end && end > b.start)) continue;
     // With people, a stretch matters when it is this person's, the whole shop's, or in the room this service needs.
     const mine = !staffId || !b.staffId || b.staffId === staffId;
     const sameRoom = !!room && b.roomId === room;
     if (!mine && !sameRoom) continue;
-    if (!sameRoom && (inside(start, end, b.free) || inside(b.start, b.end, own))) continue;
+    if (!sameRoom && (inside(begin, end, b.free) || inside(b.start, b.end, own))) continue;
     const sameClass = places > 1 && b.serviceId === service.id && b.start === start && (!staffId || (b.staffId || "") === staffId);
     if (sameClass) taken += 1;
     else return 0;

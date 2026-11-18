@@ -41,6 +41,8 @@ export type Booking = {
   extras?: BookingExtra[] | null;
   /** Processing time kept from the service when booked (plan 4, 1.5): minutes in, and how long. */
   processAfter?: number; processMinutes?: number;
+  /** Set-up or travel time kept free before it (plan 4, 1.6), kept from the service when booked. */
+  gapBefore?: number;
   series?: { id: string; visit: number; visits: number; everyWeeks: number } | null;
   /** The client asked to hear if an earlier time opens (Services plan 2, B5). */
   earlierWanted?: boolean;

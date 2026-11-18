@@ -120,7 +120,9 @@ function spansOf(id, b) {
   const first = Date.parse(b.start);
   const length = Date.parse(b.end) - first + (b.gapAfter || 0) * MINUTE;
   const starts = Array.isArray(b.course?.starts) && b.course.starts.length ? b.course.starts.map((iso) => Date.parse(iso)) : [first];
-  return starts.map((start, n) => ({ key: n ? `${id}~${n}` : id, start, end: start + length }));
+  // `from`: where its time before (set-up or travel, plan 4, 1.6) begins, for the days it touches.
+  const before = (b.gapBefore || 0) * MINUTE;
+  return starts.map((start, n) => ({ key: n ? `${id}~${n}` : id, start, end: start + length, from: start - before }));
 }
 
 /** When a booking happens, as it is in a calendar: once, or on each date of a course (no tidy-up time). */
@@ -191,7 +193,9 @@ function busyFrom(daySnaps, nowMs, except = "") {
       if ((Array.isArray(except) ? except.includes(id) : id === except) || !item || !Number.isFinite(item.start) || !Number.isFinite(item.end)) continue;
       // A place held for the waiting list lasts until its own end (the owner picks how long); other holds STALE_HOLD_MS.
       if (item.offer && Number.isFinite(item.until) ? nowMs > item.until + OFFER_GRACE_MS : item.held && Number.isFinite(item.at) && nowMs - item.at > STALE_HOLD_MS) continue;
-      busy.push({ start: item.start, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined,
+      // Time before (plan 4, 1.6): `pre` minutes ahead of the start are kept free too.
+      const pre = Number.isFinite(item.pre) && item.pre > 0 ? item.pre * MINUTE : 0;
+      busy.push({ start: item.start - pre, end: item.end, serviceId: typeof item.s === "string" ? item.s : undefined,
         // Whose booking it is and which room it uses (staff and rooms); an older item without them blocks everyone.
         ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}),
         // A class time cancelled for too few people (sweepMinimum): it closes that class then, nothing else.
@@ -224,8 +228,15 @@ function gapPart(service, start) {
 
 /** What a booking keeps of its service's processing time, so a later edit to the service never moves it. */
 function processingRecord(service) {
-  return processingStretch(service, 0) ? { processAfter: service.processAfter, processMinutes: service.processMinutes } : {};
+  return {
+    ...(processingStretch(service, 0) ? { processAfter: service.processAfter, processMinutes: service.processMinutes } : {}),
+    // Time before (plan 4, 1.6) is kept the same way.
+    ...(service.gapBefore > 0 ? { gapBefore: service.gapBefore } : {}),
+  };
 }
+
+/** A day item's time before (plan 4, 1.6): `pre` in minutes, or nothing. */
+const prePart = (minutes) => (minutes > 0 ? { pre: minutes } : {});
 
 /** "with Ana" for emails and the owner's calendar, or "". */
 const withWhom = (b) => (b?.staffName ? `with ${b.staffName}` : "");
@@ -628,7 +639,7 @@ function bookingActions({
   }
   async function holdOffer({ ref, item: itemKey, service, settings, start, until, key, staffId, except = "" }) {
     const blockEnd = start + (service.minutes + (service.gapAfter || 0)) * MINUTE;
-    const days = daysTouched(start, blockEnd, zone());
+    const days = daysTouched(start - (service.gapBefore || 0) * MINUTE, blockEnd, zone());
     return db.runTransaction(async (tx) => {
       const fresh = await tx.get(ref);
       const snaps = await Promise.all(days.map((d) => tx.get(dayRef(d))));
@@ -640,7 +651,7 @@ function bookingActions({
       const { item } = staffParts(settings, who, service.roomId);
       days.forEach((d, i) => {
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
-        items[itemKey] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, ...item, ...gapPart(service, start), offer: true, until };
+        items[itemKey] = { start, end: blockEnd, held: true, at: nowMs, s: service.id, ...item, ...gapPart(service, start), ...prePart(service.gapBefore), offer: true, until };
         tx.set(dayRef(d), { items });
       });
       tx.set(ref, { offerStart: new Date(start).toISOString(), offerUntil: new Date(until).toISOString(), offerKeyHash: hash(key) }, { merge: true });
@@ -787,7 +798,7 @@ function bookingActions({
           }
           if (!(start < own) || !EMAIL.test(String(b.customer?.email || ""))) continue;
           // Their own length (add-ons, their person's rate) and their own person.
-          const service = { ...listed, minutes: b.minutes, gapAfter: b.gapAfter || 0 };
+          const service = { ...listed, minutes: b.minutes, gapAfter: b.gapAfter || 0, gapBefore: b.gapBefore || 0 };
           const staffId = keptPerson(settings, b.serviceId, b.staffId);
           const day = dayOf(start, zone());
           const free = freeTimes({ service, settings, busy: await busyAround(day, nowMs, doc.id), day, zone: zone(), nowMs, ...(staffId ? { staffId } : {}) });
@@ -916,7 +927,8 @@ function bookingActions({
     const sessions = isCourse(service) ? courseStarts(service, zone()) : [start];
     if (sessions[0] !== start) return false;
     const length = blockEnd - start;
-    const days = [...new Set(sessions.flatMap((ms) => daysTouched(ms, ms + length, zone())))];
+    const before = (service.gapBefore || 0) * MINUTE;
+    const days = [...new Set(sessions.flatMap((ms) => daysTouched(ms - before, ms + length, zone())))];
     const all = offer ? [...new Set([...days, ...offer.days])] : days;
     // `days` (shop days) lets the admin find a course's people in any week it runs, with one query.
     if (sessions.length > 1) {
@@ -968,8 +980,8 @@ function bookingActions({
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         if (offer) delete items[offer.item];
         sessions.forEach((ms, n) => {
-          if (!daysTouched(ms, ms + length, zone()).includes(d)) return;
-          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1].item : assigned.item), ...(n ? {} : gapPart(service, ms)) };
+          if (!daysTouched(ms - before, ms + length, zone()).includes(d)) return;
+          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1].item : assigned.item), ...(n ? {} : { ...gapPart(service, ms), ...prePart(service.gapBefore) }) };
         });
         tx.set(dayRef(d), { items });
       });
@@ -1000,7 +1012,7 @@ function bookingActions({
    */
   async function freeTime(id, b, changes, { giftBack = true, packBack = true, still = null } = {}) {
     const spans = spansOf(id, b);
-    const days = [...new Set(spans.flatMap((x) => daysTouched(x.start, x.end, zone())))];
+    const days = [...new Set(spans.flatMap((x) => daysTouched(x.from, x.end, zone())))];
     // A cancelled booking gives its discount code's use back, once.
     const giveBack = changes?.status === "cancelled" && b.discount?.id && !b.discount.returned;
     const code = giveBack ? db.collection("discounts").doc(b.discount.id) : null;
@@ -1063,14 +1075,15 @@ function bookingActions({
    * what changed on the booking.
    */
   async function moveTime(id, b, service, settings, start, { check = true, by = "customer", staffId, alsoFree = "", minutes = b.minutes } = {}) {
-    const oldDays = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
+    const before = (b.gapBefore || 0) * MINUTE;
+    const oldDays = daysTouched(Date.parse(b.start) - before, Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
     // `minutes`: the owner stretched or shortened it on the calendar (plan 4, 1.2); the price stays as booked.
     const end = start + minutes * MINUTE;
     const blockEnd = end + (b.gapAfter || 0) * MINUTE;
-    const newDays = daysTouched(start, blockEnd, zone());
+    const newDays = daysTouched(start - before, blockEnd, zone());
     const all = [...new Set([...oldDays, ...newDays])];
     // The booking's own processing time moves with it (kept on the booking when it was made, plan 4, 1.5).
-    const checked = { ...service, minutes, processAfter: b.processAfter || 0, processMinutes: b.processMinutes || 0 };
+    const checked = { ...service, minutes, processAfter: b.processAfter || 0, processMinutes: b.processMinutes || 0, gapBefore: b.gapBefore || 0 };
     const moved = await db.runTransaction(async (tx) => {
       const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
       const nowMs = now().getTime();
@@ -1084,7 +1097,7 @@ function bookingActions({
         const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
         delete items[id];
         if (alsoFree) delete items[alsoFree];
-        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId, ...assigned.item, ...gapPart(checked, start) };
+        if (newDays.includes(d)) items[id] = { start, end: blockEnd, held: false, at: nowMs, s: b.serviceId, ...assigned.item, ...gapPart(checked, start), ...prePart(b.gapBefore) };
         tx.set(dayRef(d), { items });
       });
       // A booking that had a person and now has none (the team was cleared) loses the old name.
@@ -1256,7 +1269,7 @@ function bookingActions({
     };
     // The days stop calling it a hold.
     const spans = spansOf(id, b);
-    const days = [...new Set(spans.flatMap((x) => daysTouched(x.start, x.end, zone())))];
+    const days = [...new Set(spans.flatMap((x) => daysTouched(x.from, x.end, zone())))];
     const confirmed = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(bookings().doc(id));
       if (fresh.data()?.status !== "held") return false;
@@ -2248,7 +2261,7 @@ function bookingActions({
           return res.status(200).json({ offer: { serviceName: held.serviceName, staffName: held.staffName || "", minutes: held.minutes, start: held.start, offerStart: e.offerStart, offerUntil: e.offerUntil } });
         }
         const service = (await readServices()).find((x) => x.id === held.serviceId) || { roomId: "" };
-        const moved = await moveTime(bid, held, { ...service, id: held.serviceId, minutes: held.minutes, gapAfter: held.gapAfter || 0, places: 1 }, settings, Date.parse(e.offerStart), { by: "customer (earlier time)", alsoFree: earlierItem(bid) });
+        const moved = await moveTime(bid, held, { ...service, id: held.serviceId, minutes: held.minutes, gapAfter: held.gapAfter || 0, gapBefore: held.gapBefore || 0, places: 1 }, settings, Date.parse(e.offerStart), { by: "customer (earlier time)", alsoFree: earlierItem(bid) });
         if (!moved) return fail(res, 409, "Someone just took this time. You keep your booking.", "taken");
         await earlierList().doc(bid).delete();
         await bookings().doc(bid).set({ earlierWanted: false }, { merge: true });
@@ -2424,7 +2437,7 @@ function bookingActions({
           const p = (await packs().doc(b.pack.id).get()).data();
           if (p?.expiresOn && dayOf(start, zone()) > p.expiresOn) return fail(res, 409, "Your pack runs out before that day. Please pick an earlier time.", "pack");
         }
-        const moved = await moveTime(id, b, { ...service, id: b.serviceId, minutes: b.minutes, gapAfter: b.gapAfter || 0 }, settings, start);
+        const moved = await moveTime(id, b, { ...service, id: b.serviceId, minutes: b.minutes, gapAfter: b.gapAfter || 0, gapBefore: b.gapBefore || 0 }, settings, start);
         if (!moved) return fail(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : "Someone just took that time. Please pick another.", "taken");
         const next = await syncCalendar(id, { ...b, ...moved });
         await tellCustomer(id, next, "moved", { key });
@@ -2910,7 +2923,7 @@ function bookingActions({
         if (minutes !== b.minutes && isClass(theirs)) return fail(res, 409, "A class keeps its own length. Change it on the service.", "class_length");
         // Book over (plan 4, 1.4): a one-to-one booking may land on a taken time once the owner said yes to the warning.
         const over = req.body?.over === true && !isClass(theirs);
-        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes, gapAfter: b.gapAfter || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId, minutes, check: !over });
+        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes, gapAfter: b.gapAfter || 0, gapBefore: b.gapBefore || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId, minutes, check: !over });
         if (!moved) return fail(res, 409, isClass(theirs) ? "That class is full, or the time clashes with another booking." : staffId ? "That person is busy then." : "That time clashes with another booking.", "taken");
         // A new link: the old one in the customer's first email still works, since the key is unchanged.
         const movedTo = await syncCalendar(id, { ...b, ...moved });

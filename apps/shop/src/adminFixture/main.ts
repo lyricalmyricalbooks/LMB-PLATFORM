@@ -507,7 +507,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   const COURSE_DAYS = [0, 7, 14, 21].map((n) => addDays(monday, 2 + n));
   let services: BookingService[] = mode === "new" ? [] : [
     service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000, meet: true }),
-    service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
+    service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", gapBefore: 15, chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
     // With Classes on (`?ways=classes&page=classes`) the class is live and a second one runs two evenings a week.
     service("binding", "Bookbinding class", 90, 3000, 2, { active: CLASSES, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25, processAfter: 60, processMinutes: 60 }),
@@ -541,6 +541,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     customer: { name: customer, email: `${customer.split(" ")[0].toLowerCase()}@example.com` }, status: "confirmed",
     payment: s.priceMinor ? "card" : "free", priceMinor: s.priceMinor, currency: "CAD", paid: s.priceMinor > 0, source: "website",
     ...(s.processMinutes ? { processAfter: s.processAfter, processMinutes: s.processMinutes } : {}),
+    ...(s.gapBefore ? { gapBefore: s.gapBefore } : {}),
     ...(TEAM ? (s.id === "riso" || s.id === "workshop" ? { staffId: "ben", staffName: "Ben Example" } : { staffId: "ana", staffName: "Ana Example" }) : {}),
     ...(TEAM && s.roomId ? { roomId: s.roomId, roomName: "Print room" } : {}), ...extra,
   });
