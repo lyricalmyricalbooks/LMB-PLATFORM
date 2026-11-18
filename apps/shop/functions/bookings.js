@@ -2751,7 +2751,10 @@ function bookingActions({
         const staffId = String(req.body?.staffId || "");
         if (staffId && !keptPerson(settings, service.id, staffId)) return fail(res, 400, "That person doesn't do this service.", "staff");
         const own = ownerBookingSettings(settings);
-        const took = await takeTime({ id, service: { ...service, classTimes: [] }, settings: own, start, record, staffId });
+        // Book over (plan 4, 1.4): after the calendar warned them, the owner may double-book a one-to-one time on purpose.
+        const over = req.body?.over === true && !isClass(service) && !run;
+        if (over) record.history[0].what = "booked over a taken time";
+        const took = await takeTime({ id, service: { ...service, classTimes: [] }, settings: own, start, record, staffId, check: !over });
         if (!took) return fail(res, 409, isClass(service) ? "That class is full, or the time clashes with another booking." : staffId ? "That person is busy then." : "That time clashes with another booking.", "taken");
         if (run) {
           const later = await bookRun({ firstId: id, first: record, service, settings, starts: runAt, staffId, owner: true, by });
@@ -2890,7 +2893,9 @@ function bookingActions({
         const minutes = req.body?.minutes === undefined ? b.minutes : Number(req.body.minutes);
         if (!Number.isInteger(minutes) || minutes < 5 || minutes > 720 || minutes % 5) return fail(res, 400, "Pick a length in whole five minutes, up to 12 hours.", "minutes");
         if (minutes !== b.minutes && isClass(theirs)) return fail(res, 409, "A class keeps its own length. Change it on the service.", "class_length");
-        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes, gapAfter: b.gapAfter || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId, minutes });
+        // Book over (plan 4, 1.4): a one-to-one booking may land on a taken time once the owner said yes to the warning.
+        const over = req.body?.over === true && !isClass(theirs);
+        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes, gapAfter: b.gapAfter || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId, minutes, check: !over });
         if (!moved) return fail(res, 409, isClass(theirs) ? "That class is full, or the time clashes with another booking." : staffId ? "That person is busy then." : "That time clashes with another booking.", "taken");
         // A new link: the old one in the customer's first email still works, since the key is unchanged.
         const movedTo = await syncCalendar(id, { ...b, ...moved });
