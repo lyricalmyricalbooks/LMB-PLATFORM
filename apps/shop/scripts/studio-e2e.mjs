@@ -2165,6 +2165,20 @@ await check("the Support page opens in the designer with sample amounts, its hea
   if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/support-thanks.png` });
 }, "?support=1#designer?t=supportPage&tab=sections");
 
+await check("the Membership page opens in the designer with sample plans and its footer link", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  // Sample plans stand in for the shop's own, so the page can be designed before Memberships is on.
+  await frame.locator("[data-store-region=membershipPlans] .fm-mbr-plan").nth(1).waitFor({ timeout: 15000 });
+  await frame.locator("footer a[href$='/membership'], footer a[href*='/membership?']").first().waitFor({ state: "attached", timeout: 5000 });
+  await frame.locator("[data-store-region=membershipPlans]").first().click();
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/membership-page.png` });
+  // On a phone the plans stack into one column.
+  await page.getByRole("button", { name: "Phone preview" }).click();
+  await frame.locator("[data-store-region=membershipPlans] .fm-mbr-plan").first().waitFor({ timeout: 10000 });
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/membership-phone.png` });
+}, "?membership=1#designer?t=membershipPage&tab=sections");
+
 await check("the Book a time form offers Text me reminders, which needs a phone number first", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();

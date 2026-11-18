@@ -111,6 +111,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
               {settings?.eventsLive === true && <Link to="/events" className="block hover:text-white transition-colors"><span data-studio-copy="eventsFooterLink">{getCopy(settings?.design, "eventsFooterLink")}</span></Link>}
               {settings?.classesLive === true && <Link to="/classes" className="block hover:text-white transition-colors"><span data-studio-copy="classesFooterLink">{getCopy(settings?.design, "classesFooterLink")}</span></Link>}
               {settings?.givingLive === true && <Link to="/support" className="block hover:text-white transition-colors"><span data-studio-copy="supportFooterLink">{getCopy(settings?.design, "supportFooterLink")}</span></Link>}
+              {settings?.membershipsLive === true && <Link to="/membership" className="block hover:text-white transition-colors"><span data-studio-copy="membershipFooterLink">{getCopy(settings?.design, "membershipFooterLink")}</span></Link>}
               {navPages.map(page => (
                 <Link
                   key={page.id}

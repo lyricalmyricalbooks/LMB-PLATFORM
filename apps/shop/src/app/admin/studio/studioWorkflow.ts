@@ -277,6 +277,7 @@ export function previewRoute(href: string, base: string, options: {
   if (path === "events") return { templateId: "eventsPage" };
   if (path === "classes") return { templateId: "classesPage" };
   if (path === "support") return { templateId: "supportPage" };
+  if (path === "membership") return { templateId: "membershipPage" };
   return { templateId: "page404" };
 }
 

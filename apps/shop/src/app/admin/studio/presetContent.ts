@@ -34,6 +34,7 @@ export const PRESET_SECTION_TEMPLATES: Record<string, string> = {
   eventsPage: "Events",
   classesPage: "Classes",
   supportPage: "Support",
+  membershipPage: "Membership",
 };
 
 type PresetLike = { homeLayoutTemplate?: string; content?: PresetContent };

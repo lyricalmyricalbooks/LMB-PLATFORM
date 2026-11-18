@@ -1064,3 +1064,18 @@ against `MIN_TIP_MINOR`/`MAX_TIP_MINOR`; a problem disables Pay). The order send
 tracking page and emails show the server's `tip`. Region `checkoutTip`, words Text & labels › Checkout › Tip at checkout
 (`coTip*`, French twins). The a11y fixture takes `&settings={"givingTips":[5,10,15]}`, but checkout reads its settings
 from the site cache: seed `sessionStorage["site-bootstrap-v1"]` to see the box.
+
+## Membership page and the account's membership card (Memberships beta, M1c, 18 November 2026)
+`/membership` (`MembershipPage.tsx`, token-only `membershipStyle.ts`, requests `membershipAsk.ts`, word picks in pure
+`membershipWords.ts`) sits in the order slip's look (`fm-track-*` plus `fm-mbr-*`) and is its own Studio page,
+**Membership** (surface `membershipPage`, regions `membershipLayout`). Each plan card: price and every-word, trial line,
+description, perks, Join (Start free trial with a trial). Joining needs the customer's sign-in: a guest goes to
+`/account/membership?join=<plan>`, where `AccountMembership.tsx` (region `accountMembership`, `#membership`) finishes it
+after sign-in; `membershipJoin` answers the card page `url`, which returns to `?joined=<id>` (the card asks again every 3 s,
+6 times, while the membership is pending). The card shows plan, state, price, next date and card, with New card
+(`?card=<id>` on return), Keep my membership and Cancel (confirm first). It asks the server only when Memberships is live,
+on `/account/membership`, or with a return parameter (each ask costs the shop). Refusals map to words by code
+(`membershipErrorKey`), never shown raw. Studio's preview answers from `membershipPreview.ts` (two sample plans, a sample
+member). The footer link (`footer-membership`, word `membershipFooterLink`) follows `settings/website.membershipsLive` (kept
+by `functions/memberships.js` `tellWebsite`; `membershipLive.ts`). Words: Text & labels › **Membership page**
+(`membership*`) and Customer account › Membership (`accountMember*`), French twins. The Studio fixture takes `?membership=1`.
