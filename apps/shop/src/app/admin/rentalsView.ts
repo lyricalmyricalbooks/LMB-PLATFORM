@@ -78,6 +78,7 @@ export function timelineRows(item: RentalItem, rentals: AdminRental[], fromMs: n
   return Array.from({ length: item.units }, (_, i) => i + 1).map((unit) => ({
     unit,
     repair: !!item.repair?.includes(unit),
+    gone: !!item.gone?.includes(unit),
     bars: rentals
       // A rental still out after its return time runs on to now, so a late one stays in sight.
       .map((r) => (r.status === "out" && r.endMs < nowMs ? { ...r, endMs: nowMs } : r))
@@ -104,4 +105,21 @@ export function moneyLines(r: AdminRental, money: (m: number) => string): string
   for (const x of r.extrasPaid || []) lines.push(`Paid by link: ${money(x.amountMinor)}${x.note ? ` (${x.note})` : ""}`);
   for (const p of r.payLinks || []) lines.push(`Waiting to be paid: ${money(p.amountMinor)}${p.note ? ` (${p.note})` : ""}`);
   return lines;
+}
+
+/** What a unit is doing now, in the owner's words. */
+export type UnitState = "ok" | "repair" | "writtenOff" | "sold";
+export const UNIT_STATES: Record<UnitState, string> = { ok: "Can be rented", repair: "Out for repair", writtenOff: "Written off", sold: "Sold" };
+export function unitStateOf(item: RentalItem & { goneWhy?: Record<string, { why?: string }> }, unit: number): UnitState {
+  if (item.gone?.includes(unit)) return item.goneWhy?.[unit]?.why === "sold" ? "sold" : "writtenOff";
+  return item.repair?.includes(unit) ? "repair" : "ok";
+}
+/** The item's unit line: "3 units", "3 units, 1 out for repair, 1 gone". */
+export function unitsLine(item: RentalItem): string {
+  const repair = (item.repair || []).length;
+  const gone = (item.gone || []).length;
+  const parts = [item.units === 1 ? "1 unit" : `${item.units} units`];
+  if (repair) parts.push(`${repair} out for repair`);
+  if (gone) parts.push(`${gone} written off or sold`);
+  return parts.join(", ");
 }

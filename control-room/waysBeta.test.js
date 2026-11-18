@@ -3,7 +3,7 @@
 // once (a repeat writes nothing); off keeps the rest; the overview counts shops per way.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createWaysBeta, eventsUse, givingUse, membershipsUse, waysBetaRoutes, START_DOC } from "./waysBeta.js";
+import { createWaysBeta, eventsUse, givingUse, membershipsUse, rentalsUse, waysBetaRoutes, START_DOC } from "./waysBeta.js";
 import { FEATURES_DOC } from "./bookingsBeta.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { eventLine } from "./timeline.js";
@@ -188,4 +188,21 @@ test("the shop's record shows how it uses Memberships: members now, free trials,
   });
   assert.equal(JSON.stringify(rows.memberships.use).includes("example.com"), false);
   assert.deepEqual(membershipsUse([]), { members: 0, trial: 0, pastDue: 0, monthlyMinor: 0, currency: "CAD", paused: 0, gifts: 0, plans: [], posts: 0 });
+});
+
+test("the shop's record shows how it uses Rentals: units, repairs, cards held, fees and late rentals, no customer details", async () => {
+  const w = await world({ ways: WAYS });
+  await w.desk.set(ADMIN, { shopId: SHOP, way: "rentals", on: true });
+  const at = NOW;
+  await w.shopData.set(SHOP, "rentalItems/kit", { name: "Camera kit", units: 3, repair: [2], gone: [3] });
+  await w.shopData.set(SHOP, "rentalItems/kayak", { name: "Kayak", units: 2 });
+  await w.shopData.set(SHOP, "rentals/a", { status: "paid", startMs: at + 3_600_000, card: { last4: "4242" }, currency: "CAD", customer: { email: "a@example.com" } });
+  await w.shopData.set(SHOP, "rentals/b", { status: "out", startMs: at - 7_200_000, endMs: at - 3_600_000, card: { last4: "1111" }, currency: "CAD" });
+  await w.shopData.set(SHOP, "rentals/c", { status: "returned", fees: [{ amountMinor: 2500 }, { amountMinor: 1000 }], extraPages: [{ closesAt: new Date(at + 3_600_000).toISOString() }, { closesAt: new Date(at - 1).toISOString() }], currency: "CAD" });
+  await w.shopData.set(SHOP, "rentals/d", { status: "held", startMs: at + 3_600_000 });
+  await w.shopData.set(SHOP, "rentals/e", { status: "paid", startMs: at + 3_600_000, mode: "test", fees: [{ amountMinor: 9999 }] });
+  const rows = Object.fromEntries((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.map((way) => [way.id, way]));
+  assert.deepEqual(rows.rentals.use, { items: 2, units: 5, repair: 1, gone: 1, coming: 1, out: 1, late: 1, held: 1, cardsKept: 2, fees: 2, feesMinor: 3500, payLinks: 1, currency: "CAD" });
+  assert.equal(JSON.stringify(rows.rentals.use).includes("example.com"), false);
+  assert.equal(rentalsUse([], [], NOW).items, 0);
 });

@@ -1,7 +1,7 @@
 // GENERATED from src/shared/rentalRules.ts by scripts/build-shared.mjs. Do not edit: change the .ts and run the script.
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RENTAL_MESSAGES = exports.liveSpans = exports.minutesOf = exports.HOUR = exports.LATE_GRACE_MINUTES = exports.MAX_DEPOSIT_MINOR = exports.MINUTE = exports.MAX_SPANS = exports.MAX_DAYS_AHEAD = exports.MAX_CLEAN_MINUTES = exports.MAX_DAYS = exports.MAX_HOURS = exports.MAX_UNITS = exports.MAX_ITEMS = void 0;
+exports.RENTAL_MESSAGES = exports.liveSpans = exports.unitsInUse = exports.unitOff = exports.minutesOf = exports.HOUR = exports.LATE_GRACE_MINUTES = exports.MAX_DEPOSIT_MINOR = exports.MINUTE = exports.MAX_SPANS = exports.MAX_DAYS_AHEAD = exports.MAX_CLEAN_MINUTES = exports.MAX_DAYS = exports.MAX_HOURS = exports.MAX_UNITS = exports.MAX_ITEMS = void 0;
 exports.cleanRentalItem = cleanRentalItem;
 exports.rentalPrice = rentalPrice;
 exports.rentalWhen = rentalWhen;
@@ -88,13 +88,15 @@ function cleanRentalItem(raw, id = "") {
         return { problem: "Set a deposit too: a late fee is charged to the card kept for it." };
     const units = whole(r.units, 1, exports.MAX_UNITS, 1);
     const repair = Array.isArray(r.repair) ? [...new Set(r.repair.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= units))].sort((a, b) => a - b) : [];
+    const gone = Array.isArray(r.gone) ? [...new Set(r.gone.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= units))].sort((a, b) => a - b) : [];
+    const fixing = repair.filter((n) => !gone.includes(n));
     const photo = typeof r.photo === "string" && /^https:\/\/\S{1,1900}$/.test(r.photo) ? r.photo : "";
     return {
         id: text(id || r.id, 40), name, description: typeof r.description === "string" ? r.description.trim().slice(0, 4000) : "", photo,
         units, basis, ...prices, minLength, maxLength, depositMinor, lateFeeMinor,
         cleanMinutes: whole(r.cleanMinutes, 0, exports.MAX_CLEAN_MINUTES, 0), opens, closes,
         daysAhead: whole(r.daysAhead, 1, exports.MAX_DAYS_AHEAD, 90), chargeTax: r.chargeTax === true,
-        status: r.status === "draft" ? "draft" : "live", ...(repair.length ? { repair } : {}),
+        status: r.status === "draft" ? "draft" : "live", ...(fixing.length ? { repair: fixing } : {}), ...(gone.length ? { gone } : {}),
     };
 }
 /** The cheapest fair price for a rental of this length: hours for hourly items, days for daily ones. */
@@ -156,6 +158,19 @@ function rentalWhen(item, ask, zone, nowMs) {
         return { problem: "That day is too far ahead." };
     return { startMs, endMs, length: days, day: ask.day, endDay };
 }
+/** One rental on an item's calendar: which unit, from when, busy until (end plus cleaning), held or confirmed. */
+/** A unit that can't be rented now: out for repair, or gone. */
+const unitOff = (item, unit) => Boolean(item.repair?.includes(unit) || item.gone?.includes(unit));
+exports.unitOff = unitOff;
+/** Units that can be rented now. */
+const unitsInUse = (item) => {
+    let n = 0;
+    for (let unit = 1; unit <= item.units; unit += 1)
+        if (!(0, exports.unitOff)(item, unit))
+            n += 1;
+    return n;
+};
+exports.unitsInUse = unitsInUse;
 /** The spans that still block: confirmed ones, and holds whose time hasn't run out. */
 const liveSpans = (spans, nowMs) => (spans || []).filter((s) => s && s.until > nowMs - exports.HOUR && (!s.held || (s.holdUntil || 0) > nowMs));
 exports.liveSpans = liveSpans;
@@ -165,7 +180,7 @@ function freeUnit(item, spans, when, nowMs, skipId = "") {
     const want = { from: when.startMs, until: when.endMs + item.cleanMinutes * exports.MINUTE };
     const busy = (0, exports.liveSpans)(spans, nowMs).filter((s) => s.id !== skipId);
     for (let unit = 1; unit <= item.units; unit += 1) {
-        if (item.repair?.includes(unit))
+        if ((0, exports.unitOff)(item, unit))
             continue;
         if (!busy.some((s) => s.unit === unit && overlaps(s, want)))
             return unit;
@@ -178,7 +193,7 @@ function unitsFree(item, spans, when, nowMs) {
     const busy = (0, exports.liveSpans)(spans, nowMs);
     let free = 0;
     for (let unit = 1; unit <= item.units; unit += 1) {
-        if (item.repair?.includes(unit))
+        if ((0, exports.unitOff)(item, unit))
             continue;
         if (!busy.some((s) => s.unit === unit && overlaps(s, want)))
             free += 1;

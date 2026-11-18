@@ -3,13 +3,13 @@
 // in the Colophon bento look (bookings.css tiles + rentals.css, tokens only). Shown only when Rentals is on for the
 // shop (both switches, Dashboard.tsx). Every read and change goes through the server (rentalsApi.ts).
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, ExternalLink, Pencil, Plus, Trash2, Undo2, Check, PackageOpen, CreditCard, Link2 } from "lucide-react";
+import { CalendarClock, ExternalLink, Pencil, Plus, Trash2, Undo2, Check, PackageOpen, CreditCard, Link2, Wrench } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Drawer, EmptyState, ErrorState, GhostButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { rentalsAdmin, type AdminRental, type RentalsList } from "./rentalsApi";
-import { blankItem, FEE_REASONS, formFromItem, isLate, itemToSave, lengthWords, moneyLines, priceLine, recentlyBack, rentalTotals, statusOf, timelineRows, whenText, type ItemForm } from "./rentalsView";
+import { blankItem, FEE_REASONS, formFromItem, isLate, itemToSave, lengthWords, moneyLines, priceLine, recentlyBack, rentalTotals, statusOf, timelineRows, UNIT_STATES, unitStateOf, unitsLine, whenText, type ItemForm, type UnitState } from "./rentalsView";
 import { moneyText, priceMinorOf } from "./eventsView";
 import { MAX_ITEMS, type RentalItem } from "../../shared/rentalRules";
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
@@ -27,6 +27,7 @@ export function Rentals() {
   const [busy, setBusy] = useState("");
   const [confirm, confirmNode] = useConfirm();
   const [asking, setAsking] = useState<{ rental: AdminRental; kind: "fee" | "link" } | null>(null);
+  const [unitsOf, setUnitsOf] = useState<RentalItem | null>(null);
 
   const reload = () => rentalsAdmin<RentalsList>("list")
     .then((answer) => { setData(answer); setError(""); })
@@ -127,11 +128,12 @@ export function Rentals() {
                 </div>
                 <div className="rnt-actions">
                   <GhostButton icon={<Pencil size={16} aria-hidden />} onClick={() => setEditing(item)}>Edit</GhostButton>
+                  <GhostButton icon={<Wrench size={16} aria-hidden />} onClick={() => setUnitsOf(item)}>Units</GhostButton>
                   <GhostButton icon={<Trash2 size={16} aria-hidden />} onClick={() => { void remove(item); }}>Delete</GhostButton>
                 </div>
               </div>
               <p className="rnt-meta">
-                {priceLine(item, money)} · {item.units === 1 ? "1 unit" : `${item.units} units`}
+                {priceLine(item, money)} · {unitsLine(item)}
                 {item.cleanMinutes > 0 ? ` · ${item.cleanMinutes} min to clean` : ""} · open {item.opens} to {item.closes}
               </p>
               <Timeline item={item} rentals={data.rentals} fromMs={fromMs} toMs={toMs} nowMs={nowMs} zone={data.zone} />
@@ -162,6 +164,7 @@ export function Rentals() {
 
       {confirmNode}
       {asking && <MoneyDrawer rental={asking.rental} kind={asking.kind} money={money} onClose={() => setAsking(null)} onDone={() => { setAsking(null); void reload(); }} />}
+      {unitsOf && <UnitsDrawer item={data.items.find((i) => i.id === unitsOf.id) || unitsOf} zone={data.zone} money={money} onClose={() => setUnitsOf(null)} onChanged={() => { void reload(); }} />}
       {editing && <ItemDrawer start={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void reload(); }} />}
     </div>
   );
@@ -261,8 +264,8 @@ function Timeline({ item, rentals, fromMs, toMs, nowMs, zone }: { item: RentalIt
         <div className="rnt-tl-track rnt-tl-scale" role="columnheader">{days.map((d) => <span key={d}>{d}</span>)}</div>
       </div>
       {rows.map((row) => (
-        <div key={row.unit} className="rnt-tl-row" role="row" data-repair={row.repair || undefined}>
-          <span className="rnt-tl-unit" role="rowheader">{row.unit}{row.repair ? " · repair" : ""}</span>
+        <div key={row.unit} className="rnt-tl-row" role="row" data-repair={row.repair || row.gone || undefined}>
+          <span className="rnt-tl-unit" role="rowheader">{row.unit}{row.gone ? " · gone" : row.repair ? " · repair" : ""}</span>
           <div className="rnt-tl-track" role="cell">
             {row.bars.map((b) => (
               <span key={b.rental.id} className="rnt-tl-bar" data-status={b.rental.status} data-late={b.late || undefined} style={{ left: `${b.left}%`, width: `${b.width}%` }}
@@ -270,11 +273,81 @@ function Timeline({ item, rentals, fromMs, toMs, nowMs, zone }: { item: RentalIt
                 <span className="rnt-tl-label">{b.rental.name}</span>
               </span>
             ))}
-            {row.bars.length === 0 && <span className="rnt-tl-free">{row.repair ? "Out for repair" : "Free all week"}</span>}
+            {row.bars.length === 0 && <span className="rnt-tl-free">{row.gone ? "Written off or sold" : row.repair ? "Out for repair" : "Free all week"}</span>}
           </div>
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Each unit's state: rentable, out for repair, written off or sold. The server moves rentals still to come to another free
+ * unit; any it can't are shown here first, and cancelled with a refund only when the owner says so.
+ */
+function UnitsDrawer({ item, zone, money, onClose, onChanged }: { item: RentalItem; zone: string; money: (m: number) => string; onClose: () => void; onChanged: () => void }) {
+  const [busy, setBusy] = useState(0);
+  const [stuck, setStuck] = useState<{ unit: number; state: UnitState; rentals: AdminRental[] } | null>(null);
+  const units = Array.from({ length: item.units }, (_, i) => i + 1);
+  const change = async (unit: number, state: UnitState, cancelStuck = false) => {
+    setBusy(unit);
+    try {
+      const answer = await rentalsAdmin<{ moved: number; cancelled: number; failed: string[] }>("unitState", {
+        itemId: item.id, unit, state: state === "writtenOff" || state === "sold" ? "gone" : state, why: state === "sold" ? "sold" : "writtenOff", cancelStuck,
+      });
+      setStuck(null);
+      const bits = [`Unit ${unit}: ${UNIT_STATES[state].toLowerCase()}.`];
+      if (answer.moved) bits.push(`${answer.moved === 1 ? "1 rental moved" : `${answer.moved} rentals moved`} to another unit.`);
+      if (answer.cancelled) bits.push(`${answer.cancelled === 1 ? "1 rental" : `${answer.cancelled} rentals`} cancelled and refunded.`);
+      if (answer.failed?.length) toast.error(`These couldn't be refunded, so they stay booked: ${answer.failed.join(", ")}.`);
+      toast.success(bits.join(" "));
+      onChanged();
+    } catch (err) {
+      const e = err as Error & { code?: string; stuck?: AdminRental[] };
+      if (e.code === "stuck" && e.stuck) setStuck({ unit, state, rentals: e.stuck });
+      else toast.error(problemOf(err, "That didn't save just now. Please try again."));
+    } finally {
+      setBusy(0);
+    }
+  };
+  return (
+    <Drawer open onClose={onClose} title={`${item.name}: units`} footer={<GhostButton onClick={onClose}>Done</GhostButton>}>
+      <div className="rnt-form">
+        <p className="rnt-meta">Take a unit out for repair, or mark it written off or sold. Its rentals still to come move to another free unit. Nothing is cancelled unless you say so.</p>
+        <ul className="rnt-units" aria-label="Units">
+          {units.map((unit) => {
+            const state = unitStateOf(item, unit);
+            const gone = state === "writtenOff" || state === "sold";
+            return (
+              <li key={unit} className="rnt-unit" data-state={state}>
+                <strong>Unit {unit}</strong>
+                {gone
+                  ? <StatusBadge tone="neutral" glyph={false}>{UNIT_STATES[state]}</StatusBadge>
+                  : (
+                    <SelectField label={`Unit ${unit}`} hideLabel value={state} disabled={busy > 0} onChange={(e) => {
+                      const next = e.target.value as UnitState;
+                      if (next !== state) void change(unit, next);
+                    }}>
+                      {(Object.keys(UNIT_STATES) as UnitState[]).map((k) => <option key={k} value={k}>{UNIT_STATES[k]}</option>)}
+                    </SelectField>
+                  )}
+              </li>
+            );
+          })}
+        </ul>
+        {stuck && (
+          <div className="rnt-stuck" role="alert">
+            <p><strong>To mark unit {stuck.unit} {UNIT_STATES[stuck.state].toLowerCase()}: {stuck.rentals.length === 1 ? "this rental has" : "these rentals have"} no other unit free at {stuck.rentals.length === 1 ? "its" : "their"} time:</strong></p>
+            <ul>{stuck.rentals.map((r) => <li key={r.id}>{r.name}, {whenText(r, zone)} · {money(r.chargedMinor)}</li>)}</ul>
+            <p className="rnt-meta">You can leave unit {stuck.unit} as it is, or cancel {stuck.rentals.length === 1 ? "it" : "them"}: the money goes back to the card and they get an email.</p>
+            <div className="rnt-actions">
+              <GhostButton onClick={() => setStuck(null)}>Leave it as it is</GhostButton>
+              <PrimaryButton busy={busy === stuck.unit} onClick={() => { void change(stuck.unit, stuck.state, true); }}>Cancel and refund</PrimaryButton>
+            </div>
+          </div>
+        )}
+      </div>
+    </Drawer>
   );
 }
 

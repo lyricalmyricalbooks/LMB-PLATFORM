@@ -17,7 +17,7 @@ export type AdminRental = {
   payLinks?: { amountMinor: number; note: string; url: string; closesAt: string }[];
 };
 export type RentalsList = { zone: string; currency: string; items: RentalItem[]; rentals: AdminRental[] };
-export type RentalsAdminOp = "list" | "saveItem" | "deleteItem" | "pickedUp" | "returned" | "cancel" | "hint" | "chargeFee" | "payLink";
+export type RentalsAdminOp = "list" | "saveItem" | "deleteItem" | "pickedUp" | "returned" | "cancel" | "hint" | "chargeFee" | "payLink" | "unitState";
 
 /** One object so the admin fixture (src/adminFixture/main.ts) can swap in sample rentals. */
 export const rentalsData = {
@@ -35,6 +35,6 @@ async function adminFromServer(op: RentalsAdminOp, body: Record<string, unknown>
     body: JSON.stringify({ action: "rentalsAdmin", op, ...body }),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || "That didn't save just now. Please try again."), { code: result.code });
+  if (!response.ok) throw Object.assign(new Error(result.error || "That didn't save just now. Please try again."), { code: result.code, stuck: result.stuck });
   return result;
 }

@@ -41,7 +41,12 @@ export type RentalItem = {
   lateFeeMinor: number;
   /** Units out for repair (R3), by number from 1. */
   repair?: number[];
+  /** Units written off or sold (R3), by number from 1: never rented again, kept so the numbers stay the same. */
+  gone?: number[];
 };
+
+/** Why a unit is gone, for the owner's own records. */
+export type GoneWhy = "writtenOff" | "sold";
 
 export const MAX_ITEMS = 60;
 export const MAX_UNITS = 50;
@@ -98,13 +103,15 @@ export function cleanRentalItem(raw: unknown, id = ""): RentalItem | { problem: 
   if (lateFeeMinor > 0 && !depositMinor) return { problem: "Set a deposit too: a late fee is charged to the card kept for it." };
   const units = whole(r.units, 1, MAX_UNITS, 1);
   const repair = Array.isArray(r.repair) ? [...new Set(r.repair.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= units))].sort((a, b) => a - b) : [];
+  const gone = Array.isArray(r.gone) ? [...new Set(r.gone.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= units))].sort((a, b) => a - b) : [];
+  const fixing = repair.filter((n) => !gone.includes(n));
   const photo = typeof r.photo === "string" && /^https:\/\/\S{1,1900}$/.test(r.photo) ? r.photo : "";
   return {
     id: text(id || r.id, 40), name, description: typeof r.description === "string" ? r.description.trim().slice(0, 4000) : "", photo,
     units, basis, ...prices, minLength, maxLength, depositMinor, lateFeeMinor,
     cleanMinutes: whole(r.cleanMinutes, 0, MAX_CLEAN_MINUTES, 0), opens, closes,
     daysAhead: whole(r.daysAhead, 1, MAX_DAYS_AHEAD, 90), chargeTax: r.chargeTax === true,
-    status: r.status === "draft" ? "draft" : "live", ...(repair.length ? { repair } : {}),
+    status: r.status === "draft" ? "draft" : "live", ...(fixing.length ? { repair: fixing } : {}), ...(gone.length ? { gone } : {}),
   };
 }
 
@@ -157,6 +164,16 @@ export function rentalWhen(item: RentalItem, ask: RentalAsk, zone: string, nowMs
 }
 
 /** One rental on an item's calendar: which unit, from when, busy until (end plus cleaning), held or confirmed. */
+/** A unit that can't be rented now: out for repair, or gone. */
+export const unitOff = (item: Pick<RentalItem, "repair" | "gone">, unit: number): boolean => Boolean(item.repair?.includes(unit) || item.gone?.includes(unit));
+
+/** Units that can be rented now. */
+export const unitsInUse = (item: Pick<RentalItem, "units" | "repair" | "gone">): number => {
+  let n = 0;
+  for (let unit = 1; unit <= item.units; unit += 1) if (!unitOff(item, unit)) n += 1;
+  return n;
+};
+
 export type RentalSpan = { id: string; unit: number; from: number; until: number; held?: boolean; holdUntil?: number };
 
 /** The spans that still block: confirmed ones, and holds whose time hasn't run out. */
@@ -166,23 +183,23 @@ export const liveSpans = (spans: readonly RentalSpan[] | null | undefined, nowMs
 const overlaps = (a: { from: number; until: number }, b: { from: number; until: number }): boolean => a.from < b.until && b.from < a.until;
 
 /** The first free unit for this time (out-for-repair units never), or 0 when every unit is taken. */
-export function freeUnit(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number, skipId = ""): number {
+export function freeUnit(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair" | "gone">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number, skipId = ""): number {
   const want = { from: when.startMs, until: when.endMs + item.cleanMinutes * MINUTE };
   const busy = liveSpans(spans, nowMs).filter((s) => s.id !== skipId);
   for (let unit = 1; unit <= item.units; unit += 1) {
-    if (item.repair?.includes(unit)) continue;
+    if (unitOff(item, unit)) continue;
     if (!busy.some((s) => s.unit === unit && overlaps(s, want))) return unit;
   }
   return 0;
 }
 
 /** How many units are free for this time. */
-export function unitsFree(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number): number {
+export function unitsFree(item: Pick<RentalItem, "units" | "cleanMinutes" | "repair" | "gone">, spans: readonly RentalSpan[], when: { startMs: number; endMs: number }, nowMs: number): number {
   const want = { from: when.startMs, until: when.endMs + item.cleanMinutes * MINUTE };
   const busy = liveSpans(spans, nowMs);
   let free = 0;
   for (let unit = 1; unit <= item.units; unit += 1) {
-    if (item.repair?.includes(unit)) continue;
+    if (unitOff(item, unit)) continue;
     if (!busy.some((s) => s.unit === unit && overlaps(s, want))) free += 1;
   }
   return free;

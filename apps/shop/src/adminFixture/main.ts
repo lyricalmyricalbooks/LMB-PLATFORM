@@ -293,7 +293,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   const fresh = new URLSearchParams(window.location.search).get("rentals") === "new";
   let items: RentalItem[] = fresh ? [] : [
     cleanRentalItem({ name: "Camera kit", description: "Body, two lenses, batteries and a bag.", units: 2, basis: "hour", hourMinor: 2000, dayMinor: 9000, minLength: 2, maxLength: 8, cleanMinutes: 30, opens: "09:00", closes: "18:00", chargeTax: true, depositMinor: 30000, lateFeeMinor: 1500 }, "kit00001") as RentalItem,
-    cleanRentalItem({ name: "Kayak", units: 3, basis: "day", dayMinor: 4500, weekMinor: 22000, minLength: 1, maxLength: 14, opens: "08:00", closes: "19:00", repair: [3] }, "kayak001") as RentalItem,
+    cleanRentalItem({ name: "Kayak", units: 4, basis: "day", dayMinor: 4500, weekMinor: 22000, minLength: 1, maxLength: 14, opens: "08:00", closes: "19:00", repair: [3], gone: [4] }, "kayak001") as RentalItem,
   ];
   const r = (id: string, itemId: string, unit: number, startMs: number, endMs: number, status: AdminRental["status"], name: string, chargedMinor: number): AdminRental => ({
     id, status, itemId, itemName: itemId === "kit00001" ? "Camera kit" : "Kayak", unit, startMs, endMs, length: itemId === "kit00001" ? Math.round((endMs - startMs) / H) : Math.round((endMs - startMs) / (24 * H)) + 1,
@@ -327,6 +327,23 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       return { ok: true, rental: rentals.find((x) => x.id === body.id) };
     }
     if (op === "chargeFee" || op === "payLink") return { ok: true, url: "https://pay.example/sample" };
+    if (op === "unitState") {
+      // Like the server: a unit's coming rentals need another unit; a gone unit with one waits for the owner's say.
+      const unit = Number(body.unit);
+      const coming = rentals.filter((x) => x.itemId === body.itemId && x.unit === unit && x.status === "paid" && x.startMs > Date.now());
+      if (body.state !== "ok" && coming.length && body.state === "gone" && !body.cancelStuck) throw Object.assign(new Error("A rental can't move."), { code: "stuck", stuck: coming });
+      items = items.map((i) => {
+        if (i.id !== body.itemId) return i;
+        const repair = (i.repair || []).filter((n) => n !== unit);
+        const gone = (i.gone || []).filter((n) => n !== unit);
+        if (body.state === "repair") repair.push(unit);
+        if (body.state === "gone") gone.push(unit);
+        return { ...i, repair, gone, goneWhy: { ...((i as { goneWhy?: object }).goneWhy || {}), ...(body.state === "gone" ? { [unit]: { why: body.why } } : {}) } } as RentalItem;
+      });
+      const cancelled = body.cancelStuck ? coming.length : 0;
+      if (cancelled) rentals = rentals.map((x) => (coming.includes(x) ? { ...x, status: "cancelled", refundedMinor: x.chargedMinor } : x));
+      return { ok: true, moved: body.state === "repair" ? coming.length : 0, cancelled, failed: [] };
+    }
     return { ok: true, rentalsLive: true };
   };
 }

@@ -307,6 +307,24 @@ function rentalActions({
     });
   }
 
+  /** Cancels a paid rental, refunding the card first when asked. Answers { ok } or { problem, status, code }. */
+  async function cancelPaid(id, r, by, refund) {
+    let refundedMinor = 0;
+    if (refund && r.chargedMinor > 0) {
+      if (!r.paymentIntent) return { problem: "This rental has no card payment on record to refund. Refund it from your payment account, then cancel it here without a refund.", status: 409, code: "no_payment" };
+      try {
+        await payments.refund({ mode: r.mode === "test" ? "test" : "live", paymentIntentId: r.paymentIntent, amountMinor: r.chargedMinor, metadata: { rentalOrder: id }, idempotencyKey: `rental-refund-${id}` });
+        refundedMinor = r.chargedMinor;
+      } catch (err) {
+        console.error("rentals: a refund was refused:", err?.message || err);
+        return { problem: "The refund didn't go through, so nothing was changed. Try again in a moment.", status: 502, code: "refund_failed" };
+      }
+    }
+    await freeRental(id, r, by, ["paid"], refundedMinor ? { refundedMinor, refundedAt: now().toISOString() } : {});
+    await tellCustomer(id, r, "", { refundedMinor });
+    return { ok: true };
+  }
+
   async function sweep() {
     const [snap, extras] = await Promise.all([rentals().where("status", "==", "held").limit(100).get(), rentals().where("extraOpen", "==", true).limit(50).get()]);
     if (snap.empty && extras.empty) return { confirmed: 0, freed: 0 };
@@ -479,16 +497,18 @@ function rentalActions({
       }
       if (op === "saveItem") {
         const id = ID.test(String(req.body?.item?.id || "")) ? req.body.item.id : randomId();
-        const item = cleanRentalItem(req.body?.item, id);
-        if (item.problem) return fail(res, 400, item.problem);
         const existing = await items().limit(MAX_ITEMS + 1).get();
+        // Repairs and gone units change only through op unitState, so a form opened earlier can't undo one.
+        const stored = existing.docs.find((d) => d.id === id)?.data() || {};
+        const item = cleanRentalItem({ ...req.body?.item, repair: stored.repair || [], gone: stored.gone || [] }, id);
+        if (item.problem) return fail(res, 400, item.problem);
         const isNew = !existing.docs.some((d) => d.id === id);
         if (isNew && existing.docs.length >= MAX_ITEMS) return fail(res, 400, `A shop can have up to ${MAX_ITEMS} rental items. Delete an old one first.`);
         // Units with rentals still to come can't be taken away.
         const spans = isNew ? [] : liveSpans(await readSpans(id), nowMs);
         const highest = spans.filter((s) => s.until > nowMs).reduce((m, s) => Math.max(m, s.unit), 0);
         if (highest > item.units) return fail(res, 409, `Unit ${highest} has rentals still to come, so this item needs at least ${highest} units.`, "booked");
-        await items().doc(id).set({ ...item, updatedAt: now().toISOString(), updatedBy: by });
+        await items().doc(id).set({ ...item, ...(stored.goneWhy ? { goneWhy: stored.goneWhy } : {}), updatedAt: now().toISOString(), updatedBy: by });
         await tellWebsite();
         return res.status(200).json({ ok: true, item });
       }
@@ -603,20 +623,68 @@ function rentalActions({
         const snap = ID.test(id) ? await rentals().doc(id).get() : null;
         const r = snap?.exists ? snap.data() : null;
         if (!r || r.status !== "paid") return fail(res, 409, "Only a paid rental that hasn't been picked up can be cancelled.", "stale");
-        let refundedMinor = 0;
-        if (req.body?.refund !== false && r.chargedMinor > 0) {
-          if (!r.paymentIntent) return fail(res, 409, "This rental has no card payment on record to refund. Refund it from your payment account, then cancel it here without a refund.", "no_payment");
-          try {
-            await payments.refund({ mode: r.mode === "test" ? "test" : "live", paymentIntentId: r.paymentIntent, amountMinor: r.chargedMinor, metadata: { rentalOrder: id }, idempotencyKey: `rental-refund-${id}` });
-            refundedMinor = r.chargedMinor;
-          } catch (err) {
-            console.error("rentals: a refund was refused:", err?.message || err);
-            return fail(res, 502, "The refund didn't go through, so nothing was changed. Try again in a moment.", "refund_failed");
-          }
-        }
-        await freeRental(id, r, by, ["paid"], refundedMinor ? { refundedMinor, refundedAt: now().toISOString() } : {});
-        await tellCustomer(id, r, "", { refundedMinor });
+        const done = await cancelPaid(id, r, by, req.body?.refund !== false);
+        if (done.problem) return fail(res, done.status, done.problem, done.code);
         return res.status(200).json({ ok: true, rental: adminRental(id, (await rentals().doc(id).get()).data()) });
+      }
+      if (op === "unitState") {
+        // A unit goes out for repair, comes back, or is written off or sold. Its rentals still to come move to another
+        // free unit; any that can't are listed, and cancelled (paid ones refunded) only when the owner says so.
+        const itemId = String(req.body?.itemId || "");
+        const unit = Number(req.body?.unit);
+        const state = ["ok", "repair", "gone"].includes(req.body?.state) ? req.body.state : "";
+        const goneWhy = req.body?.why === "sold" ? "sold" : "writtenOff";
+        const item = ID.test(itemId) ? await readItem(itemId) : null;
+        if (!item) return fail(res, 404, "That item isn't here any more. Refresh the page.", "stale");
+        if (!state || !Number.isInteger(unit) || unit < 1 || unit > item.units) return fail(res, 400, "Pick a unit and what happens to it.");
+        if (state === "ok" && item.gone?.includes(unit)) return fail(res, 409, "A unit that was written off or sold can't come back. Add a unit instead.", "gone");
+        const at = now().toISOString();
+        const result = await db.runTransaction(async (tx) => {
+          const iSnap = await tx.get(items().doc(itemId));
+          const cSnap = await tx.get(calRef(itemId));
+          if (!iSnap.exists) return { missing: true };
+          const fresh = iSnap.data();
+          const repair = (fresh.repair || []).filter((n) => n !== unit);
+          const gone = (fresh.gone || []).filter((n) => n !== unit);
+          if (state === "repair") repair.push(unit);
+          if (state === "gone") gone.push(unit);
+          const goneWhyMap = { ...(fresh.goneWhy || {}) };
+          if (state === "gone") goneWhyMap[unit] = { why: goneWhy, at, by };
+          const next = { ...fresh, repair: repair.sort((a, b) => a - b), gone: gone.sort((a, b) => a - b), goneWhy: goneWhyMap };
+          const spans = cSnap.exists ? cSnap.data().spans || [] : [];
+          const live = liveSpans(spans, nowMs);
+          // Only rentals not yet started move: one already out stays with the customer.
+          const moving = state === "ok" ? [] : live.filter((s) => s.unit === unit && s.from > nowMs);
+          const moved = [];
+          const stuck = [];
+          let working = spans.slice();
+          for (const s of moving) {
+            const to = freeUnit(next, working.filter((x) => x.id !== s.id), { startMs: s.from, endMs: s.until - (fresh.cleanMinutes || 0) * MINUTE }, nowMs);
+            if (to) { working = working.map((x) => (x.id === s.id ? { ...x, unit: to } : x)); moved.push({ id: s.id, to }); } else stuck.push(s.id);
+          }
+          if (stuck.length && req.body?.cancelStuck !== true) return { stuck };
+          tx.set(items().doc(itemId), { repair: next.repair, gone: next.gone, goneWhy: goneWhyMap, updatedAt: at, updatedBy: by }, { merge: true });
+          if (moved.length) tx.set(calRef(itemId), { spans: working, updatedAt: at });
+          return { moved, stuck };
+        });
+        if (result.missing) return fail(res, 404, "That item isn't here any more. Refresh the page.", "stale");
+        if (result.stuck && !result.moved) {
+          const names = (await Promise.all(result.stuck.map((id) => rentals().doc(id).get()))).filter((d) => d.exists).map((d) => adminRental(d.id, d.data()));
+          return res.status(409).json({ error: `${names.length === 1 ? "One rental" : `${names.length} rentals`} can't move to another unit.`, code: "stuck", stuck: names });
+        }
+        for (const m of result.moved) await rentals().doc(m.id).set({ unit: m.to, movedFrom: unit, updatedAt: at }, { merge: true });
+        const failed = [];
+        for (const id of result.stuck) {
+          const snap = await rentals().doc(id).get();
+          const r = snap.exists ? snap.data() : null;
+          if (!r) continue;
+          if (r.status === "held") { await freeRental(id, r, by, ["held"]); continue; }
+          if (r.status !== "paid") continue;
+          const done = await cancelPaid(id, r, by, true);
+          if (done.problem) failed.push(r.customer?.name || id);
+        }
+        await tellWebsite();
+        return res.status(200).json({ ok: true, moved: result.moved.length, cancelled: result.stuck.length - failed.length, failed, item: await readItem(itemId) });
       }
       return fail(res, 400, "Unknown request.");
     } catch (err) {

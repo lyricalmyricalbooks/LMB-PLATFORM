@@ -202,4 +202,36 @@ describe("rentals", () => {
     expect((await t.adm({ op: "chargeFee", id: started.rentalId, amountMinor: 1000 })).body.code).toBe("no_card");
     expect((await t.adm({ op: "payLink", id: started.rentalId, amountMinor: 1000 })).statusCode).toBe(200);
   });
+  test("R3: a unit out for repair hands its rentals to another; one written off cancels and refunds only on the owner's say", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("rentalItems").doc("kit00001").set({ ...KIT, units: 2 });
+    await t.pub(ASK);
+    t.pay(0);
+    await t.desk.sweep();
+    expect((await t.doc("rentals", "rent0001")).unit).toBe(1);
+    const fix = await t.adm({ op: "unitState", itemId: "kit00001", unit: 1, state: "repair" });
+    expect(fix.body).toMatchObject({ ok: true, moved: 1, cancelled: 0 });
+    expect((await t.doc("rentals", "rent0001")).unit).toBe(2);
+    expect((await t.doc("rentalItems", "kit00001")).repair).toEqual([1]);
+    // A form opened earlier can't undo the repair.
+    await t.adm({ op: "saveItem", item: { ...KIT, id: "kit00001", units: 2 } });
+    expect((await t.doc("rentalItems", "kit00001")).repair).toEqual([1]);
+    // No unit is left for that time: the owner is told first, and nothing changes.
+    const stuck = await t.adm({ op: "unitState", itemId: "kit00001", unit: 2, state: "gone", why: "sold" });
+    expect(stuck.statusCode).toBe(409);
+    expect(stuck.body.stuck).toEqual([expect.objectContaining({ id: "rent0001", name: "Ada Reader" })]);
+    expect((await t.doc("rentalItems", "kit00001")).gone || []).toEqual([]);
+    expect(t.refunds).toEqual([]);
+    const gone = await t.adm({ op: "unitState", itemId: "kit00001", unit: 2, state: "gone", why: "sold", cancelStuck: true });
+    expect(gone.body).toMatchObject({ ok: true, moved: 0, cancelled: 1, failed: [] });
+    expect(t.refunds).toEqual([expect.objectContaining({ paymentIntentId: "pi_0", idempotencyKey: "rental-refund-rent0001" })]);
+    expect((await t.doc("rentals", "rent0001")).status).toBe("cancelled");
+    expect((await t.doc("rentalItems", "kit00001")).goneWhy[2]).toMatchObject({ why: "sold" });
+    // Gone stays gone; the repaired unit comes back and can be rented again.
+    expect((await t.adm({ op: "unitState", itemId: "kit00001", unit: 2, state: "ok" })).body.code).toBe("gone");
+    expect((await t.pub(ASK)).statusCode).toBe(409);
+    await t.adm({ op: "unitState", itemId: "kit00001", unit: 1, state: "ok" });
+    expect((await t.pub(ASK)).statusCode).toBe(200);
+  });
 });
