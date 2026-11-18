@@ -18,7 +18,7 @@ import { IN_PERSON_CHANNELS } from './market-day.js';
 
 /** The columns before and after the tax columns, exactly as the shop writes them. */
 export const DAY_COLUMNS_BEFORE_TAX = Object.freeze(['Date', 'Sales before tax', 'Shipping', 'Discounts', 'Gift cards sold', 'Gift cards used', 'Refunds']);
-export const DAY_COLUMNS_AFTER_TAX = Object.freeze(['Card fees', 'Net', 'Currency']);
+export const DAY_COLUMNS_AFTER_TAX = Object.freeze(['Tips', 'Card fees', 'Net', 'Currency']);
 
 /** The names offered for a tax, the shop's list (TAX_BOOK_NAMES in taxBooks.ts). */
 // Manitoba's provincial tax is the retail sales tax (RST), as in the shop (plan 5.10).
@@ -109,7 +109,7 @@ export function inPersonDailyLines(sales, { tax = null, currency = 'CAD' } = {})
     return {
       date, salesCents, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0, refundsCents: 0,
       taxes: tax && taxCents ? { [tax.name]: taxCents } : {},
-      feesCents: 0, netCents: salesCents + taxCents, currency,
+      tipsCents: 0, feesCents: 0, netCents: salesCents + taxCents, currency,
     };
   });
 }
@@ -121,6 +121,6 @@ export function dayLineRows(days) {
   return [
     [...DAY_COLUMNS_BEFORE_TAX, ...taxes, ...DAY_COLUMNS_AFTER_TAX],
     ...days.map((d) => [d.date, money(d.salesCents), money(d.shippingCents), money(d.discountsCents), money(d.giftCardsSoldCents),
-      money(d.giftCardsUsedCents), money(d.refundsCents), ...taxes.map((t) => money(d.taxes[t] || 0)), money(d.feesCents), money(d.netCents), d.currency]),
+      money(d.giftCardsUsedCents), money(d.refundsCents), ...taxes.map((t) => money(d.taxes[t] || 0)), money(d.tipsCents || 0), money(d.feesCents), money(d.netCents), d.currency]),
   ];
 }
