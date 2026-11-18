@@ -288,10 +288,11 @@ function privacyActions({
       // them. Either way the buyer's links stop working. The tickets themselves still work at the door.
       for (const d of data.ticketOrders) ops.push(b => b.update(d.ref, redactedTicketOrderFields(d.data(), now)));
       // Gifts: the same rule. A gift paid by card stays a payment record with its name and email; any other loses them.
-      // The posting address for a reward and the gift's place on a fundraiser's wall go either way (G2b).
+      // The posting address for a reward and the gift's place on a fundraiser's wall go either way (G2b). A tax receipt (G3)
+      // is kept as issued: a charity must keep a copy of every receipt it gave. The giver's own copy of the address goes.
       const walls = new Map();
       for (const d of data.gifts || []) {
-        ops.push(b => b.update(d.ref, { ...redactedTicketOrderFields(d.data(), now), shipTo: null, wall: false }));
+        ops.push(b => b.update(d.ref, { ...redactedTicketOrderFields(d.data(), now), shipTo: null, wall: false, receiptAddress: null }));
         const fund = d.data()?.fundraiserId;
         if (fund && d.data()?.wall === true) walls.set(fund, [...(walls.get(fund) || []), d.id]);
       }

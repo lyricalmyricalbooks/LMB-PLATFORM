@@ -2,6 +2,7 @@
 import { MAX_AMOUNTS, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../shared/givingRules";
 import { MAX_GOAL_MINOR, MAX_REWARDS, MIN_GOAL_MINOR, MIN_REWARD_MINOR, daysLeft, goalProgress, type PublicFundraiser, type Reward, type ShipTo } from "../../shared/fundraiserRules";
 import type { AdminGift, BlockedTries, FundraiserUpdate } from "./givingApi";
+import { charityNumber, type Charity } from "../../shared/charityReceipts";
 
 /** An amount the owner typed in dollars ("25", "12.50", "$40") as cents, or the problem in plain words. */
 export function amountFromText(raw: string, money: (minor: number) => string): { minor: number } | { problem: string } {
@@ -124,3 +125,24 @@ export function updateState(u: Pick<FundraiserUpdate, "status" | "audience" | "s
 
 /** True while an update is still going out or can carry on, so a new one has to wait. */
 export const updateBusy = (u: Pick<FundraiserUpdate, "status"> | undefined): boolean => !!u && (u.status === "queued" || u.status === "sending" || u.status === "paused");
+
+/** The Tax receipts part of Amounts & choices (G3): what the owner types, from and back to the saved charity. */
+export type CharityForm = { on: boolean; number: string; name: string; address: string; signer: string };
+export const charityFormOf = (c: Charity | null | undefined): CharityForm =>
+  ({ on: !!c, number: c?.number || "", name: c?.name || "", address: c?.address || "", signer: c?.signer || "" });
+/** What Save sends: the details while receipts are on, else `{ on: false }` (receipts off; the server keeps nothing). */
+export const charityToSave = (f: CharityForm): Record<string, unknown> =>
+  (f.on ? { number: f.number, name: f.name, address: f.address, signer: f.signer } : { on: false });
+/** The kind the typed number reads as, for the hint under it ("" while it reads as neither). */
+export const charityKindText = (number: string): string => {
+  const n = charityNumber(number);
+  return !n ? "" : n.kind === "ca" ? `Canadian charity: ${n.number}` : `US tax ID: ${n.number}`;
+};
+
+/** One line about a gift's receipt for the owner's list, or "" when it has none. */
+export function receiptText(gift: Pick<AdminGift, "receipt" | "receiptAsked" | "status" | "reward">): string {
+  const r = gift.receipt;
+  if (r) return `${r.status === "cancelled" ? "Cancelled receipt" : "Tax receipt"} ${r.number}${r.replaces ? `, replaces ${r.replaces}` : ""}`;
+  if (gift.receiptAsked && gift.status === "paid") return "Asked for a tax receipt; none was issued";
+  return "";
+}

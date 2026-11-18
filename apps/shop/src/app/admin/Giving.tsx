@@ -4,16 +4,17 @@
 // Gifts are server-only records, so every read and change goes through the server (givingApi.ts). The tile of blocked
 // tries shows the card-testing guard at work.
 import { useEffect, useState } from "react";
-import { Check, ExternalLink, Flag, Gift, HeartHandshake, Mail, Megaphone, Pencil, Play, Plus, Send, Settings2, Square, Trash2, Undo2, X } from "lucide-react";
+import { Check, ExternalLink, FileText, Flag, Gift, HeartHandshake, Mail, Megaphone, Pencil, Play, Plus, Send, Settings2, Square, Trash2, Undo2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, StatusBadge, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { givingAdmin, type AdminFundraiser, type AdminGift, type FundraiserUpdate, type GivingList } from "./givingApi";
-import { amountFromText, blankReward, blockedLine, dayText, fundraiserLines, giverLine, goalFromText, honourText, rewardLine, rewardRowsOf, rewardsFromRows, shipToText, updateBusy, updateState, withAmount, type RewardRow } from "./givingView";
+import { amountFromText, blankReward, blockedLine, charityFormOf, charityKindText, charityToSave, dayText, fundraiserLines, giverLine, goalFromText, honourText, rewardLine, rewardRowsOf, receiptText, rewardsFromRows, shipToText, updateBusy, updateState, withAmount, type CharityForm, type RewardRow } from "./givingView";
 import { moneyText } from "./eventsView";
 import { MAX_AMOUNTS, MAX_THANKS, MAX_TIP_CHOICES, cleanTipPercents, type GivingSettings } from "../../shared/givingRules";
 import { MAX_REWARDS, MAX_REWARD_TEXT, MAX_REWARD_TITLE, MAX_REWARD_WHEN, MAX_STORY, MAX_TITLE, dayAfter, goalProgress, type FundraiserInput } from "../../shared/fundraiserRules";
+import { MAX_CHARITY_ADDRESS, MAX_CHARITY_NAME, MAX_SIGNER, receiptAddressLine, type ReceiptAddress } from "../../shared/charityReceipts";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./bookings.css";
 import "./giving.css";
@@ -26,6 +27,7 @@ export function Giving() {
   const [editing, setEditing] = useState(false);
   const [fundForm, setFundForm] = useState<AdminFundraiser | "new" | null>(null);
   const [updating, setUpdating] = useState<AdminFundraiser | null>(null);
+  const [correcting, setCorrecting] = useState<AdminGift | null>(null);
 
   const reload = () => givingAdmin<GivingList>("list")
     .then((answer) => { setData(answer); setError(""); })
@@ -91,7 +93,7 @@ export function Giving() {
         </div>
       ) : (
         <ul className="gvg-list" aria-label="Gifts">
-          {data.gifts.map((gift) => <GiftRow key={gift.id} gift={gift} money={money} onChanged={(next) => setData((d) => d && { ...d, gifts: d.gifts.map((g) => (g.id === next.id ? next : g)) })} />)}
+          {data.gifts.map((gift) => <GiftRow key={gift.id} gift={gift} money={money} onCorrect={setCorrecting} onChanged={(next) => setData((d) => d && { ...d, gifts: d.gifts.map((g) => (g.id === next.id ? next : g)) })} />)}
         </ul>
       )}
 
@@ -102,13 +104,16 @@ export function Giving() {
       {updating && <UpdateDrawer fundraiser={updating} updates={data.updates?.[updating.id] || []} onClose={() => setUpdating(null)}
         onChanged={(u) => setData((d) => d && { ...d, updates: { ...(d.updates || {}), [u.fundraiserId]: [u, ...(d.updates?.[u.fundraiserId] || []).filter((x) => x.id !== u.id)] } })} />}
 
+      {correcting && <ReceiptDrawer gift={correcting} kind={data.settings.charity?.kind || "ca"} onClose={() => setCorrecting(null)}
+        onSaved={(next) => { setData((d) => d && { ...d, gifts: d.gifts.map((g) => (g.id === next.id ? next : g)) }); setCorrecting(null); }} />}
+
       {editing && <SettingsDrawer start={data.settings} money={money} onClose={() => setEditing(false)}
         onSaved={(settings) => { setData((d) => d && { ...d, settings }); setEditing(false); }} />}
     </div>
   );
 }
 
-function GiftRow({ gift, money, onChanged }: { gift: AdminGift; money: (minor: number) => string; onChanged: (gift: AdminGift) => void }) {
+function GiftRow({ gift, money, onChanged, onCorrect }: { gift: AdminGift; money: (minor: number) => string; onChanged: (gift: AdminGift) => void; onCorrect?: (gift: AdminGift) => void }) {
   const [busy, setBusy] = useState<"" | "refund" | "resend" | "sent">("");
   const [ask, confirmNode] = useConfirm();
   const refunded = gift.status === "refunded";
@@ -155,6 +160,16 @@ function GiftRow({ gift, money, onChanged }: { gift: AdminGift; money: (minor: n
         <p className="gvg-meta">{[gift.email, dayText(gift.paidAt || gift.createdAt)].filter(Boolean).join(" · ")}</p>
         {honour && <p className="gvg-honour">{honour}</p>}
         {gift.note && <blockquote className="gvg-note">{gift.note}</blockquote>}
+        {receiptText(gift) && (
+          <div className="gvg-receipt" data-cancelled={gift.receipt?.status === "cancelled" || undefined}>
+            <FileText size={16} aria-hidden />
+            <div>
+              <p><strong>{receiptText(gift)}</strong></p>
+              {gift.receipt && <p className="gvg-meta">{[gift.receipt.name, receiptAddressLine(gift.receipt.address)].filter(Boolean).join(", ")}{gift.receipt.status === "cancelled" && gift.receipt.cancelledOn ? ` · cancelled ${dayText(`${gift.receipt.cancelledOn}T12:00:00Z`)}` : ""}</p>}
+            </div>
+            {!refunded && gift.receipt?.status === "issued" && onCorrect && <GhostButton icon={<Pencil size={16} aria-hidden />} onClick={() => onCorrect(gift)}>Correct</GhostButton>}
+          </div>
+        )}
         {reward && (
           <div className="gvg-gift-reward" data-sent={reward.sentAt ? true : undefined}>
             <Gift size={16} aria-hidden />
@@ -475,6 +490,8 @@ function percentsFromText(text: string): number[] | null {
 
 function SettingsDrawer({ start, money, onClose, onSaved }: { start: GivingSettings; money: (minor: number) => string; onClose: () => void; onSaved: (s: GivingSettings) => void }) {
   const [form, setForm] = useState<GivingSettings>(start);
+  const [charity, setCharity] = useState<CharityForm>(charityFormOf(start.charity));
+  const [charityProblem, setCharityProblem] = useState<{ field: string; text: string } | null>(null);
   const [typed, setTyped] = useState("");
   const [tipText, setTipText] = useState((start.tipPercents || []).join(", "));
   const [tipProblem, setTipProblem] = useState("");
@@ -498,10 +515,14 @@ function SettingsDrawer({ start, money, onClose, onSaved }: { start: GivingSetti
     if (form.checkoutTip && !tipPercents) { setTipProblem(`Type 1 to ${MAX_TIP_CHOICES} whole percents from 1 to 50, like 5, 10, 15.`); return; }
     setBusy(true);
     try {
-      const answer = await givingAdmin<{ settings: GivingSettings }>("saveSettings", { settings: { ...form, tipPercents: tipPercents || form.tipPercents } });
+      const answer = await givingAdmin<{ settings: GivingSettings }>("saveSettings", { settings: { ...form, tipPercents: tipPercents || form.tipPercents, charity: charityToSave(charity) } });
       toast.success("Saved.");
       onSaved(answer.settings);
-    } catch (err) { setProblem(problemOf(err, "That didn't save. Check your connection and try again.")); }
+    } catch (err) {
+      const field = (err as { code?: string })?.code;
+      if (field && ["number", "name", "address", "signer"].includes(field)) setCharityProblem({ field, text: problemOf(err, "Check this.") });
+      else setProblem(problemOf(err, "That didn't save. Check your connection and try again."));
+    }
     finally { setBusy(false); }
   };
 
@@ -542,10 +563,76 @@ function SettingsDrawer({ start, money, onClose, onSaved }: { start: GivingSetti
               hint={`Up to ${MAX_TIP_CHOICES}, from 1 to 50.`} onChange={(e) => { setTipText(e.target.value); setTipProblem(""); }} />
           )}
         </fieldset>
+        <fieldset className="gvg-amounts gvg-receipts">
+          <legend>Tax receipts <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+          <Toggle label="We're a registered charity: give tax receipts" checked={charity.on} onChange={(v) => { setCharity((c) => ({ ...c, on: v })); setCharityProblem(null); }} />
+          <p className="gvg-hint">Givers can ask for one on your Support page. Each gets the next number of the year by email. A gift with a thank-you reward gets none.</p>
+          {charity.on && (<>
+            <TextField label="Registration number" placeholder="123456789 RR 0001 or 12-3456789" value={charity.number}
+              hint={charityKindText(charity.number) || "Canada: your business number with RR. US: your tax ID (EIN)."}
+              error={charityProblem?.field === "number" ? charityProblem.text : undefined}
+              onChange={(e) => { const v = e.target.value; setCharity((c) => ({ ...c, number: v })); setCharityProblem(null); }} />
+            <TextField label="Legal name" maxLength={MAX_CHARITY_NAME} value={charity.name} error={charityProblem?.field === "name" ? charityProblem.text : undefined}
+              onChange={(e) => { const v = e.target.value; setCharity((c) => ({ ...c, name: v })); setCharityProblem(null); }} />
+            <TextField label="Registered address" maxLength={MAX_CHARITY_ADDRESS} value={charity.address} error={charityProblem?.field === "address" ? charityProblem.text : undefined}
+              onChange={(e) => { const v = e.target.value; setCharity((c) => ({ ...c, address: v })); setCharityProblem(null); }} />
+            <TextField label="Who signs the receipts" maxLength={MAX_SIGNER} value={charity.signer} hint="Needed for a Canadian charity."
+              error={charityProblem?.field === "signer" ? charityProblem.text : undefined}
+              onChange={(e) => { const v = e.target.value; setCharity((c) => ({ ...c, signer: v })); setCharityProblem(null); }} />
+            <Toggle label="Email each giver a summary of the year's gifts in January" checked={form.yearlySummary} onChange={(v) => set({ yearlySummary: v })} />
+          </>)}
+        </fieldset>
         <TextArea label="Your thank-you words" hint="Added to the thank-you email every giver gets. Leave it empty for the standard thanks." rows={4} maxLength={MAX_THANKS}
           value={form.thanks} onChange={(e) => set({ thanks: e.target.value })} placeholder="Every gift helps us keep printing. Thank you." />
         {problem && <p className="gvg-problem" role="alert">{problem}</p>}
       </div>
+    </Drawer>
+  );
+}
+
+/** Correct the name or address on a gift's receipt: the old number is cancelled and the giver gets a new one by email. */
+function ReceiptDrawer({ gift, kind, onClose, onSaved }: { gift: AdminGift; kind: "ca" | "us"; onClose: () => void; onSaved: (g: AdminGift) => void }) {
+  const start = gift.receipt?.address || gift.receiptAddress || null;
+  const [name, setName] = useState(gift.receipt?.name || gift.name);
+  const [address, setAddress] = useState<ReceiptAddress>(start || { street: "", street2: "", city: "", state: "", zip: "", country: kind === "us" ? "US" : "CA" });
+  const [problem, setProblem] = useState<{ field: string; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [ask, confirmNode] = useConfirm();
+  const put = (patch: Partial<ReceiptAddress>) => { setAddress((a) => ({ ...a, ...patch })); setProblem(null); };
+  const hasAddress = Object.entries(address).some(([k, v]) => k !== "country" && v.trim());
+  const save = async () => {
+    if (!(await ask({ title: "Issue a new receipt?", message: `Receipt ${gift.receipt?.number} is cancelled and ${gift.email} gets a new one with the next number. This can't be undone.`, confirmLabel: "Issue new receipt" }))) return;
+    setBusy(true);
+    try {
+      const answer = await givingAdmin<{ gift: AdminGift }>("reissueReceipt", { giftId: gift.id, name, address: kind === "ca" || hasAddress ? address : null });
+      toast.success(`New receipt ${answer.gift.receipt?.number || ""} sent.`);
+      onSaved(answer.gift);
+    } catch (err) { setProblem({ field: (err as { code?: string })?.code || "", text: problemOf(err, "That didn't go through. Try again.") }); }
+    finally { setBusy(false); }
+  };
+  const err = (f: string) => (problem?.field === f ? problem.text : undefined);
+  return (
+    <Drawer open onClose={onClose} title="Correct the receipt"
+      footer={<><GhostButton onClick={onClose} disabled={busy}>Cancel</GhostButton><PrimaryButton onClick={() => { void save(); }} busy={busy}>Issue new receipt</PrimaryButton></>}>
+      <div className="gvg-form">
+        <p className="gvg-hint">Receipt numbers are never reused. Correcting cancels {gift.receipt?.number} and issues a new number that names the one it replaces.</p>
+        <TextField label="Name on the receipt" value={name} error={err("name")} onChange={(e) => { setName(e.target.value); setProblem(null); }} />
+        <fieldset className="gvg-amounts">
+          <legend>Address{kind === "us" ? " (optional)" : ""}</legend>
+          <TextField label="Street" value={address.street} error={err("address")} onChange={(e) => put({ street: e.target.value })} />
+          <TextField label="Apartment or unit (optional)" value={address.street2} onChange={(e) => put({ street2: e.target.value })} />
+          <div className="gvg-address-row">
+            <TextField label="City" value={address.city} onChange={(e) => put({ city: e.target.value })} />
+            <TextField label={address.country === "US" ? "State" : "Province"} value={address.state} onChange={(e) => put({ state: e.target.value })} />
+          </div>
+          <div className="gvg-address-row">
+            <TextField label={address.country === "US" ? "ZIP code" : "Postal code"} value={address.zip} onChange={(e) => put({ zip: e.target.value })} />
+            <TextField label="Country (two letters)" maxLength={2} value={address.country} onChange={(e) => put({ country: e.target.value.toUpperCase() })} />
+          </div>
+        </fieldset>
+        {problem && !["name", "address"].includes(problem.field) && <p className="gvg-problem" role="alert">{problem.text}</p>}
+      </div>
+      {confirmNode}
     </Drawer>
   );
 }

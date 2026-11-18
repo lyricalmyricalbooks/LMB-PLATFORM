@@ -2,6 +2,7 @@
 // SupportPage.tsx so they can be tested. The server (functions/giving.js) checks every amount again.
 import { coverFeeMinor, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../../shared/givingRules";
 import { daysLeft, goalProgress, type PublicFundraiser, type PublicReward } from "../../../shared/fundraiserRules";
+import type { Receipt } from "../../../shared/charityReceipts";
 
 export type GivingInfo = {
   on: boolean; currency?: string; minMinor?: number; maxMinor?: number; cardsReady?: boolean;
@@ -12,11 +13,15 @@ export type GivingInfo = {
   fundraiser?: PublicFundraiser | null;
   /** The shop's own day, for the days left. */
   today?: string;
+  /** Tax receipts (registered charities, G3): which kind, or null when the shop gives none. */
+  receipts?: { kind: "ca" | "us" } | null;
 };
 export type GiftView = {
   id: string; status: "held" | "paid" | "cancelled" | "refunded"; amountMinor: number; feeMinor: number; chargedMinor: number; currency: string;
   name: string; anonymous: boolean; honour: { kind: "honour" | "memory"; name: string } | null; paidAt: string; refunded: boolean;
   reward?: { title: string; ships: boolean; when: string; sent: boolean } | null;
+  /** The tax receipt (G3), when the gift has one. */
+  receipt?: Receipt | null;
 };
 
 /** What the giver typed in the other-amount box as cents, or null when it isn't a whole amount of money. */

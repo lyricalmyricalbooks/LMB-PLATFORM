@@ -198,7 +198,7 @@ describe("the owner's privacy export and erase", () => {
     expect(given.get('g2')).toMatchObject({ customer: { name: BOOKING_NAME_REMOVED, email: '' }, keyHashes: [] });
     expect(given.get('g3')).toMatchObject({ customer: { name: 'Bo' }, keyHashes: ['k3'] });
     // A reward's posting address goes, and so does the giver's line on the fundraiser's wall (only theirs).
-    expect(given.get('g1')).toMatchObject({ shipTo: null, wall: false });
+    expect(given.get('g1')).toMatchObject({ shipTo: null, wall: false, receiptAddress: null });
     expect(db.store.get('fundraisers').get('fund1').wallEntries).toEqual([{ gift: 'g3', name: 'Bo', at: '2026-11-18' }]);
   });
 

@@ -6,6 +6,7 @@
 //   fm-sup-trap          the hidden field only bots fill in             fm-sup-thanks  the thank-you after giving
 //   fm-sup-fund          the fundraiser: raised line, bar, facts, story fm-sup-wall    the supporters wall
 //   fm-sup-rewards       the thank-you rewards to pick from            fm-sup-ship    the posting address for one
+//   fm-sup-receipt-ask   the tax receipt tick box and its address       fm-sup-receipt the printable tax receipt
 const S = ".fm-track";
 
 export const SUPPORT_CSS = [
@@ -63,6 +64,15 @@ export const SUPPORT_CSS = [
   `${S} .fm-sup-reward-facts{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:2px;}`,
   `${S} .fm-sup-ship{display:grid;gap:14px;margin:0;padding:16px;border:var(--t-edge-w) dashed var(--t-edge);border-radius:var(--rp-card-radius, 0px);min-width:0;}`,
   `${S} .fm-sup-ship legend{padding:0 6px;}`,
+  `${S} .fm-sup-receipt-ask{display:grid;gap:10px;}`,
+  `@media (min-width:520px){${S} .fm-sup-receipt-ask .fm-sup-ship{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}${S} .fm-sup-receipt-ask .fm-sup-ship > p,${S} .fm-sup-receipt-ask .fm-sup-ship > div:nth-of-type(-n+2){grid-column:1/-1;}}`,
+  `${S} .fm-sup-receipt{display:grid;gap:16px;}`,
+  `${S} .fm-sup-receipt-title{margin:0;font-size:18px;font-weight:700;line-height:1.35;}`,
+  `${S} .fm-sup-receipt[data-cancelled] .fm-track-ledger{opacity:.6;}`,
+  `${S} .fm-sup-receipt .fm-track-row span:last-child{overflow-wrap:break-word;min-width:0;}`,
+  `${S} .fm-sup-print{justify-self:start;}`,
+  // Printing the thank-you prints only the receipt, on plain paper.
+  `@media print{body *{visibility:hidden !important;}${S} .fm-sup-receipt,${S} .fm-sup-receipt *{visibility:visible !important;}${S} .fm-sup-receipt{position:absolute;left:0;top:0;width:100%;max-width:none;margin:0;border:0;box-shadow:none;background:var(--print-paper, #fff);color:var(--print-ink, #000);}${S} .fm-sup-print{display:none !important;}}`,
   `@media (prefers-reduced-motion:reduce){${S} .fm-sup-reward{transition:none;}}`,
   `@media (max-width:640px){${S} .fm-sup-amounts{grid-template-columns:repeat(2,minmax(0,1fr));}${S} .fm-sup-thanks .fm-track-btn{justify-self:stretch;}}`,
 ].join("\n");

@@ -1408,3 +1408,7 @@ the posting address and **Mark sent** / Not sent yet (op `rewardSent`). The fixt
 **Updates (G2c):** **Write an update** on the running card (and on a past one with supporters) opens `UpdateDrawer`:
 subject, message, Send me a test, Send to N people (confirmed), and Your updates with Stop sending / Carry on
 (`updateState`, `updateBusy` in `givingView.ts`). The card shows the last update. The fixture has one sent on f1 and f0.
+**Tax receipts (G3a):** Amounts & choices › Tax receipts (`CharityForm`, `charityFormOf`, `charityToSave`,
+`charityKindText`; a server refusal shows under its field by `code`). A gift row shows `receiptText` and, while issued,
+**Correct** → `ReceiptDrawer` (op `reissueReceipt`, confirmed). The fixture's settings have a charity; g2 has an issued
+receipt and g4 a cancelled one.

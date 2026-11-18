@@ -4,6 +4,7 @@ import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { GivingSettings, Honour } from "../../shared/givingRules";
 import type { FundraiserStatus, PublicFundraiser, Reward, ShipTo } from "../../shared/fundraiserRules";
+import type { Receipt, ReceiptAddress } from "../../shared/charityReceipts";
 
 /** One gift as the owner sees it: the giver's details are the owner's to see, even when the giver stays anonymous to others. */
 export type AdminGift = {
@@ -11,6 +12,8 @@ export type AdminGift = {
   amountMinor: number; feeMinor: number; chargedMinor: number; currency: string; createdAt: string; paidAt: string; refundedAt: string; test: boolean; fundraiserId?: string;
   /** The thank-you reward the giver chose (G2b), and where to post it when it ships. */
   reward?: { id: string; title: string; ships: boolean; when: string; sentAt: string } | null; shipTo?: ShipTo | null;
+  /** The tax receipt (registered charities, G3), the ones it replaced, and what the giver asked for. */
+  receipt?: Receipt | null; receiptHistory?: Receipt[]; receiptAsked?: boolean; receiptAddress?: ReceiptAddress | null;
 };
 /** A fundraiser as the owner sees it: the Support page's view plus when it was made, started and ended. */
 export type AdminFundraiser = Omit<PublicFundraiser, "rewards"> & { status: FundraiserStatus; createdAt: string; startedAt: string; endedAt: string; rewards: Reward[] };
@@ -25,7 +28,7 @@ export type GivingTotals = { givenMinor: number; monthMinor: number; gifts: numb
 export type GivingList = { currency: string; settings: GivingSettings; gifts: AdminGift[]; totals: GivingTotals; blocked: BlockedTries; minMinor: number; maxMinor: number; fundraisers?: AdminFundraiser[]; today?: string;
   /** The last updates of each fundraiser, newest first, by fundraiser id. */
   updates?: Record<string, FundraiserUpdate[]> };
-export type GivingAdminOp = "list" | "saveSettings" | "resendThanks" | "refund" | "hint" | "saveFundraiser" | "endFundraiser" | "rewardSent"
+export type GivingAdminOp = "list" | "saveSettings" | "reissueReceipt" | "resendThanks" | "refund" | "hint" | "saveFundraiser" | "endFundraiser" | "rewardSent"
   | "updateCount" | "updateTest" | "updateSend" | "updateCancel" | "updateResume";
 
 /** One object so the admin fixture (src/adminFixture/main.ts) can swap in sample gifts. */

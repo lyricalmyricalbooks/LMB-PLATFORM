@@ -4,6 +4,9 @@
 import { coverFeeMinor, DEFAULT_AMOUNTS, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../../shared/givingRules";
 import type { GiftView, GivingInfo } from "./supportRules";
 import { dayAfter, type PublicFundraiser } from "../../../shared/fundraiserRules";
+import { cleanReceiptAddress, type Charity } from "../../../shared/charityReceipts";
+
+const SAMPLE_CHARITY: Charity = { kind: "ca", number: "123456789 RR 0001", name: "Sample Press Arts Society", address: "1 Sample St, Toronto ON", signer: "Ada Example" };
 
 export const SAMPLE_GIFT_ID = "sample-gift";
 export const SAMPLE_GIFT_KEY = "0".repeat(48);
@@ -13,9 +16,12 @@ let sample: GiftView | null = null;
 const today = () => new Date().toISOString().slice(0, 10);
 /** `fundraiser=sample` on the preview's address, or on Studio's own around it, shows a sample fundraiser, so its bar, story
  *  and wall can be checked before one runs. */
-function sampleFundraiserAsked(): boolean {
+function sampleFundraiserAsked(): boolean { return sampleAsked("fundraiser"); }
+/** `receipts=sample` likewise shows the tax receipt tick box and a sample receipt after giving (G3). */
+function sampleReceiptsAsked(): boolean { return sampleAsked("receipts"); }
+function sampleAsked(name: string): boolean {
   if (typeof window === "undefined") return false;
-  const asks = (search: string) => new URLSearchParams(search).get("fundraiser") === "sample";
+  const asks = (search: string) => new URLSearchParams(search).get(name) === "sample";
   try { return asks(window.location.search) || (window.parent !== window && asks(window.parent.location.search)); } catch { return asks(window.location.search); }
 }
 const SAMPLE_FUNDRAISER = (day: string): PublicFundraiser => ({
@@ -43,6 +49,7 @@ export function previewGivingAnswer(action: string, body: Record<string, any> = 
       on: true, currency, minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: true, amounts: [...DEFAULT_AMOUNTS],
       otherAmount: true, coverFee: true, honour: true, form: "preview",
       ...(sampleFundraiserAsked() ? { today: today(), fundraiser: SAMPLE_FUNDRAISER(today()) } : {}),
+      ...(sampleReceiptsAsked() ? { receipts: { kind: SAMPLE_CHARITY.kind } } : {}),
     } satisfies GivingInfo;
   }
   if (action === "giftStart") {
@@ -51,8 +58,12 @@ export function previewGivingAnswer(action: string, body: Record<string, any> = 
     sample = sampleGift(currency, amount, body.coverFee === true, String(giver.name || "Ada Reader"), giver.honour?.name ? { kind: giver.honour.kind === "memory" ? "memory" : "honour", name: String(giver.honour.name) } : null, giver.anonymous === true);
     const r = body.rewardId ? SAMPLE_FUNDRAISER(today()).rewards.find((x) => x.id === body.rewardId) : null;
     if (r) sample = { ...sample, reward: { title: r.title, ships: r.ships, when: r.when, sent: false } };
+    if (!r && body.receipt === true && sampleReceiptsAsked()) {
+      sample = { ...sample, receipt: { number: "2026-00001", year: Number(today().slice(0, 4)), issuedOn: today(), receivedOn: today(), eligibleMinor: sample.chargedMinor,
+        currency, name: sample.name, address: cleanReceiptAddress(body.receiptAddress), status: "issued", cancelledOn: "", replaces: "", test: false } };
+    }
     return { giftId: SAMPLE_GIFT_ID, key: SAMPLE_GIFT_KEY, preview: true };
   }
   sample ||= sampleGift(currency);
-  return { gift: sample };
+  return { gift: sample, charity: sample.receipt ? SAMPLE_CHARITY : null };
 }

@@ -22,6 +22,7 @@ import { moneyText } from "./bookTimeRules";
 import { amountForReward, amountProblem, chargeFor, fundraiserFacts, giftFromSearch, rewardStock, storyParagraphs, typedMinor, type GiftView, type GivingInfo } from "./supportRules";
 import { cleanShipTo, type PublicFundraiser, type PublicReward, type ShipTo } from "../../../shared/fundraiserRules";
 import { currencySign } from "../../../shared/shopCurrency";
+import { cleanReceiptAddress, receiptAddressLine, type Charity, type Receipt, type ReceiptAddress } from "../../../shared/charityReceipts";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -87,7 +88,9 @@ function Give({ c }: { c: Copy }) {
   const [rewardId, setRewardId] = useState("");
   const [rewardNote, setRewardNote] = useState("");
   const [shipTo, setShipTo] = useState<ShipTo>({ name: "", street: "", street2: "", city: "", state: "", zip: "", country: "" });
-  const [problems, setProblems] = useState<{ amount?: string; name?: string; email?: string; honour?: string; reward?: string; address?: string }>({});
+  const [receiptOn, setReceiptOn] = useState(false);
+  const [receiptAddress, setReceiptAddress] = useState<ReceiptAddress>({ street: "", street2: "", city: "", state: "", zip: "", country: "CA" });
+  const [problems, setProblems] = useState<{ amount?: string; name?: string; email?: string; honour?: string; reward?: string; address?: string; receipt?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -128,6 +131,10 @@ function Give({ c }: { c: Copy }) {
   const fund = info.fundraiser && info.fundraiser.state === "live" ? info.fundraiser : null;
   const rewards = fund?.rewards || [];
   const reward = rewards.find((r) => r.id === rewardId && !r.gone) || null;
+  // A tax receipt (registered charities only): never with a reward, and a Canadian one needs the giver's address.
+  const receipts = info.receipts || null;
+  const asksReceipt = !!receipts && !reward && receiptOn;
+  const needsAddress = asksReceipt && receipts?.kind === "ca";
   const pickReward = (r: PublicReward | null) => {
     setRewardId(r?.id || "");
     setRewardNote("");
@@ -150,6 +157,7 @@ function Give({ c }: { c: Copy }) {
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim()) ? undefined : c("supportNeedEmail"),
       honour: honourOn && !honourName.trim() ? c("supportNeedHonourName") : undefined,
       reward: reward && (!minor || minor < reward.minMinor) ? c("supportRewardTooSmall", { amount: money(reward.minMinor) }) : undefined,
+      receipt: needsAddress && !cleanReceiptAddress(receiptAddress) ? c("supportReceiptNeedAddress") : undefined,
       address: reward?.ships && "problem" in cleanShipTo({ ...shipTo, name: shipTo.name.trim() || form.name }) ? c("supportNeedAddress") : undefined,
     };
     setProblems(next);
@@ -161,6 +169,7 @@ function Give({ c }: { c: Copy }) {
         amountMinor: minor, coverFee: covering, form: info.form, website: form.website, locale: pageLanguage(),
         ...(fund ? { fundraiserId: fund.id, wall: fund.showWall && wallMe && !form.anonymous } : {}),
         ...(fund && reward ? { rewardId: reward.id, ...(reward.ships ? { shipTo: { ...shipTo, name: shipTo.name.trim() || form.name } } : {}) } : {}),
+        ...(asksReceipt ? { receipt: true, ...(needsAddress ? { receiptAddress } : {}) } : {}),
         giver: { name: form.name, email: form.email, anonymous: form.anonymous, note: form.note, honour: honourOn ? { kind: honourKind, name: honourName } : null },
       });
       if (answer.url) { window.location.assign(String(answer.url)); return; }
@@ -172,6 +181,7 @@ function Give({ c }: { c: Copy }) {
       // A form token used up or too old: a fresh one for the next try.
       // The fundraiser ended while the page was open: say so, and show the page without it so the gift can go to the shop.
       if (err?.code === "fundraiser_ended") setError(c("supportFundEnded"));
+      if (err?.code === "receiptAddress") { setError(""); setProblems((p) => ({ ...p, receipt: c("supportReceiptNeedAddress") })); }
       // The reward ran out (or the owner changed it) while the page was open: fresh counts, and the giver picks again.
       const rewardGone = ["reward_gone", "reward_unknown", "reward_min"].includes(err?.code);
       if (rewardGone) { setError(c("supportRewardChanged")); setRewardId(""); }
@@ -303,6 +313,31 @@ function Give({ c }: { c: Copy }) {
               ))}
             </fieldset>
           )}
+          {receipts && (reward ? <p className="fm-sup-note">{c("supportReceiptNoReward")}</p> : (
+            <div {...regionProps("supportReceipt")} className="fm-sup-receipt-ask">
+              <label className="fm-sup-check">
+                <input type="checkbox" checked={receiptOn} onChange={(e) => { setReceiptOn(e.target.checked); setProblems({ ...problems, receipt: undefined }); }} />
+                <span>{c("supportReceiptAsk")}</span>
+              </label>
+              <p className="fm-sup-note">{c("supportReceiptAskHint")}</p>
+              {needsAddress && (
+                <fieldset className="fm-sup-ship" aria-describedby={problems.receipt ? "sup-receipt-err" : undefined}>
+                  <legend className="fm-track-mono">{c("supportReceiptAddressHeading")}</legend>
+                  {problems.receipt && <p id="sup-receipt-err" className="fm-sup-error" role="alert">{problems.receipt}</p>}
+                  {([
+                    ["street", "supportShipStreet", "address-line1", 120], ["street2", "supportShipStreet2", "address-line2", 120],
+                    ["city", "supportShipCity", "address-level2", 80], ["state", "supportShipState", "address-level1", 40],
+                    ["zip", "supportShipZip", "postal-code", 20], ["country", "supportReceiptCountry", "country", 2],
+                  ] as const).map(([key, label, auto, max]) => (
+                    <Field key={key} id={`sup-receipt-${key}`} label={c(label)}>
+                      <input id={`sup-receipt-${key}`} className="fm-track-input" autoComplete={auto} maxLength={max} value={receiptAddress[key]}
+                        onChange={(e) => { setReceiptAddress({ ...receiptAddress, [key]: key === "country" ? e.target.value.toUpperCase() : e.target.value }); setProblems({ ...problems, receipt: undefined }); }} />
+                    </Field>
+                  ))}
+                </fieldset>
+              )}
+            </div>
+          ))}
           <label className="fm-sup-check">
             <input type="checkbox" checked={form.anonymous} onChange={(e) => setForm({ ...form, anonymous: e.target.checked })} />
             <span>{c("supportAnonymous")}</span>
@@ -381,6 +416,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 function Thanks({ id, giftKey, c }: { id: string; giftKey: string; c: Copy }) {
   const [gift, setGift] = useState<GiftView | null>(null);
+  const [charity, setCharity] = useState<Charity | null>(null);
   const [missing, setMissing] = useState(false);
   const [failed, setFailed] = useState(false);
   const tries = useRef(0);
@@ -388,6 +424,7 @@ function Thanks({ id, giftKey, c }: { id: string; giftKey: string; c: Copy }) {
   const load = () => askGiving("giftView", { giftId: id, key: giftKey }).then((answer) => {
     setFailed(false);
     setGift(answer.gift as GiftView);
+    setCharity((answer.charity as Charity | null) || null);
   }).catch((err: any) => { if (err?.code === "not_found" || err?.status === 404) setMissing(true); else setFailed(true); });
   useEffect(() => { void load(); }, []);
   // The card page comes back a moment before the payment is confirmed: look again for a minute or so.
@@ -443,6 +480,35 @@ function Thanks({ id, giftKey, c }: { id: string; giftKey: string; c: Copy }) {
         {gift.anonymous && <p className="fm-sup-note">{c("supportAnonymousNote")}</p>}
         <Link to={kept("/")} className="fm-track-btn">{c("supportBackToShop")}</Link>
       </section>
+      {gift.receipt && charity && <TaxReceipt receipt={gift.receipt} charity={charity} money={money} c={c} />}
     </>
+  );
+}
+
+/** The giver's tax receipt (G3), laid out to print on its own: the charity's wording for its kind. */
+function TaxReceipt({ receipt, charity, money, c }: { receipt: Receipt; charity: Charity; money: (minor: number) => string; c: Copy }) {
+  const ca = charity.kind !== "us";
+  const cancelled = receipt.status === "cancelled";
+  return (
+    <section {...regionProps("supportReceiptCard")} className="fm-track-card p-5 sm:p-8 fm-sup-receipt max-w-xl mt-8" aria-labelledby="sup-receipt" data-cancelled={cancelled || undefined}>
+      <h2 id="sup-receipt" className="fm-track-mono">{c("supportReceiptHeading")}</h2>
+      <p className="fm-sup-receipt-title">{c(ca ? "supportReceiptTitleCa" : "supportReceiptTitleUs")}</p>
+      {receipt.test && <div className="fm-track-notice" data-tone="danger" role="note"><p>{c("supportReceiptTest")}</p></div>}
+      {cancelled && <div className="fm-track-notice" data-tone="danger" role="note"><p>{c("supportReceiptCancelled")}</p></div>}
+      <div className="fm-track-ledger">
+        <Row label={c("supportReceiptNumber")} value={receipt.number} />
+        {receipt.replaces && <Row label={c("supportReceiptReplaces")} value={receipt.replaces} />}
+        <Row label={c("supportReceiptIssued")} value={receipt.issuedOn} />
+        <Row label={c("supportReceiptReceived")} value={receipt.receivedOn} />
+        <Row label={c("supportReceiptDonor")} value={[receipt.name, receiptAddressLine(receipt.address)].filter(Boolean).join(", ")} />
+        <Row label={c("supportGiftRow")} value={money(receipt.eligibleMinor)} />
+        {ca && <Row label={c("supportReceiptEligible")} value={money(receipt.eligibleMinor)} />}
+        <Row label={c("supportReceiptCharity")} value={`${charity.name}, ${charity.address}`} />
+        <Row label={c(ca ? "supportReceiptCharityNoCa" : "supportReceiptCharityNoUs")} value={charity.number} />
+        {ca && charity.signer && <Row label={c("supportReceiptSigned")} value={charity.signer} />}
+      </div>
+      <p className="fm-sup-note">{c(ca ? "supportReceiptCra" : "supportReceiptNoGoods")}</p>
+      {!cancelled && <button type="button" className="fm-track-btn fm-track-btn-ghost fm-sup-print" onClick={() => window.print()}>{c("supportReceiptPrint")}</button>}
+    </section>
   );
 }
