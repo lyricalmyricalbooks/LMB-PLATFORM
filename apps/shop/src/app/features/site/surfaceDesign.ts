@@ -17,6 +17,7 @@ export function resolveSurfaceDesign(design: any, pathname: string) {
     : pathname === "/book" ? "bookingsPage"
     : pathname === "/events" ? "eventsPage"
     : pathname === "/classes" ? "classesPage"
+    : pathname === "/support" ? "supportPage"
     : pathname !== "/" && !pathname.startsWith("/admin") ? "page404" : null;
   if (!template) return design;
   const custom = template === "page" ? design[`page:${safeDecode(pathname.slice(6))}`] : null;

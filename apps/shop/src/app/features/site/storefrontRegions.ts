@@ -133,6 +133,16 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "classesNotice", label: "No classes and closed messages", required: true },
     { id: "classesGlow", label: "Classes page top strip" },
   ] },
+  { id: "supportLayout", title: "Support · layout & elements", copy: "Support page", files: ["features/site/SupportPage.tsx"], regions: [
+    { id: "supportHeader", label: "Support page navigation" },
+    { id: "supportIntro", label: "Support heading & description" },
+    { id: "supportAmounts", label: "Amount buttons and other amount", required: true },
+    { id: "supportForm", label: "Your details and Give button", required: true },
+    { id: "supportSummary", label: "What you give summary" },
+    { id: "supportThanks", label: "Thank-you after giving" },
+    { id: "supportNotice", label: "Closed and not-found messages", required: true },
+    { id: "supportGlow", label: "Support page top strip" },
+  ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
     { id: "stripePaymentPanel", label: "Stripe payment panel", required: true },
     { id: "stripePaymentHeader", label: "Stripe payment method selector", required: true },

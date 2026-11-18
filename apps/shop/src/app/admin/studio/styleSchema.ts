@@ -342,6 +342,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "hideHeaderBookings", label: "Hide Book a time (calendar) icon; it only shows while you take bookings", kind: "toggle" },
       { key: "hideHeaderEvents", label: "Hide Events (ticket) icon; it only shows while you have events coming up", kind: "toggle" },
       { key: "hideHeaderClasses", label: "Hide Classes (cap) icon; it only shows while you have classes on your timetable", kind: "toggle" },
+      { key: "hideHeaderSupport", label: "Hide Support (heart) icon; it only shows while you take gifts", kind: "toggle" },
       { key: "hideHeaderAccount", label: "Hide account icon", kind: "toggle" },
       { key: "hideCurrencySelector", label: "Hide currency selector", kind: "toggle" },
       { key: "hideThemeToggle", label: "Hide light/dark toggle", kind: "toggle" },

@@ -88,7 +88,7 @@ export function pageLabel(path: string, books: Book[] | null | undefined): strin
   if (m) { try { return titleCase(decodeURIComponent(m[1])); } catch { return titleCase(m[1]); } }
   m = p.match(/\/collections\/([^/]+)$/);
   if (m) { try { return titleCase(decodeURIComponent(m[1])); } catch { return titleCase(m[1]); } }
-  const named: Record<string, string> = { "/checkout": "Checkout", "/cart": "Bag", "/wishlist": "Wishlist", "/track": "Order tracking", "/book": "Book a time", "/events": "Events", "/classes": "Classes", "/account": "Account" };
+  const named: Record<string, string> = { "/checkout": "Checkout", "/cart": "Bag", "/wishlist": "Wishlist", "/track": "Order tracking", "/book": "Book a time", "/events": "Events", "/classes": "Classes", "/support": "Support", "/account": "Account" };
   for (const [route, label] of Object.entries(named)) if (p === route || p.endsWith(route)) return label;
   if (p.startsWith("/account")) return "Account";
   return p;

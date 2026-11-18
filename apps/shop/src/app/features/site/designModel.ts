@@ -11,7 +11,7 @@
 import { designEqual } from "./designEqual";
 
 /** Page surfaces that can carry their own overrides (custom pages add `page:<slug>`). */
-export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404", "wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage"];
+export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404", "wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage", "supportPage"];
 /** Alternate book/collection templates (Studio 2.8, features/site/templateAlternates.ts). */
 const ALT_SURFACE = /^(productPage|collectionPage)~[a-z0-9][a-z0-9-]{0,39}$/;
 export const isSurfaceKey = (key: string) => STATIC_SURFACES.includes(key) || key.startsWith("page:") || ALT_SURFACE.test(key);
