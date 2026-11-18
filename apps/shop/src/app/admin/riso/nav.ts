@@ -43,7 +43,7 @@ export const NAV: NavEntry[] = [
     { id: "taxes", label: "Taxes", icon: Receipt },
     { id: "designer", label: "Design", icon: Palette },
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
-    { id: "notifications", label: "Email sender", icon: Mail },
+    { id: "notifications", label: "Emails", icon: Mail },
     // Every Google service in one place, with one sign-in (GoogleSettings.tsx); hidden on a shop not run by Colophon.
     { id: "google", label: "Google", icon: Plug },
     // What installed apps changed, and why a change was refused (AppsSettings.tsx); hidden on a shop not run by Colophon.
@@ -125,10 +125,10 @@ export const STOCKROOM_SIDE: Menu = [
   { label: "Inventory", icon: Boxes, pages: [S("dashboard"), "inventory", REORDER_TAB], labels: { [S("dashboard")]: "Overview", inventory: "Count" } },
   // v4: two groups, Record and After the sale.
   { label: "Sales", icon: Receipt, pages: [S("history"), S("manual"), S("shipping"), S("customers")],
-    labels: { [S("customers")]: "Buyers" },
+    labels: { [S("customers")]: "Customers" },
     sections: [{ label: "Record", pages: [S("history"), S("manual")] }, { label: "After the sale", pages: [S("shipping"), S("customers")] }] },
   // v4: Consignment is called Stockists.
-  { label: "Stockists", icon: Store, pages: [S("consignment")], labels: { [S("consignment")]: "Stockists and terms" } },
+  { label: "Stockists", icon: Store, pages: [S("consignment")], labels: { [S("consignment")]: "Stockists" } },
   { label: "Invoices", icon: FileText, pages: [S("invoices"), S("quotes"), S("recurring")],
     labels: { [S("invoices")]: "Invoices", [S("quotes")]: "Quotes", [S("recurring")]: "Repeating" } },
   // Tax centre + Bookkeeping mockup (12 November 2026): the Tax centre is one page; Bookkeeping is five tabs under one
@@ -293,15 +293,15 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   giftCards: { title: "Gift cards", description: "Bought and issued gift cards, with balances and history." },
   reviews: { title: "Reviews", description: "Check customer reviews before they show on your website." },
   channels: { title: "Sales channels", description: "Sell where people already look: Facebook, Instagram, Pinterest, TikTok and Google." },
-  design: { title: "Design", description: "Design your website in Studio." },
+  design: { title: "Online store", description: "How your website looks, and its pages." },
   socialPosts: { title: "Social posts", description: "Post your products to your connected accounts, now or at a time you pick." },
   messages: { title: "Messages", description: "Messages people send you from the contact form on your website." },
   settings: { title: "Settings", description: "Your shop's details, shipping, payments and emails." },
   shipping: { title: "Shipping", description: "Where you ship to and what it costs." },
   payments: { title: "Payments", description: "How customers pay you, and in which currency." },
-  notifications: { title: "Email sender", description: "The emails your shop sends, and who they come from." },
   google: { title: "Google", description: "Analytics, Search Console, Shopping listings and your sales spreadsheet." },
   apps: { title: "Apps", description: "Apps that work with your shop, and what each can see." },
+  notifications: { title: "Emails", description: "The emails your shop sends, and who they come from." },
   security: { title: "Security", description: "Two-step sign-in for whoever is signed in." },
   general: { title: "General", description: "Your brand's details, your web address and how the shop runs." },
   taxes: { title: "Taxes", description: "The tax rates your checkout charges." },

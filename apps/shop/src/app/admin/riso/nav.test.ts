@@ -14,8 +14,8 @@ describe("admin navigation", () => {
   it("keeps nested Settings navigation (general, shipping, payments, taxes, design, notifications, email sender, team)", () => {
     const settings = NAV.find((n) => n.id === "settings");
     expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications", "google", "apps", "team", "security", "plan", "billing"]);
-    // Notifications and Email sender are one page, listed once as "Email sender".
-    expect(settings?.children?.find((c) => c.id === "notifications")?.label).toBe("Email sender");
+    // Notifications and Email sender are one page, listed once as "Emails".
+    expect(settings?.children?.find((c) => c.id === "notifications")?.label).toBe("Emails");
   });
 
   it("has a title and description for every module", () => {
