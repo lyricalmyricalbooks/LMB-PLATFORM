@@ -47,14 +47,14 @@ test("only platform admins see or change a shop's ways to sell", async () => {
   assert.equal(await w.shopData.get(SHOP, FEATURES_DOC), null);
 });
 
-test("today only Events, Classes, Digital goods, Donations and Memberships are built, so nothing else can be turned on", async () => {
+test("all six ways are built now, so every one can be turned on", async () => {
   const w = await world({ ways: WAYS });
-  assert.deepEqual(WAYS.filter((way) => way.built).map((way) => way.id), ["events", "classes", "digital", "giving", "memberships"]);
+  assert.deepEqual(WAYS.filter((way) => way.built).map((way) => way.id), ["events", "classes", "digital", "giving", "memberships", "rentals"]);
   for (const way of WAYS.filter((x) => !x.built)) {
     await assert.rejects(w.desk.set(ADMIN, { shopId: SHOP, way: way.id, on: true }), (e) => e.status === 409 && /isn't built yet/.test(e.message), way.id);
   }
   assert.equal(await w.shopData.get(SHOP, FEATURES_DOC), null);
-  assert.ok((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.every((way) => way.built === ["events", "classes", "giving", "digital", "memberships"].includes(way.id) && !way.on));
+  assert.ok((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.every((way) => way.built === ["events", "classes", "giving", "digital", "memberships", "rentals"].includes(way.id) && !way.on));
 });
 
 test("off until turned on; on writes the shop's switch beside Bookings' and the registry, logged once", async () => {

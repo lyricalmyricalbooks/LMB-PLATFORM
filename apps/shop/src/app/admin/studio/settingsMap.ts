@@ -286,7 +286,7 @@ export function changedCounts(groups: StyleGroup[], design: any, defaults: any):
 export const TEXT_HEADINGS: { id: string; title: string; groups: string[] }[] = [
   { id: "everywhere", title: "Across the whole shop", groups: ["Site & sharing", "Header", "Footer", "Newsletter", "Cookie banner", "Sections"] },
   { id: "shop", title: "Shop & book pages", groups: ["Catalog & empty states", "Collection & wishlist pages", "Search & filters", "Product page", "Reviews"] },
-  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Events page", "Classes page", "Support page", "Membership page", "Customer account"] },
+  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Events page", "Classes page", "Support page", "Membership page", "Rentals page", "Customer account"] },
   { id: "special", title: "Special pages & messages", groups: ["Custom pages & 404", "Loading screen", "Under construction", "Maintenance page"] },
 ];
 
@@ -310,6 +310,7 @@ export const TEXT_BLURBS: Record<string, string> = {
   "Classes page": "The page where customers see your class timetable and pick a class to sign up for.",
   "Support page": "The page where people give your shop a gift or a tip, and the thank-you they see after.",
   "Membership page": "The page listing your membership plans, where people join.",
+  "Rentals page": "The page where people pick something to rent, choose when, and pay.",
   "Customer account": "Sign-in, account pages and their messages.",
   "Custom pages & 404": "Missing-page message and custom-page helper words.",
   "Loading screen": "Words on the loading splash.",
@@ -359,6 +360,11 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "What's on", match: /^events(Eyebrow|Title|Subtitle|Back|AllEvents|Loading|LoadError|Retry|None|NotFound|From|Free|SoldOut|SalesClosed|Cancelled|Online)/ },
     { title: "Choosing tickets & paying", match: /^events(TicketsHeading|Left|Fewer|More|PlusTax|Fee[A-Z]|Extras[A-Z]|Code[A-Z]|DiscountRow|YourDetails|Name$|Email|Need|Total|Pay|GetFree|Working|Error|TicketsChanged|NotAvailable|TooMany)/ },
     { title: "Your tickets", match: /^events(Going|Held|Ended|Refunded|TicketsCancelled|CodeQr$|TicketUsed|OrderNotFound|When|Where|NameRow|Tax|Paid|YourTickets|TicketNumber|ShowCode|JoinOnline|AddCalendar|GoogleCalendar|TryAgain)/ },
+  ],
+  "Rentals page": [
+    { title: "The page & things to rent", match: /^rentals(Eyebrow|Title|Subtitle|Back|Loading|LoadError|Retry|Closed|PerHour|DayCap|PerDay|PerWeek|PlusTax|Rent|Close|FooterLink)/ },
+    { title: "Choosing when & paying", match: /^rentals(PickHeading|Day$|Pickup|HowLong|Hour|Return|StartTimes|FreeDays|NoTimes|Name|Email|DayOne|Days|PickTime|PickDays|TaxNote|Pay|Working|Cancel|HoldNote|Need|Taken|NotReady|Error)/ },
+    { title: "Your rental", match: /^rentals(Done|CancelledEyebrow|PayingEyebrow|NotFound)/ },
   ],
   "Membership page": [
     { title: "The page & plans", match: /^membership(Eyebrow|Title|Subtitle|Back|Loading|LoadError|Retry|Closed|NotReady|Every|MemberPrice|Trial|PerksLabel|BoxLine|Join|StartTrial|FinePrint|Error(Member|Plan|TooMany|Generic)|SeeAccount)/ },

@@ -5,7 +5,7 @@ import { StoreHeader } from "./StoreHeader";
 import { useSiteData } from "./useSiteData";
 
 /** Pages that had their own small title bar and no shop header before Studio 2.0 · 2.1. */
-export type UtilitySurface = "wishlistPage" | "accountPage" | "trackingPage" | "bookingsPage" | "eventsPage" | "classesPage" | "supportPage" | "membershipPage" | "page404";
+export type UtilitySurface = "wishlistPage" | "accountPage" | "trackingPage" | "bookingsPage" | "eventsPage" | "classesPage" | "supportPage" | "membershipPage" | "rentalsPage" | "page404";
 
 const InStoreChrome = createContext(false);
 

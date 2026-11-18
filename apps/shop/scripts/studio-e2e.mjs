@@ -2182,6 +2182,15 @@ await check("the Membership page opens in the designer with sample plans and its
   if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/membership-phone.png` });
 }, "?membership=1#designer?t=membershipPage&tab=sections");
 
+await check("the Rentals page opens in the designer with sample items and its footer link", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  // Sample items stand in for the shop's own, so the page can be designed before Rentals is on.
+  await frame.locator("[data-store-region=rentalsItems] .fm-rnt-item").nth(1).waitFor({ timeout: 15000 });
+  await frame.locator("footer a[href$='/rentals'], footer a[href*='/rentals?']").first().waitFor({ state: "attached", timeout: 5000 });
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/rentals-page.png` });
+}, "?rentals=1#designer?t=rentalsPage&tab=sections");
+
 await check("the Book a time form offers Text me reminders, which needs a phone number first", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();
