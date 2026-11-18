@@ -11,8 +11,8 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -42,6 +42,8 @@ export function Bookings() {
   const [upcoming, setUpcoming] = useState<Booking[]>([]);
   const [rowsError, setRowsError] = useState("");
   const [open, setOpen] = useState<Booking | null>(null);
+  // A service of a visit drawn on its own (plan 4, 2.1) opens the whole visit.
+  const openWhole = (b: Booking) => setOpen(b.whole || b);
   const [creating, setCreating] = useState(false);
   // A tap on an empty time on the week grid: New booking, starting there.
   const [bookAt, setBookAt] = useState<{ start: string; staffId?: string } | null>(null);
@@ -117,7 +119,7 @@ export function Bookings() {
             <button type="button" className="bkg-next-body" onClick={() => setOpen(next)}>
               <span className="bkg-next-when">{timeText(next.start, ZONE)} <span>{whenFromNow(next, Date.now(), ZONE)}</span></span>
               <span className="bkg-next-who">{next.customer.name}</span>
-              <span className="bkg-next-what">{next.serviceName} · {next.minutes} min</span>
+              <span className="bkg-next-what">{visitName(next)} · {next.minutes} min</span>
             </button>
           ) : (
             <div className="bkg-next-body">
@@ -168,9 +170,9 @@ export function Bookings() {
               tabs={[{ id: "week", label: "Week" }, ...(hasTeam ? [{ id: "day" as const, label: "Team day" }] : []), { id: "list", label: "List" }]} />
           </div>
           {shownView === "week"
-            ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} onBlock={setBlockShown} onBookAt={(start) => { setBookAt({ start }); setCreating(true); }} />
+            ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={openWhole} onBlock={setBlockShown} onBookAt={(start) => { setBookAt({ start }); setCreating(true); }} />
             : shownView === "day"
-              ? <TeamDayView day={teamDayShown} setDay={showDay} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} onBlock={setBlockShown} onBookAt={(start, staffId) => { setBookAt({ start, staffId }); setCreating(true); }} />
+              ? <TeamDayView day={teamDayShown} setDay={showDay} rows={rows} error={rowsError} settings={setup.settings} onOpen={openWhole} onBlock={setBlockShown} onBookAt={(start, staffId) => { setBookAt({ start, staffId }); setCreating(true); }} />
               : <ListView services={setup.services} onOpen={setOpen} />}
         </>)}
       </TabPanel>
@@ -217,7 +219,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
   const days = weekDays(monday);
   const groups = useMemo(() => byDay(rows || [], ZONE), [rows]);
   // The week as an hour grid (plan 4, 1.1): each booking placed by its time, in its person's (or service's) ink.
-  const grid = useMemo(() => weekGrid(rows || [], settings, services, monday, ZONE), [rows, settings, services, monday]);
+  const grid = useMemo(() => weekGrid(expandParts(rows || []), settings, services, monday, ZONE), [rows, settings, services, monday]);
   const span = grid.endMin - grid.startMin;
   const hourMarks = Array.from({ length: span / 60 }, (_, i) => grid.startMin + i * 60);
   const at = (min: number) => `calc(var(--bkg-min) * ${min})`;
@@ -638,7 +640,7 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBlock, onBo
   /** A click on blocked time: what it is, and Remove. */ onBlock: (band: BlockedBand) => void;
   /** A tap on an empty time in a person's column: New booking with them, starting there. */ onBookAt: (startIso: string, staffId: string) => void;
 }) {
-  const t = useMemo(() => teamDay(rows || [], settings, day, ZONE), [rows, settings, day]);
+  const t = useMemo(() => teamDay(expandParts(rows || []), settings, day, ZONE), [rows, settings, day]);
   const now = today();
   const span = t.endMin - t.startMin;
   const hours = Array.from({ length: span / 60 }, (_, i) => t.startMin + i * 60);
@@ -785,7 +787,7 @@ function ListView({ services, onOpen }: { services: BookingService[]; onOpen: (b
                     <button type="button" className="bkg-list-row" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
                       <span className="bkg-list-time">{timeText(b.start, ZONE)}</span>
                       <span className="bkg-list-who">{b.customer.name}<small>{b.customer.email}</small></span>
-                      <span className="bkg-list-what">{b.serviceName}<small>{b.minutes} min</small></span>
+                      <span className="bkg-list-what">{visitName(b)}<small>{b.minutes} min</small></span>
                       <span className="bkg-list-pay">{paymentText(b)}</span>
                       {tag ? <StatusBadge tone={tag === "Cancelled" || tag === "No-show" ? "danger" : "warning"}>{tag}</StatusBadge> : <span aria-hidden />}
                     </button>
@@ -1233,7 +1235,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
   };
   const service = services.find((s) => s.id === b.serviceId);
   return (
-    <Drawer open onClose={onClose} title={b.customer.name} description={`${b.serviceName} · ${dayText(day, "long")}`}
+    <Drawer open onClose={onClose} title={b.customer.name} description={`${visitName(b)} · ${dayText(day, "long")}`}
       footerStart={b.status !== "cancelled" ? <DestructiveButton onClick={() => void cancel()} busy={busy === "cancel"} disabled={!!busy}>Cancel booking</DestructiveButton> : undefined}
       footer={b.status === "confirmed" ? <PrimaryButton onClick={() => setMoving(true)} disabled={!!busy || !service}>Move</PrimaryButton> : undefined}>
       <div className="bkg-detail">
@@ -1247,6 +1249,13 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
             {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : "Cancelled"}
           </StatusBadge>
         </div>
+        {!!b.parts?.length && (
+          <ol className="bkg-visit" aria-label="Services in this visit">
+            {visitPlan(b).map((p, i) => (
+              <li key={i}><span className="bkg-visit-time">{timeText(p.start, ZONE)}</span><strong>{p.serviceName}</strong>{p.staffName && <span>with {p.staffName}</span>}</li>
+            ))}
+          </ol>
+        )}
         {!!b.gapBefore && <p className="bkg-detail-line"><Clock size={16} aria-hidden /> {b.gapBefore} minutes kept free before it</p>}
         {!!processingText(b) && <p className="bkg-detail-line"><Hourglass size={16} aria-hidden /> {processingText(b)}: you're free for a short booking then</p>}
         {!!b.extras?.length && <p className="bkg-detail-line"><Plus size={16} aria-hidden /> Add-ons: {b.extras.map((x) => x.name).join(", ")}</p>}
@@ -1255,7 +1264,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
         {b.meetUrl && b.status === "confirmed" && <p className="bkg-detail-line"><Video size={16} aria-hidden /> <a href={b.meetUrl} target="_blank" rel="noopener noreferrer">Join the Google Meet call</a></p>}
         <dl className="bkg-facts">
-          {b.staffName && <div><dt>With</dt><dd>{b.staffName}{b.roomName ? `, ${b.roomName}` : ""}</dd></div>}
+          {b.staffName && !b.parts?.length && <div><dt>With</dt><dd>{b.staffName}{b.roomName ? `, ${b.roomName}` : ""}</dd></div>}
           {!b.staffName && b.roomName && <div><dt>Room</dt><dd>{b.roomName}</dd></div>}
           <div><dt>Email</dt><dd><a href={`mailto:${b.customer.email}`}>{b.customer.email}</a></dd></div>
           <ClientFormFacts email={b.customer.email} wrap />
@@ -1328,13 +1337,13 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
           }} />
       )}
       {moving && service && (
-        <TimeDialog title="Move booking" description={`${b.customer.name} gets an email with the new time.`} service={service} initialDay={day} except={b.id} confirmLabel="Move here"
+        <TimeDialog title="Move booking" description={b.parts?.length ? `The whole visit moves together. ${b.customer.name} gets an email with the new time.` : `${b.customer.name} gets an email with the new time.`} service={service} initialDay={day} except={b.id} confirmLabel="Move here"
           staffId={moveTo} onClose={() => setMoving(false)}
           onPick={async (start) => {
             await bookingsAdmin("move", { id: b.id, start, ...(moveTo !== (b.staffId || "") ? { staffId: moveTo } : {}) });
             toast.success("Booking moved"); setMoving(false);
           }}>
-          <PersonPick settings={settings} serviceId={b.serviceId} value={moveTo} onChange={setMoveTo} />
+          {!b.parts?.length && <PersonPick settings={settings} serviceId={b.serviceId} value={moveTo} onChange={setMoveTo} />}
         </TimeDialog>
       )}
       {confirmNode}

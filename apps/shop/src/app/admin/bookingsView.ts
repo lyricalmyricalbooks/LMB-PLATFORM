@@ -143,6 +143,39 @@ export function byDay(rows: readonly Booking[], zone: string): Map<string, Booki
   return out;
 }
 
+/**
+ * Several services in one visit (plan 4, 2.1): on a calendar each service is its own card, at its own time with its own
+ * person. The first keeps the booking's own fields up to the second's start (`partIndex` 0); each later one takes its
+ * part's service, person, room and times (`partIndex` n). Every card carries `whole`, the booking to open. Other rows
+ * pass through as they are.
+ */
+export function expandParts(rows: readonly Booking[]): Booking[] {
+  const out: Booking[] = [];
+  for (const b of rows) {
+    const parts = b.parts || [];
+    if (!parts.length) { out.push(b); continue; }
+    const leadEnd = parts[0].start;
+    out.push({ ...b, end: leadEnd, minutes: Math.round((Date.parse(leadEnd) - Date.parse(b.start)) / 60_000), partIndex: 0, whole: b });
+    parts.forEach((p, n) => out.push({
+      ...b, serviceId: p.serviceId, serviceName: p.serviceName, minutes: p.minutes, start: p.start, end: p.end,
+      staffId: p.staffId || undefined, staffName: p.staffName || undefined, roomId: p.roomId || undefined, roomName: p.roomName || undefined,
+      partIndex: n + 1, whole: b,
+    }));
+  }
+  return out;
+}
+
+/** Each person's share of a visit, by the price of their services (equal shares when nothing has a price). */
+export function visitShares(b: Booking): { staffId: string; staffName: string; share: number }[] {
+  const parts = b.parts || [];
+  if (!parts.length) return [{ staffId: b.staffId || "", staffName: b.staffName || "", share: 1 }];
+  const lead = b.leadPriceMinor ?? Math.max(0, (b.priceMinor || 0) - parts.reduce((n, p) => n + (p.priceMinor || 0), 0));
+  const prices = [lead, ...parts.map((p) => p.priceMinor || 0)];
+  const total = prices.reduce((n, x) => n + x, 0);
+  const who = [{ staffId: b.staffId || "", staffName: b.staffName || "" }, ...parts.map((p) => ({ staffId: p.staffId || "", staffName: p.staffName || "" }))];
+  return who.map((w, i) => ({ ...w, share: total > 0 ? prices[i] / total : 1 / who.length }));
+}
+
 /** The next booking still to come (or under way), or null. */
 export function nextUp(rows: readonly Booking[], nowMs: number): Booking | null {
   return [...rows]
@@ -482,7 +515,7 @@ export function weekGrid(rows: readonly Booking[], settings: Pick<BookingSetting
       const cards = new Map<string, WeekBlock>();
       for (const b of list) {
         const places = placesOf(b.serviceId);
-        const key = places > 1 ? `${b.serviceId}|${b.start}` : b.id;
+        const key = places > 1 ? `${b.serviceId}|${b.start}` : b.partIndex ? `${b.id}~p${b.partIndex}` : b.id;
         const found = cards.get(key);
         if (found) { found.people.push(b); continue; }
         const top = Math.max(0, minute(b.start) - startMin);
@@ -562,13 +595,22 @@ export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[],
   for (const p of staff) line(p.id, p.name, commissionOf(p.commissionPercent));
   for (const b of rows) {
     if (b.status === "held" || dayOf(Date.parse(b.start), zone).slice(0, 7) !== month) continue;
-    const id = b.staffId || NOBODY;
-    const l = line(id, id ? b.staffName || "Someone no longer listed" : "Not given to anyone", 0);
     const kept = moneyKept(b);
-    l.takenMinor += kept - taxIn(b, kept);
-    l.tipsMinor += tipTaken(b);
-    // A visit counts once it has started; later ones this month aren't visits yet.
-    if (b.status === "confirmed" && !b.noShow && Date.parse(b.start) <= now) l.visits += 1;
+    const taken = kept - taxIn(b, kept);
+    const tips = tipTaken(b);
+    // A visit with several services shares its money by each service's price (plan 4, 2.1); each person counts it once.
+    const shares = visitShares(b);
+    const counted = new Set<string>();
+    shares.forEach((sh, i) => {
+      const id = sh.staffId || NOBODY;
+      const l = line(id, id ? sh.staffName || "Someone no longer listed" : "Not given to anyone", 0);
+      // Rounded shares, with the last taking what is left so the total never drifts by a cent.
+      const part = (total: number) => i === shares.length - 1 ? total - shares.slice(0, -1).reduce((n, x) => n + Math.round(total * x.share), 0) : Math.round(total * sh.share);
+      l.takenMinor += part(taken);
+      l.tipsMinor += part(tips);
+      // A visit counts once it has started; later ones this month aren't visits yet.
+      if (!counted.has(id) && b.status === "confirmed" && !b.noShow && Date.parse(b.start) <= now) { l.visits += 1; counted.add(id); }
+    });
   }
   const people = [...lines.values()]
     .filter((l) => l.visits || l.takenMinor || l.tipsMinor || staff.some((p) => p.id === l.id && p.active))
@@ -634,8 +676,8 @@ export function draggedTo(b: { start: string; minutes: number }, toDay: string, 
 }
 
 /** A booking the owner may drag: one person's confirmed visit (not a class or a course) that hasn't ended. */
-export const draggable = (b: Pick<Booking, "status" | "end"> & { course?: unknown }, places: number, nowMs: number): boolean =>
-  b.status === "confirmed" && !b.course && places <= 1 && Date.parse(b.end) > nowMs;
+export const draggable = (b: Pick<Booking, "status" | "end"> & { course?: unknown; parts?: unknown[] | null; whole?: unknown }, places: number, nowMs: number): boolean =>
+  b.status === "confirmed" && !b.course && !b.parts?.length && !b.whole && places <= 1 && Date.parse(b.end) > nowMs;
 
 // ── Processing time (bookings plan 4, step 1.5) ──────────────────────────────────────────────────────────────────────
 

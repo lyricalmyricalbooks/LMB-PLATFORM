@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import { cleanBookingSettings, cleanService, type BookingExtra, type BookingService, type BookingSettings, type SavedCard } from "../../shared/bookingTimes";
+import { cleanBookingSettings, cleanService, type BookingExtra, type BookingService, type BookingSettings, type SavedCard, type VisitPart } from "../../shared/bookingTimes";
 
 export type BookingStatus = "held" | "confirmed" | "cancelled";
 export type Booking = {
@@ -46,6 +46,10 @@ export type Booking = {
   series?: { id: string; visit: number; visits: number; everyWeeks: number } | null;
   /** The client asked to hear if an earlier time opens (Services plan 2, B5). */
   earlierWanted?: boolean;
+  /** Several services in one visit (plan 4, 2.1): the services after the first, back to back, each with its person. */
+  parts?: VisitPart[] | null; leadPriceMinor?: number;
+  /** On the calendar only: one service of a visit drawn as its own card (`partIndex` 0 is the first), and the whole visit. */
+  partIndex?: number; whole?: Booking;
 };
 
 /**

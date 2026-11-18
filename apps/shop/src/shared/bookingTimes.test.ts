@@ -9,6 +9,7 @@ import {
   cleanBlocks, blockOn, blockedBusy, MAX_BLOCKS, processingStretch,
   cleanSpecialHours, hoursOnDay, personHoursOn, specialOn, MAX_SPECIAL_DAYS, bookingsOnDay, ownerBookingSettings,
   roomUnits, roomUnitsText, MAX_ROOM_UNITS, classPlacesLeft,
+  visitService, visitTimeline, visitStaff, visitFreeTimes, fitsAt, joinsVisit, MAX_VISIT_PARTS,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -869,5 +870,73 @@ describe("processing time (plan 4, 1.5)", () => {
     expect(whoIsFree({ service: trim, settings: team, busy: anas, start: at(day, "10:30"), zone: ZONE, nowMs: NOW, staffId: "ana" })).toBe("ana");
     expect(freeTimes({ service: trim, settings: { ...settings, step: 15 }, busy, day, zone: ZONE, nowMs: NOW }).map(hhmm)).toEqual(expect.arrayContaining(["10:30", "10:45"]));
     expect(freeTimes({ service: trim, settings: { ...settings, step: 15 }, busy, day, zone: ZONE, nowMs: NOW }).map(hhmm)).not.toContain("11:00");
+  });
+});
+
+describe("several services in one visit (plan 4, 2.1)", () => {
+  const day = "2026-11-16";
+  const ten = at(day, "10:00");
+  const cut = { id: "cut", minutes: 60, gapAfter: 15, priceMinor: 6000, payment: "full" as const };
+  const colour = { id: "colour", minutes: 90, gapAfter: 10, priceMinor: 12000, payment: "deposit" as const, depositMinor: 3000, chargeTax: true };
+  const people = [{ id: "ana", name: "Ana", serviceIds: ["cut"] }, { id: "ben", name: "Ben" }];
+  const team = { ...cleanBookingSettings({ ...settings, staff: people }), live: true, minNoticeHours: 0 };
+
+  it("lets only one-to-one services join a visit", () => {
+    expect(MAX_VISIT_PARTS).toBe(3);
+    expect(joinsVisit(cut)).toBe(true);
+    expect(joinsVisit({ places: 6 })).toBe(false);
+    expect(joinsVisit({ places: 6, courseDates: ["2026-11-20", "2026-11-27"] })).toBe(false);
+  });
+
+  it("runs the services back to back, keeping only the last tidy-up time", () => {
+    const t = visitTimeline(ten, [cut, colour]);
+    expect(t.map((x) => [hhmm(x.start), hhmm(x.end), hhmm(x.blockEnd)])).toEqual([["10:00", "11:00", "11:00"], ["11:00", "12:30", "12:40"]]);
+  });
+
+  it("adds up the price, asks the card for each part's own share and taxes only the taxed part", () => {
+    const v = visitService(cut, [colour]);
+    expect(v.priceMinor).toBe(18000);
+    expect(v.payment).toBe("deposit");
+    expect(v.depositMinor).toBe(9000);
+    expect(v.taxedMinor).toBe(12000);
+    expect(v.chargeTax).toBe(true);
+    expect(v.gapAfter).toBe(0);
+    expect(visitService({ ...cut, payment: "atShop" }, [{ ...colour, payment: "atShop" }]).payment).toBe("atShop");
+    expect(visitService({ ...cut, payment: "free", priceMinor: 0 }, [{ ...colour, payment: "free", priceMinor: 0 }]).payment).toBe("free");
+    expect(visitService(cut, [{ ...colour, payment: "full" }]).payment).toBe("full");
+    // On its own, a service keeps its own money rules.
+    expect(visitService(cut, []).gapAfter).toBe(15);
+  });
+
+  it("gives each service someone who does it, keeping the same person when they can", () => {
+    expect(visitStaff({ services: [cut, colour], settings: team, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toEqual(["ana", "ben"]);
+    expect(visitStaff({ services: [colour, cut], settings: team, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toEqual(["ben", "ben"]);
+    // Ben busy for the colour: the visit doesn't fit at ten.
+    const benBusy = [{ start: at(day, "11:30"), end: at(day, "12:00"), staffId: "ben" }];
+    expect(visitStaff({ services: [cut, colour], settings: team, busy: benBusy, start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+    // Asked for by name.
+    expect(visitStaff({ services: [cut, cut], staffIds: ["", "ben"], settings: team, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toEqual(["ana", "ben"]);
+    expect(visitStaff({ services: [cut, colour], staffIds: ["", "ana"], settings: team, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+  });
+
+  it("never puts one person on two services at once, and books the shop's one calendar back to back", () => {
+    const one = { ...settings, minNoticeHours: 0 };
+    expect(visitStaff({ services: [cut, colour], settings: one, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toEqual(["", ""]);
+    expect(visitStaff({ services: [cut, colour], settings: one, busy: [{ start: at(day, "12:00"), end: at(day, "12:30") }], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+  });
+
+  it("offers only starts where the whole visit ends inside the hours", () => {
+    const times = visitFreeTimes({ services: [cut, colour], settings: team, busy: [], day, zone: ZONE, nowMs: NOW }).map(hhmm);
+    expect(times[0]).toBe("10:00");
+    // 2.5 hours from 14:30 ends at 17:00, the closing time; 15:00 would run past it.
+    expect(times).toContain("14:30");
+    expect(times).not.toContain("15:00");
+  });
+
+  it("checks a later service at any minute, inside the hours, never on a day off", () => {
+    expect(fitsAt({ service: colour, settings: team, busy: [], start: at(day, "11:10"), zone: ZONE, nowMs: NOW })).toBe("ben");
+    expect(fitsAt({ service: colour, settings: team, busy: [], start: at(day, "16:00"), zone: ZONE, nowMs: NOW })).toBeNull();
+    expect(fitsAt({ service: colour, settings: { ...team, daysOff: [day] }, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
+    expect(fitsAt({ service: { ...colour, places: 4 }, settings: team, busy: [], start: ten, zone: ZONE, nowMs: NOW })).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine } from "./bookingsView";
+import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -354,5 +354,45 @@ describe("holiday hours on the calendar (plan 4, 1.7)", () => {
   it("says a stretch in a line", () => {
     expect(specialHoursLine({ from: "2026-12-24", to: "2026-12-24", hours: [] })).toMatch(/Dec.*· Closed$/);
     expect(specialHoursLine({ from: "2026-12-21", to: "2027-01-02", hours: [{ start: "10:00", end: "14:00" }] })).toMatch(/ – .*· 10:00–14:00$/);
+  });
+});
+
+describe("several services in one visit (plan 4, 2.1)", () => {
+  const part = (over: Record<string, unknown>) => ({ serviceId: "colour", serviceName: "Colour", minutes: 60, gapAfter: 0, priceMinor: 6000, staffId: "ben", staffName: "Ben", roomId: "", roomName: "", start: "2026-11-17T16:00:00.000Z", end: "2026-11-17T17:00:00.000Z", ...over });
+  const visit = b({ id: "v", serviceId: "cut", serviceName: "Cut", staffId: "ana", staffName: "Ana", minutes: 120, end: "2026-11-17T17:00:00.000Z",
+    payment: "atShop", priceMinor: 10000, leadPriceMinor: 4000, paid: true, parts: [part({})] });
+
+  it("draws each service as its own card, opening the whole visit", () => {
+    const rows = expandParts([visit, b({ id: "plain" })]);
+    expect(rows.map((r) => [r.id, r.serviceName, r.staffId, r.start, r.end, r.partIndex])).toEqual([
+      ["v", "Cut", "ana", "2026-11-17T15:00:00.000Z", "2026-11-17T16:00:00.000Z", 0],
+      ["v", "Colour", "ben", "2026-11-17T16:00:00.000Z", "2026-11-17T17:00:00.000Z", 1],
+      ["plain", "Visit", undefined, "2026-11-17T15:00:00.000Z", "2026-11-17T16:00:00.000Z", undefined],
+    ]);
+    expect(rows[0].minutes).toBe(60);
+    expect(rows[1].whole).toBe(visit);
+    const grid = weekGrid(rows, { ...DEFAULT_BOOKING_SETTINGS, staff: [] }, [], "2026-11-16", ZONE);
+    const keys = grid.days.find((d) => d.day === "2026-11-17")!.blocks.map((k) => k.key).sort();
+    expect(keys).toEqual(["plain", "v", "v~p1"]);
+  });
+
+  it("can't be dragged: the whole visit moves from its drawer", () => {
+    expect(draggable(visit, 1, 0)).toBe(false);
+    expect(draggable(expandParts([visit])[1], 1, 0)).toBe(false);
+    expect(draggable(b({}), 1, 0)).toBe(true);
+  });
+
+  it("shares the money by each service's price and counts the visit once per person", () => {
+    expect(visitShares(visit).map((s) => [s.staffId, s.share])).toEqual([["ana", 0.4], ["ben", 0.6]]);
+    const staff = [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }].map((p) => ({ ...p, active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [] }) as unknown as StaffMember);
+    const pay = teamPay([visit], staff, ZONE, "2026-11", AFTER);
+    const of = (id: string) => pay.people.find((l) => l.id === id)!;
+    expect([of("ana").takenMinor, of("ben").takenMinor]).toEqual([4000, 6000]);
+    expect([of("ana").visits, of("ben").visits]).toEqual([1, 1]);
+    expect(pay.takenMinor).toBe(10000);
+    // Both services with one person: one visit, all the money.
+    const solo = { ...visit, parts: [part({ staffId: "ana", staffName: "Ana" })] };
+    const one = teamPay([solo], staff, ZONE, "2026-11", AFTER).people.find((l) => l.id === "ana")!;
+    expect([one.visits, one.takenMinor]).toEqual([1, 10000]);
   });
 });

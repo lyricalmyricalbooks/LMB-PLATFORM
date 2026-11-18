@@ -71,6 +71,7 @@ const {
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanBlocks, MAX_BLOCKS, cleanCheckInCode, checkInCodeFrom,
   cleanRun, runStarts, runSettings, runsOnline, withExtras, processingStretch,
+  MAX_VISIT_PARTS, joinsVisit, visitService, visitTimeline, visitStaff, visitFreeTimes, visitName, visitPlan,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -122,6 +123,15 @@ function spansOf(id, b) {
   const starts = Array.isArray(b.course?.starts) && b.course.starts.length ? b.course.starts.map((iso) => Date.parse(iso)) : [first];
   // `from`: where its time before (set-up or travel, plan 4, 1.6) begins, for the days it touches.
   const before = (b.gapBefore || 0) * MINUTE;
+  // Several services in one visit (plan 4, 2.1): the first runs until the next starts; each later one is its own item
+  // (`<id>~p<n>`), with its own person, and only the last keeps its tidy-up time.
+  if (Array.isArray(b.parts) && b.parts.length) {
+    const own = { key: id, start: first, end: Date.parse(b.parts[0].start), from: first - before };
+    return [own, ...b.parts.map((p, n) => {
+      const start = Date.parse(p.start);
+      return { key: `${id}~p${n + 1}`, start, end: Date.parse(p.end) + (p.gapAfter || 0) * MINUTE, from: start };
+    })];
+  }
   return starts.map((start, n) => ({ key: n ? `${id}~${n}` : id, start, end: start + length, from: start - before }));
 }
 
@@ -263,8 +273,10 @@ function extrasWords(b) {
 function publicBooking(id, b, settings, nowMs) {
   const start = Date.parse(b.start);
   return {
-    id, serviceId: b.serviceId, serviceName: b.serviceName, minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
+    id, serviceId: b.serviceId, serviceName: visitName(b), minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
     staffId: b.staffId || "", staffName: b.staffName || "",
+    // Several services in one visit (plan 4, 2.1): each in turn, with its time and who takes it.
+    ...(Array.isArray(b.parts) && b.parts.length ? { visit: visitPlan(b) } : {}),
     ...(Array.isArray(b.extras) && b.extras.length ? { extras: b.extras.map((e) => ({ id: e.id, name: e.name, minutes: e.minutes, priceMinor: e.priceMinor })) } : {}),
     // A course: every one of its dates (the first is `start`).
     ...(Array.isArray(b.course?.starts) && b.course.starts.length > 1 ? { courseStarts: b.course.starts } : {}),
@@ -284,9 +296,10 @@ function publicBooking(id, b, settings, nowMs) {
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
     // A course is one sign-up for all of its dates: it can be cancelled online, never moved.
-    canMove: b.status === "confirmed" && customerCanChange(start, settings, nowMs) && !b.course,
+    // A visit with several services is moved by the shop (each person's time has to fit again).
+    canMove: b.status === "confirmed" && customerCanChange(start, settings, nowMs) && !b.course && !b.parts?.length,
     // "Tell me if an earlier time opens": a one-to-one visit still ahead (never a class or a course).
-    canEarlier: b.status === "confirmed" && start > nowMs && !b.course, earlier: b.earlierWanted === true,
+    canEarlier: b.status === "confirmed" && start > nowMs && !b.course && !b.parts?.length, earlier: b.earlierWanted === true,
     cancelHours: settings.cancelHours,
     // Card on file: only whether one is kept, its last four and the fee (never its ids).
     cardHold: !!b.cardHold, lateFeeMinor: b.cardHold ? b.lateFeeMinor || 0 : 0, cardLast4: b.card?.last4 || "", feeMinor: b.fee?.amountMinor || 0,
@@ -417,6 +430,32 @@ function bookingActions({
     const s = (await readServices()).find((x) => x.id === id && x.active);
     return s ? joinableCourse(s, zone(), now().getTime()) ?? s : null;
   }
+  /**
+   * The services a client added after the first (plan 4, 2.1), from `also: [{ serviceId, staffId }]`: each a one-to-one
+   * service taking bookings, at the picked person's own length and price. { more } or { problem }.
+   */
+  async function visitParts(body, first, settings) {
+    const raw = Array.isArray(body?.also) ? body.also : [];
+    if (!raw.length) return { more: [] };
+    if (raw.length > MAX_VISIT_PARTS) return { problem: `One visit can hold at most ${MAX_VISIT_PARTS + 1} services.` };
+    if (!joinsVisit(first)) return { problem: "A class can't share a visit with other services. Please book it on its own." };
+    const listed = await readServices();
+    const more = [];
+    for (const a of raw) {
+      const s = listed.find((x) => x.id === a?.serviceId && x.active);
+      if (!s) return { problem: "One of those services isn't taking bookings right now." };
+      if (!joinsVisit(s)) return { problem: `${s.name} is a class, so it can't share a visit. Please book it on its own.` };
+      const staffId = String(a?.staffId || "");
+      if (staffId && !keptPerson(settings, s.id, staffId)) return { problem: `That person doesn't take ${s.name}. Please pick someone else.` };
+      more.push({ service: forPerson(s, settings, staffId), staffId });
+    }
+    return { more };
+  }
+  /** The visit as one service for the price rules (the first service's own when nothing was added). */
+  const visitPriced = (service, more) => (more.length ? visitService(service, more.map((m) => m.service)) : service);
+  /** Tax on a visit: only on the share of `amountMinor` from services that charge it. */
+  const taxBase = (service, amountMinor) => (service.taxedMinor === undefined || !(service.priceMinor > 0) ? amountMinor : Math.round((amountMinor * service.taxedMinor) / service.priceMinor));
+
   /** Only Stripe can keep a card for later; a Square shop's services book without one. */
   const canHoldCard = () => payments?.provider === "stripe";
   async function standalone() {
@@ -435,7 +474,7 @@ function bookingActions({
       balanceDue(b) ? `To pay at the visit: ${moneyWords(balanceDue(b), b.currency)}` : "",
       siteLink("/admin#bookings"),
     ].filter(Boolean).join("\n");
-    return { title: `${who}: ${b.serviceName || "Booking"}${b.staffName ? ` (${b.staffName})` : ""}`, start: b.start, end: b.end, location: b.location || "", details };
+    return { title: `${who}: ${visitName(b) || "Booking"}${b.staffName ? ` (${b.staffName})` : ""}`, start: b.start, end: b.end, location: b.location || "", details };
   }
 
   /**
@@ -495,6 +534,8 @@ function bookingActions({
     const timeText = start.toLocaleTimeString("en-CA", { ...opts, hour: "numeric", minute: "2-digit" });
     return `${dayText} at ${timeText}`;
   }
+  /** "11:00 a.m." in the shop's zone. */
+  const clockOf = (at) => new Date(at).toLocaleTimeString("en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
   const manageUrl = (id, key) => siteLink(`/book?booking=${encodeURIComponent(id)}&key=${key}`);
 
   /** A confirmed booking's check-in code, made the first time it is needed (an email or the customer's page). */
@@ -521,6 +562,10 @@ function bookingActions({
       const runDates = run.length > 1
         ? `<p style="margin:12px 0 4px;"><strong>All ${run.length} visits, every ${b.series?.everyWeeks === 1 ? "week" : `${b.series?.everyWeeks || ""} weeks`}:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${run.map((iso) => `<li>${escapeHtml(whenWords(b, iso))}</li>`).join("")}</ul><p style="margin:0 0 4px;font-size:13px;">Each visit gets its own reminder, and can be moved or cancelled on its own from your booking page.</p>` : "";
       const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
+      // Several services in one visit: each in turn, with its time and who takes it.
+      const plan = visitPlan(b);
+      const visitList = plan.length > 1
+        ? `<p style="margin:12px 0 4px;"><strong>Your visit:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${plan.map((p) => `<li>${escapeHtml(`${clockOf(p.start)} ${p.serviceName}${p.staffName ? `, with ${p.staffName}` : ""}`)}</li>`).join("")}</ul>` : "";
       const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>Video call:</strong> <a href="${escapeHtml(b.meetUrl)}">Join with Google Meet</a></p>` : "";
       const arriving = ["booked", "moved", "reminder", "soon"].includes(kind);
       if (arriving) b = await withCheckInCode(id, b).catch(() => b);
@@ -528,7 +573,7 @@ function bookingActions({
         <p style="margin:0 0 4px;font-size:13px;">Show it at the desk when you arrive.${key ? " Your booking page has it as a code to scan." : ""}</p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
-      const subject = { thanks: `Thank you for coming: ${b.serviceName}`, tip: `Thank you for coming: ${b.serviceName}`, tipPaid: `Tip received: ${b.serviceName}, ${when}`, payRest: `Left to pay: ${b.serviceName}, ${when}`, restPaid: `Paid in full: ${b.serviceName}, ${when}`, fee: `Fee charged: ${b.serviceName}, ${when}`, notCleared: `Not booked: ${b.serviceName}, ${when}`, reminder: `Coming up: ${b.serviceName}, ${when}`, soon: `Soon: ${b.serviceName}, ${when}`, booked: `Booked: ${b.serviceName}, ${when}`, moved: `Moved: ${b.serviceName}, now ${when}`, cancelled: `Cancelled: ${b.serviceName}, ${when}` }[kind];
+      const subject = { thanks: `Thank you for coming: ${visitName(b)}`, tip: `Thank you for coming: ${visitName(b)}`, tipPaid: `Tip received: ${visitName(b)}, ${when}`, payRest: `Left to pay: ${visitName(b)}, ${when}`, restPaid: `Paid in full: ${visitName(b)}, ${when}`, fee: `Fee charged: ${visitName(b)}, ${when}`, notCleared: `Not booked: ${visitName(b)}, ${when}`, reminder: `Coming up: ${visitName(b)}, ${when}`, soon: `Soon: ${visitName(b)}, ${when}`, booked: `Booked: ${visitName(b)}, ${when}`, moved: `Moved: ${visitName(b)}, now ${when}`, cancelled: `Cancelled: ${visitName(b)}, ${when}` }[kind];
       const lead = {
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
@@ -558,7 +603,7 @@ function bookingActions({
       // The card kept on file, and what missing the booking costs, on every email about a booking that is still on.
       const cancelHours = ended || !b.card ? 0 : (await readSettings().catch(() => null))?.cancelHours || 0;
       const held = ended || !b.card ? "" : `<p style="margin:0 0 4px;"><strong>Card on file:</strong> ${escapeHtml(cardWords(b.card))}. Missing this booking${cancelHours ? `, or cancelling less than ${cancelHours} hours before,` : ""} may cost ${escapeHtml(moneyWords(b.lateFeeMinor || 0, b.currency))}.</p>`;
-      const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${b.serviceName} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
+      const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${visitName(b)} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
       const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? "Add a tip" : kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
       // After the visit: leave a review (the shop's own link) and book the same service again.
       // On the shop's own website (Client reviews) when it takes them, through the booking page; else the shop's link.
@@ -571,13 +616,14 @@ function bookingActions({
       const formNote = formState0 && !formState0.signed ? `<p style="margin:16px 0 4px;"><strong>Before your visit:</strong> please fill in "${escapeHtml(formState0.form.title)}" on your booking page. It takes a minute, and you only do it once.</p>` : "";
       const html = risoLayout(`
         <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
-        <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName)}</h2>
+        <h2 style="margin:0 0 12px;">${escapeHtml(visitName(b))}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
         <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
         ${extrasWords(b) ? `<p style="margin:0 0 4px;"><strong>Extras:</strong> ${escapeHtml(extrasWords(b))}</p>` : ""}
-        ${b.staffName ? `<p style="margin:0 0 4px;"><strong>With:</strong> ${escapeHtml(b.staffName)}</p>` : ""}
+        ${b.staffName && !visitList ? `<p style="margin:0 0 4px;"><strong>With:</strong> ${escapeHtml(b.staffName)}</p>` : ""}
         ${where}
+        ${visitList}
         ${dates}
         ${runDates}
         ${video}
@@ -595,8 +641,8 @@ function bookingActions({
       if (owner && toOwner) {
         await sendEmail({
           to: owner,
-          subject: `[BOOKING] ${{ booked: "New", moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${b.serviceName}, ${when}`,
-          html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(b.serviceName)}</h2>
+          subject: `[BOOKING] ${{ booked: "New", moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${visitName(b)}, ${when}`,
+          html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(visitName(b))}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes${b.staffName ? ` · ${escapeHtml(withWhom(b))}` : ""}</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
             ${extrasWords(b) ? `<p style="margin:0 0 4px;">Extras: ${escapeHtml(extrasWords(b))}</p>` : ""}
@@ -915,7 +961,7 @@ function bookingActions({
    * on the team the booking goes to `staffId` (the client's pick), else to whoever is free (whoIsFree), chosen inside
    * the transaction so two bookings at once go to two people; the person and room go on the day item and the booking.
    */
-  async function takeTime({ id, service, settings, start, record, check = true, offer = null, staffId = "" }) {
+  async function takeTime({ id, service, settings, start, record, check = true, offer = null, staffId = "", visit = null }) {
     // A discount code's use is counted with the time, so its usage limit holds even when many book at once.
     const code = record.discount?.id ? db.collection("discounts").doc(record.discount.id) : null;
     // A gift card is debited with the time too, so one balance can never pay for two bookings.
@@ -923,8 +969,13 @@ function bookingActions({
     const testMode = gift ? await shopTestMode() : false;
     // A pack's visit is counted with the time too, so one pack can never book more visits than it holds.
     const pack = record.pack?.id ? packs().doc(record.pack.id) : null;
-    const end = start + service.minutes * MINUTE;
-    const blockEnd = end + service.gapAfter * MINUTE;
+    // Several services in one visit (plan 4, 2.1): `visit.more` runs back to back after `service`, each with its own
+    // person; the booking ends when the last ends, and only the last keeps its tidy-up time.
+    const more = visit?.more?.length && !isCourse(service) ? visit.more : [];
+    const lead = more.length ? { ...service, gapAfter: 0 } : service;
+    const timeline = more.length ? visitTimeline(start, [lead, ...more.map((m) => m.service)]) : null;
+    const end = timeline ? timeline[timeline.length - 1].end : start + service.minutes * MINUTE;
+    const blockEnd = timeline ? timeline[timeline.length - 1].blockEnd : end + service.gapAfter * MINUTE;
     // A course takes a place in every one of its sessions with the one sign-up.
     const sessions = isCourse(service) ? courseStarts(service, zone()) : [start];
     if (sessions[0] !== start) return false;
@@ -946,8 +997,12 @@ function bookingActions({
       const packSnap = pack ? await tx.get(pack) : null;
       const nearby = snaps.filter((_, i) => days.includes(all[i]));
       const busy = busyFrom(nearby, nowMs, offer?.item || "");
-      const who = whoIsFree({ service, settings, busy, start, zone: zone(), nowMs, staffId });
+      // A visit is checked whole: each service has someone free when it starts, never one person twice at once.
+      const people = timeline ? visitStaff({ services: [lead, ...more.map((m) => m.service)], staffIds: [staffId, ...more.map((m) => m.staffId)], settings, busy, start, zone: zone(), nowMs }) : null;
+      if (timeline && check && people === null) return false;
+      const who = timeline ? (people ? people[0] : null) : whoIsFree({ service, settings, busy, start, zone: zone(), nowMs, staffId });
       if (check && who === null) return false;
+      const partStaff = more.map((m, n) => staffParts(settings, people ? people[n + 1] : m.staffId, m.service.roomId));
       const assigned = staffParts(settings, who ?? staffId, service.roomId);
       // The later sessions of a course: each needs a place too, at any hour and however far ahead (the course's own
       // dates decide), with the first session's person when they are free then, else anyone who does the class.
@@ -983,12 +1038,29 @@ function bookingActions({
         if (offer) delete items[offer.item];
         sessions.forEach((ms, n) => {
           if (!daysTouched(ms - before, ms + length, zone()).includes(d)) return;
-          items[n ? `${id}~${n}` : id] = { start: ms, end: ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1].item : assigned.item), ...(n ? {} : { ...gapPart(service, ms), ...prePart(service.gapBefore) }) };
+          items[n ? `${id}~${n}` : id] = { start: ms, end: timeline ? timeline[0].end : ms + length, held, at: nowMs, s: record.serviceId, ...(n ? later[n - 1].item : assigned.item), ...(n ? {} : { ...gapPart(service, ms), ...prePart(service.gapBefore) }) };
+        });
+        more.forEach((m, n) => {
+          const t = timeline[n + 1];
+          if (!daysTouched(t.start, t.blockEnd, zone()).includes(d)) return;
+          items[`${id}~p${n + 1}`] = { start: t.start, end: t.blockEnd, held, at: nowMs, s: m.service.id, ...partStaff[n].item, ...gapPart(m.service, t.start) };
         });
         tx.set(dayRef(d), { items });
       });
       // The caller's record carries the person too (it is what the confirmation email reads).
       Object.assign(record, assigned.record);
+      if (more.length) {
+        record.parts = more.map((m, n) => ({
+          serviceId: m.service.id, serviceName: m.service.name, minutes: m.service.minutes, gapAfter: n === more.length - 1 ? m.service.gapAfter || 0 : 0,
+          priceMinor: m.service.payment === "free" ? 0 : Math.max(0, m.service.priceMinor || 0),
+          staffId: partStaff[n].record.staffId || "", staffName: partStaff[n].record.staffName || "", roomId: partStaff[n].record.roomId || "", roomName: partStaff[n].record.roomName || "",
+          start: new Date(timeline[n + 1].start).toISOString(), end: new Date(timeline[n + 1].end).toISOString(),
+        }));
+        record.minutes = Math.round((end - start) / MINUTE);
+        record.gapAfter = 0;
+        // The first service's own share of the price, so the team pay page can split the takings by service.
+        record.leadPriceMinor = Math.max(0, (record.priceMinor || 0) - record.parts.reduce((n, p) => n + p.priceMinor, 0));
+      }
       // A course keeps who takes each date when it isn't one person throughout (a stand-in on a later date).
       const names = [assigned, ...later].map((x) => x.record.staffName || "");
       const ids = [assigned, ...later].map((x) => x.record.staffId || "");
@@ -1077,6 +1149,7 @@ function bookingActions({
    * what changed on the booking.
    */
   async function moveTime(id, b, service, settings, start, { check = true, by = "customer", staffId, alsoFree = "", minutes = b.minutes } = {}) {
+    if (Array.isArray(b.parts) && b.parts.length) return moveVisit(id, b, settings, start, { check, by });
     const before = (b.gapBefore || 0) * MINUTE;
     const oldDays = daysTouched(Date.parse(b.start) - before, Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
     // `minutes`: the owner stretched or shortened it on the calendar (plan 4, 1.2); the price stays as booked.
@@ -1118,6 +1191,61 @@ function bookingActions({
     // An earlier-time wish follows the booking's new start.
     if (moved && b.earlierWanted && !alsoFree) await earlierList().doc(id).set({ start: moved.start }, { merge: true }).catch(() => {});
     // The time left behind may be what someone is waiting for.
+    if (moved) await tellWaitlist(oldDays, [Date.parse(b.start)]);
+    return moved;
+  }
+
+  /**
+   * Moves a visit with several services (plan 4, 2.1): every service shifts by the same amount and keeps its person when
+   * they are free then (else anyone who does it, unless `check` is off: the owner's book-over). Resolves to false, or to
+   * what changed on the booking.
+   */
+  async function moveVisit(id, b, settings, start, { check = true, by = "owner" } = {}) {
+    const shift = start - Date.parse(b.start);
+    const oldSpans = spansOf(id, b);
+    const parts = b.parts.map((p) => ({ ...p, start: new Date(Date.parse(p.start) + shift).toISOString(), end: new Date(Date.parse(p.end) + shift).toISOString() }));
+    const end = Date.parse(b.end) + shift;
+    const listed = await readServices();
+    const svc = (sid, minutes, gapAfter) => ({ ...(listed.find((x) => x.id === sid) || { roomId: "" }), id: sid, places: 1, courseDates: [], minutes, gapAfter });
+    const firstMinutes = Math.round((Date.parse(b.parts[0].start) - Date.parse(b.start)) / MINUTE);
+    const lead = { ...svc(b.serviceId, firstMinutes, 0), processAfter: b.processAfter || 0, processMinutes: b.processMinutes || 0, gapBefore: b.gapBefore || 0 };
+    const services = [lead, ...parts.map((p) => svc(p.serviceId, p.minutes, p.gapAfter || 0))];
+    const newSpans = spansOf(id, { ...b, start: new Date(start).toISOString(), end: new Date(end).toISOString(), parts });
+    const daysOfSpans = (spans) => spans.flatMap((x) => daysTouched(x.from, x.end, zone()));
+    const oldDays = [...new Set(daysOfSpans(oldSpans))];
+    const newDays = [...new Set(daysOfSpans(newSpans))];
+    const all = [...new Set([...oldDays, ...newDays])];
+    const keys = oldSpans.map((x) => x.key);
+    const moved = await db.runTransaction(async (tx) => {
+      const snaps = await Promise.all(all.map((d) => tx.get(dayRef(d))));
+      const nowMs = now().getTime();
+      const busy = busyFrom(snaps.filter((_, i) => newDays.includes(all[i])), nowMs, keys);
+      const kept = [keptPerson(settings, b.serviceId, b.staffId), ...parts.map((p) => keptPerson(settings, p.serviceId, p.staffId))];
+      const ask = (staffIds) => visitStaff({ services, staffIds, settings, busy, start, zone: zone(), nowMs });
+      const people = ask(kept) ?? ask(kept.map(() => ""));
+      if (check && people === null) return false;
+      const who = people || kept;
+      const assigned = services.map((s, n) => staffParts(settings, who[n], s.roomId));
+      all.forEach((d, i) => {
+        const items = { ...((snaps[i].exists ? snaps[i].data()?.items : null) || {}) };
+        for (const k of keys) delete items[k];
+        newSpans.forEach((x, n) => {
+          if (!daysTouched(x.from, x.end, zone()).includes(d)) return;
+          items[x.key] = { start: x.start, end: x.end, held: false, at: nowMs, s: services[n].id, ...assigned[n].item,
+            ...gapPart(services[n], x.start), ...(n ? {} : prePart(b.gapBefore)) };
+        });
+        tx.set(dayRef(d), { items });
+      });
+      const nextParts = parts.map((p, n) => ({ ...p, staffId: assigned[n + 1].record.staffId || "", staffName: assigned[n + 1].record.staffName || "" }));
+      const at = new Date(nowMs).toISOString();
+      const changes = {
+        start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: at, reminderSentAt: null,
+        staffId: "", staffName: "", roomId: "", roomName: "", ...assigned[0].record, parts: nextParts,
+        history: [...(b.history || []), { at, what: `moved from ${b.start}`, by }].slice(-20),
+      };
+      tx.set(bookings().doc(id), changes, { merge: true });
+      return changes;
+    });
     if (moved) await tellWaitlist(oldDays, [Date.parse(b.start)]);
     return moved;
   }
@@ -1910,6 +2038,8 @@ function bookingActions({
         const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
         const { service } = asked;
+        const parts = await visitParts(req.body, service, settings);
+        if (parts.problem) return fail(res, 400, parts.problem, "also");
         const from = isDay(req.body?.from) ? req.body.from : dayOf(nowMs, zone());
         const count = Math.min(MAX_DAYS_ASKED, Math.max(1, Math.round(Number(req.body?.days) || 7)));
         const days = Array.from({ length: count }, (_, i) => addDays(from, i));
@@ -1922,8 +2052,10 @@ function bookingActions({
         const out = {};
         // A group class also says how many places each time has left.
         const left = {};
+        // Several services: only the starts where the whole visit fits, each with someone free.
+        const visitArgs = parts.more.length ? { services: [service, ...parts.more.map((m) => m.service)], staffIds: [staffId, ...parts.more.map((m) => m.staffId)], settings, busy, zone: zone(), nowMs } : null;
         for (const day of days) {
-          out[day] = freeTimes({ service, settings, busy, day, zone: zone(), nowMs, staffId }).map((ms) => {
+          out[day] = (visitArgs ? visitFreeTimes({ ...visitArgs, day }) : freeTimes({ service, settings, busy, day, zone: zone(), nowMs, staffId })).map((ms) => {
             const iso = new Date(ms).toISOString();
             if (isClass(service)) left[iso] = classPlacesLeft(ms, service, settings, busy, staffId);
             return iso;
@@ -1936,7 +2068,7 @@ function bookingActions({
           if (list.length) full[day] = list.map((ms) => new Date(ms).toISOString());
         }
         // Days with nothing left only because they are booked up (not closed): the page offers the waiting list there.
-        const fullDays = days.filter((day) => !out[day].length && !full[day] && freeTimes({ service, settings, busy: [], day, zone: zone(), nowMs, staffId }).length > 0);
+        const fullDays = visitArgs ? [] : days.filter((day) => !out[day].length && !full[day] && freeTimes({ service, settings, busy: [], day, zone: zone(), nowMs, staffId }).length > 0);
         return res.status(200).json({ on: true, days: out, fullDays, ...(isClass(service) ? { places: service.places, left, full } : {}),
           ...(offer ? { held: { start: new Date(offer.start).toISOString(), until: offer.until } } : {}) });
       }
@@ -1948,12 +2080,14 @@ function bookingActions({
         // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
         const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
-        const { service } = asked;
+        const parts = await visitParts(req.body, asked.service, settings);
+        if (parts.problem) return fail(res, 400, parts.problem, "also");
+        const service = visitPriced(asked.service, parts.more);
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         try {
           const offered = await introFor(service, email);
           const priced = await codeFor(offered, req.body?.code, email);
-          const tax = await taxOn(service, priced.priceMinor);
+          const tax = await taxOn(service, taxBase(service, priced.priceMinor));
           const total = priced.priceMinor + (tax?.taxMinor || 0);
           return res.status(200).json({ code: priced.discount.code, discountMinor: priced.discount.amountMinor, priceMinor: total, ...(tax ? { taxMinor: tax.taxMinor } : {}), payNowMinor: depositOf({ ...offered, priceMinor: total }) });
         } catch (err) {
@@ -1969,7 +2103,9 @@ function bookingActions({
         // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
         const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
-        const { service } = asked;
+        const parts = await visitParts(req.body, asked.service, settings);
+        if (parts.problem) return fail(res, 400, parts.problem, "also");
+        const service = visitPriced(asked.service, parts.more);
         const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
         // Someone new pays the first-visit price, as booking will: the gift card is quoted on that.
         const offered = await introFor(service, email);
@@ -2074,7 +2210,12 @@ function bookingActions({
         // The add-ons the client ticked lengthen the booking and add to its price, for every rule below.
         const asked = withExtras(forPerson(listed, settings, req.body?.staffId), req.body?.extras);
         if (asked.problem) return fail(res, 400, asked.problem, "extras");
-        const { service, extras } = asked;
+        const { extras } = asked;
+        // Several services in one visit (plan 4, 2.1): priced as one, booked back to back.
+        const parts = await visitParts(req.body, asked.service, settings);
+        if (parts.problem) return fail(res, 400, parts.problem, "also");
+        const service = visitPriced(asked.service, parts.more);
+        const visit = parts.more.length ? { more: parts.more } : null;
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a time first.");
         // The person the client picked ("" for anyone free); someone who doesn't do this service is refused.
@@ -2088,6 +2229,8 @@ function bookingActions({
         // A standing appointment: a run of visits booked at once, each its own booking (services that take no card).
         const run = cleanRun(req.body?.run);
         if (run?.problem) return fail(res, 400, run.problem, "run");
+        if (visit && run) return fail(res, 400, "A visit with several services can't repeat yet. Please book one visit.", "run");
+        if (visit && String(req.body?.pack || "").trim()) return fail(res, 400, "A pack pays for one service. Please book the other services on their own, or leave the pack off.", "pack");
         if (run && !runsOnline({ ...service, holdCard: service.holdCard && canHoldCard() })) return fail(res, 400, "This service can't be booked as a standing appointment. Please book one visit.", "run");
         if (run && String(req.body?.pack || "").trim()) return fail(res, 400, "A pack pays for single visits. Please book one visit with it.", "pack");
         const runAt = run ? runStarts(start, run, zone()) : [];
@@ -2124,7 +2267,7 @@ function bookingActions({
         }
         const before = service.payment === "free" || pack ? 0 : priced ? priced.priceMinor : offered.priceMinor;
         // Sales tax (a service with chargeTax) goes on top of the price after any code; the booking's price includes it.
-        const tax = await taxOn(service, before);
+        const tax = await taxOn(service, taxBase(service, before));
         const price = before + (tax?.taxMinor || 0);
         // What the card page takes now: the whole price, the deposit, or nothing (free, all paid at the visit, or a pack).
         const upFront = pack ? 0 : depositOf({ ...offered, priceMinor: price });
@@ -2170,11 +2313,12 @@ function bookingActions({
           source: "website", history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by: "customer" }], createdAt: at, updatedAt: at,
           ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
         };
-        const took = await takeTime({ id, service, settings, start, record, offer: await offerFor(req.body, service.id, nowMs), staffId });
+        const took = await takeTime({ id, service, settings, start, record, offer: visit ? null : await offerFor(req.body, service.id, nowMs), staffId, visit });
         if (took === "code_used") return refuse(res, 409, "This code has reached its usage limit.", "code");
         if (took === "gift_short") return refuse(res, 409, "This gift card's balance just changed. Please check it and try again.", "gift");
         if (took === "pack_used") return refuse(res, 409, "This pack can't book another visit just now. Please check it and try again.", "pack");
         if (!took && isCourse(service)) return refuse(res, 409, "This course just filled up, or one of its dates is no longer free. Please contact the shop.", "taken");
+        if (!took && visit) return refuse(res, 409, "Someone just took part of that visit. Please pick another time.", "taken");
         if (!took) return refuse(res, 409, isClass(service) ? "That class just filled up. Please pick another time." : staffId ? "That person was just booked then. Please pick another time or anyone free." : "Someone just took that time. Please pick another.", "taken");
         if (run && !paid) {
           const later = await bookRun({ firstId: id, first: record, service, settings, starts: runAt, staffId, by: "customer" });
@@ -2182,12 +2326,12 @@ function bookingActions({
         }
         if (!paid) {
           const written = pack ? (await bookings().doc(id).get()).data() : record;
-          const booked = await syncCalendar(id, { ...written, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() });
+          const booked = await syncCalendar(id, { ...written, start: new Date(start).toISOString(), end: new Date(start + record.minutes * MINUTE).toISOString() });
           await tellCustomer(id, booked, "booked", { key, run: runAt.map((ms) => new Date(ms).toISOString()) });
           return res.status(200).json({ id, key, status: "confirmed", ...(run ? { visits: run.visits } : {}) });
         }
         try {
-          const description = `${shopName() ? `${shopName()}: ` : ""}${service.name}${deposit ? " (deposit)" : ""}`.slice(0, 250);
+          const description = `${shopName() ? `${shopName()}: ` : ""}${visitName(record)}${deposit ? " (deposit)" : ""}`.slice(0, 250);
           const metadata = { booking: id };
           const page = {
             customer_email: customer.email,
@@ -2214,7 +2358,7 @@ function bookingActions({
           await bookings().doc(id).set({ sessions: [session.id] }, { merge: true });
           return res.status(200).json({ id, key, status: "held", url: session.url, holdMinutes: HOLD_MINUTES });
         } catch (err) {
-          await freeTime(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + service.minutes * MINUTE).toISOString() }, { status: "cancelled", holdUntil: null, updatedAt: now().toISOString() });
+          await freeTime(id, { ...record, start: new Date(start).toISOString(), end: new Date(start + record.minutes * MINUTE).toISOString() }, { status: "cancelled", holdUntil: null, updatedAt: now().toISOString() });
           if (err?.code === "currency_mismatch") return refuse(res, 409, err.message, "currency_mismatch");
           if (["test_only", "not_connected", "not_available"].includes(err?.code)) {
             console.error(`Booking ${id} card payment refused:`, err.code, err?.message || err);
@@ -2285,7 +2429,7 @@ function bookingActions({
         // The same page again while it has a while left, so tapping twice never opens two.
         const open = pages.find((p) => (p.amountMinor || 0) === amountMinor && (p.tipMinor || 0) === tipMinor && p.url && Date.parse(p.until || "") - nowMs > REST_REUSE_MINUTES * MINUTE);
         if (open) return res.status(200).json({ url: open.url });
-        const description = `${shopName() ? `${shopName()}: ` : ""}${b.serviceName} (${label})`.slice(0, 250);
+        const description = `${shopName() ? `${shopName()}: ` : ""}${visitName(b)} (${label})`.slice(0, 250);
         const metadata = { booking: id, rest: "1", ...(tipMinor ? { tip: String(tipMinor) } : {}) };
         const until = nowMs + REST_PAGE_MINUTES * MINUTE;
         let session;
@@ -2431,6 +2575,7 @@ function bookingActions({
           return fail(res, 409, `This booking can't be moved online within ${settings.cancelHours} hours of its start. Please contact the shop.`, "too_late");
         }
         if (b.course) return fail(res, 409, "A course is one sign-up for all of its dates, so it can't be moved. You can cancel it, or contact the shop.", "course");
+        if (b.parts?.length) return fail(res, 409, "A visit with several services can't be moved online. You can cancel it, or contact the shop to move it.", "visit");
         const service = (await readServices()).find((s) => s.id === b.serviceId) || { minutes: b.minutes, gapAfter: b.gapAfter || 0 };
         const start = Date.parse(String(req.body?.start || ""));
         if (!Number.isFinite(start)) return fail(res, 400, "Pick a new time first.");
@@ -2923,6 +3068,7 @@ function bookingActions({
         const minutes = req.body?.minutes === undefined ? b.minutes : Number(req.body.minutes);
         if (!Number.isInteger(minutes) || minutes < 5 || minutes > 720 || minutes % 5) return fail(res, 400, "Pick a length in whole five minutes, up to 12 hours.", "minutes");
         if (minutes !== b.minutes && isClass(theirs)) return fail(res, 409, "A class keeps its own length. Change it on the service.", "class_length");
+        if (minutes !== b.minutes && b.parts?.length) return fail(res, 409, "A visit with several services keeps each service's length. Move it, or cancel and book it again.", "visit_length");
         // Book over (plan 4, 1.4): a one-to-one booking may land on a taken time once the owner said yes to the warning.
         const over = req.body?.over === true && !isClass(theirs);
         const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes, gapAfter: b.gapAfter || 0, gapBefore: b.gapBefore || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId, minutes, check: !over });
@@ -2957,7 +3103,7 @@ function bookingActions({
           if (!checkout?.chargeSaved) throw Object.assign(new Error("This shop's card provider can't charge a saved card."), { code: "not_available" });
           intent = await checkout.chargeSaved({
             customer: b.card.customer, paymentMethod: b.card.paymentMethod, amountMinor: amount, currency: String(b.currency || currency()).toLowerCase(),
-            description: `${shopName() ? `${shopName()}: ` : ""}${b.serviceName}, ${reason} fee`.slice(0, 250), metadata: { booking: id, fee: reason },
+            description: `${shopName() ? `${shopName()}: ` : ""}${visitName(b)}, ${reason} fee`.slice(0, 250), metadata: { booking: id, fee: reason },
           }, `booking-fee-${id}-${amount}`);
         } catch (err) {
           const at = now().toISOString();
@@ -3013,7 +3159,7 @@ function bookingActions({
           if (b.paid || !restPayable(b)) return fail(res, 409, b.rest || b.paid ? "This booking is already paid in full." : "Nothing is left to pay for this booking.", "nothing_due");
           const amountMinor = balanceDue(b);
           const tries = Math.max(0, Number(b.readerTries) || 0) + 1;
-          const description = `${shopName() ? `${shopName()}: ` : ""}${b.serviceName} (${b.customer?.name || "desk"})`.slice(0, 250);
+          const description = `${shopName() ? `${shopName()}: ` : ""}${visitName(b)} (${b.customer?.name || "desk"})`.slice(0, 250);
           // Counted before the reader is asked, so a try that failed never hands back its stopped payment.
           await bookings().doc(id).set({ readerTries: tries }, { merge: true });
           // The reader asks for a tip first when the shop asks for tips and none was given yet (added on top).
@@ -3129,7 +3275,7 @@ function bookingActions({
       if (!settings.textReminders) return;
       const when = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
       const shop = String(shopName() || "").trim().slice(0, 40);
-      const body = `${kind === "soon" ? "Soon" : "Reminder"}: ${b.serviceName.slice(0, 60)}${shop ? ` at ${shop}` : ""}, ${when}${b.staffName ? ` with ${b.staffName.slice(0, 30)}` : ""}. Change or cancel: ${manageUrl(id, key)} Reply STOP to stop texts.`;
+      const body = `${kind === "soon" ? "Soon" : "Reminder"}: ${visitName(b).slice(0, 60)}${shop ? ` at ${shop}` : ""}, ${when}${b.staffName ? ` with ${b.staffName.slice(0, 30)}` : ""}. Change or cancel: ${manageUrl(id, key)} Reply STOP to stop texts.`;
       const sent = await texts.send({ to: b.customer.phone, body, kind: `booking-${kind}`, idempotencyKey: `booking-${id}-${kind}-${hash(key).slice(0, 10)}` });
       if (sent?.optedOut) await bookings().doc(id).set({ customer: { ...b.customer, textOk: false } }, { merge: true });
       else if (sent?.ok) await bookings().doc(id).set({ [kind === "soon" ? "reminder2TextAt" : "reminderTextAt"]: now().toISOString() }, { merge: true });
@@ -3353,7 +3499,7 @@ function bookingActions({
       const due = balanceDue(b);
       const extra = [owner ? withWhom(b) : "", b.roomName ? `in ${b.roomName}` : "", b.status === "held" ? "not confirmed yet" : "", due ? `${moneyWords(due, b.currency)} to pay at the visit` : "", b.customer?.phone || ""].filter(Boolean).join(" · ");
       return `<tr><td style="padding:8px 12px 8px 0;vertical-align:top;white-space:nowrap;"><strong>${escapeHtml(time(b.start))}</strong></td>
-          <td style="padding:8px 0;vertical-align:top;"><strong>${escapeHtml(b.customer?.name || "")}</strong> · ${escapeHtml(b.serviceName || "")}${extra ? `<br><span style="opacity:.75;">${escapeHtml(extra)}</span>` : ""}${b.note ? `<br><em>“${escapeHtml(b.note)}”</em>` : ""}</td></tr>`;
+          <td style="padding:8px 0;vertical-align:top;"><strong>${escapeHtml(b.customer?.name || "")}</strong> · ${escapeHtml(visitName(b))}${extra ? `<br><span style="opacity:.75;">${escapeHtml(extra)}</span>` : ""}${b.note ? `<br><em>“${escapeHtml(b.note)}”</em>` : ""}</td></tr>`;
     }).join("");
     const count = `${list.length} ${list.length === 1 ? "booking" : "bookings"}`;
     await sendEmail({
@@ -3679,11 +3825,14 @@ async function bookingsFeed({ db, shopId, token, shopName = "", nowMs = Date.now
   const from = nowMs - 31 * 24 * HOUR;
   // Someone on a course is in the calendar on every one of its dates.
   const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    // A person's own calendar shows only their part of a visit with several services (plan 4, 2.1).
+    .flatMap((b) => (staffId && Array.isArray(b.parts) && b.parts.length ? visitPlan(b).map((p, n) => ({ ...b, id: n ? `${b.id}-p${n}` : b.id, start: p.start, end: p.end,
+      staffId: n ? b.parts[n - 1].staffId || "" : b.staffId, staffName: p.staffName, serviceName: p.serviceName, parts: null })) : [b]))
     .flatMap((b) => datesOf(b).map((x, n) => ({ ...b, id: n ? `${b.id}-${n + 1}` : b.id, start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString(), ...(n && b.course?.staff?.[n] ? { staffName: b.course.staff[n] } : {}), ...(n && b.course?.staffIds?.[n] ? { staffId: b.course.staffIds[n] } : {}), ...(n && !b.course?.staffIds && b.course?.staff?.[n] && b.course.staff[n] !== b.staffName ? { staffId: b.course.staff[n] === feed.staffName ? staffId : "" } : {}) })))
     .filter((b) => Date.parse(b.end || "") >= from && (!staffId || b.staffId === staffId))
     .map((b) => ({
       id: b.id, start: Date.parse(b.start), end: Date.parse(b.end), location: b.roomName ? [b.roomName, b.location].filter(Boolean).join(", ") : b.location || "",
-      title: `${b.customer?.name || "Booking"}: ${b.serviceName || "Booking"}${b.staffName && !staffId ? ` (${b.staffName})` : ""}${b.status === "held" ? " (not paid yet)" : ""}`,
+      title: `${b.customer?.name || "Booking"}: ${visitName(b) || "Booking"}${b.staffName && !staffId ? ` (${b.staffName})` : ""}${b.status === "held" ? " (not paid yet)" : ""}`,
       details: [b.customer?.email, b.customer?.phone, extrasWords(b) ? `Extras: ${extrasWords(b)}` : "", b.meetUrl ? `Video call: ${b.meetUrl}` : "", b.note ? `“${b.note}”` : "", ...(b.answers || []).map((a) => `${a.label}: ${a.answer}`)].filter(Boolean).join("\n"),
     }));
   const person = staffId ? feed.staffName || "" : "";
@@ -3698,7 +3847,7 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
   const b = snap.exists ? snap.data() : null;
   if (!on || !b || b.status !== "confirmed") return null;
   if (!keyFits(b, key)) return null;
-  const title = shopName ? `${b.serviceName} · ${shopName}` : b.serviceName;
+  const title = shopName ? `${visitName(b)} · ${shopName}` : visitName(b);
   const spans = datesOf(b);
   // A course: one file with every date.
   if (spans.length > 1) return bookingsFeedIcs(title, spans.map((x, n) => ({ id: n ? `${id}-${n + 1}` : id, title, start: x.start, end: x.end, location: b.location || "" })), nowMs);

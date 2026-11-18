@@ -3587,3 +3587,88 @@ describe("a form before the first visit", () => {
     expect((await off.t.pub({ action: "bookingView", id: off.b.id, key: off.b.key })).body.booking.form).toBeUndefined();
   });
 });
+
+describe("several services in one visit (plan 4, 2.1)", () => {
+  const hst = async () => (amountMinor) => {
+    const cents = Math.round(amountMinor * 0.13);
+    return { taxMinor: cents, taxLines: cents ? [{ name: "HST ON", cents }] : [] };
+  };
+  const salon = async (t, staff = [{ id: "ana", name: "Ana", serviceIds: ["cut"] }, { id: "ben", name: "Ben" }]) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, staff });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 15, payment: "deposit", priceMinor: 10000, depositMinor: 2000, chargeTax: true });
+    await t.db.collection("bookingServices").doc("yoga").set({ name: "Yoga", minutes: 60, gapAfter: 0, payment: "free", priceMinor: 0, places: 8 });
+  };
+  const visit = (t, time, extra = {}) => t.pub({ action: "bookingStart", serviceId: "cut", start: at("2026-11-18", time), ...CUSTOMER, also: [{ serviceId: "colour" }], ...extra });
+
+  test("one booking, two people back to back, one price and one card page for the deposits", async () => {
+    const t = setup({ shopTax: hst });
+    await salon(t);
+    const r = await visit(t, "10:00");
+    expect(r.statusCode).toBe(200);
+    const b = t.db.store.get(`bookings/${r.body.id}`);
+    expect(b).toMatchObject({ serviceName: "Cut", staffId: "ana", minutes: 90, gapAfter: 0, payment: "deposit", depositMinor: 2000 });
+    // Tax only on the colour: 13% of 100.00.
+    expect(b.taxMinor).toBe(1300);
+    expect(b.priceMinor).toBe(16000 + 1300);
+    expect(b.end).toBe(at("2026-11-18", "11:30"));
+    expect(b.parts).toEqual([expect.objectContaining({ serviceId: "colour", staffId: "ben", staffName: "Ben", start: at("2026-11-18", "10:30"), end: at("2026-11-18", "11:30"), gapAfter: 15, priceMinor: 10000 })]);
+    const items = t.db.store.get("bookingDays/2026-11-18").items;
+    expect(items[r.body.id]).toMatchObject({ p: "ana", end: Date.parse(at("2026-11-18", "10:30")) });
+    expect(items[`${r.body.id}~p1`]).toMatchObject({ p: "ben", s: "colour", start: Date.parse(at("2026-11-18", "10:30")), end: Date.parse(at("2026-11-18", "11:45")) });
+    expect(t.opened[0].params.line_items[0].price_data).toMatchObject({ unit_amount: 2000, product_data: { name: expect.stringContaining("Cut + Colour (deposit)") } });
+    // Ana is free again while Ben does the colour.
+    const ana = (await t.pub({ action: "bookingTimes", serviceId: "cut", from: "2026-11-18", days: 1, staffId: "ana" })).body.days["2026-11-18"];
+    expect(ana).toContain(at("2026-11-18", "10:30"));
+    expect(ana).not.toContain(at("2026-11-18", "10:00"));
+  });
+
+  test("offers only starts where the whole visit fits, and refuses a time someone took", async () => {
+    const t = setup();
+    await salon(t);
+    await t.pub({ action: "bookingStart", serviceId: "colour", start: at("2026-11-18", "11:00"), ...CUSTOMER, name: "Bo", email: "bo@example.com", staffId: "ben" });
+    const times = (await t.pub({ action: "bookingTimes", serviceId: "cut", from: "2026-11-18", days: 1, also: [{ serviceId: "colour" }] })).body.days["2026-11-18"];
+    // Ben's colour at 11:00 (until 12:15) leaves no room for a colour at 10:30 or 11:30.
+    expect(times).not.toContain(at("2026-11-18", "10:00"));
+    expect(times).not.toContain(at("2026-11-18", "11:00"));
+    expect(times).toContain(at("2026-11-18", "12:00"));
+    // Ends at 17:00 exactly from 15:30; 16:00 would run past closing.
+    expect(times).toContain(at("2026-11-18", "15:30"));
+    expect(times).not.toContain(at("2026-11-18", "16:00"));
+    expect((await visit(t, "10:00")).body.code).toBe("taken");
+  });
+
+  test("refuses classes, too many services, a pack or a repeat, and a person who doesn't do it", async () => {
+    const t = setup();
+    await salon(t);
+    expect((await visit(t, "10:00", { also: [{ serviceId: "yoga" }] })).body.code).toBe("also");
+    expect((await visit(t, "10:00", { also: Array(4).fill({ serviceId: "colour" }) })).body.code).toBe("also");
+    expect((await visit(t, "10:00", { also: [{ serviceId: "colour", staffId: "ana" }] })).body.code).toBe("also");
+    expect((await visit(t, "10:00", { run: { everyWeeks: 2, visits: 3 } })).body.code).toBe("run");
+    expect((await visit(t, "10:00", { pack: "ABCD-EFGH-JKLM" })).body.code).toBe("pack");
+  });
+
+  test("cancelling frees every part; the owner's move shifts them all; the client can't move it online", async () => {
+    const t = setup();
+    await salon(t);
+    await t.db.collection("bookingServices").doc("colour").set({ name: "Colour", minutes: 60, gapAfter: 15, payment: "atShop", priceMinor: 10000 });
+    const r = await visit(t, "10:00");
+    expect(r.body.status).toBe("confirmed");
+    const view = await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key });
+    expect(view.body.booking.visit.map((p) => [p.serviceName, p.staffName])).toEqual([["Cut", "Ana"], ["Colour", "Ben"]]);
+    expect(view.body.booking.canMove).toBe(false);
+    expect((await t.pub({ action: "bookingMove", id: r.body.id, key: r.body.key, start: at("2026-11-19", "10:00") })).body.code).toBe("visit");
+    expect(t.emails.find((e) => e.to === CUSTOMER.email).html).toContain("Your visit:");
+    // The owner moves it to the next day: both parts go, both people kept.
+    expect((await t.adm({ op: "move", id: r.body.id, start: at("2026-11-19", "13:00") })).body.ok).toBe(true);
+    const b = t.db.store.get(`bookings/${r.body.id}`);
+    expect(b).toMatchObject({ start: at("2026-11-19", "13:00"), end: at("2026-11-19", "14:30"), staffId: "ana" });
+    expect(b.parts[0]).toMatchObject({ start: at("2026-11-19", "13:30"), staffId: "ben" });
+    expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items)).toEqual([]);
+    expect(Object.keys(t.db.store.get("bookingDays/2026-11-19").items).sort()).toEqual([r.body.id, `${r.body.id}~p1`].sort());
+    expect((await t.adm({ op: "move", id: r.body.id, start: at("2026-11-19", "13:00"), minutes: 60 })).body.code).toBe("visit_length");
+    expect((await t.pub({ action: "bookingCancel", id: r.body.id, key: r.body.key })).statusCode).toBe(200);
+    expect(Object.keys(t.db.store.get("bookingDays/2026-11-19").items)).toEqual([]);
+  });
+});

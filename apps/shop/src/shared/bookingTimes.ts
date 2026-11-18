@@ -1355,6 +1355,121 @@ export function whoIsFree(args: { service: Bookable; settings: BookingSettings; 
   return people.reduce((best, p) => (load(p.id) < load(best.id) ? p : best)).id;
 }
 
+// ── Several services in one visit (plan 4, 2.1) ─────────────────────────────────────────────────────────────────────
+
+/** Services a client may add after the first, so one visit holds at most this many plus one. */
+export const MAX_VISIT_PARTS = 3;
+
+/** A service booked after the first in one visit, back to back, kept on the booking as `parts`. */
+export type VisitPart = {
+  serviceId: string; serviceName: string; minutes: number; gapAfter: number; priceMinor: number;
+  staffId: string; staffName: string; roomId: string; roomName: string; start: string; end: string;
+};
+
+/** A visit's services in words: "Cut + Colour" (the one service's name for an ordinary booking). */
+export const visitName = (b: { serviceName?: string; parts?: readonly { serviceName?: string }[] | null }): string =>
+  [b.serviceName, ...(Array.isArray(b.parts) ? b.parts.map((p) => p?.serviceName) : [])].filter((n): n is string => typeof n === "string" && !!n).join(" + ");
+
+/** Each service of a visit in turn, with who takes it and when (one entry for an ordinary booking). */
+export function visitPlan(b: { serviceName?: string; staffName?: string; start?: string; end?: string; parts?: readonly Partial<VisitPart>[] | null }): { serviceName: string; staffName: string; start: string; end: string }[] {
+  const parts = Array.isArray(b.parts) ? b.parts : [];
+  const first = { serviceName: b.serviceName || "", staffName: b.staffName || "", start: b.start || "", end: parts.length ? parts[0].start || "" : b.end || "" };
+  return [first, ...parts.map((p) => ({ serviceName: p.serviceName || "", staffName: p.staffName || "", start: p.start || "", end: p.end || "" }))];
+}
+
+/** Whether a service can be one of several in a visit: one client at a time, not a class or course. */
+export const joinsVisit = (s: Partial<Pick<BookingService, "places" | "courseDates">> | null | undefined): boolean => !!s && !isClass(s) && !isCourse(s);
+
+type Priced = Pick<BookingService, "minutes" | "gapAfter" | "priceMinor" | "payment"> & Partial<Pick<BookingService, "depositMinor" | "depositPercent" | "chargeTax" | "introPriceMinor" | "gapBefore">>;
+
+/**
+ * The visit as one service for the money rules: the whole price, and a way to pay made from each part's own (what the
+ * card takes now is the sum of each part's ask: its full price, its deposit, or nothing at the visit). Only the first
+ * keeps its time before and only the last its tidy-up time, so the first carries no rest here. No first-visit price.
+ * `taxedMinor`: the part of the price from services that charge tax.
+ */
+export function visitService<T extends Priced>(first: T, more: readonly Priced[]): T & { taxedMinor: number } {
+  const all = [first, ...more];
+  const priceMinor = all.reduce((n, s) => n + Math.max(0, Math.round(Number(s.priceMinor) || 0)), 0);
+  const askMinor = all.reduce((n, s) => n + depositOf(s), 0);
+  const taxedMinor = all.reduce((n, s) => n + (s.chargeTax ? Math.max(0, Math.round(Number(s.priceMinor) || 0)) : 0), 0);
+  const payment: BookingService["payment"] = all.every((s) => s.payment === "free") ? "free" : askMinor <= 0 ? "atShop" : askMinor >= priceMinor ? "full" : "deposit";
+  return {
+    ...first, priceMinor, payment, depositMinor: payment === "deposit" ? askMinor : 0, depositPercent: 0, introPriceMinor: 0,
+    chargeTax: taxedMinor > 0, taxedMinor, ...(more.length ? { gapAfter: 0 } : {}),
+  };
+}
+
+/** Where each service of a visit sits: back to back from `start`; only the last keeps its tidy-up time. */
+export function visitTimeline(start: number, services: readonly Pick<BookingService, "minutes" | "gapAfter">[]): { start: number; end: number; blockEnd: number }[] {
+  let at = start;
+  return services.map((s, i) => {
+    const from = at;
+    at += s.minutes * MINUTE;
+    return { start: from, end: at, blockEnd: at + (i === services.length - 1 ? (s.gapAfter || 0) * MINUTE : 0) };
+  });
+}
+
+/**
+ * Whether `service` can start at `start` for `staffId` (or anyone free: "" or the person's id; null when nobody), at any
+ * minute rather than on the booking step: a later service of a visit starts when the one before ends. Same rules as a
+ * free time otherwise: opening or the person's hours, days off, blocked time, notice, the last day, nothing busy. A
+ * visit is one booking, so the daily limit was already counted at its first service.
+ */
+export function fitsAt(args: { service: Bookable; settings: BookingSettings; busy: readonly Busy[]; start: number; zone: string; nowMs: number; staffId?: string }): string | null {
+  const { service, settings, start, zone, nowMs } = args;
+  if (!Number.isFinite(start) || !joinsVisit(service)) return null;
+  const day = dayOf(start, zone);
+  const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
+  if (settings.daysOff.includes(day) || start < earliest || day > lastDay) return null;
+  const busy = settings.blocks?.length ? [...args.busy, ...blockedBusy(settings.blocks, day, zone)] : args.busy;
+  const units = roomUnits(settings, service.roomId);
+  const end = start + service.minutes * MINUTE;
+  const inside = (windows: HoursWindow[]) => windows.some((w) => start >= zonedTime(day, w.start, zone) && end <= zonedTime(day, w.end, zone));
+  if (!booksByPerson(settings)) return inside(hoursOnDay(settings, day)) && placesLeft(start, service, busy, "", units) > 0 ? "" : null;
+  const people = staffFor(settings, service.id).filter((p) => (!args.staffId || p.id === args.staffId) && !p.daysOff.includes(day)
+    && inside(personHoursOn(settings, p, day)) && placesLeft(start, service, busy, p.id, units) > 0);
+  if (!people.length) return null;
+  const load = (id: string) => busy.filter((b) => b.staffId === id && dayOf(b.start, zone) === day).length;
+  return people.reduce((best, p) => (load(p.id) < load(best.id) ? p : best)).id;
+}
+
+/**
+ * Who takes each service of a visit starting at `start` (one id per service, "" when the shop books as one calendar),
+ * or null when the whole visit doesn't fit. `staffIds[i]` is the person the client picked for service i ("" for anyone
+ * free); anyone free keeps the person before when they can, so a client isn't passed between chairs for nothing.
+ */
+export function visitStaff(args: { services: readonly Bookable[]; staffIds?: readonly string[]; settings: BookingSettings; busy: readonly Busy[]; start: number; zone: string; nowMs: number }): string[] | null {
+  const { services, settings, zone, nowMs } = args;
+  if (!services.length) return null;
+  const times = visitTimeline(args.start, services);
+  const busy: Busy[] = [...args.busy];
+  const out: string[] = [];
+  for (let i = 0; i < services.length; i++) {
+    const service = { ...services[i], gapAfter: i === services.length - 1 ? services[i].gapAfter : 0, ...(i ? { gapBefore: 0 } : {}) };
+    const picked = args.staffIds?.[i] || "";
+    const at = times[i].start;
+    const who = i === 0
+      ? whoIsFree({ service, settings, busy, start: at, zone, nowMs, staffId: picked })
+      : (!picked && out[i - 1] ? fitsAt({ service, settings, busy, start: at, zone, nowMs, staffId: out[i - 1] }) : null) ?? fitsAt({ service, settings, busy, start: at, zone, nowMs, staffId: picked });
+    if (who === null) return null;
+    out.push(who);
+    busy.push({ start: at, end: times[i].blockEnd, serviceId: service.id, ...(who ? { staffId: who } : {}), ...(service.roomId ? { roomId: service.roomId } : {}) });
+  }
+  return out;
+}
+
+/** The start times on one day when the whole visit fits, earliest first (the first service's free times, then the rest). */
+export function visitFreeTimes(args: { services: readonly Bookable[]; staffIds?: readonly string[]; settings: BookingSettings; busy: readonly Busy[]; day: string; zone: string; nowMs: number }): number[] {
+  const [first, ...more] = args.services;
+  if (!first) return [];
+  const lead = more.length ? { ...first, gapAfter: 0 } : first;
+  const starts = freeTimes({ service: lead, settings: args.settings, busy: args.busy, day: args.day, zone: args.zone, nowMs: args.nowMs, staffId: args.staffIds?.[0] || "" });
+  if (!more.length) return starts;
+  // The whole visit must also end inside the day's hours, which each later service's own check sees.
+  return starts.filter((start) => visitStaff({ ...args, start }) !== null);
+}
+
 /** A class's places left at `start` for whoever could run it (the most any one person has), or the one person asked for. */
 export function classPlacesLeft(start: number, service: Bookable, settings: Pick<BookingSettings, "staff"> & { rooms?: readonly BookingRoom[] }, busy: readonly Busy[], staffId = ""): number {
   const units = roomUnits(settings, service.roomId);

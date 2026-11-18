@@ -167,3 +167,19 @@ describe("the front door's calendar addresses", () => {
     expect(gone.code).toBe(404);
   });
 });
+
+describe("a visit with several services (plan 4, 2.1)", () => {
+  const visit = {
+    status: "confirmed", serviceName: "Cut", staffId: "ana", staffName: "Ana", start: "2026-11-20T15:00:00Z", end: "2026-11-20T16:30:00Z", customer: { name: "Ada" },
+    parts: [{ serviceId: "colour", serviceName: "Colour", staffId: "ben", staffName: "Ben", start: "2026-11-20T15:30:00Z", end: "2026-11-20T16:30:00Z" }],
+  };
+  test("the owner's feed shows the whole visit; each person's shows only their part", async () => {
+    const docs = shop({ "shops/s1/bookings/booking1": visit, "shops/s1/bookingFeed/p-ben": { token: "c".repeat(48), staffId: "ben", staffName: "Ben" } });
+    const owner = await bookingsFeed({ db: rootDb(docs).db, shopId: "s1", token: TOKEN, nowMs: Date.parse("2026-11-14T12:00:00Z") });
+    expect(owner).toMatch(/SUMMARY:Ada: Cut \+ Colour/);
+    const ben = await bookingsFeed({ db: rootDb(docs).db, shopId: "s1", token: "c".repeat(48), nowMs: Date.parse("2026-11-14T12:00:00Z") });
+    expect(ben).toMatch(/SUMMARY:Ada: Colour/);
+    expect(ben).not.toMatch(/Cut/);
+    expect(ben).toMatch(/DTSTART:20261120T153000Z/);
+  });
+});
