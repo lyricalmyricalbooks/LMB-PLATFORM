@@ -2046,15 +2046,38 @@ const eventDesk = require("./events").eventActions({
 
 // Donations & tips (beta, giving.js): gifts from the website's Support page; on only while the platform allows it for the
 // shop and the owner switched it on. No sales tax on a gift.
+// Donations › Fundraiser › Write an update (fundraiserUpdates.js, G2c): queued here, sent a page of gifts at a time by
+// the sweep below. Gifts are read by the fundraiser alone (single-field index), only the fields the rules need.
+const { runFundraiserUpdates, fundraiserUpdateActions, updateAudience: fundraiserUpdateAudience } = require("./fundraiserUpdates");
+const FUNDRAISER_UPDATE_FIELDS = ["customer", "status", "fundraiserId", "locale"];
+async function listFundraiserGifts(fundraiserId, afterId, limit) {
+  let query = db.collection("gifts").where("fundraiserId", "==", String(fundraiserId)).orderBy("__name__").select(...FUNDRAISER_UPDATE_FIELDS);
+  if (afterId) query = query.startAfter(afterId);
+  const snap = await query.limit(limit).get();
+  return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+}
+async function givingEmailLayout() {
+  const settings = await loadNotificationSettings();
+  const brand = settings.brand || {};
+  return { logoUrl: brand.logoUrl || "", accent: brand.brandColor || "", theme: brand.emailTheme || "light", shopName: String(settings.shopName || shopConfig.senderName || "") };
+}
+const fundraiserUpdateDesk = fundraiserUpdateActions({
+  db, escapeHtml, risoLayout, risoButton, layout: givingEmailLayout, supportUrl: () => siteLink("/support"),
+  unsubscribeLink: () => newsletterUnsubscribeLink(),
+  sendEmail: message => sendEmail(message),
+  countAudience: async (fundraiserId) => {
+    const [gifts, optedOut] = await Promise.all([
+      db.collection("gifts").where("fundraiserId", "==", String(fundraiserId)).select(...FUNDRAISER_UPDATE_FIELDS).limit(20000).get(),
+      newsletterOptedOutIds(),
+    ]);
+    return fundraiserUpdateAudience(gifts.docs.map(d => d.data()), fundraiserId, optedOut, optOutId);
+  },
+});
 const givingDesk = require("./giving").givingActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   currency: () => shopCurrency(), sendEmail: message => sendEmail(message), ownerEmail: () => ADMIN_TO(),
-  escapeHtml, risoLayout, risoButton,
-  emailBrand: async () => {
-    const settings = await loadNotificationSettings();
-    const brand = settings.brand || {};
-    return { logoUrl: brand.logoUrl || "", accent: brand.brandColor || "", theme: brand.emailTheme || "light", shopName: String(settings.shopName || shopConfig.senderName || "") };
-  },
+  escapeHtml, risoLayout, risoButton, updates: fundraiserUpdateDesk,
+  emailBrand: givingEmailLayout,
 });
 
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
@@ -5309,6 +5332,16 @@ exports.unpaidPaymentSweep = onSchedule(
       });
       if (result.sent || result.status) console.log("unpaidPaymentSweep: newsletter", result);
     } catch (err) { console.error("unpaidPaymentSweep: newsletter failed:", err.message); }
+
+    // Donations › Fundraiser › Write an update: the next page of an update that is sending (leased, never twice).
+    try {
+      const result = await runFundraiserUpdates({
+        db, optOutId, escapeHtml, risoLayout, risoButton, layout: givingEmailLayout, supportUrl: siteLink("/support"),
+        unsubscribeUrl: await newsletterUnsubscribeLink(), listGifts: listFundraiserGifts, optedOutIds: newsletterOptedOutIds,
+        sendEmail: message => sendEmail({ ...message, secret: resendSecretValue() }),
+      });
+      if (result.sent || result.status) console.log("unpaidPaymentSweep: fundraiser updates", result);
+    } catch (err) { console.error("unpaidPaymentSweep: fundraiser updates failed:", err.message); }
 
     // Books › Digital product › Tell buyers: the next page of a new-version email that is sending (leased, never twice).
     try {

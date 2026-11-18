@@ -1752,3 +1752,10 @@ creation (409 `reward_gone` / `reward_min` / `reward_unknown`, 400 `address`). T
 `shipTo` and `rewardHeld`; `cancelGift` and a refund give the reward back, a closed page that turns out paid takes it
 again (past the limit if need be). Op `rewardSent` (`sent: false` undoes). The thank-you emails name it. Privacy erase
 blanks `shipTo`, turns `wall` off and takes the giver's line off the fundraiser's wall.
+**Updates to supporters (G2c):** `fundraiserUpdates.js`, passed to `givingActions` as `updates`; owner ops `updateCount`,
+`updateTest`, `updateSend`, `updateCancel`, `updateResume` (`list` adds `updates` by fundraiser). `fundraiserUpdates/{id}`
+(server only) is sent by `runFundraiserUpdates` in `unpaidPaymentSweep` like the newsletter: gifts of that fundraiser by
+id (`listFundraiserGifts`, one equality filter, no index), paid only, 150 a run, a 10-minute lease, each address claimed in
+`sent/{optOutId}` first (so two gifts by one person get one email), `marketing-optout` skipped, the unsubscribe link in
+every email. `bulk` with kind `campaign-fundraiser-update` (the platform's newsletter stream); its pause → `paused` at once.
+One active update per fundraiser (checked again inside the queuing transaction). Ended fundraisers can send too.
