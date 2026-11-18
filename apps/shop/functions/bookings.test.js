@@ -449,6 +449,32 @@ describe("dragging on the calendar (plan 4, 1.2)", () => {
   });
 });
 
+describe("blocked time (plan 4, 1.3)", () => {
+  test("a block keeps clients out of that time, survives a settings save and can be taken off", async () => {
+    const t = setup();
+    await t.seed();
+    const times = async () => (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-17", days: 1 })).body.days["2026-11-17"];
+    const before = await times();
+    expect(before).toContain(at("2026-11-17", "12:00"));
+    const added = await t.adm({ op: "addBlock", block: { title: "Lunch", day: "2026-11-17", start: "12:00", end: "13:00" } });
+    expect(added.body.ok).toBe(true);
+    expect(added.body.blocks).toHaveLength(1);
+    const after = await times();
+    expect(after).not.toContain(at("2026-11-17", "12:00"));
+    expect(after.length).toBeLessThan(before.length);
+    // A client can't take it, but the owner still can by hand.
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "12:00"), ...CUSTOMER })).statusCode).toBe(409);
+    expect((await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-17", "12:00"), name: "Cy", email: "cy@example.com" })).statusCode).toBe(200);
+    // The Hours page's save never drops it.
+    await t.adm({ op: "saveSettings", settings: { live: true, step: 15, blocks: [] } });
+    expect(t.db.store.get("bookingSettings/main").blocks).toHaveLength(1);
+    expect((await t.adm({ op: "addBlock", block: { day: "2026-11-17", start: "13:00", end: "12:00" } })).body.code).toBe("block");
+    expect((await t.adm({ op: "addBlock", block: { day: "2026-11-17", start: "09:00", end: "10:00", staffId: "nobody" } })).body.code).toBe("block");
+    const removed = await t.adm({ op: "removeBlock", id: added.body.id });
+    expect(removed.body.blocks).toEqual([]);
+  });
+});
+
 describe("busy times", () => {
   test("a hold the sweep never reached stops blocking after two hours", () => {
     const snap = (items) => ({ exists: true, data: () => ({ items }) });

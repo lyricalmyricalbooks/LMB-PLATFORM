@@ -1,6 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
-import { addDays, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember } from "../../shared/bookingTimes";
+import { addDays, blockOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, taxIn, tipTaken, weekdayOf, zonedTime, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
 
@@ -486,6 +486,43 @@ export function weekGrid(rows: readonly Booking[], settings: Pick<BookingSetting
       return { day, closed, hours, blocks: sideBySide([...cards.values()]) };
     }),
   };
+}
+
+/** A stretch of blocked time drawn on a calendar column: where it sits (minutes from the grid's top) and whose it is. */
+export type BlockedBand = { block: TimeBlock; top: number; height: number; who: string };
+
+const clockMin = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + (m || 0); };
+
+/**
+ * The owner's blocked time on one day, cut to the grid (plan 4, 1.3). `staffId` null is the week (every block, a person's
+ * named on it); a person's id is their Team day column (the whole shop's blocks and their own); "" is the unassigned column.
+ */
+export function blockedBands(blocks: readonly TimeBlock[] | undefined, day: string, startMin: number, endMin: number,
+  staff: readonly Pick<StaffMember, "id" | "name">[] = [], staffId: string | null = null): BlockedBand[] {
+  const out: BlockedBand[] = [];
+  for (const block of blocks || []) {
+    if (!blockOn(block, day)) continue;
+    if (staffId !== null && block.staffId && block.staffId !== staffId) continue;
+    const from = Math.max(startMin, clockMin(block.start));
+    const to = Math.min(endMin, clockMin(block.end));
+    if (to <= from) continue;
+    const who = block.staffId ? staff.find((p) => p.id === block.staffId)?.name || "Someone who left" : "Everyone";
+    out.push({ block, top: from - startMin, height: to - from, who });
+  }
+  return out.sort((a, b) => a.top - b.top);
+}
+
+/** How a block repeats, in a few words: "Tue 24 Nov" or "Every Tuesday, until 15 Dec". */
+export function blockWhen(b: TimeBlock): string {
+  if (!b.weekly) return dayText(b.day, "long");
+  const weekday = WEEKDAYS[new Date(`${b.day}T12:00:00Z`).getUTCDay()];
+  return `Every ${weekday}${b.until ? `, until ${dayText(b.until)}` : ""}`;
+}
+
+/** A block's hours: "All day" or "12:30 PM to 1:15 PM". */
+export function blockHours(b: Pick<TimeBlock, "start" | "end">): string {
+  if (b.start === "00:00" && b.end === "24:00") return "All day";
+  return `${hourLabel(clockMin(b.start))} to ${hourLabel(clockMin(b.end))}`;
 }
 
 /** The start a tap on an empty part of a day column asks for: the minute rounded down to a quarter hour, as a time. */

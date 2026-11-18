@@ -22,7 +22,7 @@ import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stock
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
 import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
-import { DEFAULT_BOOKING_SETTINGS, addDays, zonedTime, type BookingService } from "../shared/bookingTimes";
+import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type BookingService, type BookingSettings } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
 import { clientVisitsData } from "../app/admin/clientVisitsApi";
@@ -525,7 +525,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
         { id: "ben", name: "Ben Example", active: true, serviceIds: ["riso", "workshop"], ownHours: true, hours: [[], [{ start: "12:00", end: "18:00" }], [{ start: "12:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }], [], []], daysOff: [], email: "" },
         { id: "cy", name: "Cy Example", active: false, serviceIds: ["review"], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
       ],
-    } : {}) };
+      // Blocked time (plan 4, 1.3): a weekly team lunch, and one afternoon Ana is out.
+      blocks: [
+        { id: "lunch", title: "Team lunch", staffId: "", day: addDays(dayOf(Date.now(), shopTimeZone()), -7), start: "12:30", end: "13:15", weekly: true, until: "" },
+        { id: "ana-out", title: "Dentist", staffId: "ana", day: addDays(dayOf(Date.now(), shopTimeZone()), 1), start: "14:00", end: "16:00", weekly: false, until: "" },
+      ],
+    } : {}) } as BookingSettings;
   if (TEAM) services = services.map((s) => (s.id === "riso" ? { ...s, roomId: "printroom" } : s));
   const at = (days: number, hour: number, minute = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, minute, 0, 0); return d.toISOString(); };
   // A weekday (0 Sunday … 6 Saturday) of the week that holds today, Monday first.
@@ -631,6 +636,13 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "deleteService") services = services.filter((x) => x.id !== id);
     if (op === "saveSettings") settings = { ...settings, ...(body.settings as object) };
     if (op === "setLive") settings = { ...settings, live: body.live === true };
+    if (op === "addBlock") {
+      const [made] = cleanBlocks([{ ...(body.block as object), id: `blk-${Date.now().toString(36)}` }]);
+      if (!made) throw new Error("Pick a day and a start before the end.");
+      settings = { ...settings, blocks: [...(settings.blocks || []), made] };
+      return { ok: true, id: made.id, blocks: settings.blocks };
+    }
+    if (op === "removeBlock") { settings = { ...settings, blocks: (settings.blocks || []).filter((b) => b.id !== id) }; return { ok: true, blocks: settings.blocks }; }
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", ...(b.pack && body.packBack !== false ? { pack: { ...b.pack, returned: true } } : {}) } : b));
     if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
     if (op === "packs") return { packs: packRows };

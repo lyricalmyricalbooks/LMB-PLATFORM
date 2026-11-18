@@ -210,7 +210,57 @@ export type BookingSettings = {
   textReminders?: boolean;
   /** A form clients fill in once before their first visit (Services plan 2, B4). Left out while there is none. */
   intakeForm?: IntakeForm;
+  /** Time the owner blocked on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly team meeting. Left out while none. */
+  blocks?: TimeBlock[];
 };
+
+/**
+ * Blocked time: nobody can book it online (a person's, or the whole shop's when `staffId` is ""). `start`/`end` are the
+ * shop's clock ("00:00" to "24:00" is all day). `weekly` repeats it on the same weekday from `day`, until `until` ("" for
+ * no end). The owner can still book over it from the calendar.
+ */
+export type TimeBlock = { id: string; title: string; staffId: string; day: string; start: string; end: string; weekly: boolean; until: string };
+export const MAX_BLOCKS = 100;
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
+
+/** The owner's blocks, cleaned: a real day and a start before the end; at most MAX_BLOCKS, one-off ones before `today` dropped. */
+export function cleanBlocks(raw: unknown, today = ""): TimeBlock[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TimeBlock[] = [];
+  for (const b of raw) {
+    if (!b || typeof b !== "object") continue;
+    const r = b as Record<string, unknown>;
+    const start = String(r.start || ""), end = String(r.end || "");
+    if (!isDay(r.day) || !CLOCK.test(start) || !CLOCK.test(end) || minutesOf(start) >= minutesOf(end)) continue;
+    const weekly = r.weekly === true;
+    const until = weekly && isDay(r.until) && r.until >= r.day ? r.until : "";
+    if (today && (weekly ? until && until < today : r.day < today)) continue;
+    const id = typeof r.id === "string" && /^[\w-]{1,40}$/.test(r.id) ? r.id : `b${out.length}${String(r.day).replace(/-/g, "")}`;
+    if (out.some((x) => x.id === id)) continue;
+    out.push({ id, title: String(r.title || "").trim().slice(0, 60), staffId: typeof r.staffId === "string" ? r.staffId.slice(0, 40) : "", day: r.day, start, end, weekly, until });
+    if (out.length >= MAX_BLOCKS) break;
+  }
+  return out;
+}
+
+/** Does a block fall on this shop day? */
+export const blockOn = (b: TimeBlock, day: string): boolean =>
+  b.weekly ? day >= b.day && (!b.until || day <= b.until) && weekdayOf(day) === weekdayOf(b.day) : b.day === day;
+
+/** A block's stretch on one shop day, in milliseconds ("24:00" is the next midnight). */
+export function blockSpan(b: Pick<TimeBlock, "start" | "end">, day: string, zone: string): { start: number; end: number } {
+  const at = (hhmm: string) => (hhmm === "24:00" ? zonedTime(addDays(day, 1), "00:00", zone) : zonedTime(day, hhmm, zone));
+  return { start: at(b.start), end: at(b.end) };
+}
+
+/** The busy stretches the owner's blocks make around a day (the day before and after too, for times that cross midnight). */
+export function blockedBusy(blocks: readonly TimeBlock[] | undefined, day: string, zone: string): Busy[] {
+  const out: Busy[] = [];
+  for (const d of [addDays(day, -1), day, addDays(day, 1)]) {
+    for (const b of blocks || []) if (blockOn(b, d)) out.push({ ...blockSpan(b, d, zone), ...(b.staffId ? { staffId: b.staffId } : {}) });
+  }
+  return out;
+}
 
 /**
  * A health or consent form a client fills in once, signed with their typed name and a tick (the date is kept). It asks
@@ -703,6 +753,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     siteReviews: s.siteReviews === true,
     textReminders: s.textReminders === true,
     ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
+    ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
   };
 }
 
@@ -1093,10 +1144,12 @@ export function freeTimes(args: {
 }
 
 /** One calendar's free times on a day: the shop's (no person) or one person's, with their working hours. */
-function freeTimesFor({ service, settings, busy, day, zone, nowMs }: {
+function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }: {
   service: Bookable; settings: BookingSettings; busy: readonly Busy[]; day: string; zone: string; nowMs: number;
 }, hours: HoursWindow[][], staffId: string): number[] {
   if (!isDay(day) || settings.daysOff.includes(day)) return [];
+  // The owner's blocked time is busy like a booking: the whole shop's for everyone, a person's for them.
+  const busy = settings.blocks?.length ? [...booked, ...blockedBusy(settings.blocks, day, zone)] : booked;
   const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
   if (day < dayOf(nowMs, zone)) return [];
   const open = (start: number) => placesLeft(start, service, busy, staffId) > 0;
@@ -1180,7 +1233,8 @@ export function keptPerson(settings: Pick<BookingSettings, "staff">, serviceId: 
 /** Settings for the owner booking someone in: any hour of any day, for anyone on the team (a favour for a regular). */
 export function ownerBookingSettings(settings: BookingSettings): BookingSettings {
   const allDay = Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]);
-  return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5,
+  // Blocked time keeps clients out, never the owner: they can still put a booking there by hand.
+  return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [],
     staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [] })) };
 }
 

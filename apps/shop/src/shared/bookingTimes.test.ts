@@ -6,6 +6,7 @@ import {
   secondReminderDue, summaryDue, pickupSlots, pickupTimeProblem, PICKUP_DAYS_AHEAD, MAX_PICKUP_PER_SLOT,
   cleanCheckInCode, checkInCodeFrom, CHECK_IN_ALPHABET,
   cleanStaff, commissionOf, cleanRooms, staffFor, whoIsFree, MAX_STAFF, MAX_ROOMS, classStartsOn, joinableCourse, runDecisionDue, packProblem,
+  cleanBlocks, blockOn, blockedBusy, MAX_BLOCKS,
 } from "./bookingTimes";
 
 const ZONE = "America/Toronto";
@@ -629,5 +630,47 @@ describe("a class pass", () => {
     expect(packProblem(pass, "yoga", "2026-11-18", true)).toBeNull();
     expect(packProblem(pass, "yoga", "2026-11-18", false)).toBe("other_service");
     expect(packProblem({ ...pass, anyClass: false }, "yoga", "2026-11-18", true)).toBe("other_service");
+  });
+});
+
+describe("blocked time (plan 4, 1.3)", () => {
+  const lunch = { id: "lunch", title: "Lunch", staffId: "", day: "2026-11-16", start: "12:00", end: "13:00", weekly: true, until: "" };
+  it("keeps only sound blocks", () => {
+    expect(cleanBlocks([lunch])).toEqual([lunch]);
+    expect(cleanBlocks([{ ...lunch, start: "13:00", end: "12:00" }])).toEqual([]);
+    expect(cleanBlocks([{ ...lunch, day: "16 Nov" }])).toEqual([]);
+    expect(cleanBlocks([{ ...lunch, start: "00:00", end: "24:00" }])[0].end).toBe("24:00");
+    expect(cleanBlocks([{ ...lunch, weekly: false, until: "2026-12-01" }])[0].until).toBe("");
+    // One-off blocks in the past fall away; weekly ones with no end stay.
+    expect(cleanBlocks([{ ...lunch, weekly: false }], "2026-11-17")).toEqual([]);
+    expect(cleanBlocks([lunch], "2027-01-01")).toHaveLength(1);
+    expect(cleanBlocks([{ ...lunch, until: "2026-11-30" }], "2027-01-01")).toEqual([]);
+    expect(cleanBlocks(Array.from({ length: MAX_BLOCKS + 5 }, (_, i) => ({ ...lunch, id: `b${i}` })))).toHaveLength(MAX_BLOCKS);
+    expect(cleanBlocks([lunch, lunch])).toHaveLength(1);
+  });
+  it("repeats a weekly block on its weekday until its end", () => {
+    const until = { ...lunch, until: "2026-11-30" };
+    expect(blockOn(until, "2026-11-23")).toBe(true);
+    expect(blockOn(until, "2026-11-24")).toBe(false);
+    expect(blockOn(until, "2026-12-07")).toBe(false);
+    expect(blockOn(until, "2026-11-09")).toBe(false);
+    expect(blockOn({ ...lunch, weekly: false }, "2026-11-23")).toBe(false);
+  });
+  it("takes blocked time out of the free times, a person's block only for them", () => {
+    const free = (blocks: unknown[], staffId?: string, s: typeof settings = settings) =>
+      freeTimes({ service, settings: { ...s, blocks: cleanBlocks(blocks) }, busy: [], day: "2026-11-23", zone: ZONE, nowMs: NOW, staffId }).map(hhmm);
+    const open = free([]);
+    expect(free([lunch])).toEqual(open.filter((t) => !["11:30", "12:00", "12:30"].includes(t)));
+    expect(free([{ ...lunch, start: "00:00", end: "24:00" }])).toEqual([]);
+    const team = { ...cleanBookingSettings({ ...settings, staff: [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }] }), live: true, minNoticeHours: 0 };
+    const anaOff = [{ ...lunch, staffId: "ana", start: "00:00", end: "24:00" }];
+    expect(free(anaOff, "ana", team)).toEqual([]);
+    expect(free(anaOff, "ben", team)).toEqual(open);
+    expect(free(anaOff, undefined, team)).toEqual(open);
+    expect(blockedBusy([lunch], "2026-11-23", ZONE)).toEqual([{ start: at("2026-11-23", "12:00"), end: at("2026-11-23", "13:00") }]);
+  });
+  it("survives the settings clean", () => {
+    expect(cleanBookingSettings({ ...settings, blocks: [lunch] }).blocks).toEqual([lunch]);
+    expect(cleanBookingSettings(settings).blocks).toBeUndefined();
   });
 });

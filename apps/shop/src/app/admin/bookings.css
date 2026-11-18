@@ -565,3 +565,17 @@
 .rp .bkg-move-facts dt { color: var(--rp-text-muted); font: 500 12px/1.6 var(--rp-font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
 .rp .bkg-move-facts dd { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .rp .bkg-drag-edge::after { transition: none; } }
+
+/* Blocked time (plan 4, 1.3): striped, under the bookings, so a booking made over it stays on top and clickable. */
+.rp .bkg-blocked { position: absolute; left: 0; right: 0; display: grid; align-content: start; gap: 1px; padding: 5px 8px; overflow: hidden;
+  border: 0; border-block: 1px solid var(--rp-border-strong); border-radius: 0; color: var(--rp-text-muted); font: inherit; text-align: left; cursor: pointer; z-index: 0;
+  background: repeating-linear-gradient(-45deg, var(--rp-surface-sunken, var(--rp-surface)) 0 6px, color-mix(in srgb, var(--rp-border-strong) 70%, transparent) 6px 8px); }
+.rp .bkg-blocked:hover { color: var(--rp-text); }
+.rp .bkg-blocked:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); z-index: 2; }
+.rp .bkg-blocked-title { font: 600 12px/1.3 var(--rp-font-mono); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp .bkg-blocked-who { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp .bkg-blocked[data-short] { padding-block: 2px; }
+.rp .bkg-blocked[data-short] .bkg-blocked-who { display: none; }
+.rp .bkg-block-instead { margin: 4px 0 0; color: var(--rp-text-muted); font-size: 14px; }
+.rp .bkg-block-instead button { padding: 0; border: 0; background: none; color: var(--rp-text); font: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--rp-primary); text-underline-offset: 3px; cursor: pointer; }
+.rp .bkg-block-instead button:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); border-radius: 4px; }

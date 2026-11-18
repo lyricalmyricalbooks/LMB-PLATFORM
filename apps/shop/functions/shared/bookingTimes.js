@@ -9,8 +9,11 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.formFor = exports.MAX_FORM_TEXT = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = void 0;
+exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = void 0;
+exports.cleanBlocks = cleanBlocks;
+exports.blockSpan = blockSpan;
+exports.blockedBusy = blockedBusy;
 exports.cleanIntakeForm = cleanIntakeForm;
 exports.formVersion = formVersion;
 exports.depositOf = depositOf;
@@ -87,6 +90,51 @@ exports.MAX_EXTRAS = 8;
 exports.MAX_EXTRA_MINUTES = 240;
 exports.MAX_STAFF = 20;
 exports.MAX_ROOMS = 10;
+exports.MAX_BLOCKS = 100;
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
+/** The owner's blocks, cleaned: a real day and a start before the end; at most MAX_BLOCKS, one-off ones before `today` dropped. */
+function cleanBlocks(raw, today = "") {
+    if (!Array.isArray(raw))
+        return [];
+    const out = [];
+    for (const b of raw) {
+        if (!b || typeof b !== "object")
+            continue;
+        const r = b;
+        const start = String(r.start || ""), end = String(r.end || "");
+        if (!(0, exports.isDay)(r.day) || !CLOCK.test(start) || !CLOCK.test(end) || minutesOf(start) >= minutesOf(end))
+            continue;
+        const weekly = r.weekly === true;
+        const until = weekly && (0, exports.isDay)(r.until) && r.until >= r.day ? r.until : "";
+        if (today && (weekly ? until && until < today : r.day < today))
+            continue;
+        const id = typeof r.id === "string" && /^[\w-]{1,40}$/.test(r.id) ? r.id : `b${out.length}${String(r.day).replace(/-/g, "")}`;
+        if (out.some((x) => x.id === id))
+            continue;
+        out.push({ id, title: String(r.title || "").trim().slice(0, 60), staffId: typeof r.staffId === "string" ? r.staffId.slice(0, 40) : "", day: r.day, start, end, weekly, until });
+        if (out.length >= exports.MAX_BLOCKS)
+            break;
+    }
+    return out;
+}
+/** Does a block fall on this shop day? */
+const blockOn = (b, day) => b.weekly ? day >= b.day && (!b.until || day <= b.until) && (0, exports.weekdayOf)(day) === (0, exports.weekdayOf)(b.day) : b.day === day;
+exports.blockOn = blockOn;
+/** A block's stretch on one shop day, in milliseconds ("24:00" is the next midnight). */
+function blockSpan(b, day, zone) {
+    const at = (hhmm) => (hhmm === "24:00" ? zonedTime(addDays(day, 1), "00:00", zone) : zonedTime(day, hhmm, zone));
+    return { start: at(b.start), end: at(b.end) };
+}
+/** The busy stretches the owner's blocks make around a day (the day before and after too, for times that cross midnight). */
+function blockedBusy(blocks, day, zone) {
+    const out = [];
+    for (const d of [addDays(day, -1), day, addDays(day, 1)]) {
+        for (const b of blocks || [])
+            if ((0, exports.blockOn)(b, d))
+                out.push({ ...blockSpan(b, d, zone), ...(b.staffId ? { staffId: b.staffId } : {}) });
+    }
+    return out;
+}
 exports.MAX_FORM_TEXT = 6000;
 /** The form as saved: words trimmed and capped, its questions cleaned; null when it has no words at all. */
 function cleanIntakeForm(raw) {
@@ -577,6 +625,7 @@ function cleanBookingSettings(raw) {
         siteReviews: s.siteReviews === true,
         textReminders: s.textReminders === true,
         ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
+        ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
     };
 }
 exports.MAX_REBOOK_WEEKS = 52;
@@ -953,9 +1002,11 @@ function freeTimes(args) {
     return [...all].sort((a, b) => a - b);
 }
 /** One calendar's free times on a day: the shop's (no person) or one person's, with their working hours. */
-function freeTimesFor({ service, settings, busy, day, zone, nowMs }, hours, staffId) {
+function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }, hours, staffId) {
     if (!(0, exports.isDay)(day) || settings.daysOff.includes(day))
         return [];
+    // The owner's blocked time is busy like a booking: the whole shop's for everyone, a person's for them.
+    const busy = settings.blocks?.length ? [...booked, ...blockedBusy(settings.blocks, day, zone)] : booked;
     const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
     if (day < dayOf(nowMs, zone))
         return [];
@@ -1048,7 +1099,8 @@ function keptPerson(settings, serviceId, staffId) {
 /** Settings for the owner booking someone in: any hour of any day, for anyone on the team (a favour for a regular). */
 function ownerBookingSettings(settings) {
     const allDay = Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]);
-    return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5,
+    // Blocked time keeps clients out, never the owner: they can still put a booking there by hand.
+    return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [],
         staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [] })) };
 }
 /** Whether `start` is free for a booking (someone can take it, or the shop's one calendar is free there). */
