@@ -146,12 +146,19 @@ test("the shop's record shows how it uses Donations: gifts, what they came to an
   await w.shopData.set(SHOP, "gifts/b", { status: "refunded", chargedMinor: 5000, currency: "CAD" });
   await w.shopData.set(SHOP, "gifts/c", { status: "paid", chargedMinor: 1000, currency: "CAD", mode: "test" });
   await w.shopData.set(SHOP, "gifts/d", { status: "held", chargedMinor: 1000, currency: "CAD" });
+  await w.shopData.set(SHOP, "gifts/e", { status: "paid", chargedMinor: 0, currency: "CAD", receipt: { status: "issued", test: false } });
+  await w.shopData.set(SHOP, "gifts/f", { status: "refunded", chargedMinor: 0, currency: "CAD", receipt: { status: "cancelled", test: false } });
+  await w.shopData.set(SHOP, "fundraisers/f1", { status: "live", raisedMinor: 12000 });
+  await w.shopData.set(SHOP, "fundraisers/f2", { status: "ended", raisedMinor: 3000 });
   await w.shopData.set(SHOP, `givingBlocked/${day(0)}`, { day: day(0), tooMany: 6, bot: 1, total: 7 });
   await w.shopData.set(SHOP, `givingBlocked/${day(29)}`, { day: day(29), tooSmall: 2, total: 2 });
   // Older than 30 days, and another shop's tries, never count here.
   await w.shopData.set(SHOP, `givingBlocked/${day(30)}`, { day: day(30), tooMany: 40, total: 40 });
   await w.shopData.set("test-goods", `givingBlocked/${day(0)}`, { day: day(0), bot: 9, total: 9 });
   const rows = Object.fromEntries((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.map((way) => [way.id, way]));
-  assert.deepEqual(rows.giving.use, { gifts: 1, givenMinor: 2603, currency: "CAD", blocked: { tooSmall: 2, tooMany: 6, bot: 1, total: 9 } });
-  assert.deepEqual(givingUse([], [], NOW), { gifts: 0, givenMinor: 0, currency: "CAD", blocked: { tooSmall: 0, tooMany: 0, bot: 0, total: 0 } });
+  assert.deepEqual(rows.giving.use, {
+    gifts: 2, givenMinor: 2603, currency: "CAD", blocked: { tooSmall: 2, tooMany: 6, bot: 1, total: 9 },
+    receipts: 1, fundraisers: { count: 2, live: 1, raisedMinor: 15000 },
+  });
+  assert.deepEqual(givingUse([], [], NOW), { gifts: 0, givenMinor: 0, currency: "CAD", blocked: { tooSmall: 0, tooMany: 0, bot: 0, total: 0 }, receipts: 0, fundraisers: { count: 0, live: 0, raisedMinor: 0 } });
 });

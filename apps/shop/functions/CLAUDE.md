@@ -1766,3 +1766,10 @@ counter, so numbers never repeat. A reward means no receipt. Refund → `receipt
 cancels into `receiptHistory` (last 10) and issues the next number with `replaces`, then emails it. The number takes the
 year it was issued; `year` is the year the gift was received. A privacy erase keeps the receipt (a charity keeps copies)
 and clears `receiptAddress`.
+**Yearly summary (G3b):** `givingYearly.js` `runYearlySummary`, in `unpaidPaymentSweep`. In January (shop day), with
+`charity` set and `yearlySummary` not false, it starts `givingYearly/{lastYear}` once and walks gifts by `receipt.year`
+(single-field index, `listYearlyGifts`) under a 10-minute lease; each new address is claimed in
+`givingYearly/{year}/sent/{optOutId}` and gets one email of that giver's issued, non-test receipts for the year
+(`yearlyGiverGifts`, by `customer.email`) with the total. `bulk: true`, kind `giving-yearly-summary` (orders stream: the
+giver needs it). Unsubscribed givers are skipped. A failed send frees the claim and the next sweep carries on; February
+stops it. Both records are server-only (rules emulator checks them). Tests: `givingYearly.test.js`.
