@@ -1,12 +1,17 @@
 // Support page (/support, Donations & tips beta): what the server answers and the page's own small rules, kept apart from
 // SupportPage.tsx so they can be tested. The server (functions/giving.js) checks every amount again.
 import { coverFeeMinor, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../../shared/givingRules";
+import { daysLeft, goalProgress, type PublicFundraiser } from "../../../shared/fundraiserRules";
 
 export type GivingInfo = {
   on: boolean; currency?: string; minMinor?: number; maxMinor?: number; cardsReady?: boolean;
   amounts?: number[]; otherAmount?: boolean; coverFee?: boolean; honour?: boolean;
   /** The page's form token: sent back with the gift so the server knows a person filled the form in. */
   form?: string;
+  /** The fundraiser running now (G2), or null. */
+  fundraiser?: PublicFundraiser | null;
+  /** The shop's own day, for the days left. */
+  today?: string;
 };
 export type GiftView = {
   id: string; status: "held" | "paid" | "cancelled" | "refunded"; amountMinor: number; feeMinor: number; chargedMinor: number; currency: string;
@@ -41,3 +46,17 @@ export function giftFromSearch(search: string): { id: string; key: string } | nu
   const key = q.get("key") || "";
   return /^[A-Za-z0-9_-]{6,40}$/.test(id) && /^[a-f0-9]{48}$/.test(key) ? { id, key } : null;
 }
+
+/** The fundraiser's lines on the Support page as copy keys and their values: the raised line, supporters and time left. */
+export function fundraiserFacts(f: PublicFundraiser, today: string): { bar: number; reached: boolean; supporters: [string, Record<string, number>]; when: [string, Record<string, number>] } {
+  const { bar, percent } = goalProgress(f.raisedMinor, f.goalMinor);
+  const days = daysLeft(f.endsOn, today);
+  return {
+    bar, reached: percent >= 100,
+    supporters: f.supporters === 1 ? ["supportFundOneSupporter", {}] : ["supportFundSupporters", { count: f.supporters }],
+    when: days <= 1 ? ["supportFundLastDay", {}] : ["supportFundDaysLeft", { days }],
+  };
+}
+
+/** The fundraiser's story as paragraphs: a blank line starts a new one. */
+export const storyParagraphs = (story: string): string[] => String(story || "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);

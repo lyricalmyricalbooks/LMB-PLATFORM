@@ -33,3 +33,22 @@ describe("words on the page", () => {
     expect(blockedLine({ tooSmall: 2, tooMany: 0, bot: 5, total: 7 })).toBe("2 under the lowest gift, 5 from bots, in the last 30 days.");
   });
 });
+
+describe("fundraisers on the admin page", () => {
+  test("the goal box takes dollars and keeps to the limits", async () => {
+    const { goalFromText } = await import("./givingView");
+    expect(goalFromText("3000")).toEqual({ minor: 300000 });
+    expect(goalFromText("$1,500.50")).toEqual({ minor: 150050 });
+    expect(goalFromText("99")).toHaveProperty("problem");
+    expect(goalFromText("lots")).toHaveProperty("problem");
+    expect(goalFromText("2000000")).toHaveProperty("problem");
+  });
+  test("the words under the bar", async () => {
+    const { fundraiserLines } = await import("./givingView");
+    const f = { raisedMinor: 187500, goalMinor: 300000, endsOn: "2026-11-20", state: "live" as const };
+    expect(fundraiserLines(f, money, "2026-11-18")).toEqual({ raised: "$1875.00 of $3000.00", percent: "62% of the goal", when: "3 days left" });
+    expect(fundraiserLines({ ...f, endsOn: "2026-11-18" }, money, "2026-11-18").when).toBe("Last day today");
+    expect(fundraiserLines({ ...f, state: "ended" }, money, "2026-11-18").when).toBe("Ended");
+    expect(fundraiserLines({ ...f, state: "draft" }, money, "2026-11-18").when).toMatch(/^Would run to /);
+  });
+});

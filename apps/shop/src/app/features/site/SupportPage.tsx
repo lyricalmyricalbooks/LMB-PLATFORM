@@ -19,7 +19,8 @@ import { askGiving } from "./supportAsk";
 import { isBookingPreview } from "./bookTimePreview";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { moneyText } from "./bookTimeRules";
-import { amountProblem, chargeFor, giftFromSearch, typedMinor, type GiftView, type GivingInfo } from "./supportRules";
+import { amountProblem, chargeFor, fundraiserFacts, giftFromSearch, storyParagraphs, typedMinor, type GiftView, type GivingInfo } from "./supportRules";
+import type { PublicFundraiser } from "../../../shared/fundraiserRules";
 import { currencySign } from "../../../shared/shopCurrency";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -61,12 +62,12 @@ function SupportContent() {
   );
 }
 
-function Intro({ c, children, title }: { c: Copy; children?: React.ReactNode; title?: string }) {
+function Intro({ c, children, title, bare }: { c: Copy; children?: React.ReactNode; title?: string; bare?: boolean }) {
   return (
     <div {...regionProps("supportIntro")} className="mb-10 max-w-3xl">
       <p className="fm-track-mono mb-3">{c("supportEyebrow")}</p>
       <h1 tabIndex={-1} className="fm-track-display text-5xl sm:text-6xl outline-none">{title || c("supportTitle")}</h1>
-      {children ?? <p className="mt-4 text-base leading-7 fm-muted">{c("supportSubtitle")}</p>}
+      {bare ? null : children ?? <p className="mt-4 text-base leading-7 fm-muted">{c("supportSubtitle")}</p>}
     </div>
   );
 }
@@ -82,21 +83,20 @@ function Give({ c }: { c: Copy }) {
   const [honourKind, setHonourKind] = useState<"honour" | "memory">("honour");
   const [honourName, setHonourName] = useState("");
   const [form, setForm] = useState({ name: "", email: "", anonymous: false, note: "", website: "" });
+  const [wallMe, setWallMe] = useState(false);
   const [problems, setProblems] = useState<{ amount?: string; name?: string; email?: string; honour?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
 
-  const load = () => {
-    setFailed(false);
-    askGiving("givingInfo").then((answer) => {
-      const next = answer as GivingInfo;
-      setInfo(next);
-      // Start on a middle amount, so the Give button and the total read at once; the giver can still pick any other.
-      const amounts = next.amounts || [];
-      setPicked((now) => now ?? (amounts.length ? amounts[Math.min(1, amounts.length - 1)] : next.otherAmount ? "other" : null));
-    }).catch(() => setFailed(true));
-  };
+  const fetchInfo = () => askGiving("givingInfo").then((answer) => {
+    const next = answer as GivingInfo;
+    setInfo(next);
+    // Start on a middle amount, so the Give button and the total read at once; the giver can still pick any other.
+    const amounts = next.amounts || [];
+    setPicked((now) => now ?? (amounts.length ? amounts[Math.min(1, amounts.length - 1)] : next.otherAmount ? "other" : null));
+  });
+  const load = () => { setFailed(false); fetchInfo().catch(() => setFailed(true)); };
   useEffect(load, []);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
 
@@ -122,6 +122,7 @@ function Give({ c }: { c: Copy }) {
   const covering = !!info.coverFee && cover;
   const { feeMinor, totalMinor } = chargeFor(minor && minor > 0 ? minor : 0, covering);
   const limits = { min: money(info.minMinor || 500), max: money(info.maxMinor || 1_000_000) };
+  const fund = info.fundraiser && info.fundraiser.state === "live" ? info.fundraiser : null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +140,7 @@ function Give({ c }: { c: Copy }) {
     try {
       const answer = await askGiving("giftStart", {
         amountMinor: minor, coverFee: covering, form: info.form, website: form.website, locale: pageLanguage(),
+        ...(fund ? { fundraiserId: fund.id, wall: fund.showWall && wallMe && !form.anonymous } : {}),
         giver: { name: form.name, email: form.email, anonymous: form.anonymous, note: form.note, honour: honourOn ? { kind: honourKind, name: honourName } : null },
       });
       if (answer.url) { window.location.assign(String(answer.url)); return; }
@@ -148,19 +150,16 @@ function Give({ c }: { c: Copy }) {
       // The server's own words for a refused gift (lowest amount, too many tries, cards not set up); ours otherwise.
       setError(err?.code && err?.message && !/^\d+$/.test(err.message) ? err.message : c("supportError"));
       // A form token used up or too old: a fresh one for the next try.
-      if (err?.code === "form") askGiving("givingInfo").then((answer) => {
-      const next = answer as GivingInfo;
-      setInfo(next);
-      // Start on a middle amount, so the Give button and the total read at once; the giver can still pick any other.
-      const amounts = next.amounts || [];
-      setPicked((now) => now ?? (amounts.length ? amounts[Math.min(1, amounts.length - 1)] : next.otherAmount ? "other" : null));
-    }).catch(() => {});
+      // The fundraiser ended while the page was open: say so, and show the page without it so the gift can go to the shop.
+      if (err?.code === "fundraiser_ended") setError(c("supportFundEnded"));
+      if (err?.code === "form" || err?.code === "fundraiser_ended") fetchInfo().catch(() => {});
     } finally { setBusy(false); }
   };
 
   return (
     <>
-      <Intro c={c} />
+      <Intro c={c} title={fund?.title} bare={!!fund} />
+      {fund && <Fundraiser f={fund} today={info.today || new Date().toISOString().slice(0, 10)} money={money} c={c} />}
       {!info.cardsReady && <div {...regionProps("supportNotice")} className="fm-track-notice mb-8" role="status"><p>{c("supportNotReady")}</p></div>}
       <form onSubmit={submit} noValidate className="fm-sup-layout">
         <section {...regionProps("supportAmounts")} className="fm-track-card p-5 sm:p-8" aria-labelledby="sup-amount">
@@ -237,6 +236,12 @@ function Give({ c }: { c: Copy }) {
             <input type="checkbox" checked={form.anonymous} onChange={(e) => setForm({ ...form, anonymous: e.target.checked })} />
             <span>{c("supportAnonymous")}</span>
           </label>
+          {fund?.showWall && !form.anonymous && (
+            <label className="fm-sup-check">
+              <input type="checkbox" checked={wallMe} onChange={(e) => setWallMe(e.target.checked)} />
+              <span>{c("supportWallMe")}</span>
+            </label>
+          )}
           {/* Only bots fill this in: people never see it, and screen readers skip it. */}
           <div className="fm-sup-trap" aria-hidden="true">
             <input type="text" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} />
@@ -256,6 +261,33 @@ function Give({ c }: { c: Copy }) {
         </section>
       </form>
     </>
+  );
+}
+
+/** The fundraiser on top of the page: how much is in, the bar, supporters and time left, the owner's story and the wall. */
+function Fundraiser({ f, today, money, c }: { f: PublicFundraiser; today: string; money: (minor: number) => string; c: Copy }) {
+  const facts = fundraiserFacts(f, today);
+  const story = storyParagraphs(f.story);
+  return (
+    <div className="fm-sup-fund mb-10">
+      <section {...regionProps("supportFundraiser")} className="fm-track-card p-5 sm:p-8" aria-label={f.title}>
+        <p className="fm-sup-raised"><strong translate="no">{money(f.raisedMinor)}</strong> <span>{c("supportFundRaised", { goal: money(f.goalMinor) })}</span></p>
+        <div className="fm-sup-bar" role="progressbar" aria-label={c("supportFundBar")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={facts.bar}>
+          <span style={{ width: `${facts.bar}%` }} />
+        </div>
+        <p className="fm-sup-facts fm-track-mono">
+          <span>{c(...facts.supporters)}</span>
+          <span>{facts.reached ? c("supportFundReached") : c(...facts.when)}</span>
+        </p>
+        {story.length > 0 && <div className="fm-sup-story">{story.map((p, i) => <p key={i}>{p}</p>)}</div>}
+      </section>
+      {f.showWall && f.wall.length > 0 && (
+        <section {...regionProps("supportWall")} className="fm-sup-wall" aria-labelledby="sup-wall">
+          <h2 id="sup-wall" className="fm-track-mono">{c("supportWallTitle")}</h2>
+          <ul>{f.wall.map((w, i) => <li key={`${w.name}-${i}`}>{w.name}</li>)}</ul>
+        </section>
+      )}
+    </div>
   );
 }
 

@@ -395,7 +395,7 @@ function givingActions({
         return res.status(200).json({
           on: true, currency: currency(), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: !!checkout,
           amounts: settings.amounts, otherAmount: settings.otherAmount, coverFee: settings.coverFee, honour: settings.honour,
-          form: await formToken(nowMs), fundraiser: await liveFundraiser(shopToday(nowMs)).then((f) => (f ? publicFundraiser(f.id, f.data, shopToday(nowMs)) : null)),
+          form: await formToken(nowMs), today: shopToday(nowMs), fundraiser: await liveFundraiser(shopToday(nowMs)).then((f) => (f ? publicFundraiser(f.id, f.data, shopToday(nowMs)) : null)),
         });
       }
       if (action === "giftStart") {
