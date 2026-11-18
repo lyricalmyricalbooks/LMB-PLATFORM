@@ -23,8 +23,12 @@ export type ServiceSale = {
   /** That tax by name (e.g. "HST ON"), adding up to `taxMinor`. */
   taxLines: { name: string; cents: number }[];
   currency: string;
-  /** "pack" for a pack of visits sold (its visits are then booked at no price, so they never count twice). */
-  kind?: "pack";
+  /**
+   * "pack" for a pack of visits sold (its visits are then booked at no price, so they never count twice). "gift" for a
+   * gift from the Support page (Donations & tips): `keptMinor` is what the giver paid, card fee covered included; money
+   * in, but never a sale and never taxed.
+   */
+  kind?: "pack" | "gift";
 };
 
 type BookingLike = {
@@ -92,6 +96,29 @@ export function packSales(packs: readonly PackLike[], zone: string, today: strin
   return out;
 }
 
+/** A gift as the Donations admin's `list` op gives it (givingApi AdminGift). */
+type GiftLike = { id: string; status?: string; chargedMinor?: number; amountMinor?: number; currency?: string; paidAt?: string; test?: boolean };
+
+/**
+ * Every gift from the Support page paid by `today`, on the shop day it was paid: what the giver paid (the card fee they
+ * covered included). Refunded gifts (always refunded whole) and test gifts are left out. The giver's name never goes
+ * into the books.
+ */
+export function giftSales(gifts: readonly GiftLike[], zone: string, today: string, currency: string): ServiceSale[] {
+  const out: ServiceSale[] = [];
+  for (const g of gifts) {
+    if (!g || g.status !== "paid" || g.test || !g.paidAt) continue;
+    const ms = Date.parse(g.paidAt);
+    if (!Number.isFinite(ms)) continue;
+    const date = dayOf(ms, zone);
+    if (date > today) continue;
+    const keptMinor = Math.round(Number(g.chargedMinor) || Number(g.amountMinor) || 0);
+    if (keptMinor <= 0) continue;
+    out.push({ id: `gift-${g.id}`, date, serviceName: "Gift", keptMinor, tipMinor: 0, taxMinor: 0, taxLines: [], currency: String(g.currency || currency).toUpperCase(), kind: "gift" });
+  }
+  return out;
+}
+
 /** Bookings and packs together, oldest first (the order `serviceSales` keeps). */
 export function withPackSales(sales: readonly ServiceSale[], packs: readonly ServiceSale[]): ServiceSale[] {
   return [...sales, ...packs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
@@ -100,6 +127,8 @@ export function withPackSales(sales: readonly ServiceSale[], packs: readonly Ser
 /** Booking ledger rows look like this (`sourceType`). */
 export const SERVICE_SOURCE = "booking";
 export const TIP_SOURCE = "bookingTip";
+/** A gift from the Support page: money in, kept apart from sales (never in gross sales, sales figures or tax). */
+export const GIFT_SOURCE = "gift";
 
 /**
  * The ledger rows for a year ('all' or 'YYYY'), shaped like the stockroom's own sale rows. A sale row's amount is what
@@ -112,6 +141,11 @@ export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, yea
     if (year !== "all" && s.date.slice(0, 4) !== year) continue;
     if (s.currency !== String(baseCurrency).toUpperCase()) continue;
     const common = { date: s.date, cat: "Income", ref: s.id.slice(-6).toUpperCase(), origCurrency: s.currency, voided: false, hasRateError: false, isIncome: true, sourceId: "bookings" };
+    if (s.kind === "gift") {
+      const amount = s.keptMinor / 100;
+      rows.push({ ...common, sourceId: "giving", type: "Gift", desc: "Gift (Support page)", origAmount: amount, baseAmount: amount, qty: 0, sourceType: GIFT_SOURCE, itemId: s.id });
+      continue;
+    }
     if (s.keptMinor > 0) {
       const tax = s.taxMinor || 0;
       const amount = (s.keptMinor - tax) / 100;
@@ -126,12 +160,14 @@ export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, yea
   return rows;
 }
 
-/** Service sales of a year in the books' currency: count, kept (net of tax), tax and tips (whole currency units). */
+/** Service sales of a year in the books' currency: count, kept (net of tax), tax, tips and gifts (whole currency units). */
 export function serviceYear(sales: readonly ServiceSale[] | undefined, year: string, baseCurrency: string) {
-  let count = 0, kept = 0, tax = 0, tips = 0;
+  let count = 0, kept = 0, tax = 0, tips = 0, gifts = 0;
   for (const r of serviceLedgerRows(sales, year, baseCurrency)) {
-    if (r.sourceType === SERVICE_SOURCE) { count += 1; kept += r.baseAmount; tax += r.taxAmount || 0; } else tips += r.baseAmount;
+    if (r.sourceType === SERVICE_SOURCE) { count += 1; kept += r.baseAmount; tax += r.taxAmount || 0; }
+    else if (r.sourceType === GIFT_SOURCE) gifts += r.baseAmount;
+    else tips += r.baseAmount;
   }
   const round = (n: number) => Math.round(n * 100) / 100;
-  return { count, kept: round(kept), tax: round(tax), tips: round(tips) };
+  return { count, kept: round(kept), tax: round(tax), tips: round(tips), gifts: round(gifts) };
 }

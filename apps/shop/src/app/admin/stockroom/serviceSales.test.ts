@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { packSales, serviceLedgerRows, serviceSales, serviceYear, withPackSales } from "./serviceSales";
+import { giftSales, packSales, serviceLedgerRows, serviceSales, serviceYear, withPackSales } from "./serviceSales";
 import { taxCenterModel, type MoneySources } from "./moneyReports";
 import { taxPeriodModel } from "./taxPeriods";
 import { yearFigures } from "./yearReport";
@@ -40,7 +40,7 @@ describe("service sales", () => {
     expect(rows.find((r) => r.type === "Tip")).toMatchObject({ baseAmount: 9, isIncome: true, sourceType: "bookingTip" });
     expect(serviceLedgerRows(sales, "2025", "CAD")).toEqual([]);
     expect(serviceLedgerRows(sales, "2026", "USD")).toEqual([]);
-    expect(serviceYear(sales, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9 });
+    expect(serviceYear(sales, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9, gifts: 0 });
   });
 
   const sources: MoneySources = { books: {}, states: {}, taxCenter: {}, fxRateCache: {}, serviceSales: sales };
@@ -92,7 +92,7 @@ describe("service sales", () => {
     it("books the sale net of tax, with the tax beside it", () => {
       const ledger = serviceLedgerRows(taxedSales, "2026", "CAD");
       expect(ledger.map((r) => [r.baseAmount, r.taxAmount, r.taxes])).toEqual([[100, 13, { "HST ON": 1300 }], [50, 6.5, { "HST ON": 650 }], [60, 0, {}]]);
-      expect(serviceYear(taxedSales, "2026", "CAD")).toEqual({ count: 3, kept: 210, tax: 19.5, tips: 0 });
+      expect(serviceYear(taxedSales, "2026", "CAD")).toEqual({ count: 3, kept: 210, tax: 19.5, tips: 0, gifts: 0 });
       expect(yearFigures({ books: [], states: {}, taxCenter: null, fxRateCache: {}, serviceSales: taxedSales }, "2026").revenue).toBe(210);
     });
 
@@ -133,6 +133,46 @@ describe("service sales", () => {
       expect(all.map((s) => s.id).slice(0, 4)).toEqual(["pack-p1", "pack-p2", "a1", "b2"]);
       const ledger = serviceLedgerRows(sold, "2026", "CAD");
       expect(ledger.map((r) => [r.desc, r.baseAmount, r.taxAmount])).toEqual([["Cut and style, pack of 5", 100, 13], ["Cut and style, pack of 3", 150, 0]]);
+    });
+  });
+
+  describe("gifts from the Support page", () => {
+    const gifts = [
+      // $25 with the $1.03 card fee covered, paid late evening in Toronto (next day in UTC).
+      { id: "g1", status: "paid", amountMinor: 2500, chargedMinor: 2603, currency: "CAD", paidAt: "2026-03-05T02:00:00Z", test: false },
+      { id: "g2", status: "paid", amountMinor: 1000, chargedMinor: 1000, currency: "CAD", paidAt: "2026-04-01T15:00:00Z", test: false },
+      // Refunded, a test gift and one paid after today are left out.
+      { id: "g3", status: "refunded", amountMinor: 5000, chargedMinor: 5000, currency: "CAD", paidAt: "2026-04-02T15:00:00Z", test: false },
+      { id: "g4", status: "paid", amountMinor: 5000, chargedMinor: 5000, currency: "CAD", paidAt: "2026-04-03T15:00:00Z", test: true },
+      { id: "g5", status: "paid", amountMinor: 5000, chargedMinor: 5000, currency: "CAD", paidAt: "2026-07-01T15:00:00Z", test: false },
+    ];
+    const given = giftSales(gifts, ZONE, "2026-06-30", "CAD");
+    const withGifts = withPackSales(serviceSales(bookings, ZONE, "2026-06-30", "CAD"), given);
+
+    it("counts a gift on the shop day it was paid with what the giver paid, never taxed", () => {
+      expect(given.map((s) => [s.id, s.date, s.keptMinor, s.taxMinor, s.kind])).toEqual([
+        ["gift-g1", "2026-03-04", 2603, 0, "gift"],
+        ["gift-g2", "2026-04-01", 1000, 0, "gift"],
+      ]);
+    });
+
+    it("is a Gift row in the books, never a sale, with no giver's name", () => {
+      const rows = serviceLedgerRows(given, "2026", "CAD");
+      expect(rows.map((r) => [r.type, r.desc, r.baseAmount, r.sourceType, r.isIncome])).toEqual([
+        ["Gift", "Gift (Support page)", 26.03, "gift", true],
+        ["Gift", "Gift (Support page)", 10, "gift", true],
+      ]);
+      expect(serviceYear(withGifts, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9, gifts: 36.03 });
+    });
+
+    it("stays out of sales in the Tax centre, the tax period and the year figures", () => {
+      const model = taxCenterModel({ books: {}, states: {}, taxCenter: {}, fxRateCache: {}, serviceSales: withGifts }, "2026", new Date("2026-06-30T12:00:00"));
+      expect(model.summary.sales).toBe(209);
+      expect(model.summary.txnCount).toBe(4);
+      expect(model.rows.filter((r) => r.sourceType === "gift")).toHaveLength(2);
+      const period = { id: "2026-Q1", label: "Q1 2026", start: "2026-01-01", end: "2026-03-31", open: false, quarter: true };
+      expect(taxPeriodModel({ orders: [], ledgerRows: model.rows, states: {}, period, currency: "CAD" }).salesCents).toBe(8000);
+      expect(yearFigures({ books: [], states: {}, taxCenter: null, fxRateCache: {}, serviceSales: withGifts }, "2026").revenue).toBe(200);
     });
   });
 });

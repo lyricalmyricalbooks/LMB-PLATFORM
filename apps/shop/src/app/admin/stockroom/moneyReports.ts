@@ -19,7 +19,7 @@ import { shopProfile } from "../../../lib/shopProfile";
 import { keptRates, type RateCache } from "./datedRates";
 import type { StockroomRecords } from "./stockroomData";
 import { SHOP_CURRENCY, homeCurrency } from "../moneySign";
-import { serviceLedgerRows, serviceYear, type ServiceSale } from "./serviceSales";
+import { GIFT_SOURCE, serviceLedgerRows, serviceYear, type ServiceSale } from "./serviceSales";
 
 type Row = Record<string, any>;
 
@@ -54,7 +54,8 @@ function ledgerWithServices(sources: MoneySources, year: string) {
   const ledger = buildTaxLedger(sources, year);
   const rows = serviceLedgerRows(sources.serviceSales, year, baseCurrencyOf(sources));
   if (!rows.length) return ledger;
-  const extra = rows.reduce((sum, r) => sum + (r.baseAmount || 0), 0);
+  // Gifts are money in but never sales: they stay out of gross sales (and so out of the cash flow's sales).
+  const extra = rows.reduce((sum, r) => sum + (r.sourceType === GIFT_SOURCE ? 0 : r.baseAmount || 0), 0);
   return { ...ledger, totalGrossSales: Math.round((ledger.totalGrossSales + extra) * 100) / 100, allLedger: [...ledger.allLedger, ...rows] };
 }
 

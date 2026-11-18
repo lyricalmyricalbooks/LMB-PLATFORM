@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const visits = vi.fn();
 vi.mock("../bookingsApi", () => ({ readBookingsBetween: (...a: unknown[]) => visits(...a), bookingsAdmin: vi.fn() }));
+vi.mock("../givingApi", () => ({ givingAdmin: vi.fn() }));
 vi.mock("./stockroomData", () => ({ stockroomApi: { load: vi.fn() } }));
 vi.mock("../../../shared/shopTimeZone", () => ({ shopTimeZone: () => "America/Toronto" }));
 
@@ -23,5 +24,13 @@ describe("the money pages' service sales", () => {
     expect((await readServiceSales(NOW, async () => { throw new Error("no"); })).map((s) => s.id)).toEqual(["v1"]);
     visits.mockRejectedValueOnce(new Error("no"));
     expect((await readServiceSales(NOW, async () => [pack])).map((s) => s.id)).toEqual(["pack-p1"]);
+  });
+
+  it("adds gifts from the Support page, and leaves them out when Donations is off", async () => {
+    const gift = { id: "g1", status: "paid", chargedMinor: 2603, currency: "CAD", paidAt: "2026-03-02T15:00:00Z" } as never;
+    visits.mockResolvedValueOnce([visit]);
+    expect((await readServiceSales(NOW, async () => [], async () => [gift])).map((s) => [s.id, s.kind])).toEqual([["gift-g1", "gift"], ["v1", undefined]]);
+    visits.mockResolvedValueOnce([visit]);
+    expect((await readServiceSales(NOW, async () => [], async () => { throw new Error("off"); })).map((s) => s.id)).toEqual(["v1"]);
   });
 });
