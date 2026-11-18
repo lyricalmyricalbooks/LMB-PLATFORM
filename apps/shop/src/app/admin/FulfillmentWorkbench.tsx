@@ -23,6 +23,7 @@ import {
 import { labelVoidable, labelRefunds, refundWords } from "./labelRefunds";
 import { getTrackingUrl } from "../lib/tracking";
 import { formatReleaseDate } from "../features/site/preorder";
+import { lineAmountText } from "../../shared/soldByAmount";
 import { addOnLines, bundlePartsText, giftCardLineText, isFreeGiftLine, isGiftCardLine, linePricing, cad } from "./orderLines";
 import {
   Checkbox,
@@ -417,7 +418,7 @@ export function FulfillmentWorkbench({
                 );
               })()}
               <span className="fw-quantity">
-                × {item.quantity}
+                {lineAmountText(item) ? <>{lineAmountText(item)} <span className="rp-hint">({item.quantity} × {lineAmountText({ amount: { unit: item.amount.unit, value: item.amount.step } })})</span></> : <>× {item.quantity}</>}
                 {(() => {
                   const p = linePricing(item);
                   return (

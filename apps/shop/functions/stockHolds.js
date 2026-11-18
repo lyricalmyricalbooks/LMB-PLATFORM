@@ -8,6 +8,7 @@
 
 const crypto = require("crypto");
 const { stockLines } = require("./shared/promotions");
+const { soldAmount } = require("./shared/soldByAmount");
 const { ipKey } = require("./rateLimit");
 const { readStockPools, poolMembers } = require("./stockPools");
 
@@ -199,7 +200,8 @@ async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { 
           throw new StockHoldError(variant?.name ? `${book.title} (${variant.name})` : book.title || "This book", available);
         }
       }
-      heldBooks[id] = Object.values(lines).reduce((sum, qty) => sum + qty, 0);
+      // A length of fabric or a bag of beads is one thing set aside, however many 10 cm or 10 g steps it counts.
+      heldBooks[id] = soldAmount(book) ? Object.keys(lines).length : Object.values(lines).reduce((sum, qty) => sum + qty, 0);
       writes.push([holdRefs[i], { holds: { ...others, [orderId]: { lines, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}), ...(holderNames.length ? { holders: holderNames } : {}) } }, updatedAt: new Date(now).toISOString() }]);
     });
     if (Object.keys(heldBooks).length) {

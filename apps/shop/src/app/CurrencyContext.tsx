@@ -1,3 +1,4 @@
+import { perLabel, pricePerUnit, soldAmount } from "../shared/soldByAmount";
 import { displayPrice } from "./features/site/displayPrice";
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
@@ -139,6 +140,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const formatBookPrice = (book: any, ignoreSale: boolean = false) => {
     const price = getBookPrice(book, ignoreSale);
     const symbol = CURRENCY_SYMBOLS[currency];
+    // Sold by the metre or the gram: the stored price is one step's, so shoppers see it per metre or per 100 g.
+    const amount = soldAmount(book);
+    if (amount) return `${symbol}${pricePerUnit(amount, price).toFixed(2)} / ${perLabel(amount)}`;
     return `${symbol}${price.toFixed(2)}`;
   };
 

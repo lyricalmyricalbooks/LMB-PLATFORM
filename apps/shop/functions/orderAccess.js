@@ -25,7 +25,7 @@ function publicOrderView(id, order) {
   if (order.returnProgress) out.returnProgress = pick(order.returnProgress, ["state", "instructions", "approvedAt", "receivedAt", "inspectedAt", "rejectedAt", "closedAt", "updatedAt"]);
   out.customer = pick(order.customer, ["name", "email", "phone"]);
   out.customer.address = pick(order.customer?.address, ["street", "unit", "city", "state", "zip", "country"]);
-  out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl", "preorder", "releaseDate", "digital", "isDigital", "format", "addOns", "bundle", "components", "giftCard", "giftCardDetails", "promoGift"]));
+  out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl", "preorder", "releaseDate", "digital", "isDigital", "format", "addOns", "bundle", "components", "giftCard", "giftCardDetails", "promoGift", "amount"]));
   // Names only: the automatic offer's title or the code, never the discount's id.
   if (order.appliedDiscount) out.appliedDiscount = pick(order.appliedDiscount, ["code", "title", "automatic", "type"]);
   // Gift cards show as their last four characters; ids and codes stay on the server.

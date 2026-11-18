@@ -41,6 +41,7 @@ import { emptyBagPicks, emptyBagPicksCount, emptyBagPicksOn } from "../features/
 import { bookSlug } from "../features/site/staffNotes";
 import { tabReminderApplies, tabReminderOn, tabReminderTitle, titleToRestore } from "../features/site/extras/cart-tab-reminder/tabReminder";
 import { productHref } from "../lib/productHref";
+import { lineAmountText, minSteps, perLabel, pricePerUnit } from "../../shared/soldByAmount";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -208,7 +209,7 @@ export function CartDrawer() {
   };
   // Style › Cart drawer › Empty bag › Suggest books in an empty bag (off by default).
   const emptyPicks = cart.length === 0 && emptyBagPicksOn(design) ? emptyBagPicks(candidateBooks, emptyBagPicksCount(design)) : [];
-  const itemCount = cart.reduce((n, i) => n + (i.quantity || 0), 0);
+  const itemCount = cart.reduce((n, i) => n + (i.amount ? 1 : (i.quantity || 0)), 0);
 
   // The bar follows Settings › Shipping's own free-shipping rules, so it never promises
   // something checkout won't charge. No rule (or an e-book-only bag) → no bar.
@@ -260,7 +261,7 @@ export function CartDrawer() {
 
   // Style › Cart drawer › Tab reminder (off by default): while the shopper is on another tab with books in
   // the bag, the tab title says so; their own page title comes back when they return.
-  const shopperCount = shopper.cart.reduce((n, i) => n + (i.quantity || 0), 0);
+  const shopperCount = shopper.cart.reduce((n, i) => n + (i.amount ? 1 : (i.quantity || 0)), 0);
   const reminderWords = tabReminderOn(design) ? tabReminderTitle(getCopy(design, "cartTabReminder", { count: shopperCount })) : "";
   const reminderActive = !!reminderWords && tabReminderApplies(true, shopperCount, location.pathname, inEditorPreview());
   useEffect(() => {
@@ -384,12 +385,12 @@ export function CartDrawer() {
                           {showLineOptions && item.giftCard && <p className="fm-bag-meta fm-bag-giftcard">{giftTo ? getCopy(design, "cartGiftCardTo", { recipient: giftTo }) : getCopy(design, "cartGiftCardSelf")}</p>}
                           {showLineOptions && item.bundle && (item.bundleCount || 0) > 0 && <p className="fm-bag-meta fm-bag-boxset">{getCopy(design, "cartBoxSetIncludes", { count: item.bundleCount as number })}</p>}
                           {showPreorder && linePreorderNote(item, (k, v) => getCopy(design, k, v)) && <p className="fm-bag-meta fm-bag-preorder">{linePreorderNote(item, (k, v) => getCopy(design, k, v))}</p>}
-                          {showUnitPrice && <p className="fm-bag-meta">{getCopy(design, "cartEachLabel", { price: formatPrice(item.price) })}</p>}
+                          {showUnitPrice && <p className="fm-bag-meta">{item.amount ? `${formatPrice(pricePerUnit(item.amount, item.price))} / ${perLabel(item.amount)}` : getCopy(design, "cartEachLabel", { price: formatPrice(item.price) })}</p>}
                           {savings?.perCopy.get(item) ? <p className="fm-bag-meta fm-bag-saving" translate="no">{getCopy(design, "cartYouSaveLine", { amount: formatPrice((savings.perCopy.get(item) as number) * item.quantity) })}</p> : null}
                           <div className="flex items-center justify-between gap-3 mt-auto pt-2">
                             <div className="fm-bag-qty" data-style={qtyStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>
-                              <button onClick={() => updateQuantity(key, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><Minus size={12} /></button>
-                              <span className="fm-bag-qty-n" aria-live="polite" aria-atomic="true">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(key, -1)} disabled={item.quantity <= minSteps(item.amount || null)} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><Minus size={12} /></button>
+                              <span className="fm-bag-qty-n" aria-live="polite" aria-atomic="true">{lineAmountText(item) || item.quantity}</span>
                               <button onClick={() => updateQuantity(key, 1)} disabled={atLimit || item.quantity >= MAX_LINE_QUANTITY} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
                             </div>
                             <div className="flex items-center gap-3">

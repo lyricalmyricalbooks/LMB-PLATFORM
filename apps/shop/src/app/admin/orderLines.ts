@@ -1,4 +1,5 @@
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
+import { lineAmountText } from "../../shared/soldByAmount";
 // How admin order views describe the newer kinds of order line: paid add-ons (signed copy,
 // inscription, gift wrap), box sets and their books, gift cards and the free gift, plus the
 // automatic-discount label and gift-card payments. Pure, tested; shared by Order detail, the
@@ -38,6 +39,8 @@ export function giftCardLineText(item: any, order?: any): string {
 export function lineDetails(item: any, order?: any): string[] {
   const out: string[] = [];
   if (isFreeGiftLine(item)) out.push("Free gift");
+  const amount = lineAmountText(item);
+  if (amount) out.push(`Amount: ${amount}`);
   const parts = bundlePartsText(item);
   if (parts) out.push(`Includes: ${parts}${Number(item?.quantity) > 1 ? " (per set)" : ""}`);
   for (const addOn of addOnLines(item)) out.push(`Add-on: ${addOn}`);

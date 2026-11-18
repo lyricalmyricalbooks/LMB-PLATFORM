@@ -286,6 +286,32 @@ describe('pay what you want', () => {
   });
 });
 
+describe('sold by the metre or the gram', () => {
+  // A digital stand-in keeps shipping out of the way; the amount rules are the same for any product.
+  const books = { linen: { status: 'published', title: 'Linen', format: 'E-book', digital: true, retailPrice: 1.8, amount: { unit: 'm', step: 0.1, min: 0.5 }, trackInventory: true, stockLevel: 30 } };
+  test('charges each step and records the amount on the line from the catalog', async () => {
+    const app = harness({ books, items: [line('linen', { quantity: 15, amount: { unit: 'g', step: 100, value: 1 } })] });
+    const r = await app.call('createStripeCheckoutSession');
+    expect(r.code).toBe(200);
+    expect(app.order.items[0]).toMatchObject({ quantity: 15, price: 1.8, amount: { unit: 'm', step: 0.1, value: 1.5 } });
+    expect(app.order.total).toBe(27);
+    expect(app.stripeCalls[0].amount).toBe(2700);
+  });
+  test('refuses a line under the smallest amount before payment', async () => {
+    const app = harness({ books, items: [line('linen', { quantity: 4 })] });
+    const r = await app.call('createStripeCheckoutSession');
+    expect(r.code).toBe(400);
+    expect(JSON.stringify(r.value)).toContain('at least 50 cm');
+    expect(app.stripeCalls).toHaveLength(0);
+  });
+  test('counts stock in steps', async () => {
+    const app = harness({ books, items: [line('linen', { quantity: 31 })] });
+    const r = await app.call('createStripeCheckoutSession');
+    expect(r.code).toBe(400);
+    expect(app.stripeCalls).toHaveLength(0);
+  });
+});
+
 describe('tip at checkout (Donations & tips, beta)', () => {
   const tipsOn = (app, checkoutTip = true) => {
     app.docs.platform = { features: { ways: { giving: true } } };

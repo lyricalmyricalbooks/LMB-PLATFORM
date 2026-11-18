@@ -9,6 +9,7 @@ import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, s
 import { smallPhotoUrl } from "./features/site/photoSources";
 import { shopCurrency } from "../lib/shopProfile";
 import { chosenUnitPrice } from "../shared/payWhatYouWant";
+import { minSteps, soldAmount, type SoldAmount } from "../shared/soldByAmount";
 
 /** A paid extra on one copy (signed copy, inscription, gift wrap). Price is per copy, CAD, from the catalog. */
 export type CartAddOn = { id: string; label: string; price: number; text?: string };
@@ -42,6 +43,8 @@ export interface CartItem {
   bundleCount?: number;
   /** Pay what you want (Digital D2): the amount the buyer chose for one copy; the server checks it again. */
   chosenPrice?: number;
+  /** Sold by the metre or the gram: the quantity counts steps of this size, never fewer than the smallest amount. */
+  amount?: SoldAmount;
   /** Identity of the line (book + edition + add-ons + gift recipient). Derived; see cartLineKey. */
   lineKey?: string;
 }
@@ -157,7 +160,12 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
     const stockLimit = tracked && Number.isFinite(stock) ? Math.max(0, stock) : 999;
     // A book switched back to Coming soon can't be bought until it is out (the server refuses it too).
     if (stockLimit === 0 || comingSoonActive(book)) { drop(line); continue; }
-    const quantity = Math.min(line.quantity, lineQuantityCap(stockLimit));
+    // Sold by amount: the line follows the product's current step and smallest amount (raised to it when needed).
+    const amount = soldAmount(book) || undefined;
+    const least = minSteps(amount || null);
+    if (lineQuantityCap(stockLimit) < least) { drop(line); continue; }
+    const quantity = Math.max(least, Math.min(line.quantity, lineQuantityCap(stockLimit)));
+    if (!sameJson(amount, line.amount)) changed = true;
     // Pre-order wording follows the live catalog: a book released since it was added loses it.
     const preorder = preorderActive(book);
     const releaseDate = preorder ? releaseDateOf(book) : "";
@@ -170,8 +178,9 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
     if (!!line.giftCard !== giftCard || !!line.bundle !== bundleCount > 0 || (line.bundleCount || 0) !== bundleCount) changed = true;
     const next: CartItem = { ...line, price, quantity, stockLimit, preorder, releaseDate };
     if (base === listed) delete next.chosenPrice; else next.chosenPrice = base;
-    delete next.addOns; delete next.giftCardDetails; delete next.giftCard; delete next.bundle; delete next.bundleCount;
+    delete next.addOns; delete next.giftCardDetails; delete next.giftCard; delete next.bundle; delete next.bundleCount; delete next.amount;
     if (addOns) next.addOns = addOns;
+    if (amount) next.amount = amount;
     if (gift) { next.giftCardDetails = gift; next.giftCard = true; }
     if (bundleCount > 0) { next.bundle = true; next.bundleCount = bundleCount; }
     next.lineKey = cartLineKey(next);
@@ -195,8 +204,10 @@ export function sanitizeCart(raw: unknown): CartItem[] {
     const quantity = Math.floor(Number(i.quantity));
     if (typeof i.id !== "string" || !i.id) continue;
     if (!Number.isFinite(price) || price < 0 || !Number.isFinite(quantity) || quantity < 1) continue;
-    const { addOns: rawAddOns, giftCardDetails: rawGift, lineKey: _key, ...rest } = i;
+    const { addOns: rawAddOns, giftCardDetails: rawGift, lineKey: _key, amount: rawAmount, ...rest } = i;
     const next: CartItem = { ...rest, price, quantity, title: String(i.title ?? ""), photoUrl: String(i.photoUrl ?? "") };
+    const amount = soldAmount({ amount: rawAmount });
+    if (amount) next.amount = amount;
     // Extras: only well-formed ones survive (the server re-prices them anyway).
     if (Array.isArray(rawAddOns)) {
       const addOns = rawAddOns
@@ -302,6 +313,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     const price = round2(base + picked.price);
     const bundleCount = bundleCountOf(product);
+    // Sold by amount: never fewer steps than the smallest amount, and only when that much is in stock.
+    const amount = soldAmount(product) || undefined;
+    const least = minSteps(amount || null);
+    if (typeof stockLimit === "number" && stockLimit < least) return false;
     const draft: CartItem = {
       id: product.id,
       variantId: variant?.id,
@@ -319,6 +334,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ...(gift ? { giftCardDetails: gift, giftCard: true } : {}),
       ...(bundleCount > 0 ? { bundle: true, bundleCount } : {}),
       ...(base !== listed ? { chosenPrice: base } : {}),
+      ...(amount ? { amount } : {}),
     };
     const key = cartLineKey(draft);
     draft.lineKey = key;
@@ -337,8 +353,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const amount = draft.chosenPrice === undefined ? (({ chosenPrice: _c, ...rest }) => rest)(existing) : { ...existing, chosenPrice: draft.chosenPrice };
         return prev.map(i => i === existing ? { ...amount, price: draft.price, lineKey: key, quantity: nextCartQuantity(existing.quantity, quantity, limit) } : i);
       }
-      if (lineQuantityCap(limit) <= 0) return prev;
-      return [...prev, { ...draft, quantity: nextCartQuantity(0, quantity, limit) }];
+      if (lineQuantityCap(limit) < least) return prev;
+      return [...prev, { ...draft, quantity: Math.max(least, nextCartQuantity(0, quantity, limit)) }];
     });
     // An open bag stays the place the shopper sees the change (e.g. its own suggestion card).
     if (addBehaviour.current === "notice" && !isCartOpen) setLastAdded({ item: { ...draft, quantity }, quantity, at: Date.now() });
@@ -363,7 +379,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!match) return i;
       const key = lineKeyOf(i);
       const cap = Math.max(1, lineQuantityCap(lineStock(i.stockLimit, copiesElsewhere(prev, i, key))));
-      return { ...i, quantity: Math.min(Math.max(1, i.quantity + delta), cap) };
+      return { ...i, quantity: Math.min(Math.max(minSteps(i.amount || null), i.quantity + delta), cap) };
     }));
   };
 
@@ -373,7 +389,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // ⚡ Bolt: Cache derived calculations using `useMemo`
   // Measured impact: prevents O(N) recalculations on provider renders caused by unrelated state changes (like `isCartOpen`)
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
-  const cartCount = useMemo(() => cart.reduce((acc, item) => acc + item.quantity, 0), [cart]);
+  // A length of fabric is one thing in the bag, however many 10 cm steps it counts.
+  const cartCount = useMemo(() => cart.reduce((acc, item) => acc + (item.amount ? 1 : item.quantity), 0), [cart]);
   // Every line carries its key (lines set by checkout or older saved bags may not have one yet).
   const keyedCart = useMemo(() => (cart.every(i => i.lineKey === cartLineKey(i)) ? cart : cart.map(i => ({ ...i, lineKey: cartLineKey(i) }))), [cart]);
 

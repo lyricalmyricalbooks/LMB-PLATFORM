@@ -96,6 +96,7 @@ import { schemeButtonColors } from "./colorSchemes";
 import { findProduct } from "./productRoutes";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { displayPrice, salePercentOff, showsSale } from "./displayPrice";
+import { amountText, minSteps, perLabel, pricePerUnit, soldAmount } from "../../../shared/soldByAmount";
 import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
@@ -278,6 +279,13 @@ export default function BookDetail() {
   const productCtaSize         = storefrontDesign.productCtaSize         || "large";
   const productBundleLayout    = storefrontDesign.productBundleLayout    || "bordered";
   const showQtyStepper         = storefrontDesign.showQtyStepper         ?? settings?.design?.showQtyStepper         ?? false;
+  // Sold by the metre or the gram: the stepper is always shown and counts the amount, from the smallest one up,
+  // and prices read per metre or per 100 g (the product's own price is the price of one step).
+  const amount = soldAmount(book);
+  const qtyStepper = showQtyStepper || !!amount;
+  const qtyMin = minSteps(amount);
+  const bookPriceText = (ignoreSale = false) => formatBookPrice(book, ignoreSale);
+  const editionPriceText = (price: number) => amount ? `${formatPrice(pricePerUnit(amount, price))} / ${perLabel(amount)}` : formatPrice(price);
   const productDescriptionStyle = storefrontDesign.productDescriptionStyle || settings?.design?.productDescriptionStyle || "plain";
 
   // Tab & Accordion states
@@ -588,7 +596,7 @@ export default function BookDetail() {
     const options = lineOptions();
     if (!options) return;
     // Only confirm "Added" when a line really went into the bag.
-    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1, options)) {
+    if (!addToCart(book, selectedVariant || undefined, qtyStepper ? Math.max(qty, qtyMin) : 1, options)) {
       // Already at the most this line can hold: open the bag, where the line shows its limit,
       // instead of a click that seems to do nothing.
       if (inBag > 0) setIsCartOpen(true);
@@ -611,7 +619,7 @@ export default function BookDetail() {
     }
     const options = lineOptions();
     if (!options) return;
-    const ok = addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1, options);
+    const ok = addToCart(book, selectedVariant || undefined, qtyStepper ? Math.max(qty, qtyMin) : 1, options);
     if (!ok && inBag <= 0) { toast.error(getCopy(settings?.design, "addToBagFailed")); return; }
     if (ok) funnelApi.track("add_to_cart");
     setIsCartOpen(false);
@@ -1064,8 +1072,8 @@ export default function BookDetail() {
                     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
                       {isOnSale ? (
                         <>
-                          <span className="fm-pdp-price" translate="no">{formatBookPrice(book)}</span>
-                          {saleShown && regionVisible(regionDesign, "productOldPrice") && <span {...regionProps("productOldPrice")} className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>}
+                          <span className="fm-pdp-price" translate="no">{bookPriceText()}</span>
+                          {saleShown && regionVisible(regionDesign, "productOldPrice") && <span {...regionProps("productOldPrice")} className="text-white/25 line-through text-xl">{bookPriceText(true)}</span>}
                           {saleShown && regionVisible(regionDesign, "productSaveBadge") && <span
                             {...regionProps("productSaveBadge")}
                             className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
@@ -1080,7 +1088,7 @@ export default function BookDetail() {
                         </>
                       ) : (
                         <span className="fm-pdp-price" translate={retailPrice > 0 ? "no" : undefined}>
-                          {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
+                          {retailPrice > 0 ? (selectedVariant ? editionPriceText(selectedVariant.price) : bookPriceText()) : getCopy(settings?.design, "priceOnRequest")}
                         </span>
                       )}
                     </div>
@@ -1211,20 +1219,20 @@ export default function BookDetail() {
                     }${productCtaWidth === "full" ? " fm-pdp-cta" : ""}`}
                     data-icons={productCtaWidth === "full" ? (showPdpWishlist ? 1 : 0) + (showSocialShare ? 1 : 0) : undefined}
                   >
-                    {showQtyStepper && !isOutOfStock && !isComingSoon && (
-                      <div className="fm-pdp-qty">
+                    {qtyStepper && !isOutOfStock && !isComingSoon && (
+                      <div className="fm-pdp-qty" data-amount={amount ? amount.unit : undefined}>
                         <button
                           type="button"
-                          onClick={() => setQty((q) => Math.max(1, q - 1))}
+                          onClick={() => setQty((q) => Math.max(qtyMin, q - 1))}
                           aria-label={getCopy(settings?.design, "ariaQtyDown")}
-                          disabled={qty <= 1}
+                          disabled={qty <= qtyMin}
                         >
                           <Minus size={14} />
                         </button>
-                        <output aria-live="polite">{qty}</output>
+                        <output aria-live="polite">{amount ? amountText(book, Math.max(qty, qtyMin)) : qty}</output>
                         <button
                           type="button"
-                          onClick={() => setQty((q) => Math.min(qtyMax, q + 1))}
+                          onClick={() => setQty((q) => Math.min(qtyMax, Math.max(q, qtyMin) + 1))}
                           aria-label={getCopy(settings?.design, "ariaQtyUp")}
                           disabled={qty >= qtyMax}
                         >

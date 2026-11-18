@@ -850,7 +850,7 @@ function AccountContent() {
                         <div>
                           <p className="text-xs font-black tracking-widest text-white">{o.orderId || o.id}</p>
                           <p className="text-[9px] tracking-widest fm-muted uppercase mt-1">
-                            {new Date(o.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })} · {(() => { const copies = (o.items || []).reduce((n: number, i: any) => n + (Number(i.quantity) || 1), 0); return getCopy(settings?.design, copies === 1 ? "accountBookCountOne" : "accountBookCountMany", { count: copies }); })()}
+                            {new Date(o.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })} · {(() => { const copies = (o.items || []).reduce((n: number, i: any) => n + (i.amount ? 1 : (Number(i.quantity) || 1)), 0); return getCopy(settings?.design, copies === 1 ? "accountBookCountOne" : "accountBookCountMany", { count: copies }); })()}
                           </p>
                         </div>
                       </div>

@@ -1,10 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { repriceCart, lineQuantityCap } from "./CartContext";
+import { repriceCart, lineQuantityCap, sanitizeCart } from "./CartContext";
 import { orderMoney, amountIn, totalNeedsConfirming } from "./features/site/orderMoney";
 
 const line = (over: any = {}) => ({ id: "b1", title: "Book", price: 20, quantity: 2, photoUrl: "", ...over });
 
 describe("repriceCart", () => {
+  it("keeps a length of fabric at the smallest amount, and drops it when less is left", () => {
+    const fabric = { id: "b1", retailPrice: 1.8, amount: { unit: "m", step: 0.1, min: 0.5 } };
+    const raised = repriceCart([line({ price: 1.8, quantity: 3 })], [fabric]);
+    expect(raised.cart[0]).toMatchObject({ quantity: 5, amount: { unit: "m", step: 0.1, min: 0.5 } });
+    const short = repriceCart([line({ price: 1.8, quantity: 6 })], [{ ...fabric, trackInventory: true, stockLevel: 4 }]);
+    expect(short.removed).toEqual(["Book"]);
+    expect(sanitizeCart([line({ amount: { unit: "m", step: 0.3 } })])[0].amount).toBeUndefined();
+    expect(sanitizeCart([line({ amount: { unit: "g", step: 10, min: 50 } })])[0].amount).toEqual({ unit: "g", step: 10, min: 50 });
+  });
+
   it("uses today's catalog price, like the server", () => {
     const r = repriceCart([line()], [{ id: "b1", retailPrice: 25 }]);
     expect(r.changed).toBe(true);

@@ -2,6 +2,7 @@
 // (functions/stockHolds.js HOLD_LIMITS / holdLimitsFrom, read from settings/website.stockHolds); this
 // mirror only lets the bag warn before the shopper has typed their card (holdLimits.parity.test.ts).
 import { bundleComponents } from "./promotions";
+import { soldAmount } from "../../../shared/soldByAmount";
 
 export type HoldLimits = { perBook: number; units: number; orders: number };
 
@@ -39,7 +40,8 @@ export function holdWarnings(
   const add = (id: string, qty: number) => perBook.set(id, (perBook.get(id) || 0) + qty);
   for (const line of cart || []) {
     if (!line?.id) continue;
-    const qty = Math.max(1, Math.min(99, Math.floor(Number(line.quantity) || 1)));
+    // A length of fabric or a bag of beads counts once, however many steps it holds (as on the server).
+    const qty = soldAmount(booksById.get(line.id)) ? 1 : Math.max(1, Math.min(99, Math.floor(Number(line.quantity) || 1)));
     const parts = bundleComponents(booksById.get(line.id));
     if (parts.length) parts.forEach(part => add(part.id, qty * part.quantity));
     else add(line.id, qty);

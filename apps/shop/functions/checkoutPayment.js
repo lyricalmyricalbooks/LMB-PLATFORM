@@ -5,6 +5,7 @@
 // › Action table): index.js passes in its own db, payments module (functions/payments), pricing and stock helpers, so
 // the vm-based handler tests' fakes still apply.
 const { openedPage } = require("./paymentPages");
+const { formatAmount } = require("./shared/soldByAmount");
 const { idOf, loadStockist, invoiceRecord } = require("./stockists");
 const { DIGITAL_CONSENT_NOTE } = require("./sellerDetails");
 
@@ -248,6 +249,8 @@ function checkoutPaymentActions({
         if (item.variantName) {
           title += ` (${item.variantName})`;
         }
+        // Sold by amount: the card page counts steps, so its name says the amount and the step.
+        if (item.amount) title += ` · ${formatAmount(item.amount.unit, item.amount.value)} (${formatAmount(item.amount.unit, item.amount.step)} each)`;
         return {
           price_data: {
             currency: checkoutCurrency,
