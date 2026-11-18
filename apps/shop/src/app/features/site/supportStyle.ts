@@ -4,6 +4,7 @@
 //   fm-sup-amounts       the suggested amount buttons (aria-pressed)    fm-sup-other   the other-amount box
 //   fm-sup-check         a tick box with its words                      fm-sup-honour  honour or memory, and the name
 //   fm-sup-trap          the hidden field only bots fill in             fm-sup-thanks  the thank-you after giving
+//   fm-sup-often         once or every month (M3d)                      fm-sup-confirm the End my monthly gift check
 //   fm-sup-fund          the fundraiser: raised line, bar, facts, story fm-sup-wall    the supporters wall
 //   fm-sup-rewards       the thank-you rewards to pick from            fm-sup-ship    the posting address for one
 //   fm-sup-receipt-ask   the tax receipt tick box and its address       fm-sup-receipt the printable tax receipt
@@ -33,6 +34,15 @@ export const SUPPORT_CSS = [
   `${S} .fm-sup-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;}`,
   `${S} .fm-sup-note{margin:0;font-size:14px;line-height:1.55;color:var(--muted, currentColor);}`,
   `${S} .fm-sup-thanks{display:grid;gap:18px;}`,
+  `${S} .fm-sup-often{margin:0 0 20px;padding:0;border:0;display:grid;gap:8px;}`,
+  `${S} .fm-sup-often-row{display:inline-grid;grid-template-columns:1fr 1fr;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);overflow:hidden;max-width:360px;width:100%;}`,
+  `${S} .fm-sup-often-btn{width:100%;min-width:0;min-height:48px;padding:0 16px;border:0;background:transparent;color:inherit;font-weight:700;font-size:15px;cursor:pointer;}`,
+  `${S} .fm-sup-often-btn + .fm-sup-often-btn{border-left:var(--t-edge-w) solid var(--t-edge);}`,
+  `${S} .fm-sup-often-btn:hover{background:rgba(var(--fg-rgb),0.08);}`,
+  `${S} .fm-sup-often-btn[aria-pressed="true"]{background:var(--accent);color:var(--on-accent, rgb(var(--fg-rgb)));}`,
+  `${S} .fm-sup-often-btn:focus-visible{outline:2px solid var(--accent);outline-offset:-4px;}`,
+  `${S} .fm-sup-confirm{display:grid;gap:12px;padding:16px;border:var(--t-edge-w) dashed var(--t-edge);}`,
+  `${S} .fm-sup-confirm-row{display:flex;flex-wrap:wrap;gap:10px;}`,
   `${S} .fm-sup-thanks .fm-track-btn{justify-self:start;}`,
   `${S} .fm-sup-empty{padding:28px 0;text-align:center;}`,
   `${S} .fm-sup-fund{display:grid;gap:20px;max-width:48rem;}`,
