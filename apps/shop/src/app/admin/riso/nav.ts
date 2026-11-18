@@ -2,7 +2,7 @@ import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug, Blocks,
   Share2, Send, ChartLine, CalendarDays, HandCoins, Ticket,
-  GraduationCap, HeartHandshake, BadgeCheck,
+  GraduationCap, HeartHandshake, BadgeCheck, KeyRound,
   Shapes,
   Database,
 } from "lucide-react";
@@ -32,6 +32,8 @@ export const NAV: NavEntry[] = [
   { id: "giving", label: "Donations", icon: HeartHandshake },
   // Memberships & subscriptions (beta, ways to sell): Members.tsx, plans and members; hidden until both switches are on.
   { id: "memberships", label: "Members", icon: BadgeCheck },
+  // Rentals (beta, ways to sell): Rentals.tsx, things rented by the hour or the day; hidden until both switches are on.
+  { id: "rentals", label: "Rentals", icon: KeyRound },
   // Facebook & Instagram, Pinterest, TikTok and Google & YouTube, like Shopify's sales channels (plan 27.5).
   { id: "channels", label: "Sales channels", icon: Share2 },
   // Posting a product to the connected accounts, now or later (plan 27.6), next to Discounts like Shopify's Marketing.
@@ -82,7 +84,7 @@ const SETTINGS_PAGES = (NAV.find((n) => n.id === "settings")?.children || []).ma
 export const MENU: Menu = [
   // Analytics sits under Home here, so the shop-only menu keeps its five items (plan 1.27).
   { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", "bookings", "takePayment", "events", "classes", "giving", "memberships", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", "bookings", "takePayment", "events", "classes", "giving", "memberships", "rentals", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
   // Sales channels sit with the products: where each one is listed (Studio opens full screen, so not under Design).
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
   { label: "Design", icon: Palette, pages: ["design"] },
@@ -105,7 +107,7 @@ export const WEBSITE_SIDE: Menu = [
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
   // Simpler admin, change 6 (after Books, so a phone's first four pills stay Home, Orders, Messages, Books): every way to sell beyond products sits under one item, a pill for each one switched on.
-  { label: "Ways to sell", icon: Shapes, pages: ["bookings", "takePayment", "events", "classes", "giving", "memberships"] },
+  { label: "Ways to sell", icon: Shapes, pages: ["bookings", "takePayment", "events", "classes", "giving", "memberships", "rentals"] },
   // v4 (12 Nov 2026): Marketing sits above Analytics.
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
   { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
@@ -181,7 +183,7 @@ export const SERVICES_WEBSITE_SIDE: Menu = [
   { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
   { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
   // Simpler admin, change 6: every way to sell beyond products sits under one item, a pill for each one switched on.
-  { label: "Ways to sell", icon: Shapes, pages: ["events", "classes", "giving", "memberships"] },
+  { label: "Ways to sell", icon: Shapes, pages: ["events", "classes", "giving", "memberships", "rentals"] },
   { label: "Clients", icon: Users, pages: ["customers"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", SALES_TAB], labels: { orders: "Website sales" } },
@@ -205,7 +207,7 @@ export const SERVICES_MENU: Menu = [
   { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
   { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
   // Simpler admin, change 6: every way to sell beyond products sits under one item, a pill for each one switched on.
-  { label: "Ways to sell", icon: Shapes, pages: ["events", "classes", "giving", "memberships"] },
+  { label: "Ways to sell", icon: Shapes, pages: ["events", "classes", "giving", "memberships", "rentals"] },
   { label: "Clients", icon: Users, pages: ["customers", "messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", "discounts", "giftCards", "socialPosts"], labels: { orders: "Website sales" } },
   { label: "Design", icon: Palette, pages: ["design"] },
@@ -236,7 +238,7 @@ export function navPages(nav: NavEntry[]): { id: string; label: string }[] {
 }
 
 /** Pages still in beta: the menu shows a small "Beta" beside them (ways to sell, Julian, 14 November 2026). */
-export const BETA_PAGES: ReadonlySet<string> = new Set(["events", "classes", "giving", "memberships"]);
+export const BETA_PAGES: ReadonlySet<string> = new Set(["events", "classes", "giving", "memberships", "rentals"]);
 const betaTag = (id: string) => (BETA_PAGES.has(id) ? { tag: "Beta" } : {});
 
 /** The menu items. An item's id is its first page; an item with more than one page lists them as children. */
@@ -287,6 +289,7 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   classes: { title: "Classes", description: "Your weekly timetable, who is in each class, and the classes you run." },
   giving: { title: "Donations", description: "Gifts and tips from your Support page, who gave, and what you suggest." },
   memberships: { title: "Members", description: "Your membership plans, who is a member, and their next payment." },
+  rentals: { title: "Rentals", description: "What you rent out, each unit's week, and who is picking up or bringing back." },
   customers: { title: "Customers", description: "Who buys from you, what they have spent, and who to win back." },
   inventory: { title: "Inventory", description: "What you have on the shelf, what is running low, and quick count fixes." },
   catalog: { title: "Books", description: "Add and edit your books, their prices and their stock." },

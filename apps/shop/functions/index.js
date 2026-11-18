@@ -163,6 +163,7 @@ const { shopConfig, functionLink } = require("./shopConfig");
 const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
 const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
 const { PUBLIC_EVENT_ACTIONS } = require("./events");
+const { PUBLIC_RENTAL_ACTIONS } = require("./rentals");
 const { PUBLIC_GIVING_ACTIONS } = require("./giving");
 const { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS } = require("./memberships");
 const { memberUnitPrice, memberFreeProduct } = require("./shared/membershipRules");
@@ -2068,6 +2069,19 @@ const eventDesk = require("./events").eventActions({
   },
 });
 
+// Rentals (beta, rentals.js): things rented by the hour or the day from /rentals; on only while the platform allows it
+// for the shop and the owner switched it on. Tax is worked out like tax on a service.
+const rentalDesk = require("./rentals").rentalActions({
+  db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
+  zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), ownerEmail: () => ADMIN_TO(),
+  escapeHtml, risoLayout, risoButton, shopTax: () => serviceTax(),
+  emailBrand: async () => {
+    const settings = await loadNotificationSettings();
+    const brand = settings.brand || {};
+    return { logoUrl: brand.logoUrl || "", accent: brand.brandColor || "", theme: brand.emailTheme || "light", shopName: String(settings.shopName || shopConfig.senderName || "") };
+  },
+});
+
 // Donations & tips (beta, giving.js): gifts from the website's Support page; on only while the platform allows it for the
 // shop and the owner switched it on. No sales tax on a gift.
 // Donations › Fundraiser › Write an update (fundraiserUpdates.js, G2c): queued here, sent a page of gifts at a time by
@@ -2317,6 +2331,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   invoicePay: handleInvoicePay,
   bookingsAdmin: (req, res) => bookingDesk.handleAdmin(req, res),
   eventsAdmin: (req, res) => eventDesk.handleAdmin(req, res),
+  rentalsAdmin: (req, res) => rentalDesk.handleAdmin(req, res),
   givingAdmin: (req, res) => givingDesk.handleAdmin(req, res),
   membershipsAdmin: (req, res) => membershipDesk.handleAdmin(req, res),
   invoicePayOpen: handleInvoicePayOpen,
@@ -4651,6 +4666,7 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   if (typeof req.body?.action === "string" && PUBLIC_BOOKING_ACTIONS.includes(req.body.action)) return bookingDesk.handlePublic(req, res);
   // Events and tickets (beta): the events page's own actions (events.js, rate limited there).
   if (typeof req.body?.action === "string" && PUBLIC_EVENT_ACTIONS.includes(req.body.action)) return eventDesk.handlePublic(req, res);
+  if (typeof req.body?.action === "string" && PUBLIC_RENTAL_ACTIONS.includes(req.body.action)) return rentalDesk.handlePublic(req, res);
   if (PUBLIC_GIVING_ACTIONS.includes(req.body?.action)) return givingDesk.handlePublic(req, res); // Donations (giving.js)
   if (PUBLIC_MEMBERSHIP_ACTIONS.includes(req.body?.action)) return membershipDesk.handlePublic(req, res); // Memberships (memberships.js)
 
@@ -5070,6 +5086,9 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   // Ticket orders (events.js) share this run: a paid hold is confirmed, an unpaid one frees its places.
   const tickets = await eventDesk.sweep().catch(err => { console.warn("bookingSweep: the ticket orders sweep failed:", err?.message || err); return {}; });
   if (tickets.confirmed || tickets.freed) console.log(`bookingSweep: ${tickets.confirmed} ticket orders confirmed, ${tickets.freed} freed`);
+  // Rentals (rentals.js): a paid hold is confirmed, an unpaid one frees its unit.
+  const rented = await rentalDesk.sweep().catch(err => { console.warn("bookingSweep: the rentals sweep failed:", err?.message || err); return {}; });
+  if (rented.confirmed || rented.freed) console.log(`bookingSweep: ${rented.confirmed} rentals confirmed, ${rented.freed} freed`);
   // Gifts (giving.js): a paid card page is confirmed, an unpaid one closed.
   const given = await givingDesk.sweep().catch(err => { console.warn("bookingSweep: the gifts sweep failed:", err?.message || err); return {}; });
   if (given.confirmed || given.closed) console.log(`bookingSweep: ${given.confirmed} gifts confirmed, ${given.closed} closed`);

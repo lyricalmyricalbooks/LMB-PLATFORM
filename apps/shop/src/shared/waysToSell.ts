@@ -16,7 +16,7 @@ export const WAYS: readonly Way[] = [
   { id: "digital", label: "Digital goods", line: "Sell files people download: patterns, presets, e-books, music." },
   { id: "giving", label: "Donations & tips", line: "Take donations and tips, and show a fundraising goal." },
   { id: "memberships", label: "Memberships & subscriptions", line: "Bill members or subscribers every month or year." },
-  { id: "rentals", label: "Rentals", line: "Rent things out by the day, with a deposit." },
+  { id: "rentals", label: "Rentals", line: "Rent things out by the hour or the day." },
 ];
 
 export const WAY_IDS: readonly WayId[] = WAYS.map((way) => way.id);

@@ -836,7 +836,7 @@ export const adminApi = {
     // (updateReturnSettings), for the same reason. `bookingsLive` is written only by the server when the owner flips
     // the Bookings switch (functions/bookings.js tellWebsite), and `eventsLive` only by the server too (functions/events.js), like
     // `classesLive` (functions/bookings.js) and `givingLive` / `givingTips` (functions/giving.js) and `membershipsLive` (functions/memberships.js).
-    const { analytics: _ownedByGaCard, returns: _ownedByReturnsTab, bookingsLive: _ownedByBookingsSwitch, eventsLive: _ownedByEventsServer, eventsLiveUntil: _alsoEventsServer, classesLive: _ownedByBookingsServer, givingLive: _ownedByGivingServer, givingTips: _alsoGivingServer, membershipsLive: _ownedByMembershipsServer, ...ownedHere } = publicSettings as Record<string, any>;
+    const { analytics: _ownedByGaCard, returns: _ownedByReturnsTab, bookingsLive: _ownedByBookingsSwitch, eventsLive: _ownedByEventsServer, rentalsLive: _ownedByRentalsServer, eventsLiveUntil: _alsoEventsServer, classesLive: _ownedByBookingsServer, givingLive: _ownedByGivingServer, givingTips: _alsoGivingServer, membershipsLive: _ownedByMembershipsServer, ...ownedHere } = publicSettings as Record<string, any>;
     const { payload, options: writeOptions } = themeWrite(ownedHere, options.publish);
     await setDoc(docRef, payload, writeOptions);
     // The primary write already succeeded. An audit failure must not report a

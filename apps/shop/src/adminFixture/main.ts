@@ -29,6 +29,8 @@ import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
+import { rentalsData, type AdminRental } from "../app/admin/rentalsApi";
+import { cleanRentalItem, type RentalItem } from "../shared/rentalRules";
 import { membersData, type AdminMember, type AdminPlan } from "../app/admin/membersApi";
 import { cleanPlan, GIFT_MONTHS, giftPriceMinor } from "../shared/membershipRules";
 import { givingData, type AdminFundraiser, type AdminGift, type FundraiserUpdate } from "../app/admin/givingApi";
@@ -280,6 +282,47 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       return { ok: true, member: members.find((m) => m.id === body.id) };
     }
     return { ok: true, membershipsLive: true };
+  };
+}
+
+// ── Rentals (beta, `?ways=rentals&page=rentals`): a camera kit by the hour and two kayaks by the day, with rentals
+// coming up, one out now and one late (`&rentals=new`: none yet). In memory. ──
+{
+  const H = 3_600_000;
+  const day0 = new Date(new Date().toDateString()).getTime();
+  const fresh = new URLSearchParams(window.location.search).get("rentals") === "new";
+  let items: RentalItem[] = fresh ? [] : [
+    cleanRentalItem({ name: "Camera kit", description: "Body, two lenses, batteries and a bag.", units: 2, basis: "hour", hourMinor: 2000, dayMinor: 9000, minLength: 2, maxLength: 8, cleanMinutes: 30, opens: "09:00", closes: "18:00", chargeTax: true }, "kit00001") as RentalItem,
+    cleanRentalItem({ name: "Kayak", units: 3, basis: "day", dayMinor: 4500, weekMinor: 22000, minLength: 1, maxLength: 14, opens: "08:00", closes: "19:00", repair: [3] }, "kayak001") as RentalItem,
+  ];
+  const r = (id: string, itemId: string, unit: number, startMs: number, endMs: number, status: AdminRental["status"], name: string, chargedMinor: number): AdminRental => ({
+    id, status, itemId, itemName: itemId === "kit00001" ? "Camera kit" : "Kayak", unit, startMs, endMs, length: itemId === "kit00001" ? Math.round((endMs - startMs) / H) : Math.round((endMs - startMs) / (24 * H)) + 1,
+    basis: itemId === "kit00001" ? "hour" : "day", name, email: `${name.split(" ")[0].toLowerCase()}@example.com`, totalMinor: chargedMinor, taxMinor: itemId === "kit00001" ? Math.round(chargedMinor * 0.115) : 0, chargedMinor, currency: "CAD",
+    refundedMinor: 0, test: false, createdAt: new Date(day0 - 3 * 24 * H).toISOString(), paidAt: new Date(day0 - 2 * 24 * H).toISOString(), pickedUpAt: "", returnedAt: "", holdUntil: "",
+  });
+  let rentals: AdminRental[] = fresh ? [] : [
+    r("r1", "kit00001", 1, day0 + 10 * H, day0 + 14 * H, "out", "Ada Example", 8000),
+    r("r2", "kit00001", 2, day0 + 24 * H + 9 * H, day0 + 24 * H + 17 * H, "paid", "Ben Example", 9000),
+    r("r3", "kayak001", 1, day0 - 2 * 24 * H + 8 * H, day0 - 24 * H + 9 * H, "out", "Cleo Example", 9000),
+    r("r4", "kayak001", 2, day0 + 2 * 24 * H + 8 * H, day0 + 5 * 24 * H + 19 * H, "paid", "Dev Example", 18000),
+    r("r5", "kit00001", 1, day0 + 3 * 24 * H + 12 * H, day0 + 3 * 24 * H + 14 * H, "paid", "Eli Example", 4000),
+  ];
+  rentalsData.admin = async (op, body) => {
+    if (op === "list") return { zone: "America/Toronto", currency: "CAD", items, rentals };
+    if (op === "saveItem") {
+      const id = String((body.item as { id?: string })?.id || `item${Date.now()}`);
+      const clean = cleanRentalItem(body.item, id);
+      if ("problem" in clean) throw new Error(clean.problem);
+      items = items.some((i) => i.id === id) ? items.map((i) => (i.id === id ? clean : i)) : [...items, clean];
+      return { ok: true, item: clean };
+    }
+    if (op === "deleteItem") { items = items.filter((i) => i.id !== body.id); return { ok: true }; }
+    if (op === "pickedUp" || op === "returned" || op === "cancel") {
+      const status = op === "pickedUp" ? "out" : op === "returned" ? "returned" : "cancelled";
+      rentals = rentals.map((x) => (x.id === body.id ? { ...x, status, ...(op === "cancel" ? { refundedMinor: x.chargedMinor } : {}) } : x));
+      return { ok: true, rental: rentals.find((x) => x.id === body.id) };
+    }
+    return { ok: true, rentalsLive: true };
   };
 }
 

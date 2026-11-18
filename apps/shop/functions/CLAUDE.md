@@ -1812,3 +1812,16 @@ reference, so the order webhook ignores it; Square's adapter keeps it beside the
 them at `periodEnd` with one email. Member actions answer 409 `gift`; the owner's End now ends a gift at once.
 
 **Members' posts (M5b, 18 November 2026):** `memberPosts` (server only) holds the owner's posts (`MAX_POSTS` 100, `cleanPost`/`postFor` in `membershipRules.ts`: every plan or listed plans). Admin ops `posts`, `savePost` (emails live members of those plans once, up to 500, only when the post is new and Email is ticked), `deletePost`. Public `membershipPosts` answers `{ member, posts }` for a signed-in member with perks. Admin `MemberPosts.tsx`; account `MemberPostsPart` (`?posts=1`).
+
+## Rentals (beta, R1, 18 November 2026)
+
+`functions/rentals.js` (`rentalActions`), mirroring `events.js`. Rules in `shared/rentalRules` (`cleanRentalItem`,
+`rentalPrice` cheapest of hourly/day cap or daily/weekly, `rentalWhen`, `freeUnit`). Records, all server-only:
+`rentalItems/{id}`, `rentalCalendar/{itemId}` `{ spans: [{ id, unit, from, until (end + cleaning), held?, holdUntil? }] }`
+(read and written inside the rental's own transaction, spent holds and old spans dropped on each write, so one unit is
+never rented twice) and `rentals/{id}` (`held` → `paid` → `out` → `returned`, or `cancelled`). Public actions through
+`validateDiscountCode`: `rentalsInfo` (no unit counts), `rentalTimes`, `rentalStart` (hold 10 min, card page metadata
+`rentalOrder`), `rentalView` (id + key). Owner ops through `createStripeCheckoutSession` `rentalsAdmin`: `hint` (keeps
+`settings/website.rentalsLive`), `list`, `saveItem` (refuses fewer units than have rentals coming), `deleteItem`,
+`pickedUp`, `returned` (frees the unit from now plus cleaning), `cancel` (refunds first, key `rental-refund-<id>`). The
+sweep runs inside `bookingSweep`. Rate limit bucket `rental`. Not yet: privacy export/erase of `rentals`, the shop page.

@@ -95,6 +95,8 @@ const LIMITS = {
   // Events and tickets (events.js): the shop's events page, starting an order and the buyer's own page.
   event: { max: 120, windowMs: 10 * 60 * 1000 },
   // Donations & tips (giving.js): the Support page and the giver's own page. Opening card pages has its own tighter limits there.
+  // Rentals (rentals.js): the Rentals page picks times, so it asks often.
+  rental: { max: 150, windowMs: 10 * 60 * 1000 },
   giving: { max: 60, windowMs: 10 * 60 * 1000 },
   // Memberships (memberships.js): the Membership page and the account tab. Opening card pages has its own limit there.
   membership: { max: 60, windowMs: 10 * 60 * 1000 },
