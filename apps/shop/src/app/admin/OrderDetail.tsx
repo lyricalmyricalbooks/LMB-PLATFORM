@@ -881,7 +881,11 @@ export function OrderDetail({
               busy={working || isShipping || isVoiding || loadFailed}
               problem={problem}
               onFindRates={label.findRates}
-              onBuy={() => void label.buy()}
+              thenShip
+              onBuy={() => void label.buy().then((bought) => {
+                // The reload after buying fills the tracking boxes from the new label; one more press ships it.
+                if (bought) { setLabelReplaced(false); setShowShipForm("dispatch"); }
+              })}
               onDispatch={() => {
                 fillTracking(order);
                 setLabelReplaced(false);

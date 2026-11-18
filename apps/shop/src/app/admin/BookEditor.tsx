@@ -278,9 +278,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const [initialData, setInitialData] = useState<any>(null);
 
   const [tab, setTab] = useState<BookTab>("details");
+  // Simpler admin, change 8: a new product opens on the essentials (name, price, photos, stock); every other part
+  // waits behind "More details". Parts stay mounted (CSS hides them), so nothing typed is lost.
+  const [allParts, setAllParts] = useState(false);
   // v4: one Details page, so going to a part scrolls to its field or section instead of switching tabs.
   const goTo = (next: BookTab, field?: string) => {
     setTab(next === "stock" ? "stock" : "details");
+    setAllParts(true);
     requestAnimationFrame(() => {
       const root = document.querySelector(".book-editor-riso");
       const section = next === "addons" ? "boxset" : next;
@@ -639,6 +643,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       if (formData.isOnSale && (formData.usdSalePrice < 0 || formData.eurSalePrice < 0)) add("pricing", "Sale prices cannot be negative.");
     }
     setValidationErrors(found);
+    if (found.length) setAllParts(true);
     const problems = found.map((p) => p.text);
     if (problems.length) {
       toast.error(problems.length === 1 ? problems[0] : `${problems.length} problems need fixing before this can be saved.`);
@@ -1239,7 +1244,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       )}
 
       <div className="be-body custom-scrollbar flex-1">
-        <form className="be-main rp-fk-sections" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
+        <form className="be-main rp-fk-sections" data-essentials={!book && !allParts ? "" : undefined} noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
           <CardsAsSections.Provider value={true}>
           {onDetails && (
             <>
@@ -1325,7 +1330,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               {book && <ProductTypeCard form={formData} onChange={setProductType} onKind={setKind} />}
               </div>
               <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel">
-              <SectionCard title={bookKind ? "Publishing details" : "Product details"} description={bookKind ? "Bibliographic data used on the product page and in search." : "Codes and facts used on the product page, for shipping and in search. Empty boxes don't show to shoppers."}>
+              <SectionCard data-extra title={bookKind ? "Publishing details" : "Product details"} description={bookKind ? "Bibliographic data used on the product page and in search." : "Codes and facts used on the product page, for shipping and in search. Empty boxes don't show to shoppers."}>
                 <div className="be-grid be-grid-3">
                   {bookKind && <div>
                     <TextField label="ISBN" name="isbn" value={formData.isbn} onChange={handleChange} placeholder="978-0-…" error={isbnWarn} />
@@ -1408,7 +1413,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               </div>
               {!giftCard && !isDigital && (
                 <div role="tabpanel" id="bd-panel-customs" aria-labelledby="rp-tab-bd-customs" className="be-subpanel">
-                <SectionCard title="International parcels (customs)" foldKey="book-editor-customs"
+                <SectionCard data-extra title="International parcels (customs)" foldKey="book-editor-customs"
                   description="Only used on customs forms for parcels leaving the country. Blank boxes use the defaults shown.">
                   <div className="be-grid">
                     <TextField label="Customs description" name="customsDescription" value={formData.customsDescription || ""} onChange={handleChange} placeholder={customsDefaults.description} hint={`Printed on the customs form of international labels. Blank = “${customsDefaults.description}”.`} />
@@ -1422,7 +1427,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </div>
               )}
               <div role="tabpanel" id="bd-panel-rows" aria-labelledby="rp-tab-bd-rows" className="be-subpanel">
-              <SectionCard title="Rows on the book page's Details tab" foldKey="book-editor-detail-rows"
+              <SectionCard data-extra title="Rows on the book page's Details tab" foldKey="book-editor-detail-rows"
                 description="Every row of the book page's Details tab, in the order shown there. Change any label or value, hide a row, move rows with ↑ / ↓, or add your own (Paper, Printing, Design…). A blank value on a standard row uses the matching field in Publishing details.">
                 <div>
                   {(() => {
@@ -1577,7 +1582,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </div>
                 )}
               </SectionCard>
-              <SectionCard title="Sale pricing" description="Show a struck-through original price with a discounted one — now, or between the dates you choose.">
+              <SectionCard data-extra title="Sale pricing" description="Show a struck-through original price with a discounted one — now, or between the dates you choose.">
                 <Toggle label={w("This book is on sale")} checked={!!formData.isOnSale} onChange={(v) => set("isOnSale", v)} />
                 {formData.isOnSale && (
                   <>
@@ -1633,7 +1638,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
               </SectionCard>
               )}
-              {!giftCard && <SectionCard title="Coming soon" description={w("Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.")}>
+              {!giftCard && <SectionCard data-extra title="Coming soon" description={w("Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.")}>
                 <div className="be-toggles">
                   <Toggle label="Show as Coming soon (not for sale yet)" checked={!!formData.comingSoon} onChange={(v) => setFormData((prev: any) => ({ ...prev, comingSoon: v, ...(v ? { preorder: false } : {}) }))} />
                 </div>
@@ -1655,7 +1660,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </>
                 )}
               </SectionCard>}
-              {!giftCard && <SectionCard title="Pre-order" description={w("Sell this book before it comes out. On its publication date it becomes a normal book by itself.")}>
+              {!giftCard && <SectionCard data-extra title="Pre-order" description={w("Sell this book before it comes out. On its publication date it becomes a normal book by itself.")}>
                 <div className="be-toggles">
                   <Toggle label="Take pre-orders until the publication date" checked={!!formData.preorder} onChange={(v) => setFormData((prev: any) => ({ ...prev, preorder: v, ...(v ? { comingSoon: false } : {}) }))} />
                 </div>
@@ -1681,7 +1686,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </>
                 )}
               </SectionCard>}
-              {!giftCard && <SectionCard title="Shipping" description={w("Which shipping rates apply to this book. Status, schedule and Featured are in the Summary panel (beside the form, or below it on a phone).")}>
+              {!giftCard && <SectionCard data-extra title="Shipping" description={w("Which shipping rates apply to this book. Status, schedule and Featured are in the Summary panel (beside the form, or below it on a phone).")}>
                 <div className="be-grid">
                   <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
                     {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1690,7 +1695,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </div>
               </SectionCard>}
               {!giftCard && (
-                <SectionCard title="Digital product (Beta)" description="Buyers download files instead of getting a parcel. Files are stored privately and only paying buyers can download them.">
+                <SectionCard data-extra title="Digital product (Beta)" description="Buyers download files instead of getting a parcel. Files are stored privately and only paying buyers can download them.">
                   <Toggle label="Buyers download files (nothing to ship)" checked={isDigital} disabled={digitalFormat}
                     onChange={(on) => setFormData((prev: any) => ({ ...prev, digital: on }))} />
                   {digitalFormat && <p className="rp-hint">On because the format is {formData.format}.</p>}
@@ -1907,6 +1912,15 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               <TextField label="Schedule publish date" type="date" name="scheduleDate" value={formData.scheduleDate || ""} onChange={handleChange} hint="Optional. Blank = live when published." />
               <Toggle label="Featured on the homepage" checked={!!formData.isFeatured} onChange={(v) => set("isFeatured", v)} />
             </SectionCard>
+          )}
+
+          {onDetails && !book && !allParts && (
+            <div className="be-more-parts">
+              <button type="button" className="rp-btn rp-btn-secondary" onClick={() => setAllParts(true)}>
+                {w("More details")} <ChevronRight size={14} aria-hidden />
+              </button>
+              <p className="rp-fk-hint">{w("Editions, categories, sale prices, shipping, pre-orders and search. All optional, and you can add them later.")}</p>
+            </div>
           )}
 
           {onDetails && <div className="be-sec" data-be-section="more"><BookCustomFields form={formData} set={set} onDefinitionsDirty={setFieldsDirty} /></div>}

@@ -29,6 +29,8 @@ type Props = {
   problem: string;
   onFindRates: () => void;
   onBuy: () => void;
+  /** The order page: buying goes straight on to Mark as shipped with the label's tracking filled in (simpler admin, change 8). */
+  thenShip?: boolean;
   /** "Ship without a label" (left out where the page has no dispatch step, e.g. Stockroom › Shipping). */
   onDispatch?: () => void;
   onSavePreset: (name: string) => Promise<boolean>;
@@ -45,7 +47,7 @@ export const price = (rate: any) => new Intl.NumberFormat("en-CA", { style: "cur
  */
 export function LabelBuyer({
   order, parcel, onParcel, presets, onPreset, suggestedWeight, rates, searched, selectedRate, onSelectRate,
-  finding, buying, busy, problem, onFindRates, onBuy, onDispatch, onSavePreset,
+  finding, buying, busy, problem, onFindRates, onBuy, onDispatch, onSavePreset, thenShip,
 }: Props) {
   const w = useShopWords();
   const [presetName, setPresetName] = useState("");
@@ -149,7 +151,7 @@ export function LabelBuyer({
           )}
           <div className="fw-actions">
             <PrimaryButton disabled={locked || !picked || !!problem} onClick={onBuy}>
-              {buying ? "Buying label…" : picked ? `Buy label · ${price(picked)}` : "Choose a rate"}
+              {buying ? "Buying label…" : picked ? `${thenShip ? "Buy label and ship" : "Buy label"} · ${price(picked)}` : "Choose a rate"}
             </PrimaryButton>
             <SecondaryButton disabled={locked || !valid} onClick={onFindRates}>{finding ? "Finding rates…" : "Find rates again"}</SecondaryButton>
             {onDispatch && <SecondaryButton disabled={locked} onClick={onDispatch}>Ship without a label</SecondaryButton>}
