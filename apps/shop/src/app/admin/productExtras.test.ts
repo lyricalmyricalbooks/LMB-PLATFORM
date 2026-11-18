@@ -103,3 +103,16 @@ describe("saving", () => {
     expect(saved).toMatchObject({ trackInventory: true, bundleItems: [], addOns: [], saleStartsAt: "2026-10-01", saleEndsAt: "" });
   });
 });
+
+describe("engraving and personal text (product types round 2)", () => {
+  it("offers each personalised type its own words", async () => {
+    const { personalTextFor, personalAddOn, GOODS_ADD_ON_PRESETS } = await import("./productExtras");
+    expect(personalTextFor({ id: "rings", group: "jewelry" })).toEqual({ label: "Engraving", price: 10, maxLength: 20 });
+    expect(personalTextFor({ id: "wallets", group: "bags" })).toEqual({ label: "Initials", price: 5, maxLength: 3 });
+    expect(personalTextFor({ id: "notebooks", group: "books" }).label).toBe("Name on the cover");
+    expect(personalTextFor(null)).toEqual({ label: "Personal text", price: 0, maxLength: 30 });
+    expect(GOODS_ADD_ON_PRESETS.map((p) => p.key)).toEqual(["engraving", "message", "giftwrap"]);
+    expect(personalAddOn([{ id: "a", kind: "option", personal: true }, { id: "b", kind: "text", personal: true }])?.id).toBe("b");
+    expect(personalAddOn([{ id: "c", kind: "text" }])).toBeUndefined();
+  });
+});

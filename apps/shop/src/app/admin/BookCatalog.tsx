@@ -22,6 +22,7 @@ import { combinedAdmin } from "./combined";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import type { InventoryLinks } from "./inventoryLink";
 import { productHref } from "../lib/productHref";
+import { stockText } from "../../shared/soldByAmount";
 
 interface BookCatalogProps {
   onEdit: (book: any) => void;
@@ -259,7 +260,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
                   </td>
                   <td className="bk-list-mono bk-wide">{[b.format, b.isbn || b.sku].filter(Boolean).join(" · ") || "—"}</td>
                   <td className="bk-num bk-wide">{priceInfo(b).text}</td>
-                  <td className="bk-num bk-wide">{Number.isFinite(stock.count) ? stock.count : "—"}</td>
+                  <td className="bk-num bk-wide">{Number.isFinite(stock.count) ? stockText(b, stock.count) : "—"}</td>
                   {COMBINED && <td className="bk-num bk-wide">{onHand ? stockroomCount(b.id, links, onHand) ?? "—" : "…"}</td>}
                   <td><StatusBadge tone={st.tone} glyph={false}>{st.text}</StatusBadge></td>
                   <td className="bk-list-act" onClick={(e) => e.stopPropagation()}>{actionsOf(b)}</td>

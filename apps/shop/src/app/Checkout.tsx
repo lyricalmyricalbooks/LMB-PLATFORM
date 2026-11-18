@@ -88,6 +88,7 @@ import { MIN_TIP_MINOR, MAX_TIP_MINOR } from "../shared/givingRules";
 import { CheckoutOrderSummary } from "./features/site/CheckoutOrderSummary";
 import { practiceCheckout } from "./lib/practiceCheckout";
 import { practiceHint } from "./lib/practiceHint";
+import { lineAmountText } from "../shared/soldByAmount";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -1868,7 +1869,7 @@ export function Checkout() {
                   <li key={`${item.id}-${item.variantId || ""}-${i}`} className="fm-track-row">
                     <span className="flex gap-3 min-w-0">
                       <span className="fm-track-mono shrink-0">{String(i + 1).padStart(2, "0")}</span>
-                      <span className="text-white/85 break-words">{item.title}{item.variantName ? ` · ${item.variantName}` : ""} <span className="fm-track-mono">× {item.quantity}</span></span>
+                      <span className="text-white/85 break-words">{item.title}{item.variantName ? ` · ${item.variantName}` : ""} <span className="fm-track-mono">{lineAmountText(item) || `× ${item.quantity}`}</span></span>
                     </span>
                     <span className="font-mono text-white/70 shrink-0" translate="no">{orderMoney(Number(item.price || 0) * Number(item.quantity || 0), successOrder, formatPrice)}</span>
                   </li>

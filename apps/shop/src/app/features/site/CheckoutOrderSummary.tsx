@@ -11,6 +11,7 @@ import { bundleComponents } from "./promotions";
 import { componentsSummary } from "./orderLineNotes";
 import { linePreorderNote, formatReleaseDate, type bagPreorder } from "./preorder";
 import { designNumber } from "./designNumber";
+import { lineAmountText } from "../../../shared/soldByAmount";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -69,7 +70,7 @@ export function CheckoutOrderSummary({ c, checkoutDesign, cart, booksMap, summar
                 {!checkoutDesign.hideCheckoutLowStock && typeof item.stockLimit === "number" && item.stockLimit > 0 && item.stockLimit <= designNumber(checkoutDesign, "lowStockProductThreshold", 3) && (
                   <p className="fm-co-line-meta" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
                 )}
-                <p className="fm-co-line-qty fm-co-mono">{c("coLineQty", { count: item.quantity })}</p>
+                <p className="fm-co-line-qty fm-co-mono">{lineAmountText(item) || c("coLineQty", { count: item.quantity })}</p>
               </div>
               <span className="fm-co-line-price" translate="no">{formatPrice(item.price * item.quantity)}</span>
             </div>

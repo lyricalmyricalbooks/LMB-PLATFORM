@@ -33,4 +33,9 @@ describe("hold limits (#45)", () => {
     const many = holdWarnings([{ id: "a", quantity: 10 }, { id: "b", quantity: 10 }, { id: "a", quantity: 1 }], map, { perBook: 10, units: 15, orders: 3 });
     expect(many.some(w => w.kind === "units" && w.count === 21)).toBe(true);
   });
+
+  test("a length of fabric counts once, however many steps it holds", () => {
+    const map = books([{ id: "linen", title: "Linen", trackInventory: true, amount: { unit: "m", step: 0.1, min: 0.5 } }]);
+    expect(holdWarnings([{ id: "linen", quantity: 40 }], map)).toEqual([]);
+  });
 });

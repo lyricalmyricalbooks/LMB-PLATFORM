@@ -43,7 +43,7 @@ export function saleWindowProblem(book: any): string {
 
 // ── Paid add-ons ───────────────────────────────────────────────────
 export const MAX_ADD_ONS = 6;
-export type AddOn = { id: string; label: string; price: number | ""; kind: "option" | "text"; maxLength?: number; enabled?: boolean };
+export type AddOn = { id: string; label: string; price: number | ""; kind: "option" | "text"; maxLength?: number; enabled?: boolean; personal?: boolean };
 
 const randomId = () => {
   try { return crypto.randomUUID().slice(0, 8); } catch { return Math.random().toString(36).slice(2, 10); }
@@ -55,6 +55,32 @@ export const ADD_ON_PRESETS: Array<{ key: string; label: string; price: number; 
   { key: "inscription", label: "Personal inscription", price: 10, kind: "text", maxLength: 120 },
   { key: "giftwrap", label: "Gift wrap", price: 4, kind: "option" },
 ];
+
+/** Quick adds for a shop's other products: engraving and a message instead of signing a book. */
+export const GOODS_ADD_ON_PRESETS: typeof ADD_ON_PRESETS = [
+  { key: "engraving", label: "Engraving", price: 10, kind: "text", maxLength: 20 },
+  { key: "message", label: "Personal message", price: 0, kind: "text", maxLength: 120 },
+  { key: "giftwrap", label: "Gift wrap", price: 4, kind: "option" },
+];
+
+/**
+ * Engraving and other personal text (product types plan, round 2): what a type that can be personalised offers
+ * shoppers by default. Jewelry and watches are engraved; a wallet takes initials, a notebook a name on the cover.
+ */
+export function personalTextFor(type: { id: string; group: string } | null | undefined): { label: string; price: number; maxLength: number } {
+  const id = type?.id || "";
+  if (id === "wallets") return { label: "Initials", price: 5, maxLength: 3 };
+  if (id === "notebooks") return { label: "Name on the cover", price: 5, maxLength: 20 };
+  if (id === "collars") return { label: "Name on the tag", price: 5, maxLength: 15 };
+  if (id === "custom") return { label: "Name or message", price: 0, maxLength: 60 };
+  if (type?.group === "jewelry") return { label: "Engraving", price: 10, maxLength: 20 };
+  return { label: "Personal text", price: 0, maxLength: 30 };
+}
+
+/** The add-on the Personal text box made (marked), if the product has one. */
+export function personalAddOn(addOns: any[]): AddOn | undefined {
+  return (Array.isArray(addOns) ? addOns : []).find((a) => a && a.personal === true && a.kind === "text");
+}
 
 /** A new add-on with a stable, unique id (kept forever so old orders still match). */
 export function newAddOn(preset?: { label: string; price: number; kind: "option" | "text"; maxLength?: number }): AddOn {
@@ -96,6 +122,7 @@ export function cleanAddOns(addOns: any[]): any[] {
     kind: a.kind === "text" ? "text" : "option",
     ...(a.kind === "text" ? { maxLength: Math.max(1, Math.min(300, Math.floor(Number(a.maxLength) || 120))) } : {}),
     enabled: a.enabled !== false,
+    ...(a.personal === true && a.kind === "text" ? { personal: true } : {}),
   }));
 }
 

@@ -101,7 +101,7 @@ export function cartDrawerCss(design: any): string {
     `${S} .fm-bag-qty[data-style="pill"]{background:var(--bag-surface);border-radius:999px;}`,
     `${S} .fm-bag-qty-btn{background:transparent;color:inherit;}`,
     `${S} .fm-bag-qty-btn:not(:disabled):hover{background:${fg};color:${bg};}`,
-    `${S} .fm-bag-qty-n{font-family:${metaFont};font-size:${metaSize + 2}px;min-width:2.5em;display:flex;align-items:center;justify-content:center;}`,
+    `${S} .fm-bag-qty-n{font-family:${metaFont};font-size:${metaSize + 2}px;min-width:2.5em;display:flex;align-items:center;justify-content:center;white-space:nowrap;padding:0 .4em;}`,
     `${S} .fm-bag-remove{color:var(--bag-muted);background:transparent;text-decoration:underline;text-underline-offset:3px;}`,
     `${S} .fm-bag-remove:hover{color:var(--danger, ${fg});}`,
     `${S} .fm-bag-warn{color:var(--low-inventory-color, var(--danger, currentColor));}`,

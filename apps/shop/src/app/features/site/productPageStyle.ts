@@ -294,7 +294,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-qty button{width:44px;display:grid;place-items:center;background:transparent;}`;
   css += `${S} .fm-pdp-qty button:hover:not(:disabled){background:var(--surface-2);}`;
   css += `${S} .fm-pdp-qty button:disabled{opacity:.3;}`;
-  css += `${S} .fm-pdp-qty output{min-width:40px;display:grid;place-items:center;font-family:${metaFont};font-size:15px;border-inline:1px solid ${cardDivider};}`;
+  css += `${S} .fm-pdp-qty output{min-width:40px;display:grid;place-items:center;font-family:${metaFont};font-size:15px;border-inline:1px solid ${cardDivider};padding:0 .6em;white-space:nowrap;}`;
   css += `${S} .fm-pdp-sq{width:52px;height:52px;flex:none;display:grid;place-items:center;background:transparent;border:2px solid rgba(var(--border-rgb), 0.6);color:rgb(var(--fg-rgb));}`;
   // Sticky add-to-bag bar (pdpStickyBar): fixed to the bottom edge, in the page's own colours.
   css += `${S} .fm-pdp-sticky{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:${outlineW} solid ${outline};}`;

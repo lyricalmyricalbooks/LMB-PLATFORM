@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, Toggle } from "./riso/components";
 import {
-  ADD_ON_PRESETS, MAX_ADD_ONS, MAX_BUNDLE_PARTS, bundleAvailable, bundlePartProblem, newAddOn, saleStatus, saleWindowProblem,
+  ADD_ON_PRESETS, GOODS_ADD_ON_PRESETS, MAX_ADD_ONS, MAX_BUNDLE_PARTS, bundleAvailable, bundlePartProblem, newAddOn, saleStatus, saleWindowProblem,
 } from "./productExtras";
 import { productKind, type ProductKind } from "../../shared/productOptions";
 import { useShopSells, useShopWords } from "./shopWords";
@@ -54,7 +54,7 @@ export function AddOnsEditor({ form, set }: { form: any; set: Setter }) {
       actions={<button type="button" className="rp-btn rp-btn-primary rp-btn-sm" disabled={full} onClick={() => set("addOns", [...addOns, newAddOn()])}><Plus size={14} aria-hidden /> Add add-on</button>}>
       <div className="be-inline-actions" role="group" aria-label="Quick add">
         <span className="be-label-xs">Quick add:</span>
-        {ADD_ON_PRESETS.map((preset) => (
+        {(productKind(form) === "book" ? ADD_ON_PRESETS : GOODS_ADD_ON_PRESETS).map((preset) => (
           <button key={preset.key} type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={full}
             onClick={() => set("addOns", [...addOns, newAddOn(preset)])}>
             <Plus size={13} aria-hidden /> {preset.label}

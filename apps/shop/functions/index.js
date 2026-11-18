@@ -63,6 +63,7 @@ const { taxPartsByKind, discountedLineValues, chargesTax, untaxedValue } = requi
 const { productKind } = require("./shared/productOptions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { chosenUnitPrice } = require("./shared/payWhatYouWant");
+const { amountLine, formatAmount } = require("./shared/soldByAmount");
 const { loadStockist, wholesaleUnitPrice, privateWholesale, stockistActions } = require("./stockists");
 const { paymentLinkFor, addOnParentClosed, linkProblem, applyLinkPrices, paymentLinkActions, LINK_MESSAGES, reminderDue, sendLinkReminders } = require("./paymentLinks");
 const { expandDiscountCategories } = require("./shared/discountCategories");
@@ -467,6 +468,11 @@ function lineExtrasHtml(i, say = text => text) {
   return notes.length ? `<div style="color:#888;font-size:12px;margin-top:4px;">${notes.join("<br/>")}</div>` : "";
 }
 
+// "×2" for copies; "1.5 m" for a line sold by the metre or the gram.
+function lineCountHtml(i) {
+  return i?.amount?.unit ? escapeHtml(formatAmount(i.amount.unit, Number(i.amount.value) || 0)) : `×${i.quantity}`;
+}
+
 function orderRowsHtml(items = [], order = null, say = text => text) {
   return items
     .map(
@@ -475,7 +481,7 @@ function orderRowsHtml(items = [], order = null, say = text => text) {
         <td style="padding:12px 0;border-bottom:1px solid #eee;">
           ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}${lineExtrasHtml(i, say)}
         </td>
-        <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;color:#888;">×${i.quantity}</td>
+        <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;color:#888;">${lineCountHtml(i)}</td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;">${order ? orderMoneyFmt(i.price * i.quantity, order) : moneyFmt(i.price * i.quantity)}</td>
       </tr>`,
     )
@@ -1320,6 +1326,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
     if (problem === "choose_edition") throw new PricingError(`Choose an edition of "${book.title || label}" before checking out.`);
     if (problem) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
     const quantity = Math.max(1, Math.min(99, Math.floor(Number(requested.quantity) || 1)));
+    // Sold by the metre or the gram: the quantity counts steps, and a line under the smallest amount is refused.
+    const amountCheck = amountLine(book, quantity);
+    if (!amountCheck.ok) throw new PricingError(amountCheck.message, "amount_too_small");
     const variant = requested.variantId ? (book.variants || []).find(v => v.id === requested.variantId) || null : null;
     if (requested.variantId && !variant) throw new PricingError(`Selected edition for "${book.title || label}" is no longer available.`);
     const parts = bundleComponents(book);
@@ -1373,7 +1382,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       }
     }
     // Only fields the browser may describe are kept; everything that prices or ships comes from the catalog.
-    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, memberPrice: _mp, chosenPrice: _cp, ...rest } = requested;
+    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, memberPrice: _mp, chosenPrice: _cp, amount: _am, ...rest } = requested;
     // Each part weighs what its chosen edition weighs (falling back to the book).
     const partWeights = components.map(part => {
       const partBook = booksById[part.id] || {};
@@ -1394,6 +1403,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       ...(picked.addOns.length ? { basePrice: unitBase, addOns: picked.addOns } : {}),
       ...(components.length ? { bundle: true, components } : {}),
       ...(giftCard ? { giftCard: true, giftCardDetails: giftCardInfo } : {}),
+      ...(amountCheck.amount ? { amount: amountCheck.amount } : {}),
       format: giftCard ? "Gift card" : catalogFormat(book, variant),
       digital: catalogDigital(book, variant),
       isDigital: catalogDigital(book, variant),

@@ -88,6 +88,9 @@ import { currentSells, goodsWords, startingKind } from "./sells";
 import { Part, PartsFold, revealPart } from "./BookEditorParts";
 import { hasColourChoice, nextProductStart } from "./addAnother";
 import { typeById, typeOfProduct, type OwnType, type ProductType } from "../../shared/productTypes";
+import { SoldByAmountFields } from "./SoldByAmountFields";
+import { PersonalTextFields } from "./PersonalTextFields";
+import { soldAmount, startingAmount, stepText, stockText } from "../../shared/soldByAmount";
 import { missingLawFacts, safetyForType } from "./typeFacts";
 import { TypeFactsCard } from "./TypeFactsCard";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
@@ -412,6 +415,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       // The picked type's safety line (a candle's) starts on the page; the owner can change or clear it.
       const startType = typeById((prefill as any)?.typeId);
       if (startType) setFormData((prev: any) => ({ ...prev, ...safetyForType(prev, startType) }));
+      // Fabric starts sold by the metre and beads by weight (round 2); the owner can turn it off in Price.
+      const startAmount = startingAmount(startType?.traits.soldBy);
+      if (startAmount) setFormData((prev: any) => (prev.amount === undefined ? { ...prev, amount: startAmount } : prev));
       // A product whose type was picked already has its kind (a printed book keeps none), so the sign-up kind stays out.
       if (!(prefill as any)?.kind && !(prefill as any)?.typeId) {
         Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
@@ -1211,6 +1217,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
 
   // Product types plan, change 10: on a new product every part but the essentials is a row with a plain summary.
   const pickedType = typeOfProduct(formData);
+  const sellAmount = soldAmount(formData);
   const listOf = (items: string[], none: string, most = 3) => items.length ? items.slice(0, most).join(", ") + (items.length > most ? ` and ${items.length - most} more` : "") : none;
   const filled = (...values: unknown[]) => values.filter((v) => String(v ?? "").trim() !== "" && Number(v) !== 0).length;
   const parts = {
@@ -1240,9 +1247,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     open: (id: string) => { setOpenedParts((prev) => new Set(prev).add(id)); revealPart(id); },
   }), [book, allParts, openedParts]);
 
-  const money = (label: string, name: string, symbol: string, opts: { disabled?: boolean; hint?: string } = {}) => (
+  const money = (label: string, name: string, _symbol: string, opts: { disabled?: boolean; hint?: string } = {}) => (
     <div className="be-money">
-      <span className="be-money-sym" aria-hidden>{symbol}</span>
+      {/* The label names the currency; a sign inside the box sat on top of the hint under it. */}
       <TextField label={label} type="number" min={0} step="0.01" name={name} value={formData[name] ?? 0}
         onChange={handleChange} disabled={opts.disabled} hint={opts.hint} />
     </div>
@@ -1654,7 +1661,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               <SectionCard title="Price" description="Enter the CAD price. Shoppers who pick USD or EUR see, and are charged, the CAD price converted at today's exchange rate. The USD/EUR figures below are for your reference only.">
                 <div className="be-toggles"><Toggle label="Edit reference USD & EUR prices" checked={overrides} onChange={(v) => set("manualCurrencyOverrides", v)} /></div>
                 <div className="be-grid be-grid-3">
-                  {money("Price (CAD)", "retailPrice", "$")}
+                  {money(sellAmount ? `Price for each ${stepText(sellAmount)} (CAD)` : "Price (CAD)", "retailPrice", "$")}
                   {money("Price (USD)", "usdPrice", "$", { disabled: !overrides })}
                   {money("Price (EUR)", "eurPrice", "€", { disabled: !overrides })}
                   {money("Cost (CAD)", "costPrice", "$", { hint: "What each one costs you to make or buy." })}
@@ -1668,7 +1675,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <div><span>Charge tax</span><Toggle label="Charge sales tax" checked={!!formData.chargeTax} onChange={(v) => set("chargeTax", v)} /></div>
                 </div>
                 {activePrice > 0 && num(formData.costPrice) > activePrice && <p className="be-warn" role="status">⚠ Cost is higher than the selling price — you'd lose money on each copy.</p>}
-                {!isGiftCardProduct(formData) && !isBoxSet(formData) && !(formData.variants || []).length && (
+                {(pickedType?.traits.personalised || formData.addOns?.some((a: any) => a?.personal)) && !isBoxSet(formData) && (
+                  <div className="mt-4"><PersonalTextFields form={formData} type={pickedType} set={set} /></div>
+                )}
+                {(sellAmount || pickedType?.traits.soldBy === "metre" || pickedType?.traits.soldBy === "gram") && !isBoxSet(formData) && (
+                  <div className="mt-4"><SoldByAmountFields form={formData} soldBy={pickedType?.traits.soldBy} set={set} /></div>
+                )}
+                {!isGiftCardProduct(formData) && !isBoxSet(formData) && !(formData.variants || []).length && !sellAmount && (
                   <div className="mt-4">
                     <Toggle label={w("Buyers pay what they want (Beta)")} checked={formData.payWhatYouWant === true} onChange={(v) => set("payWhatYouWant", v)} />
                     {formData.payWhatYouWant === true && <p className="rp-hint mt-2">{w("The price above is the lowest amount a buyer can pay. Set it to 0 to give it away and let buyers pay if they like.")}</p>}
@@ -1722,9 +1735,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   {formData.trackInventory && <Toggle label="Allow backorders when out of stock" checked={!!formData.allowBackorder} onChange={(v) => set("allowBackorder", v)} />}
                 </div>
                 <div className="be-grid be-grid-3">
-                  <TextField label={`Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange}
+                  <TextField label={sellAmount ? `Stock, in ${stepText(sellAmount)} steps${hasVariants ? " (from editions)" : ""}` : `Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange}
                     disabled={hasVariants || stockLocked(null)}
-                    hint={!hasVariants ? stockLockHint(null) : undefined} />
+                    hint={!hasVariants ? (stockLockHint(null) || (sellAmount ? `That's ${stockText(formData, num(formData.stockLevel))} in stock.` : undefined)) : undefined} />
                   <div className="be-stock-status">{formData.trackInventory && !!book && stockBadge(num(formData.stockLevel))}</div>
                   <TextField label="Shelf location" name="shelfLocation" value={formData.shelfLocation || ""} onChange={handleChange} placeholder="e.g. B2 or Box 4" hint={w(hasVariants ? "Shown on the packing checklist for editions without their own shelf location." : "Shown next to this book on the packing checklist.")} />
                 </div>

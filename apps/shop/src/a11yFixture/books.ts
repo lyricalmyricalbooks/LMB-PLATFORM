@@ -28,4 +28,7 @@ export const A11Y_GOODS: any[] = [
   tee(2, "Press Hoodie", "#8a4f3d", ["M", "L", "XL"], ["Black"]),
   candle(1, "Fig Candle", "#c9a27a", ["Fig", "Cedar"]),
   candle(2, "Night Candle", "#3d3a4f", ["Cedar", "Smoke"]),
+  // Sold by the metre: the price is for each 10 cm, stock counts 10 cm steps (30 = 3 m), at least 50 cm.
+  { id: "f1", slug: "washed-linen", title: "Washed Linen", retailPrice: 1.8, stockLevel: 30, trackInventory: true, status: "published", kind: "other", typeId: "fabric",
+    amount: { unit: "m", step: 0.1, min: 0.5 }, categories: ["Fabric"], photos: photo(30, "#b8a98f"), description: "<p>Heavy linen, 150 cm wide.</p>" },
 ];
