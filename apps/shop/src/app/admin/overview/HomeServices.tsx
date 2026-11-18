@@ -49,11 +49,13 @@ function moneyLine(b: Booking): string {
   const paid = b.payment === "pack" ? `Visit ${b.pack?.visit || ""} of a pack`.replace("  ", " ") : due === 0 ? "Paid" : b.depositPaid ? `Deposit paid · ${moneyText(due, b.currency)} to pay` : `${moneyText(due, b.currency)} to pay at the visit`;
   return b.card?.last4 ? `${paid} · ${cardText(b.card)} saved` : paid;
 }
-export function HomeServices({ ownerName, bookings, todo, onOpen }: {
+export function HomeServices({ ownerName, bookings, todo, extra, onOpen }: {
   ownerName: string;
   bookings: Booking[] | null | "error";
   /** The To do tiles (HomePage's RunTiles). */
   todo: ReactNode;
+  /** Cards after To do, such as a running fundraiser (HomeFundraiser). */
+  extra?: ReactNode;
   onOpen: (tab: string) => void;
 }) {
   const alerts = useContext(PageAlertsSlot);
@@ -81,6 +83,7 @@ export function HomeServices({ ownerName, bookings, todo, onOpen }: {
         <h2 className="rp-home-h2" id="home-todo">To do <small>Most urgent first</small></h2>
         {todo}
       </section>
+      {extra}
 
       <section aria-labelledby="home-today">
         <h2 className="rp-home-h2" id="home-today">Today <button type="button" className="rp-home-link" onClick={() => onOpen("bookings")}>Calendar →</button></h2>

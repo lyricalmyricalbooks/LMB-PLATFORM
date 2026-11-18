@@ -260,7 +260,7 @@ function FundraiserDrawer({ start, today, money, running, onClose, onSaved }: {
       )}>
       <div className="gvg-form">
         {blocked && <p className="gvg-hint" role="note">"{blocked.title}" is running now. You can save this as a draft and start it once that one ends.</p>}
-        <TextField label="Name" maxLength={MAX_TITLE} value={form.title} error={fieldError("title")} placeholder="Help us print our next book"
+        <TextField label="Name" maxLength={MAX_TITLE} value={form.title} error={fieldError("title")} placeholder="Help us fund our next project"
           onChange={(e) => set({ title: e.target.value })} />
         <div className="gvg-two">
           <TextField label="Goal" inputMode="decimal" value={form.goal} error={fieldError("goal")} placeholder="3000" hint={`At least ${money(10_000)}.`}
