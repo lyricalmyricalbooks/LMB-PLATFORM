@@ -1076,6 +1076,7 @@ export function Dashboard() {
           title={headOverride ? headOverride.title : selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
           description={headOverride ? headOverride.description : selectedOrder ? undefined : navActive === "settings" && childLabel ? (navChild && PAGE_COPY[navChild]?.description) || undefined : copy.description || undefined}
           actions={<div ref={setPageActionsEl} className="rp-page-actions-slot" />}
+          onHelp={activeTab !== "help" && !headOverride && !selectedOrder ? () => { void goTo("help"); } : undefined}
         />}
         {/* Settings lists its pages in a column on the left, under headings (redesign); other items show pills above. */}
         <div className="rp-page-body" data-layout={settingsColumn ? "column" : undefined} data-sub={headOverride ? "" : undefined}>

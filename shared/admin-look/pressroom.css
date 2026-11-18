@@ -2606,3 +2606,14 @@ div.rp-listcard-main { cursor: default; }
 .rp:not(.studio-editor) .rp-state-sketch[data-kind="calendar"] > span { flex-direction: column; height: 56px; padding: 8px 6px; }
 .rp:not(.studio-editor) .rp-state-sketch[data-kind="calendar"] > span > i { width: 100% !important; margin: 0 !important; }
 .rp:not(.studio-editor) .rp-state[data-sketch] .rp-state-icon { display: none; }
+
+/* Simpler admin, change 9: the "?" beside each page title opens Help with that page's answers first. */
+.rp-page-titlerow { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rp-page-help {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 999px; border: 1px solid var(--rp-border);
+  background: var(--rp-surface); color: var(--rp-text-muted); font: 600 14px/1 var(--rp-font-body, inherit);
+  display: inline-grid; place-items: center; cursor: pointer;
+}
+.rp-page-help:hover { color: var(--rp-text); border-color: var(--rp-text); }
+.rp-page-help:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-primary)); outline-offset: 2px; }
+@media (pointer: coarse) { .rp-page-help { width: 36px; height: 36px; } }
