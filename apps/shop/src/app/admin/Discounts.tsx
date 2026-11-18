@@ -61,6 +61,8 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
   const [batch, setBatch] = useState({ on: false, count: "10", prefix: "" });
   // Closing with typed changes asks first, so a half-made discount isn't lost to a stray Escape or click outside.
   const [startForm] = useState(() => JSON.stringify(form));
+  // Simpler admin, change 8: a new discount is the code and what it takes off; the optional limits wait behind one button.
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [ask, confirmNode] = useConfirm();
   const close = async () => {
     const changed = JSON.stringify(form) !== startForm || batch.on;
@@ -289,6 +291,12 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
         })()}
       </FormSection>
 
+      {!isEdit && !rulesOpen && !["minOrderAmount", "expiryDate", "minQuantity", "maxDiscountAmount", "usageLimit"].some(k => errors[k]) ? (
+      <FormSection title="Rules" description="Optional limits.">
+        <button type="button" className="rp-fk-pill" style={{ alignSelf: "flex-start" }} onClick={() => setRulesOpen(true)}>Add dates, a minimum spend or a use limit</button>
+        <p className="rp-fk-hint" style={{ margin: 0 }}>Without any, it works on every order until you turn it off.</p>
+      </FormSection>
+      ) : (
       <FormSection title="Rules" description="Optional limits.">
         <FormRow>
           <FormField label="Minimum spend" prefix={MONEY_SIGN} error={errors.minOrderAmount} hint="Leave empty for none.">
@@ -325,6 +333,7 @@ function DiscountForm({ initial, otherCodes = [], books, shopCategories, onClose
           </FormField>
         </FormRow>}
       </FormSection>
+      )}
     </FormPage>
     <StatusBar status={status} primaryLabel={primaryLabel} busy={saving} blocked={missing > 0}
       onBlocked={() => { validate(); toast.error("Fill in the highlighted fields."); }}

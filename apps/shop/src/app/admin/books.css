@@ -178,3 +178,13 @@
 .be-edition-pick .rp-field { margin: 0; flex: 1 1 0; min-width: 0; }
 .be-edition-pick .rp-select { width: 100%; min-width: 0; }
 .be-edition-pick > button { flex: none; }
+
+/* Simpler admin, change 8: a new product shows the essentials first; the rest waits behind More details. */
+.be-main[data-essentials] [data-extra],
+.be-main[data-essentials] [data-be-section="editions"],
+.be-main[data-essentials] [data-be-section="boxset"],
+.be-main[data-essentials] [data-be-section="organize"],
+.be-main[data-essentials] [data-be-section="more"],
+.be-main[data-essentials] [data-be-section="seo"] { display: none; }
+.be-more-parts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 0 16px; }
+.be-more-parts .rp-fk-hint { margin: 0; }

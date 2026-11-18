@@ -265,6 +265,8 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
   /** The partner company this card is about (Google Analytics, Stripe, QuickBooks …): its logo sits before the title. */
   logo?: BrandId;
   "data-print"?: "hide";
+  /** A part the product editor leaves out of a new product until "More details" (simpler admin, change 8). */
+  "data-extra"?: boolean;
 }) {
   const inWidget = useContext(CardInWidget);
   const asSection = useContext(CardsAsSections);
