@@ -88,14 +88,18 @@ describe("Settings in groups (redesign)", () => {
 
 describe("Events in the menu (beta)", () => {
   it("is marked Beta wherever it shows, and leaves with its switch", async () => {
-    const { WEBSITE_SIDE, SERVICES_MENU, withoutPages } = await import("./nav");
-    const own = sidebarItems(NAV, WEBSITE_SIDE).find((i) => i.id === "events")!;
+    const { WEBSITE_SIDE, SERVICES_MENU, withoutPages, menuWithout } = await import("./nav");
+    const own = sidebarItems(NAV, WEBSITE_SIDE).find((i) => i.label === "Ways to sell")!.children!.find((c) => c.id === "events")!;
     expect(own).toMatchObject({ label: "Events", tag: "Beta" });
     const underOrders = sidebarItems(NAV).find((i) => i.label === "Orders")!.children!.find((c) => c.id === "events")!;
     expect(underOrders.tag).toBe("Beta");
     expect(sidebarItems(NAV, SERVICES_MENU).some((i) => i.id === "events")).toBe(true);
-    const hidden = withoutPages(sidebarItems(NAV, WEBSITE_SIDE), new Set(["events"]));
-    expect(hidden.some((i) => i.id === "events")).toBe(false);
+    const hidden = sidebarItems(NAV, menuWithout(WEBSITE_SIDE, new Set(["events"])));
+    expect(hidden.find((i) => i.label === "Ways to sell")!.children!.some((c) => c.id === "events")).toBe(false);
+    // With only Events on, Ways to sell opens on Events.
+    const only = sidebarItems(NAV, menuWithout(WEBSITE_SIDE, new Set(["bookings", "takePayment", "classes", "giving", "memberships"])));
+    expect(only.find((i) => i.label === "Ways to sell")!.id).toBe("events");
+    expect(sidebarItems(NAV, menuWithout(WEBSITE_SIDE, new Set(["bookings", "takePayment", "events", "classes", "giving", "memberships"]))).some((i) => i.label === "Ways to sell")).toBe(false);
     expect(withoutPages(sidebarItems(NAV), new Set(["events"])).find((i) => i.label === "Orders")!.children!.some((c) => c.id === "events")).toBe(false);
   });
 });

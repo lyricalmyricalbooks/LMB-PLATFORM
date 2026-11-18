@@ -17,6 +17,8 @@ export interface TourStep {
   /** The words for a shop that sells books, when they differ from `text`. */
   books?: string;
   target?: TourTarget;
+  /** The menu item may start on any of these pages (the first one on wins); the stop goes when none is on. */
+  navAny?: string[];
   /** The menu page this stop opens before it points (defaults to the `nav` target's page). */
   open?: string;
   /** Only in the admin that has a stockroom (shop + stockroom). */
@@ -50,26 +52,12 @@ export const TOUR_STEPS: TourStep[] = [
   { id: "orders", chapter: "website", target: { nav: "orders" },
     title: "Orders",
     text: "Every order lands here. Open one to pack it, print a label and mark it shipped; the customer hears from you at each step." },
-  // Only in a shop that has Bookings (the menu item is hidden otherwise, and its stop with it).
-  { id: "bookings", chapter: "website", combinedOnly: true, target: { nav: "bookings" },
-    title: "Bookings",
-    text: "Times customers book with you. Set what they can book and your hours, then switch Bookings on or off whenever you like." },
-  // Only in a shop with Events switched on (beta; the menu item is hidden otherwise, and its stop with it).
-  { id: "events", chapter: "website", combinedOnly: true, target: { nav: "events" },
-    title: "Events",
-    text: "Readings, launches and workshops. Add an event, set its tickets, and see who is coming." },
-  // Only in a shop with Classes switched on (beta; the menu item is hidden otherwise, and its stop with it).
-  { id: "classes", chapter: "website", combinedOnly: true, target: { nav: "classes" },
-    title: "Classes",
-    text: "Your weekly timetable. See how full each class is, open one for its list of people, and check them in on the day." },
-  // Only in a shop with Donations & tips switched on (beta; the menu item is hidden otherwise, and its stop with it).
-  { id: "giving", chapter: "website", combinedOnly: true, target: { nav: "giving" },
-    title: "Donations",
-    text: "Donations and tips from your Support page. Choose the amounts you suggest, and see who gave and what they wrote." },
-  // Only in a shop with Memberships switched on (beta; the menu item is hidden otherwise, and its stop with it).
-  { id: "memberships", chapter: "website", combinedOnly: true, target: { nav: "memberships" },
-    title: "Members",
-    text: "Membership plans people pay for every month or year. Make a plan, and see who is a member and when they pay next." },
+  // Ways to sell (simpler admin, change 6): one item for bookings, events, classes, donations and members. The stop
+  // points at whichever of them this shop has on first, and goes when none is on.
+  { id: "ways", chapter: "website", combinedOnly: true, target: { nav: "bookings" },
+    navAny: ["bookings", "takePayment", "events", "classes", "giving", "memberships"],
+    title: "Ways to sell",
+    text: "Bookings, events, classes, donations and members. Each one you switch on gets its own tab here." },
   { id: "messages", chapter: "website", target: { nav: "messages" },
     title: "Messages",
     text: "Notes shoppers send from your contact form. Reply here and your answer goes by email." },
@@ -139,6 +127,11 @@ export function chapterLabel(chapter: TourChapter, combined: boolean): string {
  */
 export function tourFor({ combined, books, menuItems }: { combined: boolean; books: boolean; menuItems: ReadonlySet<string> }): TourStep[] {
   return TOUR_STEPS
+    .map((s) => {
+      if (!s.navAny) return s;
+      const nav = s.navAny.find((id) => menuItems.has(id));
+      return nav ? { ...s, target: { nav } } : { ...s, target: { nav: "" } };
+    })
     .filter((s) => (combined || !s.combinedOnly) && (!s.target || !("nav" in s.target) || menuItems.has(s.target.nav)))
     .map((s) => ({ ...s, text: books && s.books ? s.books : s.text }));
 }

@@ -3,6 +3,7 @@ import {
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug, Blocks,
   Share2, Send, ChartLine, CalendarDays, HandCoins, Ticket,
   GraduationCap, HeartHandshake, BadgeCheck,
+  Shapes,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -99,15 +100,10 @@ export const WEBSITE_SIDE: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
   // The v3 mockups (Julian, 11 November 2026): Messages is its own item; Customers and All sales sit under Orders.
   { label: "Orders", icon: ShoppingCart, pages: ["orders", SALES_TAB, "customers"] },
-  // Bookings (beta) is its own item (Julian, 14 November 2026); it shows only in a shop that has Bookings.
-  { label: "Bookings", icon: CalendarDays, pages: ["bookings", "takePayment"] },
-  // Events (beta, ways to sell) is its own item; it shows only in a shop with Events switched on.
-  { label: "Events", icon: Ticket, pages: ["events"] },
-  { label: "Classes", icon: GraduationCap, pages: ["classes"] },
-  { label: "Donations", icon: HeartHandshake, pages: ["giving"] },
-  { label: "Members", icon: BadgeCheck, pages: ["memberships"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
+  // Simpler admin, change 6 (after Books, so a phone's first four pills stay Home, Orders, Messages, Books): every way to sell beyond products sits under one item, a pill for each one switched on.
+  { label: "Ways to sell", icon: Shapes, pages: ["bookings", "takePayment", "events", "classes", "giving", "memberships"] },
   // v4 (12 Nov 2026): Marketing sits above Analytics.
   { label: "Marketing", icon: Megaphone, pages: ["discounts", "giftCards", "socialPosts", "channels"] },
   { label: "Analytics", icon: ChartLine, pages: ["analytics"] },
@@ -182,10 +178,8 @@ export const SERVICES_WEBSITE_SIDE: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview"] },
   { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
   { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
-  { label: "Events", icon: Ticket, pages: ["events"] },
-  { label: "Classes", icon: GraduationCap, pages: ["classes"] },
-  { label: "Donations", icon: HeartHandshake, pages: ["giving"] },
-  { label: "Members", icon: BadgeCheck, pages: ["memberships"] },
+  // Simpler admin, change 6: every way to sell beyond products sits under one item, a pill for each one switched on.
+  { label: "Ways to sell", icon: Shapes, pages: ["events", "classes", "giving", "memberships"] },
   { label: "Clients", icon: Users, pages: ["customers"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", SALES_TAB], labels: { orders: "Website sales" } },
@@ -208,10 +202,8 @@ export const SERVICES_MENU: Menu = [
   { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
   { label: "Calendar", icon: CalendarDays, pages: ["bookings"] },
   { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
-  { label: "Events", icon: Ticket, pages: ["events"] },
-  { label: "Classes", icon: GraduationCap, pages: ["classes"] },
-  { label: "Donations", icon: HeartHandshake, pages: ["giving"] },
-  { label: "Members", icon: BadgeCheck, pages: ["memberships"] },
+  // Simpler admin, change 6: every way to sell beyond products sits under one item, a pill for each one switched on.
+  { label: "Ways to sell", icon: Shapes, pages: ["events", "classes", "giving", "memberships"] },
   { label: "Clients", icon: Users, pages: ["customers", "messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", "discounts", "giftCards", "socialPosts"], labels: { orders: "Website sales" } },
   { label: "Design", icon: Palette, pages: ["design"] },
@@ -258,6 +250,13 @@ export function sidebarItems(nav: NavEntry[], menu: Menu = MENU): NavEntry[] {
 export function withoutPages(items: NavEntry[], hidden: ReadonlySet<string>): NavEntry[] {
   if (!hidden.size) return items;
   return items.filter((item) => !hidden.has(item.id)).map((item) => (item.children ? { ...item, children: item.children.filter((c) => !hidden.has(c.id)) } : item));
+}
+
+/** The menu without the pages this shop doesn't have on: an item keeps its other pages, so "Ways to sell" opens on its
+ * first page that is on, and an item with no page left goes (simpler admin, change 6). */
+export function menuWithout(menu: Menu, hidden: ReadonlySet<string>): Menu {
+  if (!hidden.size) return menu;
+  return menu.map((g) => ({ ...g, pages: g.pages.filter((id) => !hidden.has(id)) })).filter((g) => g.pages.length);
 }
 
 /** A menu item's pages in its headed groups (Settings uses SETTINGS_SECTIONS), or null when it has none. */

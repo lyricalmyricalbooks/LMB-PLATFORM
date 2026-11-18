@@ -54,7 +54,7 @@ import { shopNameFromSettings, wordmarkWords } from "../features/site/shopIdenti
 import { adminWordsFor, currentSells } from "./sells";
 import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT, ShopSellsContext, ShopWordsContext } from "./shopWords";
 import { hasPublisherTools, sellsServices } from "../../shared/shopSells";
-import { FAIR_MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, adminMenu, itemSections, menuItemFor, sideMenu, sideOf, sidebarItems, withoutPages, type MenuKind } from "./riso/nav";
+import { FAIR_MENU, NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, adminMenu, itemSections, menuItemFor, menuWithout, sideMenu, sideOf, sidebarItems, type MenuKind } from "./riso/nav";
 import { FairCard, SideSwitch, rememberFair, rememberSide, rememberedFair, rememberedSide } from "./SideSwitch";
 import { PhoneNav } from "./PhoneNav";
 import { useStockroomTodos } from "./overview/StockroomTodos";
@@ -920,8 +920,8 @@ export function Dashboard() {
     rememberFair(on); setFairMode(on);
     void openMenuPage(on ? FAIR_MENU[0].pages[0] : sideMenu("stockroom", menuKind)[0].pages[0]);
   };
-  const railMenu = COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide, menuKind)) : ADMIN_MENU;
-  const railItems = withoutPages(sidebarItems(nav, railMenu), hiddenPages).map((n) => {
+  const railMenu = menuWithout(COMBINED ? (fairMode ? FAIR_MENU : sideMenu(currentSide, menuKind)) : ADMIN_MENU, hiddenPages);
+  const railItems = sidebarItems(nav, railMenu).map((n) => {
     // Orders counts open cancel/return requests too (they sit in Needs attention).
     // Privacy requests are handled in Settings › General.
     const badgeFor = (id: string) => id === "orders" ? ordersBadge : id === "reviews" ? otherBadges.pendingReviews
@@ -932,7 +932,7 @@ export function Dashboard() {
     return { ...n, label: w(n.label), ...(pages ? { children: pages } : {}), ...(badge === undefined ? {} : { badge: badge || 0 }) };
   });
   const activePageId = navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive;
-  const activeItemId = menuItemFor(activePageId, COMBINED && fairMode && FAIR_MENU.some((g) => g.pages.includes(activePageId)) ? FAIR_MENU : ADMIN_MENU);
+  const activeItemId = menuItemFor(activePageId, COMBINED && fairMode && FAIR_MENU.some((g) => g.pages.includes(activePageId)) ? FAIR_MENU : menuWithout(ADMIN_MENU, hiddenPages));
   const activeItem = railItems.find((n) => n.id === activeItemId);
   const sections = activeItem?.children ? itemSections(railMenu, activeItemId, activeItem.children) : null;
   const settingsColumn = !showEditor && !selectedOrder && !!sections && (activeItem?.children?.length ?? 0) > 1;
