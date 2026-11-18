@@ -13,6 +13,9 @@
 //   givingBlocked/{day}     tries refused that day by the card-testing guard, per reason (the admin and the control room
 //                           show them)
 //   givingSecret/key        the shop's own key for the page's form token
+//   fundraisers/{id}        a fundraiser (G2): title, story, goal, last day, `draft`/`live`/`ended`, and the server's own
+//                           count of what it raised (`raisedMinor`, `supporters`, `wallEntries`), changed only when a
+//                           gift given to it is paid or refunded. One runs at a time.
 //
 // Card-testing guard (people trying stolen cards with small gifts): the lowest gift is $5 (shared/givingRules MIN_GIFT_MINOR);
 // one visitor may open GIFT_PAGES_PER_HOUR card pages an hour and one email GIFT_PAGES_PER_EMAIL; the page's form token
@@ -27,6 +30,9 @@
 const crypto = require("crypto");
 const { cleanGivingSettings, startingGivingSettings, giftAmountProblem, giftCharge, cleanGiver, centsOf, MIN_GIFT_MINOR, MAX_GIFT_MINOR, GIVING_MESSAGES } = require("./shared/givingRules");
 const { waysOn } = require("./shared/waysToSell");
+const { cleanFundraiser, fundraiserState, publicFundraiser, wallWith, wallWithout } = require("./shared/fundraiserRules");
+const { dayOf } = require("./shared/bookingTimes");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 
 /** How long a card page stays open; the sweep closes it after that. Stripe's shortest is 30 minutes. */
 const PAGE_MINUTES = 31;
@@ -91,18 +97,34 @@ const adminGift = (id, g) => ({
   id, status: g.status, name: g.customer?.name || "", email: g.customer?.email || "", anonymous: g.anonymous === true, honour: g.honour || null, note: g.note || "",
   amountMinor: g.amountMinor || 0, feeMinor: g.feeMinor || 0, chargedMinor: g.chargedMinor || 0, currency: g.currency,
   createdAt: g.createdAt || "", paidAt: g.paidAt || "", refundedAt: g.refundedAt || "", test: g.mode === "test",
+  fundraiserId: g.fundraiserId || "",
+});
+
+/** A fundraiser as the owner sees it: what anyone sees, plus when it started and ended. */
+const adminFundraiser = (id, f, today) => ({
+  ...publicFundraiser(id, f, today), status: f.status || "draft", createdAt: f.createdAt || "", startedAt: f.startedAt || "", endedAt: f.endedAt || "",
 });
 
 function givingActions({
   db, requireAdmin, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", currency,
   sendEmail = async () => {}, emailBrand = async () => ({}), ownerEmail = () => "",
-  escapeHtml, risoLayout, risoButton, now = () => new Date(),
+  escapeHtml, risoLayout, risoButton, now = () => new Date(), timeZone = shopTimeZone,
   randomId = () => crypto.randomBytes(12).toString("base64url").replace(/[^A-Za-z0-9]/g, "").slice(0, 16).padEnd(8, "0"),
   randomKey = () => crypto.randomBytes(24).toString("hex"),
 }) {
   const gifts = () => db.collection("gifts");
   const settingsRef = () => db.collection("givingSettings").doc("main");
   const blockedRef = (day) => db.collection("givingBlocked").doc(day);
+  const fundraisers = () => db.collection("fundraisers");
+  /** The shop's own day (YYYY-MM-DD in its time zone): a fundraiser runs to the end of its last day there. */
+  const shopToday = (ms = now().getTime()) => dayOf(ms, timeZone());
+
+  /** The fundraiser running now, or null. Started ones whose last day passed count as ended. */
+  async function liveFundraiser(today = shopToday()) {
+    const snap = await fundraisers().where("status", "==", "live").limit(10).get();
+    const doc = snap.docs.find((d) => fundraiserState(d.data(), today) === "live");
+    return doc ? { id: doc.id, data: doc.data() } : null;
+  }
   const keyFits = (g, key) => KEY.test(String(key || "")) && (g.keyHashes || []).some((h) => sameHash(h, hash(key)));
   const giftUrl = (id, key) => siteLink(`/support?gift=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
   const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -287,7 +309,18 @@ function givingActions({
     const done = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(gifts().doc(id));
       if (!fresh.exists || !["held", "cancelled"].includes(fresh.data()?.status) || fresh.data()?.paidAt) return false;
+      const gift = fresh.data();
+      // A gift to a fundraiser counts toward it here, once, as it is paid (even after the last day: the giver paid in time).
+      const fund = gift.fundraiserId ? await tx.get(fundraisers().doc(gift.fundraiserId)) : null;
       tx.set(gifts().doc(id), changes, { merge: true });
+      if (fund?.exists) {
+        const f = fund.data();
+        const entry = gift.wall === true && !gift.anonymous && gift.customer?.name ? { gift: id, name: String(gift.customer.name).slice(0, 80), at } : null;
+        tx.set(fundraisers().doc(gift.fundraiserId), {
+          raisedMinor: (Number(f.raisedMinor) || 0) + (Number(gift.amountMinor) || 0), supporters: (Number(f.supporters) || 0) + 1,
+          ...(entry ? { wallEntries: wallWith(Array.isArray(f.wallEntries) ? f.wallEntries : [], entry) } : {}), updatedAt: at,
+        }, { merge: true });
+      }
       return true;
     });
     if (!done) return { ...g, ...((await gifts().doc(id).get()).data() || {}) };
@@ -362,7 +395,7 @@ function givingActions({
         return res.status(200).json({
           on: true, currency: currency(), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: !!checkout,
           amounts: settings.amounts, otherAmount: settings.otherAmount, coverFee: settings.coverFee, honour: settings.honour,
-          form: await formToken(nowMs),
+          form: await formToken(nowMs), fundraiser: await liveFundraiser(shopToday(nowMs)).then((f) => (f ? publicFundraiser(f.id, f.data, shopToday(nowMs)) : null)),
         });
       }
       if (action === "giftStart") {
@@ -388,6 +421,12 @@ function givingActions({
           await countBlocked("tooMany", nowMs);
           return fail(res, 429, "You've tried several times in a short while. Please wait an hour and try again, or contact the shop.", "too_many");
         }
+        // A gift to the fundraiser: only the one running now (a page left open past its last day gives to the shop instead).
+        let fund = null;
+        if (req.body?.fundraiserId) {
+          fund = await liveFundraiser(shopToday(nowMs));
+          if (!fund || fund.id !== String(req.body.fundraiserId)) return fail(res, 409, "This fundraiser has ended. You can still give to the shop: reload the page.", "fundraiser_ended");
+        }
         const { checkout, mode } = await standalone();
         if (!checkout) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
         const charge = giftCharge(amountMinor, req.body?.coverFee, settings);
@@ -396,11 +435,12 @@ function givingActions({
         const at = new Date(nowMs).toISOString();
         const record = {
           status: "held", customer: { name: giver.name, email: giver.email }, anonymous: giver.anonymous, honour: giver.honour, note: giver.note,
+          ...(fund ? { fundraiserId: fund.id, wall: fund.data.wall !== false && req.body?.wall === true && !giver.anonymous } : {}),
           locale: french(req.body?.locale) ? "fr" : "en", ...charge, currency: currency(), mode, keyHashes: [hash(key)], pendingKey: key, sessions: [], createdAt: at, updatedAt: at,
         };
         await gifts().doc(id).set(record);
         const shop = shopName();
-        const description = `${shop ? `${shop}: ` : ""}Gift${charge.feeMinor ? " (card fee covered)" : ""}`.slice(0, 250);
+        const description = `${shop ? `${shop}: ` : ""}Gift${fund ? ` to ${fund.data.title}` : ""}${charge.feeMinor ? " (card fee covered)" : ""}`.slice(0, 250);
         const metadata = { gift: id };
         let session;
         try {
@@ -450,7 +490,56 @@ function givingActions({
           gifts: counted.length,
           givers: new Set(counted.map((g) => g.email)).size,
         };
-        return res.status(200).json({ currency: currency(), settings: await readSettings(), gifts: list, totals, blocked: await blockedSince(nowMs), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR });
+        const today = shopToday(nowMs);
+        const funds = (await fundraisers().limit(50).get()).docs.map((d) => adminFundraiser(d.id, d.data(), today))
+          .sort((a, b) => (a.state === "ended") - (b.state === "ended") || String(b.startedAt || b.createdAt).localeCompare(String(a.startedAt || a.createdAt)));
+        return res.status(200).json({ currency: currency(), settings: await readSettings(), gifts: list, totals, blocked: await blockedSince(nowMs), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, fundraisers: funds, today });
+      }
+      if (op === "saveFundraiser") {
+        // New or edited; `start` puts it on the Support page. One runs at a time, and an ended one stays as it was.
+        const today = shopToday(nowMs);
+        const clean = cleanFundraiser(req.body?.fundraiser, today);
+        if ("problem" in clean) return fail(res, 400, clean.problem, clean.field);
+        const start = req.body?.start === true;
+        const at = new Date(nowMs).toISOString();
+        const asked = String(req.body?.id || "");
+        const id = asked || randomId();
+        if (asked && !ID.test(asked)) return fail(res, 404, "Unknown fundraiser.");
+        const running = start ? await liveFundraiser(today) : null;
+        const saved = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(fundraisers().doc(id));
+          if (asked && !snap.exists) return { error: [404, "Unknown fundraiser."] };
+          const before = snap.exists ? snap.data() : null;
+          if (before && fundraiserState(before, today) === "ended") return { error: [409, "This fundraiser has ended, so it can't be changed.", "ended"] };
+          const live = before && fundraiserState(before, today) === "live";
+          if (start && !live && running && running.id !== id) return { error: [409, `"${running.data.title}" is running now. End it first: one fundraiser runs at a time.`, "one_at_a_time"] };
+          const next = {
+            ...clean, status: live || start ? "live" : "draft", updatedAt: at, updatedBy: by,
+            ...(before ? {} : { createdAt: at, raisedMinor: 0, supporters: 0, wallEntries: [] }),
+            ...(start && !live ? { startedAt: at } : {}),
+          };
+          tx.set(fundraisers().doc(id), next, { merge: true });
+          return { data: { ...(before || {}), ...next } };
+        });
+        if (saved.error) return fail(res, ...saved.error);
+        return res.status(200).json({ ok: true, fundraiser: adminFundraiser(id, saved.data, today) });
+      }
+      if (op === "endFundraiser") {
+        // A live one ends now (its gifts and wall are kept); a draft that never ran is removed.
+        const id = String(req.body?.id || "");
+        const snap = ID.test(id) ? await fundraisers().doc(id).get() : null;
+        if (!snap?.exists) return fail(res, 404, "Unknown fundraiser.");
+        const today = shopToday(nowMs);
+        const f = snap.data();
+        if (fundraiserState(f, today) === "draft") {
+          await fundraisers().doc(id).delete();
+          return res.status(200).json({ ok: true, removed: true });
+        }
+        if (fundraiserState(f, today) === "ended" && f.status === "ended") return res.status(200).json({ ok: true, already: true, fundraiser: adminFundraiser(id, f, today) });
+        const at = new Date(nowMs).toISOString();
+        const next = { ...f, status: "ended", endedAt: at, endedBy: by, updatedAt: at };
+        await fundraisers().doc(id).set({ status: "ended", endedAt: at, endedBy: by, updatedAt: at }, { merge: true });
+        return res.status(200).json({ ok: true, fundraiser: adminFundraiser(id, next, today) });
       }
       if (op === "saveSettings") {
         const settings = cleanGivingSettings(req.body?.settings);
@@ -488,7 +577,17 @@ function givingActions({
         const changed = await db.runTransaction(async (tx) => {
           const fresh = await tx.get(gifts().doc(id));
           if (!fresh.exists || fresh.data()?.status !== "paid") return false;
+          const fundId = fresh.data().fundraiserId;
+          const fund = fundId ? await tx.get(fundraisers().doc(fundId)) : null;
           tx.set(gifts().doc(id), { status: "refunded", refundedAt: at, refundedBy: by, refundedMinor: g.chargedMinor, updatedAt: at }, { merge: true });
+          // A refunded gift no longer counts toward its fundraiser, and leaves the wall.
+          if (fund?.exists) {
+            const f = fund.data();
+            tx.set(fundraisers().doc(fundId), {
+              raisedMinor: Math.max(0, (Number(f.raisedMinor) || 0) - (Number(fresh.data().amountMinor) || 0)), supporters: Math.max(0, (Number(f.supporters) || 0) - 1),
+              wallEntries: wallWithout(Array.isArray(f.wallEntries) ? f.wallEntries : [], id), updatedAt: at,
+            }, { merge: true });
+          }
           return true;
         });
         const after = { ...g, ...((await gifts().doc(id).get()).data() || {}) };

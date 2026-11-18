@@ -294,3 +294,78 @@ describe("the owner", () => {
     expect((await t.doc("gifts", "gift0001")).status).toBe("paid");
   });
 });
+
+describe("fundraisers (G2)", () => {
+  const FUND = { title: "Print our next book", story: "Help us print 500 copies.", goalMinor: 300000, endsOn: "2026-12-31", wall: true };
+  const startFund = async (t, extra = {}) => (await t.adm({ op: "saveFundraiser", fundraiser: { ...FUND, ...extra }, start: true })).body.fundraiser;
+
+  test("a draft stays off the Support page; started, it shows with the server's own count", async () => {
+    const t = setup();
+    await t.seed();
+    const draft = (await t.adm({ op: "saveFundraiser", fundraiser: FUND })).body.fundraiser;
+    expect(draft).toMatchObject({ state: "draft", raisedMinor: 0, supporters: 0 });
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser).toBe(null);
+    const live = (await t.adm({ op: "saveFundraiser", id: draft.id, fundraiser: FUND, start: true })).body.fundraiser;
+    expect(live).toMatchObject({ id: draft.id, state: "live", goalMinor: 300000, endsOn: "2026-12-31" });
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser).toMatchObject({ id: draft.id, title: "Print our next book", raisedMinor: 0, state: "live" });
+  });
+
+  test("the form is checked: a name, a goal of 100 or more, a last day not in the past", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.adm({ op: "saveFundraiser", fundraiser: { ...FUND, title: "" } })).body.code).toBe("title");
+    expect((await t.adm({ op: "saveFundraiser", fundraiser: { ...FUND, goalMinor: 5000 } })).body.code).toBe("goal");
+    expect((await t.adm({ op: "saveFundraiser", fundraiser: { ...FUND, endsOn: "2026-11-17" } })).body.code).toBe("endsOn");
+  });
+
+  test("a paid gift counts toward it once (fee not counted), names go on the wall only when asked, a refund takes it back", async () => {
+    const t = setup();
+    await t.seed();
+    const fund = await startFund(t);
+    await t.give({ fundraiserId: fund.id, wall: true, coverFee: true });
+    await t.give({ fundraiserId: fund.id, wall: true, giver: { name: "Bo Quiet", email: "bo@example.com", anonymous: true } }, "5.6.7.8");
+    // Nothing counts until paid.
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser.raisedMinor).toBe(0);
+    t.pay(0); t.pay(1);
+    await t.desk.sweep();
+    await t.desk.sweep();
+    const shown = (await t.pub({ action: "givingInfo" })).body.fundraiser;
+    expect(shown).toMatchObject({ raisedMinor: 5000, supporters: 2 });
+    expect(shown.wall.map((w) => w.name)).toEqual(["Ada Reader"]);
+    expect(JSON.stringify(shown)).not.toMatch(/ada@example|gift000/);
+    expect(t.opened[0].params.line_items[0].price_data.product_data.name).toBe("Moth Press: Gift to Print our next book (card fee covered)");
+    const giftId = (await t.adm({ op: "list" })).body.gifts.find((g) => g.name === "Ada Reader").id;
+    expect((await t.adm({ op: "refund", giftId })).statusCode).toBe(200);
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser).toMatchObject({ raisedMinor: 2500, supporters: 1, wall: [] });
+  });
+
+  test("one runs at a time; it ends on its last day or when the owner ends it, and a gift to an ended one is refused", async () => {
+    const t = setup();
+    await t.seed();
+    const fund = await startFund(t, { endsOn: "2026-11-18" });
+    expect((await t.adm({ op: "saveFundraiser", fundraiser: { ...FUND, title: "Another one" }, start: true })).body.code).toBe("one_at_a_time");
+    // The last day ends at midnight in the shop's time zone (Toronto): 04:59 UTC the next day is still the 18th there.
+    t.clock.now = new Date("2026-11-19T04:59:00Z");
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser?.id).toBe(fund.id);
+    t.clock.now = new Date("2026-11-19T05:01:00Z");
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser).toBe(null);
+    expect((await t.give({ fundraiserId: fund.id })).body.code).toBe("fundraiser_ended");
+    expect((await t.adm({ op: "saveFundraiser", id: fund.id, fundraiser: { ...FUND, endsOn: "2026-12-31" } })).body.code).toBe("ended");
+    const next = await startFund(t, { title: "Another one" });
+    expect(next.state).toBe("live");
+    const ended = (await t.adm({ op: "endFundraiser", id: next.id })).body.fundraiser;
+    expect(ended).toMatchObject({ state: "ended", status: "ended" });
+    expect((await t.pub({ action: "givingInfo" })).body.fundraiser).toBe(null);
+  });
+
+  test("ending a draft removes it; the owner's list shows every fundraiser, running first", async () => {
+    const t = setup();
+    await t.seed();
+    const draft = (await t.adm({ op: "saveFundraiser", fundraiser: FUND })).body.fundraiser;
+    expect((await t.adm({ op: "endFundraiser", id: draft.id })).body).toEqual({ ok: true, removed: true });
+    const live = await startFund(t);
+    const list = (await t.adm({ op: "list" })).body;
+    expect(list.fundraisers.map((f) => f.id)).toEqual([live.id]);
+    expect(list.today).toBe("2026-11-18");
+  });
+});
