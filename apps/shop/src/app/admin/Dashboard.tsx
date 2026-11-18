@@ -63,7 +63,7 @@ import { useStockroomTodos } from "./overview/StockroomTodos";
 import { COMBINED_PAGES, DEFAULT_STOCKROOM_PAGE, REORDER_TAB, SALES_TAB, isCombinedTab, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES, STOCKROOM_TAB, combinedAdmin, stockroomPage } from "./combined";
 import { keepAdminOffline } from "./adminOffline";
 import { AdminTour, type TourPhase } from "./walkthrough/AdminTour";
-import { PageHelpPanel, PageTour } from "./pageHelp/PageHelp";
+import { PageHelpPanel, PageTour } from "./pageHelp/PageHelpPanel";
 import { pageHelpFor, pageHelpKey } from "./pageHelp/pageHelp";
 import { useSetupShowing } from "./overview/firstStep";
 import { markTourSeen, tourFor, tourSeen } from "./walkthrough/tourSteps";
@@ -448,7 +448,7 @@ export function Dashboard() {
   // The admin walkthrough (walkthrough/AdminTour.tsx): its welcome opens by itself the first time an owner opens the
   // admin (not seen on this device or on the shop's account), and Help or the account menu bring it back any time.
   const [tourPhase, setTourPhase] = useState<TourPhase | null>(null);
-  // The "?" by the page title: its panel, or its tour of the page from one part (pageHelp/PageHelp.tsx).
+  // The "?" by the page title: its panel, or its tour of the page from one part (pageHelp/PageHelpPanel.tsx).
   const [pageHelp, setPageHelp] = useState<{ mode: "panel" } | { mode: "tour"; start: number } | null>(null);
   useEffect(() => { setPageHelp(null); }, [activeTab, settingsTab, subTab]);
   const endTour = () => { markTourSeen(); void markTourSeenOnAccount(); };
