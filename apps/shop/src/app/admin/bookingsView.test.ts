@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -243,5 +243,44 @@ describe("sharing the booking page", () => {
     expect(html).not.toMatch(/<script|<iframe|onclick/i);
     expect(bookButtonHtml("https://shop.example/book", "")).toContain(">Book now</a>");
     expect(bookButtonHtml("https://shop.example/book", "Go", "light")).toContain("background:#ffffff");
+  });
+});
+
+describe("the week as an hour grid (plan 4, 1.1)", () => {
+  const hours = Array.from({ length: 7 }, (_, wd) => (wd === 0 ? [] : [{ start: "10:00", end: "18:00" }]));
+  const base = { ...DEFAULT_BOOKING_SETTINGS, hours, daysOff: ["2026-11-21"], staff: [] as StaffMember[] };
+  const services = [{ id: "s", places: 1 }, { id: "yoga", places: 8 }];
+  it("runs from the week's opening to its close, with a closed Sunday and day off", () => {
+    const g = weekGrid([], base, services, "2026-11-16", ZONE);
+    expect([g.startMin, g.endMin]).toEqual([600, 1080]);
+    expect(g.days).toHaveLength(7);
+    expect(g.days[6].closed).toBe(true);
+    expect(g.days[5].closed).toBe(true);
+    expect(g.days[0].closed).toBe(false);
+  });
+  it("places a booking by its time and stretches the grid to fit an early one", () => {
+    // 10:00 in Toronto is 15:00Z; 8:30 is 13:30Z.
+    const g = weekGrid([b({ id: "a" }), b({ id: "early", start: "2026-11-18T13:30:00.000Z", end: "2026-11-18T14:00:00.000Z" })], base, services, "2026-11-16", ZONE);
+    expect(g.startMin).toBe(480);
+    expect(g.days[1].blocks[0]).toMatchObject({ top: 120, height: 60, lanes: 1 });
+    expect(g.days[2].blocks[0]).toMatchObject({ top: 30, height: 30 });
+  });
+  it("sets overlapping visits side by side and a class's people on one card", () => {
+    const rows = [b({ id: "a" }), b({ id: "c", start: "2026-11-17T15:30:00.000Z", end: "2026-11-17T16:30:00.000Z" }),
+      b({ id: "y1", serviceId: "yoga" }), b({ id: "y2", serviceId: "yoga" })];
+    const day = weekGrid(rows, base, services, "2026-11-16", ZONE).days[1];
+    expect(day.blocks).toHaveLength(3);
+    expect(day.blocks.every((x) => x.lanes === 3)).toBe(true);
+    expect(day.blocks.find((x) => x.serviceId === "yoga")!.people).toHaveLength(2);
+  });
+  it("gives a person their own ink, else the service's", () => {
+    const staff = [{ id: "ana", name: "Ana", active: true, daysOff: [], ownHours: false, hours, serviceIds: [] }, { id: "ben", name: "Ben", active: true, daysOff: [], ownHours: false, hours, serviceIds: [] }] as unknown as StaffMember[];
+    const day = weekGrid([b({ id: "a", staffId: "ben" }), b({ id: "y", serviceId: "yoga", start: "2026-11-17T18:00:00.000Z", end: "2026-11-17T19:00:00.000Z" })], { ...base, staff }, services, "2026-11-16", ZONE).days[1];
+    expect(day.blocks.map((x) => x.ink)).toEqual([1, 1]);
+    expect(weekGrid([b({ id: "a" })], base, services, "2026-11-16", ZONE).days[1].blocks[0].ink).toBe(0);
+  });
+  it("turns a tap into a start on the quarter hour, in the shop's time", () => {
+    expect(tappedTime("2026-11-17", 10 * 60 + 52, ZONE)).toBe("2026-11-17T15:45:00.000Z");
+    expect(tappedTime("2026-11-17", -5, ZONE)).toBe("2026-11-17T05:00:00.000Z");
   });
 });

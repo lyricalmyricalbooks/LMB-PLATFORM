@@ -3,7 +3,7 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Users, Video, X } from "lucide-react";
+import { BellRing, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Checkbox, DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, daySlots, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -43,6 +43,8 @@ export function Bookings() {
   const [rowsError, setRowsError] = useState("");
   const [open, setOpen] = useState<Booking | null>(null);
   const [creating, setCreating] = useState(false);
+  // A tap on an empty time on the week grid: New booking, starting there.
+  const [bookAt, setBookAt] = useState<{ start: string; staffId?: string } | null>(null);
   const [switching, setSwitching] = useState(false);
   // Week or list, remembered on this computer.
   const [view, setView] = useState<CalendarView>(() => { try { const v = localStorage.getItem(VIEW_KEY); return v === "list" || v === "day" ? v : "week"; } catch { return "week"; } });
@@ -161,9 +163,9 @@ export function Bookings() {
               tabs={[{ id: "week", label: "Week" }, ...(hasTeam ? [{ id: "day" as const, label: "Team day" }] : []), { id: "list", label: "List" }]} />
           </div>
           {shownView === "week"
-            ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} />
+            ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} onBookAt={(start) => { setBookAt({ start }); setCreating(true); }} />
             : shownView === "day"
-              ? <TeamDayView day={teamDayShown} setDay={showDay} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} />
+              ? <TeamDayView day={teamDayShown} setDay={showDay} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} onBookAt={(start, staffId) => { setBookAt({ start, staffId }); setCreating(true); }} />
               : <ListView services={setup.services} onOpen={setOpen} />}
         </>)}
       </TabPanel>
@@ -191,21 +193,34 @@ export function Bookings() {
       </TabPanel>
 
       {open && <BookingDrawer booking={open} services={setup.services} settings={setup.settings} onClose={() => setOpen(null)} />}
-      {creating && <NewBookingDialog services={setup.services} settings={setup.settings} onClose={() => setCreating(false)} />}
+      {creating && <NewBookingDialog services={setup.services} settings={setup.settings} startAt={bookAt?.start} initial={bookAt?.staffId ? { staffId: bookAt.staffId } : undefined} onClose={() => { setCreating(false); setBookAt(null); }} />}
     </div>
   );
 }
 
 // ── Calendar ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }: {
+function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, onBookAt }: {
   monday: string; setMonday: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; services: BookingService[]; onOpen: (b: Booking) => void;
+  /** A tap on an empty time: New booking, starting there. */ onBookAt: (startIso: string) => void;
 }) {
   const serviceOf = (serviceId: string) => services.find((s) => s.id === serviceId);
-  const placesOf = (serviceId: string) => serviceOf(serviceId)?.places || 1;
   const days = weekDays(monday);
   const groups = useMemo(() => byDay(rows || [], ZONE), [rows]);
+  // The week as an hour grid (plan 4, 1.1): each booking placed by its time, in its person's (or service's) ink.
+  const grid = useMemo(() => weekGrid(rows || [], settings, services, monday, ZONE), [rows, settings, services, monday]);
+  const span = grid.endMin - grid.startMin;
+  const hourMarks = Array.from({ length: span / 60 }, (_, i) => grid.startMin + i * 60);
+  const at = (min: number) => `calc(var(--bkg-min) * ${min})`;
   const now = today();
+  // The red line for now: minutes since midnight in the shop's day, ticking each minute.
+  const [nowMin, setNowMin] = useState(() => Math.round((Date.now() - zonedTime(now, "00:00", ZONE)) / 60_000));
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMin(Math.round((Date.now() - zonedTime(today(), "00:00", ZONE)) / 60_000)), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  // A class card opens its list of people (the grid card is too small to list them).
+  const [classOpen, setClassOpen] = useState<{ day: string; key: string } | null>(null);
   const [phoneDay, setPhoneDay] = useState(() => (days.includes(now) ? now : monday));
   useEffect(() => { setPhoneDay(days.includes(now) ? now : monday); }, [monday]);
   // The waiting list for the week on show. Read again whenever the bookings change, because a freed place empties it.
@@ -221,6 +236,13 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
     return () => { stale = true; };
   }, [monday, rows]);
   const waitingDays = useMemo(() => waitingByDay(waiting), [waiting]);
+  const shownClass = useMemo(() => {
+    if (!classOpen) return null;
+    const blk = grid.days.find((x) => x.day === classOpen.day)?.blocks.find((x) => x.key === classOpen.key);
+    if (!blk) return null;
+    const held = placeHolds(heldPlaces(waitingDays.get(classOpen.day) || []), [{ serviceId: blk.serviceId, start: blk.start }]).inClass(blk.serviceId, blk.start);
+    return { day: classOpen.day, blk, held };
+  }, [classOpen, grid, waitingDays]);
   return (
     <div className="bkg-week">
       <div className="bkg-week-head">
@@ -241,76 +263,83 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
           </button>
         ))}
       </div>
-      <div className="bkg-grid" aria-busy={rows === null || undefined}>
-        {days.map((d) => {
-          const list = groups.get(d) || [];
-          const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
-          const closed = settings.daysOff.includes(d) || settings.hours[wd].length === 0;
-          const slots = daySlots(list, placesOf);
-          // Places held for the waiting list: inside their class card, or a row of their own.
-          const holds = placeHolds(heldPlaces(waitingDays.get(d) || []), slots.flatMap((s) => (s.kind === "class" ? [{ serviceId: s.serviceId, start: s.start }] : [])));
-          return (
-            <section key={d} className="bkg-day" data-phone-shown={phoneDay === d || undefined} data-today={d === now || undefined} data-past={d < now || undefined} aria-label={dayText(d, "long")}>
-              <header className="bkg-day-head">
-                <span className="bkg-day-name">{dayText(d)}</span>
-                <span className="bkg-day-hours">{settings.daysOff.includes(d) ? "Day off" : hoursLine(settings.hours[wd])}</span>
-                {list.length > 0 && <IconButton label={`Who's coming on ${dayText(d, "long")}`} onClick={() => setListDay(d)}><ClipboardList size={16} aria-hidden /></IconButton>}
-              </header>
-              {rows === null ? <div className="bkg-skeleton" aria-hidden /> : list.length === 0 ? (
-                !holds.loose.length && <p className="bkg-day-empty">{closed ? "Closed" : "Nothing booked"}</p>
-              ) : slots.map((slot) => { const held = slot.kind === "class" ? holds.inClass(slot.serviceId, slot.start) : []; return slot.kind === "class" ? (
-                <div key={slot.key} className="bkg-class" data-full={slot.people.length + held.length >= slot.places || undefined}>
-                  <span className="bkg-slot-time">{timeText(slot.start, ZONE)}</span>
-                  <span className="bkg-slot-who">{slot.serviceName}</span>
-                  <span className="bkg-class-count"><Users size={13} aria-hidden /> {classCount(slot.people.length, slot.places)}</span>
-                  <span className="bkg-class-bar" aria-hidden><i style={{ width: `${Math.min(100, Math.round((slot.people.length / slot.places) * 100))}%` }} /></span>
-                  <ul className="bkg-class-people">
-                    {slot.people.map((b) => (
-                      <li key={b.id}>
-                        <button type="button" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
-                          {b.customer.name}{b.status === "held" ? <em>{b.clearing ? "clearing" : "paying"}</em> : b.noShow ? <em>no-show</em> : b.checkedInAt && b.status === "confirmed" ? <em>here</em> : null}
-                        </button>
-                      </li>
-                    ))}
-                    {held.map((h) => (
-                      <li key={h.id}>
-                        <button type="button" data-status="offer" aria-label={`${h.name}, place held from the waiting list until ${timeText(h.heldUntil, ZONE)}`} onClick={() => setWaitingDay(d)}>
-                          {h.name}<em>held until {timeText(h.heldUntil, ZONE)}</em>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {slot.people.length + held.length < slot.places && Date.parse(slot.start) > Date.now() && serviceOf(slot.serviceId) && (
-                    <GhostButton size="sm" icon={<UserPlus size={14} aria-hidden />} onClick={() => setJoining({ service: serviceOf(slot.serviceId)!, start: slot.start, left: slot.places - slot.people.length - held.length })}>Add a person</GhostButton>
-                  )}
+      {rows === null ? <div className="bkg-skeleton bkg-skeleton-tall" aria-hidden /> : (
+        <div className="bkg-wgrid-scroll">
+          <div className="bkg-wgrid">
+            <div className="bkg-tday-corner" aria-hidden />
+            {grid.days.map(({ day: d, closed }) => {
+              const list = groups.get(d) || [];
+              const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
+              const waitingHere = waitingDays.get(d)?.length || 0;
+              return (
+                <div key={d} className="bkg-wgrid-head" data-phone-shown={phoneDay === d || undefined} data-today={d === now || undefined} data-closed={closed || undefined}>
+                  <span className="bkg-day-name">{dayText(d)}</span>
+                  <span className="bkg-day-hours">{settings.daysOff.includes(d) ? "Day off" : hoursLine(settings.hours[wd])}</span>
+                  <span className="bkg-wgrid-tools">
+                    {waitingHere > 0 && <button type="button" className="bkg-waiting" onClick={() => setWaitingDay(d)}><BellRing size={13} aria-hidden /> {waitingText(waitingHere)}</button>}
+                    {list.length > 0 && <IconButton label={`Who's coming on ${dayText(d, "long")}`} onClick={() => setListDay(d)}><ClipboardList size={16} aria-hidden /></IconButton>}
+                  </span>
                 </div>
-              ) : (
-                <button key={slot.booking.id} type="button" className="bkg-slot" data-status={slot.booking.status} data-noshow={slot.booking.noShow || undefined} onClick={() => onOpen(slot.booking)}>
-                  <span className="bkg-slot-time">{timeText(slot.booking.start, ZONE)}</span>
-                  <span className="bkg-slot-who">{slot.booking.customer.name}</span>
-                  <span className="bkg-slot-what">{slot.booking.serviceName}{slot.booking.staffName ? ` · ${slot.booking.staffName}` : ""}</span>
-                  {slot.booking.status === "held" && <span className="bkg-slot-tag">{slot.booking.clearing ? "Payment clearing" : "Paying now"}</span>}
-                  {slot.booking.noShow && <span className="bkg-slot-tag">No-show</span>}
-                  {!slot.booking.noShow && slot.booking.checkedInAt && slot.booking.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
-                </button>
-              ); })}
-              {rows !== null && holds.loose.map((h) => (
-                <button key={h.id} type="button" className="bkg-slot" data-status="offer" onClick={() => setWaitingDay(d)}>
-                  <span className="bkg-slot-time">{timeText(h.heldStart, ZONE)}</span>
-                  <span className="bkg-slot-who">{h.name}</span>
-                  <span className="bkg-slot-what">{h.serviceName}</span>
-                  <span className="bkg-slot-tag">Held from the waiting list until {timeText(h.heldUntil, ZONE)}</span>
-                </button>
-              ))}
-              {(waitingDays.get(d)?.length || 0) > 0 && (
-                <button type="button" className="bkg-waiting" onClick={() => setWaitingDay(d)}>
-                  <BellRing size={13} aria-hidden /> {waitingText(waitingDays.get(d)!.length)}
-                </button>
-              )}
-            </section>
-          );
-        })}
-      </div>
+              );
+            })}
+            <div className="bkg-tday-times" aria-hidden style={{ height: at(span) }}>
+              {hourMarks.map((h) => <span key={h} style={{ top: at(h - grid.startMin) }}>{hourLabel(h)}</span>)}
+            </div>
+            {grid.days.map(({ day: d, closed, hours, blocks }) => {
+              // Places held for the waiting list: on their class card, or a dashed card of their own.
+              const holds = placeHolds(heldPlaces(waitingDays.get(d) || []), blocks.filter((x) => x.places > 1).map((x) => ({ serviceId: x.serviceId, start: x.start })));
+              const dayStart = zonedTime(d, "00:00", ZONE);
+              const minute = (iso: string) => Math.round((Date.parse(iso) - dayStart) / 60_000) - grid.startMin;
+              return (
+                <section key={d} className="bkg-wgrid-col" aria-label={`${dayText(d, "long")}: ${blocks.length ? `${blocks.length} booked` : closed ? "closed" : "nothing booked"}`}
+                  data-phone-shown={phoneDay === d || undefined} data-today={d === now || undefined} data-past={d < now || undefined} data-closed={closed || undefined} style={{ height: at(span) }}
+                  onClick={(e) => {
+                    // A tap on an empty part of the day books that time (any card stops the tap first).
+                    if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains("bkg-tday-open")) return;
+                    const box = e.currentTarget.getBoundingClientRect();
+                    const min = grid.startMin + ((e.clientY - box.top) / box.height) * span;
+                    onBookAt(tappedTime(d, min, ZONE));
+                  }}>
+                  {hours.map((w) => (
+                    <i key={w.start} className="bkg-tday-open" aria-hidden style={{ top: at(Math.max(0, minutesText(w.start) - grid.startMin)), height: at(minutesText(w.end) - Math.max(grid.startMin, minutesText(w.start))) }} />
+                  ))}
+                  {blocks.map((blk) => {
+                    const first = blk.people[0];
+                    const isClass = blk.places > 1;
+                    const held = isClass ? holds.inClass(blk.serviceId, blk.start) : [];
+                    const taken = blk.people.length + held.length;
+                    return (
+                      <button key={blk.key} type="button" className="bkg-tday-block" data-ink={blk.ink} data-status={isClass ? undefined : first.status} data-noshow={(!isClass && first.noShow) || undefined} data-short={blk.height < 45 || undefined}
+                        style={{ top: at(blk.top), height: at(blk.height), left: `calc(${(blk.lane / blk.lanes) * 100}% + 3px)`, width: `calc(${100 / blk.lanes}% - 6px)` }}
+                        aria-label={`${timeText(blk.start, ZONE)}, ${isClass ? `${blk.serviceName}, ${classCount(taken, blk.places)}` : `${first.customer.name}, ${blk.serviceName}${first.staffName ? ` with ${first.staffName}` : ""}`}`}
+                        onClick={() => (isClass ? setClassOpen({ day: d, key: blk.key }) : onOpen(first))}>
+                        <span className="bkg-slot-time">{timeText(blk.start, ZONE)}</span>
+                        <span className="bkg-slot-who">{isClass ? blk.serviceName : first.customer.name}</span>
+                        <span className="bkg-slot-what">{isClass ? classCount(taken, blk.places) : `${blk.serviceName}${first.staffName ? ` · ${first.staffName}` : ""}`}</span>
+                        {!isClass && first.status === "held" && <span className="bkg-slot-tag">{first.clearing ? "Clearing" : "Paying"}</span>}
+                        {!isClass && first.noShow && <span className="bkg-slot-tag">No-show</span>}
+                        {!isClass && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
+                      </button>
+                    );
+                  })}
+                  {holds.loose.map((h) => (
+                    <button key={h.id} type="button" className="bkg-tday-block" data-status="offer" data-short style={{ top: at(Math.max(0, minute(h.heldStart))), height: at(30), left: "3px", width: "calc(100% - 6px)" }}
+                      onClick={() => setWaitingDay(d)}>
+                      <span className="bkg-slot-time">{timeText(h.heldStart, ZONE)}</span>
+                      <span className="bkg-slot-who">{h.name}</span>
+                      <span className="bkg-slot-what">Held until {timeText(h.heldUntil, ZONE)}</span>
+                    </button>
+                  ))}
+                  {d === now && nowMin >= grid.startMin && nowMin <= grid.endMin && <i className="bkg-tday-now" aria-hidden style={{ top: at(nowMin - grid.startMin) }} />}
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <p className="bkg-wgrid-hint">Tap an empty time to book it.</p>
+      {shownClass && <ClassDialog slot={shownClass.blk} held={shownClass.held} service={serviceOf(shownClass.blk.serviceId)} onClose={() => setClassOpen(null)} onOpen={(b) => { setClassOpen(null); onOpen(b); }}
+        onWaiting={() => { setClassOpen(null); setWaitingDay(shownClass.day); }} onJoin={(left) => { setClassOpen(null); setJoining({ service: serviceOf(shownClass.blk.serviceId)!, start: shownClass.blk.start, left }); }} />}
       {joining && <AddToClassDialog {...joining} onClose={() => setJoining(null)} />}
       {listDay && <DayListDialog day={listDay} list={groups.get(listDay) || []} onClose={() => setListDay("")} onOpen={(b) => { setListDay(""); onOpen(b); }} />}
       {waitingDay && (
@@ -321,12 +350,41 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen }
   );
 }
 
+/** Everyone in one start of a class, opened from its card on the week grid: open a person, see held places, add someone. */
+function ClassDialog({ slot, held, service, onClose, onOpen, onWaiting, onJoin }: {
+  slot: WeekBlock; held: HeldPlace[]; service?: BookingService; onClose: () => void; onOpen: (b: Booking) => void; onWaiting: () => void; onJoin: (left: number) => void;
+}) {
+  const left = slot.places - slot.people.length - held.length;
+  return (
+    <Dialog open onClose={onClose} title={slot.serviceName} description={`${dayText(dayOf(Date.parse(slot.start), ZONE), "long")}, ${timeText(slot.start, ZONE)} · ${classCount(slot.people.length + held.length, slot.places)}`}
+      footer={<><SecondaryButton onClick={onClose}>Close</SecondaryButton>
+        {left > 0 && Date.parse(slot.start) > Date.now() && service && <PrimaryButton icon={<UserPlus size={16} aria-hidden />} onClick={() => onJoin(left)}>Add a person</PrimaryButton>}</>}>
+      <span className="bkg-class-bar" aria-hidden><i style={{ width: `${Math.min(100, Math.round((slot.people.length / slot.places) * 100))}%` }} /></span>
+      <ul className="bkg-class-people bkg-class-people-big">
+        {slot.people.map((b) => (
+          <li key={b.id}>
+            <button type="button" data-status={b.status} data-noshow={b.noShow || undefined} onClick={() => onOpen(b)}>
+              {b.customer.name}{b.status === "held" ? <em>{b.clearing ? "clearing" : "paying"}</em> : b.noShow ? <em>no-show</em> : b.checkedInAt && b.status === "confirmed" ? <em>here</em> : null}
+            </button>
+          </li>
+        ))}
+        {held.map((h) => (
+          <li key={h.id}>
+            <button type="button" data-status="offer" onClick={onWaiting}>{h.name}<em>held until {timeText(h.heldUntil, ZONE)}</em></button>
+          </li>
+        ))}
+      </ul>
+    </Dialog>
+  );
+}
+
 /**
  * The team's day (Services plan phase 4 part 2): one column per person across the opening hours, each booking placed by
  * its time, a person who isn't working that day shaded, and the bookings that name nobody in a column of their own.
  */
-function TeamDayView({ day, setDay, rows, error, settings, onOpen }: {
+function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBookAt }: {
   day: string; setDay: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; onOpen: (b: Booking) => void;
+  /** A tap on an empty time in a person's column: New booking with them, starting there. */ onBookAt: (startIso: string, staffId: string) => void;
 }) {
   const t = useMemo(() => teamDay(rows || [], settings, day, ZONE), [rows, settings, day]);
   const now = today();
@@ -368,7 +426,12 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen }: {
             </div>
             {t.columns.map((c) => (
               <section key={c.id || "nobody"} className="bkg-tday-col" aria-label={`${c.name}: ${c.blocks.length ? `${c.blocks.length} booked` : c.off ? "not working" : "nothing booked"}`}
-                data-off={c.off || undefined} data-nobody={c.id === "" || undefined} style={{ height: at(span) }}>
+                data-off={c.off || undefined} data-nobody={c.id === "" || undefined} style={{ height: at(span) }}
+                onClick={(e) => {
+                  if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains("bkg-tday-open")) return;
+                  const box = e.currentTarget.getBoundingClientRect();
+                  onBookAt(tappedTime(day, t.startMin + ((e.clientY - box.top) / box.height) * span, ZONE), c.id);
+                }}>
                 {!c.off && c.id !== "" && c.hours.map((w) => (
                   <i key={w.start} className="bkg-tday-open" aria-hidden style={{ top: at(Math.max(0, minutesText(w.start) - t.startMin)), height: at(minutesText(w.end) - Math.max(t.startMin, minutesText(w.start))) }} />
                 ))}
@@ -1366,8 +1429,9 @@ function CancelDialog({ booking: b, laterVisits = 0, onClose, onCancel }: { book
 }
 
 /** Picks a day and one of its free times for a service. `onPick` throws to keep the dialog open. */
-function TimeDialog({ title, description, service, initialDay, except = "", staffId = "", extras = [], confirmLabel, onClose, onPick, children, ready = true, after }: {
+function TimeDialog({ title, description, service, initialDay, wanted = "", except = "", staffId = "", extras = [], confirmLabel, onClose, onPick, children, ready = true, after }: {
   title: string; description?: string; service: BookingService; initialDay: string; except?: string;
+  /** A start asked for (a tap on the calendar): picked as soon as the times load, if it is free. */ wanted?: string;
   /** The add-ons ticked (New booking): the free times fit the longer booking. */ extras?: string[];
   /** Only this person's free times ("" = anyone on the team, or the shop's one calendar). */ staffId?: string; confirmLabel: string;
   onClose: () => void; onPick: (startIso: string) => Promise<void>; children?: React.ReactNode; ready?: boolean;
@@ -1381,7 +1445,12 @@ function TimeDialog({ title, description, service, initialDay, except = "", staf
   useEffect(() => {
     let live = true;
     setTimes(null); setPicked("");
-    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId, ...(extras.length ? { extras } : {}) }).then((r) => live && setTimes(r.times)).catch((e) => live && (setTimes([]), setProblem(e.message)));
+    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId, ...(extras.length ? { extras } : {}) }).then((r) => {
+      if (!live) return;
+      setTimes(r.times);
+      const asked = wanted && r.times.find((t) => Date.parse(t) === Date.parse(wanted));
+      if (asked) setPicked(asked);
+    }).catch((e) => live && (setTimes([]), setProblem(e.message)));
     return () => { live = false; };
   }, [day, service.id, staffId, extras.join(",")]);
   const save = async () => {
@@ -1398,6 +1467,9 @@ function TimeDialog({ title, description, service, initialDay, except = "", staf
           <TextField label="Day" type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} />
           <IconButton label="Day after" onClick={() => setDay(addDays(day, 1))}><ChevronRight size={18} aria-hidden /></IconButton>
         </div>
+        {times !== null && wanted && dayOf(Date.parse(wanted), ZONE) === day && !times.some((t) => Date.parse(t) === Date.parse(wanted)) && (
+          <p className="bkg-questions-hint" role="status">{timeText(wanted, ZONE)} isn't free for {service.name}. Pick another time.</p>
+        )}
         <fieldset className="bkg-times">
           <legend>{dayText(day, "long")}</legend>
           {times === null ? <LoadingState label="Finding free times…" /> : times.length === 0 ? <p className="bkg-day-empty">No free time this day.</p> : times.map((t) => (
@@ -1495,8 +1567,14 @@ function RunDates({ serviceId, start, run, staffId, extras = [], onFree }: { ser
 /** What Book again fills in: the client and their last service and person (Customers › a client). */
 export type BookAgain = { serviceId: string; staffId: string; name: string; email: string; phone: string };
 
-function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { services: BookingService[]; settings: BookingSettings; onClose: () => void; initial?: BookAgain; onBooked?: () => void }) {
-  const [serviceId, setServiceId] = useState(() => services.find((s) => s.id === initial?.serviceId)?.id || services[0]?.id || "");
+function NewBookingDialog({ services, settings, onClose, initial, onBooked, startAt }: {
+  services: BookingService[]; settings: BookingSettings; onClose: () => void; initial?: Partial<BookAgain>; onBooked?: () => void;
+  /** The time tapped on the calendar: its day opens, and the time is picked when it is free. */ startAt?: string;
+}) {
+  // The service asked for, else the first one the person tapped on the calendar does, else the first.
+  const [serviceId, setServiceId] = useState(() => services.find((s) => s.id === initial?.serviceId)?.id
+    || (initial?.staffId ? services.find((s) => staffFor(settings, s.id).some((p) => p.id === initial.staffId))?.id : "")
+    || services[0]?.id || "");
   // The same person again, if they still take this service.
   const [staffId, setStaffId] = useState(() => (initial?.staffId && staffFor(settings, serviceId).some((p) => p.id === initial.staffId) ? initial.staffId : ""));
   const [who, setWho] = useState({ name: initial?.name || "", email: initial?.email || "", phone: initial?.phone || "", note: "" });
@@ -1518,7 +1596,7 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked }: { 
   const length = "problem" in asBooked ? service.minutes : asBooked.service.minutes;
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
-    <TimeDialog key={service.id} title={initial ? "Book again" : "New booking"} service={service} initialDay={today()} staffId={staffId} extras={extras} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
+    <TimeDialog key={service.id} title={initial?.name ? "Book again" : "New booking"} service={service} initialDay={startAt ? dayOf(Date.parse(startAt), ZONE) : today()} wanted={startAt} staffId={staffId} extras={extras} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
       after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} extras={extras} onFree={setRunFree} /> : undefined}
       onPick={async (start) => {
         await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}), ...(extras.length ? { extras } : {}) });
