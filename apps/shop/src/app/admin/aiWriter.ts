@@ -168,4 +168,4 @@ export async function checkAiKey(provider: AiProvider = "gemini"): Promise<{ ok:
 }
 
 /** Where the key goes, for error messages that need it. */
-export const AI_SETTINGS_PATH = "Settings › General › AI writing assistant";
+export const AI_SETTINGS_PATH = "Settings › Apps › AI writing assistant";

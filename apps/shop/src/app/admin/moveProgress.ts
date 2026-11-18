@@ -20,7 +20,7 @@ const STEPS: Omit<MoveStep, "done">[] = [
   { id: "move-customers", title: "Customers", why: "Your customer file, so you know who bought from you before. Nobody is emailed.", tab: "customers", action: "Bring customers over" },
   { id: "move-giftcards", title: "Gift cards", why: "Your gift card file, so cards people already hold still work here.", tab: "giftCards", action: "Bring gift cards over" },
   { id: "move-orders", title: "Past orders", why: "Your order file, kept as history: it counts in your reports and each customer's history, and changes no stock.", tab: "orders", action: "Bring past orders over" },
-  { id: "move-links", title: "Pages and old links", why: "Check your old shop's links and bring your own pages over, so nothing old lands on page not found.", tab: "general", hash: "#settings/general/visitors", anchor: "gs-redirects", action: "Check your old links" },
+  { id: "move-links", title: "Pages and old links", why: "Check your old shop's links and bring your own pages over, so nothing old lands on page not found.", tab: "design", hash: "#design", anchor: "gs-redirects", action: "Check your old links" },
 ];
 
 /** Only for a press that brought its shop with it in Get started (not one that started fresh or sold elsewhere). */

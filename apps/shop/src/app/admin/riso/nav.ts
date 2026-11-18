@@ -4,6 +4,7 @@ import {
   Share2, Send, ChartLine, CalendarDays, HandCoins, Ticket,
   GraduationCap, HeartHandshake, BadgeCheck,
   Shapes,
+  Database,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -38,7 +39,7 @@ export const NAV: NavEntry[] = [
   // Design (redesign, 11 November 2026): where the look stands and the pages, with Open Studio (DesignHome.tsx).
   { id: "design", label: "Design", icon: Palette },
   { id: "settings", label: "Settings", icon: Settings, children: [
-    { id: "general", label: "General", icon: SlidersHorizontal },
+    { id: "general", label: "Your shop", icon: SlidersHorizontal },
     { id: "shipping", label: "Shipping", icon: Truck },
     { id: "payments", label: "Payments", icon: CreditCard },
     { id: "taxes", label: "Taxes", icon: Receipt },
@@ -49,6 +50,7 @@ export const NAV: NavEntry[] = [
     { id: "google", label: "Google", icon: Plug },
     // What installed apps changed, and why a change was refused (AppsSettings.tsx); hidden on a shop not run by Colophon.
     { id: "apps", label: "Apps", icon: Blocks },
+    { id: "data", label: "Your data", icon: Database },
     { id: "team", label: "Team", icon: UserPlus },
     // Two-step sign-in with an authenticator app, for whoever is signed in (22.6).
     { id: "security", label: "Security", icon: ShieldCheck },
@@ -152,7 +154,7 @@ export const SETTINGS_SECTIONS: { label: string; pages: string[] }[] = [
   { label: "Selling", pages: ["shipping", "payments", "taxes"] },
   { label: "Messages", pages: ["notifications"] },
   { label: "Connections", pages: ["google", "apps"] },
-  { label: "Safety", pages: ["security"] },
+  { label: "Safety", pages: ["security", "data"] },
 ].map((g) => ({ ...g, pages: g.pages.flatMap((id) => id === "google" ? [SETTINGS_ITEM_PREFIX + id, S("sheets")] : [SETTINGS_ITEM_PREFIX + id]) }));
 
 /** Settings pages grouped by SETTINGS_SECTIONS, keeping only the given pages (and adding any unlisted ones at the end). */
@@ -300,9 +302,10 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   payments: { title: "Payments", description: "How customers pay you, and in which currency." },
   google: { title: "Google", description: "Analytics, Search Console, Shopping listings and your sales spreadsheet." },
   apps: { title: "Apps", description: "Apps that work with your shop, and what each can see." },
+  data: { title: "Your data", description: "Backups, downloads, privacy requests and problems shoppers hit." },
   notifications: { title: "Emails", description: "The emails your shop sends, and who they come from." },
   security: { title: "Security", description: "Two-step sign-in for whoever is signed in." },
-  general: { title: "General", description: "Your brand's details, your web address and how the shop runs." },
+  general: { title: "Your shop", description: "Your name, address, web address, policies and whether the shop is open." },
   taxes: { title: "Taxes", description: "The tax rates your checkout charges." },
   team: { title: "Team", description: "People who help run your shop, and what each can do." },
   plan: { title: "Plan", description: "Your plan and what it includes." },

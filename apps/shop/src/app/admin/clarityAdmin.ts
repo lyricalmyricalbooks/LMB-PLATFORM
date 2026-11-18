@@ -23,4 +23,4 @@ export const clarityApi = {
 };
 
 /** Where the setup lives, for messages that point at it. */
-export const CLARITY_SETTINGS_PATH = "Settings › General › Microsoft Clarity";
+export const CLARITY_SETTINGS_PATH = "Settings › Google › Microsoft Clarity";

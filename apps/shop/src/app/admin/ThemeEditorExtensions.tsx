@@ -228,7 +228,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
   {
     type: "FollowUsSection",
     label: "Follow us",
-    description: "Your social media accounts as icons (from Settings › General › Social media).",
+    description: "Your social media accounts as icons (from Settings › Your shop › Social media).",
     category: "Engagement",
     defaults: { title: "Follow us", description: "", iconSize: 24, showNames: false, align: "center" },
   },

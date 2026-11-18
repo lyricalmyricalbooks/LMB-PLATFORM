@@ -84,7 +84,7 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
       <div><button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={autoFill}
         title={w("Write the search title and description from this book's title, author and description")}>{w("Auto-fill from book")}</button>
         {aiWriterAvailable() && <>{' '}<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void writeWithAi()} disabled={aiBusy}
-          title="Draft the search title and description with AI (Settings › General › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></>}</div>
+          title="Draft the search title and description with AI (Settings › Apps › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></>}</div>
       <label className="rp-hint"><input type="checkbox" checked={book.seoNoindex === true} onChange={event => onChange('seoNoindex', event.target.checked)} /> Exclude this listing from search engines</label>
       <p className="rp-hint">{w("Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.")}</p>
       <div className="be-grid">

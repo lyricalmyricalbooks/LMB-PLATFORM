@@ -217,6 +217,7 @@ const LOCKED_LINES: Readonly<Record<string, string>> = Object.freeze({
   [SETTINGS_ITEM_PREFIX + "google"]: "Show up on Google search, Shopping and Maps with one sign-in. It's a step in your shop's setup guide.",
   [SETTINGS_ITEM_PREFIX + "apps"]: "What the apps you add change in your shop, after your shop's own checks.",
   [SETTINGS_ITEM_PREFIX + "security"]: "Two-step sign-in and who has signed in to your shop.",
+  [SETTINGS_ITEM_PREFIX + "data"]: "Back up and download your shop, answer privacy requests and see problems shoppers hit.",
   [SETTINGS_ITEM_PREFIX + "bookkeeping"]: "Your sales and fees, ready for your accountant.",
   [SETTINGS_ITEM_PREFIX + "billing"]: "Your bills for your plan, and the card they're paid with.",
 });

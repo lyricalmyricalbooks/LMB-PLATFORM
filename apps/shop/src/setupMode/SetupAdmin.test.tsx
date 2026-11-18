@@ -56,10 +56,10 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const el = await mount(door(), "#settings/general");
     const rail = [...el.querySelectorAll(".rp-nav-item")].map((b) => b.textContent?.trim());
     expect(rail).toEqual(expect.arrayContaining(["Home", "Orders", "Messages", "Books", "Marketing", "Analytics", "Online store", "Settings"]));
-    expect(el.querySelector("h1")?.textContent).toBe("General");
+    expect(el.querySelector("h1")?.textContent).toBe("Your shop");
     const settings = el.querySelector('nav[aria-label="Settings pages"]');
     expect(settings?.getAttribute("data-layout")).toBe("column");
-    expect([...settings!.querySelectorAll("a")].map((a) => a.textContent)).toEqual(expect.arrayContaining(["General", "Payments", "Plan"]));
+    expect([...settings!.querySelectorAll("a")].map((a) => a.textContent)).toEqual(expect.arrayContaining(["Your shop", "Payments", "Plan"]));
     const stockroom = [...el.querySelectorAll('[aria-label="Admin side"] button')].find((b) => b.textContent === "Stockroom") as HTMLButtonElement;
     act(() => stockroom.click());
     await flush();
@@ -184,10 +184,10 @@ describe("the admin in setup mode (code plan 18.6)", () => {
 
   it("keeps the page when the address names no page, as the skip link's #rp-main does", async () => {
     const el = await mount(door(), "#settings/general");
-    expect(el.querySelector("h1")?.textContent).toBe("General");
+    expect(el.querySelector("h1")?.textContent).toBe("Your shop");
     await act(async () => { location.hash = "rp-main"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
     await flush();
-    expect(el.querySelector("h1")?.textContent).toBe("General");
+    expect(el.querySelector("h1")?.textContent).toBe("Your shop");
   });
 
   it("says when the prices didn't load, promises no free days, and tries again", async () => {
@@ -308,7 +308,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
       const go = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Add details") as HTMLButtonElement;
       act(() => go.click());
       await flush();
-      expect(el.querySelector("h1")?.textContent).toBe("General");
+      expect(el.querySelector("h1")?.textContent).toBe("Your shop");
     });
 
     it("a refusal is shown in plain words and the press stays in setup", async () => {

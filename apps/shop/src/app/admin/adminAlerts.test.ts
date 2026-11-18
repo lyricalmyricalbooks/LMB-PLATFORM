@@ -170,7 +170,7 @@ describe("alertRoute", () => {
     expect(hash({ action: "webhook" })).toBe("#settings/payments/methods");
     // Test mode is switched off on the first Payments tab.
     expect(hash(settingsAlerts({ payments: { testMode: true } })[0])).toBe("#settings/payments");
-    expect(hash(backupAlert({ lastAttemptAt: "2026-10-06T07:17:00Z", ok: false, error: "x" } as any, now))).toBe("#settings/general/tools");
+    expect(hash(backupAlert({ lastAttemptAt: "2026-10-06T07:17:00Z", ok: false, error: "x" } as any, now))).toBe("#settings/data");
   });
   it("leaves order, orders and retry buttons to their own handlers", () => {
     expect(alertRoute({ action: "order" })).toBeNull();

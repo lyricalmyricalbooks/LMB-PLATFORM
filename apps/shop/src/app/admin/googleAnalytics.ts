@@ -173,4 +173,4 @@ export const googleAnalyticsApi = {
 };
 
 /** Where the setup lives, for messages that point at it. */
-export const GA_SETTINGS_PATH = "Settings › General › Google Analytics";
+export const GA_SETTINGS_PATH = "Settings › Google › Google Analytics";

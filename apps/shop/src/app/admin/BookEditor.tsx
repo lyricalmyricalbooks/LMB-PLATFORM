@@ -1277,7 +1277,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={() => openDescLink("description")}><Link2 size={14} aria-hidden /> Add link</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={descPreview} onClick={() => setDescPreview((v) => !v)}><Eye size={14} aria-hidden /> {descPreview ? "Hide preview" : "Preview"}</button>
                       {aiWriterAvailable() && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={descAiBusy} onClick={() => void writeDescriptionWithAi()}
-                        title="Draft this description with AI (Settings › General › AI writing assistant)">
+                        title="Draft this description with AI (Settings › Apps › AI writing assistant)">
                         {descAiBusy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />} {descAiBusy ? "Writing…" : (formData.description || "").trim() ? "Improve with AI" : "Write with AI"}
                       </button>}
                       {descBeforeAi !== null && (

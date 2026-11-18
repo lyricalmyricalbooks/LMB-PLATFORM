@@ -157,7 +157,7 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     // delivery, returns and privacy terms before an online sale, and card networks ask for them. Each policy has a
     // "Start from our wording" button, so this takes a minute.
     ? { id: "policies", label: `Missing store policies: ${missing.join(", ")}`, detail: services ? "Clients must be able to read your privacy and terms pages before they book, and card networks ask for them too. Each one has a Start from our wording button to fill it in a minute." : "Shoppers must be able to read your shipping, returns, privacy and terms pages before they buy, and card networks ask for them too. Each one has a Start from our wording button to fill it in a minute.", status: "block", tab: "general", action: "Open General" }
-    : { id: "policies", label: "Store policy content is present", detail: services ? "Privacy and terms contain text. Review their public pages for accuracy." : "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open General" });
+    : { id: "policies", label: "Store policy content is present", detail: services ? "Privacy and terms contain text. Review their public pages for accuracy." : "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open Your shop" });
 
   // Postal address: every email footer carries it (Settings › General › Location) and abandoned-cart
   // reminders are not sent without one. Mirrors functions/marketingOptOut.js footerAddress.
@@ -165,7 +165,7 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   const hasAddress = [loc.street, loc.city, loc.state, loc.zip, loc.country].some(hasText);
   items.push(hasAddress
     ? { id: "mailing-address", label: "A postal address is saved for email footers", detail: "Order and reminder emails carry it.", status: "ok", tab: "general", action: "Open General" }
-    : { id: "mailing-address", label: "No postal address saved", detail: "Marketing email needs your postal address in its footer, so abandoned-cart reminders are not sent until Settings › General › Location is filled in.", status: "block", tab: "general", action: "Open General" });
+    : { id: "mailing-address", label: "No postal address saved", detail: "Marketing email needs your postal address in its footer, so abandoned-cart reminders are not sent until Settings › Your shop › Location is filled in.", status: "block", tab: "general", action: "Open Your shop" });
 
   // Email
   // A "fallback" row only says Gmail missed and the backup sender was tried; the outcome is its own row.
