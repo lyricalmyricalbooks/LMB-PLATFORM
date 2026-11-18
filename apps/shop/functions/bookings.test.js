@@ -519,6 +519,26 @@ describe("processing time (plan 4, 1.5)", () => {
   });
 });
 
+describe("time before (plan 4, 1.6)", () => {
+  test("the day keeps the time before free, and a move takes it along", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("call").set({ name: "House call", minutes: 60, gapAfter: 0, gapBefore: 30, payment: "free", priceMinor: 0 });
+    const call = await t.pub({ action: "bookingStart", serviceId: "call", start: at("2026-11-20", "11:00"), ...CUSTOMER });
+    expect(call.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${call.body.id}`)).toMatchObject({ gapBefore: 30 });
+    expect(t.db.store.get("bookingDays/2026-11-20").items[call.body.id].pre).toBe(30);
+    const times = (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-20", days: 1 })).body.days["2026-11-20"];
+    // A 60-minute visit at 10:00 would run into the 10:30 set-up.
+    expect(times).not.toContain(at("2026-11-20", "10:00"));
+    expect((await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "Di", email: "di@example.com" })).statusCode).toBe(409);
+    expect((await t.adm({ op: "move", id: call.body.id, start: at("2026-11-20", "14:00"), notify: false })).body.ok).toBe(true);
+    const item = t.db.store.get("bookingDays/2026-11-20").items[call.body.id];
+    expect(item.pre).toBe(30);
+    expect(item.start).toBe(Date.parse(at("2026-11-20", "14:00")));
+  });
+});
+
 describe("busy times", () => {
   test("a hold the sweep never reached stops blocking after two hours", () => {
     const snap = (items) => ({ exists: true, data: () => ({ items }) });

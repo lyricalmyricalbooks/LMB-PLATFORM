@@ -675,6 +675,31 @@ describe("blocked time (plan 4, 1.3)", () => {
   });
 });
 
+describe("time before (plan 4, 1.6)", () => {
+  const visit = { id: "visit", minutes: 60, gapAfter: 0, gapBefore: 30 };
+  const plain = { id: "plain", minutes: 60, gapAfter: 0 };
+  const day = "2026-11-23";
+  const booked = [{ start: at(day, "11:00"), end: at(day, "12:00"), serviceId: "plain" }];
+  it("keeps time before only on one-to-one services, up to two hours", () => {
+    const base = { name: "House call", minutes: 60 };
+    expect(cleanService({ ...base, gapBefore: 30 })).toMatchObject({ gapBefore: 30 });
+    expect(cleanService(base)).not.toHaveProperty("gapBefore");
+    expect(cleanService({ ...base, gapBefore: 500 })).toMatchObject({ gapBefore: 120 });
+    expect(cleanService({ ...base, places: 6, gapBefore: 30 })).not.toHaveProperty("gapBefore");
+  });
+  it("needs its own time before free, right up to the start", () => {
+    // 12:00 is free, 12:30 too; 11:30 would need 11:00 to 11:30 free first.
+    expect(placesLeft(at(day, "12:30"), visit, booked)).toBe(1);
+    expect(placesLeft(at(day, "12:00"), visit, booked)).toBe(0);
+    expect(placesLeft(at(day, "12:00"), plain, booked)).toBe(1);
+  });
+  it("keeps others out of the time before a booking already made", () => {
+    const withBefore = [{ start: at(day, "10:30"), end: at(day, "12:00"), serviceId: "visit" }];
+    expect(placesLeft(at(day, "09:30"), plain, withBefore)).toBe(1);
+    expect(placesLeft(at(day, "10:00"), plain, withBefore)).toBe(0);
+  });
+});
+
 describe("processing time (plan 4, 1.5)", () => {
   const colour = { id: "colour", minutes: 120, gapAfter: 0, processAfter: 30, processMinutes: 45 };
   const trim = { id: "trim", minutes: 30, gapAfter: 0 };

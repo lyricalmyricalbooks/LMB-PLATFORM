@@ -71,6 +71,7 @@ export const ARTICLES = Object.freeze([
       "Press Block time to keep clients out of a lunch, a break or a day away, once or every week. You can still book over blocked time yourself.",
       "A taken time can be booked over after a warning, when you know you can see both clients.",
       "For a service with a wait in the middle, like colour setting, turn on Processing time. Clients can then book a short service with you during that wait.",
+      "If you need set-up or travel time before a service, set Time before when you edit it. That much time is kept free before each booking, so nobody is booked right up to it.",
     ],
   },
   {

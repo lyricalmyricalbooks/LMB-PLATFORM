@@ -1247,6 +1247,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
             {b.status === "confirmed" ? "Booked" : b.status === "held" ? (b.clearing ? "Payment clearing" : cardAsk(b) > 0 ? "Paying now" : "Saving a card") : "Cancelled"}
           </StatusBadge>
         </div>
+        {!!b.gapBefore && <p className="bkg-detail-line"><Clock size={16} aria-hidden /> {b.gapBefore} minutes kept free before it</p>}
         {!!processingText(b) && <p className="bkg-detail-line"><Hourglass size={16} aria-hidden /> {processingText(b)}: you're free for a short booking then</p>}
         {!!b.extras?.length && <p className="bkg-detail-line"><Plus size={16} aria-hidden /> Add-ons: {b.extras.map((x) => x.name).join(", ")}</p>}
         {b.earlierWanted && b.status === "confirmed" && <p className="bkg-detail-line"><Clock size={16} aria-hidden /> Wants an earlier time if one opens. They're emailed when someone cancels.</p>}
@@ -1961,6 +1962,10 @@ export function nextCourseDate(dates: readonly string[]): string {
   return `${addDays(last.slice(0, 10), 7)}T${last.slice(11, 16) || "18:00"}`;
 }
 
+/** Time before choices (bookings plan 4, step 1.6), up to MAX_GAP_BEFORE. */
+const GAP_BEFORE_CHOICES = [0, 5, 10, 15, 30, 45, 60, 90, 120];
+const minutesWords = (m: number) => m < 60 || m % 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? "" : "s"}`;
+
 export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: "", minutes: 60, gapAfter: 0, priceMinor: 0, payment: "free", depositMinor: 0, depositPercent: 0, location: "", active: true, order: 0, questions: [], places: 1, classTimes: [], holdCard: false, lateFeeMinor: 0, meet: false, packVisits: 0, packPriceMinor: 0, packDays: 0, chargeTax: false, roomId: "", rebookWeeks: 0, repeats: false, extras: [] };
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
@@ -1980,7 +1985,7 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
               <h3>{s.name}</h3>
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
-            <p className="bkg-service-meta">{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
+            <p className="bkg-service-meta">{s.gapBefore ? `${s.gapBefore} min before + ` : ""}{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
             <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
@@ -2124,6 +2129,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         // Processing time is one person's: a class or course never sends it.
         ...(rest.places <= 1 && !(rest.courseDates || []).length && (rest.processMinutes || 0) > 0
           ? { processAfter: rest.processAfter || 0, processMinutes: rest.processMinutes || 0 } : { processAfter: 0, processMinutes: 0 }),
+        // Time before is one person's set-up or travel: a class or course never sends it.
+        gapBefore: rest.places <= 1 && !(rest.courseDates || []).length ? rest.gapBefore || 0 : 0,
         chargeTax: priceMinor > 0 && !!rest.chargeTax,
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
@@ -2152,6 +2159,12 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
             {[0, 5, 10, 15, 30, 45, 60].map((m) => <option key={m} value={m}>{m ? `${m} minutes` : "None"}</option>)}
           </SelectField>
         </div>
+        {!group && !course && (
+          <SelectField label="Time before" hint="Set-up or travel time, kept free before each booking." value={String(form.gapBefore || 0)} onChange={(e) => set("gapBefore", Number(e.target.value))}>
+            {GAP_BEFORE_CHOICES.concat(form.gapBefore && !GAP_BEFORE_CHOICES.includes(form.gapBefore) ? [form.gapBefore] : [])
+              .map((m) => <option key={m} value={m}>{m ? minutesWords(m) : "None"}</option>)}
+          </SelectField>
+        )}
         {!group && !course && <ProcessingFields minutes={form.minutes} after={form.processAfter || 0} length={form.processMinutes || 0}
           onChange={(after, length) => setForm((f) => ({ ...f, processAfter: after, processMinutes: length }))} />}
         <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
