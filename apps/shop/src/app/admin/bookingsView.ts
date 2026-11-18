@@ -567,3 +567,29 @@ export function bookButtonHtml(link: string, label: string, look: "dark" | "ligh
   const colours = look === "dark" ? "background:#111111;color:#ffffff;border:2px solid #111111" : "background:#ffffff;color:#111111;border:2px solid #111111";
   return `<a href="${htmlText(link)}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 24px;border-radius:999px;${colours};font:600 16px/1.2 system-ui,sans-serif;text-decoration:none">${htmlText(label.trim() || "Book now")}</a>`;
 }
+
+// ── Dragging on the calendar (bookings plan 4, step 1.2) ─────────────────────────────────────────────────────────────
+
+/** How far a drag goes before it counts (a smaller wobble is a click). */
+export const DRAG_SLOP_PX = 5;
+/** A drag moves or stretches in quarter hours. */
+export const DRAG_STEP_MIN = 15;
+
+/**
+ * Where a dragged booking lands: `move` keeps its length and shifts its start by the drag (to another day too), `stretch`
+ * keeps its start and changes its length (never under a quarter hour or past 12 hours). The drag is snapped to quarter
+ * hours, so a booking at 10:10 moved down an hour lands at 11:10. Times are the shop's.
+ */
+export function draggedTo(b: { start: string; minutes: number }, toDay: string, deltaMin: number, mode: "move" | "stretch", zone: string): { start: string; minutes: number } {
+  const step = Math.round(deltaMin / DRAG_STEP_MIN) * DRAG_STEP_MIN;
+  if (mode === "stretch") return { start: b.start, minutes: Math.max(DRAG_STEP_MIN, Math.min(720, b.minutes + step)) };
+  const fromDay = dayOf(Date.parse(b.start), zone);
+  const minuteOfDay = Math.round((Date.parse(b.start) - zonedTime(fromDay, "00:00", zone)) / 60_000);
+  const m = Math.max(0, Math.min(24 * 60 - DRAG_STEP_MIN, minuteOfDay + step));
+  const hhmm = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  return { start: new Date(zonedTime(toDay, hhmm, zone)).toISOString(), minutes: b.minutes };
+}
+
+/** A booking the owner may drag: one person's confirmed visit (not a class or a course) that hasn't ended. */
+export const draggable = (b: Pick<Booking, "status" | "end"> & { course?: unknown }, places: number, nowMs: number): boolean =>
+  b.status === "confirmed" && !b.course && places <= 1 && Date.parse(b.end) > nowMs;

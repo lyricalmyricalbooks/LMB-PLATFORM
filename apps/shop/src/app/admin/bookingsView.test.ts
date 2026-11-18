@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -282,5 +282,25 @@ describe("the week as an hour grid (plan 4, 1.1)", () => {
   it("turns a tap into a start on the quarter hour, in the shop's time", () => {
     expect(tappedTime("2026-11-17", 10 * 60 + 52, ZONE)).toBe("2026-11-17T15:45:00.000Z");
     expect(tappedTime("2026-11-17", -5, ZONE)).toBe("2026-11-17T05:00:00.000Z");
+  });
+});
+
+describe("dragging on the calendar (plan 4, 1.2)", () => {
+  const visit = { start: "2026-11-17T15:10:00.000Z", minutes: 60 }; // 10:10 in Toronto
+  it("moves by whole quarter hours, to another day too, keeping the length", () => {
+    expect(draggedTo(visit, "2026-11-17", 55, "move", ZONE)).toEqual({ start: "2026-11-17T16:10:00.000Z", minutes: 60 });
+    expect(draggedTo(visit, "2026-11-19", -7, "move", ZONE)).toEqual({ start: "2026-11-19T15:10:00.000Z", minutes: 60 });
+  });
+  it("stretches from the bottom edge, never under a quarter hour", () => {
+    expect(draggedTo(visit, "2026-11-17", 29, "stretch", ZONE)).toEqual({ start: visit.start, minutes: 90 });
+    expect(draggedTo(visit, "2026-11-17", -200, "stretch", ZONE).minutes).toBe(15);
+  });
+  it("lets the owner drag one person's confirmed visit that hasn't ended", () => {
+    const now = Date.parse("2026-11-17T12:00:00.000Z");
+    expect(draggable(b({}), 1, now)).toBe(true);
+    expect(draggable(b({ status: "held" }), 1, now)).toBe(false);
+    expect(draggable(b({}), 6, now)).toBe(false);
+    expect(draggable(b({ course: { starts: [], days: [] } }), 1, now)).toBe(false);
+    expect(draggable(b({}), 1, Date.parse("2026-11-18T00:00:00.000Z"))).toBe(false);
   });
 });

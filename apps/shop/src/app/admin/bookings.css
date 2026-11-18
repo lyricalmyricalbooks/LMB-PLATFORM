@@ -551,3 +551,17 @@
   .rp .bkg-wgrid-col[data-phone-shown] { display: block; }
   .rp .bkg-wgrid-col[data-past] { opacity: 1; }
 }
+
+/* Dragging a booking (plan 4, step 1.2): a grab cursor, a bottom edge to pull, the card left behind fades and a dashed
+   outline shows where it lands. */
+.rp .bkg-tday-block[data-draggable] { cursor: grab; touch-action: auto; user-select: none; }
+.rp .bkg-tday-block[data-draggable]:active { cursor: grabbing; }
+.rp .bkg-tday-block[data-lifted] { opacity: 0.35; }
+.rp .bkg-drag-edge { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; }
+.rp .bkg-drag-edge::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 22px; height: 2px; margin-left: -11px; border-radius: 2px; background: currentColor; opacity: 0; transition: opacity 120ms; }
+.rp .bkg-tday-block:hover .bkg-drag-edge::after { opacity: 0.45; }
+.rp .bkg-tday-ghost { position: absolute; left: 3px; right: 3px; z-index: 4; display: block; padding: 4px 7px; border: 2px dashed var(--rp-text); border-radius: 12px; background: color-mix(in srgb, var(--rp-surface) 70%, transparent); pointer-events: none; font: 500 11px/1.3 var(--rp-font-mono); font-style: normal; color: var(--rp-text); }
+.rp .bkg-move-facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 12px; }
+.rp .bkg-move-facts dt { color: var(--rp-text-muted); font: 500 12px/1.6 var(--rp-font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+.rp .bkg-move-facts dd { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .rp .bkg-drag-edge::after { transition: none; } }
