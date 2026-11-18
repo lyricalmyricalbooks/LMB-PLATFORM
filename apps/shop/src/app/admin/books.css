@@ -185,7 +185,8 @@
 .be-main[data-essentials] [data-be-section="boxset"],
 .be-main[data-essentials] [data-be-section="organize"],
 .be-main[data-essentials] [data-be-section="more"],
-.be-main[data-essentials] [data-be-section="seo"] { display: none; }
+.be-main[data-essentials] [data-be-section="seo"],
+.be-main[data-essentials] [data-be-section="options"]:not([data-essential]) { display: none; }
 .be-more-parts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 0 16px; }
 .be-more-parts .rp-fk-hint { margin: 0; }
 

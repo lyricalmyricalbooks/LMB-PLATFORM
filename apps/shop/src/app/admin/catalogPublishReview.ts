@@ -1,6 +1,9 @@
 import { parseWeightGrams } from "../features/site/shippingEngine";
 import { isPlaceholderCatalogRecord } from "../features/site/catalogQuality.mjs";
 import { isDigitalItem } from "./fulfillment";
+import { isBookKind, productKind } from "../../shared/productOptions";
+import { typeOfProduct } from "../../shared/productTypes";
+import { missingLawFacts } from "./typeFacts";
 export type CatalogIssue = { key: string; message: string; blocking: boolean };
 export function catalogPublishIssues(book: any): CatalogIssue[] {
   const issues: CatalogIssue[] = [];
@@ -10,16 +13,18 @@ export function catalogPublishIssues(book: any): CatalogIssue[] {
   // Box sets ship the books inside, whose weights stand in when the set has none of its own.
   const giftCard = book.productType === "giftCard";
   const boxSet = Array.isArray(book.bundleItems) && book.bundleItems.some((p: any) => p && p.bookId);
+  // Book-only checks (credits, edition, interior pages) never ask a candle or a shirt (product types plan, change 9).
+  const books = isBookKind(productKind(book)) && !giftCard;
   const priceInvalid = (value: any) => value === "" || value == null || !Number.isFinite(Number(value)) || Number(value) < 0;
   flag("title", blank(book.title), "Add a title.", true);
   flag("photos", !(book.photos || []).some((photo: any) => /^https?:\/\//.test(String(photo.url || ""))), "Add a genuine cover photo and interior images.");
-  flag("interior", !giftCard && (book.photos || []).filter((photo: any) => /^https?:\/\//.test(String(photo.url || ""))).length === 1, "Add genuine interior photos for shoppers to preview.");
-  flag("credits", !giftCard && blank(book.subtitle) && blank(book.authorName), "Add confirmed author or contributor credits.");
+  flag("interior", books && (book.photos || []).filter((photo: any) => /^https?:\/\//.test(String(photo.url || ""))).length === 1, "Add genuine interior photos for shoppers to preview.");
+  flag("credits", books && blank(book.subtitle) && blank(book.authorName), "Add confirmed author or contributor credits.");
   flag("price", (!giftCard && priceInvalid(book.retailPrice)) || (book.isOnSale && priceInvalid(book.salePrice)) || (book.variants || []).some((variant: any) => priceInvalid(variant.price)), "Fix missing, negative or invalid book/edition prices.", true);
   flag("free", (!priceInvalid(book.retailPrice) && Number(book.retailPrice) === 0 && !(book.variants || []).length)
     || (book.variants || []).some((variant: any) => !priceInvalid(variant.price) && Number(variant.price) === 0), "Confirm this book or edition is intentionally free.");
   flag("giftcard-amounts", giftCard && !(book.variants || []).some((variant: any) => Number(variant?.price) > 0), "Add at least one gift card amount above $0.", true);
-  flag("edition", !giftCard && !boxSet && (blank(book.format) || blank(book.edition) || !(Number(book.pageCount) > 0)), "Complete format, edition/printing and page count.");
+  flag("edition", books && !boxSet && (blank(book.format) || blank(book.edition) || !(Number(book.pageCount) > 0)), "Complete format, edition/printing and page count.");
   // E-books and audiobooks (by flag or format, the same test fulfilment uses) need no weight;
   // a book sold in editions needs it on each physical edition (or as the book's default).
   const digitalBook = isDigitalItem(book);
@@ -31,5 +36,9 @@ export function catalogPublishIssues(book: any): CatalogIssue[] {
   flag("weight", !giftCard && !boxSet && weightMissing, "Add positive shipping weight for physical editions.");
   flag("description", blank(book.description), "Add publisher copy explaining the book.");
   flag("placeholder", isPlaceholderCatalogRecord(book) || /lorem ipsum|placeholder|coming soon|sample description/i.test(String(book.description || "")), "Review possible test, duplicate or placeholder content. Titles alone never hide a published book.");
+  // Facts the law asks for (a soap's ingredients, a toy's ages) block publishing until filled in.
+  for (const fact of missingLawFacts(book, giftCard ? null : typeOfProduct(book))) {
+    flag(`law-${fact.key}`, true, `Add ${fact.label.toLowerCase()}: the law asks for it before this goes on sale.`, true);
+  }
   return issues;
 }

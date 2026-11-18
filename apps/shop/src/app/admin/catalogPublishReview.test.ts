@@ -25,3 +25,19 @@ test("reviews gift cards and box sets for what applies to them", () => {
   expect(keys(boxSet)).not.toContain("weight");
   expect(keys(boxSet)).not.toContain("edition");
 });
+
+test("asks a candle or a shirt nothing about authors, editions or interior pages", () => {
+  const candle = { title: "Fig candle", kind: "other", typeId: "candles", photos: [{ url: "https://example.com/c.jpg" }], description: "Hand-poured.", retailPrice: 34, weight: "400g" };
+  const keys = catalogPublishIssues(candle).map(issue => issue.key);
+  expect(keys).not.toContain("credits");
+  expect(keys).not.toContain("edition");
+  expect(keys).not.toContain("interior");
+});
+
+test("holds publishing until the facts the law asks for are filled in", () => {
+  const soap = { title: "Oat soap", kind: "other", typeId: "soap", photos: [{ url: "https://example.com/s.jpg" }], description: "Gentle.", retailPrice: 9, weight: "120g" };
+  const blocking = catalogPublishIssues(soap).filter(issue => issue.blocking).map(issue => issue.key);
+  expect(blocking).toEqual(["law-ingredients", "law-netAmount"]);
+  const filled = { ...soap, detailRows: [{ key: "fact:ingredients", label: "Ingredients", value: "Oats, olive oil" }, { key: "fact:netAmount", label: "Net amount", value: "120 g" }] };
+  expect(catalogPublishIssues(filled).some(issue => issue.blocking)).toBe(false);
+});

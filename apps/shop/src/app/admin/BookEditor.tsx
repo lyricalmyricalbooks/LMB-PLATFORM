@@ -85,7 +85,9 @@ import { ProductOptionsEditor } from "./ProductOptionsEditor";
 import { VariantGrid } from "./VariantGrid";
 import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
-import type { ProductType } from "../../shared/productTypes";
+import { typeById, typeOfProduct, type ProductType } from "../../shared/productTypes";
+import { missingLawFacts, safetyForType } from "./typeFacts";
+import { TypeFactsCard } from "./TypeFactsCard";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
@@ -403,6 +405,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       // (sells.ts). The starting kind isn't an edit, so it goes into both the form and what "unsaved" compares with.
       // A gift card picked in "What is it?" becomes the gift card product the editor already knows (amounts, no stock).
       if ((prefill as any)?.typeId === "gift-cards") setProductType("giftCard");
+      // The picked type's safety line (a candle's) starts on the page; the owner can change or clear it.
+      const startType = typeById((prefill as any)?.typeId);
+      if (startType) setFormData((prev: any) => ({ ...prev, ...safetyForType(prev, startType) }));
       // A product whose type was picked already has its kind (a printed book keeps none), so the sign-up kind stays out.
       if (!(prefill as any)?.kind && !(prefill as any)?.typeId) {
         Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
@@ -1133,7 +1138,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const setType = (type: ProductType) => {
     if (type.id === "gift-cards") setProductType("giftCard");
     else { if (isGiftCardProduct(formData)) setProductType("book"); setKind(type.kind); }
-    setFormData((prev: any) => ({ ...prev, typeId: type.id }));
+    setFormData((prev: any) => ({ ...prev, typeId: type.id, ...safetyForType(prev, type) }));
   };
   // Digital D1: a book format that is a download, or the "Digital product" switch any kind of shop has.
   const digitalFormat = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
@@ -1152,18 +1157,25 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
   const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= lowLine;
 
+  // Product types plan, change 9: four must-haves, plus any fact the law asks for this type; the rest is good to add.
+  const typeFactKeys = new Set(giftCard || isBookKind(productKind(formData)) ? [] : (typeOfProduct(formData)?.facts ?? []).map((f) => f.key));
+  const lawGaps = giftCard ? [] : missingLawFacts(formData, typeOfProduct(formData));
+  const lawFacts = giftCard ? [] : (typeOfProduct(formData)?.facts ?? []).filter((f) => f.law);
   const checklist = [
     { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab, field: "title" },
-    { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab, field: "description" },
-    { label: "Cover image", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
+    { label: "Photo", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
     { label: "Price above $0", ok: num(formData.retailPrice) > 0 || (formData.variants || []).some((v: any) => num(v.price) > 0), tab: "pricing" as BookTab },
-    { label: "ISBN or item code", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: "isbn" },
+    { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab, field: "description" },
+    ...lawFacts.map((f) => ({ label: f.label, ok: !lawGaps.includes(f), tab: "details" as BookTab, field: `fact-${f.key}` })),
+  ];
+  const goodToAdd = [
+    { label: isBookKind(productKind(formData)) ? "ISBN or item code" : "Item code", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: isBookKind(productKind(formData)) ? "isbn" : "sku" },
     { label: "Category", ok: (formData.categories || []).length > 0, tab: "organize" as BookTab },
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
   const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, stock: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
-  checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
+  [...checklist, ...goodToAdd].filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
   const bookKind = isBookKind(productKind(formData));
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
@@ -1264,7 +1276,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               {!book && <ProductTypeCard form={formData} onType={setType} />}
               <SectionCard title={bookKind ? "Book details" : "Product details"} description="The essentials shoppers see first.">
                 <div className="be-grid">
-                  <div className="be-span-2"><TextField label={bookKind ? "Book title" : "Product title"} name="title" value={formData.title} onChange={handleChange} placeholder={bookKind ? "e.g. Find Still Catches Me Shifted" : "e.g. Logo tee"} required /></div>
+                  <div className="be-span-2"><TextField label={bookKind ? "Book title" : "Product title"} name="title" value={formData.title} onChange={handleChange} placeholder={bookKind ? "e.g. Find Still Catches Me Shifted" : typeOfProduct(formData) ? "What shoppers will call it" : "e.g. Logo tee"} required /></div>
                   {bookKind ? <>
                   <SelectField label="Author (linked profile)" name="authorId" value={formData.authorId || ""} onChange={handleChange} hint="Optional. Links this book to an author page.">
                     <option value="">— None —</option>
@@ -1273,7 +1285,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <TextField label="Author / contributors (display)" name="subtitle" value={formData.subtitle} onChange={handleChange} placeholder="e.g. Zoe Moss, Lucia Bellemare" />
                   </> : <div className="be-span-2"><TextField label="Brand or maker" name="subtitle" value={formData.subtitle} onChange={handleChange} placeholder="e.g. your label's name" hint="Shown under the title, and as the Brand row in the product's details." /></div>}
                   <div className="be-span-2">
-                    <TextField label="Web address (URL slug)" name="slug" value={formData.slug} onChange={handleChange} placeholder="the-book-slug"
+                    <TextField label="Web address (URL slug)" name="slug" value={formData.slug} onChange={handleChange} placeholder={bookKind ? "the-book-slug" : "made-from-the-title"}
                       readOnly={addressLocked}
                       hint={addressLocked ? `${productHref(formData.slug || addressExample)} — locked while the book is published, so existing links keep working.` : productHref(formData.slug || addressExample)} error={slugWarn || undefined} />
                     <div className="be-inline-actions">
@@ -1338,6 +1350,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </div>
                 </div>
               </SectionCard>
+              {!bookKind && !giftCard && typeOfProduct(formData) && (
+                <TypeFactsCard form={formData} type={typeOfProduct(formData)!} onPatch={(patch) => setFormData((prev: any) => ({ ...prev, ...patch }))} />
+              )}
               {book && <ProductTypeCard form={formData} onType={setType} />}
               </div>
               <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel">
@@ -1366,8 +1381,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
                   <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
                   </> : <>
-                  <TextField label={kindHint(productKind(formData)).materialLabel} name="material" value={formData.material || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).materialExample} />
-                  <div>
+                  {/* Material and care move to the type's facts when it asks for them (product types plan, change 7). */}
+                  {!typeFactKeys.has("material") && <TextField label={kindHint(productKind(formData)).materialLabel} name="material" value={formData.material || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).materialExample} />}
+                  {!typeFactKeys.has("care") && <div>
                     <TextField label="Care" name="care" value={formData.care || ""} onChange={handleChange} placeholder={kindHint(productKind(formData)).careExample} />
                     {!String(formData.care || "").trim() && kindHint(productKind(formData)).careStarters.length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 10px" }}>
@@ -1378,7 +1394,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                         ))}
                       </div>
                     )}
-                  </div>
+                  </div>}
                   {["clothing", "shoes"].includes(productKind(formData)) && <>
                     <SelectField label="Google Shopping: for" name="googleGender" value={formData.googleGender || ""} onChange={handleChange} hint="Google asks clothing and shoes who they are for. Blank = unisex.">
                       <option value="">Unisex (default)</option>
@@ -1559,14 +1575,14 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
           </div>
           )}
 
-          {onDetails && (
+          {onDetails && giftCard && (
           <div className="be-sec" data-be-section="pricing">
             <SectionCard title="Price" description="A gift card's prices are its amounts. Set them on the Amounts tab — each one is both what the shopper pays and what the card is worth. Gift cards are never taxed, discounted or put on sale.">
               <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => goTo("editions")}>Go to Amounts</button>
             </SectionCard>
           </div>
           )}
-          {onDetails && (
+          {onDetails && !giftCard && (
           <div className="be-sec" data-be-section="pricing">
             <>
               <SectionCard title="Price" description="Enter the CAD price. Shoppers who pick USD or EUR see, and are charged, the CAD price converted at today's exchange rate. The USD/EUR figures below are for your reference only.">
@@ -1741,10 +1757,17 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
           </div>
           )}
 
+          {/* Product types plan, change 5: sizes and choices sit on a new product's short page when its type has them. */}
+          {onDetails && !giftCard && (
+          <div className="be-sec" data-be-section="options" data-essential={typeOfProduct(formData)?.sizes.length || typeOfProduct(formData)?.choices.length ? "" : undefined}>
+          <ShopWordsContext.Provider value={w}>
+            <ProductOptionsEditor form={formData} onApply={(o) => void applyOptions(o)} onClear={clearOptions} />
+          </ShopWordsContext.Provider>
+          </div>
+          )}
           {onDetails && (
           <div className="be-sec" data-be-section="editions">
           <ShopWordsContext.Provider value={w}>
-          {!giftCard && <ProductOptionsEditor form={formData} onApply={(o) => void applyOptions(o)} onClear={clearOptions} />}
           {!giftCard && optionsOn && (
             <VariantGrid form={formData} lowLine={lowLine} onChange={updateVariant} onReplace={replaceVariants}
               stockLocked={(id) => stockLocked(id)} stockLockHint={(id) => stockLockHint(id)} />
@@ -1965,6 +1988,16 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </li>
               ))}
             </ul>
+            {goodToAdd.some((c) => !c.ok) && <>
+              <p className="be-rail-sub">Good to add</p>
+              <ul className="be-check">
+                {goodToAdd.filter((c) => !c.ok).map((c) => (
+                  <li key={c.label}>
+                    <button type="button" onClick={() => goTo(c.tab, c.field)}><span aria-hidden>+</span> {c.label}</button>
+                  </li>
+                ))}
+              </ul>
+            </>}
           </div>
         </aside>
       </div>
