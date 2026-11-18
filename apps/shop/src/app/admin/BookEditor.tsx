@@ -85,7 +85,9 @@ import { ProductOptionsEditor } from "./ProductOptionsEditor";
 import { VariantGrid } from "./VariantGrid";
 import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
-import type { ProductType } from "../../shared/productTypes";
+import { typeById, typeOfProduct, type ProductType } from "../../shared/productTypes";
+import { safetyForType } from "./typeFacts";
+import { TypeFactsCard } from "./TypeFactsCard";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
@@ -403,6 +405,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       // (sells.ts). The starting kind isn't an edit, so it goes into both the form and what "unsaved" compares with.
       // A gift card picked in "What is it?" becomes the gift card product the editor already knows (amounts, no stock).
       if ((prefill as any)?.typeId === "gift-cards") setProductType("giftCard");
+      // The picked type's safety line (a candle's) starts on the page; the owner can change or clear it.
+      const startType = typeById((prefill as any)?.typeId);
+      if (startType) setFormData((prev: any) => ({ ...prev, ...safetyForType(prev, startType) }));
       // A product whose type was picked already has its kind (a printed book keeps none), so the sign-up kind stays out.
       if (!(prefill as any)?.kind && !(prefill as any)?.typeId) {
         Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
@@ -1133,7 +1138,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const setType = (type: ProductType) => {
     if (type.id === "gift-cards") setProductType("giftCard");
     else { if (isGiftCardProduct(formData)) setProductType("book"); setKind(type.kind); }
-    setFormData((prev: any) => ({ ...prev, typeId: type.id }));
+    setFormData((prev: any) => ({ ...prev, typeId: type.id, ...safetyForType(prev, type) }));
   };
   // Digital D1: a book format that is a download, or the "Digital product" switch any kind of shop has.
   const digitalFormat = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
@@ -1338,6 +1343,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </div>
                 </div>
               </SectionCard>
+              {!bookKind && !giftCard && typeOfProduct(formData) && (
+                <TypeFactsCard form={formData} type={typeOfProduct(formData)!} onPatch={(patch) => setFormData((prev: any) => ({ ...prev, ...patch }))} />
+              )}
               {book && <ProductTypeCard form={formData} onType={setType} />}
               </div>
               <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel">
