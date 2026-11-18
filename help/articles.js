@@ -31,7 +31,7 @@ export const ARTICLES = Object.freeze([
     question: "What do I need to sell within the law?",
     answer: [
       "Your press is the seller, so the shopping, privacy and tax rules of the places you sell to apply to you. This is a short list of what most presses need, not legal advice.",
-      "Fill in your own name, address and email under Settings › General. Every order email and shipping label shows them, and the law asks for them.",
+      "Fill in your own name, address and email under Settings › Your shop. Every order email and shipping label shows them, and the law asks for them.",
       "Write your shipping, returns, privacy and terms pages. Each has a Start from our wording button, and your shop won't open until all four have words.",
       "Your returns page can say no to change-of-mind returns, but shoppers always keep their rights for faulty items. Shoppers in Europe and the United Kingdom can cancel within 14 days of delivery.",
       "In Canada, register for GST/HST once your sales pass $30,000 over four quarters. Quebec and British Columbia have their own sales tax lines. In the United States, register for sales tax in your own state before you sell there; each other state has its own line of sales before you must register.",
@@ -39,9 +39,9 @@ export const ARTICLES = Object.freeze([
       "Selling to shoppers in Quebec means your shop's pages, checkout and policies must also be in French. Your shop can translate its pages for you; check the wording before you rely on it.",
       "Send newsletters only to people who asked for them. Your sign-up form already asks them to confirm by email, and every newsletter has a way to stop.",
       "Your shop asks shoppers before it counts their visits. Leave the cookie banner on if you sell to Europe, the United Kingdom or Quebec.",
-      "When a shopper asks for a copy of their details or to be deleted, answer within 30 days under Settings › General › Privacy requests.",
+      "When a shopper asks for a copy of their details or to be deleted, answer within 30 days under Settings › Your data › Privacy requests.",
     ],
-    where: ["Settings › General"],
+    where: ["Settings › Your shop", "Settings › Your data"],
   },
   {
     id: "add-a-book",
@@ -123,10 +123,10 @@ export const ARTICLES = Object.freeze([
     topic: "Getting started",
     question: "I sell something different now. Can I change what my shop sells?",
     answer: [
-      "Yes. Open Settings › General and find What you sell. Choose books, zines, comics, art and prints, clothing, shoes, jewelry, music, something else, or Books and other things if you sell both.",
+      "Yes. Open Settings › Your shop and find What you sell. Choose books, zines, comics, art and prints, clothing, shoes, jewelry, music, something else, or Books and other things if you sell both.",
       "The shop's pages and emails change their words at once. Your stockroom changes the next time you open it, and Settings tells you when it has. Products you already made stay as they are.",
     ],
-    where: ["Settings › General"],
+    where: ["Settings › Your shop"],
   },
   {
     id: "stock-places",
@@ -257,11 +257,11 @@ export const ARTICLES = Object.freeze([
     question: "Will links to my old shop still work?",
     answer: [
       "Yes, for your books. When you bring books over from your old shop's export, each book's old address is saved as a redirect to the same book here.",
-      "The redirects start working once your web address leads to this shop. Redirects you made yourself are never replaced. You can see or remove them in Settings › General › URL redirects.",
+      "The redirects start working once your web address leads to this shop. Redirects you made yourself are never replaced. You can see or remove them in Online store › URL redirects.",
       "For your other pages, such as About or a collection, use Check your old links under URL redirects before you move your web address. It reads your old shop's list of pages, tries each one here and suggests a new home for any that would show page not found. Add them one by one or all at once.",
       "Bring your own pages over brings pages such as About, FAQ or Contact here as drafts, with their words, headings, lists and links, and a redirect from each old address. Photos on those pages stay behind, so open Settings › Design, go to Pages, add them again, read each page through and publish it.",
     ],
-    where: ["Settings › General"],
+    where: ["Settings › Your shop"],
   },
   {
     id: "moving-checklist",
@@ -276,11 +276,11 @@ export const ARTICLES = Object.freeze([
       "Gift cards: open Gift cards and press Bring gift cards over, so balances still work.",
       "Discount codes: open Discounts and press Bring codes over, so codes your customers already have still work. Codes for only some items, and buy-some-get-some offers, are listed for you to set up by hand.",
       "Past orders: open Orders and press Bring past orders over. They count in your sales reports and each customer's history, and change no stock. Orders in another currency are converted at the Bank of Canada's average rate, which you can change, later too, on each order's page. Got a file per year? Press Bring another file after each one. Every window takes Excel, CSV and LibreOffice files as your old shop gives them. Wrong file? Remove that whole import in one step.",
-      "Your own pages and old links: open Settings › General and use Check your old links under URL redirects, then Bring your own pages over for pages such as About or FAQ.",
+      "Your own pages and old links: open Online store and use Check your old links under URL redirects, then Bring your own pages over for pages such as About or FAQ.",
       "On the day you move, follow What do I do on the day I move from my old shop?",
       "Your Overview shows Your move so far: what has come over and what is left. Choose We had none for anything your old shop didn't have.",
     ],
-    where: ["Books › Import spreadsheet", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Discounts › Bring codes over", "Orders › Bring past orders over", "Settings › General"],
+    where: ["Books › Import spreadsheet", "Customers › Bring customers over", "Gift cards › Bring gift cards over", "Discounts › Bring codes over", "Orders › Bring past orders over", "Settings › Your shop"],
   },
   {
     id: "switch-day",
@@ -291,26 +291,26 @@ export const ARTICLES = Object.freeze([
     ],
     steps: [
       "Take your last orders in your old shop, then close its checkout.",
-      "Open Settings › General and use Check your old links under URL redirects, so none of your old addresses show page not found.",
-      "Connect your web address in Settings › General: press Allow where you bought it, or copy across the lines it shows.",
+      "Open Online store and use Check your old links under URL redirects, so none of your old addresses show page not found.",
+      "Connect your web address in Settings › Your shop: press Allow where you bought it, or copy across the lines it shows.",
       "Tell your mailing list where to find you.",
       "Tick Move over from your old shop in Set up your shop on the Overview.",
     ],
-    where: ["Settings › General"],
+    where: ["Settings › Your shop"],
   },
   {
     id: "own-address",
     topic: "Bringing your shop over",
     question: "Can my shop use my own web address?",
     answer: [
-      "Yes. While you set up, open Settings › General and choose I already have a domain under Your web address. Type it, like yourpress.com, and we find where you bought it. Nothing changes for your old site yet.",
+      "Yes. While you set up, open Settings › Your shop and choose I already have a domain under Your web address. Type it, like yourpress.com, and we find where you bought it. Nothing changes for your old site yet.",
       "No domain yet? Choose I need a domain and buy one at GoDaddy, then come back and add it. Or keep the free address for now and add your own any time.",
-      "Every shop gets a free address made from your press's name. To use another name, press Pick another name in setup. Once your shop is open, press Change name in Settings › General. The address before keeps working, so anyone who has it still reaches you.",
+      "Every shop gets a free address made from your press's name. To use another name, press Pick another name in setup. Once your shop is open, press Change name in Settings › Your shop. The address before keeps working, so anyone who has it still reaches you.",
       "Once your shop is made, we connect it for you. At most domain sellers, GoDaddy among them, you press Allow once in their window. At any other, we show you exactly what to copy across, with a Copy button on each line, or you can email it to your web person in one step.",
       "Your domain becomes your shop's main address as soon as it works, padlock included, and www.yourpress.com opens it too. We email you when it's live. Your free address keeps working the whole time.",
       "Before you say yes, take your last orders in your old shop and close its checkout: once you do, your domain shows this shop instead.",
     ],
-    where: ["Settings › General"],
+    where: ["Settings › Your shop"],
   },
   {
     id: "shipping",
@@ -362,9 +362,9 @@ export const ARTICLES = Object.freeze([
     question: "Which store policies does my shop need?",
     answer: [
       "Four: shipping, returns, privacy and terms. Shoppers read them before they buy, and the law and the card companies ask for them. Your shop won't open until all four have words.",
-      "Open Settings › General › Store policies. Each one has a Start from our wording button: read it, change what doesn't fit your press, and save.",
+      "Open Settings › Your shop › Store policies. Each one has a Start from our wording button: read it, change what doesn't fit your press, and save.",
     ],
-    where: ["Settings › General"],
+    where: ["Settings › Your shop"],
     plans: ["shop"],
   },
   {
@@ -450,9 +450,9 @@ export const ARTICLES = Object.freeze([
     question: "How do I open my shop to shoppers?",
     answer: [
       "A new shop starts private: shoppers see an under-construction page while you set it up. When you are ready, press Open your shop, the last step of Set up your shop on the Overview.",
-      "It first checks that your shop can sell: a published book, shipping, payments, your store policies and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › General › Store status.",
+      "It first checks that your shop can sell: a published book, shipping, payments, your store policies and your address for emails. If something is missing, it says what and takes you there. You can close the shop again from Settings › Your shop › Store status.",
     ],
-    where: ["Overview", "Settings › General"],
+    where: ["Overview", "Settings › Your shop"],
     plans: ["shop"],
   },
   {
