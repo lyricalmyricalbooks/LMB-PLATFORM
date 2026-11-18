@@ -6,16 +6,17 @@ import { bookingsAdmin, readBookingsBetween, type PackRow } from "../bookingsApi
 import { SHOP_CURRENCY } from "../moneySign";
 import { shopDayKey } from "../../lib/shopDay";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
-import { giftSales, packSales, serviceSales, withPackSales, type ServiceSale } from "./serviceSales";
+import { giftSales, membershipSales, packSales, serviceSales, withPackSales, type ServiceSale } from "./serviceSales";
 import { givingAdmin, type GivingList } from "../givingApi";
+import { membersAdmin, type MemberPayment } from "../membersApi";
 import { stockroomApi, type StockroomRecords } from "./stockroomData";
 
 /** Bookings are read from this day on (before Bookings existed). */
 const FIRST_DAY = "2026-01-01T00:00:00.000Z";
 
-export async function readServiceSales(now = Date.now(), readPacks: () => Promise<PackRow[]> = loadPacks, readGifts: () => Promise<GivingList["gifts"]> = loadGifts): Promise<ServiceSale[]> {
+export async function readServiceSales(now = Date.now(), readPacks: () => Promise<PackRow[]> = loadPacks, readGifts: () => Promise<GivingList["gifts"]> = loadGifts, readMemberPayments: () => Promise<MemberPayment[]> = loadMemberPayments): Promise<ServiceSale[]> {
   const today = shopDayKey(now);
-  const [visits, packs, gifts] = await Promise.all([
+  const [visits, packs, gifts, members] = await Promise.all([
     readBookingsBetween(FIRST_DAY, new Date(now + 2 * 86_400_000).toISOString())
       .then((rows) => serviceSales(rows, shopTimeZone(), today, SHOP_CURRENCY))
       .catch((error) => { console.warn("Bookings could not be read for the money pages", error); return [] as ServiceSale[]; }),
@@ -25,8 +26,17 @@ export async function readServiceSales(now = Date.now(), readPacks: () => Promis
     readGifts()
       .then((rows) => giftSales(rows, shopTimeZone(), today, SHOP_CURRENCY))
       .catch(() => [] as ServiceSale[]),
+    readMemberPayments()
+      .then((rows) => membershipSales(rows, shopTimeZone(), today, SHOP_CURRENCY))
+      .catch(() => [] as ServiceSale[]),
   ]);
-  return withPackSales(visits, [...packs, ...gifts]);
+  return withPackSales(visits, [...packs, ...gifts, ...members]);
+}
+
+/** Membership payments (server-only records, read through the Members admin op; refused while Memberships is off). */
+async function loadMemberPayments(): Promise<MemberPayment[]> {
+  const answer = await membersAdmin<{ payments?: MemberPayment[] }>("payments");
+  return answer.payments || [];
 }
 
 /** Gifts from the Support page (server-only records, read through the Donations admin op; refused while Donations is off). */

@@ -3674,6 +3674,9 @@ function waysBetaSection(shop) {
         w.use.receipts ? `${w.use.receipts} tax ${w.use.receipts === 1 ? "receipt" : "receipts"}` : null,
         w.use.fundraisers?.count ? `${w.use.fundraisers.live ? "a fundraiser running" : "no fundraiser running"}, ${money(w.use.fundraisers.raisedMinor, w.use.currency)} raised in all` : null) : null,
       w.use && w.id === "giving" ? blockedPill(w.use.blocked) : null,
+      w.use && w.id === "memberships" ? meta(`${w.use.members} ${w.use.members === 1 ? "member" : "members"}`, w.use.trial ? `${w.use.trial} on a free trial` : null,
+        `${money(w.use.monthlyMinor, w.use.currency)} a month`) : null,
+      w.use && w.id === "memberships" && w.use.pastDue ? pill("warning", `${w.use.pastDue} ${w.use.pastDue === 1 ? "payment" : "payments"} failed`) : null,
       w.on ? meta(w.ownerOn ? "owner switched it on" : "owner hasn't switched it on yet", w.changedAt ? `turned on ${dateOnly(w.changedAt)}${w.changedBy ? ` by ${w.changedBy}` : ""}` : null) : null)));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   show();

@@ -65,6 +65,27 @@ export function givingUse(gifts, blockedDays, nowMs, fundraisers = []) {
     },
   };
 }
+/**
+ * How a shop uses Memberships: members now (on a free trial, paying, ending at the period's end, or with a failed
+ * payment; test members left out), how many have a failed payment, and what they bring in a month (a yearly plan as a
+ * twelfth). Written by the shop's functions/memberships.js; no member's name or email is read into the line.
+ */
+export function membershipsUse(members) {
+  const live = members.filter((m) => m && ["trial", "active", "ending", "pastDue"].includes(m.state) && m.mode !== "test");
+  const monthly = (plan) => {
+    const price = Number.isFinite(plan?.priceMinor) && plan.priceMinor > 0 ? plan.priceMinor : 0;
+    return plan?.interval === "year" ? Math.round(price / 12) : price;
+  };
+  return {
+    members: live.length,
+    trial: live.filter((m) => m.state === "trial").length,
+    pastDue: live.filter((m) => m.state === "pastDue").length,
+    monthlyMinor: live.filter((m) => m.state !== "trial").reduce((sum, m) => sum + monthly(m.plan), 0),
+    currency: live.find((m) => m.plan?.currency)?.plan.currency ?? "CAD",
+  };
+}
+/** The most memberships read for the use line (the admin's own list, functions/memberships.js MAX_LISTED, reads as many). */
+const MAX_MEMBERS = 500;
 /** The most gifts read for the use line (the admin's own list, functions/giving.js MAX_LISTED, reads as many). */
 const MAX_GIFTS = 500;
 /** The most fundraisers read (the shop keeps every one it made; one runs at a time). */
@@ -130,6 +151,11 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
               shopData.find(shopId, "fundraisers", { limit: MAX_FUNDRAISERS }),
             ]);
             use.giving = givingUse(gifts.map((d) => d.data), blocked.map((d) => d.data), now().getTime(), fundraisers.map((d) => d.data));
+          } catch { /* the line is left out */ }
+        }
+        if (allowed.includes("memberships") && shopData.find) {
+          try {
+            use.memberships = membershipsUse((await shopData.find(shopId, "memberships", { limit: MAX_MEMBERS })).map((d) => d.data));
           } catch { /* the line is left out */ }
         }
         return {

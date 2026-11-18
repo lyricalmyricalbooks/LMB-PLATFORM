@@ -18,7 +18,7 @@ export const WAYS = Object.freeze([
   Object.freeze({ id: "classes", label: "Classes & workshops", line: "Take sign-ups for a class, a course or a workshop.", built: true }),
   Object.freeze({ id: "digital", label: "Digital goods", line: "Sell files people download: patterns, presets, e-books, music.", built: true }),
   Object.freeze({ id: "giving", label: "Donations & tips", line: "Take donations and tips, and show a fundraising goal.", built: true }),
-  Object.freeze({ id: "memberships", label: "Memberships & subscriptions", line: "Bill members or subscribers every month or year.", built: false }),
+  Object.freeze({ id: "memberships", label: "Memberships & subscriptions", line: "Bill members or subscribers every month or year.", built: true }),
   Object.freeze({ id: "rentals", label: "Rentals", line: "Rent things out by the day, with a deposit.", built: false }),
 ]);
 

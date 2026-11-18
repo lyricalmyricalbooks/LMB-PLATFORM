@@ -3,7 +3,7 @@
 // once (a repeat writes nothing); off keeps the rest; the overview counts shops per way.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createWaysBeta, eventsUse, givingUse, waysBetaRoutes, START_DOC } from "./waysBeta.js";
+import { createWaysBeta, eventsUse, givingUse, membershipsUse, waysBetaRoutes, START_DOC } from "./waysBeta.js";
 import { FEATURES_DOC } from "./bookingsBeta.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { eventLine } from "./timeline.js";
@@ -47,14 +47,14 @@ test("only platform admins see or change a shop's ways to sell", async () => {
   assert.equal(await w.shopData.get(SHOP, FEATURES_DOC), null);
 });
 
-test("today only Events, Classes, Digital goods and Donations are built, so nothing else can be turned on", async () => {
+test("today only Events, Classes, Digital goods, Donations and Memberships are built, so nothing else can be turned on", async () => {
   const w = await world({ ways: WAYS });
-  assert.deepEqual(WAYS.filter((way) => way.built).map((way) => way.id), ["events", "classes", "digital", "giving"]);
+  assert.deepEqual(WAYS.filter((way) => way.built).map((way) => way.id), ["events", "classes", "digital", "giving", "memberships"]);
   for (const way of WAYS.filter((x) => !x.built)) {
     await assert.rejects(w.desk.set(ADMIN, { shopId: SHOP, way: way.id, on: true }), (e) => e.status === 409 && /isn't built yet/.test(e.message), way.id);
   }
   assert.equal(await w.shopData.get(SHOP, FEATURES_DOC), null);
-  assert.ok((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.every((way) => way.built === ["events", "classes", "giving", "digital"].includes(way.id) && !way.on));
+  assert.ok((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.every((way) => way.built === ["events", "classes", "giving", "digital", "memberships"].includes(way.id) && !way.on));
 });
 
 test("off until turned on; on writes the shop's switch beside Bookings' and the registry, logged once", async () => {
@@ -161,4 +161,24 @@ test("the shop's record shows how it uses Donations: gifts, what they came to an
     receipts: 1, fundraisers: { count: 2, live: 1, raisedMinor: 15000 },
   });
   assert.deepEqual(givingUse([], [], NOW), { gifts: 0, givenMinor: 0, currency: "CAD", blocked: { tooSmall: 0, tooMany: 0, bot: 0, total: 0 }, receipts: 0, fundraisers: { count: 0, live: 0, raisedMinor: 0 } });
+});
+
+test("the shop's record shows how it uses Memberships: members now, free trials, failed payments and a month's money", async () => {
+  const w = await world({ ways: WAYS });
+  await w.desk.set(ADMIN, { shopId: SHOP, way: "memberships", on: true });
+  const friends = { priceMinor: 1500, interval: "month", currency: "CAD" };
+  const patrons = { priceMinor: 24000, interval: "year", currency: "CAD" };
+  await w.shopData.set(SHOP, "memberships/a", { state: "active", plan: friends, customer: { email: "a@example.com" } });
+  await w.shopData.set(SHOP, "memberships/b", { state: "pastDue", plan: friends });
+  await w.shopData.set(SHOP, "memberships/c", { state: "ending", plan: patrons });
+  await w.shopData.set(SHOP, "memberships/d", { state: "trial", plan: friends });
+  // Never started, ended, and a test member never count; nor another shop's.
+  await w.shopData.set(SHOP, "memberships/e", { state: "pending", plan: friends });
+  await w.shopData.set(SHOP, "memberships/f", { state: "ended", plan: friends });
+  await w.shopData.set(SHOP, "memberships/g", { state: "active", plan: friends, mode: "test" });
+  await w.shopData.set("test-goods", "memberships/h", { state: "active", plan: friends });
+  const rows = Object.fromEntries((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.map((way) => [way.id, way]));
+  assert.deepEqual(rows.memberships.use, { members: 4, trial: 1, pastDue: 1, monthlyMinor: 5000, currency: "CAD" });
+  assert.equal(JSON.stringify(rows.memberships.use).includes("example.com"), false);
+  assert.deepEqual(membershipsUse([]), { members: 0, trial: 0, pastDue: 0, monthlyMinor: 0, currency: "CAD" });
 });

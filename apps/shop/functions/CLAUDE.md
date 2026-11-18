@@ -924,7 +924,7 @@ public `membership*` actions go through validateDiscountCode (`identify` = a ver
 `markStripeOrderPaid`); the membership id rides in `metadata.membership` instead. `apply` writes the provider's state and
 sends each email once (`welcomedAt`, `failedEmailedFor`/`endingEmailedFor` per period, `endedEmailedAt`). The webhook calls
 `onEvent` best effort before marking the event done; `bookingSweep` calls `sweep()` (reads `checkAfter <= now`, closes
-unfinished pages after 60 minutes as `neverStarted`). The privacy erase refuses while a membership is running.
+unfinished pages after 60 minutes as `neverStarted`). The privacy erase refuses while a membership is running. **Payments for the books (M1d):** `recordPayments` keeps each membership's paid invoices as `payments` (id, amount, currency, paid and period end; at most 120, `mergePayments`), re-read from the provider at most every 20 hours by the sweep, at once on an `invoice.*` event and when a page settles. The owner op `payments` lists them for the money pages, with no email.
 **Square (28 October 2026, code plan 2.2b).** `SHOP_PAYMENT_PROVIDER="square"` works only with `SHOP_PAYMENT_MODE=
 "platform"` (`providerModeOf` throws otherwise). `payments/square.js` answers the same interface in Stripe's words, so
 the callers stay as they are: Square objects are mapped to intent, session, charge, refund and dispute shapes, and the

@@ -21,7 +21,9 @@ export type MembersTotals = { members: number; monthlyMinor: number; pastDue: nu
 export type MembersList = { currency: string; ready: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals };
 /** What the plan form sends (shared/membershipRules `cleanPlan` checks it on the server). */
 export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean };
-export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint";
+export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint" | "payments";
+/** One membership payment, for the money pages (no names or emails). */
+export type MemberPayment = { id: string; membershipId: string; plan: string; amountMinor: number; currency: string; paidAt: string; test: boolean };
 
 /** One object so the admin fixture (src/adminFixture/main.ts) can swap in sample members. */
 export const membersData = {

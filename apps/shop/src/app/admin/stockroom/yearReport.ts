@@ -9,7 +9,7 @@ import { fileStem } from "@stockroom/shop-profile.js";
 import { getBookCurrencyCode } from "@stockroom/money.js";
 
 import { mileageYear } from "./mileage";
-import { SERVICE_SOURCE, serviceLedgerRows } from "./serviceSales";
+import { MEMBERSHIP_SOURCE, SERVICE_SOURCE, serviceLedgerRows } from "./serviceSales";
 import { stockValue } from "./stockValue";
 import { artistEarningsInYear, isExpenseAwaitingRate, type TaxSeasonInput } from "./taxSeason";
 import { SHOP_CURRENCY } from "../moneySign";
@@ -64,6 +64,13 @@ export function yearFigures(input: TaxSeasonInput, year: number | string): YearF
     r.services = revenue;
     r.bookStats.push({ title: "Bookings", units: visits.length, revenue, unitCost: 0, cogs: 0, shares: 0, net: revenue });
   }
+  // Memberships: each payment is revenue (no cost of goods, no artist share).
+  const paid = serviceLedgerRows(input.serviceSales, y, SHOP_CURRENCY).filter((row) => row.sourceType === MEMBERSHIP_SOURCE);
+  if (paid.length) {
+    const revenue = paid.reduce((sum, row) => sum + row.baseAmount, 0);
+    r.revenue += revenue;
+    r.bookStats.push({ title: "Memberships", units: paid.length, revenue, unitCost: 0, cogs: 0, shares: 0, net: revenue });
+  }
   r.profit = r.revenue - r.cogs - r.opex - r.shares;
   return r;
 }
@@ -89,9 +96,10 @@ export function yearReportCsv(input: TaxSeasonInput, year: number | string): { t
     }
   }
   for (const row of serviceLedgerRows(input.serviceSales, y, SHOP_CURRENCY)) {
-    if (row.sourceType !== SERVICE_SOURCE) continue;
+    if (row.sourceType !== SERVICE_SOURCE && row.sourceType !== MEMBERSHIP_SOURCE) continue;
     const gross = row.baseAmount.toFixed(2);
-    csv += csvRow([row.date, "Booking", "Bookings", "Sale", row.desc, "", gross, 0, 0, 0, gross]) + "\n";
+    const member = row.sourceType === MEMBERSHIP_SOURCE;
+    csv += csvRow([row.date, member ? "Membership" : "Booking", member ? "Memberships" : "Bookings", "Sale", row.desc, "", gross, 0, 0, 0, gross]) + "\n";
   }
   // Business drives at the shop's mileage rate (mileage.ts), one line each.
   const drives = mileageYear(input.taxCenter || null, y);

@@ -214,6 +214,10 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       plans = was ? plans.map((p) => (p.id === id ? next : p)) : [...plans, next];
       return { ok: true, id };
     }
+    if (op === "payments") {
+      const paid = (id: string, plan: string, amountMinor: number, days: number) => ({ id, membershipId: "m1", plan, amountMinor, currency: "CAD", paidAt: at(days), test: false });
+      return { currency: "CAD", payments: query === "new" ? [] : [paid("in_f1", "Friends of the press", 1500, -50), paid("in_f2", "Friends of the press", 1500, -20), paid("in_p1", "Patrons", 25000, -40)] };
+    }
     if (op === "endNow" || op === "refresh") {
       members = members.map((m) => (m.id === body.id && op === "endNow" ? { ...m, state: "ended" as const, endedAt: new Date().toISOString() } : m));
       return { ok: true, member: members.find((m) => m.id === body.id) };
