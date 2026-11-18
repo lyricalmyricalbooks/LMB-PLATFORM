@@ -316,12 +316,16 @@ function NewBooking({ c }: { c: Copy }) {
                 // Each person's own price and length, when anyone here has one (anyone free: the service's own).
                 const own = listed && ratesDiffer(listed, people) ? asPerson(listed, p.id ? p : null) : null;
                 return (
-                  <button key={p.id || "anyone"} type="button" className="fm-book-person" aria-pressed={staffId === p.id} onClick={() => { setStaffId(p.id); setStart(""); }}>
-                    {p.name}
-                    {own && <span className="fm-book-person-rate" translate="no">{[lengthText(own.minutes), own.priceMinor > 0 ? moneyText(own.priceMinor, currency) : ""].filter(Boolean).join(" · ")}</span>}
+                  <button key={p.id || "anyone"} type="button" className="fm-book-person" data-photo={"photo" in p && p.photo ? "" : undefined} aria-pressed={staffId === p.id} onClick={() => { setStaffId(p.id); setStart(""); }}>
+                    {"photo" in p && p.photo && <img className="fm-book-person-photo" src={p.photo} alt="" loading="lazy" decoding="async" />}
+                    <span className="fm-book-person-text">
+                      {p.name}
+                      {own && <span className="fm-book-person-rate" translate="no">{[lengthText(own.minutes), own.priceMinor > 0 ? moneyText(own.priceMinor, currency) : ""].filter(Boolean).join(" · ")}</span>}
+                    </span>
                   </button>
                 );
               })}
+              {(() => { const bio = people.find((p) => p.id === staffId)?.bio; return bio ? <p className="fm-book-person-bio w-full" aria-live="polite">{bio}</p> : null; })()}
             </div>
           )}
           {!course && !pack && !usePack && listed && canJoinVisit(listed) && (

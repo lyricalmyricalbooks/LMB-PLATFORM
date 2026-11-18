@@ -69,9 +69,13 @@ export type BookingInfo = { on: boolean; zone?: string; currency?: string; cance
   /** The shop sends reminders by text, so the form offers "Text me reminders" next to the phone number. */
   texts?: boolean;
   /** The people who take bookings (none when the shop lists nobody): who does which service (no services listed = all). */
-  staff?: BookingPerson[] };
+  staff?: BookingPerson[];
+  /** False when the shop books "anyone available" (plan 4, 2.4): the client never picks a person. */
+  staffPick?: boolean };
 /** Someone who takes bookings, as the Book a time page sees them. */
 export type BookingPerson = { id: string; name: string; serviceIds: string[];
+  /** Their photo (https) and a short line about them, both optional (plan 4, 2.4). */
+  photo?: string; bio?: string;
   /** Their own length and price for some one-to-one services (null = the service's own). */
   rates?: Array<{ serviceId: string; minutes: number | null; priceMinor: number | null }> };
 /** The service as this person does it: their own length and price for a one-to-one service (the tax grows in step).
@@ -100,8 +104,8 @@ export function cardPrice(service: BookingServiceView, people: readonly BookingP
 }
 export { groupServices } from "../../../shared/bookingTimes";
 /** The people a client may pick for a service: those who do it (an empty list of services means every one). */
-export const peopleFor = (info: Pick<BookingInfo, "staff"> | null | undefined, serviceId: string): BookingPerson[] =>
-  (info?.staff || []).filter((p) => !p.serviceIds.length || p.serviceIds.includes(serviceId));
+export const peopleFor = (info: Pick<BookingInfo, "staff" | "staffPick"> | null | undefined, serviceId: string): BookingPerson[] =>
+  info?.staffPick === false ? [] : (info?.staff || []).filter((p) => !p.serviceIds.length || p.serviceIds.includes(serviceId));
 /** A pack the server accepted for this service: its code as typed, last four, visits left of how many. */
 export type BookingPackUse = { code: string; last4: string; left: number; visits: number };
 /** A pack as its own page shows it (`bookingPackView`). */

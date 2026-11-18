@@ -76,6 +76,7 @@ export const ARTICLES = Object.freeze([
       "To keep a day from getting too full, set Most online bookings a day under Hours & rules. Once a day has that many, clients can't book it online, but you can still add more yourself.",
       "A room or machine that takes more than one booking at once, like three massage tables or two kilns, can say so under Team & rooms › Rooms and equipment. Pick how many it takes at once, and it fills only when all are in use.",
       "Clients can book several services in one visit, like a cut and a colour, with up to three services one after another. The calendar shows each service as its own card, and moving one moves the whole visit. A service can also come in several lengths, each with its own price. Open the service and press Offer several lengths. To sort your services, give each one a group, like Cuts or Colour, and a picture. Your booking page shows each group under its own heading.",
+      "Under Team & rooms, give each person a photo and a short bio, and they show on your booking page. On your booking page lets clients pick who they see, book anyone available with no picking, or hide names from clients altogether.",
     ],
   },
   {

@@ -270,7 +270,21 @@ function extrasWords(b) {
 }
 
 /** What the customer's page may see of a booking (never the payment ids or the key's hash). */
-function publicBooking(id, b, settings, nowMs) {
+/**
+ * The booking as a client may see it (plan 4, 2.4): with the shop's "hide names" choice, no person's name anywhere
+ * (the booking, each service of a visit, a course's dates). The shop's own copies keep them.
+ */
+function namesForClient(b, settings) {
+  if (settings?.teamShown !== "hidden" || !b) return b;
+  return {
+    ...b, staffName: "",
+    ...(Array.isArray(b.parts) ? { parts: b.parts.map((p) => ({ ...p, staffName: "" })) } : {}),
+    ...(b.course?.staff ? { course: { ...b.course, staff: b.course.staff.map(() => "") } } : {}),
+  };
+}
+
+function publicBooking(id, booking, settings, nowMs) {
+  const b = namesForClient(booking, settings);
   const start = Date.parse(b.start);
   return {
     id, serviceId: b.serviceId, serviceName: visitName(b), minutes: b.minutes, location: b.location || "", start: b.start, end: b.end,
@@ -563,6 +577,7 @@ function bookingActions({
       const to = b.customer?.email;
       if (!to || !EMAIL.test(to)) return;
       if (!byShop && !(await claimEmailSend(db, "bookingEmail", to))) return;
+      b = namesForClient(b, await readSettings().catch(() => null));
       const brand = await emailBrand();
       const shop = brand.shopName || shopName() || "the shop";
       const when = whenWords(b);
@@ -877,7 +892,7 @@ function bookingActions({
             html: risoLayout(`
               <h4 style="margin:0 0 8px;">An earlier time has opened</h4>
               <h2 style="margin:0 0 12px;">${escapeHtml(b.serviceName || "")}</h2>
-              <p style="margin:0 0 16px;">${escapeHtml(when)}${b.staffName ? ` ${escapeHtml(withWhom(b))}` : ""} is free, and ${escapeHtml(shop)} is holding it for you until ${escapeHtml(untilText)}. Your booking is now ${escapeHtml(was)}. Take the earlier time and your booking moves to it. If you do nothing, you keep your booking.</p>
+              <p style="margin:0 0 16px;">${escapeHtml(when)}${namesForClient(b, settings).staffName ? ` ${escapeHtml(withWhom(b))}` : ""} is free, and ${escapeHtml(shop)} is holding it for you until ${escapeHtml(untilText)}. Your booking is now ${escapeHtml(was)}. Take the earlier time and your booking moves to it. If you do nothing, you keep your booking.</p>
               ${risoButton(escapeHtml(link), "Take the earlier time", brand.accent, brand.theme)}
             `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
           });
@@ -1943,6 +1958,11 @@ function bookingActions({
       if (!(await featureOn())) return res.status(200).json({ on: false });
       const settings = await readSettings();
       const nowMs = now().getTime();
+      // Clients pick a person only while the shop shows its team (plan 4, 2.4): otherwise anyone free takes it.
+      if (settings.teamShown && req.body && typeof req.body === "object") {
+        delete req.body.staffId;
+        if (Array.isArray(req.body.also)) req.body.also = req.body.also.map((a) => ({ ...a, staffId: "" }));
+      }
       if (action === "pickupTimes") {
         // Checkout's pickup times: on with the switch alone (the Book a time page may stay closed).
         if (!settings.pickupTimes) return res.status(200).json({ on: false });
@@ -1972,7 +1992,9 @@ function bookingActions({
           // Whether the form offers "Text me reminders": the owner's switch, and the platform sending texts.
           texts: !!settings.textReminders && (await textsOpen()),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
-          staff: booksByPerson(settings) ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}) })) : [],
+          // With "anyone available" the page lists them (the Your team section) but offers no choice; with names hidden, nobody.
+          staff: booksByPerson(settings) && settings.teamShown !== "hidden" ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates, photo, bio }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}), ...(photo ? { photo } : {}), ...(bio ? { bio } : {}) })) : [],
+          ...(settings.teamShown === "anyone" ? { staffPick: false } : {}),
           services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras, lengths, group, photo }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // Its group heading and photo on the booking page (plan 4, 2.3).
@@ -2420,7 +2442,7 @@ function bookingActions({
         if (!found) return fail(res, 404, "This earlier time has gone, or its hold ran out. You keep your booking.", "gone");
         const { id: bid, b: held, e } = found;
         if (action === "bookingEarlierView") {
-          return res.status(200).json({ offer: { serviceName: held.serviceName, staffName: held.staffName || "", minutes: held.minutes, start: held.start, offerStart: e.offerStart, offerUntil: e.offerUntil } });
+          return res.status(200).json({ offer: { serviceName: held.serviceName, staffName: namesForClient(held, settings).staffName || "", minutes: held.minutes, start: held.start, offerStart: e.offerStart, offerUntil: e.offerUntil } });
         }
         const service = (await readServices()).find((x) => x.id === held.serviceId) || { roomId: "" };
         const moved = await moveTime(bid, held, { ...service, id: held.serviceId, minutes: held.minutes, gapAfter: held.gapAfter || 0, gapBefore: held.gapBefore || 0, places: 1 }, settings, Date.parse(e.offerStart), { by: "customer (earlier time)", alsoFree: earlierItem(bid) });
@@ -2429,7 +2451,7 @@ function bookingActions({
         await bookings().doc(bid).set({ earlierWanted: false }, { merge: true });
         const next = await syncCalendar(bid, { ...held, ...moved, earlierWanted: false });
         await tellCustomer(bid, next, "moved");
-        return res.status(200).json({ offer: { serviceName: next.serviceName, staffName: next.staffName || "", minutes: next.minutes, start: next.start, taken: true } });
+        return res.status(200).json({ offer: { serviceName: next.serviceName, staffName: namesForClient(next, settings).staffName || "", minutes: next.minutes, start: next.start, taken: true } });
       }
       const id = String(req.body?.id || "");
       const key = String(req.body?.key || "");
@@ -3292,6 +3314,7 @@ function bookingActions({
       if (!texts || !b.customer?.textOk || !b.customer?.phone) return;
       const settings = await readSettings();
       if (!settings.textReminders) return;
+      b = namesForClient(b, settings);
       const when = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
       const shop = String(shopName() || "").trim().slice(0, 40);
       const body = `${kind === "soon" ? "Soon" : "Reminder"}: ${visitName(b).slice(0, 60)}${shop ? ` at ${shop}` : ""}, ${when}${b.staffName ? ` with ${b.staffName.slice(0, 30)}` : ""}. Change or cancel: ${manageUrl(id, key)} Reply STOP to stop texts.`;
@@ -3788,6 +3811,8 @@ function bookingActions({
   /** The rebook reminder itself. Never throws. */
   async function tellRebook(b, service, email) {
     try {
+      // With names hidden, the Book again link doesn't pick the person either.
+      if ((await readSettings().catch(() => null))?.teamShown === "hidden") b = { ...namesForClient(b, { teamShown: "hidden" }), staffId: "" };
       const brand = await emailBrand();
       const shop = brand.shopName || shopName() || "the shop";
       const first = String(b.customer?.name || "").trim().split(/\s+/)[0] || "";

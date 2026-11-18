@@ -2326,11 +2326,16 @@ export function BookingTeamSection({ settings, enableAnimations }: any) {
             const label = personWords(words, p.name);
             return (
               <li key={p.id} className="flex flex-col items-start gap-4 p-6 border border-white/15 bg-white/[0.03] text-left" style={{ borderRadius: "var(--rp-card-radius, 0px)" }}>
-                <span aria-hidden="true" className="grid place-items-center w-14 h-14 rounded-full border border-white/15 bg-white/[0.06] text-xl font-bold text-white" style={hStyle(settings)}>
-                  {p.name.trim().charAt(0).toUpperCase()}
-                </span>
+                {p.photo ? (
+                  <img src={p.photo} alt="" loading="lazy" decoding="async" className="w-20 h-20 rounded-full object-cover border border-white/15" />
+                ) : (
+                  <span aria-hidden="true" className="grid place-items-center w-14 h-14 rounded-full border border-white/15 bg-white/[0.06] text-xl font-bold text-white" style={hStyle(settings)}>
+                    {p.name.trim().charAt(0).toUpperCase()}
+                  </span>
+                )}
                 <div className="min-w-0">
                   <h3 className="text-xl font-bold text-white leading-tight" style={hStyle(settings)}>{p.name}</h3>
+                  {p.bio && <p className="mt-2 text-sm text-white/80 leading-relaxed" style={bStyle(settings)}>{p.bio}</p>}
                   {settings.showServices !== false && (
                     <p className="mt-2 text-sm text-white/60 leading-relaxed" style={bStyle(settings)}>{p.services.length ? p.services.join(" · ") : c("bookTimeTeamAll")}</p>
                   )}

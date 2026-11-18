@@ -57,7 +57,8 @@ export const bookWithHref = (personId: string) => `/book?with=${encodeURICompone
 /** The services a person does, for the Book a time page opened with them picked (every service when they do all). */
 export function servicesFor(info: BookingInfo | null, personId: string): BookingServiceView[] {
   const all = menuServices(info);
-  const person = (info?.staff || []).find((p) => p.id === personId);
+  // A shop that books "anyone available" never narrows by person (plan 4, 2.4).
+  const person = info?.staffPick === false ? undefined : (info?.staff || []).find((p) => p.id === personId);
   if (!person || !person.serviceIds.length) return all;
   return all.filter((s) => person.serviceIds.includes(s.id));
 }

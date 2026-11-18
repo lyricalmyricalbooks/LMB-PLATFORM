@@ -530,7 +530,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     ...(TEAM ? {
       rooms: [{ id: "printroom", name: "Print room", units: 2 }, { id: "chair1", name: "Chair by the window" }],
       staff: [
-        { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "ana@example.com", commissionPercent: 40 },
+        { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "ana@example.com", commissionPercent: 40, photo: samplePhoto("#f4d9c6", "#c25d3b"), bio: "Ten years at the press. Ask her about paper." },
         { id: "ben", name: "Ben Example", active: true, serviceIds: ["riso", "workshop"], ownHours: true, hours: [[], [{ start: "12:00", end: "18:00" }], [{ start: "12:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }], [], []], daysOff: [], email: "" },
         { id: "cy", name: "Cy Example", active: false, serviceIds: ["review"], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
       ],

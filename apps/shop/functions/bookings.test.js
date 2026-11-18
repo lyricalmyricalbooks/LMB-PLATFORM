@@ -3745,3 +3745,58 @@ describe("service groups and photos (plan 4, 2.3)", () => {
     expect("photo" in colour).toBe(false);
   });
 });
+
+describe("team on the booking page (plan 4, 2.4)", () => {
+  const team = async (t, teamShown) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({
+      ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, ...(teamShown ? { teamShown } : {}),
+      staff: [{ id: "ana", name: "Ana", photo: "https://example.com/ana.jpg", bio: "Ten years at the press." }, { id: "ben", name: "Ben", photo: "javascript:x" }],
+    });
+  };
+  const book = (t, extra = {}) => t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "14:00"), ...CUSTOMER, ...extra });
+
+  test("clients pick: each person's https photo and bio reach the page; a bad photo never does", async () => {
+    const t = setup();
+    await team(t);
+    const info = (await t.pub({ action: "bookingInfo" })).body;
+    expect(info.staff[0]).toMatchObject({ id: "ana", photo: "https://example.com/ana.jpg", bio: "Ten years at the press." });
+    expect("photo" in info.staff[1]).toBe(false);
+    expect(info.staffPick).toBeUndefined();
+  });
+
+  test("anyone available: no picking, and a person sent anyway is ignored", async () => {
+    const t = setup();
+    await team(t, "anyone");
+    const info = (await t.pub({ action: "bookingInfo" })).body;
+    expect(info.staffPick).toBe(false);
+    const r = await book(t, { staffId: "ben" });
+    expect(r.statusCode).toBe(200);
+    // Anyone free: the first person free takes it, whatever the browser sent.
+    expect(t.db.store.get(`bookings/${r.body.id}`).staffName).toMatch(/Ana|Ben/);
+    // Names still show to the client in this mode.
+    expect(t.emails.find((e) => e.to === "ada@example.com").html).toMatch(/With:<\/strong> (Ana|Ben)/);
+  });
+
+  test("hide names: the page lists nobody, and the client's emails and booking page never name anyone", async () => {
+    const t = setup();
+    await team(t, "hidden");
+    expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([]);
+    const r = await book(t, { staffId: "ana" });
+    expect(r.statusCode).toBe(200);
+    // The owner still knows who takes it.
+    expect(t.db.store.get(`bookings/${r.body.id}`).staffName).toMatch(/Ana|Ben/);
+    const mine = t.emails.find((e) => e.to === "ada@example.com");
+    expect(mine.html).not.toMatch(/With:<\/strong>/);
+    expect(mine.html).not.toMatch(/\b(Ana|Ben)\b/);
+    const view = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body;
+    expect(JSON.stringify(view)).not.toMatch(/\b(Ana|Ben)\b/);
+  });
+
+  test("the setting saves only the two choices", () => {
+    expect(cleanBookingSettings({ teamShown: "hidden" }).teamShown).toBe("hidden");
+    expect(cleanBookingSettings({ teamShown: "anyone" }).teamShown).toBe("anyone");
+    expect(cleanBookingSettings({ teamShown: "pick" }).teamShown).toBeUndefined();
+    expect(cleanBookingSettings({ teamShown: "<b>" }).teamShown).toBeUndefined();
+  });
+});
