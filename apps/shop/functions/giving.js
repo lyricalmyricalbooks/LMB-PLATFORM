@@ -119,6 +119,11 @@ function givingActions({
     const snap = await settingsRef().get().catch(() => null);
     return snap?.exists ? cleanGivingSettings(snap.data()) : startingGivingSettings();
   }
+  /** Whether checkout may take a tip now: both switches on and the owner asks for tips. Read on every pricing. */
+  async function tipsTaken() {
+    if (!(await featureOn())) return false;
+    return (await readSettings()).checkoutTip === true;
+  }
   async function standalone() {
     const mode = (await shopTestMode()) ? "test" : "live";
     return { mode, checkout: await payments.standaloneCheckout(mode) };
@@ -127,13 +132,17 @@ function givingActions({
   // The website shows its Support links from `settings/website.givingLive`, which the pages already read. Kept in step
   // when the owner flips the switch (admin op `hint`) or saves the settings. Only a hint for showing a link: every
   // public action still checks the real switches. A shop with no website settings yet is left alone.
+  // `givingTips` (the tip percents, empty when tips are off) tells the checkout page whether to ask for a tip.
   async function tellWebsite() {
     try {
       const live = await featureOn();
+      const settings = await readSettings();
+      const tips = live && settings.checkoutTip ? settings.tipPercents : [];
       const ref = db.collection("settings").doc("website");
       const snap = await ref.get();
       const had = snap.exists ? snap.data() : null;
-      if (had && (had.givingLive === true) !== live) await ref.set({ givingLive: live }, { merge: true });
+      const hadTips = Array.isArray(had?.givingTips) ? had.givingTips : [];
+      if (had && ((had.givingLive === true) !== live || hadTips.join(",") !== tips.join(","))) await ref.set({ givingLive: live, givingTips: tips }, { merge: true });
       return live;
     } catch (err) {
       console.warn("giving: the website link wasn't updated:", err?.message || err);
@@ -493,7 +502,7 @@ function givingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweep, tellWebsite, featureOn };
+  return { handlePublic, handleAdmin, sweep, tellWebsite, featureOn, tipsTaken };
 }
 
 module.exports = { givingActions, PUBLIC_GIVING_ACTIONS, GIFT_PAGES_PER_HOUR, GIFT_PAGES_PER_EMAIL, FORM_MIN_SECONDS };

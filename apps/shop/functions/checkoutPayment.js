@@ -64,6 +64,8 @@ function checkoutPaymentActions({
         ...(encodeAcquisition(source.acquisition) ? { acquisition: encodeAcquisition(source.acquisition) } : {}),
         appliedDiscount: typeof source.appliedDiscount?.code === 'string' ? { code: source.appliedDiscount.code.slice(0, 100) } : null,
         ...(typeof source.orderNote === 'string' ? { orderNote: source.orderNote.slice(0, 500) } : {}),
+        // A tip: priceOrder checks it (whole cents, in bounds, the shop takes tips).
+        ...(source.tipMinor !== undefined && source.tipMinor !== null ? { tipMinor: source.tipMinor } : {}),
         ...(typeof source.locale === 'string' ? { locale: source.locale.slice(0, 20) } : {}),
       };
       // Gift cards are taken when the payment is confirmed, which a manual payment may be days later.
@@ -272,6 +274,18 @@ function checkoutPaymentActions({
         });
       }
 
+      // A tip: its own line, never taxed or discounted (priceOrder).
+      if (priced.tip > 0) {
+        lineItems.push({
+          price_data: {
+            currency: checkoutCurrency,
+            product_data: { name: "Tip" },
+            unit_amount: Math.round(priced.tip * exchangeRate * 100),
+          },
+          quantity: 1,
+        });
+      }
+
       if (taxCost > 0) {
         lineItems.push({
           price_data: {
@@ -334,6 +348,7 @@ function checkoutPaymentActions({
         fulfillment,
         tax: taxCost,
         taxLines: priced.taxLines,
+        tip: priced.tip || 0,
         giftCardAmount,
         giftCardRedemptions,
         total: finalTotal,

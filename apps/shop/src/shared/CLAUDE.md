@@ -114,3 +114,5 @@ browsers may write (mirroring `firestore.rules`).
 - Donations & tips (beta, 18 November 2026): `givingRules.ts` holds the owner's giving settings (`cleanGivingSettings`), the
   $5 lowest and $10,000 highest gift (`giftAmountProblem`), the card fee a giver may cover (`coverFeeMinor`, `giftCharge`;
   no sales tax ever) and the giver's details (`cleanGiver`, `giverShown`). The server's records are in `functions/giving.js`.
+  Tips at checkout (G1c): `checkoutTip`, `tipPercents`, `cleanTipPercents`, `tipChoices`, `checkoutTipProblem`,
+  `MIN_TIP_MINOR` (100) and `MAX_TIP_MINOR` (100000). `bookkeeping.ts` gives tips their own `tipsCents`, never in sales.

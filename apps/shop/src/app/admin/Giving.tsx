@@ -12,7 +12,7 @@ import {
 import { givingAdmin, type AdminGift, type GivingList } from "./givingApi";
 import { amountFromText, blockedLine, dayText, giverLine, honourText, withAmount } from "./givingView";
 import { moneyText } from "./eventsView";
-import { MAX_AMOUNTS, MAX_THANKS, type GivingSettings } from "../../shared/givingRules";
+import { MAX_AMOUNTS, MAX_THANKS, MAX_TIP_CHOICES, cleanTipPercents, type GivingSettings } from "../../shared/givingRules";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./bookings.css";
 import "./giving.css";
@@ -144,9 +144,20 @@ function GiftRow({ gift, money, onChanged }: { gift: AdminGift; money: (minor: n
   );
 }
 
+/** "5, 10, 15" as clean percents, or null when any part isn't a whole percent from 1 to 50 or there are too many. */
+function percentsFromText(text: string): number[] | null {
+  const parts = text.split(/[\s,%]+/).filter(Boolean);
+  if (!parts.length || parts.length > MAX_TIP_CHOICES) return null;
+  const nums = parts.map(Number);
+  if (nums.some((n) => !Number.isInteger(n) || n < 1 || n > 50)) return null;
+  return cleanTipPercents(nums);
+}
+
 function SettingsDrawer({ start, money, onClose, onSaved }: { start: GivingSettings; money: (minor: number) => string; onClose: () => void; onSaved: (s: GivingSettings) => void }) {
   const [form, setForm] = useState<GivingSettings>(start);
   const [typed, setTyped] = useState("");
+  const [tipText, setTipText] = useState((start.tipPercents || []).join(", "));
+  const [tipProblem, setTipProblem] = useState("");
   const [amountProblem, setAmountProblem] = useState("");
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
@@ -163,9 +174,11 @@ function SettingsDrawer({ start, money, onClose, onSaved }: { start: GivingSetti
   };
   const save = async () => {
     if (!form.amounts.length && !form.otherAmount) { setProblem("Add at least one amount, or let givers type their own."); return; }
+    const tipPercents = percentsFromText(tipText);
+    if (form.checkoutTip && !tipPercents) { setTipProblem(`Type 1 to ${MAX_TIP_CHOICES} whole percents from 1 to 50, like 5, 10, 15.`); return; }
     setBusy(true);
     try {
-      const answer = await givingAdmin<{ settings: GivingSettings }>("saveSettings", { settings: form });
+      const answer = await givingAdmin<{ settings: GivingSettings }>("saveSettings", { settings: { ...form, tipPercents: tipPercents || form.tipPercents } });
       toast.success("Saved.");
       onSaved(answer.settings);
     } catch (err) { setProblem(problemOf(err, "That didn't save. Check your connection and try again.")); }
@@ -200,6 +213,15 @@ function SettingsDrawer({ start, money, onClose, onSaved }: { start: GivingSetti
           <Toggle label="Givers can cover the card fee, so you get the whole gift" checked={form.coverFee} onChange={(v) => set({ coverFee: v })} />
           <Toggle label="Givers can give in honour or in memory of someone" checked={form.honour} onChange={(v) => set({ honour: v })} />
         </div>
+        <fieldset className="gvg-amounts">
+          <legend>Tip at checkout</legend>
+          <Toggle label="Ask shoppers for a tip when they pay for an order" checked={form.checkoutTip} onChange={(v) => set({ checkoutTip: v })} />
+          <p className="gvg-hint">Shoppers see No tip, your percents with what each comes to, and Other. Tips are never taxed or discounted, and they show on the order and in Bookkeeping.</p>
+          {form.checkoutTip && (
+            <TextField label="Tip choices (percents)" placeholder="5, 10, 15" inputMode="numeric" value={tipText} error={tipProblem || undefined}
+              hint={`Up to ${MAX_TIP_CHOICES}, from 1 to 50.`} onChange={(e) => { setTipText(e.target.value); setTipProblem(""); }} />
+          )}
+        </fieldset>
         <TextArea label="Your thank-you words" hint="Added to the thank-you email every giver gets. Leave it empty for the standard thanks." rows={4} maxLength={MAX_THANKS}
           value={form.thanks} onChange={(e) => set({ thanks: e.target.value })} placeholder="Every gift helps us keep printing. Thank you." />
         {problem && <p className="gvg-problem" role="alert">{problem}</p>}

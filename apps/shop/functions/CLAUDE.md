@@ -1733,3 +1733,9 @@ pages an hour per visitor (`giftPage`) and 3 per email (`giftEmail`), a signed f
 3 seconds to 6 hours old, and a hidden `website` field that must stay empty. Every refusal is counted in `givingBlocked`
 (`tooSmall`, `tooMany`, `bot`). Privacy export and erase cover gifts (`redactedTicketOrderFields`: a card-paid gift keeps
 its name as a payment record).
+**Tips at checkout (G1c):** `givingSettings.checkoutTip` + `tipPercents` (`cleanTipPercents`: 1 to 4 whole percents, 1 to
+50). `tipsTaken()` is both switches plus `checkoutTip`; `tellWebsite` keeps `settings/website.givingTips`. `priceOrder`
+reads the order's `tipMinor` through `checkoutTipFor`: refused (`tip_rejected`) when tips aren't taken, out of $1 to
+$1,000, or on a payment link; never taxed or discounted, added before gift cards (a gift card may cover it), saved as `tip`
+(public order field). The card page has a Tip line; both order emails a Tip row (French "Pourboire"). Bookkeeping's
+`tipsCents` keeps it out of sales.

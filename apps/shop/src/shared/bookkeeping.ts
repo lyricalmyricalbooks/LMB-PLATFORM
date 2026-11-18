@@ -4,8 +4,8 @@
 // - Order lines: one per order per day something happened to it: a "Sale" on the day it was paid, a "Refund" on the
 //   day money went back. Day lines are those added up, so the two sheets always agree.
 // - Day lines (`dailyBookkeeping`): sales before tax, shipping, discounts, gift cards sold and used, refunds, each tax
-//   by its name in the books (taxBooks.ts), card fees, net. Net = what the press keeps: sales − discounts + shipping +
-//   taxes + gift cards sold − gift cards used − card fees − refunds.
+//   by its name in the books (taxBooks.ts), tips (Donations & tips: never taxed), card fees, net. Net = what the press
+//   keeps: sales − discounts + shipping + taxes + tips + gift cards sold − gift cards used − card fees − refunds.
 // - Payout lines: one per payout dated in the month, with its orders' total, fees, refunds and net (the payment
 //   service's `net`, which already has refunds taken off; total − fees − refunds = net).
 // Money is whole cents in the shop's currency (order amounts are stored in it; a refund in the shopper's currency is
@@ -37,6 +37,7 @@ export type BookkeepingOrder = {
   discount?: Money;
   shipping?: Money;
   tax?: Money;
+  tip?: Money;
   taxLines?: TaxLine[];
   total?: Money;
   giftCardAmount?: Money;
@@ -67,6 +68,7 @@ export type BookkeepingDay = {
   date: string;
   salesCents: number;
   shippingCents: number;
+  tipsCents: number;
   discountsCents: number;
   giftCardsSoldCents: number;
   giftCardsUsedCents: number;
@@ -191,6 +193,7 @@ export function bookkeepingOrderLines(orders: BookkeepingOrder[], options: Bookk
         date: paidDay, orderId, kind: "Sale",
         salesCents: cents(order.subtotal) - soldCards,
         shippingCents: cents(order.shipping),
+        tipsCents: cents(order.tip),
         discountsCents: cents(order.discount),
         giftCardsSoldCents: soldCards,
         giftCardsUsedCents: cents(order.giftCardAmount),
@@ -206,7 +209,7 @@ export function bookkeepingOrderLines(orders: BookkeepingOrder[], options: Bookk
       if (!inMonth(day)) continue;
       out.push({
         date: day, orderId, kind: "Refund",
-        salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
+        salesCents: 0, shippingCents: 0, tipsCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
         refundsCents: amount, taxes: {}, totalCents: 0, feeCents: null, netCents: -amount,
         payoutId: null, payoutDate: null, currency,
       });
@@ -220,11 +223,12 @@ export function dailyBookkeeping(orders: BookkeepingOrder[], options: Bookkeepin
   const days = new Map<string, BookkeepingDay>();
   for (const line of bookkeepingOrderLines(orders, options)) {
     const day = days.get(line.date) || {
-      date: line.date, salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
+      date: line.date, salesCents: 0, shippingCents: 0, tipsCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
       refundsCents: 0, taxes: {}, feesCents: 0, netCents: 0, currency: line.currency,
     };
     day.salesCents += line.salesCents;
     day.shippingCents += line.shippingCents;
+    day.tipsCents += line.tipsCents;
     day.discountsCents += line.discountsCents;
     day.giftCardsSoldCents += line.giftCardsSoldCents;
     day.giftCardsUsedCents += line.giftCardsUsedCents;

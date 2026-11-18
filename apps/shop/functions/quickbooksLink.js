@@ -36,7 +36,7 @@ const { dailyBookkeeping } = require("./shared/bookkeeping");
 function dayFromOrders(orders, date, timeZone = shopTimeZone()) {
   const found = dailyBookkeeping(orders, { month: date.slice(0, 7), currency: shopCurrency(), timeZone }).find((d) => d.date === date);
   return found || {
-    date, salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
+    date, salesCents: 0, shippingCents: 0, tipsCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
     refundsCents: 0, taxes: {}, feesCents: 0, netCents: 0, currency: shopCurrency(),
   };
 }

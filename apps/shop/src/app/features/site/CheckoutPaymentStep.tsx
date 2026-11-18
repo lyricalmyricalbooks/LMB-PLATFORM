@@ -9,7 +9,7 @@ import { SectionHead } from "./CheckoutFields";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 
-export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoice, formatPrice, finalTotal, payTabs, stripeOption, hasStripe, hasPaypal, isCompleting, selectedPaymentMethod, setSelectedPaymentMethod, enabledManualMethods, hasCodeBoxes, codeBoxes, holdIssues, notice, noticeRef, catalogState, termsRequired, termsAccepted, setTermsAccepted, termsError, policyLinks, payDisabled, payLabel, payTotal, checkoutPolicies, digitalConsentNeeded = false, digitalConsent = false, setDigitalConsent = () => {}, digitalConsentError = false, newsTickShown = false, joinNews = false, setJoinNews = () => {} }: {
+export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoice, formatPrice, finalTotal, payTabs, stripeOption, hasStripe, hasPaypal, isCompleting, selectedPaymentMethod, setSelectedPaymentMethod, enabledManualMethods, hasCodeBoxes, codeBoxes, holdIssues, notice, noticeRef, catalogState, termsRequired, termsAccepted, setTermsAccepted, termsError, policyLinks, payDisabled, payLabel, payTotal, checkoutPolicies, digitalConsentNeeded = false, digitalConsent = false, setDigitalConsent = () => {}, digitalConsentError = false, newsTickShown = false, joinNews = false, setJoinNews = () => {}, tipBox = null }: {
   c: Copy; mark: (key: string) => string | null; checkoutDesign: any; needsDeliveryChoice: boolean;
   formatPrice: (priceInCAD: number) => string; finalTotal: number; payTabs: boolean; stripeOption: React.ReactNode;
   hasStripe: boolean; hasPaypal: boolean; isCompleting: boolean; selectedPaymentMethod: string; setSelectedPaymentMethod: (method: string) => void;
@@ -20,6 +20,8 @@ export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoi
   digitalConsentNeeded?: boolean; digitalConsent?: boolean; setDigitalConsent?: (agreed: boolean) => void; digitalConsentError?: boolean;
   /** A free download (Digital D2c): an optional tick to join the shop's mailing list (double opt-in after the order). */
   newsTickShown?: boolean; joinNews?: boolean; setJoinNews?: (join: boolean) => void;
+  /** The tip line (Donations & tips, beta), when the shop asks for one. */
+  tipBox?: React.ReactNode;
 }) {
   return (
     <section className="fm-co-section">
@@ -48,6 +50,7 @@ export function CheckoutPaymentStep({ c, mark, checkoutDesign, needsDeliveryChoi
         )}
       </div>
       {hasCodeBoxes && <div className="fm-co-codes fm-co-pay-codes">{codeBoxes}</div>}
+      {tipBox}
 
       {holdIssues.length > 0 && (
         <div {...regionProps("checkoutHoldWarning")} role="status" className="space-y-2 border px-4 py-3 text-sm" style={{ borderColor: "var(--warning, #b45309)", color: "var(--warning, #b45309)" }}>

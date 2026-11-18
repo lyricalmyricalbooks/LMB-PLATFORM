@@ -8,9 +8,12 @@
 // card fee when the giver chose to cover it. The lowest gift is MIN_GIFT_MINOR, so a stolen card can't be tried with a
 // few cents (the server also limits how often one visitor or one email may open a card page).
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startingGivingSettings = exports.GIVING_MESSAGES = exports.MAX_THANKS = exports.MAX_NOTE = exports.CARD_FEE_FIXED_MINOR = exports.CARD_FEE_PERCENT = exports.DEFAULT_AMOUNTS = exports.MAX_AMOUNTS = exports.MAX_GIFT_MINOR = exports.MIN_GIFT_MINOR = void 0;
+exports.startingGivingSettings = exports.GIVING_MESSAGES = exports.MAX_THANKS = exports.MAX_TIP_MINOR = exports.MIN_TIP_MINOR = exports.MAX_TIP_CHOICES = exports.DEFAULT_TIP_PERCENTS = exports.MAX_NOTE = exports.CARD_FEE_FIXED_MINOR = exports.CARD_FEE_PERCENT = exports.DEFAULT_AMOUNTS = exports.MAX_AMOUNTS = exports.MAX_GIFT_MINOR = exports.MIN_GIFT_MINOR = void 0;
 exports.centsOf = centsOf;
 exports.cleanGivingSettings = cleanGivingSettings;
+exports.cleanTipPercents = cleanTipPercents;
+exports.tipChoices = tipChoices;
+exports.checkoutTipProblem = checkoutTipProblem;
 exports.giftAmountProblem = giftAmountProblem;
 exports.coverFeeMinor = coverFeeMinor;
 exports.giftCharge = giftCharge;
@@ -27,6 +30,11 @@ exports.DEFAULT_AMOUNTS = Object.freeze([1000, 2500, 5000, 10000]);
 exports.CARD_FEE_PERCENT = 2.9;
 exports.CARD_FEE_FIXED_MINOR = 30;
 exports.MAX_NOTE = 500;
+/** Tips at checkout: the percents offered when the owner hasn't chosen, and the bounds of one tip. */
+exports.DEFAULT_TIP_PERCENTS = Object.freeze([5, 10, 15]);
+exports.MAX_TIP_CHOICES = 4;
+exports.MIN_TIP_MINOR = 100;
+exports.MAX_TIP_MINOR = 100_000;
 exports.MAX_THANKS = 600;
 exports.GIVING_MESSAGES = Object.freeze({
     off: "This shop isn't taking gifts right now.",
@@ -61,10 +69,35 @@ function cleanGivingSettings(raw) {
         coverFee: s.coverFee !== false,
         honour: s.honour !== false,
         thanks: block(s.thanks, exports.MAX_THANKS),
+        checkoutTip: s.checkoutTip === true,
+        tipPercents: cleanTipPercents(s.tipPercents),
     };
 }
+/** 1 to 4 whole percents from 1 to 50, smallest first; anything else is the defaults. */
+function cleanTipPercents(raw) {
+    const list = Array.isArray(raw) ? raw : [];
+    const percents = [...new Set(list.map(centsOf).filter((n) => n >= 1 && n <= 50))].sort((a, b) => a - b).slice(0, exports.MAX_TIP_CHOICES);
+    return percents.length ? percents : [...exports.DEFAULT_TIP_PERCENTS];
+}
+/** Each tip choice in cents: that percent of the items (after any discount), rounded to the cent. */
+function tipChoices(baseMinor, percents) {
+    const base = Math.max(0, Math.round(Number(baseMinor) || 0));
+    return percents.map((percent) => ({ percent, minor: Math.round((base * percent) / 100) }));
+}
+/** Why this tip can't be taken, or null. Nothing (0) is always fine; a tip is whole cents from $1 to $1,000. */
+function checkoutTipProblem(tipMinor) {
+    if (tipMinor === undefined || tipMinor === null || tipMinor === 0)
+        return null;
+    if (typeof tipMinor !== "number" || !Number.isInteger(tipMinor) || tipMinor < 0)
+        return "tip";
+    if (tipMinor < exports.MIN_TIP_MINOR)
+        return "tipTooSmall";
+    if (tipMinor > exports.MAX_TIP_MINOR)
+        return "tipTooBig";
+    return null;
+}
 /** The settings a shop starts with. */
-const startingGivingSettings = () => ({ amounts: [...exports.DEFAULT_AMOUNTS], otherAmount: true, coverFee: true, honour: true, thanks: "" });
+const startingGivingSettings = () => ({ amounts: [...exports.DEFAULT_AMOUNTS], otherAmount: true, coverFee: true, honour: true, thanks: "", checkoutTip: false, tipPercents: [...exports.DEFAULT_TIP_PERCENTS] });
 exports.startingGivingSettings = startingGivingSettings;
 /** Why this amount can't be given (`code` says which), or null. The settings decide whether a typed amount is allowed. */
 function giftAmountProblem(amountMinor, settings) {

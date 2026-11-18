@@ -3,7 +3,7 @@
 import { payWhatYouWantMax } from "../../../../../shared/payWhatYouWant";
 
 /** "1,000.50", "1 000,50" and "12,5" all read as plain numbers: a comma with one or two digits after it is the decimal mark. */
-function plainNumber(typed: string): string {
+export function plainNumber(typed: string): string {
   const text = typed.trim().replace(/[^0-9.,]/g, "");
   if (text.includes(".")) return text.replace(/,/g, "");
   return /,\d{1,2}$/.test(text) ? text.replace(/,(?=\d{1,2}$)/, ".").replace(/,/g, "") : text.replace(/,/g, "");

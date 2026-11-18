@@ -1396,3 +1396,4 @@ with resend and refund, and the Amounts & choices drawer (suggested amounts, oth
 thank-you words). Everything goes through `givingApi.ts` (`givingAdmin`); small rules in `givingView.ts`. Flipping the
 switch in Ways to sell sends `hint` so the website's Support link follows. Fixture: `admin-fixture.html?ways=giving&page=giving`
 (`&giving=new` for the empty page).
+Amounts & choices also has **Tip at checkout** (switch and percents, `percentsFromText`); an order's Tip shows on its page.
