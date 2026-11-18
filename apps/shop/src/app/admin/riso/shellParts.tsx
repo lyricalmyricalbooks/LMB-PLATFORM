@@ -122,7 +122,7 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
     const jobs = onJob ? searchJobs(q, [w("product"), "product", "book", "item"]).flatMap((job) => {
       const order = job.kind === "order" ? orderByNumber(orders || [], job.number) : undefined;
       if ((job.kind === "order" && !order) || (job.kind === "waysToSell" && !waysOffered)) return [];
-      return [{ key: `do-${job.kind}-${job.kind === "order" ? job.number : ""}`, label: jobLabel(order ? { ...job, number: String(order.orderId || order.id).replace(/^#/, "") } : job, w("product")), kind: "Do", run: () => onJob(job, order) }];
+      return [{ key: `do-${job.kind}-${job.kind === "order" ? job.number : ""}`, label: jobLabel(job.kind === "order" && order ? { ...job, number: String(order.orderId || order.id).replace(/^#/, "") } : job, w("product")), kind: "Do", run: () => onJob(job, order) }];
     }) : [];
     return [...jobs, ...nav, ...bk, ...ord, ...cust, ...inApp];
   }, [q, books, booksState, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer, appBooks, appConnected, onJob, waysOffered, w]);
