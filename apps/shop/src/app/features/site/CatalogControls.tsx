@@ -124,16 +124,32 @@ export function optionFiltersIn(items: any[]): OptionFilter[] {
   });
 }
 
-/** Whether a product comes in one of the picked values of every picked option. */
+/**
+ * Whether one of the product's variants has a picked value for every picked option (M and White means one variant in M
+ * and White, not one in M and another in White). A product whose variants carry no picks is matched on its options.
+ */
 export function matchesOptions(item: any, picked: Record<string, string[]>): boolean {
   const wanted = Object.entries(picked).filter(([, values]) => values.length);
   if (!wanted.length) return true;
+  const fits = (own: Map<string, Set<string>>) => wanted.every(([key, values]) => values.some((v) => own.get(key)?.has(v)));
+  const variants = (Array.isArray(item?.variants) ? item.variants : [])
+    .filter((v: any) => v && v.options && typeof v.options === "object" && Object.keys(v.options).length);
+  if (variants.length) {
+    return variants.some((v: any) => {
+      const own = new Map<string, Set<string>>();
+      for (const [name, value] of Object.entries(v.options)) {
+        const key = optionFilterKey(name);
+        if (key) own.set(key, new Set([...(own.get(key) ?? []), valueKey(value)]));
+      }
+      return fits(own);
+    });
+  }
   const own = new Map<string, Set<string>>();
   for (const option of productOptions(item)) {
     const key = optionFilterKey(option.name);
     if (key) own.set(key, new Set([...(own.get(key) ?? []), ...option.values.map(valueKey)]));
   }
-  return wanted.every(([key, values]) => values.some((v) => own.get(key)?.has(v)));
+  return fits(own);
 }
 
 /**

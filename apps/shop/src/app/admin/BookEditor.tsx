@@ -1163,7 +1163,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const isbnWarn = isbnWarning(formData.isbn) || undefined;
   const addressLocked = slugLocked(initialData, slugUnlocked);
   const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
-  const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= lowLine;
+  // Not on a new product: it has no stock yet because it hasn't been saved, not because it sold out.
+  const lowStock = !!book && formData.trackInventory && !hasVariants && num(formData.stockLevel) <= lowLine;
 
   // Product types plan, change 9: four must-haves, plus any fact the law asks for this type; the rest is good to add.
   const typeFactKeys = new Set(giftCard || isBookKind(productKind(formData)) ? [] : (typeOfProduct(formData)?.facts ?? []).map((f) => f.key));
@@ -1656,13 +1657,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   {money("Price (CAD)", "retailPrice", "$")}
                   {money("Price (USD)", "usdPrice", "$", { disabled: !overrides })}
                   {money("Price (EUR)", "eurPrice", "€", { disabled: !overrides })}
-                  {money("Cost (CAD)", "costPrice", "$", { hint: "What it costs you to print/acquire." })}
+                  {money("Cost (CAD)", "costPrice", "$", { hint: "What each one costs you to make or buy." })}
                   {money("Wholesale (CAD)", "wholesalePrice", "$", { hint: "What a shop that resells it pays you. Used on the line sheet; shoppers never see it. Leave at 0 to leave it off." })}
                   {money("Cost (USD)", "usdCostPrice", "$", { disabled: !overrides })}
                   {money("Cost (EUR)", "eurCostPrice", "€", { disabled: !overrides })}
                 </div>
                 <div className="be-stats">
-                  <div><span>Profit / copy</span><strong>${fmt(activePrice - num(formData.costPrice))}</strong></div>
+                  <div><span>Profit each</span><strong>${fmt(activePrice - num(formData.costPrice))}</strong></div>
                   <div><span>Margin</span><strong>{activePrice > 0 ? `${marginPct.toFixed(0)}%` : "—"}</strong></div>
                   <div><span>Charge tax</span><Toggle label="Charge sales tax" checked={!!formData.chargeTax} onChange={(v) => set("chargeTax", v)} /></div>
                 </div>
@@ -1715,19 +1716,19 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => goTo("boxset")}>Go to Box set</button>
                 </SectionCard>
               ) : (
-              <SectionCard title="Inventory" description={hasVariants ? "Stock is totalled from your editions." : "Track how many copies you have."}>
+              <SectionCard title="Inventory" description={w(hasVariants ? "Stock is totalled from your editions." : "Track how many copies you have.")}>
                 <div className="be-toggles">
-                  <Toggle label="Track inventory (decrement stock on each sale)" checked={!!formData.trackInventory} onChange={(v) => set("trackInventory", v)} />
+                  <Toggle label="Track stock (one less with each sale)" checked={!!formData.trackInventory} onChange={(v) => set("trackInventory", v)} />
                   {formData.trackInventory && <Toggle label="Allow backorders when out of stock" checked={!!formData.allowBackorder} onChange={(v) => set("allowBackorder", v)} />}
                 </div>
                 <div className="be-grid be-grid-3">
                   <TextField label={`Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange}
                     disabled={hasVariants || stockLocked(null)}
                     hint={!hasVariants ? stockLockHint(null) : undefined} />
-                  <div className="be-stock-status">{formData.trackInventory && stockBadge(num(formData.stockLevel))}</div>
-                  <TextField label="Shelf location" name="shelfLocation" value={formData.shelfLocation || ""} onChange={handleChange} placeholder="e.g. B2 or Box 4" hint={hasVariants ? "Shown on the packing checklist for editions without their own shelf location." : "Shown next to this book on the packing checklist."} />
+                  <div className="be-stock-status">{formData.trackInventory && !!book && stockBadge(num(formData.stockLevel))}</div>
+                  <TextField label="Shelf location" name="shelfLocation" value={formData.shelfLocation || ""} onChange={handleChange} placeholder="e.g. B2 or Box 4" hint={w(hasVariants ? "Shown on the packing checklist for editions without their own shelf location." : "Shown next to this book on the packing checklist.")} />
                 </div>
-                {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
+                {lowStock && <p className="be-warn" role="status">{num(formData.stockLevel) <= 0 ? (formData.allowBackorder ? "⚠ Out of stock. Orders are still taken as backorders." : "⚠ Out of stock. Shoppers can't buy it until you add stock or turn on backorders.") : "⚠ Low stock. Make or order more, or turn on backorders."}</p>}
               </SectionCard>
               )}
               {!giftCard && <Part id="coming" title={"Coming soon"} summary={parts.coming}><SectionCard title="Coming soon" description={w("Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.")}>

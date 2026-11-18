@@ -82,6 +82,41 @@ export const ALSO_SELLS = Object.freeze({
     Object.freeze({ id: "rentals", label: "Rentals" }),
   ]),
 });
+/**
+ * "What do you sell? Pick all that fit." (product types plan, change 12, 18 November 2026): a product shop picks every
+ * kind of thing it sells, so a shop of candles and ceramics is set up for both. The ids are the shop's product groups
+ * (apps/shop src/shared/productTypes.ts TYPE_GROUPS; productGroups.test.js checks they match, this file takes no
+ * imports). The answer travels with the shop as `productGroups`: the shop's "What is it?" window offers those groups'
+ * types first. The first pick also gives the one-word answer (`sells`) the look and the tax kind still read.
+ */
+export const PRODUCT_GROUPS = Object.freeze({
+  id: "productGroups",
+  label: "What do you sell?",
+  hint: "Pick all that fit. Your shop is set up for each.",
+  options: Object.freeze([
+    Object.freeze({ id: "clothing", label: "Clothing", sells: "clothing" }),
+    Object.freeze({ id: "shoes", label: "Shoes", sells: "shoes" }),
+    Object.freeze({ id: "bags", label: "Bags & accessories", sells: "clothing" }),
+    Object.freeze({ id: "jewelry", label: "Jewellery", sells: "jewelry" }),
+    Object.freeze({ id: "art", label: "Art & prints", sells: "prints" }),
+    Object.freeze({ id: "books", label: "Books & paper", sells: "mixed" }),
+    Object.freeze({ id: "music", label: "Music & film", sells: "music" }),
+    Object.freeze({ id: "home", label: "Home & living", sells: "other" }),
+    Object.freeze({ id: "beauty", label: "Beauty & care", sells: "other" }),
+    Object.freeze({ id: "food", label: "Food & drink", sells: "other" }),
+    Object.freeze({ id: "kids", label: "Kids & toys", sells: "other" }),
+    Object.freeze({ id: "plants", label: "Plants & garden", sells: "other" }),
+    Object.freeze({ id: "craft", label: "Craft supplies", sells: "other" }),
+    Object.freeze({ id: "pets", label: "Pets", sells: "other" }),
+    Object.freeze({ id: "tech", label: "Tech & gadgets", sells: "other" }),
+    Object.freeze({ id: "not-parcel", label: "Downloads & gift cards", sells: "other" }),
+  ]),
+});
+/** The known groups in a sent answer, in the question's order; anything else is left out. */
+export const cleanProductGroups = (value) => (Array.isArray(value) ? PRODUCT_GROUPS.options.map((o) => o.id).filter((id) => value.includes(id)) : []);
+/** The one-word answer (`sells`) for a product shop's picks: its first group's. */
+export const sellsForGroups = (groups) => PRODUCT_GROUPS.options.find((o) => o.id === cleanProductGroups(groups)[0])?.sells ?? "";
+
 /** The known picks in a sent answer, in the question's order; anything else is left out. */
 export const cleanAlsoSells = (value) => (Array.isArray(value) ? ALSO_SELLS.options.map((o) => o.id).filter((id) => value.includes(id)) : []);
 
@@ -244,6 +279,8 @@ export function checkSignup(input) {
   const timeZone = typeof input?.timeZone === "string" && /^[A-Za-z_]+\/[A-Za-z0-9_+\-/]{1,60}$/.test(input.timeZone) ? input.timeZone : null;
   // "Anything else you'll sell?" (ALSO_SELLS): left out when nothing was picked.
   const alsoSells = cleanAlsoSells(input?.[ALSO_SELLS.id]);
-  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}), ...(timeZone ? { timeZone } : {}), ...(alsoSells.length ? { alsoSells } : {}) };
+  // "What do you sell? Pick all that fit." (PRODUCT_GROUPS): left out when nothing was picked.
+  const productGroups = cleanProductGroups(input?.[PRODUCT_GROUPS.id]);
+  const details = { pressName, plan, country, currency: country ? COUNTRIES[country].currency : "", answer, publishes, address, termsVersion, paymentProvider, ...(language ? { language } : {}), ...(timeZone ? { timeZone } : {}), ...(alsoSells.length ? { alsoSells } : {}), ...(productGroups.length ? { productGroups } : {}) };
   return { ok: Object.keys(problems).length === 0, details, problems };
 }

@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { Dialog, SecondaryButton } from "./riso/components";
 import { PRODUCT_TYPES, TYPE_GROUPS, namesAType, searchOwnTypes, searchTypes, sellsGroups, typeById, typeGroup, typeStart, type OwnType, type ProductType, type TypeGroupId } from "../../shared/productTypes";
 import { addOwnType, useOwnTypes } from "./ownTypes";
+import { useProductGroups } from "./productGroups";
 
 const POPULAR = ["tops", "prints", "printed-books", "candles", "ceramics", "earrings", "stickers", "downloads"];
 
@@ -187,7 +188,8 @@ export function AddProductPicker({ sells, title, appearance, onClose, onStart }:
   sells: string | null; title: string; appearance?: "light" | "dark";
   onClose: () => void; onStart: (start: Record<string, any> | null) => void;
 }) {
-  const groups = useMemo(() => sellsGroups(sells), [sells]);
+  const fallback = useMemo(() => sellsGroups(sells), [sells]);
+  const groups = useProductGroups(fallback);
   return <TypePicker open appearance={appearance} groups={groups} title={title} onClose={onClose}
     onPick={(type, own) => onStart(type ? typeStart(type, own) : null)} />;
 }

@@ -4,7 +4,7 @@
 // framework (docs/decisions.md); Firebase's own browser library is loaded from Google for sign-in only. Every check the
 // page makes, the server makes again (signup/frontDoor.js).
 import { API_BASE, FIREBASE_SDK, PLATFORM_FIREBASE, SETUP_ADMIN_URL } from "../signup/config.js";
-import { ALSO_SELLS, COUNTRIES, GENERAL_SELLS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, shopTypeOf } from "../signup/form.js";
+import { ALSO_SELLS, COUNTRIES, PRODUCT_GROUPS, SERVICE_SELLS, SHOP_TYPES, countryFromTimeZone, isEmail, sellsForGroups, shopTypeOf } from "../signup/form.js";
 import { ROW_WORDS, makingView } from "../signup/making.js";
 import { takeHandOff } from "../waitlist/frontPage.js";
 
@@ -229,7 +229,16 @@ function showTypes(withServices) {
     return tile;
   }));
 }
-$("#sells-choices").replaceChildren(...GENERAL_SELLS.map((o) => choice("sells", o.id, o.label)));
+// A product shop picks every kind of thing it sells (product types plan, change 12; form.js PRODUCT_GROUPS).
+$("#sells-choices").replaceChildren(...PRODUCT_GROUPS.options.map((o) => {
+  const label = choice(PRODUCT_GROUPS.id, o.id, o.label);
+  label.querySelector("input").type = "checkbox";
+  return label;
+}));
+/** The product groups ticked, in the list's order. */
+const pickedGroups = () => [...startForm.querySelectorAll(`input[name=${PRODUCT_GROUPS.id}]:checked`)].map((input) => input.value);
+/** A press saved before groups were asked: its one-word answer's group. */
+const GROUP_OF_SELLS = { clothing: "clothing", shoes: "shoes", jewelry: "jewelry", prints: "art", music: "music" };
 $("#does-choices").replaceChildren(...SERVICE_SELLS.map((o) => choice("does", o.id, o.label)));
 // A bookshop that signed up as zines or comics keeps that answer; a new bookshop is "books".
 let bookAnswer = "books";
@@ -268,14 +277,14 @@ const pickedValue = (name) => startForm.querySelector(`input[name=${name}]:check
 /** The preview's shop line, and the "What do you sell?" chips only for a general shop. */
 const showKind = () => {
   const type = pickedValue("shopType");
-  const sells = GENERAL_SELLS.find((o) => o.id === pickedValue("sells"));
+  const groups = pickedGroups().map((id) => PRODUCT_GROUPS.options.find((o) => o.id === id)).filter(Boolean);
   const does = SERVICE_SELLS.find((o) => o.id === pickedValue("does"));
   $("#sells-group").hidden = type !== "general";
   if (type !== "general") $("#sells-error").hidden = true;
   $("#does-group").hidden = type !== "services";
   if (type !== "services") $("#does-error").hidden = true;
   $("#new-kind").textContent = type === "books" ? "Bookshop"
-    : type === "general" ? (sells && sells.id !== "other" ? sells.label : "Product shop")
+    : type === "general" ? (groups.length === 1 ? groups[0].label : groups.length > 1 ? `${groups[0].label} and ${groups.length - 1} more` : "Product shop")
     : type === "services" ? (does && does.id !== "services" ? does.label : "Services") : "Your store";
   const line = $("#new-line");
   line.textContent = type === "books" ? "With authors, ISBNs and royalties" : type === "general" ? "With products, sizes and colours" : type === "services" ? "With bookings, clients and payments" : "";
@@ -311,7 +320,7 @@ function showCountry() {
 }
 startForm.pressName.addEventListener("input", showName);
 startForm.addEventListener("change", (event) => {
-  if (["sells", "does", "shopType"].includes(event.target.name)) showKind();
+  if (["sells", "productGroups", "does", "shopType"].includes(event.target.name)) showKind();
   if (event.target.name === "country") showCountry();
 });
 // An answer given clears its own error line.
@@ -330,7 +339,8 @@ function fillAnswers() {
   showTypes(plans?.servicesOpen === true || type === "services");
   if (type === "books") bookAnswer = press.sells;
   for (const input of startForm.querySelectorAll("input[name=shopType]")) input.checked = input.value === type;
-  for (const input of startForm.querySelectorAll("input[name=sells]")) input.checked = type === "general" && input.value === press.sells;
+  const savedGroups = Array.isArray(press.productGroups) && press.productGroups.length ? press.productGroups : [GROUP_OF_SELLS[press.sells]].filter(Boolean);
+  for (const input of startForm.querySelectorAll(`input[name=${PRODUCT_GROUPS.id}]`)) input.checked = type === "general" && savedGroups.includes(input.value);
   for (const input of startForm.querySelectorAll("input[name=does]")) input.checked = type === "services" && input.value === press.sells;
   showKind();
   for (const input of startForm.querySelectorAll("input[name=sellingToday]")) input.checked = input.value === press.sellingToday;
@@ -359,7 +369,7 @@ function checkAnswers(answers, { terms = true } = {}) {
   const problems = {
     pressName: answers.pressName ? "" : "Enter your brand's name.",
     shopType: answers.shopType ? "" : "Pick the kind of shop.",
-    sells: answers.shopType !== "general" || answers.sells ? "" : "Pick what you sell.",
+    sells: answers.shopType !== "general" || answers.sells ? "" : "Pick at least one kind of thing you sell.",
     does: answers.shopType !== "services" || answers.sells ? "" : "Pick what you do.",
     country: answers.country ? "" : "Choose where your brand is based.",
     terms: !terms || answers.termsAccepted ? "" : "Tick the box to agree to the terms.",
@@ -370,15 +380,16 @@ function checkAnswers(answers, { terms = true } = {}) {
     line.hidden = !words;
   }
   const first = Object.entries(problems).find(([, words]) => words)?.[0];
-  if (first) startForm.querySelector(first === "terms" ? "[name=termsAccepted]" : `[name=${first}]`)?.focus();
+  if (first) startForm.querySelector(first === "terms" ? "[name=termsAccepted]" : first === "sells" ? "input[name=productGroups]" : `[name=${first}]`)?.focus();
   return !first;
 }
 
 // `shopType` is the page's own; the server gets `sells`: the bookshop answer, the product shop's tile or the services shop's.
 const readAnswers = () => {
   const shopType = pickedValue("shopType");
-  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? pickedValue("sells") : shopType === "services" ? pickedValue("does") : "";
-  return { pressName: startForm.pressName.value.trim(), shopType, sells, country: startForm.country.value, sellingToday: pickedValue("sellingToday"), alsoSells: [...startForm.querySelectorAll(`input[name=${ALSO_SELLS.id}]:checked`)].map((input) => input.value), termsAccepted: startForm.termsAccepted.checked };
+  const productGroups = shopType === "general" ? pickedGroups() : [];
+  const sells = shopType === "books" ? bookAnswer : shopType === "general" ? sellsForGroups(productGroups) : shopType === "services" ? pickedValue("does") : "";
+  return { pressName: startForm.pressName.value.trim(), shopType, sells, productGroups, country: startForm.country.value, sellingToday: pickedValue("sellingToday"), alsoSells: [...startForm.querySelectorAll(`input[name=${ALSO_SELLS.id}]:checked`)].map((input) => input.value), termsAccepted: startForm.termsAccepted.checked };
 };
 
 // Design my shop first: the answers are saved (no store is made, no terms needed yet), then the real designer opens

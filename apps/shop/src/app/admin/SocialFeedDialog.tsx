@@ -7,6 +7,7 @@ import { useShopWords } from "./shopWords";
 import { productSegment } from "../lib/productHref";
 import { PROFILE_LINKS, profileLink } from "./socialChannels";
 import { MONEY_NAME } from "./moneySign";
+import { typeById } from "../../shared/productTypes";
 
 const base = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
 const feedUrl = () => `${base()}/${SOCIAL_FEED_FILE}`;
@@ -19,7 +20,7 @@ const feedUrl = () => `${base()}/${SOCIAL_FEED_FILE}`;
 export function SocialFeedDialog({ open, onClose, books }: { open: boolean; onClose: () => void; books: any[] }) {
   const w = useShopWords();
   const [live, setLive] = useState<"checking" | "yes" | "no">("checking");
-  const feed = useMemo(() => (open ? merchantFeedItems(base(), books, { productBase: productSegment() }) : { items: [], skipped: [] }), [open, books]);
+  const feed = useMemo(() => (open ? merchantFeedItems(base(), books, { productBase: productSegment(), typeCategory: (id: string) => typeById(id)?.google || "" }) : { items: [], skipped: [] }), [open, books]);
 
   useEffect(() => {
     if (!open) return;

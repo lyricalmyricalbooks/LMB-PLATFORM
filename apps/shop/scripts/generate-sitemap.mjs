@@ -28,7 +28,9 @@ writeFileSync(resolve(dist, 'seo-published-fingerprint.txt'), publishedFingerpri
 // Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
 // The press's own name (Text & labels › Site name, plan 5.8), never the placeholder for a named shop.
 const shopName = feedShopName(effectivePublishedSettings(settings));
-const feed = merchantFeedItems(siteUrl, books, { shopName, productBase, currency: readShopProfileSync().currency });
+// Products typed before types carried a Google category get their type's (the server's copy of src/shared/productTypes.ts).
+const { typeById } = createRequire(import.meta.url)('../functions/shared/productTypes.js');
+const feed = merchantFeedItems(siteUrl, books, { shopName, productBase, currency: readShopProfileSync().currency, typeCategory: (id) => typeById(id)?.google || '' });
 writeFileSync(resolve(dist, FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));
 // Meta (Facebook and Instagram) and Pinterest fetch the same items as CSV (Books › Instagram, Facebook and Pinterest).
 writeFileSync(resolve(dist, SOCIAL_FEED_FILE), socialFeedCsv(feed.items));

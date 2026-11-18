@@ -2,7 +2,7 @@
 // `firstWeek/start` › `sells` and read before the sign-up answer. It changes the admin's words, new products' starting
 // kind and the emails' words; products already made are never touched. A shop of "Books and other things" speaks of
 // products and makers while book products keep their book fields.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { currentSells } from "./sells";
@@ -12,9 +12,37 @@ import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT } from "./shopWords";
 import { SectionCard, SelectField, PrimaryButton, useConfirm } from "./riso/components";
 import { useBookingsOn } from "./bookingsApi";
 import { FormField } from "./riso/FormKit";
-import { X } from "lucide-react";
-import { typeById } from "../../shared/productTypes";
+import { Check, X } from "lucide-react";
+import { TYPE_GROUPS, sellsGroups, typeById, type TypeGroupId } from "../../shared/productTypes";
+import { saveProductGroups, useProductGroups } from "./productGroups";
 import { removeOwnType, useOwnTypes } from "./ownTypes";
+
+/** The kinds of things you sell (product types plan, change 12): tap a group on or off; "What is it?" offers its types first. */
+export function ProductGroupsPicker({ sells }: { sells: string | null }) {
+  const fallback = useMemo(() => sellsGroups(sells), [sells]);
+  const groups = useProductGroups(fallback);
+  const [busy, setBusy] = useState(false);
+  const toggle = async (id: TypeGroupId) => {
+    const next = TYPE_GROUPS.map((g) => g.id).filter((g) => (g === id ? !groups.includes(id) : groups.includes(g)));
+    if (!next.length) { toast.error("Keep at least one kind of thing."); return; }
+    setBusy(true);
+    try { await saveProductGroups(next); }
+    catch { toast.error("Couldn't save that. Check your connection and try again."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <section className="rp-fk-field" aria-labelledby="product-groups-label">
+      <div className="rp-fk-label-row"><h3 id="product-groups-label" className="rp-fk-label" style={{ margin: 0 }}>Kinds of things you sell</h3></div>
+      <div className="rp-group-chips" role="group" aria-labelledby="product-groups-label" aria-busy={busy || undefined}>
+        {TYPE_GROUPS.map((g) => {
+          const on = groups.includes(g.id);
+          return <button key={g.id} type="button" aria-pressed={on} disabled={busy} className="rp-group-chip" onClick={() => { void toggle(g.id); }}>{on && <Check size={14} aria-hidden />}{g.name}</button>;
+        })}
+      </div>
+      <span className="rp-fk-hint">Adding a product offers these kinds first. Your products stay as they are.</span>
+    </section>
+  );
+}
 
 /**
  * Your own types (product types plan, change 4): the names the owner gave in "What is it?", each with the type it is
@@ -180,7 +208,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
       </div>
       <p className="rp-hint" role="status" style={{ margin: "12px 0 0" }}>{stockroomWordsNote(saved, heard, justSaved)}</p>
       {productsSwitch}
-      {!sellsServices(value) && <div style={{ marginTop: 16 }}><OwnTypesList /></div>}
+      {!sellsServices(value) && <div style={{ marginTop: 16, display: "grid", gap: 16 }}><ProductGroupsPicker sells={saved ?? null} /><OwnTypesList /></div>}
       {confirmNode}
   </>);
   return (
@@ -192,6 +220,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
         </span>}
       </FormField>
       {productsSwitch}
+      {(!servicesShop || products) && <ProductGroupsPicker sells={saved ?? null} />}
       {(!servicesShop || products) && <OwnTypesList />}
       {confirmNode}
     </>) : <SectionCard title="What you sell" description="Sets the words in your admin and emails. Products you already have stay as they are.">{body}</SectionCard>
