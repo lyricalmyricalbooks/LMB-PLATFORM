@@ -71,7 +71,7 @@ describe("product types", () => {
   });
 
   it("starts a product with its type and kind, a printed book with no kind", () => {
-    expect(typeStart(typeById("candles")!)).toEqual({ typeId: "candles", kind: "other", format: "" });
+    expect(typeStart(typeById("candles")!)).toEqual({ typeId: "candles", kind: "other", format: "", googleCategory: typeById("candles")!.google });
     expect(typeStart(typeById("zines")!)).toEqual({ typeId: "zines" });
   });
 

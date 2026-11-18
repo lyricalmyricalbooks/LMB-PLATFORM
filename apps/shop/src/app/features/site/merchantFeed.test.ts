@@ -148,6 +148,10 @@ describe("products beyond books (plan 10.21)", () => {
     expect(byId.g.googleCategory).toBe("");
     expect(merchantFeedXml("https://shop.test", [byId.g])).not.toContain("google_product_category");
     expect(apparelAudience({})).toEqual({ gender: "unisex", ageGroup: "adult" });
+    // A product with a type carries its own category; a book keeps the format's.
+    const { items: typed } = merchantFeedItems("https://shop.test", [{ ...gadget, googleCategory: "Home & Garden > Decor > Home Fragrances > Candles" }, { ...book, googleCategory: "Ignored" }], { now });
+    expect(typed.find((i: any) => i.id === "g").googleCategory).toBe("Home & Garden > Decor > Home Fragrances > Candles");
+    expect(typed.find((i: any) => i.id === "b").googleCategory).toBe("Media > Books > Print Books");
     expect(apparelAudience({ googleGender: "x", googleAgeGroup: "kids" })).toEqual({ gender: "unisex", ageGroup: "kids" });
   });
 

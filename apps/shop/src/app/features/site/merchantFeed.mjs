@@ -194,8 +194,9 @@ export function gtinOf(value) {
   return (10 - (sum % 10)) % 10 === Number(d.slice(-1)) ? d : '';
 }
 
-function googleCategory(format, kind = 'book') {
-  if (!isBook(kind)) return KIND_CATEGORY[kind] ?? '';
+// A product with a type (product types plan, change 8) carries its own Google category, set when the type was picked.
+function googleCategory(format, kind = 'book', own = '') {
+  if (!isBook(kind)) return (typeof own === 'string' && own.trim()) || KIND_CATEGORY[kind] || '';
   const f = String(format || '').toLowerCase();
   if (/audio/.test(f)) return 'Media > Books > Audiobooks';
   if (/e-?book|epub|digital|pdf|kindle/.test(f)) return 'Media > Books > E-books';
@@ -231,7 +232,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
     const bundle = bundleParts(book).length > 0;
     const common = {
       description, link, brand: plain(book.publisher) || shopName, condition: 'new',
-      kind, googleCategory: googleCategory(book.format, kind), productType: (book.categories || book.genres || [])[0] || '',
+      kind, googleCategory: googleCategory(book.format, kind, book.googleCategory), productType: (book.categories || book.genres || [])[0] || '',
       bundle, creators,
     };
     const variants = Array.isArray(book.variants) ? book.variants.filter(v => v && v.id) : [];

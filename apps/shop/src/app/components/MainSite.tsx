@@ -566,7 +566,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   const soldOutLast = soldOutLastOn(storefrontDesign);
   const filteredItems = useMemo(() => {
     const applied = appliedFilters(catalogFilters, catalogView, displayRate);
-    return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats, applied.onSale, soldOutLast);
+    return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats, applied.onSale, soldOutLast, applied.options);
   }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters, catalogView, displayRate, soldOutLast]);
 
   // Studio › Style › Shop page heading & filters › "Show more books" paging (0 = every book).
@@ -948,6 +948,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
               availableFormats={catalogView.availableFormats}
               showPrice={catalogView.showPrice}
               hasSale={catalogView.hasSale}
+              optionFilters={catalogView.optionFilters}
             />
           )}
 

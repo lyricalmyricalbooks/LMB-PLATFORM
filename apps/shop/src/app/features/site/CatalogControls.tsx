@@ -8,6 +8,7 @@ import { quickAddChoice } from "./buyable";
 import { matchesSearch } from "./bookSearch";
 import { compareShopOrder } from "./shopOrder";
 import { comingSoonActive } from "./comingSoon";
+import { productOptions } from "../../../shared/productOptions";
 
 export type SortKey = "featured" | "newest" | "oldest" | "price_asc" | "price_desc" | "title_az" | "title_za";
 
@@ -84,8 +85,56 @@ export function soldOutToEnd<T>(items: T[]): T[] {
   return [...items.filter(item => !bookSoldOut(item)), ...soldOut];
 }
 
-export type CatalogFilterState = { formats: FormatKey[]; minPrice: string; maxPrice: string; onSale?: boolean };
+/**
+ * Option filters (product types plan, change 8): Size, Colour, Metal, Scent… show as chips when the products on screen
+ * use that option with two or more values. `options` holds the picked values per option, both in lower case.
+ */
+export type CatalogFilterState = { formats: FormatKey[]; minPrice: string; maxPrice: string; onSale?: boolean; options?: Record<string, string[]> };
 export const EMPTY_FILTERS: CatalogFilterState = { formats: [], minPrice: "", maxPrice: "", onSale: false };
+
+/** The options a shopper can filter by, in the order the rows show. Other options (Format, Edition) stay off. */
+const FILTER_OPTIONS = ["size", "colour", "metal", "scent", "material", "stone", "finish", "width", "length", "flavour", "weight"];
+const SAME_OPTION: Record<string, string> = { color: "colour", colours: "colour", colors: "colour", sizes: "size", flavor: "flavour", scents: "scent" };
+export type OptionFilter = { key: string; name: string; values: { key: string; label: string }[] };
+
+/** An option's filter key ("Colour", "color" → "colour"), or null when it isn't one shoppers filter by. */
+export function optionFilterKey(name: unknown): string | null {
+  const plain = String(name ?? "").trim().toLowerCase();
+  const key = SAME_OPTION[plain] ?? plain;
+  return FILTER_OPTIONS.includes(key) ? key : null;
+}
+
+const valueKey = (value: unknown) => String(value ?? "").trim().toLowerCase();
+
+/** The option filters a list offers: each option with at least two values, values in the order products list them. */
+export function optionFiltersIn(items: any[]): OptionFilter[] {
+  const found = new Map<string, { name: string; values: Map<string, string> }>();
+  for (const item of items) {
+    for (const option of productOptions(item)) {
+      const key = optionFilterKey(option.name);
+      if (!key) continue;
+      const entry = found.get(key) ?? { name: option.name.trim(), values: new Map() };
+      for (const value of option.values) { const v = valueKey(value); if (v && !entry.values.has(v)) entry.values.set(v, String(value).trim()); }
+      found.set(key, entry);
+    }
+  }
+  return FILTER_OPTIONS.flatMap((key) => {
+    const entry = found.get(key);
+    return entry && entry.values.size >= 2 ? [{ key, name: entry.name, values: [...entry.values].map(([k, label]) => ({ key: k, label })) }] : [];
+  });
+}
+
+/** Whether a product comes in one of the picked values of every picked option. */
+export function matchesOptions(item: any, picked: Record<string, string[]>): boolean {
+  const wanted = Object.entries(picked).filter(([, values]) => values.length);
+  if (!wanted.length) return true;
+  const own = new Map<string, Set<string>>();
+  for (const option of productOptions(item)) {
+    const key = optionFilterKey(option.name);
+    if (key) own.set(key, new Set([...(own.get(key) ?? []), ...option.values.map(valueKey)]));
+  }
+  return wanted.every(([key, values]) => values.some((v) => own.get(key)?.has(v)));
+}
 
 /**
  * The CAD price range for the shopper's Min/Max boxes, which they type in the currency they
@@ -101,22 +150,34 @@ export function priceRangeFor(filters: CatalogFilterState, rate = 1): [number, n
 }
 
 /** Which filters the current view offers: format chips need two formats, a price filter two prices. */
-export function filterView(items: any[]): { availableFormats: FormatKey[]; showPrice: boolean; hasSale: boolean } {
-  return { availableFormats: formatsIn(items), showPrice: new Set(items.map(item => displayPrice(item))).size >= 2, hasSale: items.some(item => showsSale(item)) };
+export function filterView(items: any[]): { availableFormats: FormatKey[]; showPrice: boolean; hasSale: boolean; optionFilters: OptionFilter[] } {
+  return { availableFormats: formatsIn(items), showPrice: new Set(items.map(item => displayPrice(item))).size >= 2, hasSale: items.some(item => showsSale(item)), optionFilters: optionFiltersIn(items) };
+}
+
+/** The picked option values that are on screen, so a chip the shopper can't see never hides products. */
+function appliedOptions(filters: CatalogFilterState, view: { optionFilters?: OptionFilter[] }): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const filter of view.optionFilters ?? []) {
+    const values = (filters.options?.[filter.key] ?? []).filter((v) => filter.values.some((x) => x.key === v));
+    if (values.length) out[filter.key] = values;
+  }
+  return out;
 }
 
 /**
  * The filters that actually apply: a format chip or price box that isn't on screen (another
  * category has no such format, or one price) never hides books the shopper can't un-hide.
  */
-export function appliedFilters(filters: CatalogFilterState, view: { availableFormats: FormatKey[]; showPrice: boolean; hasSale?: boolean }, rate = 1): { formats: FormatKey[]; priceRange: [number, number]; onSale: boolean } {
+export function appliedFilters(filters: CatalogFilterState, view: { availableFormats: FormatKey[]; showPrice: boolean; hasSale?: boolean; optionFilters?: OptionFilter[] }, rate = 1): { formats: FormatKey[]; priceRange: [number, number]; onSale: boolean; options: Record<string, string[]> } {
   const formats = view.availableFormats.length >= 2 ? filters.formats.filter(key => view.availableFormats.includes(key)) : [];
-  return { formats, priceRange: view.showPrice ? priceRangeFor(filters, rate) : [0, Infinity], onSale: Boolean(filters.onSale && view.hasSale) };
+  return { formats, priceRange: view.showPrice ? priceRangeFor(filters, rate) : [0, Infinity], onSale: Boolean(filters.onSale && view.hasSale), options: appliedOptions(filters, view) };
 }
 
 /** Whether anything narrows the list. With `view`, only filters on screen count (see appliedFilters). */
-export function filtersActive(filters: CatalogFilterState, query = "", inStockOnly = false, view?: { availableFormats: FormatKey[]; showPrice: boolean; hasSale?: boolean }): boolean {
+export function filtersActive(filters: CatalogFilterState, query = "", inStockOnly = false, view?: { availableFormats: FormatKey[]; showPrice: boolean; hasSale?: boolean; optionFilters?: OptionFilter[] }): boolean {
   const formats = view ? appliedFilters(filters, view).formats : filters.formats;
+  const options = Object.keys(view ? appliedOptions(filters, view) : Object.fromEntries(Object.entries(filters.options ?? {}).filter(([, v]) => v.length))).length > 0;
+  if (options) return true;
   const onSale = Boolean(filters.onSale && (!view || view.hasSale));
   const price = (!view || view.showPrice) && Boolean(filters.minPrice.trim() || filters.maxPrice.trim());
   return Boolean(query.trim() || inStockOnly || formats.length || price || onSale);
@@ -131,6 +192,7 @@ export function applyCatalogControls(
   formats: FormatKey[] = [],
   onSale = false,
   soldOutLast = false,
+  options: Record<string, string[]> = {},
 ) {
   const q = query.trim().toLowerCase();
 
@@ -147,6 +209,7 @@ export function applyCatalogControls(
       const own = bookFormats(item);
       if (!formats.some(key => own.includes(key))) return false;
     }
+    if (!matchesOptions(item, options)) return false;
     return true;
   });
 
@@ -185,6 +248,7 @@ export function CatalogControls({
   availableFormats = [],
   showPrice = false,
   hasSale = false,
+  optionFilters = [],
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -202,11 +266,19 @@ export function CatalogControls({
   showPrice?: boolean;
   /** Whether any book in the current view is on sale (otherwise the On sale chip is noise). */
   hasSale?: boolean;
+  /** Size, colour, metal or scent rows for the products on screen (optionFiltersIn). */
+  optionFilters?: OptionFilter[];
 }) {
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   const showFormats = !!setFilters && availableFormats.length >= 2;
   const showPriceBoxes = !!setFilters && showPrice;
   const showSale = !!setFilters && hasSale;
+  const showOptions = !!setFilters && optionFilters.length > 0;
+  const toggleOption = (key: string, value: string) => {
+    const now = filters.options?.[key] ?? [];
+    if (!now.includes(value)) ga4FilterUse("option", `${key}: ${value}`);
+    setFilters?.({ ...filters, options: { ...(filters.options ?? {}), [key]: now.includes(value) ? now.filter(v => v !== value) : [...now, value] } });
+  };
   const toggleFormat = (key: FormatKey) => {
     if (!filters.formats.includes(key)) ga4FilterUse("format", key);
     setFilters?.({ ...filters, formats: filters.formats.includes(key) ? filters.formats.filter(k => k !== key) : [...filters.formats, key] });
@@ -281,8 +353,21 @@ export function CatalogControls({
           )}
         </div>
       </div>
-      {(showFormats || showPriceBoxes) && (
+      {(showFormats || showPriceBoxes || showOptions) && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {showOptions && optionFilters.map(filter => (
+            <div key={filter.key} {...regionProps("catalogFormat")} role="group" aria-label={filter.name} className="flex flex-wrap items-center gap-2" data-option-filter={filter.key}>
+              <span className="text-[10px] tracking-widest uppercase text-white/30 mr-1" aria-hidden="true">{filter.name}</span>
+              {filter.values.map(value => {
+                const on = (filters.options?.[filter.key] ?? []).includes(value.key);
+                return (
+                  <button key={value.key} type="button" aria-pressed={on} onClick={() => toggleOption(filter.key, value.key)} className={chip(on)}>
+                    {value.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
           {showFormats && (
             <div {...regionProps("catalogFormat")} role="group" aria-label={c("filterFormatLabel")} className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] tracking-widest uppercase text-white/30 mr-1" aria-hidden="true">{c("filterFormatLabel")}</span>
@@ -317,7 +402,7 @@ export function CatalogControls({
       )}
       <div className="flex flex-wrap items-center gap-4">
         <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c("filterResults", { count: resultCount })}</p>
-        {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes, hasSale: showSale }) && (
+        {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes, hasSale: showSale, optionFilters: showOptions ? optionFilters : [] }) && (
           <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-[''] text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
             {c("filterClear")}
           </button>

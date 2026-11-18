@@ -380,6 +380,8 @@ function typeStart(type, own) {
     if (type.kind !== "book") {
         start.kind = type.kind;
         start.format = "";
+        if (type.google)
+            start.googleCategory = type.google;
     }
     return start;
 }

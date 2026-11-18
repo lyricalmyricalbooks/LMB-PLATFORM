@@ -438,7 +438,7 @@ export function lawFacts(type: ProductType | null): TypeFact[] {
 export function typeStart(type: ProductType, own?: OwnType | null): Record<string, any> {
   const start: Record<string, any> = { typeId: type.id };
   if (own) start.typeName = own.name;
-  if (type.kind !== "book") { start.kind = type.kind; start.format = ""; }
+  if (type.kind !== "book") { start.kind = type.kind; start.format = ""; if (type.google) start.googleCategory = type.google; }
   return start;
 }
 

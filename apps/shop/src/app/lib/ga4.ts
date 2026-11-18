@@ -164,7 +164,7 @@ export function ga4PageNotFound() {
   ga4Once(`404_${window.location.pathname.slice(0, 200)}`, "page_not_found", {});
 }
 
-export type FilterName = "format" | "price" | "in_stock" | "on_sale" | "sort" | "category";
+export type FilterName = "format" | "price" | "in_stock" | "on_sale" | "sort" | "category" | "option";
 /** A shop filter was used. `value` is a short label (format key, sort key, category name, "on"/"off"), never a price. */
 export function ga4FilterUse(filter: FilterName, value: unknown) {
   ga4Event("filter_use", { filter, value: String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 100) });

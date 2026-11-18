@@ -1139,7 +1139,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const setType = (type: ProductType, own: OwnType | null = null) => {
     if (type.id === "gift-cards") setProductType("giftCard");
     else { if (isGiftCardProduct(formData)) setProductType("book"); setKind(type.kind); }
-    setFormData((prev: any) => ({ ...prev, typeId: type.id, ...(own ? { typeName: own.name } : prev.typeName ? { typeName: "" } : {}), ...safetyForType(prev, type) }));
+    setFormData((prev: any) => ({ ...prev, typeId: type.id, ...(type.kind !== "book" ? { googleCategory: type.google || "" } : {}), ...(own ? { typeName: own.name } : prev.typeName ? { typeName: "" } : {}), ...safetyForType(prev, type) }));
   };
   // Digital D1: a book format that is a download, or the "Digital product" switch any kind of shop has.
   const digitalFormat = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
