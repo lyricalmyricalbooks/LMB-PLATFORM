@@ -895,6 +895,18 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
     },
 
     /**
+     * Opens a closed shop again (Close your shop, 18 November 2026): a new plan for the account that paid the last one.
+     * The trial is used up, so it starts unpaid until a card is added; the closing sweep opens the shop once it is paid.
+     * A plan that hasn't ended is left as it is.
+     */
+    async reopen({ shopId }) {
+      const row = await subscriptions.get(shopId);
+      if (!row?.accountId || !row.billingEmail) throw new BillingError(404, "This shop has no plan to start again. Ask us and we'll open it for you.");
+      if (!ENDED.has(row.status)) return row;
+      return api.startTrial({ account: { accountId: row.accountId, email: row.billingEmail }, shopId, pressName: row.pressName ?? "", ...(isPlan(row.plan) ? { plan: row.plan } : {}) });
+    },
+
+    /**
      * Moves the shop to another plan (code plan 6.11). A plan that opens an app the shop doesn't have yet, for more
      * money, is prorated at once. A plan that drops an app keeps it open to the end of the month already paid for and
      * then closes it (closeDroppedApps), with its download kept 90 days; the new price starts with the next month.

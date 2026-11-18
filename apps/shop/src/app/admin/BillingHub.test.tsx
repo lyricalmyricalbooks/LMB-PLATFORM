@@ -43,6 +43,7 @@ function platform() {
         world.status = { ...world.status, plan: body.plan, planName: "Shop", price: "$29.00" };
         return send(200, { ok: true, plan: body.plan, changed: true });
       case "cancel": world.status = { ...world.status, cancelAtPeriodEnd: true }; return send(200, { ok: true, cancelAtPeriodEnd: true });
+      case "close": world.status = { ...world.status, cancelAtPeriodEnd: true }; return send(200, { ok: true, closed: false, closesAt: "2026-12-12T12:00:00Z" });
       case "keep-closing-apps": world.status = { ...world.status, appsClosing: null }; return send(200, { ok: true, plan: "both", changed: true });
       case "keep": world.status = { ...world.status, cancelAtPeriodEnd: false }; return send(200, { ok: true, cancelAtPeriodEnd: false });
       case "payment-methods": return send(200, { ok: true, cards: world.cards });
@@ -115,27 +116,20 @@ describe("Settings › Plan", () => {
     expect(world.calls.filter(([c]) => c === "change-plan").map(([, b]) => [b.plan, b.preview ?? false])).toEqual([["both", true]]);
   });
 
-  it("points to Close your shop instead of cancelling here", async () => {
+  it("points to Settings › Close shop instead of cancelling here", async () => {
     await mount(PlanPage);
-    expect(text()).toContain("Leaving Colophon?");
-    expect(button("Close your shop")).toBeDefined();
+    expect(document.querySelector('a[href="#settings/close"]')?.textContent).toBe("Close your shop");
     expect(button("Cancel plan")).toBeUndefined();
   });
 
-  it("cancels with the press's reason from Close your shop, then keeps the plan", async () => {
+  it("closes from Close your shop with a plain yes, then keeps the shop open", async () => {
+    world.status = status({ status: "active", access: "open", currentPeriodEnd: "2026-12-12T12:00:00Z" });
     await mount(ClosePage);
-    await click(button("Cancel plan"));
-    const select = [...document.querySelectorAll("select")][0] as HTMLSelectElement;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, "price");
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    const confirm = [...document.querySelectorAll(".rp-dialog button")].find((b) => b.textContent?.trim() === "Cancel plan")!;
-    await click(confirm);
-    expect(world.calls.find(([c]) => c === "cancel")![1].reason).toBe("price");
-    expect(text()).toContain("Keep my plan");
-    await click(button("Keep my plan"));
-    expect(world.calls.some(([c]) => c === "keep")).toBe(true);
+    await click(button("Close shop"));
+    expect(document.querySelector(".rp-dialog select")).toBeNull();
+    const yes = [...document.querySelectorAll(".rp-dialog button")].find((b) => b.textContent?.trim() === "Yes, close my shop")!;
+    await click(yes);
+    expect(world.calls.some(([c]) => c === "close")).toBe(true);
   });
 
   it("a closed app's records can be downloaded from the Plan page while they're kept, never once deleted", async () => {
@@ -173,11 +167,11 @@ describe("Settings › Plan", () => {
     expect(text()).toContain("Our emails to you and your team come in French.");
   });
 
-  it("paying as you sell, with Stripe's plan ended on purpose: the shop is open and can be cancelled, with no Keep my plan", async () => {
+  it("paying as you sell, with Stripe's plan ended on purpose: the shop is open and can be closed, with no Keep my shop open", async () => {
     world.status = status({ plan: "shop", status: "canceled", access: "open", paymentWay: "payAsYouSell", cancelAtPeriodEnd: false, cancelEndsAt: "2026-12-11T12:00:00Z" });
     await mount(ClosePage);
-    expect(button("Cancel plan")).toBeDefined();
-    expect(button("Keep my plan")).toBeUndefined();
+    expect(button("Close shop")).toBeDefined();
+    expect(button("Keep my shop open")).toBeUndefined();
   });
 
   it("no Add back once the plan has ended", async () => {

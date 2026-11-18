@@ -96,6 +96,19 @@ export class ControlError extends Error {
   }
 }
 
+/**
+ * A shop on its way out, for the Shops list: "closing" (the owner pressed Close shop and paid time is left), or the
+ * closing sweep's own stage (services/billing/closing.js: paused, closed, deleted), with the dates. null otherwise.
+ */
+export function leavingOf(row) {
+  const closing = row.closing;
+  if (closing?.stage === "paused" || closing?.stage === "closed" || closing?.stage === "deleted") {
+    return { stage: closing.stage, at: closing.closedAt ?? closing.pausedAt ?? null, deleteAfter: closing.stage === "closed" ? closing.deleteAfter ?? null : null, deletedAt: closing.deletedAt ?? null };
+  }
+  if (row.billing?.cancelAtPeriodEnd && row.billing?.access === "open") return { stage: "closing", at: row.billing.endsAt ?? row.billing.currentPeriodEnd ?? null, deleteAfter: null, deletedAt: null };
+  return null;
+}
+
 /** The platform admins, from PLATFORM_ADMIN_EMAILS (comma-separated). Empty unless set. */
 /**
  * A Stripe press's payouts for its record, in a few words: "on · every Friday", "on · every day, 2 days after a sale",
@@ -374,6 +387,9 @@ export function createControlRoom({
           emailLanguage: shopMailLanguage(row),
           createdAt: row.createdAt ?? null,
           closed: row.closure ? { by: row.closure.by, reason: row.closure.reason, at: row.closure.at } : null,
+          // Closing by its owner (Settings › Close shop, or a plan that ran out): where it is and the dates, for the
+          // Shops list's Closing filter.
+          leaving: leavingOf(row),
           costThisMonth: costOf(row.spending),
           paymentsMoved: row.paymentsEmergency ? { to: row.paymentsEmergency.to, by: row.paymentsEmergency.by, at: row.paymentsEmergency.at } : null,
           // A press's switch between Stripe and Square (providerSwitch.js) and the accounts it sold through before.

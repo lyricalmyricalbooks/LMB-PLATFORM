@@ -9,6 +9,11 @@
 //   POST /api/billing/cancel       { shopId, reason?, words? } -> { cancelAtPeriodEnd }: cancel at the end of the paid
 //                                  month (or trial), with the optional answer to "why are you leaving?" (19.8)
 //   POST /api/billing/keep         { shopId } -> { cancelAtPeriodEnd }: undo a cancel that hasn't happened yet
+//   POST /api/billing/close        { shopId } -> { closed, closesAt }: the Close shop button. A paid month runs to its
+//                                  end first (a cancel); a free trial or a failed payment closes today (given `closing`,
+//                                  services/billing/closing.js closeNow; without it, a cancel). 90 days to come back.
+//   POST /api/billing/reopen       { shopId } -> { url } or { opened }: a closed shop starts a plan again; the answer is
+//                                  Stripe's card page when the plan needs a card, which opens the shop once it pays
 //   POST /api/billing/keep-closing-apps  { shopId } -> { plan, changed }: keep an app the last plan change is closing
 //   POST /api/billing/change-plan  { shopId, plan, preview?, reason? } -> { preview } or { plan, changed }: what changes
 //                                  and the prorated amount (preview: true, nothing changes), or the change itself, with
@@ -56,13 +61,22 @@ export const billingPage = (settings, shopId) => `${settings.platformUrl}/accoun
  * Every billing call, by name, for both doors: { run(shopId, body, { returnUrl }), secondStep }. `secondStep` (true, or
  * a test of the body) marks the changes a paid plan's owner needs two-step sign-in for (plan 14.1); looking is free.
  */
+/**
+ * Whether Close shop waits for paid time to run out: a plan paid for this month (or paying as it sells, which leaves at
+ * its month's end). A free trial, a failed payment or a paused plan has nothing paid ahead, so it closes today.
+ */
+export function closesLater(status) {
+  if (status.paymentWay === "payAsYouSell") return true;
+  return status.status === "active" && status.access === "open";
+}
+
 /** A month's text reminders for the tracker: how many went and what they cost so far, in words. */
 export function textsLine({ texts, cents, currency }, settings) {
   const amount = Number(cents) || 0;
   return { count: texts, cents: amount, text: moneyWords(amount, currency === "USD" ? "USD" : "CAD", settings) };
 }
 
-export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null, meters = null, texts = null }) {
+export function billingCalls({ billing, paymentWay = null, settings, exports = null, bankFeed = null, meters = null, texts = null, closing = null }) {
   // The card and the billing details are the paying account's (one Stripe customer for every shop it pays for), so only
   // that person changes them: a co-owner's card would otherwise pay the account holder's other shops too.
   const payerOnly = (run) => async (shopId, body, context) => {
@@ -98,6 +112,34 @@ export function billingCalls({ billing, paymentWay = null, settings, exports = n
       secondStep: true,
     },
     keep: { run: async (shopId) => ({ cancelAtPeriodEnd: planEnding(await billing.keep({ shopId })).cancelling }) },
+    // Close your shop's one button (18 November 2026). Paid time runs out first, as a cancel always did; with none
+    // left (a free trial, a payment that failed, a plan already paused) the shop closes today. Either way the closing
+    // sweep's 90 days, reminders and deletion follow.
+    close: {
+      run: async (shopId, { reason, words }) => {
+        const now = await billing.status(shopId);
+        if (!now) throw new BillingError(404, "This shop has no plan yet. Ask us and we'll close it for you.");
+        if (now.access === "closed") return { closed: true, closesAt: null };
+        if (!closing || closesLater(now)) {
+          const row = await billing.cancel({ shopId, reason, words });
+          return { closed: false, closesAt: (await billing.status(shopId))?.cancelEndsAt ?? row?.currentPeriodEnd ?? null };
+        }
+        await closing.closeNow(shopId);
+        return { closed: true, closesAt: null };
+      },
+      secondStep: true,
+    },
+    reopen: {
+      run: async (shopId, _body, { returnUrl }) => {
+        const row = await billing.reopen({ shopId });
+        if (row?.access === "open") {
+          await billing.publishPlan?.(shopId);
+          return { opened: true };
+        }
+        return billing.cardLink({ shopId, returnUrl });
+      },
+      secondStep: true,
+    },
     "change-plan": {
       run: async (shopId, { plan, preview, reason }) => {
         // One plan for every shop (10 November 2026): the only move a press can make is an older plan's move to it.
@@ -179,7 +221,7 @@ export function billingCallLog({ registry, auditLog, now, source = "billing-door
   };
 }
 
-export function billingRoutes({ billing, paymentWay = null, bankFeed = null, meters = null, texts = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
+export function billingRoutes({ billing, paymentWay = null, bankFeed = null, meters = null, texts = null, closing = null, accounts, registry, auditLog, settings, now = () => new Date() }) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   const log = billingCallLog({ registry, auditLog, now });
 
@@ -211,7 +253,7 @@ export function billingRoutes({ billing, paymentWay = null, bankFeed = null, met
     };
   }
 
-  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings, bankFeed, meters, texts })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
+  return Object.fromEntries(Object.entries(billingCalls({ billing, paymentWay, settings, bankFeed, meters, texts, closing })).map(([call, entry]) => [`POST /api/billing/${call}`, ownerCall(call, entry)]));
 }
 
 /**

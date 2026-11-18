@@ -246,10 +246,12 @@ export function PlanPage({ plan }: Hub) {
         </SectionCard>
       )}
 
-      {/* Cancelling, the download and what happens after live together on Settings › Billing › Close your shop. */}
-      <SectionCard title="Leaving Colophon?" description="Download your shop, cancel and close it in one place." collapsible={false}>
-        <div><SecondaryButton onClick={() => { const card = document.getElementById("close-shop"); if (card) card.scrollIntoView({ behavior: "smooth", block: "start" }); else window.location.hash = "#settings/plan/close"; }}>Close your shop</SecondaryButton></div>
-      </SectionCard>
+      {/* Closing the shop has its own page, Settings › Close shop (CloseShopCard.tsx): download, close, what happens next. */}
+      {!ended && (
+        <SectionCard title="Close your shop" description="Download everything, then close. 90 days to change your mind." collapsible={false}>
+          <div><a className="rp-btn rp-btn-secondary" href="#settings/close">Close your shop</a></div>
+        </SectionCard>
+      )}
 
       <Dialog open={!!preview} onClose={() => setPreview(null)} title={preview ? `Switch to ${preview.planName}?` : ""}
         footer={<>

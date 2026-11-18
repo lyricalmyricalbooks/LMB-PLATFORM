@@ -15,7 +15,7 @@ export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "n
 /** The Settings page an id really opens (an alias resolves to its page). */
 export const settingsPageOf = (id: string): string => SETTINGS_TAB_ALIASES[id] || id;
 
-export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer", "google", "apps", "team", "security", "bookkeeping", "plan", "billing", "data"] as const;
+export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer", "google", "apps", "team", "security", "bookkeeping", "plan", "billing", "data", "close"] as const;
 
 /** Sub tabs per page (a Settings page id, or a top-level tab): address slug → the page's own tab id. The first is the default. */
 export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
@@ -24,8 +24,6 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],
   analytics: [["overview", "an-overview"], ["traffic", "an-traffic"], ["products", "an-products"], ["checkout", "an-checkout"]],
   apps: [["", "apps"], ["quickbooks", "quickbooks"]],
-  // #settings/plan/close (and the older #settings/billing/close) scrolls to Close your shop (the help centre and the account page link there).
-  plan: [["", "plan"], ["close", "close-shop"]],
 };
 /** Old Settings page ids that open a particular sub tab (Email sender's address opens Sending setup). */
 const ALIAS_SUB_TABS: Record<string, string> = { communications: "email-setup", bookkeeping: "quickbooks" };
@@ -83,6 +81,9 @@ export function routeFromHash(hash: string, combined: boolean = combinedAdmin())
     // Simpler admin, change 7: General is one page now; its old Visitors and Tools tabs moved to Google and Your data.
     if (page === "general" && slug === "visitors") return { tab: "settings", settingsTab: "google" };
     if (page === "general" && slug === "tools") return { tab: "settings", settingsTab: "data" };
+    // Close your shop has its own page (18 November 2026); the older addresses the help centre, the account page and
+    // emails use (#settings/plan/close, #settings/billing/close) open it.
+    if ((page === "plan" || page === "billing") && slug === "close") return { tab: "settings", settingsTab: "close" };
     const known = SETTINGS.has(page) && page !== "designer";
     const route: AdminRoute = { tab: "settings", settingsTab: known ? settingsPageOf(page) : "general" };
     if (known && !slug && ALIAS_SUB_TABS[page]) return { ...route, subTab: ALIAS_SUB_TABS[page] };
