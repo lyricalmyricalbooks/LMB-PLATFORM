@@ -119,3 +119,6 @@ browsers may write (mirroring `firestore.rules`).
   Fundraisers (G2): `fundraiserRules.ts` (`cleanFundraiser`, `fundraiserState`, `daysLeft`, `goalProgress`, the wall and
   `publicFundraiser`); `fundraiserRules.test.ts` runs both copies. Rewards (G2b): `cleanRewards`, `rewardProblem`,
   `rewardsWithTaken`, `rewardsLeft`, `cleanShipTo` (uses `addressRules`).
+- Memberships (beta, 18 November 2026): `membershipRules.ts` holds what a plan may be (`cleanPlan`: monthly or yearly,
+  $2 to $5,000, a free trial up to 60 days, up to 8 perks), the member's state from the card provider's subscription
+  status (`memberState`), `hasPerks`, `mayJoin` and `planPriceWords`. The server's records are in `functions/memberships.js`.

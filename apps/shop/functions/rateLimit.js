@@ -96,6 +96,8 @@ const LIMITS = {
   event: { max: 120, windowMs: 10 * 60 * 1000 },
   // Donations & tips (giving.js): the Support page and the giver's own page. Opening card pages has its own tighter limits there.
   giving: { max: 60, windowMs: 10 * 60 * 1000 },
+  // Memberships (memberships.js): the Membership page and the account tab. Opening card pages has its own limit there.
+  membership: { max: 60, windowMs: 10 * 60 * 1000 },
   // Admin Overview reads of Google Analytics (each is 3 Data API calls; GA4 allows thousands a day).
   ga4: { max: 60, windowMs: 10 * 60 * 1000 },
   // Books › Import reading an old shop's address (functions/oldShopRead.js): each read can fetch up to 20 pages.

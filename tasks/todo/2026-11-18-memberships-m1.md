@@ -26,12 +26,13 @@ and patrons in M5. Split in four pull requests so each is small enough to check.
 - [x] Tests on both sides; control room launch list gains the subscription and invoice events.
 
 ## M1b: the shop's server
-- [ ] `src/shared/memberships.ts`: a plan (name, description, perks list, monthly or yearly, price, free trial days),
+- [x] `src/shared/membershipRules.ts`: a plan (name, description, perks list, monthly or yearly, price, free trial days),
       cleaning, the member's state from Stripe's status, the next payment day.
-- [ ] `functions/memberships.js`: switch check (platform + owner, like giving), owner ops (plans, members, end one),
+- [x] `functions/memberships.js`: switch check (platform + owner, like giving), owner ops (plans, members, end one),
       public actions (plans, join with sign-in, my membership, cancel, resume, new card), the sweep and the events.
-- [ ] Emails: welcome, payment failed with a link to update the card, cancelled, ended.
-- [ ] Rules emulator: both collections closed to browsers, two-shop check. Tests for every money rule.
+- [x] Emails: welcome, payment failed with a link to update the card, cancelled, ended.
+- [x] Rules emulator: both collections closed to browsers, two-shop check. Tests for every money rule.
+- [x] Privacy: memberships in the export (no provider ids); the erase is refused while one runs, then clears name and card.
 
 ## M1c: the screens
 - [ ] Admin › Members: plans (make, edit, hide) and the member list with state, next payment and End now; Beta badge;
