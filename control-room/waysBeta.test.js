@@ -166,8 +166,8 @@ test("the shop's record shows how it uses Donations: gifts, what they came to an
 test("the shop's record shows how it uses Memberships: members now, free trials, failed payments and a month's money", async () => {
   const w = await world({ ways: WAYS });
   await w.desk.set(ADMIN, { shopId: SHOP, way: "memberships", on: true });
-  const friends = { priceMinor: 1500, interval: "month", currency: "CAD" };
-  const patrons = { priceMinor: 24000, interval: "year", currency: "CAD" };
+  const friends = { name: "Friends", priceMinor: 1500, interval: "month", currency: "CAD" };
+  const patrons = { name: "Patrons", priceMinor: 24000, interval: "year", currency: "CAD" };
   await w.shopData.set(SHOP, "memberships/a", { state: "active", plan: friends, customer: { email: "a@example.com" } });
   await w.shopData.set(SHOP, "memberships/b", { state: "pastDue", plan: friends });
   await w.shopData.set(SHOP, "memberships/c", { state: "ending", plan: patrons });
@@ -177,8 +177,15 @@ test("the shop's record shows how it uses Memberships: members now, free trials,
   await w.shopData.set(SHOP, "memberships/f", { state: "ended", plan: friends });
   await w.shopData.set(SHOP, "memberships/g", { state: "active", plan: friends, mode: "test" });
   await w.shopData.set("test-goods", "memberships/h", { state: "active", plan: friends });
+  // A gift counts as a member but brings nothing monthly; a paused member is counted apart; posts are counted.
+  await w.shopData.set(SHOP, "memberships/i", { state: "active", plan: friends, gift: { months: 3, from: "Ann" } });
+  await w.shopData.set(SHOP, "memberships/j", { state: "paused", plan: friends });
+  await w.shopData.set(SHOP, "memberPosts/p1", { title: "Hello" });
   const rows = Object.fromEntries((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.map((way) => [way.id, way]));
-  assert.deepEqual(rows.memberships.use, { members: 4, trial: 1, pastDue: 1, monthlyMinor: 5000, currency: "CAD" });
+  assert.deepEqual(rows.memberships.use, {
+    members: 5, trial: 1, pastDue: 1, monthlyMinor: 5000, currency: "CAD", paused: 1, gifts: 1,
+    plans: [{ name: "Friends", members: 4 }, { name: "Patrons", members: 1 }], posts: 1,
+  });
   assert.equal(JSON.stringify(rows.memberships.use).includes("example.com"), false);
-  assert.deepEqual(membershipsUse([]), { members: 0, trial: 0, pastDue: 0, monthlyMinor: 0, currency: "CAD" });
+  assert.deepEqual(membershipsUse([]), { members: 0, trial: 0, pastDue: 0, monthlyMinor: 0, currency: "CAD", paused: 0, gifts: 0, plans: [], posts: 0 });
 });

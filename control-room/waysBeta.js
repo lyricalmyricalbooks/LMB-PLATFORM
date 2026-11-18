@@ -70,20 +70,34 @@ export function givingUse(gifts, blockedDays, nowMs, fundraisers = []) {
  * payment; test members left out), how many have a failed payment, and what they bring in a month (a yearly plan as a
  * twelfth). Written by the shop's functions/memberships.js; no member's name or email is read into the line.
  */
-export function membershipsUse(members) {
-  const live = members.filter((m) => m && ["trial", "active", "ending", "pastDue"].includes(m.state) && m.mode !== "test");
+export function membershipsUse(members, posts = []) {
+  const real = members.filter((m) => m && m.mode !== "test");
+  const live = real.filter((m) => ["trial", "active", "ending", "pastDue"].includes(m.state));
   const monthly = (plan) => {
     const price = Number.isFinite(plan?.priceMinor) && plan.priceMinor > 0 ? plan.priceMinor : 0;
     return plan?.interval === "year" ? Math.round(price / 12) : price;
   };
+  // Members per plan (M5c): the plan's name as the shop saved it, biggest first, at most 10.
+  const byPlan = new Map();
+  for (const m of live) {
+    const name = typeof m.plan?.name === "string" && m.plan.name.trim() ? m.plan.name.trim().slice(0, 80) : "A plan";
+    byPlan.set(name, (byPlan.get(name) ?? 0) + 1);
+  }
   return {
     members: live.length,
     trial: live.filter((m) => m.state === "trial").length,
     pastDue: live.filter((m) => m.state === "pastDue").length,
-    monthlyMinor: live.filter((m) => m.state !== "trial").reduce((sum, m) => sum + monthly(m.plan), 0),
+    // A gift is paid once, so it brings nothing in a month.
+    monthlyMinor: live.filter((m) => m.state !== "trial" && !m.gift).reduce((sum, m) => sum + monthly(m.plan), 0),
     currency: live.find((m) => m.plan?.currency)?.plan.currency ?? "CAD",
+    paused: real.filter((m) => m.state === "paused").length,
+    gifts: live.filter((m) => m.gift).length,
+    plans: [...byPlan].map(([name, count]) => ({ name, members: count })).sort((a, b) => b.members - a.members || a.name.localeCompare(b.name)).slice(0, 10),
+    posts: posts.filter(Boolean).length,
   };
 }
+/** The most members' posts read (the shop's own cap, membershipRules.ts MAX_POSTS). */
+const MAX_POSTS = 100;
 /** The most memberships read for the use line (the admin's own list, functions/memberships.js MAX_LISTED, reads as many). */
 const MAX_MEMBERS = 500;
 /** The most gifts read for the use line (the admin's own list, functions/giving.js MAX_LISTED, reads as many). */
@@ -155,7 +169,11 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
         }
         if (allowed.includes("memberships") && shopData.find) {
           try {
-            use.memberships = membershipsUse((await shopData.find(shopId, "memberships", { limit: MAX_MEMBERS })).map((d) => d.data));
+            const [members, posts] = await Promise.all([
+              shopData.find(shopId, "memberships", { limit: MAX_MEMBERS }),
+              shopData.find(shopId, "memberPosts", { limit: MAX_POSTS }),
+            ]);
+            use.memberships = membershipsUse(members.map((d) => d.data), posts.map((d) => d.data));
           } catch { /* the line is left out */ }
         }
         return {

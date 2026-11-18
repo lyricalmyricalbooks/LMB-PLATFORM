@@ -25,7 +25,7 @@ export type MyMembership = {
   skipMonth?: string; pausedAt?: string;
 };
 
-export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard" | "membershipPage" | "membershipAddress" | "membershipSkip" | "membershipUnskip" | "membershipPause" | "membershipUnpause" | "membershipGift" | "membershipGiftStatus";
+export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard" | "membershipPage" | "membershipAddress" | "membershipSkip" | "membershipUnskip" | "membershipPause" | "membershipUnpause" | "membershipGift" | "membershipGiftStatus" | "membershipPosts";
 
 export async function askMembership(action: MembershipAction, body: Record<string, unknown> = {}, user?: User | null): Promise<Record<string, any>> {
   if (isBookingPreview()) return previewMembershipAnswer(action, body, shopCurrency());

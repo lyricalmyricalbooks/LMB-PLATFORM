@@ -187,9 +187,44 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
           })}
           {note && <p role="status" className="text-sm leading-6">{c(note)}</p>}
           {problem && <p role="alert" className="text-sm fm-danger-text">{c(problem)}</p>}
+          {rows.some((m) => ["trial", "active", "ending", "pastDue"].includes(m.state)) && <MemberPostsPart c={c} user={user} focus={q.has("posts")} />}
         </>
       )}
     </section>
+  );
+}
+
+type MemberPostRow = { id: string; title: string; body: string; publishedAt: string };
+
+/** Posts for members (M5b): what the shop wrote for this person's plan, newest first. */
+function MemberPostsPart({ c, user, focus }: { c: Copy; user: User; focus: boolean }) {
+  const [posts, setPosts] = useState<MemberPostRow[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const load = () => { setFailed(false); askMembership("membershipPosts", {}, user).then((a) => setPosts((a.posts || []) as MemberPostRow[])).catch(() => setFailed(true)); };
+  useEffect(load, [user.uid]);
+  useEffect(() => { if (focus && posts) box.current?.scrollIntoView({ block: "start" }); }, [focus, !!posts]);
+  return (
+    <div ref={box} className="fm-mbr-posts" aria-labelledby="mbr-posts-heading">
+      <h3 id="mbr-posts-heading">{c("accountMemberPostsHeading")}</h3>
+      {failed ? (
+        <p role="alert" className="text-sm">{c("accountMemberPostsError")} <button type="button" className="fm-track-link" onClick={load}>{c("membershipRetry")}</button></p>
+      ) : !posts ? (
+        <p role="status" className="text-sm fm-muted">{c("membershipLoading")}</p>
+      ) : !posts.length ? (
+        <p className="text-sm fm-muted">{c("accountMemberPostsEmpty")}</p>
+      ) : (
+        <ul>
+          {posts.map((p) => (
+            <li key={p.id} className="fm-mbr-post">
+              <h4>{p.title}</h4>
+              {p.publishedAt && <p className="fm-track-mono">{dateText(p.publishedAt)}</p>}
+              <div className="fm-mbr-post-body">{p.body.split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>)}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

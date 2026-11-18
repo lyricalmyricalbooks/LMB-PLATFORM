@@ -30,11 +30,11 @@ const crypto = require("crypto");
 const {
   cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, cleanBoxAddress, MAX_PLANS, MAX_MEMBER_PERCENT, BOX_COUNTRIES,
   boxMonth, shopDayOfMonth, shopHour, dayOrdinal, getsBox, paidByCutoff, inStockWarning, boxShortfall, nextBoxMonth, mayPause,
-  GIFT_MONTHS, giftPriceMinor, cleanGift, giftEnd,
+  GIFT_MONTHS, giftPriceMinor, cleanGift, giftEnd, cleanPost, postFor, MAX_POSTS,
 } = require("./shared/membershipRules");
 const { waysOn } = require("./shared/waysToSell");
 
-const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress", "membershipSkip", "membershipUnskip", "membershipPause", "membershipUnpause", "membershipGift", "membershipGiftStatus"]);
+const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress", "membershipSkip", "membershipUnskip", "membershipPause", "membershipUnpause", "membershipGift", "membershipGiftStatus", "membershipPosts"]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,99}$/;
 /** How long a card page stays open. */
 const PAGE_MINUTES = 60;
@@ -99,6 +99,9 @@ const WORDS = {
     giftEndedSubject: (shop) => `Your gift membership to ${shop} has ended`,
     giftEnded: "Your gift membership has ended. Nothing will be charged. You can join from the membership page any time.",
     giftJoinButton: "See membership plans",
+    postSubject: (shop, title) => `${shop}: ${title}`,
+    postIntro: (shop) => `A new post for ${shop} members:`,
+    postButton: "Read it in your account",
   },
   fr: {
     welcomeSubject: (shop) => `Bienvenue parmi les membres de ${shop}`,
@@ -123,6 +126,9 @@ const WORDS = {
     giftEndedSubject: (shop) => `Votre abonnement-cadeau à ${shop} est terminé`,
     giftEnded: "Votre abonnement-cadeau est terminé. Rien ne sera facturé. Vous pouvez devenir membre depuis la page d'abonnement en tout temps.",
     giftJoinButton: "Voir les formules",
+    postSubject: (shop, title) => `${shop} : ${title}`,
+    postIntro: (shop) => `Une nouvelle publication pour les membres de ${shop} :`,
+    postButton: "La lire dans votre compte",
   },
 };
 
@@ -605,6 +611,44 @@ function membershipActions({
   /** A gift as its buyer sees it on the thank-you. */
   const giftView = (id, g) => ({ id, state: g.state === "paid" ? "paid" : g.state === "ended" ? "ended" : "pending", months: g.months, plan: g.plan?.name || "", to: g.to?.name || g.to?.email || "" });
 
+  // ── Members' posts (M5b) ───────────────────────────────────────────────────────────────────────────────────────
+  // memberPosts/{id} (server-only): `title`, `body`, `planIds` (empty: every plan), `publishedAt`, and once emailed
+  // `emailedAt`/`emailedTo`. Members with perks read the ones for their plan in their account (`membershipPosts`).
+  const posts = () => db.collection("memberPosts");
+  const POST_EMAILS = 500;
+  const postView = (id, p) => ({ id, title: p.title || "", body: p.body || "", planIds: p.planIds || [], publishedAt: p.publishedAt || "", updatedAt: p.updatedAt || "", emailedTo: p.emailedTo || 0, emailedAt: p.emailedAt || "" });
+  async function listPosts() {
+    const snap = await posts().limit(MAX_POSTS).get();
+    return snap.docs.map((d) => ({ id: d.id, data: d.data() })).sort((a, b) => String(b.data.publishedAt).localeCompare(String(a.data.publishedAt)));
+  }
+  /** Emails a post to the members it is for (paid up, this mode), once each. Returns how many it went to. */
+  async function emailPost(id, p, mode) {
+    const brand = await emailBrand();
+    const shop = String(brand.shopName || shopName() || "").trim() || "the shop";
+    const rows = await members().where("state", "in", LIVE).limit(MAX_LISTED).get();
+    const seen = new Set();
+    let sent = 0;
+    for (const d of rows.docs) {
+      const m = d.data();
+      const to = String(m.customer?.email || "").toLowerCase();
+      if (!to || seen.has(to) || (m.mode === "test") !== (mode === "test") || !postFor(p.planIds, String(m.planId || ""))) continue;
+      seen.add(to);
+      if (sent >= POST_EMAILS) break;
+      const say = french(m.locale) ? WORDS.fr : WORDS.en;
+      const subject = say.postSubject(shop, p.title);
+      const body = `<p style="margin:0 0 12px;">${escapeHtml(say.postIntro(shop))}</p><h2 style="margin:0 0 12px;">${escapeHtml(p.title)}</h2>`
+        + p.body.split(/\n{2,}/).map((para) => `<p style="margin:0 0 12px;">${escapeHtml(para).replace(/\n/g, "<br>")}</p>`).join("");
+      const html = risoLayout(`${body}<div style="margin:16px 0 0;">${risoButton(escapeHtml(accountUrl("?posts=1")), say.postButton, brand.accent, brand.theme)}</div>`, { ...brand, shopName: shop });
+      try {
+        await sendEmail({ to, subject: mode === "test" ? `[TEST] ${subject}` : subject, html, queue: "membership-post" });
+        sent += 1;
+      } catch (err) {
+        console.warn(`memberships: post ${id} wasn't emailed to one member:`, err?.message || err);
+      }
+    }
+    return sent;
+  }
+
   async function mine(email) {
     const snap = await members().where("customer.email", "==", email).limit(20).get();
     return snap.docs.map((d) => ({ id: d.id, data: d.data() }));
@@ -703,6 +747,17 @@ function membershipActions({
         }
         await members().doc(id).set({ sessions: [session.id] }, { merge: true });
         return res.status(200).json({ url: session.url, id });
+      }
+
+      if (action === "membershipPosts") {
+        // Posts for the plans this person has perks on, in this mode; nobody else learns anything about them.
+        const mode = await currentMode();
+        const planIds = new Set();
+        for (const r of await mine(who.email)) if (hasPerks(r.data.state) && (r.data.mode === "test") === (mode === "test") && r.data.planId) planIds.add(String(r.data.planId));
+        if (!planIds.size || !(await featureOn())) return res.status(200).json({ member: false, posts: [] });
+        const shown = (await listPosts()).filter((x) => [...planIds].some((id) => postFor(x.data.planIds, id))).slice(0, 30)
+          .map((x) => ({ id: x.id, title: x.data.title || "", body: x.data.body || "", publishedAt: x.data.publishedAt || "" }));
+        return res.status(200).json({ member: true, posts: shown });
       }
 
       if (action === "membershipGift") {
@@ -871,6 +926,37 @@ function membershipActions({
           members: list, totals: { members: counted.length, monthlyMinor: monthly, pastDue: counted.filter((x) => x.state === "pastDue").length },
           boxWarnings: await boxWarnings().catch(() => []),
         });
+      }
+      if (op === "posts") {
+        return res.status(200).json({ posts: (await listPosts()).map((x) => postView(x.id, x.data)) });
+      }
+      if (op === "savePost") {
+        const clean = cleanPost(req.body?.post);
+        if ("problem" in clean) return fail(res, 400, clean.problem, clean.field);
+        const { title, body, planIds, email } = clean.post;
+        const id = String(req.body?.id || "");
+        if (id) {
+          const snap = ID.test(id) ? await posts().doc(id).get() : null;
+          if (!snap?.exists) return fail(res, 404, "That post was deleted. Reload to see your posts.", "not_found");
+          await posts().doc(id).set({ title, body, planIds, updatedAt: at }, { merge: true });
+          return res.status(200).json({ ok: true, post: postView(id, { ...snap.data(), title, body, planIds, updatedAt: at }) });
+        }
+        if ((await posts().limit(MAX_POSTS).get()).size >= MAX_POSTS) return fail(res, 409, `You can keep up to ${MAX_POSTS} posts. Delete an old one first.`, "too_many");
+        const newId = randomId();
+        const record = { title, body, planIds, publishedAt: at, updatedAt: at, by: adminUser.email || "admin" };
+        await posts().doc(newId).set(record);
+        let emailedTo = 0;
+        if (email) {
+          emailedTo = await emailPost(newId, record, await currentMode());
+          await posts().doc(newId).set({ emailedTo, emailedAt: now().toISOString() }, { merge: true });
+        }
+        return res.status(200).json({ ok: true, post: postView(newId, { ...record, ...(email ? { emailedTo, emailedAt: now().toISOString() } : {}) }) });
+      }
+      if (op === "deletePost") {
+        const id = String(req.body?.id || "");
+        if (!ID.test(id)) return fail(res, 404, "That post was already deleted.", "not_found");
+        await posts().doc(id).delete();
+        return res.status(200).json({ ok: true });
       }
       if (op === "payments") {
         // Every membership payment, for Bookkeeping and the Tax centre (no names or emails: the books never need them).

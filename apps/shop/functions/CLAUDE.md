@@ -1810,3 +1810,5 @@ reference, so the order webhook ignores it; Square's adapter keeps it beside the
 `membershipGiftStatus`) makes `memberships/g<id>` once paid: state active, `gift {id, months, from}`, `periodEnd` from
 `giftEnd`, one `payments` entry for the books, no subscription. `refresh` sends gift memberships to `giftTick`, which ends
 them at `periodEnd` with one email. Member actions answer 409 `gift`; the owner's End now ends a gift at once.
+
+**Members' posts (M5b, 18 November 2026):** `memberPosts` (server only) holds the owner's posts (`MAX_POSTS` 100, `cleanPost`/`postFor` in `membershipRules.ts`: every plan or listed plans). Admin ops `posts`, `savePost` (emails live members of those plans once, up to 500, only when the post is new and Email is ticked), `deletePost`. Public `membershipPosts` answers `{ member, posts }` for a signed-in member with perks. Admin `MemberPosts.tsx`; account `MemberPostsPart` (`?posts=1`).
