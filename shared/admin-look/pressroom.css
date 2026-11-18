@@ -2591,3 +2591,18 @@ div.rp-listcard-main { cursor: default; }
 .rp:not(.studio-editor) .inv-threshold label { font-size: var(--rp-text-sm); }
 /* Phone Orders: three figures in a two-column grid leave one half-width tile; it takes the whole row instead. */
 .rp:not(.studio-editor) .od-phone .od-figures.rp-kpi-grid > .rp-metric:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* Empty pages (simpler admin, change 5): a faint drawing of what the page will hold, above the one line and the button. */
+.rp:not(.studio-editor) .rp-state-sketch { display: grid; gap: 8px; width: min(100%, 360px); margin-bottom: 8px; opacity: .55; }
+.rp:not(.studio-editor) .rp-state-sketch > span { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--rp-surface-2); }
+.rp:not(.studio-editor) .rp-state-sketch > span > i { display: block; height: 8px; border-radius: 999px; background: var(--rp-border); }
+.rp:not(.studio-editor) .rp-state-sketch > span > i:first-child { width: 38%; }
+.rp:not(.studio-editor) .rp-state-sketch > span > i:last-child { width: 18%; margin-left: auto; }
+.rp:not(.studio-editor) .rp-state-sketch[data-kind="cards"] { grid-template-columns: repeat(3, 1fr); }
+.rp:not(.studio-editor) .rp-state-sketch[data-kind="cards"] > span { flex-direction: column; align-items: flex-start; height: 72px; }
+.rp:not(.studio-editor) .rp-state-sketch[data-kind="cards"] > span > i:first-child { width: 70%; }
+.rp:not(.studio-editor) .rp-state-sketch[data-kind="cards"] > span > i:last-child { width: 40%; margin: auto 0 0; }
+.rp:not(.studio-editor) .rp-state-sketch[data-kind="calendar"] { grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.rp:not(.studio-editor) .rp-state-sketch[data-kind="calendar"] > span { flex-direction: column; height: 56px; padding: 8px 6px; }
+.rp:not(.studio-editor) .rp-state-sketch[data-kind="calendar"] > span > i { width: 100% !important; margin: 0 !important; }
+.rp:not(.studio-editor) .rp-state[data-sketch] .rp-state-icon { display: none; }

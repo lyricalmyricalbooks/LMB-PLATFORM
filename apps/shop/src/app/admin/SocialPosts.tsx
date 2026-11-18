@@ -100,7 +100,7 @@ export function SocialPosts({ onOpen, startWithBook = null, onStarted }: Props) 
       )}
       {rows.length === 0 ? (
         <SectionCard collapsible={false}>
-          <EmptyState title="No posts yet" description="Share a product with the accounts you connected, now or later."
+          <EmptyState sketch="cards" title="No posts yet" description="Share a product with the accounts you connected, now or later."
             action={<PrimaryButton onClick={() => setComposing(null)}>New post</PrimaryButton>} />
         </SectionCard>
       ) : (

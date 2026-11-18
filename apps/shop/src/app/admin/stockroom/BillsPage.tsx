@@ -129,7 +129,7 @@ export function BillsBoard({ initial, today = todayText(), upload = uploadReceip
             ? <DataTable caption="Bills" columns={columns} rows={listed} rowKey={(r) => r.bill.id} stackOnPhone />
             : <EmptyState inline icon="✅" title={filter === "open" ? "Nothing to pay" : "Nothing here"} description={filter === "open" ? "Every bill is paid." : "No bills with this status."} />}
         </section>
-      </> : <section className="rp-card rp-reorder-card"><EmptyState inline icon="🧾" title="No bills yet" description="Add a bill from your printer or a supplier with the day it's due. You'll be told before it's due, and paying it logs the expense." /></section>}
+      </> : <section className="rp-card rp-reorder-card"><EmptyState sketch="rows" icon="🧾" title="No bills yet" description="Add a bill from your printer or a supplier with the day it's due. You'll be told before it's due, and paying it logs the expense." /></section>}
       {notes.length > 0 && <p className="rp-hint">You have {notes.length === 1 ? "a cost" : `${notes.length} costs`} noted under Expenses › Pending. When the bill comes in, add it here and pick the note: it's cleared for you.</p>}
       {confirmNode}
       {paying && (

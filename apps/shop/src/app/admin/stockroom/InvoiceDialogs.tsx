@@ -546,7 +546,7 @@ export function InvoicesCard({ records, onBookSaved, onSettingsSaved, newFor, on
             {listed.length > shown && <SecondaryButton size="sm" onClick={() => setShown((n) => n + 20)}>Show more ({listed.length - shown} left)</SecondaryButton>}
           </> : <EmptyState inline icon="🧾" title="Nothing here" description="No invoices with this status." />}
         </section>
-      </>) : <section className="rp-card rp-reorder-card"><EmptyState inline icon="🧾" title="No invoices yet" description={w(canMake ? "Bill a stockist for what they sold, or anyone else for copies they bought." : "Add a title first, then bill stockists and buyers from here.")} /></section>}
+      </>) : <section className="rp-card rp-reorder-card"><EmptyState sketch="rows" icon="🧾" title="No invoices yet" description={w(canMake ? "Bill a stockist for what they sold, or anyone else for copies they bought." : "Add a title first, then bill stockists and buyers from here.")} /></section>}
       {confirmNode}
 
       {open?.kind === "settings" && <InvoiceSettingsDialog settings={settings} onClose={() => setOpen(null)} onSaved={(value, n) => { onSettingsSaved?.(value); setNotice(n); setOpen(null); }} />}

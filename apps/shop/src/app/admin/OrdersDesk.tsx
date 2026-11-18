@@ -247,8 +247,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
         ) : null}
         {loadProblem}
         {notLoaded || (rows.length === 0 ? (
-          <EmptyState
-            title={search ? "No orders match" : shipping ? "All caught up" : "Nothing here"}
+          <EmptyState sketch={search || shipping ? undefined : "rows"}
+            title={search ? "No orders match" : shipping ? "All caught up" : "No orders yet"}
             description={search ? "Try a name, email or order number." : shipping ? "Nothing to pack or ship." : "Orders show up here once customers check out."}
           />
         ) : (

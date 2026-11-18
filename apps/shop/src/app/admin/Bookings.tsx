@@ -153,7 +153,7 @@ export function Bookings() {
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
-          <EmptyState title="Add what customers can book" description="A studio visit, a class for one, a portfolio review: give it a length and a price, then turn on your bookings page."
+          <EmptyState sketch="cards" title="Add what customers can book" description="A studio visit, a class for one, a portfolio review: give it a length and a price, then turn on your bookings page."
             action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setAdding(true); setTab("services"); }}>Add a service</PrimaryButton>} />
         ) : (<>
           <div className="bkg-view-switch">

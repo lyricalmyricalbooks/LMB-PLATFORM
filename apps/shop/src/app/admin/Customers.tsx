@@ -341,7 +341,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
       <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off${counts.moved ? ", plus the customers you brought over who haven't ordered here yet" : ""}${counts.booked ? `${counts.moved ? " and" : ", plus"} people who booked a time` : ""}.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0
-            ? <EmptyState title="No customers yet" description="Customers appear here after their first paid order." />
+            ? <EmptyState sketch="rows" title="No customers yet" description="Customers appear here after their first paid order." />
             : <EmptyState title="No customers match" description="Try another segment, search or filter."
                 action={<SecondaryButton onClick={clearFilters}>Clear filters</SecondaryButton>} />} />
         {rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}

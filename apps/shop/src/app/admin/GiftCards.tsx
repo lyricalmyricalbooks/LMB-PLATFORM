@@ -7,7 +7,6 @@ import { Copy, Plus, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { copyText } from "./clipboard";
-import { useShopWords } from "./shopWords";
 import {
   PageActions, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, LoadingState, PrimaryButton,
   SecondaryButton, SectionCard, StatusBadge, TextArea, TextField, Toggle, useConfirm,
@@ -430,7 +429,6 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
 }
 
 export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpened?: () => void }) {
-  const w = useShopWords();
   const [cards, setCards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -477,8 +475,8 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
       {cards.length > 0 && <PageActions><SecondaryButton onClick={() => setImporting(true)}>Bring gift cards over</SecondaryButton><PrimaryButton onClick={() => setIssuing(true)}>Issue gift card</PrimaryButton></PageActions>}
       {cards.length === 0 ? (
         <SectionCard>
-          <EmptyState icon="🎁" title="No gift cards yet"
-            description={w("Cards appear here when a shopper buys a gift-card product (Books › add a book › Product type: Gift card) or when you issue one yourself.")}
+          <EmptyState sketch="cards" icon="🎁" title="No gift cards yet"
+            description="Gift cards you sell or give away show here."
             action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>{issueButton}{importButton}</div>} />
         </SectionCard>
       ) : (
