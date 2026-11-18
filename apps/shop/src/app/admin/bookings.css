@@ -97,6 +97,15 @@
 
 /* Services */
 .rp .bkg-services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+/* Service groups and photos (plan 4, 2.3). */
+.rp .bkg-services { display: grid; gap: 24px; }
+.rp .bkg-service-group { display: grid; gap: 10px; }
+.rp .bkg-service-group-name { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .bkg-service-group-name span { font-weight: 500; }
+.rp .bkg-service-photo { flex: none; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--rp-border); object-fit: cover; }
+.rp .bkg-service-top:has(.bkg-service-photo) { justify-content: flex-start; align-items: center; }
+.rp .bkg-service-top:has(.bkg-service-photo) h3 { flex: 1; }
+.rp .bkg-look { display: grid; gap: 16px; }
 .rp .bkg-service { display: flex; flex-direction: column; gap: 6px; }
 .rp .bkg-service[data-off] { opacity: 0.65; }
 .rp .bkg-service-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }

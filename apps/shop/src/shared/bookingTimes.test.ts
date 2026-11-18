@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  groupServices, serviceGroup, servicePhoto, MAX_GROUP_LENGTH,
   rebookDue,
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
   cleanAnswers, cleanClassTimes, cleanQuestions, freeTimes, placesLeft, googleCalendarLink, isFreeTime, MAX_QUESTIONS, zonedTime, runStarts,
@@ -977,5 +978,22 @@ describe("lengths and prices (one service in several lengths)", () => {
     const s = { id: "m", name: "Massage", minutes: 30, priceMinor: 3000, lengths: L } as never;
     const set = { ...DEFAULT_BOOKING_SETTINGS, staff: [{ id: "p", name: "Pat", active: true, services: [], rates: { m: { minutes: 50, priceMinor: 9900 } } }] } as never;
     expect(forPerson(s, set, "p")).toBe(s);
+  });
+});
+
+describe("service groups and photos (plan 4, 2.3)", () => {
+  it("keeps a group to one short line and a photo to an https link", () => {
+    expect(serviceGroup("  Cuts\n and   colour ")).toBe("Cuts and colour");
+    expect(serviceGroup("x".repeat(60))).toHaveLength(MAX_GROUP_LENGTH);
+    expect(serviceGroup(7)).toBe("");
+    expect(servicePhoto("https://cdn.example.com/a.jpg")).toBe("https://cdn.example.com/a.jpg");
+    expect(servicePhoto("http://cdn.example.com/a.jpg")).toBe("");
+    expect(servicePhoto('https://x.example/a.jpg" onerror="x')).toBe("");
+  });
+  it("groups services where each group first appears, with ungrouped ones last", () => {
+    const list = [{ id: "a", group: "Colour" }, { id: "b" }, { id: "c", group: "Cuts" }, { id: "d", group: "colour" }, { id: "e", group: "" }];
+    expect(groupServices(list).map((g) => [g.group, g.services.map((s) => s.id)])).toEqual([["Colour", ["a", "d"]], ["Cuts", ["c"]], ["", ["b", "e"]]]);
+    expect(groupServices([{ id: "a" }, { id: "b" }])).toEqual([{ group: "", services: [{ id: "a" }, { id: "b" }] }]);
+    expect(groupServices([])).toEqual([]);
   });
 });

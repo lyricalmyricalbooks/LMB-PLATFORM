@@ -1309,6 +1309,7 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeAlsoNote: "Vos services se suivent, donc les heures ci-dessous conviennent à tous.",
   bookTimeLengthHeading: "Durée",
   bookTimeFromPrice: "À partir de {price}",
+  bookTimeGroupOther: "Autres services",
   bookTimeLengthProblem: "Cette durée n'est plus proposée. Veuillez choisir de nouveau.",
   bookTimeAlsoProblem: "Un des services ajoutés ne peut plus être réservé avec celui-ci, nous l'avons donc retiré. Veuillez choisir de nouveau.",
   bookTimeExtrasRow: "Options",

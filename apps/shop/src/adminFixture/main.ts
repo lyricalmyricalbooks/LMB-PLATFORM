@@ -505,14 +505,16 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   const CLASSES = (new URLSearchParams(window.location.search).get("ways") || "").split(",").includes("classes");
   const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
   const COURSE_DAYS = [0, 7, 14, 21].map((n) => addDays(monday, 2 + n));
+  // Sample service pictures (Service groups and photos): plain shapes drawn here, so the fixture needs no image files.
+  const samplePhoto = (a: string, b: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${a}"/><circle cx="78" cy="46" r="30" fill="${b}"/><rect x="14" y="70" width="70" height="36" fill="${b}" opacity=".7"/></svg>`)}`;
   let services: BookingService[] = mode === "new" ? [] : [
-    service("review", "Portfolio review", 30, 0, 0, { description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000, meet: true }),
-    service("riso", "Risograph printing session", 60, 4500, 1, { location: "Print room", gapBefore: 15, chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
+    service("review", "Portfolio review", 30, 0, 0, { group: "Advice", description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000, meet: true }),
+    service("riso", "Risograph printing session", 60, 4500, 1, { group: "Printing", photo: samplePhoto("#ff48b0", "#0078bf"), location: "Print room", gapBefore: 15, chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
     // With Classes on (`?ways=classes&page=classes`) the class is live and a second one runs two evenings a week.
     service("binding", "Bookbinding class", 90, 3000, 2, { active: CLASSES, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
-    service("workshop", "Half-day workshop", 180, 12000, 3, { payment: "deposit", depositPercent: 25, processAfter: 60, processMinutes: 60 }),
+    service("workshop", "Half-day workshop", 180, 12000, 3, { group: "Printing", payment: "deposit", depositPercent: 25, processAfter: 60, processMinutes: 60 }),
     // Sold in three lengths (Lengths and prices): the first is the service's own time and price.
-    service("consult", "Studio consultation", 30, 3000, 4, { payment: "atShop", lengths: [{ id: "l30", name: "", minutes: 30, priceMinor: 3000 }, { id: "l60", name: "", minutes: 60, priceMinor: 5500 }, { id: "l90", name: "Full studio walk-through", minutes: 90, priceMinor: 8000 }] }),
+    service("consult", "Studio consultation", 30, 3000, 4, { group: "Advice", photo: samplePhoto("#ffe800", "#00a95c"), payment: "atShop", lengths: [{ id: "l30", name: "", minutes: 30, priceMinor: 3000 }, { id: "l60", name: "", minutes: 60, priceMinor: 5500 }, { id: "l90", name: "Full studio walk-through", minutes: 90, priceMinor: 8000 }] }),
     ...(CLASSES ? [service("letterpress", "Letterpress evening", 120, 5500, 4, { places: 8, location: "Print room", classTimes: [{ weekday: 2, time: "18:30" }, { weekday: 4, time: "18:30" }] })] : []),
     // A four-week course on Wednesday mornings, starting this week: one sign-up holds a place on every date.
     ...(CLASSES ? [service("wheel", "Four-week wheel course", 120, 18000, 5, { places: 6, location: "Studio", courseDates: COURSE_DAYS.map((d) => `${d}T10:00`) })] : []),

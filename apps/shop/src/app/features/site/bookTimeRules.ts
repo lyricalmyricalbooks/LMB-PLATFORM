@@ -8,6 +8,8 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** Sales tax added on top of `priceMinor` when booked (the service charges tax). */ taxMinor?: number;
   /** The tax rate as tax on a million cents, for working out the tax on another price (add-ons, a person's own). */ taxPpm?: number;
   /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[];
+  /** Its group heading on the booking page ("Cuts") and one photo (plan 4, 2.3). */
+  group?: string; photo?: string;
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
   joining?: { missed: number; of: number; fullPriceMinor: number };
   /** Clients may book it as a standing appointment: the same time every few weeks, several visits at once. */ repeats?: boolean;
@@ -86,6 +88,17 @@ export function asPerson<S extends BookingServiceView>(service: S, person: Booki
 /** True when anyone who does this service has their own length or price for it (the picker then shows each one's). */
 export const ratesDiffer = (service: BookingServiceView, people: readonly BookingPerson[]): boolean =>
   people.some((p) => { const s = asPerson(service, p); return s.minutes !== service.minutes || s.priceMinor !== service.priceMinor; });
+/**
+ * What a service card shows as its price (plan 4, 2.3): the lowest the client could pay, and whether that is a "from"
+ * price because the lengths, or the people who do it, cost different amounts. Display only.
+ */
+export function cardPrice(service: BookingServiceView, people: readonly BookingPerson[] = []): { minor: number; from: boolean } {
+  if ((service.lengths?.length || 0) >= 2) return { minor: fromPrice(service), from: true };
+  const prices = [service.priceMinor, ...people.map((p) => asPerson(service, p).priceMinor)];
+  const minor = Math.min(...prices);
+  return { minor, from: prices.some((p) => p !== minor) };
+}
+export { groupServices } from "../../../shared/bookingTimes";
 /** The people a client may pick for a service: those who do it (an empty list of services means every one). */
 export const peopleFor = (info: Pick<BookingInfo, "staff"> | null | undefined, serviceId: string): BookingPerson[] =>
   (info?.staff || []).filter((p) => !p.serviceIds.length || p.serviceIds.includes(serviceId));

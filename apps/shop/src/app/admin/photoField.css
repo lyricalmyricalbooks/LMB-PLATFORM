@@ -1,0 +1,8 @@
+/* PhotoField.tsx: one picture with Change and Remove (tokens only). */
+.rp .photo-field { display: grid; gap: 8px; }
+.rp .photo-field-label { font-size: 13px; font-weight: 600; }
+.rp .photo-field-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.rp .photo-field-thumb { display: grid; place-items: center; width: 128px; aspect-ratio: 16 / 9; border-radius: 12px; border: 1px solid var(--rp-border); background: var(--rp-surface-2); color: var(--rp-text-muted); object-fit: cover; }
+.rp .photo-field[data-shape="square"] .photo-field-thumb { width: 96px; aspect-ratio: 1; }
+.rp .photo-field-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp .photo-field-hint { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
