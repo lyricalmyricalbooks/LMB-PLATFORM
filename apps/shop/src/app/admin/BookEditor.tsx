@@ -1,7 +1,7 @@
 import { sizeGuideStarter } from "./sizeGuideStarters";
 import { kindHint } from "./kindFieldHints";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { 
   X, 
   Upload, 
@@ -85,6 +85,8 @@ import { ProductOptionsEditor } from "./ProductOptionsEditor";
 import { VariantGrid } from "./VariantGrid";
 import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
+import { Part, PartsFold, revealPart } from "./BookEditorParts";
+import { hasColourChoice, nextProductStart } from "./addAnother";
 import { typeById, typeOfProduct, type OwnType, type ProductType } from "../../shared/productTypes";
 import { missingLawFacts, safetyForType } from "./typeFacts";
 import { TypeFactsCard } from "./TypeFactsCard";
@@ -156,6 +158,8 @@ interface BookEditorProps {
   prefill?: Record<string, any> | null;
   /** A new book only: called once with its id after the first save creates it. */
   onCreated?: (id: string) => void;
+  /** A new product only: after it is saved, start the next one from it (product types plan, change 11). */
+  onAddAnother?: (start: Record<string, any>) => void;
 }
 
 const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] = [
@@ -172,7 +176,7 @@ const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] =
 // The combined admin (shop + stockroom plan): the book page has a Stock and sales tab from the stockroom.
 const COMBINED_ADMIN = combinedAdmin();
 
-export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated }: BookEditorProps) {
+export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated, onAddAnother }: BookEditorProps) {
   const { rates } = useCurrency();
   // The record being edited: the opened book, or the new one once a first Save has created it.
   const [book, setBook] = useState<Book | null>(bookProp);
@@ -619,6 +623,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   };
 
   const closeAfterSave = useRef(true);
+  // The product this editor just created, for "Saved. Add another" (product types plan, change 11).
+  const [justCreated, setJustCreated] = useState<any>(null);
   const handleSave = async (e?: React.FormEvent, reviewed = false, close = closeAfterSave.current) => {
     closeAfterSave.current = close;
     if (e) e.preventDefault();
@@ -679,8 +685,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         setBook({ ...(book as any), ...toSave, id: book.id });
       } else {
         const created = await adminApi.createBook(toSave);
-        toast.success("New title added to library");
+        if (!onAddAnother) toast.success("New title added to library");
         onCreated?.(created.id);
+        setJustCreated({ ...toSave, id: created.id });
         // Further saves update this record instead of creating another copy.
         setBook({ ...toSave, id: created.id } as any);
       }
@@ -1201,6 +1208,37 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   ];
   const STATUS_WORDS: Record<string, string> = { published: "Published", draft: "Draft", archived: "Archived" };
 
+  // Product types plan, change 10: on a new product every part but the essentials is a row with a plain summary.
+  const pickedType = typeOfProduct(formData);
+  const listOf = (items: string[], none: string, most = 3) => items.length ? items.slice(0, most).join(", ") + (items.length > most ? ` and ${items.length - most} more` : "") : none;
+  const filled = (...values: unknown[]) => values.filter((v) => String(v ?? "").trim() !== "" && Number(v) !== 0).length;
+  const parts = {
+    parcel: !isDigital && !pickedType?.traits.noParcel,
+    optionsEssential: !!(pickedType?.sizes.length || pickedType?.choices.length) || optionsOn,
+    publishing: bookKind
+      ? (formData.isbn ? `ISBN ${formData.isbn}` : filled(formData.publisher, formData.pageCount, formData.weight) ? "Some filled in" : "ISBN, publisher, pages and size")
+      : (formData.sku ? `Item code ${formData.sku}` : filled(formData.weight, formData.barcode) ? "Some filled in" : "Item code, weight and size"),
+    customs: formData.hsTariffNumber || formData.customsDescription ? [formData.customsDescription, formData.hsTariffNumber].filter(Boolean).join(" · ") : "The usual customs form",
+    rows: (formData.detailRows || []).length ? `${(formData.detailRows || []).length} rows` : "The usual rows",
+    sale: formData.isOnSale ? `On sale${num(formData.salePrice) > 0 ? ` at ${MONEY_SIGN}${num(formData.salePrice).toFixed(2)}` : ""}` : "Not on sale",
+    coming: formData.comingSoon ? "On: shown before it can be bought" : "Off",
+    preorder: formData.preorder ? "On: taking pre-orders" : "Off",
+    shipping: [shippingProfiles.find((p) => p.id === formData.shippingProfileId)?.name || "Your usual rates", formData.madeToOrderTime ? `made to order, ships in ${formData.madeToOrderTime}` : ""].filter(Boolean).join(" · "),
+    digital: isDigital ? "On: buyers download it" : "Off",
+    options: (formData.options || []).length ? listOf((formData.options || []).map((o: any) => o?.name).filter(Boolean), "None") : "Sizes, colours or other choices",
+    editions: (formData.variants || []).length ? `${(formData.variants || []).length} ${giftCard ? "amounts" : "editions"}` : giftCard ? "No amounts yet" : "One edition",
+    boxset: boxSetOn ? `Box set of ${(formData.bundleItems || []).length}` : (formData.addOns || []).length ? `${(formData.addOns || []).length} add-ons` : "None",
+    organize: listOf([...(formData.categories || []), ...(formData.tags || []).map((t: string) => `#${t}`)], "No categories yet"),
+    more: Object.keys(formData.custom || {}).length ? `${Object.keys(formData.custom || {}).length} filled in` : "Your own fields",
+    seo: formData.metaDescription ? "Your own search description" : "Made from your description",
+  };
+  const [openedParts, setOpenedParts] = useState<Set<string>>(() => new Set());
+  const partsFold = useMemo(() => ({
+    folded: !book && !allParts,
+    opened: openedParts,
+    open: (id: string) => { setOpenedParts((prev) => new Set(prev).add(id)); revealPart(id); },
+  }), [book, allParts, openedParts]);
+
   const money = (label: string, name: string, symbol: string, opts: { disabled?: boolean; hint?: string } = {}) => (
     <div className="be-money">
       <span className="be-money-sym" aria-hidden>{symbol}</span>
@@ -1237,6 +1275,31 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         </div>
       )}
       {confirmNode}
+      {justCreated && onAddAnother && (() => {
+        const type = typeOfProduct(justCreated);
+        const kindName = (justCreated.typeName || type?.name || "").trim();
+        const live = justCreated.status === "published";
+        return (
+          <div role="status" className="be-created">
+            <p><strong>Saved.</strong> {justCreated.title || w("Your product")} {live ? "is live in your shop." : "is saved as a draft."}</p>
+            <div className="be-created-actions">
+              <button type="button" className="rp-btn rp-btn-primary rp-btn-sm" title={kindName ? `Starts a new ${kindName} with the same maker, price and sizes` : undefined}
+                onClick={() => { onAddAnother(nextProductStart(justCreated, "another")); toast.success("Started the next one with the same maker, price and sizes."); }}>
+                <Plus size={14} aria-hidden /> {w("Add another")}
+              </button>
+              {hasColourChoice(justCreated) && (
+                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => { onAddAnother(nextProductStart(justCreated, "colour")); toast.success("Copied without its colour, photos or web address. Add the new colour under Options."); }}>Add it in a new colour</button>
+              )}
+              {live && justCreated.slug && (
+                <a className="rp-btn rp-btn-ghost rp-btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}${productHref(justCreated.slug)}`} target="_blank" rel="noreferrer">
+                  View in shop <ExternalLink size={13} aria-hidden />
+                </a>
+              )}
+              <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setJustCreated(null)}>Keep editing this one</button>
+            </div>
+          </div>
+        );
+      })()}
       {validationErrors.length > 0 && (
         <div role="alert" className="be-alert">
           <strong>⚠ Fix {validationErrors.length === 1 ? "this" : `these ${validationErrors.length} things`} before saving:</strong>
@@ -1268,8 +1331,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       )}
 
       <div className="be-body custom-scrollbar flex-1">
-        <form className="be-main rp-fk-sections" data-essentials={!book && !allParts ? "" : undefined} noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
+        <form className="be-main rp-fk-sections" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
           <CardsAsSections.Provider value={true}>
+          <PartsFold.Provider value={partsFold}>
           {onDetails && (
             <>
               <div role="tabpanel" id="bd-panel-basics" aria-labelledby="rp-tab-bd-basics" className="be-subpanel">
@@ -1357,7 +1421,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               {book && <ProductTypeCard form={formData} onType={setType} />}
               </div>
               <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel">
-              <SectionCard data-extra title={bookKind ? "Publishing details" : "Product details"} description={bookKind ? "Bibliographic data used on the product page and in search." : "Codes and facts used on the product page, for shipping and in search. Empty boxes don't show to shoppers."}>
+              <Part id="publishing" title={bookKind ? "Publishing details" : "Codes and measurements"} summary={parts.publishing}><SectionCard title={bookKind ? "Publishing details" : "Codes and measurements"} description={bookKind ? "Bibliographic data used on the product page and in search." : "Codes and facts used on the product page, for shipping and in search. Empty boxes don't show to shoppers."}>
                 <div className="be-grid be-grid-3">
                   {bookKind && <div>
                     <TextField label="ISBN" name="isbn" value={formData.isbn} onChange={handleChange} placeholder="978-0-…" error={isbnWarn} />
@@ -1437,11 +1501,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                       {" "}Only use it if you have the right to.</>}
                   </div>
                 )}
-              </SectionCard>
+              </SectionCard></Part>
               </div>
               {!giftCard && !isDigital && (
                 <div role="tabpanel" id="bd-panel-customs" aria-labelledby="rp-tab-bd-customs" className="be-subpanel">
-                <SectionCard data-extra title="International parcels (customs)" foldKey="book-editor-customs"
+                <Part id="customs" title={"International parcels (customs)"} summary={parts.customs} needed={parts.parcel}><SectionCard title="International parcels (customs)" foldKey="book-editor-customs"
                   description="Only used on customs forms for parcels leaving the country. Blank boxes use the defaults shown.">
                   <div className="be-grid">
                     <TextField label="Customs description" name="customsDescription" value={formData.customsDescription || ""} onChange={handleChange} placeholder={customsDefaults.description} hint={`Printed on the customs form of international labels. Blank = “${customsDefaults.description}”.`} />
@@ -1451,11 +1515,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <TextField label="Country of origin" name="customsOriginCountry" value={formData.customsOriginCountry || ""} onChange={handleChange} placeholder="CA" maxLength={2}
                       hint={`${isBookKind(productKind(formData)) ? "Where the book was printed" : "Where it was made"} (2-letter code). Blank = your shipping-from country.`} />
                   </div>
-                </SectionCard>
+                </SectionCard></Part>
                 </div>
               )}
               <div role="tabpanel" id="bd-panel-rows" aria-labelledby="rp-tab-bd-rows" className="be-subpanel">
-              <SectionCard data-extra title="Rows on the book page's Details tab" foldKey="book-editor-detail-rows"
+              <Part id="rows" title={w("Rows on the book page's Details tab")} summary={parts.rows}><SectionCard title="Rows on the book page's Details tab" foldKey="book-editor-detail-rows"
                 description="Every row of the book page's Details tab, in the order shown there. Change any label or value, hide a row, move rows with ↑ / ↓, or add your own (Paper, Printing, Design…). A blank value on a standard row uses the matching field in Publishing details.">
                 <div>
                   {(() => {
@@ -1496,7 +1560,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     );
                   })()}
                 </div>
-              </SectionCard>
+              </SectionCard></Part>
               </div>
             </>
           )}
@@ -1610,7 +1674,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </div>
                 )}
               </SectionCard>
-              <SectionCard data-extra title="Sale pricing" description="Show a struck-through original price with a discounted one — now, or between the dates you choose.">
+              <Part id="sale" title={"Sale pricing"} summary={parts.sale}><SectionCard title="Sale pricing" description="Show a struck-through original price with a discounted one — now, or between the dates you choose.">
                 <Toggle label={w("This book is on sale")} checked={!!formData.isOnSale} onChange={(v) => set("isOnSale", v)} />
                 {formData.isOnSale && (
                   <>
@@ -1629,7 +1693,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <SaleWindowFields form={formData} set={set} />
                   </>
                 )}
-              </SectionCard>
+              </SectionCard></Part>
             </>
           </div>
           )}
@@ -1666,7 +1730,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
               </SectionCard>
               )}
-              {!giftCard && <SectionCard data-extra title="Coming soon" description={w("Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.")}>
+              {!giftCard && <Part id="coming" title={"Coming soon"} summary={parts.coming}><SectionCard title="Coming soon" description={w("Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.")}>
                 <div className="be-toggles">
                   <Toggle label="Show as Coming soon (not for sale yet)" checked={!!formData.comingSoon} onChange={(v) => setFormData((prev: any) => ({ ...prev, comingSoon: v, ...(v ? { preorder: false } : {}) }))} />
                 </div>
@@ -1687,8 +1751,8 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     {formData.status !== "published" && <p className="be-warn" role="status">⚠ Coming soon books only show in the shop once the book's Status is Published.</p>}
                   </>
                 )}
-              </SectionCard>}
-              {!giftCard && <SectionCard data-extra title="Pre-order" description={w("Sell this book before it comes out. On its publication date it becomes a normal book by itself.")}>
+              </SectionCard></Part>}
+              {!giftCard && <Part id="preorder" title={"Pre-order"} summary={parts.preorder}><SectionCard title="Pre-order" description={w("Sell this book before it comes out. On its publication date it becomes a normal book by itself.")}>
                 <div className="be-toggles">
                   <Toggle label="Take pre-orders until the publication date" checked={!!formData.preorder} onChange={(v) => setFormData((prev: any) => ({ ...prev, preorder: v, ...(v ? { comingSoon: false } : {}) }))} />
                 </div>
@@ -1713,17 +1777,17 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     {formData.scheduleDate && !releaseArrived(formData.scheduleDate) && <p className="be-warn" role="status">⚠ This book is scheduled to appear later, so shoppers can't pre-order it until then. Clear the schedule to open pre-orders now.</p>}
                   </>
                 )}
-              </SectionCard>}
-              {!giftCard && <SectionCard data-extra title="Shipping" description={w("Which shipping rates apply to this book. Status, schedule and Featured are in the Summary panel (beside the form, or below it on a phone).")}>
+              </SectionCard></Part>}
+              {!giftCard && <Part id="shipping" title={"Shipping"} summary={parts.shipping} needed={parts.parcel}><SectionCard title="Shipping" description={w("Which shipping rates apply to this book. Status, schedule and Featured are in the Summary panel (beside the form, or below it on a phone).")}>
                 <div className="be-grid">
                   <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
                     {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </SelectField>
                   <TextField label="Made to order: ships in" name="madeToOrderTime" value={formData.madeToOrderTime || ""} onChange={handleChange} placeholder="2 to 3 weeks" maxLength={40} hint="Leave empty if you ship it from stock. Shoppers see “Made to order · ships in …” on the product page." />
                 </div>
-              </SectionCard>}
+              </SectionCard></Part>}
               {!giftCard && (
-                <SectionCard data-extra title="Digital product (Beta)" description="Buyers download files instead of getting a parcel. Files are stored privately and only paying buyers can download them.">
+                <Part id="digital" title={"Digital product (Beta)"} summary={parts.digital}><SectionCard title="Digital product (Beta)" description="Buyers download files instead of getting a parcel. Files are stored privately and only paying buyers can download them.">
                   <Toggle label="Buyers download files (nothing to ship)" checked={isDigital} disabled={digitalFormat}
                     onChange={(on) => setFormData((prev: any) => ({ ...prev, digital: on }))} />
                   {digitalFormat && <p className="rp-hint">On because the format is {formData.format}.</p>}
@@ -1750,7 +1814,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                     <SampleFileField book={formData} notify={digitalNotify}
                       onChange={(sample) => setFormData((prev: any) => ({ ...prev, sample: sample || null }))} />
                   </div>
-                </SectionCard>
+                </SectionCard></Part>
               )}
               {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <LicenceKeysCard bookId={book?.id} />}
               {(isDigital || (formData.variants || []).some((v: any) => v && v.digital)) && !giftCard && <DigitalUpdateCard bookId={book?.id} form={formData} unsaved={isDirty} />}
@@ -1760,14 +1824,14 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
 
           {/* Product types plan, change 5: sizes and choices sit on a new product's short page when its type has them. */}
           {onDetails && !giftCard && (
-          <div className="be-sec" data-be-section="options" data-essential={typeOfProduct(formData)?.sizes.length || typeOfProduct(formData)?.choices.length ? "" : undefined}>
+          <div className="be-sec" data-be-section="options" data-essential={typeOfProduct(formData)?.sizes.length || typeOfProduct(formData)?.choices.length ? "" : undefined}><Part id="options" title={"Options"} summary={parts.options} essential={parts.optionsEssential}>
           <ShopWordsContext.Provider value={w}>
             <ProductOptionsEditor form={formData} onApply={(o) => void applyOptions(o)} onClear={clearOptions} />
           </ShopWordsContext.Provider>
-          </div>
+          </Part></div>
           )}
           {onDetails && (
-          <div className="be-sec" data-be-section="editions">
+          <div className="be-sec" data-be-section="editions"><Part id="editions" title={giftCard ? "Gift card amounts" : w("Editions")} summary={parts.editions} essential={giftCard || optionsOn} needed={bookKind}>
           <ShopWordsContext.Provider value={w}>
           {!giftCard && optionsOn && (
             <VariantGrid form={formData} lowLine={lowLine} onChange={updateVariant} onReplace={replaceVariants}
@@ -1842,21 +1906,21 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </SectionCard>
           )}
           </ShopWordsContext.Provider>
-          </div>
+          </Part></div>
           )}
 
           {onDetails && (
-          <div className="be-sec" data-be-section="boxset">
+          <div className="be-sec" data-be-section="boxset"><Part id="boxset" title={"Add-ons & box set"} summary={parts.boxset}>
             <>
               <BoxSetEditor form={formData} set={set} bookId={book?.id} catalog={recommendationCatalog} catalogError={recommendationError} on={boxSetOn} onToggle={toggleBoxSet} />
               {/* Box sets don't offer add-ons. */}
               {!boxSetOn && <AddOnsEditor form={formData} set={set} />}
             </>
-          </div>
+          </Part></div>
           )}
 
           {onDetails && (
-          <div className="be-sec" data-be-section="organize">
+          <div className="be-sec" data-be-section="organize"><Part id="organize" title={"Categories & tags"} summary={parts.organize}>
             <>
             <SectionCard title="Categories & tags" description={w("Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.")}>
               <div className="be-chips" role="group" aria-label="Categories">
@@ -1935,7 +1999,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
               </>}
             </SectionCard>
             </>
-          </div>
+          </Part></div>
           )}
 
           {onDetails && (
@@ -1949,23 +2013,21 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             </SectionCard>
           )}
 
-          {onDetails && !book && !allParts && (
+          {onDetails && partsFold.folded && (
             <div className="be-more-parts">
-              <button type="button" className="rp-btn rp-btn-secondary" onClick={() => setAllParts(true)}>
-                {w("More details")} <ChevronRight size={14} aria-hidden />
-              </button>
-              <p className="rp-fk-hint">{w("Editions, categories, sale prices, shipping, pre-orders and search. All optional, and you can add them later.")}</p>
+              <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setAllParts(true)}>Open every part</button>
             </div>
           )}
 
-          {onDetails && <div className="be-sec" data-be-section="more"><BookCustomFields form={formData} set={set} onDefinitionsDirty={setFieldsDirty} /></div>}
+          {onDetails && <div className="be-sec" data-be-section="more"><Part id="more" title="More details" summary={parts.more}><BookCustomFields form={formData} set={set} onDefinitionsDirty={setFieldsDirty} /></Part></div>}
 
-          {onDetails && <div className="be-sec" data-be-section="seo"><BookSeoPane book={{ ...formData, id: book?.id }} onChange={set} /></div>}
+          {onDetails && <div className="be-sec" data-be-section="seo"><Part id="seo" title="Search engines" summary={parts.seo}><BookSeoPane book={{ ...formData, id: book?.id }} onChange={set} /></Part></div>}
 
           <StatusBar status={formStatus({ missing: formData.title?.trim() ? 0 : 1, create: !book, verb: "create", dirty: isDirty })}
             primaryLabel={w(book ? "Save book" : "Create book")} busy={loading} blocked={!formData.title?.trim() || (!!book && !isDirty)}
             onBlocked={() => { if (!formData.title?.trim()) goTo("details", "title"); }} onPrimary={() => void handleSave(undefined, false, false)}
             cancelLabel="Close" onCancel={handleClose} />
+          </PartsFold.Provider>
           </CardsAsSections.Provider>
         </form>
 

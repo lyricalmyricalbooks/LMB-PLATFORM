@@ -639,6 +639,8 @@ export function Dashboard() {
 
   // Declared before the loading/sign-in returns below: a hook after them crashes the admin on sign-in.
   // A new book's starting values and what to do once it's saved ("Add to the shop" from an inventory app book).
+  // Each new product gets a fresh editor (its prefill is read once), so "Add another" starts clean (change 11).
+  const [newBookRound, setNewBookRound] = useState(0);
   const [newBookStart, setNewBookStart] = useState<{ prefill: Record<string, any>; onCreated: (id: string) => void } | null>(null);
   const [pickingType, setPickingType] = useState(false);
 
@@ -709,6 +711,7 @@ export function Dashboard() {
     setPickingType(false);
     setNewBookStart(start ? { prefill: start, onCreated: () => {} } : null);
     setEditingBook(null);
+    setNewBookRound((n) => n + 1);
     setShowEditor(true);
   };
 
@@ -1123,7 +1126,9 @@ export function Dashboard() {
               >
                 <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><PageActionsSlot.Provider value={ownMasthead ? null : pageActionsEl}><PageHeadSlot.Provider value={ownMasthead ? null : setHeadOverride}><AdminPageBoundary resetKey={activeTab + "|" + settingsTab + "|" + (subTab || "") + "|" + (selectedOrder?.id || "") + (showEditor ? "|editor|" + String(editingBook?.id || "new") : "")}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{showEditor ? (
               <BookEditor
+                key={editingBook ? `book-${editingBook.id}` : `new-${newBookRound}`}
                 book={editingBook}
+                onAddAnother={editingBook ? undefined : (start) => { startProduct(start); window.scrollTo({ top: 0 }); }}
                 prefill={editingBook ? null : newBookStart?.prefill}
                 onCreated={editingBook ? undefined : newBookStart?.onCreated}
                 onClose={() => setShowEditor(false)}

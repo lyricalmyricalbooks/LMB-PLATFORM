@@ -1269,6 +1269,9 @@ inventoryLinkApi.catalog = async () => ({ books: [
   let ownTypes: any[] = [{ id: "own-pillar-candles", name: "Pillar candles", base: "candles" }];
   (adminApi as any).getOwnTypes = async () => ownTypes.map((t) => ({ ...t }));
   (adminApi as any).saveOwnTypes = async (own: any[]) => { ownTypes = own.map((t) => ({ ...t })); };
+  // A new product saves into memory too (Saved · Add another), unless a mode below keeps its own shelf.
+  let made = 0;
+  (adminApi as any).createBook = async (book: any) => ({ ...book, id: `new-${++made}` });
 }
 
 // Settings › Team: the fixture signs in as the owner, with three people on the Team.
