@@ -873,6 +873,10 @@ one to today's count in `orders/{id}/plays/counts` (`nextPlayCount`, key = the f
 day, 429 `play_limit`) in a transaction and answers JSON `{ url, kind, expiresAt }`: a signed link with inline
 disposition and the file's type, `PLAY_LINK_MINUTES` long, `Cache-Control: no-store`. It never touches `downloadCounts`.
 The sub-document is server-only (no rule opens it). Tests: `digitalDownloads.test.js` › Digital D3.
+**Download meter (Digital D3b):** every download link, and an order file's first play link of the day, writes a usage
+line `{ shop, kind: "file", bytes }` (`usageLog.js`, through `fileUsage` from index.js, only inside a shop) with the
+file's size (the stored `size`, else storage metadata). The platform's `shop_file_bytes` metric counts it into the
+shop's web traffic (`egressGb`, kept apart as `fileGb`). Tests: `digitalFileMeter.test.js`.
 
 ## Payments module (27 October 2026, code plans 1.11–1.12)
 

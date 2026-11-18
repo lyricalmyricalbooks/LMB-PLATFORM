@@ -63,7 +63,7 @@ test("only the newest runs are listed", async () => {
 
 test("each shared shop's month of use, busiest first, and its share once the bill is in", async () => {
   const meters = fakeMeters({
-    "moth_2026-11": { invocations: 40, computeGbSeconds: 2, egressGb: 0.1, storageGb: 0.5, emails: 3, reconciled: false, updatedAt: "2026-11-10T06:00:00Z" },
+    "moth_2026-11": { invocations: 40, computeGbSeconds: 2, egressGb: 0.1, fileGb: 0.04, storageGb: 0.5, emails: 3, reconciled: false, updatedAt: "2026-11-10T06:00:00Z" },
     "moth_2026-10": { invocations: 300, computeGbSeconds: 9, egressGb: 1, storageGb: 0.4, emails: 20, reconciled: true, costCents: 120 },
     "wasp_2026-10": { invocations: 600, computeGbSeconds: 18, egressGb: 2, storageGb: 0.2, emails: 5, reconciled: true, costCents: 240 },
   });
@@ -77,6 +77,7 @@ test("each shared shop's month of use, busiest first, and its share once the bil
   assert.ok(now.shops[0].soFarCents >= 0 && now.shops[0].monthEndCents >= now.shops[0].soFarCents);
   assert.deepEqual([now.shops[1].soFarCents, now.shops[1].monthEndCents], [null, null], "nothing measured, nothing estimated");
   assert.equal(now.totals.soFarCents, now.shops[0].soFarCents);
+  assert.deepEqual([now.shops[0].fileGb, now.totals.fileGb], [0.04, 0.04], "download traffic (Digital D3) shows apart, inside the web traffic");
   const last = await w.desk.usage(ADMIN, { month: "2026-10" });
   assert.deepEqual(last.shops.map((s) => s.shopId), ["wasp", "moth"]);
   assert.equal(last.reconciled, true);

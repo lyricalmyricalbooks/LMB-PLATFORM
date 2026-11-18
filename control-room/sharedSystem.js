@@ -58,6 +58,8 @@ export function usageRow(row, record, { month = null, now = null } = {}) {
     invocations: n("invocations"),
     computeGbSeconds: n("computeGbSeconds"),
     egressGb: n("egressGb"),
+    // Bought files handed out (Digital D3), already inside egressGb.
+    fileGb: n("fileGb"),
     storageGb: n("storageGb"),
     emails: n("emails"),
     reconciled: record?.reconciled === true,
@@ -102,7 +104,7 @@ export function createSharedSystemDesk({ admins, registry, meters = null, texts 
       return {
         month: wanted, connected: true, shops,
         reconciled: shops.length > 0 && shops.every((s) => s.reconciled),
-        totals: { invocations: sum("invocations"), computeGbSeconds: sum("computeGbSeconds"), egressGb: sum("egressGb"), storageGb: sum("storageGb"), emails: sum("emails"), texts: sum("texts"), textCents: sum("textCents"), costCents: sum("costCents"), soFarCents: sum("soFarCents"), monthEndCents: sum("monthEndCents") },
+        totals: { invocations: sum("invocations"), computeGbSeconds: sum("computeGbSeconds"), egressGb: sum("egressGb"), fileGb: sum("fileGb"), storageGb: sum("storageGb"), emails: sum("emails"), texts: sum("texts"), textCents: sum("textCents"), costCents: sum("costCents"), soFarCents: sum("soFarCents"), monthEndCents: sum("monthEndCents") },
       };
     },
   };

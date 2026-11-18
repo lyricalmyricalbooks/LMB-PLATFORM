@@ -3136,6 +3136,8 @@ exports.refundOrder = onBrowserRequest(
 
 const downloads = digitalDownloadEndpoint({
   onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive, applyCors,
+  // Download traffic on the shop's meter (usageLog.js kind "file"); a shop on its own project has no meter.
+  fileUsage: (bytes) => { const shop = currentShop(); if (shop?.id) require("./usageLog").usageLine({ shop: shop.id, kind: "file", bytes }); },
 });
 
 exports.downloadDigitalAsset = downloads.downloadDigitalAsset;

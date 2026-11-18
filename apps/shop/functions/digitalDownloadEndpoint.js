@@ -9,7 +9,17 @@ const { mediaKind, nextPlayCount, PLAY_LINK_MINUTES } = require("./shared/digita
 
 function digitalDownloadEndpoint({
   onRequest, admin, db, crypto, catalogDigital, digitalDelivery, isPhysicalItem, preorderActive, applyCors = () => false,
+  fileUsage = () => {},
 }) {
+  // Download traffic for the shop's meter (Digital D3, usageLog.js kind "file"): a file link counts its whole size once.
+  // The bytes go straight from storage to the buyer, so the server never sees them; this is the meter's only record.
+  const meterFile = async (fileMeta, file) => {
+    try {
+      let bytes = Number(fileMeta?.size);
+      if (!(bytes > 0)) bytes = Number((await file.getMetadata())[0]?.size) || 0;
+      if (bytes > 0) fileUsage(bytes);
+    } catch { /* a meter line never breaks a download */ }
+  };
   // ──────────────────────────────────────────────────────────────
   // 4. HTTP Endpoint: Secure Digital Ebook Asset Downloads
   // ──────────────────────────────────────────────────────────────
@@ -123,7 +133,7 @@ function digitalDownloadEndpoint({
         }
 
         if (play) {
-          await playLink({ res, file, fileName, orderId: String(orderId), key: digitalDelivery.fileCountKey(digitalDelivery.countKey(target.bookId, target.variantId), files, fileIndex) });
+          await playLink({ res, file, fileName, fileMeta: files[fileIndex], orderId: String(orderId), key: digitalDelivery.fileCountKey(digitalDelivery.countKey(target.bookId, target.variantId), files, fileIndex) });
           return;
         }
 
@@ -161,6 +171,7 @@ function digitalDownloadEndpoint({
           responseType: digitalDelivery.contentTypeFor(fileName),
         });
 
+        await meterFile(served === file ? files[fileIndex] : null, served);
         res.redirect(signedUrl);
       } catch (err) {
         console.error("Download redirection failed:", err);
@@ -173,7 +184,7 @@ function digitalDownloadEndpoint({
   // (kept in `orders/<id>/plays/counts`, today's only, so a play never wakes the order's own triggers; no rule opens it to
   // browsers). The link opens in the page (inline) and lasts `PLAY_LINK_MINUTES`; the player asks for
   // a fresh one when it runs out. A file that isn't audio or video only downloads.
-  async function playLink({ res, file, fileName, orderId, key }) {
+  async function playLink({ res, file, fileName, fileMeta, orderId, key }) {
     const kind = mediaKind(fileName);
     if (!kind) {
       res.status(400).json({ error: "This file can't be played here. Download it instead.", code: "not_media" });
@@ -193,6 +204,8 @@ function digitalDownloadEndpoint({
     }
     const expires = Date.now() + PLAY_LINK_MINUTES * 60 * 1000;
     const [url] = await file.getSignedUrl({ action: "read", expires, responseDisposition: "inline", responseType: digitalDelivery.contentTypeFor(fileName) });
+    // The first play of the day meters the whole file; the player's fresh links for the same listen don't count again.
+    if (claim.used === 1) await meterFile(fileMeta, file);
     res.set("Cache-Control", "no-store");
     res.json({ url, kind, expiresAt: new Date(expires).toISOString() });
   }

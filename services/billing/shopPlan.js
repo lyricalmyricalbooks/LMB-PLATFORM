@@ -79,6 +79,8 @@ export function planDocument(row, { link, hub = null, at, closing = null, changi
       : null,
     // This month's "your bill may pass" heads-up (billing.runningCostAlerts), for the admin's Alerts page.
     headsUp: headsUpOf(row),
+    // This month's "your files cost more than $5" note (billing.storageNotes, Digital D3b), for the Alerts page.
+    storageNote: storageNoteOf(row),
     // An app being added (being built) or one a plan change will close, for the admins' notices.
     changing: changing && (changing.adding.length || changing.closing) ? changing : null,
     updatedAt: at,
@@ -90,6 +92,13 @@ export function headsUpOf(row) {
   const h = row?.costAlert?.headsUp;
   if (!h || !/^\d{4}-(0[1-9]|1[0-2])$/.test(h.month ?? "") || !Number.isInteger(h.projectedCents) || !Number.isInteger(h.limitCents)) return null;
   return { month: h.month, projectedCents: h.projectedCents, limitCents: h.limitCents, projected: String(h.projected ?? ""), limit: String(h.limit ?? "") };
+}
+
+/** The files note as the admin shows it: the month, the size kept and the month's cost in words; null without one. */
+export function storageNoteOf(row) {
+  const n = row?.costAlert?.storage;
+  if (!n || !/^\d{4}-(0[1-9]|1[0-2])$/.test(n.month ?? "") || typeof n.amount !== "string" || typeof n.size !== "string") return null;
+  return { month: n.month, amount: n.amount, size: n.size };
 }
 
 /** The public document: whether the shop is open, and nothing else. */

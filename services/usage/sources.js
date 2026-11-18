@@ -10,8 +10,8 @@
 import { googleHttp } from "../../clients/http.js";
 import { metersFrom, monthBounds, shareDatabase } from "./meters.js";
 
-/** The two log-based metrics the meters read (made by server/setup-usage-metrics.js). */
-export const USAGE_METRICS = Object.freeze({ work: "shop_work_ms", pages: "shop_page_bytes" });
+/** The log-based metrics the meters read (made by server/setup-usage-metrics.js). */
+export const USAGE_METRICS = Object.freeze({ work: "shop_work_ms", pages: "shop_page_bytes", files: "shop_file_bytes" });
 
 const MONITORING = "https://monitoring.googleapis.com/v3";
 const STORAGE = "https://storage.googleapis.com/storage/v1";
@@ -136,11 +136,14 @@ export function usageSources({ monitoring, storage, sentLog, database = null }) 
     async read(month, shopIds, { measureStorage = true } = {}) {
       const work = await monitoring.sums(USAGE_METRICS.work, month);
       const pages = await monitoring.sums(USAGE_METRICS.pages, month);
+      // Bought files handed out (Digital D3). A metric made after the shop's month began just reads as none.
+      const files = await monitoring.sums(USAGE_METRICS.files, month).catch(() => ({}));
       const out = {};
       for (const shopId of shopIds) {
         out[shopId] = metersFrom({
           work: work[shopId] ? { count: work[shopId].count, ms: work[shopId].sum } : null,
           bytes: pages[shopId]?.sum ?? 0,
+          fileBytes: files[shopId]?.sum ?? 0,
           storageBytes: measureStorage ? await storage.bytes(shopId) : null,
           emails: sentLog ? await sentLog.countInMonth(shopId, month) : 0,
         });

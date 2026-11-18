@@ -102,6 +102,8 @@ describe("the bill heads-up on the plan document", () => {
     expect(plan({ headsUp: { month: "2026-11", projected: "$31.00", limit: "$25.00", projectedCents: 3100 } }).headsUp).toEqual({ month: "2026-11", projected: "$31.00", limit: "$25.00" });
     expect(plan({ headsUp: { month: "2026-11", projected: "US$1,031.00", limit: "US$25.00" } }).headsUp?.projected).toBe("US$1,031.00");
     expect(plan({ headsUp: { month: "2026-11", projected: "<b>lots</b>", limit: "$25.00" } }).headsUp).toBeNull();
+    expect(plan({ storageNote: { month: "2026-11", amount: "$5.75", size: "160.2 GB", cents: 575 } }).storageNote).toEqual({ month: "2026-11", amount: "$5.75", size: "160.2 GB" });
+    expect(plan({ storageNote: { month: "2026-11", amount: "$5.75", size: "<b>big</b>" } }).storageNote).toBeNull();
     expect(plan({ headsUp: { month: "November", projected: "$31.00", limit: "$25.00" } }).headsUp).toBeNull();
     expect(plan().headsUp).toBeNull();
   });

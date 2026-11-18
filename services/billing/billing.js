@@ -69,7 +69,7 @@ import { withRetries } from "./stripeRetry.js";
 import { ensureFoundingCoupon, foundingAmount, foundingOfferOf } from "./founding.js";
 import { createBillingHub, invoiceTax } from "./hub.js";
 import { siteUrlOf } from "../domains/names.js";
-import { DEFAULT_ALERT_CENTS, monthBounds, monthWords, paidShare, projectedCents } from "./runningCost.js";
+import { DEFAULT_ALERT_CENTS, STORAGE_NOTE_CENTS, monthBounds, monthWords, paidShare, projectedCents } from "./runningCost.js";
 import { trackerAnswer, trackerFigures } from "./costTracker.js";
 import { PAY_AS_YOU_SELL_PLANS } from "../payments/payAsYouSell.js";
 
@@ -1345,6 +1345,31 @@ export function createBilling({ stripe, mode = "test", settings, customers, subs
         sent.push(row.shopId);
       }
       return sent;
+    },
+
+    /**
+     * The files note (Digital D3b): once a month, a shop whose files kept cost more than STORAGE_NOTE_CENTS gets
+     * `costAlert.storage` { month, gb, cents, amount, size }, copied to its plan document (shopPlan.js) for its Alerts
+     * page. `storage` is { [shopId]: { gb, cents } } in the home currency. No email: the monthly heads-up covers money.
+     */
+    async storageNotes({ month, storage = {} }) {
+      const noted = [];
+      const home = homeCurrency(settings);
+      const rates = new Map();
+      for (const row of await subscriptions.list()) {
+        const used = storage[row.shopId];
+        if (!used || ENDED.has(row.status) || row.costAlert?.storage?.month === month) continue;
+        if (!(Number.isInteger(used.cents) && used.cents > STORAGE_NOTE_CENTS)) continue;
+        const currency = cur(row);
+        if (currency !== home && !rates.has(currency)) rates.set(currency, exchange ? await exchange.rate({ from: home, to: currency, month }).catch(() => null) : null);
+        const rate = currency === home ? 1 : rates.get(currency);
+        if (!(Number.isFinite(rate) && rate > 0)) continue;
+        const cents = Math.round(used.cents * rate);
+        const gb = Math.round(Number(used.gb) * 10) / 10;
+        await save(row.shopId, { costAlert: { ...(row.costAlert ?? {}), storage: { month, gb, cents, amount: moneyText(cents, currency), size: `${gb} GB` } } }, null);
+        noted.push(row.shopId);
+      }
+      return noted;
     },
 
     /** The press's "tell me if my bill may pass" amount, in cents (0 turns the email off). */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAdminAlerts, alertSignature, settingsAlerts, inventoryLinkAlerts, backupAlert, alertRoute, billHeadsUpAlert } from "./adminAlerts";
+import { buildAdminAlerts, alertSignature, settingsAlerts, inventoryLinkAlerts, backupAlert, alertRoute, billHeadsUpAlert, storageCostAlert } from "./adminAlerts";
 import { hashForRoute } from "./adminRoute";
 
 const now = Date.parse("2026-10-06T21:00:00Z");
@@ -193,5 +193,21 @@ describe("the bill heads-up", () => {
     expect(billHeadsUpAlert({ headsUp }, Date.parse("2026-12-01T00:00:00Z"))).toBeNull();
     expect(billHeadsUpAlert({ headsUp: null }, NOV)).toBeNull();
     expect(billHeadsUpAlert(null, NOV)).toBeNull();
+  });
+});
+
+describe("the files note (Digital D3b)", () => {
+  const NOV = Date.parse("2026-11-20T12:00:00Z");
+  const storageNote = { month: "2026-11", amount: "$5.75", size: "160.2 GB" };
+  it("says what the files cost this month and opens Billing", () => {
+    const a = storageCostAlert({ storageNote }, NOV)!;
+    expect([a.tone, a.title, a.action]).toEqual(["info", "Your files cost $5.75 to keep this month", "billing"]);
+    expect(a.detail).toContain("160.2 GB");
+    expect(alertRoute(a)).toEqual({ tab: "settings", settingsTab: "billing" });
+  });
+  it("is gone once the month is over, or with no note", () => {
+    expect(storageCostAlert({ storageNote }, Date.parse("2026-12-01T00:00:00Z"))).toBeNull();
+    expect(storageCostAlert({ storageNote: null }, NOV)).toBeNull();
+    expect(storageCostAlert(null, NOV)).toBeNull();
   });
 });

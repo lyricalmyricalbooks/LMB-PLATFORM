@@ -22,19 +22,19 @@ function fakeLogging(start = {}) {
 
 const token = async () => "t";
 
-test("the plan reads only, then --apply makes both metrics, then a re-run changes nothing", async () => {
+test("the plan reads only, then --apply makes every metric, then a re-run changes nothing", async () => {
   const google = fakeLogging();
   const plan = await ensureUsageMetrics({ fetch: google.fetch, token, project: "lmb-test-shop", print: () => {} });
-  assert.deepEqual(plan.map((row) => row.does), ["create", "create"]);
+  assert.deepEqual(plan.map((row) => row.does), ["create", "create", "create"]);
   assert.ok(google.calls.every((call) => call.method === "GET"), "the plan changes nothing");
 
   await ensureUsageMetrics({ fetch: google.fetch, token, project: "lmb-test-shop", apply: true, print: () => {} });
-  assert.deepEqual(Object.keys(google.metrics).sort(), [USAGE_METRICS.pages, USAGE_METRICS.work].sort());
+  assert.deepEqual(Object.keys(google.metrics).sort(), [USAGE_METRICS.pages, USAGE_METRICS.work, USAGE_METRICS.files].sort());
   assert.ok(google.calls.some((call) => call.method === "POST" && call.path === "/v2/projects/lmb-test-shop/metrics"));
 
   google.calls.length = 0;
   const again = await ensureUsageMetrics({ fetch: google.fetch, token, project: "lmb-test-shop", apply: true, print: () => {} });
-  assert.deepEqual(again.map((row) => row.does), ["keep", "keep"]);
+  assert.deepEqual(again.map((row) => row.does), ["keep", "keep", "keep"]);
   assert.ok(google.calls.every((call) => call.method === "GET"));
 });
 

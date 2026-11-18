@@ -11,7 +11,9 @@
 // Where each number comes from (sources.js):
 //   invocations, computeGbSeconds  the shared server's usage lines (apps/shop/functions/usageLog.js), counted by shop by
 //                                  the log-based metric shop_work_ms (server/setup-usage-metrics.js); time at MEMORY_GB
-//   egressGb                       the front door's usage lines (pages and files it served), metric shop_page_bytes
+//   egressGb                       the front door's usage lines (pages and files it served), metric shop_page_bytes,
+//                                  plus the bought files handed out (fileGb, metric shop_file_bytes, Digital D3)
+//   fileGb                         that download traffic on its own, for the control room (already inside egressGb)
 //   storageGb                      the shop's files in the shared buckets (shops/<id>/…), measured on the day
 //   emails                         the emails sent for the shop (the platform's sent log)
 //   reads, writes, deletes,        the shared database's month (Cloud Monitoring's Firestore figures, every database in
@@ -53,13 +55,16 @@ const previousMonthOf = (month) => {
   return monthOf(Date.UTC(y, m - 2, 1));
 };
 
-/** One shop's numbers from what the sources measured: { work: { count, ms }, bytes, storageBytes, emails }. */
-export function metersFrom({ work = null, bytes = 0, storageBytes = null, emails = 0 } = {}) {
+/** One shop's numbers from what the sources measured: { work: { count, ms }, bytes, fileBytes, storageBytes, emails }. */
+export function metersFrom({ work = null, bytes = 0, fileBytes = 0, storageBytes = null, emails = 0 } = {}) {
   const ms = Number(work?.ms) || 0;
+  const files = Number(fileBytes) || 0;
   return {
     invocations: Number(work?.count) || 0,
     computeGbSeconds: round((ms / 1000) * MEMORY_GB),
-    egressGb: round((Number(bytes) || 0) / 1e9),
+    // Downloads leave Google's network like pages do, so they are priced as web traffic; fileGb says how much of it.
+    egressGb: round(((Number(bytes) || 0) + files) / 1e9),
+    fileGb: round(files / 1e9),
     ...(storageBytes === null ? {} : { storageGb: round((Number(storageBytes) || 0) / 1e9) }),
     emails: Number(emails) || 0,
     reads: 0, writes: 0, deletes: 0, firestoreGb: 0,

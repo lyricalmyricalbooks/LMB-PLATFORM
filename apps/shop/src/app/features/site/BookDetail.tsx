@@ -59,6 +59,8 @@ import PdpAskQuestion from "./extras/pdp-ask-question/PdpAskQuestion";
 import PdpBulkQuote from "./extras/pdp-bulk-quote/PdpBulkQuote";
 import PdpInBag from "./extras/pdp-in-bag/PdpInBag";
 import PayWhatYouWant from "./extras/pdp-pay-what-you-want/PayWhatYouWant";
+import PdpSample from "./extras/pdp-sample/PdpSample";
+import { productSample } from "./extras/pdp-sample/sample";
 import { readAmount } from "./extras/pdp-pay-what-you-want/payWhatYouWantBox";
 import { paysWhatTheyWant } from "../../../shared/payWhatYouWant";
 import PdpPaymentIcons from "./extras/pdp-payment-icons/PdpPaymentIcons";
@@ -1189,6 +1191,10 @@ export default function BookDetail() {
                       formatPrice={formatPrice}
                       currencySign={formatPrice(0).replace(/[0-9.,\s]/g, "")}
                     />
+                  )}
+                  {/* Free sample (Digital D3b, Beta): shown whenever the product has one, sold out or not. */}
+                  {book && productSample(book) && regionVisible(regionDesign, "productSample") && (
+                    <PdpSample design={regionDesign} sample={productSample(book)!} title={book.title || ""} />
                   )}
                   {/* CTA */}
                   <div

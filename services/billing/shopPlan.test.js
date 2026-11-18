@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createBilling } from "./billing.js";
 import { fakeBillingStores, fakeBillingStripe, fakePlatformEmail } from "./fakes.js";
 import { fakeStockroomData } from "./closingFakes.js";
-import { PLAN_DOC, STATUS_DOC, headsUpOf, planDocument, shopPlanCopies } from "./shopPlan.js";
+import { PLAN_DOC, STATUS_DOC, headsUpOf, planDocument, shopPlanCopies, storageNoteOf } from "./shopPlan.js";
 import { createStripeApi } from "../payments/stripeApi.js";
 import { signatureHeader } from "../payments/stripeSignature.js";
 import { platformSettings } from "../settings.js";
@@ -49,7 +49,7 @@ test("every billing change writes the shop's plan document: trial, card, cancel,
   const row = await t.billing.startTrial({ account: ACCOUNT, shopId: "moth-press", pressName: "Moth Press", plan: "shop" });
   assert.deepEqual(t.plan(), {
     plan: "shop", state: "trial", access: "open", trialEnd: new Date(NOW + 14 * DAY).toISOString(), nextPaymentAt: null,
-    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, hub: "https://platform.example/api/shop-billing/", shopId: "moth-press", founding: false, closing: null, headsUp: null, changing: null,
+    hasCard: false, cancelAtPeriodEnd: false, endsAt: null, paymentWay: "monthly", link: LINK, hub: "https://platform.example/api/shop-billing/", shopId: "moth-press", founding: false, closing: null, headsUp: null, storageNote: null, changing: null,
     updatedAt: new Date(NOW).toISOString(),
   });
   assert.deepEqual(t.status(), { access: "open", updatedAt: new Date(NOW).toISOString() });
@@ -209,4 +209,12 @@ test("the bill heads-up reaches the shop's plan document in words and cents, and
   assert.equal(headsUpOf({ costAlert: { headsUp: { ...headsUp, month: "Nov" } } }), null);
   assert.equal(headsUpOf({ costAlert: { headsUp: { ...headsUp, projectedCents: "3100" } } }), null);
   assert.deepEqual(planDocument({ shopId: "moth-press", status: "active", access: "open", costAlert: { headsUp } }, { link: "https://platform.example/x", at: "2026-11-14T00:00:00Z" }).headsUp, headsUp);
+});
+
+test("the files note (Digital D3b) reaches the plan document in words, and nothing malformed does", () => {
+  const storage = { month: "2026-11", gb: 160.2, cents: 575, amount: "$5.75", size: "160.2 GB" };
+  assert.deepEqual(storageNoteOf({ costAlert: { storage } }), { month: "2026-11", amount: "$5.75", size: "160.2 GB" });
+  assert.equal(storageNoteOf({ costAlert: { storage: { ...storage, month: "Nov" } } }), null);
+  assert.equal(storageNoteOf({}), null);
+  assert.deepEqual(planDocument({ shopId: "moth-press", status: "active", access: "open", costAlert: { storage } }, { link: "https://platform.example/x", at: "2026-11-14T00:00:00Z" }).storageNote.amount, "$5.75");
 });

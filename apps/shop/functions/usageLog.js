@@ -5,6 +5,8 @@
 //
 //   { shopUsage: { shop, kind: "request" | "event" | "tick", ms } }   server work, timed
 //   { shopUsage: { shop, kind: "page", bytes } }                       a front door answer, by size
+//   { shopUsage: { shop, kind: "file", bytes } }                       a bought file handed out (download, or the
+//                                                                      day's first play), by the file's size
 //
 // No shopper's details go in a line: only the shop's id, what kind of work it was and how much.
 

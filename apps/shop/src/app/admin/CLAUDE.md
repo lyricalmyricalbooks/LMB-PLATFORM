@@ -1078,6 +1078,11 @@ the tracker, the control room and the heads-up email. When the email goes, billi
 `shopPlan.js` copies to `platform/plan` as `headsUp`; `billHeadsUpAlert` (adminAlerts.ts) turns it into an Alerts tile
 (action `billing`) for the rest of that month; raising the amount past the month end takes it off. No extra reads: the
 admin already watches `platform/plan`. Fixture: `admin-fixture.html?plan=open&costs=over&page=alerts`.
+**Files note (Digital D3b, 18 November 2026):** the platform's daily running-cost job also gives a shop whose files kept
+cost more than $5 this month (`STORAGE_NOTE_CENTS`, `services/billing` `storageNotes`, once a month, no email) a
+`storageNote` { month, amount, size } on `platform/plan`; `storageCostAlert` (adminAlerts.ts, action `billing`) shows it
+on the Alerts page for the rest of that month. Downloads of bought files now count in "Visitors" on Running costs
+("…, 400 MB of it downloads", `fileGb`).
 **Text reminders line (17 November 2026):** when the platform's `costs` answer has `texts` (`accounts/billingRoutes.js` `textsLine`, from `services/texts` `forShop`), `textsWords` in `platformBilling.ts` puts one hint under Where it goes: the month's texts and cost so far, or "free during your trial". Control room: Costs › Each shop's use › Texts. Fixture: `&texts=sent`.
 
 ## Bookings (beta, 14 November 2026)
