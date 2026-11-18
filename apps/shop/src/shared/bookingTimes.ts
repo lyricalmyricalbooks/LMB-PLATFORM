@@ -149,6 +149,8 @@ export type StaffMember = {
   hours: HoursWindow[][];
   /** Their own days off (holidays), on top of the shop's. */
   daysOff: string[];
+  /** Their own hours for a stretch of dates (plan 4, 1.7), over their weekly ones. Left out while none. */
+  specialHours?: SpecialHours[];
   /** Their sign-in address on the Team page, so they can see their own day (phase 4 part 2). */
   email: string;
   /** Their own length or price for a service, when it differs from the service's (Services plan 2, B3). */
@@ -220,7 +222,55 @@ export type BookingSettings = {
   intakeForm?: IntakeForm;
   /** Time the owner blocked on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly team meeting. Left out while none. */
   blocks?: TimeBlock[];
+  /** Holiday hours (plan 4, 1.7): different opening hours for a stretch of dates. Left out while none. */
+  specialHours?: SpecialHours[];
 };
+
+/**
+ * Holiday hours: from `from` to `to` (shop days, both included) the day's hours are `hours` instead of the weekly
+ * ones; an empty `hours` is closed. Where two stretches cover one day, the one that starts later wins (a closed
+ * Christmas Day inside shorter December hours).
+ */
+export type SpecialHours = { id: string; label: string; from: string; to: string; hours: HoursWindow[] };
+export const MAX_SPECIAL_HOURS = 30;
+/** The longest stretch, in days. */
+export const MAX_SPECIAL_DAYS = 92;
+
+/** Holiday hours, cleaned: real days in order, at most MAX_SPECIAL_DAYS long, earliest first; ones ended before `today` dropped. */
+export function cleanSpecialHours(raw: unknown, today = ""): SpecialHours[] {
+  const taken = new Set<string>();
+  const out: SpecialHours[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const r = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const from = typeof r.from === "string" && DAY.test(r.from) ? r.from : "";
+    const to = typeof r.to === "string" && DAY.test(r.to) ? r.to : from;
+    if (!from || to < from || to > addDays(from, MAX_SPECIAL_DAYS - 1) || (today && to < today)) continue;
+    out.push({ id: ownId(r.id, "h", taken, out.length), label: text(r.label, 60), from, to, hours: cleanHours([r.hours, [], [], [], [], [], []], [[], [], [], [], [], [], []])[0] });
+  }
+  return out.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)).slice(-MAX_SPECIAL_HOURS);
+}
+
+/** The holiday hours that cover `day`, if any (the latest-starting one). */
+export function specialOn(special: readonly SpecialHours[] | undefined, day: string): SpecialHours | undefined {
+  let found: SpecialHours | undefined;
+  for (const h of special || []) if (h.from <= day && day <= h.to && (!found || h.from >= found.from)) found = h;
+  return found;
+}
+
+/** The shop's opening hours on one day: its holiday hours when a stretch covers it, else the weekday's. */
+export function hoursOnDay(settings: Pick<BookingSettings, "hours" | "specialHours">, day: string): HoursWindow[] {
+  return specialOn(settings.specialHours, day)?.hours ?? settings.hours[weekdayOf(day)] ?? [];
+}
+
+/**
+ * One person's working hours on one day: their own holiday hours first, then their own weekly hours, else the shop's
+ * (holiday hours included). Days off are the caller's to apply.
+ */
+export function personHoursOn(settings: Pick<BookingSettings, "hours" | "specialHours">, p: Pick<StaffMember, "ownHours" | "hours" | "specialHours">, day: string): HoursWindow[] {
+  const own = specialOn(p.specialHours, day);
+  if (own) return own.hours;
+  return p.ownHours ? p.hours[weekdayOf(day)] || [] : hoursOnDay(settings, day);
+}
 
 /**
  * Blocked time: nobody can book it online (a person's, or the whole shop's when `staffId` is ""). `start`/`end` are the
@@ -791,6 +841,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     textReminders: s.textReminders === true,
     ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
     ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
+    ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
   };
 }
 
@@ -975,6 +1026,7 @@ export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BO
       ownHours,
       hours: ownHours ? cleanHours(p.hours, shopHours) : shopHours.map((d) => d.map((w) => ({ ...w }))),
       daysOff: cleanDaysOff(p.daysOff),
+      ...(() => { const specialHours = cleanSpecialHours(p.specialHours); return specialHours.length ? { specialHours } : {}; })(),
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
       rates: cleanRates(p.rates),
       ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
@@ -1177,12 +1229,12 @@ export function freeTimes(args: {
   staffId?: string;
 }): number[] {
   const { service, settings, day } = args;
-  if (!booksByPerson(settings)) return freeTimesFor(args, settings.hours, "");
+  if (!booksByPerson(settings)) return freeTimesFor(args, hoursOnDay(settings, day), "");
   const people = staffFor(settings, service.id).filter((p) => !args.staffId || p.id === args.staffId);
   const all = new Set<number>();
   for (const p of people) {
     if (p.daysOff.includes(day)) continue;
-    for (const ms of freeTimesFor(args, p.ownHours ? p.hours : settings.hours, p.id)) all.add(ms);
+    for (const ms of freeTimesFor(args, personHoursOn(settings, p, day), p.id)) all.add(ms);
   }
   return [...all].sort((a, b) => a - b);
 }
@@ -1190,7 +1242,7 @@ export function freeTimes(args: {
 /** One calendar's free times on a day: the shop's (no person) or one person's, with their working hours. */
 function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }: {
   service: Bookable; settings: BookingSettings; busy: readonly Busy[]; day: string; zone: string; nowMs: number;
-}, hours: HoursWindow[][], staffId: string): number[] {
+}, windows: HoursWindow[], staffId: string): number[] {
   if (!isDay(day) || settings.daysOff.includes(day)) return [];
   // The owner's blocked time is busy like a booking: the whole shop's for everyone, a person's for them.
   const busy = settings.blocks?.length ? [...booked, ...blockedBusy(settings.blocks, day, zone)] : booked;
@@ -1214,7 +1266,7 @@ function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }: {
     }
     return out.sort((a, b) => a - b);
   }
-  for (const w of hours[weekdayOf(day)] || []) {
+  for (const w of windows) {
     const close = minutesOf(w.end);
     for (let m = minutesOf(w.start); m + service.minutes <= close; m += settings.step) {
       const start = zonedTime(day, `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`, zone);
@@ -1252,9 +1304,9 @@ export function whoIsFree(args: { service: Bookable; settings: BookingSettings; 
   const { service, settings, busy, start, zone } = args;
   if (!Number.isFinite(start)) return null;
   const day = dayOf(start, zone);
-  if (!booksByPerson(settings)) return freeTimesFor({ ...args, day }, settings.hours, "").includes(start) ? "" : null;
+  if (!booksByPerson(settings)) return freeTimesFor({ ...args, day }, hoursOnDay(settings, day), "").includes(start) ? "" : null;
   const people = staffFor(settings, service.id).filter((p) => (!args.staffId || p.id === args.staffId) && !p.daysOff.includes(day)
-    && freeTimesFor({ ...args, day }, p.ownHours ? p.hours : settings.hours, p.id).includes(start));
+    && freeTimesFor({ ...args, day }, personHoursOn(settings, p, day), p.id).includes(start));
   if (!people.length) return null;
   const teaching = isClass(service) ? people.find((p) => busy.some((b) => b.staffId === p.id && b.serviceId === service.id && b.start === start)) : undefined;
   if (teaching) return teaching.id;
@@ -1278,8 +1330,8 @@ export function keptPerson(settings: Pick<BookingSettings, "staff">, serviceId: 
 export function ownerBookingSettings(settings: BookingSettings): BookingSettings {
   const allDay = Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]);
   // Blocked time keeps clients out, never the owner: they can still put a booking there by hand.
-  return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [],
-    staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [] })) };
+  return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [], specialHours: [],
+    staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [], specialHours: [] })) };
 }
 
 /** Whether `start` is free for a booking (someone can take it, or the shop's one calendar is free there). */
@@ -1391,7 +1443,7 @@ export function packProblem(pack: BookingPack | null | undefined, serviceId: str
 
 // ── Pickup times ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type PickupSettings = Pick<BookingSettings, "hours" | "daysOff" | "pickupSlotMinutes" | "pickupPerSlot" | "pickupReadyHours">;
+export type PickupSettings = Pick<BookingSettings, "hours" | "daysOff" | "pickupSlotMinutes" | "pickupPerSlot" | "pickupReadyHours"> & Pick<Partial<BookingSettings>, "specialHours">;
 
 /** Why a pickup time can't be taken: closed then, too soon to pack, already full, or further ahead than shown. */
 export type PickupProblem = "closed" | "too_soon" | "full" | "too_far";
@@ -1402,7 +1454,7 @@ const hhmm = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, "0
 function slotsOn(settings: PickupSettings, day: string, zone: string): number[] {
   if (!isDay(day) || settings.daysOff.includes(day)) return [];
   const out: number[] = [];
-  for (const w of settings.hours[weekdayOf(day)] || []) {
+  for (const w of hoursOnDay(settings, day)) {
     const close = minutesOf(w.end);
     for (let m = minutesOf(w.start); m + settings.pickupSlotMinutes <= close; m += settings.pickupSlotMinutes) {
       const start = zonedTime(day, hhmm(m), zone);
