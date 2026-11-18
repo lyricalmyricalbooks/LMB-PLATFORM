@@ -38,7 +38,7 @@ describe("setup mode's menu (code plan 18.6)", () => {
 
   it("names each page and finds the item that holds it", () => {
     expect(setupPageLabel("customers", menu)).toBe("Customers");
-    expect(setupPageLabel(PLAN_PAGE, menu)).toBe("Plan");
+    expect(setupPageLabel(PLAN_PAGE, menu)).toBe("Plan & billing");
     expect(setupPageLabel(HELP_PAGE, menu)).toBe("Help");
     expect(setupMenuItemFor(SETTINGS_ITEM_PREFIX + "shipping", menu)).toBe(GENERAL_PAGE);
     expect(setupMenuItemFor(PLAN_PAGE, menu)).toBe(GENERAL_PAGE);

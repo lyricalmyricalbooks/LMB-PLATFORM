@@ -6,7 +6,7 @@ import { LEAVING_CHOICES, billingCall } from "./platformBilling";
 import { hubReady, planDate, storesPage, type PlatformPlan } from "./platformPlan";
 import { CLOSING_STEPS, closeShopStage, type CloseStage } from "./closeShop";
 
-// Settings › Billing › Close your shop (#settings/billing/close): the one place a press leaves from. Three numbered
+// Settings › Plan & billing › Close your shop (#settings/plan/close): the one place a press leaves from. Three numbered
 // steps, always shown whatever state the plan is in: download everything, cancel the plan, and what happens after
 // (the closing timeline Julian chose, services/billing/closing.js). Pure words and the stage rule are in closeShop.ts;
 // closeShop.test.ts keeps this card on the Billing page so the way out can't quietly disappear again.

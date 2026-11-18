@@ -62,7 +62,7 @@ export function PlanSettings() {
 
 /**
  * Settings › Billing: the next bill, saved cards, billing details and past bills (BillingHub.tsx), then Close your shop,
- * shown whatever the plan's state so the way out is always here (`#settings/billing/close` scrolls to it).
+ * shown whatever the plan's state so the way out is always here (`#settings/plan/close` scrolls to it).
  */
 export function BillingSettings({ focusClose }: { focusClose?: boolean } = {}) {
   const { plan, failed } = usePlatformPlan(true);

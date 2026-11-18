@@ -17,8 +17,8 @@ export function ClosingTileView({ day }: { day: string }) {
       </div>
       <span>Download everything before then, or keep your plan.</span>
       <div className="flex flex-wrap gap-2">
-        <a className="rp-btn rp-btn-primary rp-btn-sm" href="#settings/billing/close">Download your shop</a>
-        <a className="rp-btn rp-btn-secondary rp-btn-sm" href="#settings/billing/close">Keep my plan</a>
+        <a className="rp-btn rp-btn-primary rp-btn-sm" href="#settings/plan/close">Download your shop</a>
+        <a className="rp-btn rp-btn-secondary rp-btn-sm" href="#settings/plan/close">Keep my plan</a>
       </div>
     </section>
   );

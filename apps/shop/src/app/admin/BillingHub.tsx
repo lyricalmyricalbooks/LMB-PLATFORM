@@ -248,7 +248,7 @@ export function PlanPage({ plan }: Hub) {
 
       {/* Cancelling, the download and what happens after live together on Settings › Billing › Close your shop. */}
       <SectionCard title="Leaving Colophon?" description="Download your shop, cancel and close it in one place." collapsible={false}>
-        <div><SecondaryButton onClick={() => { const card = document.getElementById("close-shop"); if (card) card.scrollIntoView({ behavior: "smooth", block: "start" }); else window.location.hash = "#settings/billing/close"; }}>Close your shop</SecondaryButton></div>
+        <div><SecondaryButton onClick={() => { const card = document.getElementById("close-shop"); if (card) card.scrollIntoView({ behavior: "smooth", block: "start" }); else window.location.hash = "#settings/plan/close"; }}>Close your shop</SecondaryButton></div>
       </SectionCard>
 
       <Dialog open={!!preview} onClose={() => setPreview(null)} title={preview ? `Switch to ${preview.planName}?` : ""}

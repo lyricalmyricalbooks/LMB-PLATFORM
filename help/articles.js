@@ -533,7 +533,7 @@ export const ARTICLES = Object.freeze([
     topic: "Your account",
     question: "How do I cancel my plan and close my shop?",
     answer: [
-      "Open your shop's admin and go to Settings › Billing, then scroll to Close your shop. It has three steps, in order.",
+      "Open your shop's admin and go to Settings › Plan & billing, then scroll to Close your shop. It has three steps, in order.",
       "Nothing is deleted the day you cancel. Your shop stays open until the time you've paid for ends, and you can change your mind until then.",
       "After that your shop closes. For 90 days you can still sign in, download everything or start again. We email you 30 and 7 days before it's deleted for good.",
     ],
@@ -542,7 +542,7 @@ export const ARTICLES = Object.freeze([
       "Press Cancel plan and confirm. Telling us why is optional.",
       "Read What happens next, so you know the dates.",
     ],
-    where: ["Settings › Billing"],
+    where: ["Settings › Plan & billing"],
   },
   {
     id: "what-help",
