@@ -41,6 +41,26 @@ const MAX_LISTED = 500;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
 const SESSION_ID = /^cs_[A-Za-z0-9_]+$/;
 const LIVE = ["trial", "active", "ending", "pastDue"];
+/** How often a membership's invoices are read again without an invoice event (the daily check against the provider). */
+const PAYMENTS_EVERY = 20 * HOUR;
+/** Payments kept on one membership (ten years of monthly payments). */
+const MAX_PAYMENTS = 120;
+
+/**
+ * The membership's saved payments with the provider's invoices folded in: only paid invoices with money and a paid time,
+ * one per invoice id (the provider's copy wins), oldest first, the newest MAX_PAYMENTS. Pure.
+ */
+function mergePayments(saved, invoices) {
+  const byId = new Map();
+  for (const p of Array.isArray(saved) ? saved : []) if (p && p.id) byId.set(p.id, p);
+  for (const inv of Array.isArray(invoices) ? invoices : []) {
+    if (!inv || !inv.id || inv.status !== "paid" || !inv.paidAt) continue;
+    const amountMinor = Math.round(Number(inv.amountMinor) || 0);
+    if (amountMinor <= 0) continue;
+    byId.set(inv.id, { id: String(inv.id), amountMinor, currency: String(inv.currency || "").toUpperCase(), paidAt: inv.paidAt, periodEnd: inv.periodEnd || "" });
+  }
+  return [...byId.values()].sort((a, b) => String(a.paidAt).localeCompare(String(b.paidAt))).slice(-MAX_PAYMENTS);
+}
 
 const fail = (res, status, error, code) => res.status(status).json({ error, ...(code ? { code } : {}) });
 const french = (locale) => /^fr\b/i.test(String(locale || ""));
@@ -245,16 +265,40 @@ function membershipActions({
     return { ...m, cardSessions, ...(card ? { card } : {}) };
   }
 
+  /**
+   * The membership's paid invoices, kept on it for the money pages (`payments`). Read when an invoice event arrived
+   * (`force`), else at most every PAYMENTS_EVERY, so the daily sweep checks each live membership against the provider.
+   * Never throws: a failed read keeps what was saved.
+   */
+  async function recordPayments(id, m, acc, force) {
+    if (!acc.subscriptions?.invoices || !m.subscription) return m;
+    const nowMs = now().getTime();
+    if (!force && Date.parse(m.paymentsReadAt || "") + PAYMENTS_EVERY > nowMs) return m;
+    try {
+      const invoices = await acc.subscriptions.invoices(m.subscription, 24);
+      const fields = { payments: mergePayments(m.payments, invoices), paymentsReadAt: new Date(nowMs).toISOString() };
+      await members().doc(id).set(fields, { merge: true });
+      return { ...m, ...fields };
+    } catch (err) {
+      console.warn(`memberships: couldn't read the payments of ${id}:`, err?.message || err);
+      return m;
+    }
+  }
+
   /** Reads one membership again from the provider. Never throws: a failed read keeps what was saved. */
-  async function refresh(id, m) {
+  async function refresh(id, m, { invoices = false } = {}) {
     try {
       const acc = await account(m.mode);
       if (!acc.subscriptions) return m;
-      if (m.state === "pending" && !m.subscription) return (await fromSessions(id, m, acc)) || m;
+      if (m.state === "pending" && !m.subscription) {
+        const started = await fromSessions(id, m, acc);
+        return started ? recordPayments(id, started, acc, true) : m;
+      }
       if (!m.subscription) return m;
       const withCard = await takeNewCards(id, m, acc);
       const sub = await acc.subscriptions.read(m.subscription);
-      return sub ? (await apply(id, sub)) || withCard : withCard;
+      const saved = sub ? (await apply(id, sub)) || withCard : withCard;
+      return recordPayments(id, saved, acc, invoices);
     } catch (err) {
       console.warn(`memberships: couldn't read ${id}:`, err?.message || err);
       return m;
@@ -272,7 +316,7 @@ function membershipActions({
     if (!/^sub_[A-Za-z0-9_]+$/.test(String(subId || ""))) return false;
     const snap = await members().where("subscription", "==", subId).limit(1).get();
     if (snap.empty) return false;
-    await refresh(snap.docs[0].id, snap.docs[0].data());
+    await refresh(snap.docs[0].id, snap.docs[0].data(), { invoices: type.startsWith("invoice.") });
     return true;
   }
 
@@ -440,6 +484,18 @@ function membershipActions({
           members: list, totals: { members: counted.length, monthlyMinor: monthly, pastDue: counted.filter((x) => x.state === "pastDue").length },
         });
       }
+      if (op === "payments") {
+        // Every membership payment, for Bookkeeping and the Tax centre (no names or emails: the books never need them).
+        const rows = await members().limit(MAX_LISTED).get();
+        const payments = [];
+        for (const d of rows.docs) {
+          const m = d.data();
+          for (const p of Array.isArray(m.payments) ? m.payments : []) {
+            payments.push({ id: p.id, membershipId: d.id, plan: m.plan?.name || "", amountMinor: p.amountMinor, currency: p.currency || currency(), paidAt: p.paidAt, test: m.mode === "test" });
+          }
+        }
+        return res.status(200).json({ currency: currency(), payments });
+      }
       if (op === "savePlan") {
         const clean = cleanPlan(req.body?.plan);
         if ("problem" in clean) return fail(res, 400, clean.problem, clean.field);
@@ -490,4 +546,4 @@ function membershipActions({
   return { handlePublic, handleAdmin, sweep, onEvent, featureOn, tellWebsite };
 }
 
-module.exports = { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS, nextCheck, PAGE_MINUTES };
+module.exports = { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS, nextCheck, mergePayments, PAGE_MINUTES };

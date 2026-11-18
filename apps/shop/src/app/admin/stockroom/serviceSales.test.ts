@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { giftSales, packSales, serviceLedgerRows, serviceSales, serviceYear, withPackSales } from "./serviceSales";
+import { giftSales, membershipSales, packSales, serviceLedgerRows, serviceSales, serviceYear, withPackSales } from "./serviceSales";
 import { taxCenterModel, type MoneySources } from "./moneyReports";
 import { taxPeriodModel } from "./taxPeriods";
 import { yearFigures } from "./yearReport";
@@ -40,7 +40,7 @@ describe("service sales", () => {
     expect(rows.find((r) => r.type === "Tip")).toMatchObject({ baseAmount: 9, isIncome: true, sourceType: "bookingTip" });
     expect(serviceLedgerRows(sales, "2025", "CAD")).toEqual([]);
     expect(serviceLedgerRows(sales, "2026", "USD")).toEqual([]);
-    expect(serviceYear(sales, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9, gifts: 0 });
+    expect(serviceYear(sales, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9, gifts: 0, memberships: 0 });
   });
 
   const sources: MoneySources = { books: {}, states: {}, taxCenter: {}, fxRateCache: {}, serviceSales: sales };
@@ -92,7 +92,7 @@ describe("service sales", () => {
     it("books the sale net of tax, with the tax beside it", () => {
       const ledger = serviceLedgerRows(taxedSales, "2026", "CAD");
       expect(ledger.map((r) => [r.baseAmount, r.taxAmount, r.taxes])).toEqual([[100, 13, { "HST ON": 1300 }], [50, 6.5, { "HST ON": 650 }], [60, 0, {}]]);
-      expect(serviceYear(taxedSales, "2026", "CAD")).toEqual({ count: 3, kept: 210, tax: 19.5, tips: 0, gifts: 0 });
+      expect(serviceYear(taxedSales, "2026", "CAD")).toEqual({ count: 3, kept: 210, tax: 19.5, tips: 0, gifts: 0, memberships: 0 });
       expect(yearFigures({ books: [], states: {}, taxCenter: null, fxRateCache: {}, serviceSales: taxedSales }, "2026").revenue).toBe(210);
     });
 
@@ -162,7 +162,7 @@ describe("service sales", () => {
         ["Gift", "Gift (Support page)", 26.03, "gift", true],
         ["Gift", "Gift (Support page)", 10, "gift", true],
       ]);
-      expect(serviceYear(withGifts, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9, gifts: 36.03 });
+      expect(serviceYear(withGifts, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9, gifts: 36.03, memberships: 0 });
     });
 
     it("stays out of sales in the Tax centre, the tax period and the year figures", () => {
@@ -173,6 +173,47 @@ describe("service sales", () => {
       const period = { id: "2026-Q1", label: "Q1 2026", start: "2026-01-01", end: "2026-03-31", open: false, quarter: true };
       expect(taxPeriodModel({ orders: [], ledgerRows: model.rows, states: {}, period, currency: "CAD" }).salesCents).toBe(8000);
       expect(yearFigures({ books: [], states: {}, taxCenter: null, fxRateCache: {}, serviceSales: withGifts }, "2026").revenue).toBe(200);
+    });
+  });
+
+  describe("membership payments", () => {
+    const payments = [
+      // Paid late evening in Toronto (next day in UTC).
+      { id: "in_1", plan: "Friends", amountMinor: 1500, currency: "cad", paidAt: "2026-03-05T02:00:00Z", test: false },
+      { id: "in_2", plan: "", amountMinor: 1500, currency: "CAD", paidAt: "2026-04-05T15:00:00Z", test: false },
+      // A repeat, a test payment, a free one and one after today are left out.
+      { id: "in_1", plan: "Friends", amountMinor: 1500, currency: "CAD", paidAt: "2026-03-05T02:00:00Z", test: false },
+      { id: "in_3", plan: "Friends", amountMinor: 1500, currency: "CAD", paidAt: "2026-04-06T15:00:00Z", test: true },
+      { id: "in_4", plan: "Friends", amountMinor: 0, currency: "CAD", paidAt: "2026-04-07T15:00:00Z", test: false },
+      { id: "in_5", plan: "Friends", amountMinor: 1500, currency: "CAD", paidAt: "2026-07-05T15:00:00Z", test: false },
+    ];
+    const paid = membershipSales(payments, ZONE, "2026-06-30", "CAD");
+    const withMembers = withPackSales(serviceSales(bookings, ZONE, "2026-06-30", "CAD"), paid);
+
+    it("counts each payment on the shop day it was paid, never taxed", () => {
+      expect(paid.map((s) => [s.id, s.date, s.keptMinor, s.currency, s.serviceName, s.kind])).toEqual([
+        ["member-in_1", "2026-03-04", 1500, "CAD", "Friends", "membership"],
+        ["member-in_2", "2026-04-05", 1500, "CAD", "Membership", "membership"],
+      ]);
+    });
+
+    it("is its own Membership row in the books, counted in sales but apart from the shop's", () => {
+      const rows = serviceLedgerRows(paid, "2026", "CAD");
+      expect(rows.map((r) => [r.type, r.desc, r.baseAmount, r.sourceType, r.isIncome])).toEqual([
+        ["Membership", "Friends (membership)", 15, "membership", true],
+        ["Membership", "Membership (membership)", 15, "membership", true],
+      ]);
+      expect(serviceYear(withMembers, "2026", "CAD")).toEqual({ count: 4, kept: 200, tax: 0, tips: 9, gifts: 0, memberships: 30 });
+      const model = taxCenterModel({ books: {}, states: {}, taxCenter: {}, fxRateCache: {}, serviceSales: withMembers }, "2026", new Date("2026-06-30T12:00:00"));
+      expect(model.summary.sales).toBe(239);
+      expect(model.rows.filter((r) => r.sourceType === "membership")).toHaveLength(2);
+      const period = { id: "2026-Q2", label: "Q2 2026", start: "2026-04-01", end: "2026-06-30", open: false, quarter: true };
+      const q2 = taxPeriodModel({ orders: [], ledgerRows: model.rows, states: {}, period, currency: "CAD" });
+      expect(q2.channels.find((c) => c.id === "memberships")).toMatchObject({ salesCents: 1500, taxCents: 0, sales: 1 });
+      expect(q2.checks.find((c) => c.id === "memberships")?.done).toBe(false);
+      const year = yearFigures({ books: [], states: {}, taxCenter: null, fxRateCache: {}, serviceSales: withMembers }, "2026");
+      expect(year.revenue).toBe(230);
+      expect(year.bookStats.find((b) => b.title === "Memberships")).toMatchObject({ units: 2, revenue: 30 });
     });
   });
 });

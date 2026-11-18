@@ -28,7 +28,7 @@ export type ServiceSale = {
    * gift from the Support page (Donations & tips): `keptMinor` is what the giver paid, card fee covered included; money
    * in, but never a sale and never taxed.
    */
-  kind?: "pack" | "gift";
+  kind?: "pack" | "gift" | "membership";
 };
 
 type BookingLike = {
@@ -119,6 +119,30 @@ export function giftSales(gifts: readonly GiftLike[], zone: string, today: strin
   return out;
 }
 
+/** A membership payment as the Members admin's `payments` op gives it (membersApi MemberPayment). */
+type MemberPaymentLike = { id: string; membershipId?: string; plan?: string; amountMinor?: number; currency?: string; paidAt?: string; test?: boolean };
+
+/**
+ * Every membership payment paid by `today`, on the shop day it was paid: what the member paid that period. Test
+ * memberships are left out; the member's name never goes into the books.
+ */
+export function membershipSales(payments: readonly MemberPaymentLike[], zone: string, today: string, currency: string): ServiceSale[] {
+  const out: ServiceSale[] = [];
+  const seen = new Set<string>();
+  for (const p of payments) {
+    if (!p || !p.id || p.test || !p.paidAt || seen.has(p.id)) continue;
+    const ms = Date.parse(p.paidAt);
+    if (!Number.isFinite(ms)) continue;
+    const date = dayOf(ms, zone);
+    if (date > today) continue;
+    const keptMinor = Math.round(Number(p.amountMinor) || 0);
+    if (keptMinor <= 0) continue;
+    seen.add(p.id);
+    out.push({ id: `member-${p.id}`, date, serviceName: p.plan || "Membership", keptMinor, tipMinor: 0, taxMinor: 0, taxLines: [], currency: String(p.currency || currency).toUpperCase(), kind: "membership" });
+  }
+  return out;
+}
+
 /** Bookings and packs together, oldest first (the order `serviceSales` keeps). */
 export function withPackSales(sales: readonly ServiceSale[], packs: readonly ServiceSale[]): ServiceSale[] {
   return [...sales, ...packs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
@@ -129,6 +153,8 @@ export const SERVICE_SOURCE = "booking";
 export const TIP_SOURCE = "bookingTip";
 /** A gift from the Support page: money in, kept apart from sales (never in gross sales, sales figures or tax). */
 export const GIFT_SOURCE = "gift";
+/** A membership payment: a sale of its own kind, shown apart from shop sales and bookings (counted in gross sales). */
+export const MEMBERSHIP_SOURCE = "membership";
 
 /**
  * The ledger rows for a year ('all' or 'YYYY'), shaped like the stockroom's own sale rows. A sale row's amount is what
@@ -146,6 +172,11 @@ export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, yea
       rows.push({ ...common, sourceId: "giving", type: "Gift", desc: "Gift (Support page)", origAmount: amount, baseAmount: amount, qty: 0, sourceType: GIFT_SOURCE, itemId: s.id });
       continue;
     }
+    if (s.kind === "membership") {
+      const amount = s.keptMinor / 100;
+      rows.push({ ...common, sourceId: "memberships", type: "Membership", desc: `${s.serviceName} (membership)`, origAmount: amount, baseAmount: amount, qty: 1, sourceType: MEMBERSHIP_SOURCE, itemId: s.id, taxAmount: 0, taxes: {} });
+      continue;
+    }
     if (s.keptMinor > 0) {
       const tax = s.taxMinor || 0;
       const amount = (s.keptMinor - tax) / 100;
@@ -160,14 +191,15 @@ export function serviceLedgerRows(sales: readonly ServiceSale[] | undefined, yea
   return rows;
 }
 
-/** Service sales of a year in the books' currency: count, kept (net of tax), tax, tips and gifts (whole currency units). */
+/** Service sales of a year in the books' currency: count, kept (net of tax), tax, tips, gifts and membership payments (whole currency units). */
 export function serviceYear(sales: readonly ServiceSale[] | undefined, year: string, baseCurrency: string) {
-  let count = 0, kept = 0, tax = 0, tips = 0, gifts = 0;
+  let count = 0, kept = 0, tax = 0, tips = 0, gifts = 0, memberships = 0;
   for (const r of serviceLedgerRows(sales, year, baseCurrency)) {
     if (r.sourceType === SERVICE_SOURCE) { count += 1; kept += r.baseAmount; tax += r.taxAmount || 0; }
     else if (r.sourceType === GIFT_SOURCE) gifts += r.baseAmount;
+    else if (r.sourceType === MEMBERSHIP_SOURCE) memberships += r.baseAmount;
     else tips += r.baseAmount;
   }
   const round = (n: number) => Math.round(n * 100) / 100;
-  return { count, kept: round(kept), tax: round(tax), tips: round(tips), gifts: round(gifts) };
+  return { count, kept: round(kept), tax: round(tax), tips: round(tips), gifts: round(gifts), memberships: round(memberships) };
 }

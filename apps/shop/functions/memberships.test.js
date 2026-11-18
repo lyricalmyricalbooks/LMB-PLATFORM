@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import { createRequire } from "module";
 
 const realRequire = createRequire(import.meta.url);
-const { membershipActions, nextCheck, PAGE_MINUTES } = realRequire("./memberships");
+const { membershipActions, nextCheck, mergePayments, PAGE_MINUTES } = realRequire("./memberships");
 
 function fakeDb() {
   const store = new Map();
@@ -61,12 +61,15 @@ function setup({ platform = true, owner = true, subscriptions = true } = {}) {
   const sessions = new Map();
   const subs = new Map();
   const saved = new Map();
+  const invoices = new Map();
+  const invoiceReads = [];
   const shape = (s) => ({ ...s });
   const subApi = {
     async read(id) { return subs.has(id) ? shape(subs.get(id)) : null; },
     async cancelAtEnd(id) { subs.get(id).cancelAtPeriodEnd = true; return shape(subs.get(id)); },
     async resume(id) { subs.get(id).cancelAtPeriodEnd = false; return shape(subs.get(id)); },
     async setCard(id, pm) { cardSet.push({ id, pm }); const c = [...saved.values()].find((x) => x.paymentMethod === pm); if (c) subs.get(id).card = { brand: c.brand, last4: c.last4 }; return shape(subs.get(id)); },
+    async invoices(id) { invoiceReads.push(id); return structuredClone(invoices.get(id) || []); },
     async endNow(id) { Object.assign(subs.get(id), { status: "canceled", endedAt: clock.now.toISOString() }); return shape(subs.get(id)); },
   };
   const checkout = {
@@ -114,7 +117,7 @@ function setup({ platform = true, owner = true, subscriptions = true } = {}) {
     Object.assign(sessions.get(sessionId), { status: "complete", subscription: subId });
     return subId;
   };
-  return { db, desk, clock, emails, opened, closed, cardSet, sessions, subs, saved, call, admin, finish, signIn: (who) => { signedIn = who; } };
+  return { db, desk, clock, emails, opened, closed, cardSet, sessions, subs, saved, invoices, invoiceReads, call, admin, finish, signIn: (who) => { signedIn = who; } };
 }
 
 async function withPlan(t, plan = PLAN) {
@@ -280,6 +283,46 @@ describe("memberships (M1)", () => {
     expect(t.db.store.get(`memberships/${body.id}`)).toMatchObject({ state: "ended", endedBy: "owner@example.com", checkAfter: null });
     expect(t.emails.filter((e) => e.queue === "membership-ended")).toHaveLength(1);
     expect((await t.admin({ op: "endNow", id: body.id })).statusCode).toBe(409);
+  });
+
+  test("paid invoices are kept for the books: on an invoice event, else once a day, never twice, test marked", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, trialDays: 0 });
+    const { body } = await t.call({ action: "membershipJoin", planId });
+    const subId = t.finish("cs_test_000000", "active");
+    t.invoices.set(subId, [{ id: "in_1", status: "paid", amountMinor: 1500, currency: "cad", paidAt: "2026-11-18T13:01:00.000Z" }]);
+    await t.call({ action: "membershipMine" });
+    expect(t.db.store.get(`memberships/${body.id}`).payments).toEqual([{ id: "in_1", amountMinor: 1500, currency: "CAD", paidAt: "2026-11-18T13:01:00.000Z", periodEnd: "" }]);
+    // Opening the account again the same day doesn't ask the provider for invoices again.
+    const reads = t.invoiceReads.length;
+    t.clock.now = new Date("2026-11-18T15:00:00Z");
+    await t.call({ action: "membershipMine" });
+    expect(t.invoiceReads.length).toBe(reads);
+    // A month on, the invoice event brings the new payment; an open or empty invoice is never kept.
+    t.invoices.set(subId, [
+      { id: "in_2", status: "paid", amountMinor: 1500, currency: "cad", paidAt: "2026-12-18T13:00:00.000Z" },
+      { id: "in_3", status: "open", amountMinor: 1500, currency: "cad", paidAt: "" },
+      { id: "in_1", status: "paid", amountMinor: 1500, currency: "cad", paidAt: "2026-11-18T13:01:00.000Z" },
+    ]);
+    t.clock.now = new Date("2026-12-18T13:05:00Z");
+    await t.desk.onEvent({ type: "invoice.paid", data: { object: { subscription: subId } } });
+    expect(t.db.store.get(`memberships/${body.id}`).payments.map((p) => p.id)).toEqual(["in_1", "in_2"]);
+    const r = await t.admin({ op: "payments" });
+    expect(r.body.payments).toEqual([
+      { id: "in_1", membershipId: body.id, plan: "Friends of the press", amountMinor: 1500, currency: "CAD", paidAt: "2026-11-18T13:01:00.000Z", test: true },
+      { id: "in_2", membershipId: body.id, plan: "Friends of the press", amountMinor: 1500, currency: "CAD", paidAt: "2026-12-18T13:00:00.000Z", test: true },
+    ]);
+    expect(JSON.stringify(r.body)).not.toContain("ada@example.com");
+  });
+
+  test("mergePayments keeps the provider's copy, oldest first, and drops unpaid ones", () => {
+    const merged = mergePayments([{ id: "a", amountMinor: 900, currency: "CAD", paidAt: "2026-02-01T00:00:00Z" }], [
+      { id: "a", status: "paid", amountMinor: 1000, currency: "cad", paidAt: "2026-02-01T00:00:00Z" },
+      { id: "b", status: "paid", amountMinor: 0, currency: "cad", paidAt: "2026-01-01T00:00:00Z" },
+      { id: "c", status: "paid", amountMinor: 500, currency: "usd", paidAt: "2026-01-15T00:00:00Z" },
+      { id: "d", status: "void", amountMinor: 500, currency: "cad", paidAt: "2026-01-20T00:00:00Z" },
+    ]);
+    expect(merged.map((p) => [p.id, p.amountMinor, p.currency])).toEqual([["c", 500, "USD"], ["a", 1000, "CAD"]]);
   });
 
   test("nextCheck: soon after the paid period ends, at least daily, never for an ended one", () => {

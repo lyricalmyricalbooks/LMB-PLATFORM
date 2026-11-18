@@ -42,8 +42,9 @@ and patrons in M5. Split in four pull requests so each is small enough to check.
 - [x] Screenshots desktop and phone, self-review.
 
 ## M1d: bookkeeping, the nightly check, the switch
-- [ ] Membership payments in Bookkeeping and the Tax centre apart from sales.
-- [ ] Nightly check of every active membership against Stripe.
-- [ ] Control room: memberships built, members per shop on the Ways to sell line.
+- [x] Membership payments in Bookkeeping and the Tax centre apart from sales.
+- [x] Nightly check of every active membership against Stripe.
+- [x] Control room: memberships built, members per shop on the Ways to sell line.
 
 ## Review
+M1d: the nightly check is the 5-minute sweep (`checkAfter`, at least daily) plus payments re-read at least every 20 hours. Membership payments are their own Membership rows in the books, counted as sales, with an open tax-period check since no tax is charged on them yet. Refunds of a membership payment are not taken off yet (M2).

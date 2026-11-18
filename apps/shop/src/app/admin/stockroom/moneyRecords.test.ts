@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const visits = vi.fn();
 vi.mock("../bookingsApi", () => ({ readBookingsBetween: (...a: unknown[]) => visits(...a), bookingsAdmin: vi.fn() }));
 vi.mock("../givingApi", () => ({ givingAdmin: vi.fn() }));
+vi.mock("../membersApi", () => ({ membersAdmin: vi.fn() }));
 vi.mock("./stockroomData", () => ({ stockroomApi: { load: vi.fn() } }));
 vi.mock("../../../shared/shopTimeZone", () => ({ shopTimeZone: () => "America/Toronto" }));
 
@@ -32,5 +33,13 @@ describe("the money pages' service sales", () => {
     expect((await readServiceSales(NOW, async () => [], async () => [gift])).map((s) => [s.id, s.kind])).toEqual([["gift-g1", "gift"], ["v1", undefined]]);
     visits.mockResolvedValueOnce([visit]);
     expect((await readServiceSales(NOW, async () => [], async () => { throw new Error("off"); })).map((s) => s.id)).toEqual(["v1"]);
+  });
+
+  it("adds membership payments, and leaves them out when Memberships is off", async () => {
+    const paid = { id: "in_1", membershipId: "m1", plan: "Friends", amountMinor: 1500, currency: "CAD", paidAt: "2026-03-03T15:00:00Z", test: false };
+    visits.mockResolvedValueOnce([visit]);
+    expect((await readServiceSales(NOW, async () => [], async () => [], async () => [paid])).map((s) => [s.id, s.kind])).toEqual([["member-in_1", "membership"], ["v1", undefined]]);
+    visits.mockResolvedValueOnce([visit]);
+    expect((await readServiceSales(NOW, async () => [], async () => [], async () => { throw new Error("off"); })).map((s) => s.id)).toEqual(["v1"]);
   });
 });

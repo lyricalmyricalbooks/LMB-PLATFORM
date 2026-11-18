@@ -5,7 +5,7 @@
 // figure with no source says so.
 import { bookkeepingOrderLines, type BookkeepingOrder, type BookkeepingOrderLine } from "../../../shared/bookkeeping";
 import { SHOP_TZ, shopDayKey } from "../../lib/shopDay";
-import { SERVICE_SOURCE } from "./serviceSales";
+import { MEMBERSHIP_SOURCE, SERVICE_SOURCE } from "./serviceSales";
 
 type Row = Record<string, any>;
 
@@ -175,6 +175,13 @@ export function taxPeriodModel({ orders, ledgerRows, states, period, currency }:
       bookingRates.set(name, line);
     });
   }
+  // Memberships (serviceSales.ts `membershipSales`): each payment on the day it was paid. No tax is charged on them yet.
+  const members: ChannelLine = { id: "memberships", name: "Memberships", salesCents: 0, taxCents: 0, sales: 0 };
+  for (const r of ledgerRows) {
+    if (r.sourceType !== MEMBERSHIP_SOURCE || r.voided || !r.date || r.date < period.start || r.date > period.end) continue;
+    members.salesCents += Math.round(Number(r.baseAmount || 0) * 100);
+    members.sales += 1;
+  }
 
   const websiteTaxCents = sales.reduce((sum, l) => sum + Object.values(l.taxes).reduce((a, b) => a + b, 0), 0);
   const taxCents = websiteTaxCents + (bookings.taxCents || 0);
@@ -182,14 +189,15 @@ export function taxPeriodModel({ orders, ledgerRows, states, period, currency }:
   const fees = sales.filter((l) => l.feeCents !== null);
   const feesCents = fees.reduce((sum, l) => sum + (l.feeCents || 0), 0);
   const unpaidOut = sales.filter((l) => !l.payoutId).length;
-  const salesCents = sales.reduce((sum, l) => sum + net(l), 0) + inPerson.reduce((sum, c) => sum + c.salesCents, 0) + bookings.salesCents;
-  const salesCount = sales.length + inPerson.reduce((sum, c) => sum + c.sales, 0) + bookings.sales;
+  const salesCents = sales.reduce((sum, l) => sum + net(l), 0) + inPerson.reduce((sum, c) => sum + c.salesCents, 0) + bookings.salesCents + members.salesCents;
+  const salesCount = sales.length + inPerson.reduce((sum, c) => sum + c.sales, 0) + bookings.sales + members.sales;
 
   const rates = [...byName.values()].sort((a, b) => b.taxCents - a.taxCents);
   if (noTax) rates.push(noTax);
   for (const c of inPerson) rates.push({ id: `chan:${c.id}`, name: c.name, note: "No tax recorded", netCents: c.salesCents, taxCents: 0, orders: c.sales });
   rates.push(...[...bookingRates.values()].sort((a, b) => b.taxCents - a.taxCents));
   if (bookingsNoTax) rates.push(bookingsNoTax);
+  if (members.sales) rates.push({ id: "chan:memberships", name: "Memberships", note: "No tax charged", netCents: members.salesCents, taxCents: 0, orders: members.sales });
 
   const website: ChannelLine = { id: "website", name: "Website", salesCents: sales.reduce((s, l) => s + net(l), 0), taxCents: websiteTaxCents, sales: sales.length };
   const checks: CheckLine[] = [
@@ -204,11 +212,12 @@ export function taxPeriodModel({ orders, ledgerRows, states, period, currency }:
       : { id: "payouts", text: "Fees matched to payouts", done: true },
   ];
   if (inPerson.length) checks.push({ id: "in-person", text: "Fair and stockist sales have no tax recorded", done: false });
+  if (members.sales) checks.push({ id: "memberships", text: "Membership payments have no tax charged on them", done: false });
 
   return {
     taxCents, salesCents, salesCount, refundsCents, refunds: refunds.length,
     feesCents, feesKnown: fees.length > 0, unpaidOut,
-    rates, channels: [website, ...inPerson, ...(bookings.sales ? [bookings] : [])], checks,
+    rates, channels: [website, ...inPerson, ...(bookings.sales ? [bookings] : []), ...(members.sales ? [members] : [])], checks,
   };
 }
 
