@@ -1533,7 +1533,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
               </ul>
             )}
             <div className="rp-card-actions">
-              <Toggle label="Test (sandbox) mode" checked={!!testMode} onChange={updateTestMode} />
+              <Toggle label="Test mode" checked={!!testMode} onChange={updateTestMode} />
               <span className="rp-hint">Test charges only. Orders marked test.</span>
             </div>
           </SectionCard>

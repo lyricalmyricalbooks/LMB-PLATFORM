@@ -47,3 +47,24 @@ Stockists, and the phone search box.
   profiles" do the same thing in one card.
 - Reviews: the Hidden tile has no line under its number, so the three tiles sit unevenly.
 - Row actions such as "Remind me later" and "Mark paid" are plain text; the v4 mockup draws them as chip-buttons.
+
+## 18 November 2026 (second pass, desktop only)
+
+**Screens reviewed** (shop admin fixture, desktop 1440): Home, Analytics, Orders, Books, Inventory, Sales channels,
+Social posts, Settings › General, Payments, Google, Apps, Security, Plan.
+
+**Fixed** (one PR)
+- Off switches had a cream track on the cream page, so "Show test orders" looked like a lone white dot; off is now a
+  grey track everywhere.
+- Sales channels: TikTok's Connect sat further right than every other row's tag; a gap where the ⋯ menu sits lines it up.
+- Inventory: untracked rows said "Not tracked" twice (On hand and Status); On hand now shows a dash.
+- Inventory and every filter row: a search box beside labelled choices now lines up with their boxes, not their labels.
+- Settings › Google and Apps had no line under the title, so the settings menu jumped up when you opened them.
+- Payments: "Test (sandbox) mode" says "Test mode".
+
+**Noticed, left for later**
+- Settings tabs (Your shop, Shop status…) are bigger and lighter than the tabs on every other page.
+- Analytics: period chips (Today, 7 days…) look like the page tabs above them but larger.
+- Orders: the footer row scatters "3 of 3", "Bring past orders over" and the switch across the width.
+- Google settings error box: "Try again" reads as plain text.
+- Security page is blank in the local preview (needs a signed-in user), so it wasn't reviewed.
