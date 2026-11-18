@@ -27,6 +27,7 @@ function sampleMember(currency: string) {
 export function previewMembershipAnswer(action: string, _body: Record<string, unknown> = {}, currency = "CAD"): Record<string, any> {
   if (action === "membershipInfo") return { on: true, currency, ready: true, plans: PLANS(currency) };
   if (action === "membershipMine") return { memberships: [sampleMember(currency)], currency };
+  if (action === "membershipPosts") return { member: true, posts: [{ id: "sample-post", title: "A look inside the studio", body: "A sample post. Write to your members under Members, Posts for members.\n\nThey read it here in their account.", publishedAt: inDays(-2) }] };
   if (action === "membershipCancel") { state = "ending"; return { membership: sampleMember(currency) }; }
   if (action === "membershipAddress" && _body.address && typeof _body.address === "object") { address = { ...address, ...(_body.address as typeof address) }; return { membership: sampleMember(currency) }; }
   if (action === "membershipResume") { state = "active"; return { membership: sampleMember(currency) }; }

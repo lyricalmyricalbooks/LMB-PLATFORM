@@ -52,5 +52,13 @@ export const MEMBERSHIP_CSS = [
   `.fm-mbr-field input,.fm-mbr-field select,.fm-mbr-field textarea{width:100%;min-height:44px;padding:10px 14px;border-radius:12px;border:1px solid color-mix(in srgb, currentColor 22%, transparent);background:transparent;color:inherit;font:inherit;font-size:15px;}`,
   `.fm-mbr-field select option{background:Canvas;color:CanvasText;}`,
   `.fm-mbr-field input:focus-visible,.fm-mbr-field select:focus-visible,.fm-mbr-field textarea:focus-visible{outline:2px solid var(--accent, currentColor);outline-offset:1px;}`,
+  `.fm-mbr-posts{display:grid;gap:14px;padding-top:20px;border-top:1px solid color-mix(in srgb, currentColor 14%, transparent);}`,
+  `.fm-mbr-posts h3{margin:0;font-size:18px;font-weight:700;line-height:1.3;}`,
+  `.fm-mbr-posts ul{margin:0;padding:0;list-style:none;display:grid;gap:18px;}`,
+  `.fm-mbr-post{display:grid;gap:6px;min-width:0;}`,
+  `.fm-mbr-post + .fm-mbr-post{padding-top:18px;border-top:1px dashed color-mix(in srgb, currentColor 18%, transparent);}`,
+  `.fm-mbr-post h4{margin:0;font-size:16px;font-weight:700;line-height:1.35;overflow-wrap:anywhere;}`,
+  `.fm-mbr-post-body{display:grid;gap:10px;font-size:15px;line-height:1.6;white-space:pre-line;overflow-wrap:anywhere;max-width:68ch;}`,
+  `.fm-mbr-post-body p{margin:0;}`,
   `@media (max-width:560px){.fm-mbr-address{grid-template-columns:minmax(0,1fr);}}`,
 ].join("\n");

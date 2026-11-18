@@ -35,7 +35,9 @@ export type MembersTotals = { members: number; monthlyMinor: number; pastDue: nu
 export type MembersList = { currency: string; ready: boolean; square?: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals; boxWarnings?: BoxWarning[] };
 /** What the plan form sends (shared/membershipRules `cleanPlan` checks it on the server). */
 export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent: number; box: PlanBox | null; gifts?: boolean };
-export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint" | "payments";
+export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint" | "payments" | "posts" | "savePost" | "deletePost";
+/** A post for members (M5b): `planIds` empty means every plan. */
+export type MemberPost = { id: string; title: string; body: string; planIds: string[]; publishedAt: string; updatedAt: string; emailedTo: number; emailedAt: string };
 /** One membership payment, for the money pages (no names or emails). */
 export type MemberPayment = { id: string; membershipId: string; plan: string; amountMinor: number; currency: string; paidAt: string; test: boolean };
 

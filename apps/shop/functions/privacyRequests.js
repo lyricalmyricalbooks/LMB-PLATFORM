@@ -125,7 +125,7 @@ function privacyActions({
   // shopper's own copy) uses indexed lookups only, so a signed-in visitor can never make the shop read whole collections.
   async function personalDataFor(email, { scan = true } = {}) {
     const find = (collection, field, options = {}) => findByEmailData(db, collection, field, email, { ...options, scan });
-    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, gifts, memberships] = await Promise.all([
+    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, gifts, memberships, giftsBought, giftsReceived] = await Promise.all([
       find("orders", "customer.email"), find("stockAlerts", "email"),
       find("abandoned-carts", "email"), find("reviewContacts", "email"),
       find("contactMessages", "email"), db.collection("newsletter").doc(email).get(),
@@ -153,7 +153,11 @@ function privacyActions({
       find("gifts", "customer.email"),
       // Their memberships (memberships.js).
       find("memberships", "customer.email"),
+      // Gift memberships they bought, or were given (memberships.js, M5a).
+      find("membershipGifts", "buyer.email"),
+      find("membershipGifts", "to.email"),
     ]);
+    const memberGifts = Object.assign([...new Map([...giftsBought, ...giftsReceived].map((d) => [d.id, d])).values()], { truncated: !!(giftsBought.truncated || giftsReceived.truncated) });
     // Private fulfilment notes kept about the person's orders (admin-only order-operations).
     const operations = orders.length ? (await db.getAll(...orders.map(o => db.collection("order-operations").doc(o.id)))).filter(d => d.exists) : [];
     let user = null;
@@ -162,8 +166,8 @@ function privacyActions({
     const reviews = contacts.length
       ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
       : [];
-    const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows], ["bookings", bookings], ["bookingWaitlist", waiting], ["bookingPacks", packs], ["eventOrders", ticketOrders], ["bookingForms", forms], ["clientVisits", visits], ["gifts", gifts], ["memberships", memberships]].filter(([, d]) => d.truncated).map(([n]) => n);
-    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, gifts, memberships, operations, incompleteScan };
+    const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows], ["bookings", bookings], ["bookingWaitlist", waiting], ["bookingPacks", packs], ["eventOrders", ticketOrders], ["bookingForms", forms], ["clientVisits", visits], ["gifts", gifts], ["memberships", memberships], ["membershipGifts", memberGifts]].filter(([, d]) => d.truncated).map(([n]) => n);
+    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, gifts, memberships, memberGifts, operations, incompleteScan };
   }
 
   // The personal-data file for one person: what the admin downloads, and what a signed-in shopper downloads for themselves.
@@ -196,6 +200,8 @@ function privacyActions({
       gifts: rows(data.gifts || []).map(({ keyHashes, pendingKey, sessions, paidSession, paymentIntent, mode, ...gift }) => gift),
       // Memberships: the plan, its state and dates, and the card's last four; the card pages and provider ids stay out.
       memberships: rows(data.memberships || []).filter(m => !m.neverStarted).map(({ sessions, cardSessions, subscription, stripeCustomer, checkAfter, mode, ...m }) => m),
+      // Gift memberships: the plan, the months, who it was from or for and the message; the card page stays out.
+      membershipGifts: rows(data.memberGifts || []).map(({ sessions, paymentIntent, checkAfter, mode, ...g }) => g),
       emailDeliveryLog: rows(data.emailRows).map(({ toLower, ...row }) => row),
       emailsWaitingToSend: data.queuedEmails.map(d => publicOutboxEntry(d.id, d.data())),
       ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
@@ -318,6 +324,15 @@ function privacyActions({
         const m = d.data() || {};
         ops.push(b => b.update(d.ref, { "customer.name": "", "customer.uid": "", card: null, ...(m.startedAt ? {} : { "customer.email": "" }), privacyRedactedAt: now }));
       }
+      // Gift memberships: the names and the message go; an email stays only on a paid gift (a payment record).
+      for (const d of data.memberGifts || []) {
+        const g = d.data() || {};
+        const paid = g.state === "paid";
+        const bought = String(g.buyer?.email || "").toLowerCase() === email;
+        ops.push(b => b.update(d.ref, {
+          message: "", "to.name": "", ...(bought ? { "buyer.name": "", "buyer.uid": "", ...(paid ? {} : { "buyer.email": "" }) } : (paid ? {} : { "to.email": "" })), privacyRedactedAt: now,
+        }));
+      }
       for (let i = 0; i < ops.length; i += 400) {
         const batch = db.batch();
         for (const op of ops.slice(i, i + 400)) op(batch);
@@ -342,6 +357,7 @@ function privacyActions({
         ticketOrders: data.ticketOrders.length,
         gifts: (data.gifts || []).length,
         memberships: (data.memberships || []).length,
+        membershipGifts: (data.memberGifts || []).length,
         ...(photosLeft.length ? { photosNotDeleted: photosLeft } : {}),
         ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
       };

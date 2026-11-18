@@ -7,7 +7,7 @@
 // A plan is paid every month or every year on the shop's own card account, with an optional free trial. A member's
 // state comes from the card provider's subscription (memberState), never from the browser.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mayPause = exports.dayOrdinal = exports.inStockWarning = exports.getsBox = exports.mayJoin = exports.hasPerks = exports.GIFT_MESSAGES = exports.MAX_GIFT_NAME = exports.MAX_GIFT_MESSAGE = exports.GIFT_MONTHS = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
+exports.postFor = exports.POST_MESSAGES = exports.MAX_POST_BODY = exports.MAX_POST_TITLE = exports.MAX_POSTS = exports.mayPause = exports.dayOrdinal = exports.inStockWarning = exports.getsBox = exports.mayJoin = exports.hasPerks = exports.GIFT_MESSAGES = exports.MAX_GIFT_NAME = exports.MAX_GIFT_MESSAGE = exports.GIFT_MONTHS = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
 exports.cleanBox = cleanBox;
 exports.cleanPlan = cleanPlan;
 exports.giftPriceMinor = giftPriceMinor;
@@ -24,6 +24,7 @@ exports.shopHour = shopHour;
 exports.paidByCutoff = paidByCutoff;
 exports.boxShortfall = boxShortfall;
 exports.nextBoxMonth = nextBoxMonth;
+exports.cleanPost = cleanPost;
 exports.MAX_PLANS = 8;
 exports.MAX_PLAN_NAME = 60;
 exports.MAX_PLAN_DESCRIPTION = 400;
@@ -289,3 +290,27 @@ function nextBoxMonth(nowMs, cutoffDay, zone) {
 /** Whether a member may skip or pause now (M3c): only while paid up and not set to end. */
 const mayPause = (state) => state === "active";
 exports.mayPause = mayPause;
+// ── Members' posts (M5b) ──────────────────────────────────────────────────────────────────────────────────────────
+// The owner writes to members: a title and words, for every plan or only some. Members read them in their account.
+exports.MAX_POSTS = 100;
+exports.MAX_POST_TITLE = 120;
+exports.MAX_POST_BODY = 5000;
+exports.POST_MESSAGES = Object.freeze({
+    title: "Give the post a title.",
+    body: "Write something for your members.",
+});
+/** A post as the owner typed it, cleaned, or the first problem. `planIds` empty means every plan. Pure. */
+function cleanPost(raw) {
+    const p = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {});
+    const title = text(p.title, exports.MAX_POST_TITLE);
+    if (!title)
+        return { problem: exports.POST_MESSAGES.title, field: "title" };
+    const body = String(p.body ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").replace(/\n{3,}/g, "\n\n").trim().slice(0, exports.MAX_POST_BODY);
+    if (!body)
+        return { problem: exports.POST_MESSAGES.body, field: "body" };
+    const planIds = [...new Set((Array.isArray(p.planIds) ? p.planIds : []).map((x) => String(x)).filter((x) => /^[A-Za-z0-9_-]{6,40}$/.test(x)))].slice(0, exports.MAX_PLANS);
+    return { post: { title, body, planIds, email: p.email === true } };
+}
+/** Whether a member of `planId` sees a post for `planIds` (empty: every plan). Pure. */
+const postFor = (planIds, planId) => !planIds?.length || planIds.includes(planId);
+exports.postFor = postFor;

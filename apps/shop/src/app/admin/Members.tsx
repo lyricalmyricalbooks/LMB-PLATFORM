@@ -11,6 +11,7 @@ import {
 import { membersAdmin, type AdminMember, type AdminPlan, type MembersList } from "./membersApi";
 import { addressText, blankBoxRow, blankPlanForm, boxText, everyText, ordinal, nextText, planFormOf, planFromForm, stateBadge, type BoxRow, type PlanForm } from "./membersView";
 import { adminApi } from "./api";
+import { MemberPosts } from "./MemberPosts";
 import { moneyText } from "./eventsView";
 import { dayText } from "./givingView";
 import { MAX_BOX_ITEMS, MAX_BOX_QUANTITY, MAX_CUTOFF_DAY, MAX_PERKS, MAX_PLAN_DESCRIPTION, MAX_PLAN_NAME, MAX_PLANS, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT } from "../../shared/membershipRules";
@@ -146,6 +147,8 @@ export function Members() {
         </ul>
       )}
 
+      {data.plans.length > 0 && <MemberPosts plans={data.plans} />}
+
       <div className="mbr-head">
         <h2 className="mbr-title">People</h2>
         {ended.length > 0 && <GhostButton onClick={() => setShowEnded((v) => !v)}>{showEnded ? "Hide ended" : `Show ended (${ended.length})`}</GhostButton>}
@@ -205,7 +208,7 @@ function MemberRow({ member: m, money, onChanged }: { member: AdminMember; money
         {m.box && m.boxProblem && m.boxProblem.month !== m.lastBoxMonth && <p className="mbr-problem">This month's box couldn't be made yet: {m.boxProblem.text} It's tried again every hour.</p>}
       </div>
       <div className="mbr-side">
-        {m.plan && <p className="mbr-amount">{money(m.plan.priceMinor)}<small>{m.plan.name}, {everyText(m.plan.interval)}</small></p>}
+        {m.plan && (m.gift ? <p className="mbr-amount">{m.gift.months}-month gift<small>{m.plan.name}{m.gift.from ? `, from ${m.gift.from}` : ""}</small></p> : <p className="mbr-amount">{money(m.plan.priceMinor)}<small>{m.plan.name}, {everyText(m.plan.interval)}</small></p>)}
         <div className="mbr-actions">
           <GhostButton icon={<RefreshCw size={16} aria-hidden />} onClick={() => { void check(); }} busy={busy === "check"} disabled={!!busy}>Check again</GhostButton>
           {live && <GhostButton icon={<X size={16} aria-hidden />} onClick={() => { void endNow(); }} busy={busy === "end"} disabled={!!busy}>End now</GhostButton>}

@@ -50,3 +50,18 @@
 @media (max-width: 640px) {
   .rp .mbr-box-row { grid-template-columns: minmax(0, 1fr) 80px auto; }
 }
+
+/* Posts for members (MemberPosts.tsx, M5b). */
+.rp .mbr-posts { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.rp .mbr-post { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px 24px; }
+.rp .mbr-post-title { font: 600 18px/1.3 var(--rp-font-body); letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.rp .mbr-post-body { margin: 4px 0 0; max-width: 72ch; font-size: 14px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.rp .mbr-post .mbr-meta .rp-badge { margin-right: 4px; }
+.rp .mbr-legend { padding: 0 6px; font-size: 13px; font-weight: 600; color: var(--rp-text-muted); }
+.rp .mbr-post-plans { display: grid; gap: 10px; }
+.rp .mbr-gift-on { display: grid; gap: 12px; }
+.rp .mbr-gift-on .mbr-hint { margin: 0; }
+@media (max-width: 640px) {
+  .rp .mbr-post { grid-template-columns: minmax(0, 1fr); }
+  .rp .mbr-post .mbr-actions { justify-content: flex-start; }
+}

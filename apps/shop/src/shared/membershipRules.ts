@@ -304,3 +304,28 @@ export function nextBoxMonth(nowMs: number, cutoffDay: number, zone: string): st
 
 /** Whether a member may skip or pause now (M3c): only while paid up and not set to end. */
 export const mayPause = (state: MemberState) => state === "active";
+
+// ── Members' posts (M5b) ──────────────────────────────────────────────────────────────────────────────────────────
+// The owner writes to members: a title and words, for every plan or only some. Members read them in their account.
+export const MAX_POSTS = 100;
+export const MAX_POST_TITLE = 120;
+export const MAX_POST_BODY = 5000;
+export type MemberPostInput = { title: string; body: string; planIds: string[]; email: boolean };
+export const POST_MESSAGES = Object.freeze({
+  title: "Give the post a title.",
+  body: "Write something for your members.",
+});
+
+/** A post as the owner typed it, cleaned, or the first problem. `planIds` empty means every plan. Pure. */
+export function cleanPost(raw: unknown): { post: MemberPostInput } | { problem: string; field: string } {
+  const p = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const title = text(p.title, MAX_POST_TITLE);
+  if (!title) return { problem: POST_MESSAGES.title, field: "title" };
+  const body = String(p.body ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_POST_BODY);
+  if (!body) return { problem: POST_MESSAGES.body, field: "body" };
+  const planIds = [...new Set((Array.isArray(p.planIds) ? p.planIds : []).map((x) => String(x)).filter((x) => /^[A-Za-z0-9_-]{6,40}$/.test(x)))].slice(0, MAX_PLANS);
+  return { post: { title, body, planIds, email: p.email === true } };
+}
+
+/** Whether a member of `planId` sees a post for `planIds` (empty: every plan). Pure. */
+export const postFor = (planIds: readonly string[] | undefined, planId: string) => !planIds?.length || planIds.includes(planId);

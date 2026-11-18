@@ -16,9 +16,10 @@ function fakeDb() {
     id,
     async get() { return snapOf(c, id); },
     async set(data, opts) { store.set(key(c, id), opts?.merge ? { ...(store.get(key(c, id)) || {}), ...structuredClone(data) } : structuredClone(data)); },
+    async delete() { store.delete(key(c, id)); },
   });
   const field = (obj, path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
-  const test = (op, a, b) => (op === "<=" ? a != null && a <= b : a === b);
+  const test = (op, a, b) => (op === "<=" ? a != null && a <= b : op === "in" ? b.includes(a) : a === b);
   const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`) && !k.slice(c.length + 1).includes("/")).map((k) => snapOf(c, k.slice(c.length + 1)));
   const query = (c, filters = [], n = 1000) => ({
     where: (f, op, v) => query(c, [...filters, [f, op, v]], n),
@@ -620,5 +621,45 @@ describe("gift memberships (M5)", () => {
     const ended = await t.admin({ op: "endNow", id: `g${r2.body.id}` });
     expect(ended.statusCode).toBe(200);
     expect(ended.body.member).toMatchObject({ state: "ended" });
+  });
+});
+
+describe("members' posts (M5b)", () => {
+  test("the owner writes a post for some plans; only their paid-up members read it, and it can be emailed to them once", async () => {
+    const t = setup();
+    const friends = await withPlan(t);
+    const patrons = await withPlan(t, { ...PLAN, name: "Patrons", priceMinor: 5000 });
+    // Ada joins Friends.
+    await t.call({ action: "membershipJoin", planId: friends });
+    t.finish("cs_test_000000", "active");
+    await t.call({ action: "membershipMine" });
+
+    expect((await t.admin({ op: "savePost", post: { title: "", body: "x" } })).body.code).toBe("title");
+    expect((await t.admin({ op: "savePost", post: { title: "Hi", body: "  " } })).body.code).toBe("body");
+    const forPatrons = await t.admin({ op: "savePost", post: { title: "Studio visit", body: "Patrons only.", planIds: [patrons], email: true } });
+    expect(forPatrons.body.post).toMatchObject({ title: "Studio visit", planIds: [patrons], emailedTo: 0 });
+    t.clock.now = new Date("2026-11-18T14:00:00Z");
+    const forAll = await t.admin({ op: "savePost", post: { title: "Winter news", body: "New book soon.\n\nSee you at the fair.", planIds: [], email: true } });
+    expect(forAll.body.post.emailedTo).toBe(1);
+    const mail = t.emails.filter((e) => e.queue === "membership-post");
+    expect(mail).toHaveLength(1);
+    expect(mail[0]).toMatchObject({ to: ADA.email, subject: "[TEST] Test Press: Winter news" });
+    expect(mail[0].html).toContain("See you at the fair.");
+
+    const read = await t.call({ action: "membershipPosts" });
+    expect(read.body).toEqual({ member: true, posts: [{ id: forAll.body.post.id, title: "Winter news", body: "New book soon.\n\nSee you at the fair.", publishedAt: "2026-11-18T14:00:00.000Z" }] });
+
+    // Editing changes the words, never sends again; the owner's list has both, newest first.
+    await t.admin({ op: "savePost", id: forAll.body.post.id, post: { title: "Winter news!", body: "Updated.", email: true } });
+    expect(t.emails.filter((e) => e.queue === "membership-post")).toHaveLength(1);
+    const list = await t.admin({ op: "posts" });
+    expect(list.body.posts.map((p) => p.title)).toEqual(["Winter news!", "Studio visit"]);
+
+    // Someone who isn't a member reads nothing.
+    t.signIn({ email: "ben@example.com", uid: "u2", name: "Ben" });
+    expect((await t.call({ action: "membershipPosts" })).body).toEqual({ member: false, posts: [] });
+
+    await t.admin({ op: "deletePost", id: forPatrons.body.post.id });
+    expect((await t.admin({ op: "posts" })).body.posts).toHaveLength(1);
   });
 });

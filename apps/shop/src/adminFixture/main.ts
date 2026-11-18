@@ -233,9 +233,14 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     member("m3", "Cleo Example", "cleo@example.com", "trial", { trialEnd: at(9), startedAt: at(-5), periodEnd: at(9) }),
     member("m4", "Dev Example", "dev@example.com", "ending", { plan: { name: "Patrons", interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD" }, planId: "plan-patrons", periodEnd: at(40), card: { brand: "mastercard", last4: "4444" }, box: true, address: { name: "Dev Example", line1: "12 Sample Street", line2: "", city: "Toronto", state: "ON", postalCode: "M5V 2T6", country: "CA" }, lastBoxMonth: "2026-10", lastBoxOrder: "BOX-m4-2026-10", boxProblem: { month: "2026-11", text: "One of the box's products is sold out.", at: at(-1) } }),
     member("m6", "Fay Example", "fay@example.com", "paused"),
+    member("m7", "Gus Example", "gus@example.com", "active", { card: null, periodEnd: at(85), startedAt: at(-5), gift: { months: 3, from: "Ada Example" } }),
     member("m5", "Eli Example", "eli@example.com", "ended", { endedAt: at(-20), startedAt: at(-200) }),
   ];
   const live = (m: AdminMember) => ["trial", "active", "ending", "pastDue"].includes(m.state) && !m.test;
+  let memberPosts = [
+    { id: "post-2", title: "Winter print run", body: "We're printing the winter books this week.\n\nMembers get first pick: watch your inbox on Friday.", planIds: [] as string[], publishedAt: at(-2), updatedAt: at(-2), emailedTo: 4, emailedAt: at(-2) },
+    { id: "post-1", title: "A studio visit for patrons", body: "Come and see the press running, on the first Saturday of December.", planIds: ["plan-patrons"], publishedAt: at(-12), updatedAt: at(-12), emailedTo: 0, emailedAt: "" },
+  ];
   membersData.admin = async (op, body) => {
     if (op === "list") {
       const counted = members.filter(live);
@@ -261,6 +266,15 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       const paid = (id: string, plan: string, amountMinor: number, days: number) => ({ id, membershipId: "m1", plan, amountMinor, currency: "CAD", paidAt: at(days), test: false });
       return { currency: "CAD", payments: query === "new" ? [] : [paid("in_f1", "Friends of the press", 1500, -50), paid("in_f2", "Friends of the press", 1500, -20), paid("in_p1", "Patrons", 25000, -40)] };
     }
+    if (op === "posts") return { posts: query === "new" ? [] : memberPosts };
+    if (op === "savePost") {
+      const p = body.post as { title: string; body: string; planIds: string[]; email: boolean };
+      const was = memberPosts.find((x) => x.id === body.id);
+      const next = { id: String(body.id || `post-${Date.now()}`), title: p.title, body: p.body, planIds: p.planIds, publishedAt: was?.publishedAt || new Date().toISOString(), updatedAt: new Date().toISOString(), emailedTo: was?.emailedTo || (p.email ? 4 : 0), emailedAt: was?.emailedAt || (p.email ? new Date().toISOString() : "") };
+      memberPosts = was ? memberPosts.map((x) => (x.id === next.id ? next : x)) : [next, ...memberPosts];
+      return { ok: true, post: next };
+    }
+    if (op === "deletePost") { memberPosts = memberPosts.filter((x) => x.id !== body.id); return { ok: true }; }
     if (op === "endNow" || op === "refresh") {
       members = members.map((m) => (m.id === body.id && op === "endNow" ? { ...m, state: "ended" as const, endedAt: new Date().toISOString() } : m));
       return { ok: true, member: members.find((m) => m.id === body.id) };
