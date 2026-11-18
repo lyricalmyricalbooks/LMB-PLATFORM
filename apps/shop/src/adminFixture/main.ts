@@ -1245,6 +1245,13 @@ inventoryLinkApi.catalog = async () => ({ books: [
   };
 }
 
+// The shop's own product types (product types plan, change 4): one to start with, kept in memory.
+{
+  let ownTypes: any[] = [{ id: "own-pillar-candles", name: "Pillar candles", base: "candles" }];
+  (adminApi as any).getOwnTypes = async () => ownTypes.map((t) => ({ ...t }));
+  (adminApi as any).saveOwnTypes = async (own: any[]) => { ownTypes = own.map((t) => ({ ...t })); };
+}
+
 // Settings › Team: the fixture signs in as the owner, with three people on the Team.
 (adminApi as any).myRole = async () => "owner";
 // The account holder, as refreshMyRole would tell a co-owner after sign-in (kept for this page only).

@@ -435,10 +435,61 @@ export function lawFacts(type: ProductType | null): TypeFact[] {
  * What a new product starts with once its type is picked: the type, and the kind everything else reads (a printed book
  * keeps no kind, as before). A gift card also becomes the gift card product the editor already knows.
  */
-export function typeStart(type: ProductType): Record<string, any> {
+export function typeStart(type: ProductType, own?: OwnType | null): Record<string, any> {
   const start: Record<string, any> = { typeId: type.id };
+  if (own) start.typeName = own.name;
   if (type.kind !== "book") { start.kind = type.kind; start.format = ""; }
   return start;
+}
+
+/**
+ * The shop's own types (plan change 4): a name the owner chose ("Tote bags"), built on one of ours (`base`), so it asks
+ * what that type asks and gets its filters and Google category. A product of one stores the base as `typeId` and the
+ * name as `typeName`.
+ */
+export interface OwnType { id: string; name: string; base: string }
+
+export const OWN_TYPES_MAX = 60;
+
+/** A tidy list of own types from saved data: a known base, a name of 1 to 40 letters, no repeated names. */
+export function cleanOwnTypes(raw: unknown): OwnType[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: OwnType[] = [];
+  for (const item of raw) {
+    const name = typeof item?.name === "string" ? item.name.trim().replace(/\s+/g, " ").slice(0, 40) : "";
+    const base = typeof item?.base === "string" && typeById(item.base) ? item.base : "";
+    const key = fold(name);
+    if (!name || !base || !key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ id: typeof item.id === "string" && item.id ? item.id : ownTypeId(name), name, base });
+    if (out.length >= OWN_TYPES_MAX) break;
+  }
+  return out;
+}
+
+/** A stable id for an own type, from its name. */
+export function ownTypeId(name: string): string {
+  return "own-" + (fold(name).replace(/ /g, "-").slice(0, 40) || "type");
+}
+
+/** The own types matching what the owner typed, best first. */
+export function searchOwnTypes(query: string, own: readonly OwnType[]): OwnType[] {
+  const q = fold(query);
+  if (!q) return [];
+  return own
+    .map((t, order) => ({ t, order, score: scoreName(t.name, q) }))
+    .filter((m) => m.score > 0)
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .map((m) => m.t);
+}
+
+/** True when the owner's words already name one of our types or their own exactly ("Candles", "candle"). */
+export function namesAType(query: string, own: readonly OwnType[] = []): boolean {
+  const q = fold(query).split(" ").map(stem).join(" ");
+  if (!q) return false;
+  const same = (name: string) => fold(name).split(" ").map(stem).join(" ") === q;
+  return PRODUCT_TYPES.some((t) => same(t.name) || t.words.some(same)) || own.some((t) => same(t.name));
 }
 
 /** The ready-made size lists a type offers, first one first. */
