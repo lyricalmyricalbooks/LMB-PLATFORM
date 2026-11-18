@@ -1435,3 +1435,13 @@ with a seven-day timeline per unit (`timelineRows`: a late rental runs on to now
 coming up with Picked up / Returned / Cancel and refund, and the item drawer. Fixture:
 `admin-fixture.html?ways=rentals&page=rentals` (`&rentals=new`). The switch stays unbuilt (`shared/ways/ways.js`) until
 the customer page exists.
+
+## Close shop (18 November 2026, Julian: "where do i even close the shop? … make it easy with a button")
+Settings › **Close shop** (`#settings/close`; `#settings/plan/close` and `#settings/billing/close` open it too) is its own
+page, in the Safety group: `CloseShopSettings` (PlanParts.tsx) → `CloseShopCard.tsx` (`closeShop.css`, rules in
+`closeShop.ts`). Two tiles (Take everything with you, mint; Close your shop) and a three-stop timeline with real dates.
+One **Close shop** button with a plain yes/no dialog calls the platform's `close` (`accounts/billingRoutes.js`): a paid
+month runs to its end (a cancel, then Keep my shop open), a trial or failed payment closes today through the closing
+sweep's `closeNow`. A closed shop gets **Open my shop again** (`reopen`: a new plan, no second trial, the card page).
+Plan & billing only links here. Fixture: `admin-fixture.html?plan=open|trial|cancelled|closed&page=settings/close`.
+Control room: Shops › filter "Closing or closed" (`leavingOf`).

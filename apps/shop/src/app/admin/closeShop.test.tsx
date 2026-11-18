@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// The way out of Colophon (Julian, 12 November 2026: "I see no path for people to exit their subscription and close the
-// shop and download their data"). Settings › Billing must always end with Close your shop: download, cancel, what
-// happens next, whatever state the plan is in. These tests fail if that path drops off the page again.
+// The way out of Colophon (Julian, 12 and 18 November 2026: "where do i even close the shop? … make it easy with a button").
+// Settings › Close shop is its own page: download, one Close shop button with a plain yes or no, what happens next,
+// whatever state the plan is in. These tests fail if that path drops off again.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createRoot } from "react-dom/client";
@@ -23,7 +23,10 @@ vi.mock("./platformBilling", async (real) => {
     billingCall: vi.fn(async (_plan: any, step: string, body?: any) => {
       calls.push([step, body]);
       if (step === "status") return { billing: billingNow };
-      if (step === "cancel") { billingNow = { ...billingNow, cancelAtPeriodEnd: true }; return {}; }
+      if (step === "close") {
+        if (billingNow.status === "trialing") { billingNow = { ...billingNow, access: "closed" }; return { closed: true, closesAt: null }; }
+        billingNow = { ...billingNow, cancelAtPeriodEnd: true }; return { closed: false, closesAt: billingNow.currentPeriodEnd };
+      }
       if (step === "keep") { billingNow = { ...billingNow, cancelAtPeriodEnd: false }; return {}; }
       if (step === "upcoming") return { bill: null };
       if (step === "payment-methods") return { cards: [] };
@@ -34,7 +37,7 @@ vi.mock("./platformBilling", async (real) => {
   };
 });
 
-import { BillingSettings } from "./PlanParts";
+import { CloseShopSettings } from "./PlanParts";
 import { CLOSING_STEPS, closeShopStage } from "./closeShop";
 import { SETTINGS_SECTIONS, SETTINGS_ITEM_PREFIX } from "./riso/nav";
 import { routeFromHash } from "./adminRoute";
@@ -50,52 +53,58 @@ async function show() {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root!.render(<BillingSettings />));
+  await act(async () => root!.render(<CloseShopSettings />));
   await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   return container;
 }
 const buttons = (c: HTMLElement, text: string) => Array.from(c.querySelectorAll("button")).filter((b) => b.textContent === text);
 afterEach(async () => { if (root) await act(async () => root!.unmount()); root = null; document.body.innerHTML = ""; calls.length = 0; });
 
-describe("Settings › Billing › Close your shop", () => {
-  it("is on the page with all three steps even when the shop has no plan", async () => {
+describe("Settings › Close shop", () => {
+  it("shows both tiles and the timeline even when the shop has no plan, and offers to close it for them", async () => {
     planNow = { plan: null, failed: false };
     const c = await show();
     const card = c.querySelector("#close-shop")!;
-    expect(card).toBeTruthy();
+    expect(card.textContent).toContain("Take everything with you");
     expect(card.textContent).toContain("Close your shop");
-    expect(card.textContent).toContain("Download your shop");
-    expect(card.textContent).toContain("Cancel your plan");
     expect(card.textContent).toContain("What happens next");
+    expect(card.textContent).toContain("Deleted for good");
     expect(buttons(c, "Download your shop")).toHaveLength(1);
   });
 
-  it("is still there when billing can't be read", async () => {
-    planNow = { plan: null, failed: true };
-    const c = await show();
-    expect(c.textContent).toContain("Billing not loaded");
-    expect(c.querySelector("#close-shop")).toBeTruthy();
-  });
-
-  it("sends an older plan to the account page to cancel", async () => {
+  it("sends an older plan to the account page to close", async () => {
     planNow = { plan: { state: "active", link: HUB.link }, failed: false };
     const c = await show();
-    const link = Array.from(c.querySelectorAll("#close-shop a")).find((a) => a.textContent === "Cancel on your account page") as HTMLAnchorElement;
+    const link = Array.from(c.querySelectorAll("#close-shop a")).find((a) => a.textContent === "Close on your account page") as HTMLAnchorElement;
     expect(link?.href).toBe(HUB.link);
   });
 
-  it("cancels the plan from the card, then offers Keep my plan", async () => {
+  it("on a paid month: Close shop, a plain yes, then Keep my shop open", async () => {
     planNow = { plan: HUB, failed: false };
     billingNow = { ...OPEN };
     const c = await show();
     expect(c.querySelector("[data-close-shop]")?.getAttribute("data-close-shop")).toBe("open");
-    await act(async () => buttons(c, "Cancel plan")[0].click());
-    const confirm = buttons(document.body, "Cancel plan").at(-1)!;
-    await act(async () => confirm.click());
+    expect(c.textContent).toContain("It stays open until");
+    await act(async () => buttons(c, "Close shop")[0].click());
+    expect(document.querySelector(".rp-dialog select, .rp-dialog textarea")).toBeNull();
+    await act(async () => buttons(document.body, "Yes, close my shop")[0].click());
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-    expect(calls.some(([step]) => step === "cancel")).toBe(true);
-    expect(c.querySelector("#close-shop")?.textContent).toContain("Cancelled. Your shop stays open until");
-    expect(buttons(c, "Keep my plan").length).toBeGreaterThan(0);
+    expect(calls.some(([step]) => step === "close")).toBe(true);
+    expect(c.querySelector("[data-close-shop]")?.getAttribute("data-close-shop")).toBe("cancelled");
+    await act(async () => buttons(c, "Keep my shop open")[0].click());
+    expect(calls.some(([step]) => step === "keep")).toBe(true);
+  });
+
+  it("on a free trial: closes today, then offers Open my shop again", async () => {
+    planNow = { plan: HUB, failed: false };
+    billingNow = { ...OPEN, status: "trialing" };
+    const c = await show();
+    expect(c.textContent).toContain("It closes to shoppers as soon as you say yes.");
+    await act(async () => buttons(c, "Close shop")[0].click());
+    await act(async () => buttons(document.body, "Yes, close my shop")[0].click());
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(c.querySelector("[data-close-shop]")?.getAttribute("data-close-shop")).toBe("closed");
+    expect(buttons(c, "Open my shop again")).toHaveLength(1);
   });
 });
 
@@ -114,13 +123,14 @@ describe("the rules behind it", () => {
     for (const part of ["90 days", "30 and 7 days", "deleted for good", "60 days"]) expect(text).toContain(part);
   });
 
-  it("keeps Plan & billing in the Settings menu, and #settings/plan/close (or the older billing address) opening the card", () => {
-    expect(SETTINGS_SECTIONS.find((g) => g.label === "Shop")?.pages).toContain(SETTINGS_ITEM_PREFIX + "plan");
-    expect(routeFromHash("#settings/plan/close", false)).toMatchObject({ tab: "settings", settingsTab: "plan", subTab: "close-shop" });
-    expect(routeFromHash("#settings/billing/close", false)).toMatchObject({ tab: "settings", settingsTab: "plan", subTab: "close-shop" });
+  it("puts Close shop in the Settings menu, and every older address opens it", () => {
+    expect(SETTINGS_SECTIONS.find((g) => g.label === "Safety")?.pages).toContain(SETTINGS_ITEM_PREFIX + "close");
+    for (const hash of ["#settings/close", "#settings/plan/close", "#settings/billing/close"]) {
+      expect(routeFromHash(hash, false)).toMatchObject({ tab: "settings", settingsTab: "close" });
+    }
   });
 
   it("points to it from the Plan page", () => {
-    expect(readFileSync(join(__dirname, "BillingHub.tsx"), "utf8")).toContain("#settings/plan/close");
+    expect(readFileSync(join(__dirname, "BillingHub.tsx"), "utf8")).toContain("#settings/close");
   });
 });

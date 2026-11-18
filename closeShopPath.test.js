@@ -12,24 +12,24 @@ test("the help centre answers how to cancel and close, with the way there", () =
   const article = ARTICLES.find((a) => a.id === "close-shop");
   assert.ok(article, "a close-shop answer");
   assert.match(article.question, /cancel/i);
-  assert.ok(article.where.includes("Settings › Plan & billing"));
-  assert.match(article.answer.join(" "), /Close your shop/);
-  assert.ok(article.steps.some((s) => /Download your shop/.test(s)) && article.steps.some((s) => /Cancel plan/.test(s)));
+  assert.ok(article.where.includes("Settings › Close shop"));
+  assert.match(article.answer.join(" "), /Close shop/);
+  assert.ok(article.steps.some((s) => /Download your shop/.test(s)) && article.steps.some((s) => /Close shop/.test(s)));
 });
 
 test("the account page leads to the shop's Close your shop steps", () => {
   const app = read("./accounts/app.js");
   assert.match(app, /textContent: "Close this shop"/);
-  assert.match(app, /\/admin\/#settings\/billing\/close/);
-  assert.match(read("./accounts/billing.html"), /Settings › Billing › Close your shop/);
+  assert.match(app, /\/admin\/#settings\/close/);
+  assert.match(read("./accounts/billing.html"), /Settings › Close shop/);
 });
 
 test("the shop's address for the card is one it really opens", () => {
-  // Plan and Billing became one page (simpler admin, change 7); the older #settings/billing/close the account page and
-  // shops on an older admin use still opens the card through the billing → plan alias.
+  // Close shop is its own Settings page (18 November 2026); the older #settings/billing/close the account page and
+  // shops on an older admin use, and #settings/plan/close, open it.
   const route = read("./apps/shop/src/app/admin/adminRoute.ts");
-  assert.match(route, /plan: \[\["", "plan"\], \["close", "close-shop"\]\]/);
-  assert.match(route, /billing: "plan"/);
+  assert.match(route, /\(page === "plan" \|\| page === "billing"\) && slug === "close"\) return \{ tab: "settings", settingsTab: "close" \}/);
+  assert.match(read("./apps/shop/src/app/admin/riso/nav.ts"), /\{ id: "close", label: "Close shop"/);
 });
 
 test("the timeline on the card is the closing the platform runs", () => {
@@ -38,4 +38,7 @@ test("the timeline on the card is the closing the platform runs", () => {
   assert.match(closing, /emails 30 and 7 days before/);
   const card = read("./apps/shop/src/app/admin/closeShop.ts");
   for (const part of ["90 days", "30 and 7 days", "60 days"]) assert.ok(card.includes(part), part);
+  // The Close shop button's "later or today" words follow the platform's own rule.
+  assert.match(read("./accounts/billingRoutes.js"), /export function closesLater/);
+  assert.match(card, /payAsYouSell.*status === "active" && billing\.access === "open"/s);
 });

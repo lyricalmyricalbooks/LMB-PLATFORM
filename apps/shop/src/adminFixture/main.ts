@@ -1627,11 +1627,11 @@ let helperShown = false;
   }
 }
 
-// Settings › Plan and Billing with a sample Colophon plan (?plan=open, ?plan=cancelled): the plan document and the
+// Settings › Plan and Billing with a sample Colophon plan (?plan=open, ?plan=cancelled, ?plan=trial, ?plan=closed): the plan document and the
 // platform's billing answers are made here, so Close your shop can be tried end to end. Nothing leaves the page.
 {
   const sample = new URLSearchParams(location.search).get("plan");
-  if (sample === "open" || sample === "cancelled") {
+  if (sample === "open" || sample === "cancelled" || sample === "trial" || sample === "closed") {
     const { platformPlanSource } = await import("../app/admin/platformPlanApi");
     const HUB = "https://platform.example/api/shop-billing/";
     (globalThis as any).__fixtureIdToken = "fixture-token";
@@ -1641,10 +1641,13 @@ let helperShown = false;
     const sign = asked.get("cur") === "usd" ? "US$" : "$";
     const headsUp = asked.get("costs") === "over" ? { month: new Date().toISOString().slice(0, 7), projected: `${sign}13.19`, limit: `${sign}10.00` } : null;
     platformPlanSource.watch = (next) => {
+      const kept = new Date(Date.now() + 90 * 86_400_000).toISOString();
+      if (sample === "closed") { next({ state: "closed", access: "closed", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", closing: { stage: "closed", closedAt: new Date().toISOString(), downloadUntil: kept }, headsUp }); return () => {}; }
       next({ state: "active", access: "open", plan: "both", hasCard: true, hub: HUB, shopId: "test-press", link: "https://platform.example/account/billing?shop=test-press", cancelAtPeriodEnd: sample === "cancelled", endsAt: sample === "cancelled" ? "2026-12-12T12:00:00Z" : null, headsUp });
       return () => {};
     };
     let billing: any = { plan: "both", planName: "Colophon", price: "$5.00", plusTax: true, plans: [{ plan: "both", name: "Colophon", price: "$5.00", apps: ["shop", "stockroom"] }], status: "active", access: "open", cancelAtPeriodEnd: sample === "cancelled",
+      ...(sample === "trial" ? { status: "trialing", trialEnd: "2026-11-30T12:00:00Z" } : {}), ...(sample === "closed" ? { status: "canceled", access: "closed" } : {}),
       currentPeriodEnd: "2026-12-12T12:00:00Z", nextPaymentAt: sample === "cancelled" ? null : "2026-12-12T12:00:00Z", hasCard: true, paymentWay: "monthly",
       card: { brand: "visa", last4: "4242", expMonth: 12, expYear: 2030, words: "Visa ending 4242" },
       // The bank feed add-on (beta): `&bankaddon=on` shows it turned on with two banks, `&bankaddon=none` hides it.
@@ -1687,6 +1690,11 @@ let helperShown = false;
       status: () => ({ billing, accountPage: "https://platform.example/account/", changesNeedTwoStep: false }),
       cancel: () => { billing = { ...billing, cancelAtPeriodEnd: true, nextPaymentAt: null }; return {}; },
       keep: () => { billing = { ...billing, cancelAtPeriodEnd: false, nextPaymentAt: billing.currentPeriodEnd }; return {}; },
+      close: () => {
+        if (billing.status === "active") { billing = { ...billing, cancelAtPeriodEnd: true, cancelEndsAt: billing.currentPeriodEnd, nextPaymentAt: null }; return { closed: false, closesAt: billing.currentPeriodEnd }; }
+        billing = { ...billing, status: "canceled", access: "closed" }; return { closed: true, closesAt: null };
+      },
+      reopen: () => ({ url: "https://checkout.example/card" }),
       upcoming: () => ({ bill: billing.cancelAtPeriodEnd ? null : { date: billing.currentPeriodEnd, lines: [{ words: "Colophon fee", amount: $(500).text }, { words: "Running cost, October 2026", amount: $(268).text }], subtotal: $(768).text, discount: founding ? $(125).text : "", tax: usd ? "" : $(founding ? 84 : 100).text, total: $((founding ? 643 : 768) + (usd ? 0 : founding ? 84 : 100)).text, cents: { beforeTax: founding ? 643 : 768, tax: usd ? 0 : founding ? 84 : 100 } } }),
       "payment-methods": () => ({ cards: [{ id: "pm_1", words: "Visa ending 4242", brand: "visa", last4: "4242", expMonth: 12, expYear: 2030, primary: true, expired: false }] }),
       invoices: () => ({ invoices: [{ id: "in_1", number: "COL-0001", date: "2026-11-12T12:00:00Z", amount: "$8.36", tax: "$0.96", status: "paid", pdfUrl: null, pageUrl: null }], more: false, after: null }),

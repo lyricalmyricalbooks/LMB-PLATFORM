@@ -471,7 +471,7 @@ export const TEMPLATES = {
   "subscription-cancelled": ({ date, link }, { settings, pressName }) => layout({
     subject: `${pressName} will close on ${date}`,
     greeting: "Hello,",
-    paragraphs: [`You cancelled your ${settings.platformName} plan for ${pressName}. It stays open until ${date}, and you won't be charged again.`, "Before you go, download everything: sign in, open Settings, then Billing, and press Download your shop under Close your shop. It gives you one zip with your products, customers, orders, pages and photos.", `After ${date} the shop closes to shoppers. For 90 days you can still sign in, download everything or start again; we email you 30 and 7 days before it is deleted.`, "Changed your mind? You can keep your plan with one click before then."],
+    paragraphs: [`You cancelled your ${settings.platformName} plan for ${pressName}. It stays open until ${date}, and you won't be charged again.`, "Before you go, download everything: sign in, open Settings, then Close shop, and press Download your shop. It gives you one zip with your products, customers, orders, pages and photos.", `After ${date} the shop closes to shoppers. For 90 days you can still sign in, download everything or start again; we email you 30 and 7 days before it is deleted.`, "Changed your mind? You can keep your plan with one click before then."],
     buttons: [["Keep my plan", safeLink(link)]],
     footer: signOff(settings),
   }),

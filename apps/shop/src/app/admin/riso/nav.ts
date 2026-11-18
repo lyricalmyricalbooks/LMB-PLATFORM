@@ -5,6 +5,7 @@ import {
   GraduationCap, HeartHandshake, BadgeCheck, KeyRound,
   Shapes,
   Database,
+  DoorClosed,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -60,6 +61,8 @@ export const NAV: NavEntry[] = [
     // Bills, saved cards, billing details and paying a declined bill (22.3) sit on the same page since the simpler admin
     // (change 7); the old Billing address (`#settings/billing`) opens it.
     { id: "plan", label: "Plan & billing", icon: Wallet },
+    // Close your shop (18 November 2026, Julian: "where do i even close the shop?"): its own page, last in Settings.
+    { id: "close", label: "Close shop", icon: DoorClosed },
   ] },
 ];
 
@@ -156,7 +159,7 @@ export const SETTINGS_SECTIONS: { label: string; pages: string[] }[] = [
   { label: "Selling", pages: ["shipping", "payments", "taxes"] },
   { label: "Messages", pages: ["notifications"] },
   { label: "Connections", pages: ["google", "apps"] },
-  { label: "Safety", pages: ["security", "data"] },
+  { label: "Safety", pages: ["security", "data", "close"] },
 ].map((g) => ({ ...g, pages: g.pages.flatMap((id) => id === "google" ? [SETTINGS_ITEM_PREFIX + id, S("sheets")] : [SETTINGS_ITEM_PREFIX + id]) }));
 
 /** Settings pages grouped by SETTINGS_SECTIONS, keeping only the given pages (and adding any unlisted ones at the end). */
@@ -312,5 +315,6 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   taxes: { title: "Taxes", description: "The tax rates your checkout charges." },
   team: { title: "Team", description: "People who help run your shop, and what each can do." },
   plan: { title: "Plan & billing", description: "Your plan, your card, your bills and the next payment." },
+  close: { title: "Close your shop", description: "Take everything with you, then close. You have 90 days to change your mind." },
   billing: { title: "Billing", description: "Your card, invoices and the next bill." },
 };

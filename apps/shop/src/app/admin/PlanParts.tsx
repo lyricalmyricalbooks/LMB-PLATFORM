@@ -60,33 +60,29 @@ export function PlanSettings() {
   return hubReady(plan) ? <PlanPage plan={plan} /> : <PlanCard plan={plan} />;
 }
 
-/**
- * Settings › Billing: the next bill, saved cards, billing details and past bills (BillingHub.tsx), then Close your shop,
- * shown whatever the plan's state so the way out is always here (`#settings/plan/close` scrolls to it).
- */
-export function BillingSettings({ focusClose }: { focusClose?: boolean } = {}) {
+/** Settings › Billing: the next bill, saved cards, billing details and past bills (BillingHub.tsx). */
+export function BillingSettings() {
   const { plan, failed } = usePlatformPlan(true);
   if (plan === undefined) return <LoadingState label="Reading your billing…" />;
-  if (!plan && failed) {
+  if (!plan && failed) return <ErrorState title="Billing not loaded" description="Your billing couldn't be read just now. Check your connection, then open this page again." />;
+  if (!plan) {
     return (
-      <div className="rp-stack" style={{ gap: 16 }}>
-        <ErrorState title="Billing not loaded" description="Your billing couldn't be read just now. Check your connection, then open this page again." />
-        <CloseShopCard plan={null} focus={focusClose} />
-      </div>
+      <SectionCard title="Billing">
+        <EmptyState inline title="No bills yet" description="Your running costs, bills and cards show here once your plan has started." />
+      </SectionCard>
     );
   }
-  return (
-    <div className="rp-stack" style={{ gap: 16 }}>
-      {!plan
-        ? (
-          <SectionCard title="Billing">
-            <EmptyState inline title="No bills yet" description="Your running costs, bills and cards show here once your plan has started." />
-          </SectionCard>
-        )
-        : hubReady(plan) ? <BillingPage plan={plan} /> : <HubNotReady plan={plan} />}
-      <CloseShopCard plan={plan} focus={focusClose} />
-    </div>
-  );
+  return hubReady(plan) ? <BillingPage plan={plan} /> : <HubNotReady plan={plan} />;
+}
+
+/**
+ * Settings › Close shop (#settings/close): download, close, what happens next. Shown whatever the plan's state, even when
+ * it can't be read, so the way out is always there (closeShop.test.tsx).
+ */
+export function CloseShopSettings() {
+  const { plan } = usePlatformPlan(true);
+  if (plan === undefined) return <LoadingState label="Reading your plan…" />;
+  return <CloseShopCard plan={plan} />;
 }
 
 /**

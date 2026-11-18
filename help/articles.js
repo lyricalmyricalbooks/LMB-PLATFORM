@@ -533,16 +533,16 @@ export const ARTICLES = Object.freeze([
     topic: "Your account",
     question: "How do I cancel my plan and close my shop?",
     answer: [
-      "Open your shop's admin and go to Settings › Plan & billing, then scroll to Close your shop. It has three steps, in order.",
-      "Nothing is deleted the day you cancel. Your shop stays open until the time you've paid for ends, and you can change your mind until then.",
-      "After that your shop closes. For 90 days you can still sign in, download everything or start again. We email you 30 and 7 days before it's deleted for good.",
+      "Open your shop's admin and go to Settings › Close shop. Download everything first, then press Close shop and say yes.",
+      "If you've paid for this month, your shop stays open until that time ends, and you can keep it open until then. On a free trial it closes right away.",
+      "Once it's closed, shoppers see a closed page. For 90 days you can still sign in, download everything or press Open my shop again. We email you 30 and 7 days before it's deleted for good.",
     ],
     steps: [
       "Press Download your shop. You get one zip with your products, customers, orders, pages, settings and photos.",
-      "Press Cancel plan and confirm. Telling us why is optional.",
-      "Read What happens next, so you know the dates.",
+      "Press Close shop, then Yes, close my shop.",
+      "Check the dates under What happens next.",
     ],
-    where: ["Settings › Plan & billing"],
+    where: ["Settings › Close shop"],
   },
   {
     id: "what-help",

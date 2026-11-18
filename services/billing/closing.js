@@ -293,6 +293,19 @@ export function createClosingSweep({ registry, auditLog, billing, email, project
 
   return {
     step,
+    /**
+     * The owner pressed Close shop with no paid time left (a free trial, or a payment that failed): the plan ends and the
+     * shop closes today, exactly as the sweep would close it, with the same 90 days, emails and reminders. Safe to run
+     * twice: a shop already closed (or deleted) is left as it is.
+     */
+    async closeNow(shopId) {
+      const shop = await registry.getShop(shopId);
+      if (!shop) throw new Error(`no shop called ${shopId}`);
+      const stage = shop.closing?.stage;
+      if (stage === "closed" || stage === "deleted") return stage;
+      await close(shop, shop.closing ?? null);
+      return (await registry.getShop(shopId)).closing?.stage ?? null;
+    },
     /** Every shop in the registry. One shop's failure is recorded on its row and never stops the others. */
     async sweep() {
       const results = [];

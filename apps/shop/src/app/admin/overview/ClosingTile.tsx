@@ -2,7 +2,7 @@ import { usePlatformPlan } from "../platformPlanApi";
 import { planDate, type PlatformPlan } from "../platformPlan";
 
 // Home after the owner cancels (Julian, 12 November 2026): one apricot tile saying the day the shop closes, with the
-// download and Keep my plan one tap away on Settings › Billing › Close your shop. Shown only while a cancel is waiting.
+// download and Keep my plan one tap away on Settings › Close shop. Shown only while a cancel is waiting.
 export function closingDay(plan: PlatformPlan | null | undefined): string | null {
   if (!plan || plan.access !== "open" || !plan.cancelAtPeriodEnd || !plan.endsAt) return null;
   return planDate(plan.endsAt);
@@ -15,10 +15,10 @@ export function ClosingTileView({ day }: { day: string }) {
         <span className="rp-run-kicker">{`Your shop closes on ${day}`}</span>
         <span className="rp-run-count">Plan cancelled</span>
       </div>
-      <span>Download everything before then, or keep your plan.</span>
+      <span>Download everything before then, or keep it open.</span>
       <div className="flex flex-wrap gap-2">
-        <a className="rp-btn rp-btn-primary rp-btn-sm" href="#settings/plan/close">Download your shop</a>
-        <a className="rp-btn rp-btn-secondary rp-btn-sm" href="#settings/plan/close">Keep my plan</a>
+        <a className="rp-btn rp-btn-primary rp-btn-sm" href="#settings/close">Download your shop</a>
+        <a className="rp-btn rp-btn-secondary rp-btn-sm" href="#settings/close">Keep my shop open</a>
       </div>
     </section>
   );

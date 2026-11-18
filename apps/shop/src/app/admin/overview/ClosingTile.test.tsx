@@ -18,7 +18,7 @@ describe("Home's closing tile", () => {
   it("says the day and leads to Close your shop", () => {
     const html = renderToStaticMarkup(<ClosingTileView day="12 December 2026" />);
     expect(html).toContain("Your shop closes on 12 December 2026");
-    expect(html.match(/#settings\/plan\/close/g)).toHaveLength(2);
+    expect(html.match(/#settings\/close/g)).toHaveLength(2);
   });
   it("is on Home", () => {
     expect(readFileSync(join(__dirname, "HomePage.tsx"), "utf8")).toContain("<ClosingTile />");

@@ -53,7 +53,7 @@ import { BookkeepingSettings } from "./BookkeepingSettings";
 
 /** QuickBooks lives in the app store (Settings › Apps); one function, so the page asks once. */
 const quickBooksStatus = () => adminApi.bookkeeping("status");
-import { BillingSettings, PlanSettings } from "./PlanParts";
+import { BillingSettings, CloseShopSettings, PlanSettings } from "./PlanParts";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { combinedAdmin } from "./combined";
@@ -162,7 +162,8 @@ export function ShopSettings({
           )}
           {activeTab === "apps" && <OwnAccountOnly><SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor></OwnAccountOnly>}
           {activeTab === "data" && <YourDataSettings />}
-          {(activeTab === "plan" || activeTab === "billing") && <div className="rp-stack" style={{ gap: 24 }}><PlanSettings /><BillingSettings focusClose={subTab === "close-shop"} /></div>}
+          {(activeTab === "plan" || activeTab === "billing") && <div className="rp-stack" style={{ gap: 24 }}><PlanSettings /><BillingSettings /></div>}
+          {activeTab === "close" && <CloseShopSettings />}
           {/* Communications was retired: its links open Notifications. */}
           {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </m.div>

@@ -360,6 +360,22 @@ function cardsMatches(shop, wanted) {
   return shop.cards === wanted;
 }
 
+// The Shops list's Closing filter: shops on their way out (services/billing/closing.js), from leavingOf.
+const LEAVING_WORDS = { closing: "closing", paused: "paused, unpaid", closed: "closed", deleted: "deleted" };
+const LEAVING_TONE = { closing: "warning", paused: "warning", closed: "danger", deleted: "neutral" };
+function leavingMatches(shop, wanted) {
+  if (!wanted) return true;
+  if (wanted === "any") return Boolean(shop.leaving) && shop.leaving.stage !== "deleted";
+  return shop.leaving?.stage === wanted;
+}
+/** "closing 12 Dec 2026", "closed · deleted after 16 Feb 2027": a pill for the Shops list, or null. */
+function leavingPill(shop) {
+  const l = shop.leaving;
+  if (!l) return null;
+  const when = l.stage === "closing" && l.at ? ` ${dateOnly(l.at)}` : l.stage === "closed" && l.deleteAfter ? ` · deleted after ${dateOnly(l.deleteAfter)}` : l.stage === "deleted" && l.deletedAt ? ` ${dateOnly(l.deletedAt)}` : "";
+  return pill(LEAVING_TONE[l.stage] ?? "neutral", `${LEAVING_WORDS[l.stage] ?? l.stage}${when}`);
+}
+
 // The Shops list's Risk filter: the drift watch's level, the owner's snooze, and a move left part-way.
 function riskMatches(shop, risk) {
   const level = shop.drift?.level;
@@ -422,6 +438,7 @@ function showShops() {
     && riskMatches(shop, form.risk.value)
     && sellsMatches(shop, form.sells.value)
     && cardsMatches(shop, form.cards.value)
+    && leavingMatches(shop, form.leaving.value)
     && chitChatsMatches(shop, form.chitchats.value)
     && (!form.test.value || (form.test.value === "test") === (shop.testShop === true)));
   if (form.chitchats.value && !chitChatsByShop) {
@@ -441,7 +458,7 @@ function showShops() {
     rows: shown,
     open: (shop) => openShop(shop),
     columns: [
-      { header: "Brand", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? (shop.sells?.books === false ? "test shop · general" : "test shop · books") : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
+      { header: "Brand", lead: true, render: (shop) => el("div", {}, el("p", { className: "cr-title", textContent: shop.pressName ?? shop.shopId }), meta(shop.shopId, shop.ownerEmail, shop.testShop ? (shop.sells?.books === false ? "test shop · general" : "test shop · books") : null, shop.sells?.answer ? `sells ${shop.sells.words.toLowerCase()}` : null), tagPills(shopTags[shop.shopId]), riskPill(shop), leavingPill(shop), shop.sells?.mismatch ? pill("warning", "Stripe category doesn't match") : null) },
       { header: "Plan", render: (shop) => el("div", {}, el("span", { textContent: PLAN_WORDS[shop.plan] ?? shop.plan ?? "?" }), shop.cards ? meta(`cards by ${CARD_WORDS[shop.cards]}`) : null) },
       { header: "Billing", render: (shop) => (shop.billingStatus ? pill(BILLING_TONE[shop.billingStatus] ?? "neutral", BILLING_WORDS[shop.billingStatus] ?? shop.billingStatus) : el("span", { className: "rp-hint", textContent: shop.access ?? "none" })) },
       { header: "Cost this month", render: (shop) => costCell(shop.costThisMonth) },
@@ -461,9 +478,10 @@ const SHOP_CHIPS = [
   { id: "paying", words: "Paying", set: { billing: "active" }, test: (s) => s.billingStatus === "active" },
   { id: "failing", words: "Payment failing", set: { billing: "past_due" }, test: (s) => s.billingStatus === "past_due" },
   { id: "risk", words: "At risk", set: { risk: "at-risk" }, test: (s) => riskMatches(s, "at-risk") },
+  { id: "leaving", words: "Closing or closed", set: { leaving: "any" }, test: (s) => leavingMatches(s, "any") },
   { id: "test", words: "Test shops", set: { test: "test" }, test: (s) => s.testShop === true },
 ];
-const FILTER_NAMES = ["health", "billing", "sells", "risk", "cards", "chitchats", "test"];
+const FILTER_NAMES = ["health", "billing", "sells", "risk", "cards", "leaving", "chitchats", "test"];
 function showShopChips() {
   const form = $("#shop-filters");
   const current = FILTER_NAMES.filter((name) => form[name].value);
