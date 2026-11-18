@@ -426,6 +426,29 @@ describe("the owner", () => {
   });
 });
 
+describe("dragging on the calendar (plan 4, 1.2)", () => {
+  test("the owner moves a booking and stretches it, the price stays, a clash or a bad length is refused", async () => {
+    const t = setup();
+    await t.seed();
+    const c = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "10:00"), ...CUSTOMER });
+    const stretched = await t.adm({ op: "move", id: c.body.id, start: at("2026-11-20", "11:00"), minutes: 90, notify: false });
+    expect(stretched.body.ok).toBe(true);
+    const b = t.db.store.get(`bookings/${c.body.id}`);
+    expect(b).toMatchObject({ start: at("2026-11-20", "11:00"), end: at("2026-11-20", "12:30"), minutes: 90, priceMinor: 0 });
+    expect(b.history.at(-1).what).toMatch(/60 to 90 min/);
+    // The day's taken time follows the new length (plus the 15 minutes after).
+    expect(t.db.store.get("bookingDays/2026-11-20").items[c.body.id].end).toBe(Date.parse(at("2026-11-20", "12:45")));
+    expect((await t.adm({ op: "move", id: c.body.id, start: at("2026-11-20", "11:00"), minutes: 7 })).body.code).toBe("minutes");
+    expect((await t.adm({ op: "move", id: c.body.id, start: at("2026-11-20", "11:00"), minutes: 800 })).body.code).toBe("minutes");
+    const other = await t.adm({ op: "create", serviceId: "visit", start: at("2026-11-20", "14:00"), name: "Cy", email: "cy@example.com" });
+    expect(other.statusCode).toBe(200);
+    expect((await t.adm({ op: "move", id: c.body.id, start: at("2026-11-20", "11:00"), minutes: 180 })).body.code).toBe("taken");
+    // Without a length it keeps the stretched one.
+    expect((await t.adm({ op: "move", id: c.body.id, start: at("2026-11-20", "09:00"), notify: false })).body.ok).toBe(true);
+    expect(t.db.store.get(`bookings/${c.body.id}`)).toMatchObject({ minutes: 90, end: at("2026-11-20", "10:30") });
+  });
+});
+
 describe("busy times", () => {
   test("a hold the sweep never reached stops blocking after two hours", () => {
     const snap = (items) => ({ exists: true, data: () => ({ items }) });

@@ -2,7 +2,7 @@
 // services customers can book and the opening hours, in the Colophon bento look (bookings.css, tokens only). Shown only
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -221,6 +221,8 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
   }, []);
   // A class card opens its list of people (the grid card is too small to list them).
   const [classOpen, setClassOpen] = useState<{ day: string; key: string } | null>(null);
+  const [landing, setLanding] = useState<Landing | null>(null);
+  const dragging = useBookingDrag(setLanding);
   const [phoneDay, setPhoneDay] = useState(() => (days.includes(now) ? now : monday));
   useEffect(() => { setPhoneDay(days.includes(now) ? now : monday); }, [monday]);
   // The waiting list for the week on show. Read again whenever the bookings change, because a freed place empties it.
@@ -291,7 +293,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
               const dayStart = zonedTime(d, "00:00", ZONE);
               const minute = (iso: string) => Math.round((Date.parse(iso) - dayStart) / 60_000) - grid.startMin;
               return (
-                <section key={d} className="bkg-wgrid-col" aria-label={`${dayText(d, "long")}: ${blocks.length ? `${blocks.length} booked` : closed ? "closed" : "nothing booked"}`}
+                <section key={d} className="bkg-wgrid-col" data-drop-day={d} aria-label={`${dayText(d, "long")}: ${blocks.length ? `${blocks.length} booked` : closed ? "closed" : "nothing booked"}`}
                   data-phone-shown={phoneDay === d || undefined} data-today={d === now || undefined} data-past={d < now || undefined} data-closed={closed || undefined} style={{ height: at(span) }}
                   onClick={(e) => {
                     // A tap on an empty part of the day books that time (any card stops the tap first).
@@ -310,18 +312,23 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
                     const taken = blk.people.length + held.length;
                     return (
                       <button key={blk.key} type="button" className="bkg-tday-block" data-ink={blk.ink} data-status={isClass ? undefined : first.status} data-noshow={(!isClass && first.noShow) || undefined} data-short={blk.height < 45 || undefined}
+                        data-lifted={dragging.ghost?.booking.id === first.id || undefined} {...dragging.props(first, blk.places, span)}
                         style={{ top: at(blk.top), height: at(blk.height), left: `calc(${(blk.lane / blk.lanes) * 100}% + 3px)`, width: `calc(${100 / blk.lanes}% - 6px)` }}
                         aria-label={`${timeText(blk.start, ZONE)}, ${isClass ? `${blk.serviceName}, ${classCount(taken, blk.places)}` : `${first.customer.name}, ${blk.serviceName}${first.staffName ? ` with ${first.staffName}` : ""}`}`}
-                        onClick={() => (isClass ? setClassOpen({ day: d, key: blk.key }) : onOpen(first))}>
+                        onClick={dragging.clicked(() => (isClass ? setClassOpen({ day: d, key: blk.key }) : onOpen(first)))}>
                         <span className="bkg-slot-time">{timeText(blk.start, ZONE)}</span>
                         <span className="bkg-slot-who">{isClass ? blk.serviceName : first.customer.name}</span>
                         <span className="bkg-slot-what">{isClass ? classCount(taken, blk.places) : `${blk.serviceName}${first.staffName ? ` · ${first.staffName}` : ""}`}</span>
                         {!isClass && first.status === "held" && <span className="bkg-slot-tag">{first.clearing ? "Clearing" : "Paying"}</span>}
                         {!isClass && first.noShow && <span className="bkg-slot-tag">No-show</span>}
                         {!isClass && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
+                        {!isClass && draggable(first, blk.places, Date.now()) && <span className="bkg-drag-edge" data-edge aria-hidden />}
                       </button>
                     );
                   })}
+                  {dragging.ghost?.day === d && <i className="bkg-tday-ghost" aria-hidden style={{ top: at(Math.max(0, minute(dragging.ghost.start))), height: at(dragging.ghost.minutes) }}>
+                    <span>{timeText(dragging.ghost.start, ZONE)}–{timeText(new Date(Date.parse(dragging.ghost.start) + dragging.ghost.minutes * 60_000).toISOString(), ZONE)}</span>
+                  </i>}
                   {holds.loose.map((h) => (
                     <button key={h.id} type="button" className="bkg-tday-block" data-status="offer" data-short style={{ top: at(Math.max(0, minute(h.heldStart))), height: at(30), left: "3px", width: "calc(100% - 6px)" }}
                       onClick={() => setWaitingDay(d)}>
@@ -337,7 +344,8 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
           </div>
         </div>
       )}
-      <p className="bkg-wgrid-hint">Tap an empty time to book it.</p>
+      <p className="bkg-wgrid-hint">Click an empty time to book it. Drag a booking to move it, or pull its bottom edge to change its length.</p>
+      {landing && <MoveDialog landing={landing} settings={settings} onClose={() => setLanding(null)} />}
       {shownClass && <ClassDialog slot={shownClass.blk} held={shownClass.held} service={serviceOf(shownClass.blk.serviceId)} onClose={() => setClassOpen(null)} onOpen={(b) => { setClassOpen(null); onOpen(b); }}
         onWaiting={() => { setClassOpen(null); setWaitingDay(shownClass.day); }} onJoin={(left) => { setClassOpen(null); setJoining({ service: serviceOf(shownClass.blk.serviceId)!, start: shownClass.blk.start, left }); }} />}
       {joining && <AddToClassDialog {...joining} onClose={() => setJoining(null)} />}
@@ -347,6 +355,97 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
           onRemoved={(id) => setWaiting((all) => all.filter((w) => w.id !== id))} />
       )}
     </div>
+  );
+}
+
+// ── Dragging on the calendar (bookings plan 4, step 1.2) ──────────────────────────────────────────────────────────────
+
+/** Where a dragged booking would land, before the owner says yes. */
+type Landing = { booking: Booking; start: string; minutes: number; day: string; staffId?: string };
+
+/**
+ * Drag a booking to move it (to another day or person too) or pull its bottom edge to change its length, with a mouse or
+ * pen. A tap or a small wobble stays a click. A column takes drops when it carries `data-drop-day` (and `data-drop-staff`
+ * on the team day). Phones move a booking from its drawer instead: a finger on the grid scrolls it.
+ */
+function useBookingDrag(onLand: (l: Landing) => void) {
+  const [ghost, setGhost] = useState<Landing | null>(null);
+  const drag = useRef<{ booking: Booking; mode: "move" | "stretch"; x: number; y: number; perMin: number; on: boolean } | null>(null);
+  const justDragged = useRef(false);
+  const landed = useRef<Landing | null>(null);
+  const columnAt = (x: number, y: number) => document.elementsFromPoint(x, y).find((el) => (el as HTMLElement).dataset?.dropDay) as HTMLElement | undefined;
+  const props = (booking: Booking, places: number, spanMin: number) => {
+    if (!draggable(booking, places, Date.now())) return {};
+    return {
+      "data-draggable": true,
+      onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+        if (e.pointerType === "touch" || e.button !== 0) return;
+        const col = (e.currentTarget.closest("[data-drop-day]") as HTMLElement | null)?.getBoundingClientRect();
+        if (!col) return;
+        drag.current = { booking, mode: (e.target as HTMLElement).dataset.edge ? "stretch" : "move", x: e.clientX, y: e.clientY, perMin: col.height / spanMin, on: false };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+        const d = drag.current;
+        if (!d) return;
+        if (!d.on && Math.hypot(e.clientX - d.x, e.clientY - d.y) < DRAG_SLOP_PX) return;
+        d.on = true;
+        const col = d.mode === "move" ? columnAt(e.clientX, e.clientY) : undefined;
+        const day = col?.dataset.dropDay || dayOf(Date.parse(d.booking.start), ZONE);
+        const staffId = col?.dataset.dropStaff;
+        const to = draggedTo(d.booking, day, (e.clientY - d.y) / d.perMin, d.mode, ZONE);
+        const next = { booking: d.booking, ...to, day, ...(staffId !== undefined && staffId !== (d.booking.staffId || "") ? { staffId } : {}) };
+        landed.current = next;
+        setGhost(next);
+      },
+      onPointerUp: () => {
+        const d = drag.current;
+        const g = landed.current;
+        drag.current = null;
+        landed.current = null;
+        if (!d?.on) return;
+        // The click that follows this drag is swallowed; one that never comes mustn't swallow the next real click.
+        justDragged.current = true;
+        window.setTimeout(() => { justDragged.current = false; }, 60);
+        setGhost(null);
+        if (g && (g.start !== d.booking.start || g.minutes !== d.booking.minutes || g.staffId !== undefined)) onLand(g);
+      },
+      onPointerCancel: () => { drag.current = null; landed.current = null; setGhost(null); },
+    };
+  };
+  /** A click that ended a drag isn't a click. */
+  const clicked = (open: () => void) => () => { if (justDragged.current) { justDragged.current = false; return; } open(); };
+  return { ghost, props, clicked };
+}
+
+/** "Move this booking?": the new time (and length), and whether the client hears about it. */
+function MoveDialog({ landing: l, settings, onClose }: { landing: Landing; settings: BookingSettings; onClose: () => void }) {
+  const b = l.booking;
+  const [tell, setTell] = useState(Boolean(b.customer.email));
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
+  const end = new Date(Date.parse(l.start) + l.minutes * 60_000).toISOString();
+  const person = l.staffId !== undefined ? (settings.staff.find((p) => p.id === l.staffId)?.name || "Not assigned") : "";
+  const first = b.customer.name.split(" ")[0] || "them";
+  const save = async () => {
+    setSaving(true); setProblem("");
+    try {
+      await bookingsAdmin("move", { id: b.id, start: l.start, ...(l.minutes !== b.minutes ? { minutes: l.minutes } : {}), ...(l.staffId !== undefined ? { staffId: l.staffId } : {}), notify: tell });
+      toast.success(tell ? `Moved. ${first} has an email with the new time.` : "Moved");
+      onClose();
+    } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={l.minutes !== b.minutes && l.start === b.start ? "Change the length?" : "Move this booking?"} description={`${b.customer.name} · ${b.serviceName}`}
+      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving}>{l.start === b.start && l.minutes !== b.minutes ? "Change length" : "Move"}</PrimaryButton></>}>
+      <dl className="bkg-move-facts">
+        <dt>Was</dt><dd>{dayText(dayOf(Date.parse(b.start), ZONE), "long")}, {timeText(b.start, ZONE)}–{timeText(b.end, ZONE)}{b.staffName ? ` · ${b.staffName}` : ""}</dd>
+        <dt>Now</dt><dd><strong>{dayText(l.day, "long")}, {timeText(l.start, ZONE)}–{timeText(end, ZONE)}{person ? ` · ${person}` : b.staffName ? ` · ${b.staffName}` : ""}</strong></dd>
+      </dl>
+      {l.minutes !== b.minutes && <p className="bkg-questions-hint">{l.minutes} minutes instead of {b.minutes}. The price stays as booked.</p>}
+      {b.customer.email ? <Toggle label={`Email ${first} the new time`} checked={tell} onChange={setTell} /> : <p className="bkg-questions-hint">No email on this booking, so tell them yourself.</p>}
+      {problem && <p className="bkg-error" role="alert">{problem}</p>}
+    </Dialog>
   );
 }
 
@@ -400,6 +499,10 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBookAt }: {
   }, [day]);
   const showNow = day === now && nowMin >= t.startMin && nowMin <= t.endMin;
   const at = (min: number) => `calc(var(--bkg-min) * ${min})`;
+  // Drag a booking to another time or person (plan 4, 1.2).
+  const [landing, setLanding] = useState<Landing | null>(null);
+  const dragging = useBookingDrag(setLanding);
+  const dayStart = zonedTime(day, "00:00", ZONE);
   return (
     <div className="bkg-tday">
       <div className="bkg-week-head">
@@ -425,7 +528,7 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBookAt }: {
               {hours.map((h) => <span key={h} style={{ top: at(h - t.startMin) }}>{hourLabel(h)}</span>)}
             </div>
             {t.columns.map((c) => (
-              <section key={c.id || "nobody"} className="bkg-tday-col" aria-label={`${c.name}: ${c.blocks.length ? `${c.blocks.length} booked` : c.off ? "not working" : "nothing booked"}`}
+              <section key={c.id || "nobody"} className="bkg-tday-col" data-drop-day={day} data-drop-staff={c.id} aria-label={`${c.name}: ${c.blocks.length ? `${c.blocks.length} booked` : c.off ? "not working" : "nothing booked"}`}
                 data-off={c.off || undefined} data-nobody={c.id === "" || undefined} style={{ height: at(span) }}
                 onClick={(e) => {
                   if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains("bkg-tday-open")) return;
@@ -440,23 +543,31 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBookAt }: {
                   const many = blk.people.length > 1;
                   return (
                     <button key={blk.key} type="button" className="bkg-tday-block" data-status={first.status} data-noshow={(!many && first.noShow) || undefined} data-short={blk.height < 45 || undefined}
+                      data-lifted={dragging.ghost?.booking.id === first.id || undefined} {...(many ? {} : dragging.props(first, 1, span))}
                       style={{ top: at(blk.top), height: at(blk.height), left: `calc(${(blk.lane / blk.lanes) * 100}% + 3px)`, width: `calc(${100 / blk.lanes}% - 6px)` }}
                       aria-label={`${timeText(blk.start, ZONE)}, ${many ? `${blk.serviceName}, ${blk.people.length} people` : `${first.customer.name}, ${blk.serviceName}`}`}
-                      onClick={() => onOpen(first)}>
+                      onClick={dragging.clicked(() => onOpen(first))}>
                       <span className="bkg-slot-time">{timeText(blk.start, ZONE)}</span>
                       <span className="bkg-slot-who">{many ? `${blk.serviceName} · ${blk.people.length}` : first.customer.name}</span>
                       {!many && <span className="bkg-slot-what">{blk.serviceName}{first.roomName ? ` · ${first.roomName}` : ""}</span>}
                       {!many && first.status === "held" && <span className="bkg-slot-tag">{first.clearing ? "Clearing" : "Paying"}</span>}
                       {!many && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
+                      {!many && draggable(first, 1, Date.now()) && <span className="bkg-drag-edge" data-edge aria-hidden />}
                     </button>
                   );
                 })}
+                {dragging.ghost && (dragging.ghost.staffId ?? (dragging.ghost.booking.staffId || "")) === c.id && dragging.ghost.day === day && (
+                  <i className="bkg-tday-ghost" aria-hidden style={{ top: at(Math.max(0, Math.round((Date.parse(dragging.ghost.start) - dayStart) / 60_000) - t.startMin)), height: at(dragging.ghost.minutes) }}>
+                    <span>{timeText(dragging.ghost.start, ZONE)}–{timeText(new Date(Date.parse(dragging.ghost.start) + dragging.ghost.minutes * 60_000).toISOString(), ZONE)}</span>
+                  </i>
+                )}
                 {showNow && <i className="bkg-tday-now" aria-hidden style={{ top: at(nowMin - t.startMin) }} />}
               </section>
             ))}
           </div>
         </div>
       )}
+      {landing && <MoveDialog landing={landing} settings={settings} onClose={() => setLanding(null)} />}
     </div>
   );
 }

@@ -1049,9 +1049,10 @@ function bookingActions({
    * they still do the service; the owner may name another (`staffId`, "" for anyone free). Resolves to false, or to
    * what changed on the booking.
    */
-  async function moveTime(id, b, service, settings, start, { check = true, by = "customer", staffId, alsoFree = "" } = {}) {
+  async function moveTime(id, b, service, settings, start, { check = true, by = "customer", staffId, alsoFree = "", minutes = b.minutes } = {}) {
     const oldDays = daysTouched(Date.parse(b.start), Date.parse(b.end) + (b.gapAfter || 0) * MINUTE, zone());
-    const end = start + b.minutes * MINUTE;
+    // `minutes`: the owner stretched or shortened it on the calendar (plan 4, 1.2); the price stays as booked.
+    const end = start + minutes * MINUTE;
     const blockEnd = end + (b.gapAfter || 0) * MINUTE;
     const newDays = daysTouched(start, blockEnd, zone());
     const all = [...new Set([...oldDays, ...newDays])];
@@ -1074,9 +1075,11 @@ function bookingActions({
       // A booking that had a person and now has none (the team was cleared) loses the old name.
       const staffChange = b.staffId || b.roomId ? { staffId: "", staffName: "", roomId: "", roomName: "", ...assigned.record } : assigned.record;
       const newName = assigned.record.staffName;
-      const what = `moved from ${b.start}${newName && assigned.record.staffId !== b.staffId ? ` to ${newName}` : ""}`;
+      const resized = minutes !== b.minutes;
+      const what = `moved from ${b.start}${resized ? ` (${b.minutes} to ${minutes} min)` : ""}${newName && assigned.record.staffId !== b.staffId ? ` to ${newName}` : ""}`;
       const changes = {
         start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: new Date(nowMs).toISOString(), reminderSentAt: null,
+        ...(resized ? { minutes } : {}),
         ...staffChange, history: [...(b.history || []), { at: new Date(nowMs).toISOString(), what, by }].slice(-20),
       };
       tx.set(bookings().doc(id), changes, { merge: true });
@@ -2856,7 +2859,11 @@ function bookingActions({
         // The same person unless the owner picks another ("" for anyone free).
         const staffId = req.body?.staffId === undefined ? undefined : String(req.body.staffId || "");
         if (staffId && !keptPerson(settings, b.serviceId, staffId)) return fail(res, 400, "That person doesn't do this service.", "staff");
-        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes: b.minutes, gapAfter: b.gapAfter || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId });
+        // A new length (dragging a booking's bottom edge on the calendar): whole five minutes, 5 minutes to 12 hours, one-to-one only.
+        const minutes = req.body?.minutes === undefined ? b.minutes : Number(req.body.minutes);
+        if (!Number.isInteger(minutes) || minutes < 5 || minutes > 720 || minutes % 5) return fail(res, 400, "Pick a length in whole five minutes, up to 12 hours.", "minutes");
+        if (minutes !== b.minutes && isClass(theirs)) return fail(res, 409, "A class keeps its own length. Change it on the service.", "class_length");
+        const moved = await moveTime(id, b, { id: b.serviceId, places: theirs?.places || 1, minutes, gapAfter: b.gapAfter || 0, roomId: theirs?.roomId || "" }, own, start, { by, staffId, minutes });
         if (!moved) return fail(res, 409, isClass(theirs) ? "That class is full, or the time clashes with another booking." : staffId ? "That person is busy then." : "That time clashes with another booking.", "taken");
         // A new link: the old one in the customer's first email still works, since the key is unchanged.
         const movedTo = await syncCalendar(id, { ...b, ...moved });
