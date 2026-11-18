@@ -35,11 +35,11 @@ and patrons in M5. Split in four pull requests so each is small enough to check.
 - [x] Privacy: memberships in the export (no provider ids); the erase is refused while one runs, then clears name and card.
 
 ## M1c: the screens
-- [ ] Admin › Members: plans (make, edit, hide) and the member list with state, next payment and End now; Beta badge;
+- [x] Admin › Members: plans (make, edit, hide) and the member list with state, next payment and End now; Beta badge;
       the 0.7% note in plain words.
-- [ ] Storefront: a Membership page listing the plans with Join, the account's Membership tab (state, next payment,
+- [x] Storefront: a Membership page listing the plans with Join, the account's Membership tab (state, next payment,
       card, Cancel/Resume, Update card). Words in Studio Text & labels, regions for each box.
-- [ ] Screenshots desktop and phone, self-review.
+- [x] Screenshots desktop and phone, self-review.
 
 ## M1d: bookkeeping, the nightly check, the switch
 - [ ] Membership payments in Bookkeeping and the Tax centre apart from sales.

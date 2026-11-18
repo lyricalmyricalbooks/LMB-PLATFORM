@@ -17,7 +17,7 @@ describe("which pages Check every page visits", () => {
       "/books/first?template=default", "/books/signed?template=special",
       "/page/about", "/page/policy-shipping",
       "/collections/publications", "/collections/poetry",
-      "/wishlist", "/account", "/track", "/book", "/events", "/classes", "/support", "/studio-missing-page",
+      "/wishlist", "/account", "/track", "/book", "/events", "/classes", "/support", "/membership", "/studio-missing-page",
     ]);
     expect(skipped).toBe(0);
     expect(new Set(routes.map(r => r.id)).size).toBe(routes.length);
@@ -25,7 +25,7 @@ describe("which pages Check every page visits", () => {
   it("maps every page Studio can show to its template", () => {
     const { routes } = healthRoutes({ design, books, pages, collections: [{ slug: "poetry", label: "Poetry" }] });
     const ids = routes.map(r => previewRoute(r.path, "/", { showHero: true })?.templateId);
-    expect(ids).toEqual(["heroPage", "storefront", "productPage", "productPage~special", "page:about", "collectionPage", "collectionPage", "wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage", "supportPage", "page404"]);
+    expect(ids).toEqual(["heroPage", "storefront", "productPage", "productPage~special", "page:about", "collectionPage", "collectionPage", "wishlistPage", "accountPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage", "supportPage", "membershipPage", "page404"]);
   });
   it("opens on the shop when Home is off, and counts what it leaves out", () => {
     const many = Array.from({ length: 5 }, (_, i) => ({ slug: `p${i}`, status: "published" }));

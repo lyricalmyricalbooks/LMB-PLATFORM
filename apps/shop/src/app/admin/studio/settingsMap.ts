@@ -286,7 +286,7 @@ export function changedCounts(groups: StyleGroup[], design: any, defaults: any):
 export const TEXT_HEADINGS: { id: string; title: string; groups: string[] }[] = [
   { id: "everywhere", title: "Across the whole shop", groups: ["Site & sharing", "Header", "Footer", "Newsletter", "Cookie banner", "Sections"] },
   { id: "shop", title: "Shop & book pages", groups: ["Catalog & empty states", "Collection & wishlist pages", "Search & filters", "Product page", "Reviews"] },
-  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Events page", "Classes page", "Support page", "Customer account"] },
+  { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Bookings page", "Events page", "Classes page", "Support page", "Membership page", "Customer account"] },
   { id: "special", title: "Special pages & messages", groups: ["Custom pages & 404", "Loading screen", "Under construction", "Maintenance page"] },
 ];
 
@@ -309,6 +309,7 @@ export const TEXT_BLURBS: Record<string, string> = {
   "Events page": "The page where customers see your events, get tickets and find their ticket codes.",
   "Classes page": "The page where customers see your class timetable and pick a class to sign up for.",
   "Support page": "The page where people give your shop a gift or a tip, and the thank-you they see after.",
+  "Membership page": "The page listing your membership plans, where people join.",
   "Customer account": "Sign-in, account pages and their messages.",
   "Custom pages & 404": "Missing-page message and custom-page helper words.",
   "Loading screen": "Words on the loading splash.",
@@ -390,6 +391,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Signing in", match: /^account(Title|Subtitle|SignIn|Email|Magic|CheckInbox|Resend|UseDifferent|Or$|Google|ConfirmEmail|SignedIn|LinkSent|Off)/ },
     { title: "Account pages", match: /^account(Storefront|Portal|SignOut|Wishlist|Saved|Orders|Transacted|Shipping|BackToStore)/ },
     { title: "Saved address", match: /^account(Address|Field|Phone|Street|SaveAddress|Abort|Cancel$|Unconfigured)/ },
+    { title: "Membership", match: /^accountMember/ },
     { title: "Your data", match: /^yourData/ },
     { title: "Order history", match: /^(account(History|Items|AddOn|GiftCard|FreeGift|BoxSet|Dispatch|ShipTo|Logistics|Manage|Close|Delivered|Cancelled|Awaiting|Track|Unfulfilled|Shipped|Processing|Paid|Unpaid|Refunded|PartiallyRefunded|BookCount)|carrierLabel|trackingCodeLabel)/ },
     { title: "Downloads, library & player", match: /^account(Digital|Ebook|Download$|Library|Listen|Watch|Player)/ },
