@@ -81,6 +81,9 @@ import { LabelsAbove } from "./features/site/CheckoutFields";
 import { CheckoutAddressStep, type CheckoutCustomer } from "./features/site/CheckoutAddressStep";
 import { CheckoutDeliveryStep } from "./features/site/CheckoutDeliveryStep";
 import { CheckoutPaymentStep } from "./features/site/CheckoutPaymentStep";
+import { CheckoutTip } from "./features/site/CheckoutTip";
+import { tipsOffered, tipBaseMinor, tipFor, type TipPick } from "./features/site/tipAtCheckout";
+import { MIN_TIP_MINOR, MAX_TIP_MINOR } from "../shared/givingRules";
 import { CheckoutOrderSummary } from "./features/site/CheckoutOrderSummary";
 import { practiceCheckout } from "./lib/practiceCheckout";
 import { practiceHint } from "./lib/practiceHint";
@@ -154,6 +157,9 @@ export function Checkout() {
   const [autoOffers, setAutoOffers] = useState<any[]>([]);
   // Gift cards typed into checkout's "Gift card" box (balances as last checked; the server re-checks).
   const [giftCards, setGiftCards] = useState<Array<{ code: string; last4: string; balanceMinor: number }>>([]);
+  // The tip line (Donations & tips, beta): what the shopper picked, and what they typed in Other.
+  const [tipPick, setTipPick] = useState<TipPick>("none");
+  const [tipTyped, setTipTyped] = useState("");
   const [giftCardOpen, setGiftCardOpen] = useState(false);
   const [giftCardInput, setGiftCardInput] = useState("");
   const [giftCardError, setGiftCardError] = useState("");
@@ -1024,7 +1030,20 @@ export function Checkout() {
   const shippingCost = !physicalItems.length ? 0 : fulfillmentSelection.method === "shipping" ? Number(selectedShippingQuote?.price || 0) : Number(selectedLocalQuote?.price || 0);
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
   const itemsSubtotal   = cartTotal + freeGiftPrice;
-  const beforeGiftCards = itemsSubtotal - discountAmount + finalShipping + taxCost;
+  // A tip (Donations & tips, beta): offered only when the shop asks for one, never on a trade invoice, and worked out on
+  // the items after any discount. Never taxed or discounted; the server checks it again (checkoutTipFor).
+  const tipPercents = tipsOffered(settings);
+  const tipBase = tipBaseMinor(itemsSubtotal, giftCardLinesTotal, discountAmount);
+  const tipShown = tipPercents.length > 0 && tipBase > 0 && selectedPaymentMethod !== `manual_${INVOICE_METHOD_ID}`;
+  const tipResult = tipShown ? tipFor(tipPick, tipTyped, tipBase, tipPercents, convertPrice(1)) : { minor: 0 };
+  const tipMinor = "minor" in tipResult ? tipResult.minor : 0;
+  const tipProblem = "problem" in tipResult
+    ? tipResult.problem === "tipTooSmall" ? c("coTipTooSmall", { amount: formatPrice(MIN_TIP_MINOR / 100) })
+      : tipResult.problem === "tipTooBig" ? c("coTipTooBig", { amount: formatPrice(MAX_TIP_MINOR / 100) })
+      : c("coTipNumber")
+    : null;
+  const tip = tipMinor / 100;
+  const beforeGiftCards = itemsSubtotal - discountAmount + finalShipping + taxCost + tip;
   // Gift cards pay what is left, never other gift cards in the bag (same split as the server).
   const giftCardUse = useMemo(() => {
     let left = Math.max(0, Math.round((beforeGiftCards - giftCardLinesTotal) * 100));
@@ -1354,6 +1373,7 @@ export function Checkout() {
         shippingMethod: fulfillmentSelection.method === "shipping" ? (selectedShippingQuote?.name || null) : null,
         ...(physicalItems.length ? { fulfillmentSelection: sentSelection } : {}),
         tax: taxCost,
+        ...(tipMinor > 0 ? { tipMinor } : {}),
         total: finalTotal,
         status: "pending_payment",
         paymentStatus: "unpaid",
@@ -1428,6 +1448,7 @@ export function Checkout() {
               ...(appliedDiscount?.code ? { appliedDiscount: { code: appliedDiscount.code } } : {}),
               ...(orderNoteBoxOn(checkoutDesign) && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
               ...(digitalConsentNeeded && digitalConsent ? { digitalConsent: true } : {}),
+              ...(tipMinor > 0 ? { tipMinor } : {}),
             },
           }),
         });
@@ -1935,7 +1956,7 @@ export function Checkout() {
     ? <>{barParts[0]}<span translate="no">{payTotal}</span>{barParts.slice(1).join(payTotal)}</>
     : barWords;
   // Also waits while carrier rates load (the picker shows the loading words), instead of "choose an option".
-  const payDisabled = isCompleting || catalogState !== "ready" || (shippoRatesLoading && !digitalOnly && physicalItems.length > 0 && fulfillmentSelection.method === "shipping") || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !cardCanPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0);
+  const payDisabled = isCompleting || catalogState !== "ready" || !!tipProblem || (shippoRatesLoading && !digitalOnly && physicalItems.length > 0 && fulfillmentSelection.method === "shipping") || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !cardCanPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0);
   const labelsAbove = checkoutLabelsAbove(checkoutDesign);
   const payTabs = checkoutPayTabs(checkoutDesign);
   const payBar = checkoutPayBarOn(checkoutDesign);
@@ -2123,6 +2144,10 @@ export function Checkout() {
               termsRequired={termsRequired} termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} termsError={termsError} policyLinks={policyLinks}
               digitalConsentNeeded={digitalConsentNeeded} digitalConsent={digitalConsent} setDigitalConsent={setDigitalConsent} digitalConsentError={digitalConsentError}
               newsTickShown={newsTickShown} joinNews={joinNews} setJoinNews={setJoinNews}
+              tipBox={tipShown && (
+                <CheckoutTip c={c} percents={tipPercents} baseMinor={tipBase} pick={tipPick} setPick={setTipPick} typed={tipTyped} setTyped={setTipTyped}
+                  problem={tipProblem} formatPrice={formatPrice} currency={currency} disabled={isCompleting} />
+              )}
               payDisabled={payDisabled} payLabel={payLabel} payTotal={payTotal} checkoutPolicies={checkoutPolicies}
               stripeOption={hasStripe && (
               <StripePaymentSection
@@ -2190,7 +2215,7 @@ export function Checkout() {
           itemCount={itemCount} slipDate={slipDate} slipNumbers={slipNumbers} formatPrice={formatPrice} freeGift={freeGift} preorderShip={preorderShip}
           hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} itemsSubtotal={itemsSubtotal} discountAmount={discountAmount} appliedDiscount={appliedDiscount} autoPick={autoPick}
           getActiveShippingDetails={getActiveShippingDetails} needsDeliveryChoice={needsDeliveryChoice} isFreeShipping={isFreeShipping} shippingCost={shippingCost}
-          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} dutiesNote={dutiesText} />
+          finalShipping={finalShipping} taxCost={taxCost} taxKnown={taxKnown} giftCardUse={giftCardUse} freeShipNudge={freeShipNudge} cartTotal={cartTotal} finalTotal={finalTotal} dutiesNote={dutiesText} tip={tip} />
       </div>
 
       {payBar && (

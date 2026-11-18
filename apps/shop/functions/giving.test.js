@@ -248,7 +248,11 @@ describe("the owner", () => {
     await t.seed();
     await t.db.collection("settings").doc("website").set({ title: "Moth Press" });
     const saved = await t.adm({ op: "saveSettings", settings: { amounts: [100, 1500, "3000"], otherAmount: false, coverFee: false, honour: false, thanks: " Thanks! " } });
-    expect(saved.body.settings).toEqual({ amounts: [1500, 3000], otherAmount: false, coverFee: false, honour: false, thanks: "Thanks!" });
+    expect(saved.body.settings).toEqual({ amounts: [1500, 3000], otherAmount: false, coverFee: false, honour: false, thanks: "Thanks!", checkoutTip: false, tipPercents: [5, 10, 15] });
+    expect((await t.doc("settings", "website")).givingTips).toEqual([]);
+    const tipping = await t.adm({ op: "saveSettings", settings: { amounts: [1500], otherAmount: true, checkoutTip: true, tipPercents: [20, 10, 10, 99] } });
+    expect(tipping.body.settings).toMatchObject({ checkoutTip: true, tipPercents: [10, 20] });
+    expect((await t.doc("settings", "website")).givingTips).toEqual([10, 20]);
     expect((await t.doc("settings", "website")).givingLive).toBe(true);
     await t.db.collection("firstWeek").doc("start").set({ ways: { giving: false } });
     expect((await t.adm({ op: "hint" })).body.givingLive).toBe(false);

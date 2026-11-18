@@ -20,9 +20,9 @@ export function bookkeepingDaysCsv(orders: BookkeepingOrder[], options: Bookkeep
   const days = dailyBookkeeping(orders, options);
   const taxes = taxNamesOf(days);
   return csv([
-    ["Date", "Sales before tax", "Shipping", "Discounts", "Gift cards sold", "Gift cards used", "Refunds", ...taxes, "Card fees", "Net", "Currency"],
+    ["Date", "Sales before tax", "Shipping", "Discounts", "Gift cards sold", "Gift cards used", "Refunds", ...taxes, "Tips", "Card fees", "Net", "Currency"],
     ...days.map((d) => [d.date, money(d.salesCents), money(d.shippingCents), money(d.discountsCents), money(d.giftCardsSoldCents),
-      money(d.giftCardsUsedCents), money(d.refundsCents), ...taxes.map((t) => money(d.taxes[t] || 0)), money(d.feesCents), money(d.netCents), d.currency]),
+      money(d.giftCardsUsedCents), money(d.refundsCents), ...taxes.map((t) => money(d.taxes[t] || 0)), money(d.tipsCents), money(d.feesCents), money(d.netCents), d.currency]),
   ]);
 }
 
@@ -31,10 +31,10 @@ export function bookkeepingOrdersCsv(orders: BookkeepingOrder[], options: Bookke
   const lines = bookkeepingOrderLines(orders, options);
   const taxes = taxNamesOf(lines);
   return csv([
-    ["Date", "Order", "Type", "Sales before tax", "Shipping", "Discounts", "Gift cards sold", "Gift cards used", "Refunds", ...taxes,
+    ["Date", "Order", "Type", "Sales before tax", "Shipping", "Discounts", "Gift cards sold", "Gift cards used", "Refunds", ...taxes, "Tips",
       "Total charged", "Card fee", "Net", "Payout", "Payout date", "Currency"],
     ...lines.map((l) => [l.date, l.orderId, l.kind, money(l.salesCents), money(l.shippingCents), money(l.discountsCents), money(l.giftCardsSoldCents),
-      money(l.giftCardsUsedCents), money(l.refundsCents), ...taxes.map((t) => money(l.taxes[t] || 0)),
+      money(l.giftCardsUsedCents), money(l.refundsCents), ...taxes.map((t) => money(l.taxes[t] || 0)), money(l.tipsCents),
       money(l.totalCents), money(l.feeCents), money(l.netCents), l.payoutId || "", l.payoutDate || "", l.currency]),
   ]);
 }

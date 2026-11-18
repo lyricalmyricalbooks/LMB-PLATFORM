@@ -1147,6 +1147,7 @@ export function OrderDetail({
                 ["Subtotal", money(order.subtotal)],
                 ["Shipping", money(order.shipping)],
                 ...(order.tax > 0 ? [["Tax", money(order.tax)]] : []),
+                ...(order.tip > 0 ? [["Tip", money(order.tip)]] : []),
                 ...(order.discount > 0
                   ? [[order.appliedDiscount?.type === "gift" ? `Free gift${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}` : `Discount${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}`, `− ${money(order.discount)}`]]
                   : []),

@@ -338,6 +338,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Shipping, pickup & delivery", match: /^co(Ship|Fulfillment|Rates|ArrivesBy|FreeShip|Packed|Pickup|Carrier|Estimated|Free$|NoShipping|Preorder|TaxLater|Duties)/ },
     { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Square|Trust|Guarantee|TestMode|PracticeMode|NoPayment|PrivacyNote|Policy|Terms|OnlyLeft|Express|OrderNote|Rates|DigitalConsent|NewsletterTick)/ },
     { title: "Discount codes", match: /^co(HaveCode|Discount|Apply)/ },
+    { title: "Tip at checkout", match: /^coTip/ },
     { title: "Gift cards, automatic offers & free gifts", match: /^co(GiftCard|Auto|FreeGift|Line)/ },
     { title: "After the order", match: /^co(Thanks|Account|Pending|Continue|OrderPlaced|OrderConfirmed|Finalizing|CheckEmail|OrderNumber|ConfirmationSent|Confirming|Success|TrackOrder)/ },
     { title: "Empty bag", match: /^coEmpty/ },

@@ -1,6 +1,6 @@
 // Donations & tips (beta): the settings always usable, the $5 lowest gift, the card fee estimate and the giver's details.
 import { describe, expect, test } from "vitest";
-import { cleanGiver, cleanGivingSettings, coverFeeMinor, DEFAULT_AMOUNTS, giftAmountProblem, giftCharge, giverShown, MIN_GIFT_MINOR, startingGivingSettings } from "./givingRules";
+import { checkoutTipProblem, cleanGiver, cleanGivingSettings, cleanTipPercents, coverFeeMinor, DEFAULT_AMOUNTS, DEFAULT_TIP_PERCENTS, tipChoices, giftAmountProblem, giftCharge, giverShown, MIN_GIFT_MINOR, startingGivingSettings } from "./givingRules";
 
 describe("the owner's settings", () => {
   test("nothing saved gives the starting amounts with every choice on", () => {
@@ -61,5 +61,30 @@ describe("the giver", () => {
   test("shown to others by first name, or Anonymous", () => {
     expect(giverShown({ name: "Ada Reader", anonymous: false })).toBe("Ada");
     expect(giverShown({ name: "Ada Reader", anonymous: true })).toBe("Anonymous");
+  });
+});
+
+describe("tips at checkout", () => {
+  test("off unless the owner turns it on, with the default percents", () => {
+    expect(cleanGivingSettings({}).checkoutTip).toBe(false);
+    expect(cleanGivingSettings({ checkoutTip: "yes" }).checkoutTip).toBe(false);
+    expect(cleanGivingSettings({ checkoutTip: true }).checkoutTip).toBe(true);
+    expect(cleanGivingSettings({}).tipPercents).toEqual([...DEFAULT_TIP_PERCENTS]);
+  });
+  test("percents are 1 to 4 whole numbers from 1 to 50, smallest first", () => {
+    expect(cleanTipPercents([20, 10, 10, 0, 51, 15, 18, 25])).toEqual([10, 15, 18, 20]);
+    expect(cleanTipPercents(["12", 7.4])).toEqual([7, 12]);
+    expect(cleanTipPercents([])).toEqual([...DEFAULT_TIP_PERCENTS]);
+    expect(cleanTipPercents("10")).toEqual([...DEFAULT_TIP_PERCENTS]);
+  });
+  test("each choice is that percent of the items, to the cent", () => {
+    expect(tipChoices(4250, [10, 15])).toEqual([{ percent: 10, minor: 425 }, { percent: 15, minor: 638 }]);
+    expect(tipChoices(-5, [10])).toEqual([{ percent: 10, minor: 0 }]);
+  });
+  test("a tip is nothing, or whole cents from $1 to $1,000", () => {
+    for (const ok of [undefined, null, 0, 100, 100_000]) expect(checkoutTipProblem(ok)).toBeNull();
+    expect(checkoutTipProblem(99)).toBe("tipTooSmall");
+    expect(checkoutTipProblem(100_001)).toBe("tipTooBig");
+    for (const bad of [-100, 150.5, "500", NaN, Infinity]) expect(checkoutTipProblem(bad)).toBe("tip");
   });
 });

@@ -158,6 +158,7 @@ const PHRASES_FR = Object.freeze({
   Subtotal: "Sous-total",
   Shipping: "Livraison",
   Tax: "Taxes",
+  Tip: "Pourboire",
   Total: "Total",
   Discount: "Rabais",
   "Free gift": "Cadeau",

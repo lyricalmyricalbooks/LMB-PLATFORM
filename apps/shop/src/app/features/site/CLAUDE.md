@@ -1040,3 +1040,13 @@ from `supportPreview.ts` (sample amounts and a sample paid gift). **Links:** whi
 Header › Icons & buttons › `hideHeaderSupport`), the phone menu a link (`supportNavLink`) and the footer one
 (`footer-support`, `supportFooterLink`). Words: Text & labels › **Support page** (`support*`, French twins). The Studio
 fixture takes `?support=1` to show the links.
+
+## Tip at checkout (Donations & tips beta, G1c, 18 November 2026)
+`CheckoutTip.tsx` (pure `tipAtCheckout.ts`: `tipsOffered`, `tipBaseMinor`, `tipFor`) sits in the Pay step under the code
+boxes while `settings/website.givingTips` lists percents (kept by `functions/giving.js` `tellWebsite`, empty when off; the
+admin's `updateSettings` never writes it) and the shopper isn't paying by trade invoice. No tip, each percent of the items
+after discount (never gift cards bought in the bag) with its amount, and Other (typed in the shown currency, checked
+against `MIN_TIP_MINOR`/`MAX_TIP_MINOR`; a problem disables Pay). The order sends `tipMinor` (shop cents); the slip,
+tracking page and emails show the server's `tip`. Region `checkoutTip`, words Text & labels › Checkout › Tip at checkout
+(`coTip*`, French twins). The a11y fixture takes `&settings={"givingTips":[5,10,15]}`, but checkout reads its settings
+from the site cache: seed `sessionStorage["site-bootstrap-v1"]` to see the box.

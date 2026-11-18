@@ -14,7 +14,7 @@ import { designNumber } from "./designNumber";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
 
-export function CheckoutOrderSummary({ c, checkoutDesign, cart, booksMap, summaryOpen, setSummaryOpen, itemCount, slipDate, slipNumbers, formatPrice, freeGift, preorderShip, hasCodeBoxes, codeBoxes, itemsSubtotal, discountAmount, appliedDiscount, autoPick, getActiveShippingDetails, needsDeliveryChoice, isFreeShipping, shippingCost, finalShipping, taxCost, taxKnown, giftCardUse, freeShipNudge, cartTotal, finalTotal, dutiesNote }: {
+export function CheckoutOrderSummary({ c, checkoutDesign, cart, booksMap, summaryOpen, setSummaryOpen, itemCount, slipDate, slipNumbers, formatPrice, freeGift, preorderShip, hasCodeBoxes, codeBoxes, itemsSubtotal, discountAmount, appliedDiscount, autoPick, getActiveShippingDetails, needsDeliveryChoice, isFreeShipping, shippingCost, finalShipping, taxCost, taxKnown, giftCardUse, freeShipNudge, cartTotal, finalTotal, dutiesNote, tip = 0 }: {
   c: Copy; checkoutDesign: any; cart: CartItem[]; booksMap: Map<string, any>;
   summaryOpen: boolean; setSummaryOpen: React.Dispatch<React.SetStateAction<boolean>>; itemCount: string; slipDate: string; slipNumbers: boolean;
   formatPrice: (priceInCAD: number) => string; freeGift: { title: string; photoUrl?: string; variantName?: string } | null | undefined;
@@ -22,6 +22,8 @@ export function CheckoutOrderSummary({ c, checkoutDesign, cart, booksMap, summar
   itemsSubtotal: number; discountAmount: number; appliedDiscount: any; autoPick: any; getActiveShippingDetails: () => { serviceName?: string } | null | undefined;
   needsDeliveryChoice: boolean; isFreeShipping: boolean; shippingCost: number; finalShipping: number; taxCost: number; taxKnown: boolean;
   giftCardUse: { code: string; last4: string; minor: number }[]; freeShipNudge: { gap: number; threshold: number } | null | undefined; cartTotal: number; finalTotal: number; dutiesNote?: string | null;
+  /** The tip the shopper picked (Donations & tips), in the shop's currency. */
+  tip?: number;
 }) {
   return (
     <aside {...regionProps("checkoutSummary")} className="fm-co-aside min-w-0" data-open={summaryOpen ? "true" : "false"}>
@@ -99,6 +101,7 @@ export function CheckoutOrderSummary({ c, checkoutDesign, cart, booksMap, summar
           <dt>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</dt>
           <dd>{needsDeliveryChoice ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</dd>
           <dt>{c("summaryTax")}</dt><dd>{taxCost > 0 || taxKnown ? formatPrice(taxCost) : c("coTaxLater")}</dd>
+          {tip > 0 && <><dt>{c("coTipRow")}</dt><dd translate="no">{formatPrice(tip)}</dd></>}
           {giftCardUse.filter(card => card.minor > 0).map(card => (
             <React.Fragment key={card.code}><dt>{c("coGiftCardSummary", { last4: card.last4 })}</dt><dd translate="no">-{formatPrice(card.minor / 100)}</dd></React.Fragment>
           ))}

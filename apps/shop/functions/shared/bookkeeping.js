@@ -101,6 +101,7 @@ function bookkeepingOrderLines(orders, options) {
                 date: paidDay, orderId, kind: "Sale",
                 salesCents: cents(order.subtotal) - soldCards,
                 shippingCents: cents(order.shipping),
+                tipsCents: cents(order.tip),
                 discountsCents: cents(order.discount),
                 giftCardsSoldCents: soldCards,
                 giftCardsUsedCents: cents(order.giftCardAmount),
@@ -117,7 +118,7 @@ function bookkeepingOrderLines(orders, options) {
                 continue;
             out.push({
                 date: day, orderId, kind: "Refund",
-                salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
+                salesCents: 0, shippingCents: 0, tipsCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
                 refundsCents: amount, taxes: {}, totalCents: 0, feeCents: null, netCents: -amount,
                 payoutId: null, payoutDate: null, currency,
             });
@@ -130,11 +131,12 @@ function dailyBookkeeping(orders, options) {
     const days = new Map();
     for (const line of bookkeepingOrderLines(orders, options)) {
         const day = days.get(line.date) || {
-            date: line.date, salesCents: 0, shippingCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
+            date: line.date, salesCents: 0, shippingCents: 0, tipsCents: 0, discountsCents: 0, giftCardsSoldCents: 0, giftCardsUsedCents: 0,
             refundsCents: 0, taxes: {}, feesCents: 0, netCents: 0, currency: line.currency,
         };
         day.salesCents += line.salesCents;
         day.shippingCents += line.shippingCents;
+        day.tipsCents += line.tipsCents;
         day.discountsCents += line.discountsCents;
         day.giftCardsSoldCents += line.giftCardsSoldCents;
         day.giftCardsUsedCents += line.giftCardsUsedCents;

@@ -161,6 +161,17 @@ export function checkoutSlipCss(design: any): string {
     `${P} .fm-co-seg-btn{height:48px;padding:0 16px;background:transparent;color:${fg};border:2px solid rgba(var(--fg-rgb), .32);cursor:pointer;}`,
     `${P} .fm-co-seg-btn + .fm-co-seg-btn{border-left:0;}`,
     `${P} .fm-co-seg-btn[aria-pressed="true"]{background:${fg};color:var(--bg-color, Canvas);border-color:${fg};}`,
+    // Tip (CheckoutTip, Donations & tips): square choices in a row, the amount under each percent, then the own-amount box
+    `${P} .fm-co-tip-choices{display:grid;grid-template-columns:repeat(auto-fit, minmax(84px, 1fr));gap:8px;}`,
+    `${P} .fm-co-tip-choice{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;padding:6px 8px;border:1px solid var(--co-rule);cursor:pointer;color:${fg};text-align:center;}`,
+    `${P} .fm-co-tip-choice:hover{background:rgba(var(--fg-rgb), .06);}`,
+    `${P} .fm-co-tip-choice:has(input:checked){background:${fg};color:var(--bg-color, Canvas);border-color:${fg};}`,
+    `${P} .fm-co-tip-choice:has(input:focus-visible){outline:2px solid var(--rp-focus, ${accent});outline-offset:2px;}`,
+    `${P} .fm-co-tip-choice input{position:absolute;opacity:0;width:1px;height:1px;}`,
+    `${P} .fm-co-tip-pct{font-weight:600;font-size:16px;line-height:22px;}`,
+    `${P} .fm-co-tip-amt{font-family:var(--co-meta);font-size:12px;line-height:16px;letter-spacing:.04em;opacity:.8;}`,
+    `${P} .fm-co-tip-other{display:grid;gap:6px;max-width:240px;}`,
+    `${P} .fm-co-tip-error{margin:0;font-size:13px;line-height:18px;color:var(--danger, #e8402a);}`,
     // Pickup time (PickupTimePicker): a sideways row of days, then that day's times as square chips
     `${P} .fm-co-pickup-days{display:flex;overflow-x:auto;scrollbar-width:thin;}`,
     `${P} .fm-co-pickup-day{flex:0 0 auto;min-width:84px;min-height:56px;padding:6px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:transparent;color:${fg};border:2px solid rgba(var(--fg-rgb), .32);cursor:pointer;}`,

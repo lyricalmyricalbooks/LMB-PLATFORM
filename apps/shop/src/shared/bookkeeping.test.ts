@@ -132,7 +132,15 @@ describe("bookkeeping file (plan 7.12)", () => {
     const [line] = bookkeepingOrderLines([{ id: "nofee", paymentStatus: "paid", paidAt: day(4), subtotal: 20, total: 20 }], opts);
     expect([line.feeCents, line.payoutId, line.payoutDate, line.netCents]).toEqual([null, null, null, 2000]);
     const csv = bookkeepingOrdersCsv([{ id: "nofee", paymentStatus: "paid", paidAt: day(4), subtotal: 20, total: 20 }], opts);
-    expect(csv.split("\n")[1]).toBe('"2026-09-04","nofee","Sale","20.00","0.00","0.00","0.00","0.00","0.00","20.00","","20.00","","","CAD"');
+    expect(csv.split("\n")[1]).toBe('"2026-09-04","nofee","Sale","20.00","0.00","0.00","0.00","0.00","0.00","0.00","20.00","","20.00","","","CAD"');
+  });
+
+  test("a tip is its own column, never sales, and counts toward the net", () => {
+    const tipped = { id: "tip", paymentStatus: "paid", paidAt: day(5), subtotal: 40, shipping: 0, tax: 0, tip: 4, total: 44 };
+    const [line] = bookkeepingOrderLines([tipped], opts);
+    expect([line.salesCents, line.tipsCents, line.netCents]).toEqual([4000, 400, 4400]);
+    expect(dailyBookkeeping([tipped], opts)[0].tipsCents).toBe(400);
+    expect(bookkeepingOrderLines([{ ...tipped, tip: undefined, total: 40 }], opts)[0].tipsCents).toBe(0);
   });
 
   test("a fee in the shopper's currency is converted back with the order's rate", () => {
@@ -151,9 +159,9 @@ describe("bookkeeping file (plan 7.12)", () => {
 
   test("the sheets are plain CSV to the cent, with one column per tax name", () => {
     const daysCsv = bookkeepingDaysCsv(orders, opts).trim().split("\n");
-    expect(daysCsv[0]).toBe('"Date","Sales before tax","Shipping","Discounts","Gift cards sold","Gift cards used","Refunds","GST","HST ON","Card fees","Net","Currency"');
+    expect(daysCsv[0]).toBe('"Date","Sales before tax","Shipping","Discounts","Gift cards sold","Gift cards used","Refunds","GST","HST ON","Tips","Card fees","Net","Currency"');
     expect(daysCsv).toHaveLength(31);
-    for (const row of daysCsv.slice(1)) expect(row).toMatch(/^"2026-09-\d\d"(,"-?\d+\.\d\d"){10},"CAD"$/);
+    for (const row of daysCsv.slice(1)) expect(row).toMatch(/^"2026-09-\d\d"(,"-?\d+\.\d\d"){11},"CAD"$/);
     const payoutsCsv = bookkeepingPayoutsCsv(orders, opts).trim().split("\n");
     expect(payoutsCsv[0]).toBe('"Payout","Date","Orders","Orders total","Card fees","Refunds","Net","Currency"');
     expect(payoutsCsv).toHaveLength(3);

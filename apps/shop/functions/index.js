@@ -164,6 +164,7 @@ const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
 const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
 const { PUBLIC_EVENT_ACTIONS } = require("./events");
 const { PUBLIC_GIVING_ACTIONS } = require("./giving");
+const { checkoutTipProblem, MIN_TIP_MINOR, MAX_TIP_MINOR } = require("./shared/givingRules");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
@@ -438,6 +439,7 @@ function customerTotalsTable(order, say = text => text) {
           <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Subtotal")}</td><td style="text-align:right;">${m(order.subtotal)}</td></tr>
           <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Shipping")}</td><td style="text-align:right;">${m(order.shipping)}</td></tr>
           ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Tax")}</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
+          ${order.tip > 0 ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say("Tip")}</td><td style="text-align:right;">${m(order.tip)}</td></tr>` : ""}
           ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">${discountLabel(order, say)}</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
           ${order.giftCardAmount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">${say((order.giftCardRedemptions || []).length > 1 ? "Gift cards" : "Gift card")} ${escapeHtml((order.giftCardRedemptions || []).map(r => `••••${r.last4 || ""}`).join(", "))}</td><td style="text-align:right;">−${m(order.giftCardAmount)}</td></tr>` : ""}
           <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">${say("Total")}</td><td style="text-align:right;font-weight:bold;">${chargedTotalFmt(order)}</td></tr>
@@ -1262,6 +1264,21 @@ function digitalBuyerCountry(order) {
   return order.fulfillmentSelection?.method === "pickup" ? (billing || delivery) : (delivery || billing);
 }
 
+// A tip asked for at checkout (Donations & tips, giving.js), in cents of the shop's currency: nothing, or whole cents in
+// bounds while the shop takes tips. Never on a payment link or a trade invoice. Never taxed or discounted.
+async function checkoutTipFor(order, { link }) {
+  const asked = order.tipMinor;
+  if (asked === undefined || asked === null || asked === 0) return 0;
+  // A payment link is an order the shop made: its total is the owner's, so nothing is added to it.
+  if (link) throw new PricingError("A tip can't be added to this order. Please remove it and try again.", "tip_rejected");
+  const problem = checkoutTipProblem(asked);
+  if (problem === "tipTooSmall") throw new PricingError(`The lowest tip is ${shopSign()}${(MIN_TIP_MINOR / 100).toFixed(2)}.`, "tip_rejected");
+  if (problem === "tipTooBig") throw new PricingError(`The highest tip is ${shopSign()}${(MAX_TIP_MINOR / 100).toFixed(2)}.`, "tip_rejected");
+  if (problem) throw new PricingError("Check the tip amount and try again.", "tip_rejected");
+  if (!(await givingDesk.tipsTaken())) throw new PricingError("This shop isn't taking tips right now. Please remove the tip and try again.", "tip_rejected");
+  return asked;
+}
+
 async function priceOrder(order, { orderId = "", settings: knownSettings = null, paymentLink: draftLink = null } = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.customer?.email || "").trim())) {
     throw new PricingError("Check the email address: it doesn't look complete.");
@@ -1486,7 +1503,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
   } catch (err) {
     throw new PricingError(err.message);
   }
-  const beforeGiftCards = subtotal - discount + shipping + tax;
+  const tipMinor = await checkoutTipFor(order, { link });
+  const tip = tipMinor / 100;
+  const beforeGiftCards = subtotal - discount + shipping + tax + tip;
 
   // Gift cards (checkout's "Gift card" box) pay what is left, except other gift cards in the bag.
   const giftCardLines = items.filter(item => item.giftCard === true).reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -1512,7 +1531,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
   return {
     items, booksById, settings, testMode, subtotal, discount, appliedDiscount, verifiedDiscount,
     shipping, shippingMethod: shipResult.method || null, shippingEstimate: shipResult.estimate || null, fulfillment: shipResult.fulfillment || null,
-    tax, taxLines, giftCardAmount, giftCardRedemptions: redemptions, total, testCardUsed,
+    tax, taxLines, tip, giftCardAmount, giftCardRedemptions: redemptions, total, testCardUsed,
   };
 }
 
@@ -1524,7 +1543,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency, orderId = "")
   const convertedTotal = Math.round(total * exchangeRate * 100) / 100;
   const update = {
     items: items.map(({ shippingProfileId, ...item }) => item), subtotal, discount, appliedDiscount,
-    shipping, tax, taxLines: priced.taxLines, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
+    shipping, tax, taxLines: priced.taxLines, tip: priced.tip, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
     giftCardAmount: priced.giftCardAmount, giftCardRedemptions: priced.giftCardRedemptions,
     ...(priced.shippingMethod ? { shippingMethod: priced.shippingMethod } : {}),
     shippingEstimate: priced.shippingEstimate,
@@ -4586,6 +4605,7 @@ exports.onOrderCreated = onDocumentCreated(
           <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
           <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
           ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
+          ${order.tip > 0 ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tip</td><td style="text-align:right;">${moneyFmt(order.tip)}</td></tr>` : ""}
           ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
           <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
         </table>

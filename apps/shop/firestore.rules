@@ -134,6 +134,8 @@ service cloud.firestore {
           && (d.get('cartId', '') is string && d.get('cartId', '').size() <= 64)
           && (d.get('addressVerified', null) == null || d.get('addressVerified', null) is bool)
           && (d.get('testMode', false) is bool)
+          // A tip in cents (Donations & tips); priceOrder checks it against the shop's switch and bounds.
+          && (d.get('tipMinor', 0) is int && d.get('tipMinor', 0) >= 0 && d.get('tipMinor', 0) <= 100000)
           && (d.get('createdAt', '') is string && d.get('createdAt', '').size() <= 40)
           && (d.get('updatedAt', '') is string && d.get('updatedAt', '').size() <= 40)
           && d.customer.keys().hasOnly(['name', 'email', 'phone', 'address', 'billingAddress']);
@@ -288,7 +290,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['customer', 'cartId', 'customerId', 'referralSource', 'acquisition', 'orderNote',
             'addressVerified', 'addressError', 'items', 'subtotal', 'discount', 'shipping', 'shippingMethod',
             'fulfillmentSelection', 'tax', 'total', 'status', 'paymentStatus', 'paymentMethod', 'paymentInstructions',
-            'testMode', 'appliedDiscount', 'metadata', 'trackingKey', 'orderId', 'createdAt', 'updatedAt', 'activity', 'giftCards'])
+            'testMode', 'appliedDiscount', 'metadata', 'trackingKey', 'orderId', 'createdAt', 'updatedAt', 'activity', 'giftCards', 'tipMinor'])
           // Gift card codes the shopper typed; the server prices and holds them (functions/giftCards.js).
           && (!('giftCards' in request.resource.data) || (request.resource.data.giftCards is list && request.resource.data.giftCards.size() <= 5))
           && (request.resource.data.paymentMethod == "Stripe" || request.resource.data.paymentMethod == "PayPal" || request.resource.data.paymentMethod == "Free")

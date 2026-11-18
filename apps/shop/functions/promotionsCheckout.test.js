@@ -285,3 +285,42 @@ describe('pay what you want', () => {
     expect(app.order.items[0].chosenPrice).toBeUndefined();
   });
 });
+
+describe('tip at checkout (Donations & tips, beta)', () => {
+  const tipsOn = (app, checkoutTip = true) => {
+    app.docs.platform = { features: { ways: { giving: true } } };
+    app.docs.firstWeek = { start: { ways: { giving: true } } };
+    app.docs.givingSettings = { main: { amounts: [1000], otherAmount: true, checkoutTip } };
+  };
+  test('is added once, never taxed or discounted, and the card is charged for it', async () => {
+    const app = harness({ items: [line('ebook')], taxRate: 13, discounts: { spring: { method: 'automatic', title: 'Spring', type: 'percentage', value: 50, code: '' } } });
+    tipsOn(app);
+    app.order.tipMinor = 300;
+    expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
+    expect(app.order.discount).toBe(10);
+    expect(app.order.tax).toBeCloseTo(1.3);
+    expect(app.order.tip).toBe(3);
+    expect(app.order.total).toBeCloseTo(14.3);
+    expect(app.stripeCalls[0].amount).toBe(1430);
+  });
+  test('is refused when the shop is not asking for tips, or the amount is out of bounds', async () => {
+    const off = harness({ items: [line('ebook')] });
+    tipsOn(off, false);
+    off.order.tipMinor = 300;
+    const r = await off.call('createStripeCheckoutSession');
+    expect(r.code).toBe(400);
+    expect(JSON.stringify(r.value)).toContain('tip');
+    for (const tipMinor of [50, 100001, 2.5, -100, '300']) {
+      const app = harness({ items: [line('ebook')] });
+      tipsOn(app);
+      app.order.tipMinor = tipMinor;
+      expect((await app.call('createStripeCheckoutSession')).code).toBe(400);
+    }
+  });
+  test('no tip changes nothing', async () => {
+    const app = harness({ items: [line('ebook')] });
+    expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
+    expect(app.order.tip).toBe(0);
+    expect(app.order.total).toBe(20);
+  });
+});

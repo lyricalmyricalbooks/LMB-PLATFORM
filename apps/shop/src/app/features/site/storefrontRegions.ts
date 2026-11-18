@@ -150,7 +150,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "stripePaymentRecovery", label: "Stripe payment recovery", required: true },
     { id: "squarePaymentNote", label: "Square checkout note (Square shops)" },
   ] },
-  { id: "checkoutLayout", title: "Checkout · layout & elements", copy: "Checkout", files: ["Checkout.tsx", "features/site/CheckoutAddressStep.tsx", "features/site/CheckoutDeliveryStep.tsx", "features/site/CheckoutPaymentStep.tsx", "features/site/CheckoutOrderSummary.tsx", "features/site/FulfillmentMethodPicker.tsx"], regions: [
+  { id: "checkoutLayout", title: "Checkout · layout & elements", copy: "Checkout", files: ["Checkout.tsx", "features/site/CheckoutAddressStep.tsx", "features/site/CheckoutDeliveryStep.tsx", "features/site/CheckoutPaymentStep.tsx", "features/site/CheckoutOrderSummary.tsx", "features/site/FulfillmentMethodPicker.tsx", "features/site/CheckoutTip.tsx"], regions: [
     { id: "checkoutHeader", label: "Checkout header" }, { id: "checkoutProgress", label: "Checkout step labels (switch: Style › Checkout page › Header & sections)", required: true },
     { id: "checkoutPageTitle", label: "Checkout heading" },
     { id: "checkoutSlipHead", label: "Order slip heading & date" },
@@ -162,6 +162,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "checkoutHoldWarning", label: "Large-order limit warning (above Pay)" },
     { id: "checkoutDiscount", label: "Discount code box" },
     { id: "checkoutGiftCard", label: "Gift card box" },
+    { id: "checkoutTip", label: "Tip at checkout (Donations & tips)" },
     { id: "checkoutReassurance", label: "Packed & tracked note (switch: Style › Checkout page › Order slip)", required: true },
     { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true }, { id: "checkoutAccountOffer", label: "Order confirmation: sign-in box", copy: "Checkout" },
     { id: "checkoutSuccessSummary", label: "Order confirmation: order summary", copy: "Checkout" }, { id: "checkoutTrackOrder", label: "Order confirmation: track order button", required: true, copy: "Checkout" },
