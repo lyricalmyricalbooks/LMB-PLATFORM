@@ -133,6 +133,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   const optOuts = new Set();
   const desk = bookingActions({
     db, calendar, findDiscount, shopTax, texts,
+    identify: async (req) => req.who || null,
     optedOut: async (e) => optOuts.has(e),
     unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
@@ -3924,5 +3925,44 @@ describe("the client's time zone for online visits (plan 4, 2.9)", () => {
     const room = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "15:00"), ...CUSTOMER, zone: "Europe/London" });
     expect([room.statusCode, room.body.message]).toEqual([200, undefined]);
     expect(t.db.store.get(`bookings/${room.body.id}`).clientZone).toBeUndefined();
+  });
+});
+
+describe("my bookings in the customer account (plan 4, 2.10)", () => {
+  const as = async (t, who, body) => { const r = res(); await t.desk.handlePublic({ body, who }, r); return r; };
+  test("needs a sign-in, lists only this customer's bookings, coming first", async () => {
+    const t = setup();
+    await t.seed();
+    const a = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    const b = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "13:00"), ...CUSTOMER });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "15:00"), name: "Bo", email: "bo@example.com" });
+    expect((await as(t, null, { action: "bookingMine" })).statusCode).toBe(401);
+    expect((await t.pub({ action: "bookingCancel", id: a.body.id, key: a.body.key })).statusCode).toBe(200);
+    // A day on, the second visit is in the past; the cancelled one is listed with the past ones.
+    t.clock.now = new Date("2026-11-18T05:00:00Z");
+    const mine = await as(t, { email: "ada@example.com" }, { action: "bookingMine" });
+    expect(mine.statusCode).toBe(200);
+    expect(mine.body.live).toBe(true);
+    expect(mine.body.coming).toEqual([]);
+    expect(mine.body.past.map((x) => x.id)).toEqual([a.body.id, b.body.id]);
+    expect(mine.body.past[0]).toMatchObject({ serviceName: "Studio visit", status: "cancelled" });
+    expect(JSON.stringify(mine.body)).not.toContain("bo@example.com");
+    expect(JSON.stringify(mine.body)).not.toContain("KeyHash");
+  });
+  test("open gives a working link to the customer's own booking only", async () => {
+    const t = setup();
+    await t.seed();
+    const made = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect((await as(t, null, { action: "bookingOpen", id: made.body.id })).statusCode).toBe(401);
+    expect((await as(t, { email: "bo@example.com" }, { action: "bookingOpen", id: made.body.id })).statusCode).toBe(404);
+    const open = await as(t, { email: "ada@example.com" }, { action: "bookingOpen", id: made.body.id });
+    expect(open.statusCode).toBe(200);
+    const link = new URL(open.body.path, "https://press.example");
+    expect(link.pathname).toBe("/book");
+    const view = await t.pub({ action: "bookingView", id: link.searchParams.get("booking"), key: link.searchParams.get("key") });
+    expect(view.statusCode).toBe(200);
+    expect(view.body.booking.serviceName).toBe("Studio visit");
+    const mine = await as(t, { email: "ada@example.com" }, { action: "bookingMine" });
+    expect(mine.body.coming.map((x) => x.id)).toEqual([made.body.id]);
   });
 });

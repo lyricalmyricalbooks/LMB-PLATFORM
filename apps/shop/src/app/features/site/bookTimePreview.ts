@@ -126,6 +126,22 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     }
     return { on: true, days, fullDays: [], places: 8, left, full };
   }
+  if (action === "bookingMine") {
+    // The account's Your bookings card (2.10): one coming visit, one waiting for a yes, and two past ones.
+    const at = (days: number, time: string, minutes: number) => {
+      const start = zonedTime(addDays(today, days), time, zone);
+      return { start: new Date(start).toISOString(), end: new Date(start + minutes * 60000).toISOString() };
+    };
+    return { on: true, zone, live: true,
+      coming: [
+        { id: "sample-mine-1", serviceId: "sample-session", serviceName: "One-to-one session", ...at(3, "11:00", 60), location: "The studio", staffName: "Ana", status: "confirmed" },
+        { id: "sample-mine-2", serviceId: "sample-call", serviceName: "Quick call", ...at(9, "15:30", 15), status: "requested", online: true },
+      ],
+      past: [
+        { id: "sample-mine-3", serviceId: "sample-class", serviceName: "Saturday workshop", ...at(-12, "10:00", 120), location: "The studio", staffName: "Ben", status: "confirmed" },
+        { id: "sample-mine-4", serviceId: "sample-visit", serviceName: "Studio visit", ...at(-30, "14:00", 30), location: "The studio", status: "cancelled" },
+      ] };
+  }
   if (action === "bookingWait") return { ok: true };
   if (action === "bookingCode") {
     const applied = sampleCode(SERVICES.find((s) => s.id === body.serviceId) || SERVICES[1], body.code);
