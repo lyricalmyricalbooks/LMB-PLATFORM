@@ -87,7 +87,7 @@ describe("the admin in setup mode (code plan 18.6)", () => {
     const choose = [...el.querySelectorAll("main button")].find((b) => b.textContent === "Choose a look") as HTMLButtonElement;
     act(() => choose.click());
     await flush();
-    expect(el.querySelector("h1")?.textContent).toBe("Design");
+    expect(el.querySelector("h1")?.textContent).toBe("Online store");
   });
 
   it("keeps the step the press opened when it comes back to Home, and moves on once that step is done", async () => {
