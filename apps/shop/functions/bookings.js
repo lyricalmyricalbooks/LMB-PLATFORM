@@ -2789,6 +2789,39 @@ function bookingActions({
         await tellWebsite(settings.live);
         return res.status(200).json({ ok: true, service });
       }
+      if (op === "importServices") {
+        // Bring your services from a spreadsheet (plan 4, 2.11, Beta). Each line is checked like a saved service; a name
+        // the shop already has is skipped, and each new service's id comes from its name, so a second run adds nothing.
+        const list = Array.isArray(req.body?.services) ? req.body.services.slice(0, MAX_SERVICES) : [];
+        if (!list.length) return fail(res, 400, "There are no services to bring in.");
+        const show = req.body?.show === true;
+        const snap = await services().limit(MAX_SERVICES + 1).get();
+        const taken = new Set(snap.docs.map((d) => String(d.data()?.name || "").trim().toLowerCase()));
+        let count = snap.docs.length;
+        let order = snap.docs.reduce((most, d) => Math.max(most, Number(d.data()?.order) || 0), 0);
+        const added = [];
+        const skipped = [];
+        const at = now().toISOString();
+        for (const raw of list) {
+          const name = String(raw?.name || "").trim().slice(0, 80);
+          if (!name) { skipped.push({ name: "", why: "It has no name." }); continue; }
+          if (taken.has(name.toLowerCase())) { skipped.push({ name, why: "You already have a service with this name." }); continue; }
+          if (count >= MAX_SERVICES) { skipped.push({ name, why: `A shop can have up to ${MAX_SERVICES} services.` }); continue; }
+          const id = `im${crypto.createHash("sha256").update(name.toLowerCase()).digest("hex").slice(0, 16)}`;
+          const clean = cleanService({
+            name, minutes: raw?.minutes, priceMinor: raw?.priceMinor, payment: raw?.payment === "atShop" ? "atShop" : "free",
+            description: raw?.description, group: raw?.group, places: raw?.places, active: show, order: Math.min(999, order + 1),
+          }, id);
+          if (clean.problem) { skipped.push({ name, why: clean.problem }); continue; }
+          await services().doc(id).set({ ...clean, imported: true, updatedAt: at, updatedBy: by });
+          taken.add(name.toLowerCase());
+          count += 1;
+          order += 1;
+          added.push({ id, name: clean.name });
+        }
+        if (added.length) await tellWebsite(settings.live);
+        return res.status(200).json({ ok: true, added, skipped });
+      }
       if (op === "deleteService") {
         const id = String(req.body?.id || "");
         if (!ID.test(id)) return fail(res, 400, "Unknown service.");

@@ -99,6 +99,9 @@
 .rp .bkg-services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 /* Service groups and photos (plan 4, 2.3). */
 .rp .bkg-services { display: grid; gap: 24px; }
+.rp .bkg-services-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.rp .bkg-import-list { max-height: 320px; overflow: auto; }
+.rp .bkg-import-sub { display: block; font-size: 12px; color: var(--rp-text-muted); }
 .rp .bkg-service-group { display: grid; gap: 10px; }
 .rp .bkg-service-group-name { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--rp-text-muted); }
 .rp .bkg-service-group-name span { font-weight: 500; }
