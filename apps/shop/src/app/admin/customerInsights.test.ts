@@ -151,3 +151,12 @@ describe("a client's card (services plan, phase 5)", () => {
     expect(clientCard(undefined, undefined, "ada@example.com", now)).toMatchObject({ visits: 0, noShows: 0, spentMinor: 0, next: null, card: null, packs: [], answers: null, again: null });
   });
 });
+
+describe("agoWords", () => {
+  it("says today and yesterday instead of 0d and 1d", async () => {
+    const { agoWords } = await import("./customerInsights");
+    expect(agoWords(0)).toBe("today");
+    expect(agoWords(1)).toBe("yesterday");
+    expect(agoWords(12)).toBe("12 days ago");
+  });
+});

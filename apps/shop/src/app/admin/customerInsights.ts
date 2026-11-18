@@ -250,3 +250,10 @@ export function customerCountries(rows: CustomerRow[]): { country: string; count
   for (const c of rows) if (c.country) m.set(c.country, (m.get(c.country) || 0) + 1);
   return Array.from(m, ([country, count]) => ({ country, count })).sort((a, b) => b.count - a.count || a.country.localeCompare(b.country));
 }
+
+/** How long ago the last order was, in words: "today", "yesterday", "12 days ago" (never "0d ago"). */
+export function agoWords(days: number): string {
+  if (!(days > 0)) return "today";
+  if (days < 2) return "yesterday";
+  return `${Math.floor(days)} days ago`;
+}

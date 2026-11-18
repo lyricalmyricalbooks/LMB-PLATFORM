@@ -490,8 +490,8 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
                 {(card.recipientName || card.recipientEmail) && <span className="rp-listcard-sub">{card.recipientName || card.recipientEmail}</span>}
               </button>
               <span className="rp-listcard-side">
-                {status.key !== "active" && status.key !== "used" && <>{status.label} · </>}
-                {formatMinor(card.balanceMinor)} left of {formatMinor(card.initialMinor)}
+                {status.key !== "active" && status.key !== "used" && <><StatusBadge tone={status.tone} glyph={false}>{status.label}</StatusBadge>{" "}</>}
+                <span style={{ whiteSpace: "nowrap" }}>{formatMinor(card.balanceMinor)} left of {formatMinor(card.initialMinor)}</span>
               </span>
             </li>
           ))}
