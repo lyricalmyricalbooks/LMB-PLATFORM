@@ -12,7 +12,7 @@ export type PublicPlan = { id: string; name: string; description: string; perks:
 export type MembershipInfo = { on: boolean; currency?: string; ready?: boolean; plans?: PublicPlan[] };
 export type MyMembership = {
   id: string; state: MemberState; plan: { name: string; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string } | null;
-  periodEnd: string; trialEnd: string; card: { brand: string; last4: string } | null; startedAt: string; endedAt: string; test: boolean; cardPending: boolean;
+  periodEnd: string; trialEnd: string; card: { brand: string; last4: string } | null; startedAt: string; endedAt: string; test: boolean; cardPending: boolean; noNewCard?: boolean;
   /** A box membership (M3a): where the boxes go, null until the member gives one. */
   box?: boolean; address?: BoxAddress | null;
   /** Skip and pause (M3c): the box month skipped (YYYY-MM, "" none) and when a pause began. */

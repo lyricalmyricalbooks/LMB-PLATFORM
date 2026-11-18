@@ -77,6 +77,14 @@ function fakeService({ live = false } = {}) {
     if (op === "square.terminal.checkout.create") { (world.terminal ??= []).push(args); return reply(200, { id: `TC${world.terminal.length}`, status: "PENDING" }); }
     if (op === "square.terminal.checkout.retrieve") return reply(200, world.terminalRead || { id: args.id, status: "PENDING" });
     if (op === "square.terminal.checkout.cancel") { world.cancelled = args.id; return reply(200, { id: args.id, status: "CANCELED" }); }
+    if (op === "square.subscriptions.page") { (world.pages ??= []).push(args); const n = world.pages.length; world.checkouts.set(`SUB${n}`, { id: `SUB${n}`, state: "OPEN", paymentIds: [] }); return reply(200, { id: `SUB${n}`, url: `https://square.link/u/s${n}`, squareOrderId: `ORD-SUB${n}`, planVariationId: `PV${n}` }); }
+    if (op === "square.subscriptions.forCheckout") return reply(200, world.subscribed?.[args.id] ? { paid: true, subscription: { id: world.subscribed[args.id] } } : { paid: !!world.paidNoSub, subscription: null });
+    if (op === "square.subscriptions.retrieve" || op === "square.subscriptions.cancel" || op === "square.subscriptions.pause" || op === "square.subscriptions.resume" || op === "square.subscriptions.undoCancel") {
+      (world.subCalls ??= []).push({ op, args });
+      const sub = { id: args.id, status: "ACTIVE", chargedThroughDate: "2026-12-18", cancelPending: op === "square.subscriptions.cancel" ? { id: "A1", date: "2026-12-18" } : null, pausePending: op === "square.subscriptions.pause" ? { id: "A2", date: "2026-12-18", cycles: args.cycles ?? null } : null };
+      return reply(200, sub);
+    }
+    if (op === "square.subscriptions.invoices") return reply(200, { data: [{ id: "INV1", status: "PAID", amountMinor: 1500, currency: "cad", updatedAt: "2026-11-18T00:00:00Z" }, { id: "INV2", status: "UNPAID", amountMinor: 1500, currency: "CAD" }] });
     if (op === "square.payouts.retrieve") return args.id === "po_1" ? reply(200, { id: "po_1", status: world.payoutStatus || "PAID", arrivalDate: "2026-10-31", amountMinor: 3814, currency: "CAD" }) : missing();
     return reply(400, { error: { code: "bad_request", message: `unknown call ${op}` } });
   };
@@ -528,5 +536,61 @@ describe("Square Terminals at the desk (Services plan 2, A4)", () => {
     expect(await reader.payment("sqterm_TC1")).toMatchObject({ status: "canceled", error: "The customer cancelled on the reader." });
     await reader.cancel("sqdev_DEV1", "sqterm_TC1");
     expect(service.world.cancelled).toBe("TC1");
+  });
+});
+
+describe("memberships and monthly gifts on Square (M4)", () => {
+  const subParams = (nowSeconds) => ({
+    mode: "subscription",
+    line_items: [{ quantity: 1, price_data: { currency: "cad", unit_amount: 1500, recurring: { interval: "month" }, product_data: { name: "Friends of the press" } } }],
+    metadata: { membership: "plan-friends", member: "m1" },
+    subscription_data: { trial_period_days: 14 },
+    customer_email: "reader@example.com",
+    expires_at: nowSeconds + 30 * 60,
+    success_url: `https://${SHOP}.web.app/members?done=1`,
+  });
+
+  test("opens a subscription page on a plan, keeps what it pays for, and reads complete once Square has the subscription", async () => {
+    const { payments, service, db } = make();
+    const checkout = await payments.standaloneCheckout("test");
+    const session = await checkout.open(subParams(Math.floor(Date.now() / 1000)), "member-m1");
+    expect(session).toMatchObject({ id: "sqlink_SUB1", status: "open", metadata: { membership: "plan-friends", member: "m1" } });
+    expect(service.world.pages[0]).toMatchObject({ idempotencyKey: "member-m1", params: { priceMinor: 1500, currency: "CAD", interval: "month", trialDays: 14, buyerEmail: "reader@example.com" } });
+    expect(db.docs["fairCardPayments/sqlink_SUB1"]).toMatchObject({ subscriptionPage: true, planVariationId: "PV1", mode: "test" });
+
+    expect(await checkout.read(session.id)).toMatchObject({ status: "open", payment_status: "unpaid" });
+    service.world.paidNoSub = true;
+    expect(await checkout.read(session.id)).toMatchObject({ status: "open" });
+    service.world.subscribed = { SUB1: "SQSUB1" };
+    expect(await checkout.read(session.id)).toMatchObject({ status: "complete", payment_status: "paid", subscription: "SQSUB1", metadata: { member: "m1" } });
+    // Read again from the kept record, without asking Square.
+    service.world.subscribed = {};
+    expect(await checkout.read(session.id)).toMatchObject({ status: "complete", subscription: "SQSUB1" });
+  });
+
+  test("an unpaid page past its time closes; a new card can't be taken", async () => {
+    const { payments } = make();
+    const checkout = await payments.standaloneCheckout("test");
+    const session = await checkout.open(subParams(Math.floor(Date.now() / 1000) - 31 * 60), "member-m2");
+    expect(await checkout.read(session.id)).toMatchObject({ status: "expired" });
+    await expect(checkout.open({ mode: "setup" }, "k")).rejects.toMatchObject({ code: "not_available", statusCode: 409 });
+    expect(checkout.subscriptions.cardChange).toBe(false);
+    await expect(checkout.subscriptions.setCard("SQSUB1", "pm")).rejects.toMatchObject({ code: "not_available" });
+  });
+
+  test("cancel, skip a month, resume and payments read in the Stripe words memberships use", async () => {
+    const { payments, service } = make();
+    const subs = (await payments.standaloneCheckout("test")).subscriptions;
+    expect(await subs.cancelAtEnd("SQSUB1")).toMatchObject({ cancelAtPeriodEnd: true });
+    await subs.pause("SQSUB1", "2027-01-18");
+    await subs.pause("SQSUB1");
+    await subs.unpause("SQSUB1");
+    expect(service.world.subCalls.map((c) => [c.op, c.args.cycles])).toEqual([
+      ["square.subscriptions.cancel", undefined], ["square.subscriptions.pause", 1], ["square.subscriptions.pause", undefined], ["square.subscriptions.resume", undefined],
+    ]);
+    expect(await subs.invoices("SQSUB1")).toEqual([
+      expect.objectContaining({ id: "INV1", status: "paid", amountMinor: 1500, currency: "CAD", paidAt: "2026-11-18T00:00:00Z" }),
+      expect.objectContaining({ id: "INV2", status: "unpaid", paidAt: "" }),
+    ]);
   });
 });

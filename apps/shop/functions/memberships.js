@@ -46,7 +46,8 @@ const DAY = 24 * HOUR;
 const PAGES_PER_HOUR = 6;
 const MAX_LISTED = 500;
 const ID = /^[A-Za-z0-9_-]{6,40}$/;
-const SESSION_ID = /^cs_[A-Za-z0-9_]+$/;
+// A Stripe page, or a Square payment link (M4).
+const SESSION_ID = /^(cs_[A-Za-z0-9_]+|sqlink_[A-Za-z0-9_-]{1,192})$/;
 const LIVE = ["trial", "active", "ending", "pastDue"];
 /** How often a membership's invoices are read again without an invoice event (the daily check against the provider). */
 const PAYMENTS_EVERY = 20 * HOUR;
@@ -507,7 +508,9 @@ function membershipActions({
           if (!m.neverStarted) out.push(memberView(r.id, m));
         }
         out.sort((a, b) => (a.state === "ended") - (b.state === "ended") || String(b.startedAt).localeCompare(String(a.startedAt)));
-        return res.status(200).json({ memberships: out, currency: currency() });
+        // Square can't take a new card for a repeating payment here (M4): the account hides New card rather than fail.
+        const noNewCard = out.length ? await currentMode().then(account).then((acc) => acc?.subscriptions?.cardChange === false).catch(() => false) : false;
+        return res.status(200).json({ memberships: noNewCard ? out.map((m) => ({ ...m, noNewCard: true })) : out, currency: currency() });
       }
 
       if (action === "membershipJoin") {
@@ -552,6 +555,7 @@ function membershipActions({
           }, `membership-${id}`);
         } catch (err) {
           await members().doc(id).set({ state: "ended", neverStarted: true, checkAfter: null, updatedAt: now().toISOString() }, { merge: true });
+          if (err?.code === "monthly_plan_only" || err?.code === "reconnect") return fail(res, 409, "This shop can't take repeating payments yet. Please contact the shop.", "not_available");
           if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take membership payments yet. Please contact the shop.", "not_available");
           throw err;
         }
@@ -624,6 +628,8 @@ function membershipActions({
       }
       if (action === "membershipCard") {
         if (m.state === "ended" || !m.stripeCustomer) return fail(res, 409, "That membership has ended.", "state");
+        // Square can't take a new card here (M4): the member asks the shop.
+        if (acc.subscriptions?.cardChange === false) return fail(res, 409, "A new card can't be added here. Please contact the shop.", "not_available");
         if (!(await hitLimit(db, "membershipPage", req, { max: PAGES_PER_HOUR, windowMs: HOUR }, { key: `member:${who.email}` }))) {
           return fail(res, 429, "You've tried several times in a short while. Please wait an hour and try again.", "too_many");
         }
@@ -664,7 +670,7 @@ function membershipActions({
         const perPlan = Object.fromEntries(allPlans.map((p) => [p.id, counted.filter((x) => x.planId === p.id).length]));
         const acc = await account(await currentMode());
         return res.status(200).json({
-          currency: currency(), ready: !!acc.subscriptions, plans: allPlans.map((p) => ({ ...publicPlan(p.id, p.data, currency()), hidden: p.data.hidden === true, members: perPlan[p.id] || 0 })),
+          currency: currency(), ready: !!acc.subscriptions, square: acc.subscriptions?.cardChange === false, plans: allPlans.map((p) => ({ ...publicPlan(p.id, p.data, currency()), hidden: p.data.hidden === true, members: perPlan[p.id] || 0 })),
           members: list, totals: { members: counted.length, monthlyMinor: monthly, pastDue: counted.filter((x) => x.state === "pastDue").length },
           boxWarnings: await boxWarnings().catch(() => []),
         });

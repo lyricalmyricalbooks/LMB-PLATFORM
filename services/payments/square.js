@@ -35,6 +35,9 @@ export const SQUARE_SCOPES = Object.freeze([
   // Card readers at the desk (Services plan 2, A4): pairing a Square Terminal to the shop's location. A press connected
   // before this has no such grant: the terminal calls then answer `reconnect`, and connecting again asks for it.
   "DEVICE_CREDENTIAL_MANAGEMENT",
+  // Memberships and monthly gifts (Memberships M4): a subscription plan in the press's catalog, the subscription Square
+  // makes at checkout, the customer it belongs to and its invoices. Older connections answer `reconnect`.
+  "ITEMS_READ", "ITEMS_WRITE", "SUBSCRIPTIONS_READ", "SUBSCRIPTIONS_WRITE", "CUSTOMERS_READ", "INVOICES_READ",
 ]);
 
 const STATE_MS = 15 * 60 * 1000;
@@ -155,6 +158,33 @@ export function disputeShape(dispute) {
   };
 }
 
+/**
+ * A Square subscription as the shop reads it (Memberships M4). `cancelPending` / `pausePending` are actions Square will
+ * apply at the end of the period; `canceledDate` is the day it ends.
+ */
+export function subscriptionShape(sub) {
+  const actions = Array.isArray(sub?.actions) ? sub.actions : [];
+  const pending = (type) => actions.find((a) => a?.type === type) ?? null;
+  return {
+    id: sub?.id ?? null, status: sub?.status ?? null, customerId: sub?.customer_id ?? null, locationId: sub?.location_id ?? null,
+    planVariationId: sub?.plan_variation_id ?? null, startDate: sub?.start_date ?? null, chargedThroughDate: sub?.charged_through_date ?? null,
+    canceledDate: sub?.canceled_date ?? null, createdAt: sub?.created_at ?? null, cardId: sub?.card_id ?? null,
+    cancelPending: pending("CANCEL") ? { id: pending("CANCEL").id, date: pending("CANCEL").effective_date ?? null } : null,
+    pausePending: pending("PAUSE") ? { id: pending("PAUSE").id, date: pending("PAUSE").effective_date ?? null, cycles: pending("PAUSE").pause_cycle_duration ?? null } : null,
+    invoiceIds: Array.isArray(sub?.invoice_ids) ? sub.invoice_ids.slice(0, 50) : [],
+  };
+}
+
+export function invoiceShape(invoice) {
+  const request = Array.isArray(invoice?.payment_requests) ? invoice.payment_requests[0] ?? {} : {};
+  const amount = request.computed_amount_money ?? request.total_completed_amount_money ?? {};
+  return {
+    id: invoice?.id ?? null, status: invoice?.status ?? null, amountMinor: money(request.total_completed_amount_money) || money(amount),
+    currency: amount.currency ?? null, updatedAt: invoice?.updated_at ?? null, dueDate: request.due_date ?? null,
+    subscriptionId: invoice?.subscription_id ?? null, orderId: invoice?.order_id ?? null,
+  };
+}
+
 export const SQUARE_OP_NAMES = Object.freeze([
   "square.checkout.create", "square.checkout.retrieve", "square.checkout.delete",
   "square.payments.retrieve", "square.payments.cancel",
@@ -163,10 +193,12 @@ export const SQUARE_OP_NAMES = Object.freeze([
   "square.payouts.retrieve", "square.payouts.entries",
   "square.terminal.pair", "square.terminal.readers",
   "square.terminal.checkout.create", "square.terminal.checkout.retrieve", "square.terminal.checkout.cancel",
+  "square.subscriptions.page", "square.subscriptions.forCheckout", "square.subscriptions.retrieve", "square.subscriptions.cancel",
+  "square.subscriptions.undoCancel", "square.subscriptions.pause", "square.subscriptions.resume", "square.subscriptions.invoices",
 ]);
 
 /** The calls that start a new sale: only the shop's current account takes them, never one it switched away from. */
-export const SQUARE_CREATE_OPS = Object.freeze(new Set(["square.checkout.create", "square.terminal.checkout.create", "square.terminal.pair"]));
+export const SQUARE_CREATE_OPS = Object.freeze(new Set(["square.checkout.create", "square.terminal.checkout.create", "square.terminal.pair", "square.subscriptions.page"]));
 
 // Square's Sandbox has no real Terminal to pair: this device id answers a checkout as if a card was tapped
 // (Square's Terminal API sandbox test values). The shop lists it as "Test reader" in test mode only.
@@ -296,6 +328,24 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     if (typeof args.idempotencyKey !== "string" || !args.idempotencyKey || args.idempotencyKey.length > 200) throw bad("an idempotency key is needed");
     return squareKey(row.shopId, args.idempotencyKey);
   };
+
+  // A press connected before memberships has no grant for them: say how to fix it, as for card readers.
+  async function subscriptions(call) {
+    try { return await call(); } catch (err) {
+      if (err instanceof SquareApiError && (err.code === "INSUFFICIENT_SCOPES" || err.statusCode === 403)) {
+        throw refuse(409, "reconnect", "Connect Square again in Settings › Payments to take memberships.");
+      }
+      throw err;
+    }
+  }
+  async function dropAction(mode, token, id, which) {
+    const read = async () => subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${id}`, { accessToken: token, query: { include: "actions" } })).subscription);
+    const before = await read();
+    const action = before[which];
+    if (!action?.id) return before;
+    await square.call(mode, "DELETE", `/v2/subscriptions/${id}/actions/${idOf(action.id, "action")}`, { accessToken: token });
+    return read();
+  }
 
   const OPS = {
     async "square.checkout.create"(row, mode, token, args, fee) {
@@ -441,6 +491,120 @@ export function createSquareService({ square, registry, tokens, states, deliver,
     async "square.terminal.checkout.cancel"(row, mode, token, args) {
       const { checkout } = await terminal(() => square.call(mode, "POST", `/v2/terminals/checkouts/${idOf(args.id, "checkout")}/cancel`, { accessToken: token, body: {} }));
       return { id: checkout?.id ?? args.id, status: checkout?.status ?? null };
+    },
+    // ── Memberships and monthly gifts (M4) ──
+    // A checkout page that starts a subscription: a plan with one variation in the press's catalog (an optional free
+    // first phase of trialDays, then the price each month or year), then a payment link on that variation. Square takes
+    // no app fee on these, so a pay-as-you-sell shop is refused (Julian's choice, 18 November 2026).
+    async "square.subscriptions.page"(row, mode, token, args) {
+      if (!row.payments.locationId) throw refuse(409, "not_connected", "This shop hasn't connected Square yet.");
+      if (payAsYouSell?.termsFor(row)) throw refuse(409, "monthly_plan_only", "Memberships on Square need the monthly plan. Pay-as-you-sell shops can use them with Stripe.");
+      const p = args.params ?? {};
+      const name = typeof p.name === "string" ? p.name.trim().slice(0, 255) : "";
+      const upper = String(p.currency ?? "").toUpperCase();
+      const trialDays = p.trialDays === undefined || p.trialDays === null ? 0 : p.trialDays;
+      if (!name) throw bad("a name is needed");
+      if (!CURRENCY.test(upper)) throw bad("currency must be a three-letter code");
+      if (row.payments.currency && upper !== row.payments.currency) throw refuse(400, "currency_mismatch", `This press's Square account takes ${row.payments.currency} only.`);
+      if (!Number.isInteger(p.priceMinor) || p.priceMinor < 100 || p.priceMinor > 10000000) throw bad("priceMinor must be 1.00 or more");
+      if (p.interval !== "month" && p.interval !== "year") throw bad("interval must be month or year");
+      if (!Number.isInteger(trialDays) || trialDays < 0 || trialDays > 365) throw bad("trialDays must be 0 to 365");
+      let url;
+      try { url = new URL(p.redirectUrl); } catch { throw bad("redirectUrl must be an address"); }
+      if (url.protocol !== "https:" || !shopHosts(row).has(url.hostname.toLowerCase())) throw bad("redirectUrl must be one of the shop's own addresses");
+      const price = { amount: p.priceMinor, currency: upper };
+      const planKey = createHash("sha256").update(JSON.stringify([row.payments.locationId, name, p.priceMinor, upper, p.interval, trialDays])).digest("hex").slice(0, 40);
+      return subscriptions(async () => {
+        const { catalog_object: plan } = await square.call(mode, "POST", "/v2/catalog/object", { accessToken: token, body: {
+          idempotency_key: squareKey(row.shopId, `plan-${planKey}`),
+          object: { type: "SUBSCRIPTION_PLAN", id: "#plan", subscription_plan_data: { name } },
+        } });
+        const phases = [
+          ...(trialDays ? [{ ordinal: 0, cadence: "DAILY", periods: trialDays, pricing: { type: "STATIC", price: { amount: 0, currency: upper } } }] : []),
+          { ordinal: trialDays ? 1 : 0, cadence: p.interval === "year" ? "ANNUAL" : "MONTHLY", pricing: { type: "STATIC", price } },
+        ];
+        const { catalog_object: variation } = await square.call(mode, "POST", "/v2/catalog/object", { accessToken: token, body: {
+          idempotency_key: squareKey(row.shopId, `variation-${planKey}`),
+          object: { type: "SUBSCRIPTION_PLAN_VARIATION", id: "#variation", subscription_plan_variation_data: { name, phases, subscription_plan_id: plan?.id } },
+        } });
+        const created = await square.call(mode, "POST", "/v2/online-checkout/payment-links", { accessToken: token, body: {
+          idempotency_key: keyFrom(row, args),
+          quick_pay: { name, price_money: price, location_id: row.payments.locationId },
+          checkout_options: { subscription_plan_id: variation?.id, redirect_url: url.toString(), allow_tipping: false },
+          ...(typeof p.buyerEmail === "string" && EMAIL.test(p.buyerEmail) && p.buyerEmail.length <= 256 ? { pre_populated_data: { buyer_email: p.buyerEmail } } : {}),
+        } });
+        const link = created.payment_link ?? {};
+        return { id: link.id ?? null, url: link.url ?? link.long_url ?? null, squareOrderId: link.order_id ?? null, planVariationId: variation?.id ?? null, createdAt: link.created_at ?? null };
+      });
+    },
+    // The subscription a finished page made: the payment's customer, then that customer's subscription on this plan.
+    async "square.subscriptions.forCheckout"(row, mode, token, args) {
+      const planVariationId = idOf(args.planVariationId, "plan variation");
+      return subscriptions(async () => {
+        const { payment_link: link } = await square.call(mode, "GET", `/v2/online-checkout/payment-links/${idOf(args.id, "payment link")}`, { accessToken: token });
+        const { order } = link?.order_id ? await square.call(mode, "GET", `/v2/orders/${idOf(link.order_id, "order")}`, { accessToken: token }) : { order: null };
+        let customerId = order?.customer_id ?? null;
+        const tender = (Array.isArray(order?.tenders) ? order.tenders : [])[0];
+        if (!customerId && tender) {
+          const { payment } = await square.call(mode, "GET", `/v2/payments/${idOf(tender.payment_id || tender.id, "payment")}`, { accessToken: token });
+          customerId = payment?.customer_id ?? null;
+        }
+        if (!customerId) return { paid: Boolean(tender), subscription: null };
+        const found = await square.call(mode, "POST", "/v2/subscriptions/search", { accessToken: token, body: {
+          query: { filter: { customer_ids: [customerId], location_ids: [row.payments.locationId] } }, include: ["actions"],
+        } });
+        const sub = (found.subscriptions ?? []).filter((s) => s.plan_variation_id === planVariationId).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+        return { paid: true, subscription: sub ? subscriptionShape(sub) : null };
+      });
+    },
+    async "square.subscriptions.retrieve"(row, mode, token, args) {
+      return subscriptions(async () => subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${idOf(args.id, "subscription")}`, { accessToken: token, query: { include: "actions" } })).subscription));
+    },
+    // Square always ends a subscription at the end of the period it was paid for.
+    async "square.subscriptions.cancel"(row, mode, token, args) {
+      return subscriptions(async () => {
+        const id = idOf(args.id, "subscription");
+        const before = subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${id}`, { accessToken: token, query: { include: "actions" } })).subscription);
+        if (before.cancelPending || before.status === "CANCELED" || before.status === "DEACTIVATED") return before;
+        await square.call(mode, "POST", `/v2/subscriptions/${id}/cancel`, { accessToken: token, body: {} });
+        return subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${id}`, { accessToken: token, query: { include: "actions" } })).subscription);
+      });
+    },
+    async "square.subscriptions.undoCancel"(row, mode, token, args) {
+      return subscriptions(() => dropAction(mode, token, idOf(args.id, "subscription"), "cancelPending"));
+    },
+    // With `cycles` the pause ends by itself after that many periods (a skipped month); without, it holds until resumed.
+    async "square.subscriptions.pause"(row, mode, token, args) {
+      if (args.cycles !== undefined && !(Number.isInteger(args.cycles) && args.cycles >= 1 && args.cycles <= 12)) throw bad("cycles must be 1 to 12");
+      return subscriptions(async () => {
+        const id = idOf(args.id, "subscription");
+        const before = subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${id}`, { accessToken: token, query: { include: "actions" } })).subscription);
+        if (before.pausePending || before.status === "PAUSED") return before;
+        await square.call(mode, "POST", `/v2/subscriptions/${id}/pause`, { accessToken: token, body: args.cycles ? { pause_cycle_duration: args.cycles } : {} });
+        return subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${id}`, { accessToken: token, query: { include: "actions" } })).subscription);
+      });
+    },
+    // A pause still to come is taken back; a paused subscription starts again.
+    async "square.subscriptions.resume"(row, mode, token, args) {
+      return subscriptions(async () => {
+        const id = idOf(args.id, "subscription");
+        const before = subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${id}`, { accessToken: token, query: { include: "actions" } })).subscription);
+        if (before.pausePending) return dropAction(mode, token, id, "pausePending");
+        if (before.status !== "PAUSED") return before;
+        await square.call(mode, "POST", `/v2/subscriptions/${id}/resume`, { accessToken: token, body: {} });
+        return subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${id}`, { accessToken: token, query: { include: "actions" } })).subscription);
+      });
+    },
+    // Up to `limit` (1 to 24) of the subscription's newest invoices.
+    async "square.subscriptions.invoices"(row, mode, token, args) {
+      const limit = args.limit === undefined ? 12 : args.limit;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 24) throw bad("limit must be 1 to 24");
+      return subscriptions(async () => {
+        const sub = subscriptionShape((await square.call(mode, "GET", `/v2/subscriptions/${idOf(args.id, "subscription")}`, { accessToken: token })).subscription);
+        const data = [];
+        for (const invoiceId of sub.invoiceIds.slice(-limit).reverse()) data.push(invoiceShape((await square.call(mode, "GET", `/v2/invoices/${idOf(invoiceId, "invoice")}`, { accessToken: token })).invoice));
+        return { data };
+      });
     },
     async "square.disputes.forPayment"(row, mode, token, args) {
       const paymentId = idOf(args.paymentId, "payment");

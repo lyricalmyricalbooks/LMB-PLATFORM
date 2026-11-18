@@ -1790,3 +1790,13 @@ email with a manage link). It runs from `onEvent` (index.js calls it for `invoic
 sweep (every `PLEDGE_CHECK_HOURS`, 40 a run; held pledges close as `cancelled` after the page time). Public `pledgeView` /
 `pledgeEnd` (key-checked, `/support?pledge=&key=`) work even with Giving off; admin `endPledge`; `list` adds `pledges` and
 `monthlyTotals`. Square has no subscriptions until M4, so the toggle stays hidden there (`givingInfo.monthly`).
+
+## Memberships on Square (M4, 18 November 2026)
+
+Square subscriptions come through the platform's `square.subscriptions.*` ops (`services/payments/square.js`). A
+subscription page is a quick-pay payment link on a plan variation; `standaloneCheckout().open` with mode `subscription`
+keeps `{subscriptionPage, planVariationId, metadata}` in `fairCardPayments/sqlink_*` and `read` finds the subscription
+through the order's customer. Square takes no app fee on them, so the platform refuses pay-as-you-sell shops
+(`monthly_plan_only`, Julian's pick); memberships.js and giving.js answer that and `reconnect` (old scopes) as 409
+`not_available`. `subscriptions.cardChange` is false on Square: no New card button (`noNewCard`), setup mode refused, and
+`endNow` ends at the period end. The Members page shows a note for Square shops (`square: true`).

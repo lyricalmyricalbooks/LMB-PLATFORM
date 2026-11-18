@@ -502,6 +502,9 @@ test("every call a shop can make is listed", () => {
     // Card readers (Services plan phase 3)
     "terminal.locations.create", "terminal.locations.list", "terminal.readers.cancelAction", "terminal.readers.create", "terminal.readers.del",
     "terminal.readers.list", "terminal.readers.processPaymentIntent", "terminal.readers.retrieve", "testHelpers.terminal.readers.presentPaymentMethod",
+    // Square memberships and monthly gifts (Memberships M4)
+    "square.subscriptions.cancel", "square.subscriptions.forCheckout", "square.subscriptions.invoices", "square.subscriptions.page",
+    "square.subscriptions.pause", "square.subscriptions.resume", "square.subscriptions.retrieve", "square.subscriptions.undoCancel",
     // Square Terminals and tips on the reader (Services plan 2, A4)
     "square.terminal.pair", "square.terminal.readers", "square.terminal.checkout.create", "square.terminal.checkout.retrieve", "square.terminal.checkout.cancel",
     "terminal.locations.update", "terminal.configurations.create", "terminal.configurations.update",

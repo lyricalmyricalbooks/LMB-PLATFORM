@@ -563,3 +563,54 @@ test("card readers on a Square connection made before them say to connect again"
   assert.equal(answer.body.error.code, "reconnect");
   assert.match(answer.body.error.message, /Connect Square again/);
 });
+
+// ── Memberships and monthly gifts (M4) ───────────────────────────────────────────────────────────────────────────
+
+const subArgs = (params = {}) => ({ params: { name: "Moth Press: Friends", priceMinor: 1500, currency: "CAD", interval: "month", redirectUrl: `https://${SHOP}.web.app/account/membership?joined=m1`, buyerEmail: "reader@example.com", ...params }, idempotencyKey: "membership-m1" });
+
+test("memberships: a subscription page on a plan in the press's catalog, then the subscription it made", async () => {
+  const w = await world();
+  await w.connect("MERCHANT1");
+  const made = await w.call("square.subscriptions.page", subArgs({ trialDays: 14 }));
+  assert.equal(made.status, 200, JSON.stringify(made.body));
+  const variation = w.sq.world.catalog.get(made.body.planVariationId);
+  assert.deepEqual(variation.subscription_plan_variation_data.phases.map((p) => [p.cadence, p.periods ?? null, p.pricing.price.amount]), [["DAILY", 14, 0], ["MONTHLY", null, 1500]]);
+  const sent = w.sq.requests.find((r) => r.path === "/v2/online-checkout/payment-links");
+  assert.deepEqual(sent.body.quick_pay, { name: "Moth Press: Friends", price_money: { amount: 1500, currency: "CAD" }, location_id: "LOCMERCHANT1" });
+  assert.equal(sent.body.checkout_options.subscription_plan_id, made.body.planVariationId);
+  assert.equal(sent.body.checkout_options.app_fee_money, undefined, "Square takes no app fee on subscriptions");
+  // The same membership asks again: the same page.
+  assert.equal((await w.call("square.subscriptions.page", subArgs({ trialDays: 14 }))).body.id, made.body.id);
+
+  const before = await w.call("square.subscriptions.forCheckout", { id: made.body.id, planVariationId: made.body.planVariationId });
+  assert.deepEqual(before.body, { paid: false, subscription: null });
+  const sub = w.sq.world.subscribe(made.body.id);
+  const found = await w.call("square.subscriptions.forCheckout", { id: made.body.id, planVariationId: made.body.planVariationId });
+  assert.equal(found.body.subscription.id, sub.id);
+  assert.equal(found.body.subscription.status, "ACTIVE");
+
+  const ending = await w.call("square.subscriptions.cancel", { id: sub.id });
+  assert.equal(ending.body.cancelPending.date, "2026-11-28");
+  assert.equal((await w.call("square.subscriptions.cancel", { id: sub.id })).body.cancelPending.id, ending.body.cancelPending.id, "twice is once");
+  assert.equal((await w.call("square.subscriptions.undoCancel", { id: sub.id })).body.cancelPending, null);
+  const paused = await w.call("square.subscriptions.pause", { id: sub.id, cycles: 1 });
+  assert.ok(paused.body.pausePending);
+  assert.equal((await w.call("square.subscriptions.resume", { id: sub.id })).body.pausePending, null);
+  const invoices = await w.call("square.subscriptions.invoices", { id: sub.id, limit: 12 });
+  assert.deepEqual(invoices.body.data.map((i) => [i.status, i.amountMinor, i.currency, i.subscriptionId]), [["PAID", 1500, "CAD", sub.id]]);
+});
+
+test("memberships: refused for pay-as-you-sell shops, bad plans and older connections", async () => {
+  const pays = await world({ rows: [squareRow({ plan: "shop", payAsYouSell: { basisPoints: 200, capMinor: 5000, currency: "CAD", from: "2026-01-01T00:00:00.000Z" } })] });
+  await pays.connect("MERCHANT1");
+  assert.equal((await pays.call("square.subscriptions.page", subArgs())).body.error.code, "monthly_plan_only");
+
+  const w = await world();
+  await w.connect("MERCHANT1");
+  assert.equal((await w.call("square.subscriptions.page", subArgs({ interval: "week" }))).status, 400);
+  assert.equal((await w.call("square.subscriptions.page", subArgs({ priceMinor: 50 }))).status, 400);
+  assert.equal((await w.call("square.subscriptions.page", subArgs({ redirectUrl: "https://evil.example/x" }))).status, 400);
+  assert.equal((await w.call("square.subscriptions.page", subArgs({ currency: "USD" }))).body.error.code, "currency_mismatch");
+  w.sq.world.noSubscriptionScope.add("MERCHANT1");
+  assert.equal((await w.call("square.subscriptions.page", subArgs())).body.error.code, "reconnect");
+});

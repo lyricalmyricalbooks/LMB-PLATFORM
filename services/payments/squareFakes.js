@@ -17,6 +17,7 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
     merchants: new Map(), codes: new Map(), tokens: new Map(), refreshTokens: new Map(),
     links: new Map(), orders: new Map(), payments: new Map(), refunds: new Map(), disputes: [], byKey: new Map(), revoked: [],
     payouts: new Map(), deviceCodes: new Map(), terminalCheckouts: new Map(), noTerminalScope: new Set(),
+    catalog: new Map(), subscriptions: new Map(), invoices: new Map(),
   };
   const nowIso = () => "2026-10-28T12:00:00Z";
 
@@ -76,6 +77,23 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
     return id;
   };
 
+  // A buyer finishes a subscription payment link (Memberships M4): a paid order, a customer and a subscription on the
+  // link's plan variation, with its first invoice paid.
+  world.subscribe = (linkId, customerId = `CUST${next++}`) => {
+    const link = world.links.get(linkId);
+    const payment = world.pay(linkId);
+    payment.customer_id = customerId;
+    const variation = world.catalog.get(link.checkout_options.subscription_plan_id);
+    const price = variation.subscription_plan_variation_data.phases.at(-1).pricing.price;
+    const invoice = { id: `INV${next++}`, status: "PAID", updated_at: nowIso(), payment_requests: [{ due_date: "2026-10-28", computed_amount_money: { ...price }, total_completed_amount_money: { ...price } }], merchant: link.merchant };
+    const sub = { id: `SUB${next++}`, status: "ACTIVE", customer_id: customerId, location_id: world.orders.get(link.order_id).location_id, plan_variation_id: variation.id, start_date: "2026-10-28", charged_through_date: "2026-11-28", created_at: nowIso(), card_id: "ccof:fake", invoice_ids: [invoice.id], actions: [], merchant: link.merchant };
+    invoice.subscription_id = sub.id;
+    world.invoices.set(invoice.id, invoice);
+    world.subscriptions.set(sub.id, sub);
+    return sub;
+  };
+  world.noSubscriptionScope = new Set();
+
   const clean = ({ merchant: _merchant, ...rest }) => rest;
 
   function answer(mode, method, path, headers, body, query) {
@@ -114,6 +132,13 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
     if (path === "/v2/online-checkout/payment-links" && method === "POST") {
       const key = `${merchantId}/${body.idempotency_key}`;
       if (body.idempotency_key && world.byKey.has(key)) return world.byKey.get(key);
+      if (body.quick_pay) {
+        // A subscription page (M4): Square makes the order from the quick pay line.
+        const q = body.quick_pay;
+        if (q.location_id !== merchant.location.id) return notFound("Location");
+        if (!world.catalog.has(body.checkout_options?.subscription_plan_id)) return notFound("Plan variation");
+        body.order = { location_id: q.location_id, line_items: [{ name: q.name, quantity: "1", base_price_money: { ...q.price_money } }] };
+      }
       if (body.order.location_id !== merchant.location.id) return notFound("Location");
       const lines = body.order.line_items.reduce((sum, line) => sum + line.base_price_money.amount * Number(line.quantity), 0);
       // Order-wide fixed discounts (a gift card's share, code plan 5.3) come off the total, as Square's own orders do.
@@ -214,6 +239,37 @@ export function fakeSquareFetch({ apps, answers = [] } = {}) {
         Object.assign(checkout, { status: "CANCELED", cancel_reason: "SELLER_CANCELED" });
       }
       return { status: 200, body: { checkout: clean(checkout) } };
+    }
+    if ((path.startsWith("/v2/catalog") || path.startsWith("/v2/subscriptions") || path.startsWith("/v2/invoices")) && world.noSubscriptionScope.has(merchantId)) {
+      return { status: 403, body: { errors: [{ category: "AUTHENTICATION_ERROR", code: "INSUFFICIENT_SCOPES", detail: "The merchant has not given your application sufficient permissions." }] } };
+    }
+    if (path === "/v2/catalog/object" && method === "POST") {
+      const key = `${merchantId}/${body.idempotency_key}`;
+      if (world.byKey.has(key)) return world.byKey.get(key);
+      const object = { ...structuredClone(body.object), id: `CAT${next++}`, version: 1, merchant: merchantId };
+      world.catalog.set(object.id, object);
+      const result = { status: 200, body: { catalog_object: clean(object) } };
+      world.byKey.set(key, result);
+      return result;
+    }
+    if (path === "/v2/subscriptions/search" && method === "POST") {
+      const f = body.query?.filter ?? {};
+      const all = [...world.subscriptions.values()].filter((s) => s.merchant === merchantId && (!f.customer_ids || f.customer_ids.includes(s.customer_id)) && (!f.location_ids || f.location_ids.includes(s.location_id)));
+      return { status: 200, body: { subscriptions: all.map(clean) } };
+    }
+    if ((m = path.match(/^\/v2\/subscriptions\/([^/]+)(?:\/(cancel|pause|resume)|\/actions\/([^/]+))?$/))) {
+      const sub = world.subscriptions.get(m[1]);
+      if (!mine(sub)) return notFound("Subscription");
+      if (m[2] === "cancel") sub.actions.push({ id: `ACT${next++}`, type: "CANCEL", effective_date: sub.charged_through_date });
+      if (m[2] === "pause") sub.actions.push({ id: `ACT${next++}`, type: "PAUSE", effective_date: sub.charged_through_date, ...(body.pause_cycle_duration ? { pause_cycle_duration: body.pause_cycle_duration } : {}) });
+      if (m[2] === "resume") sub.status = "ACTIVE";
+      if (m[3] && method === "DELETE") sub.actions = sub.actions.filter((a) => a.id !== m[3]);
+      const shown = query.include === "actions" || m[2] || m[3] ? clean(sub) : (({ actions: _a, ...rest }) => rest)(clean(sub));
+      return { status: 200, body: { subscription: shown } };
+    }
+    if ((m = path.match(/^\/v2\/invoices\/([^/]+)$/)) && method === "GET") {
+      const invoice = world.invoices.get(m[1]);
+      return mine(invoice) ? { status: 200, body: { invoice: clean(invoice) } } : notFound("Invoice");
     }
     if (path === "/v2/disputes" && method === "GET") {
       const all = world.disputes.filter((d) => d.merchant === merchantId && (!query.location_id || d.location_id === query.location_id));

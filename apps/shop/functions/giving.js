@@ -723,7 +723,8 @@ function givingActions({
           } catch (err) {
             await pledges().doc(id).set({ status: "cancelled", cancelledAt: now().toISOString(), manageKey: null, updatedAt: now().toISOString() }, { merge: true });
             if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
-            if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
+            if (err?.code === "monthly_plan_only" || err?.code === "reconnect") return fail(res, 409, "This shop can't take repeating payments yet. Please contact the shop.", "not_available");
+          if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
             throw err;
           }
           await pledges().doc(id).set({ sessions: [session.id] }, { merge: true });
@@ -763,6 +764,7 @@ function givingActions({
         } catch (err) {
           await cancelGift(id, "the card page didn't open");
           if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+          if (err?.code === "monthly_plan_only" || err?.code === "reconnect") return fail(res, 409, "This shop can't take repeating payments yet. Please contact the shop.", "not_available");
           if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
           throw err;
         }

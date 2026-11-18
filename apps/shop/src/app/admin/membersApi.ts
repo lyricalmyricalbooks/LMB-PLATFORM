@@ -28,7 +28,7 @@ export type AdminMember = {
 /** Not enough stock for this month's boxes of one plan (M3b, from three days before the cut-off). */
 export type BoxWarning = { planId: string; planName: string; cutoffDay: number; members: number; month: string; short: BoxShortLine[] };
 export type MembersTotals = { members: number; monthlyMinor: number; pastDue: number };
-export type MembersList = { currency: string; ready: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals; boxWarnings?: BoxWarning[] };
+export type MembersList = { currency: string; ready: boolean; square?: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals; boxWarnings?: BoxWarning[] };
 /** What the plan form sends (shared/membershipRules `cleanPlan` checks it on the server). */
 export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent: number; box: PlanBox | null };
 export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint" | "payments";
