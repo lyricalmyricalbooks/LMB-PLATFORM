@@ -37,7 +37,7 @@
         "destination": "/stockroom/index.html"
       },
       {
-        "regex": "^/(?:(?:books|products|collections|page)/[^/]+/?|(?:account|admin)(?:/.*)?|cart|checkout|track|book|events|classes|wishlist)$",
+        "regex": "^/(?:(?:books|products|collections|page)/[^/]+/?|(?:account|admin)(?:/.*)?|cart|checkout|track|book|events|classes|support|wishlist)$",
         "destination": "/spa.html"
       }
     ],
@@ -61,7 +61,7 @@
         ]
       },
       {
-        "regex": "^/(?:|spa|404|(?:books|products|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|book|events|classes|wishlist|[^/]+\\.(?:xml|txt|json|csv)|shop-profile\\.js|admin-sw\\.js|.*\\.html)$",
+        "regex": "^/(?:|spa|404|(?:books|products|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|book|events|classes|support|wishlist|[^/]+\\.(?:xml|txt|json|csv)|shop-profile\\.js|admin-sw\\.js|.*\\.html)$",
         "headers": [
           {
             "key": "Cache-Control",

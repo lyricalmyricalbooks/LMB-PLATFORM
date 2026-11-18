@@ -1026,3 +1026,17 @@ book's `sample` `{ url, kind: audio|video|read, name, size }`; Remove saves `nul
 buttons, sold out or not) plays audio/video with `preload="none"` (nothing loads before play) and opens a PDF in a new
 tab. Words: Text & labels › Product page › `pdpSample*` (French twins). Every play is the shop's storage traffic, not
 metered by the download meter (that counts bought files only).
+
+## Support page (Donations & tips beta, G1b, 18 November 2026)
+`/support` (`SupportPage.tsx`, pure `supportRules.ts`, token-only `supportStyle.ts`, requests `supportAsk.ts`) sits in the
+order slip's look (`fm-track-*` plus `fm-sup-*`) and is its own Studio page, **Support** (surface `supportPage`, regions
+`supportLayout`). The give form: suggested amounts (`aria-pressed`, the middle one picked at first), Other (typed, checked
+against the server's min/max by `amountProblem`), cover the card fee (`coverFeeMinor` from `shared/givingRules.ts`, display
+only), honour or memory, name, email, note, anonymous, and a hidden `website` field for bots; `giftStart` answers a card
+page `url` (or, in the preview, `{ giftId, key }`). `?gift=<id>&key=<key>` is the thank-you (noindex), asking `giftView`
+every 3 s while the gift is still held. Server errors map to words by code, never shown raw. **Studio preview** answers
+from `supportPreview.ts` (sample amounts and a sample paid gift). **Links:** while `settings/website.givingLive` (kept by
+`functions/giving.js` `tellWebsite`; `supportLive.ts`) the header shows a heart (`data-header-support`, hide with Style ›
+Header › Icons & buttons › `hideHeaderSupport`), the phone menu a link (`supportNavLink`) and the footer one
+(`footer-support`, `supportFooterLink`). Words: Text & labels › **Support page** (`support*`, French twins). The Studio
+fixture takes `?support=1` to show the links.

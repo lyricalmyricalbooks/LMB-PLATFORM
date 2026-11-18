@@ -835,8 +835,8 @@ export const adminApi = {
     // form holding an older copy must never put either back. `returns` is written only by Settings › Shipping › Returns
     // (updateReturnSettings), for the same reason. `bookingsLive` is written only by the server when the owner flips
     // the Bookings switch (functions/bookings.js tellWebsite), and `eventsLive` only by the server too (functions/events.js), like
-    // `classesLive` (functions/bookings.js).
-    const { analytics: _ownedByGaCard, returns: _ownedByReturnsTab, bookingsLive: _ownedByBookingsSwitch, eventsLive: _ownedByEventsServer, eventsLiveUntil: _alsoEventsServer, classesLive: _ownedByBookingsServer, ...ownedHere } = publicSettings as Record<string, any>;
+    // `classesLive` (functions/bookings.js) and `givingLive` (functions/giving.js).
+    const { analytics: _ownedByGaCard, returns: _ownedByReturnsTab, bookingsLive: _ownedByBookingsSwitch, eventsLive: _ownedByEventsServer, eventsLiveUntil: _alsoEventsServer, classesLive: _ownedByBookingsServer, givingLive: _ownedByGivingServer, ...ownedHere } = publicSettings as Record<string, any>;
     const { payload, options: writeOptions } = themeWrite(ownedHere, options.publish);
     await setDoc(docRef, payload, writeOptions);
     // The primary write already succeeded. An audit failure must not report a

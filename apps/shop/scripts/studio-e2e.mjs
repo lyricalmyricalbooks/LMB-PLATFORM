@@ -2148,6 +2148,23 @@ await check("the Classes page opens in the designer with a sample week, its head
   await frame.locator("[data-store-region=bookingsIntro], [data-store-region=bookingsTimes], [data-store-region=bookingsServices]").first().waitFor({ timeout: 10000 });
 }, "?classes=1#designer?t=classesPage&tab=sections");
 
+await check("the Support page opens in the designer with sample amounts, its header and footer links, and a sample gift reaches the thank-you", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  // Sample amounts stand in for the shop's own, so the page can be designed before Donations & tips is on.
+  await frame.locator("[data-store-region=supportAmounts] button[aria-pressed]").first().waitFor({ timeout: 15000 });
+  await frame.locator("header[data-section=navigation] [data-header-support]").first().waitFor({ state: "attached", timeout: 5000 });
+  await frame.locator("footer a[href$='/support'], footer a[href*='/support?']").first().waitFor({ state: "attached", timeout: 5000 });
+  // In Browse mode: a gift goes through to the thank-you. Nothing reaches a server and no card page opens.
+  await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
+  await frame.locator("[data-store-region=supportForm] input[autocomplete=name]").fill("Ada Reader");
+  await frame.locator("[data-store-region=supportForm] input[type=email]").fill("ada@example.com");
+  await page.waitForTimeout(3200);
+  await frame.locator("[data-store-region=supportForm] button[type=submit]").click();
+  await frame.locator("[data-store-region=supportThanks]").first().waitFor({ timeout: 10000 });
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/support-thanks.png` });
+}, "?support=1#designer?t=supportPage&tab=sections");
+
 await check("the Book a time form offers Text me reminders, which needs a phone number first", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();

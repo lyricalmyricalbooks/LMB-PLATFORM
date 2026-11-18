@@ -1,0 +1,36 @@
+// Support page (features/site/SupportPage.tsx): the parts the order slip (trackingStyle.ts) doesn't have, in the same print
+// language. Token-driven only: every colour is a theme variable, so the page follows Studio's palette.
+//   fm-sup-layout        amounts + your details side by side on wide screens
+//   fm-sup-amounts       the suggested amount buttons (aria-pressed)    fm-sup-other   the other-amount box
+//   fm-sup-check         a tick box with its words                      fm-sup-honour  honour or memory, and the name
+//   fm-sup-trap          the hidden field only bots fill in             fm-sup-thanks  the thank-you after giving
+const S = ".fm-track";
+
+export const SUPPORT_CSS = [
+  `${S} .fm-sup-layout{display:grid;gap:28px;}`,
+  `@media (min-width:900px){${S} .fm-sup-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;}}`,
+  `${S} .fm-sup-form{display:grid;gap:18px;}`,
+  `${S} .fm-sup-amounts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px;margin:0;padding:0;list-style:none;}`,
+  `${S} .fm-sup-amount{width:100%;min-height:64px;padding:0 12px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);background:transparent;color:inherit;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer;transition:background .12s ease,color .12s ease;}`,
+  `${S} .fm-sup-amount:hover{background:rgba(var(--fg-rgb),0.08);}`,
+  `${S} .fm-sup-amount[aria-pressed="true"]{background:var(--accent);color:var(--on-accent, rgb(var(--fg-rgb)));}`,
+  `${S} .fm-sup-amount:focus-visible{outline:2px solid var(--rp-focus, var(--accent));outline-offset:3px;}`,
+  `${S} .fm-sup-other{display:grid;gap:8px;margin-top:16px;}`,
+  `${S} .fm-sup-money{position:relative;}`,
+  `${S} .fm-sup-money span{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-weight:700;pointer-events:none;}`,
+  `${S} .fm-sup-money .fm-track-input{padding-left:34px;font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;}`,
+  `${S} .fm-sup-check{display:flex;align-items:flex-start;gap:12px;font-size:15px;line-height:1.5;cursor:pointer;}`,
+  `${S} .fm-sup-check input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:var(--accent);}`,
+  `${S} .fm-sup-honour{display:grid;gap:12px;padding:16px;border:var(--t-edge-w) dashed var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
+  `${S} .fm-sup-kinds{display:flex;flex-wrap:wrap;gap:8px 20px;}`,
+  `${S} .fm-sup-kinds label{display:flex;align-items:center;gap:8px;font-size:15px;cursor:pointer;}`,
+  `${S} .fm-sup-kinds input{width:18px;height:18px;accent-color:var(--accent);}`,
+  `${S} textarea.fm-track-input{min-height:96px;padding:12px 16px;line-height:1.5;resize:vertical;}`,
+  `${S} .fm-sup-error{margin:6px 0 0;font-size:13px;color:var(--danger, currentColor);}`,
+  `${S} .fm-sup-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;}`,
+  `${S} .fm-sup-note{margin:0;font-size:14px;line-height:1.55;color:var(--muted, currentColor);}`,
+  `${S} .fm-sup-thanks{display:grid;gap:18px;}`,
+  `${S} .fm-sup-thanks .fm-track-btn{justify-self:start;}`,
+  `${S} .fm-sup-empty{padding:28px 0;text-align:center;}`,
+  `@media (max-width:640px){${S} .fm-sup-amounts{grid-template-columns:repeat(2,minmax(0,1fr));}${S} .fm-sup-thanks .fm-track-btn{justify-self:stretch;}}`,
+].join("\n");

@@ -1,6 +1,7 @@
 import { setBookingsLive } from "./bookingsLive";
 import { setEventsLive } from "./eventsLive";
 import { setClassesLive } from "./classesLive";
+import { setGivingLive } from "./supportLive";
 import { setShopSocial } from "./shopSocial";
 import { useLocation } from "react-router";
 import { consentAllows, CONSENT_EVENT, noteCookieBanner } from "../../lib/consent";
@@ -294,6 +295,9 @@ export function useSiteData() {
   // And for "Classes" while the shop has a timetable to show (classesLive.ts).
   const classesLive = (settings as any)?.classesLive === true;
   useEffect(() => { setClassesLive(classesLive); }, [classesLive]);
+  // And for "Support" while the shop takes gifts (supportLive.ts).
+  const givingLive = (settings as any)?.givingLive === true;
+  useEffect(() => { setGivingLive(givingLive); }, [givingLive]);
   // The phone menu's social icons (shopSocial.ts), in the owner's order.
   useEffect(() => { setShopSocial(settings); }, [settings]);
   return { books: sellableBooks, settings: { ...started, design: resolveSurfaceDesign(wordedDesign, location.pathname) }, pages, loading, fresh, loadError, retry };
