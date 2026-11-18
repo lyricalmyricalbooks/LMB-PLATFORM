@@ -195,6 +195,8 @@ export function gtinOf(value) {
 }
 
 // A product with a type (product types plan, change 8) carries its own Google category, set when the type was picked.
+// A product typed before that (a typeId and no googleCategory) gets its type's category from `typeCategory`, which the
+// caller passes because this plain script can't import the TypeScript type list.
 function googleCategory(format, kind = 'book', own = '') {
   if (!isBook(kind)) return (typeof own === 'string' && own.trim()) || KIND_CATEGORY[kind] || '';
   const f = String(format || '').toLowerCase();
@@ -209,7 +211,7 @@ const moneyIn = currency => n => `${n.toFixed(2)} ${currency === 'USD' ? 'USD' :
  * The feed's items, plus the published books left out and why (shown in the admin panel).
  * `books` = the whole catalog; only books shoppers can buy today are listed.
  */
-export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date(), productBase = 'books', currency = 'CAD' } = {}) {
+export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now = new Date(), productBase = 'books', currency = 'CAD', typeCategory = () => '' } = {}) {
   // Every price is in the shop's own currency (the profile's `currency`: CAD unless the shop sells in US dollars).
   const money = moneyIn(currency);
   const base = siteUrl.replace(/\/$/, '');
@@ -232,7 +234,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = UNNAMED_SHOP, now
     const bundle = bundleParts(book).length > 0;
     const common = {
       description, link, brand: plain(book.publisher) || shopName, condition: 'new',
-      kind, googleCategory: googleCategory(book.format, kind, book.googleCategory), productType: (book.categories || book.genres || [])[0] || '',
+      kind, googleCategory: googleCategory(book.format, kind, book.googleCategory || (book.typeId ? typeCategory(book.typeId) : '')), productType: (book.categories || book.genres || [])[0] || '',
       bundle, creators,
     };
     const variants = Array.isArray(book.variants) ? book.variants.filter(v => v && v.id) : [];

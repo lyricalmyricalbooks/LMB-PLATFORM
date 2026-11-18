@@ -31,6 +31,16 @@ describe("option filters", () => {
     expect(matchesOptions(candle, {})).toBe(true);
   });
 
+  it("needs one variant that has every pick, and forgets choices whose variants were removed", () => {
+    const shirt = { ...tee("s", ["M", "L"], ["White", "Black"]), variants: [
+      { id: "1", options: { Size: "M", Colour: "Black" } },
+      { id: "2", options: { Size: "L", Colour: "White" } },
+    ] };
+    expect(matchesOptions(shirt, { size: ["m"], colour: ["white"] })).toBe(false);
+    expect(matchesOptions(shirt, { size: ["m"], colour: ["black"] })).toBe(true);
+    expect(matchesOptions(shirt, { size: ["l", "m"], colour: ["white"] })).toBe(true);
+  });
+
   it("ignores a picked value that isn't on screen", () => {
     const items = [tee("a", ["S", "M"], ["Black"])];
     const view = filterView(items);

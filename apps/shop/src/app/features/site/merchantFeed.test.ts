@@ -152,6 +152,11 @@ describe("products beyond books (plan 10.21)", () => {
     const { items: typed } = merchantFeedItems("https://shop.test", [{ ...gadget, googleCategory: "Home & Garden > Decor > Home Fragrances > Candles" }, { ...book, googleCategory: "Ignored" }], { now });
     expect(typed.find((i: any) => i.id === "g").googleCategory).toBe("Home & Garden > Decor > Home Fragrances > Candles");
     expect(typed.find((i: any) => i.id === "b").googleCategory).toBe("Media > Books > Print Books");
+    // Typed before types carried a category: the caller's lookup fills it in; a saved category still wins.
+    const lookup = { typeCategory: (id: string) => (id === "candles" ? "Candles from the type" : "") };
+    const { items: older } = merchantFeedItems("https://shop.test", [{ ...gadget, typeId: "candles" }, { ...gadget, id: "g2", typeId: "candles", googleCategory: "Saved" }], { now, ...lookup });
+    expect(older.find((i: any) => i.id === "g").googleCategory).toBe("Candles from the type");
+    expect(older.find((i: any) => i.id === "g2").googleCategory).toBe("Saved");
     expect(apparelAudience({ googleGender: "x", googleAgeGroup: "kids" })).toEqual({ gender: "unisex", ageGroup: "kids" });
   });
 

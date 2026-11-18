@@ -118,6 +118,13 @@ describe("the shop's own types", () => {
     expect(cleanOwnTypes(null)).toEqual([]);
   });
 
+  it("keeps names in any script, and still spots them twice", () => {
+    const own = cleanOwnTypes([{ name: "ろうそく", base: "candles" }, { name: "Свечи", base: "candles" }, { name: "свечи", base: "candles" }]);
+    expect(own.map((t) => t.name)).toEqual(["ろうそく", "Свечи"]);
+    expect(own[0].id).toBe("own-ろうそく");
+    expect(searchOwnTypes("свеч", own).map((t) => t.name)).toEqual(["Свечи"]);
+  });
+
   it("finds own types from the owner's words and spots names we already list", () => {
     const own = [{ id: "own-tote-bags", name: "Tote bags", base: "candles" }];
     expect(searchOwnTypes("tote", own).map((t) => t.name)).toEqual(["Tote bags"]);

@@ -322,7 +322,7 @@ function shopGroups(picked) {
     const list = Array.isArray(picked) ? picked.filter((g) => !!typeGroup(g)) : [];
     return list.length ? [...new Set(list)] : exports.TYPE_GROUPS.map((g) => g.id);
 }
-const fold = (s) => s.toLocaleLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+const fold = (s) => s.toLocaleLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const stem = (w) => (w.length > 3 && w.endsWith("es") && /(ch|sh|x|s)es$/.test(w) ? w.slice(0, -2) : w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w);
 /** How well one of the type's names matches what the owner typed: 0 for no match, higher for better. */
 function scoreName(name, query) {
