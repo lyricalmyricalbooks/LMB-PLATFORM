@@ -1,6 +1,6 @@
 // Book a time page (features/site/BookTime.tsx): the pure rules. Days and times are the shop's own (the server sends its
 // time zone), so a shopper abroad sees the times the shop keeps, with the zone named under the picker.
-import { addDays, depositOf, joinsVisit, MAX_RUN_DAYS, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_VISIT_PARTS, visitService } from "../../../shared/bookingTimes";
+import { addDays, depositOf, joinsVisit, lengthName, MAX_RUN_DAYS, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_VISIT_PARTS, visitService } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
@@ -14,7 +14,10 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number;
   /** Its pack is a class pass: it books any weekly class. */ packAnyClass?: boolean;
   /** What someone new to the shop pays the first time (the server decides who is new). */ introPriceMinor?: number;
-  /** Add-ons and options the client may tick: each adds minutes and, on a paid service, money. */ extras?: BookingExtraView[] };
+  /** Add-ons and options the client may tick: each adds minutes and, on a paid service, money. */ extras?: BookingExtraView[];
+  /** Service options (plan 4, 2.2): the lengths it comes in, each with its own price; the first is the service's own. */ lengths?: BookingLengthView[] };
+/** One length of a service with options. */
+export type BookingLengthView = { id: string; name: string; minutes: number; priceMinor: number };
 /** An add-on or option of a one-to-one service. */
 export type BookingExtraView = { id: string; name: string; minutes: number; priceMinor: number };
 /** The service as the client picked it: its length and price with the ticked extras added (the tax grows in step).
@@ -33,6 +36,22 @@ function taxAt(service: Pick<BookingServiceView, "taxMinor" | "taxPpm" | "priceM
   if (service.taxPpm) return Math.round((priceMinor * service.taxPpm) / 1_000_000);
   return service.priceMinor > 0 ? Math.round((service.taxMinor * priceMinor) / service.priceMinor) : service.taxMinor;
 }
+/**
+ * The service in the length the client chose ("" = the first), its tax in step: like the server's `withLength`, so
+ * the times asked for and every price shown fit. Display only: the server works it out again from the id.
+ */
+export function withLengthPick<S extends BookingServiceView>(service: S, id: string): S {
+  const lengths = service.lengths || [];
+  const length = lengths.length >= 2 ? lengths.find((l) => l.id === id) || lengths[0] : null;
+  if (!length) return service;
+  const taxMinor = taxAt(service, length.priceMinor);
+  return { ...service, minutes: length.minutes, priceMinor: length.priceMinor, ...(taxMinor !== undefined ? { taxMinor } : {}) };
+}
+/** "From 50.00" on a service list: the cheapest of its lengths (the service's own price when it has none). */
+export const fromPrice = (service: Pick<BookingServiceView, "priceMinor" | "lengths">): number =>
+  (service.lengths?.length || 0) >= 2 ? Math.min(...service.lengths!.map((l) => l.priceMinor)) : service.priceMinor;
+/** What a length is called on the page: its own name, else its length. */
+export const lengthLabel = lengthName;
 /** The ticked extras that cost something (a pack can't pay for those). */
 export const pricedPicks = (service: Pick<BookingServiceView, "extras"> | null | undefined, ids: readonly string[]): boolean =>
   (service?.extras || []).some((x) => ids.includes(x.id) && x.priceMinor > 0);
@@ -56,7 +75,8 @@ export type BookingPerson = { id: string; name: string; serviceIds: string[];
 /** The service as this person does it: their own length and price for a one-to-one service (the tax grows in step).
  *  Display only: the server works the same out again from the person's id. Never a class, a course or a free service's price. */
 export function asPerson<S extends BookingServiceView>(service: S, person: BookingPerson | null | undefined): S {
-  if (!person || (service.places || 1) > 1 || service.courseStarts?.length) return service;
+  // A service offered in several lengths has one price per length, whoever takes it.
+  if (!person || (service.places || 1) > 1 || service.courseStarts?.length || (service.lengths?.length || 0) >= 2) return service;
   const rate = person.rates?.find((r) => r.serviceId === service.id);
   if (!rate) return service;
   const priceMinor = service.payment === "free" ? service.priceMinor : rate.priceMinor ?? service.priceMinor;
@@ -110,6 +130,7 @@ export type BookingView = {
   visit?: { serviceName: string; staffName: string; start: string; end: string }[];
   /** Add-ons and options booked with it (minutes and priceMinor already include them). */
   extras?: BookingExtraView[];
+  /** The length chosen of a service offered in several (its name already says which). */ lengthId?: string;
   /** A standing appointment: which visit of the run this is, how many there are and how often. */
   run?: { visit: number; visits: number; everyWeeks: number };
   status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;

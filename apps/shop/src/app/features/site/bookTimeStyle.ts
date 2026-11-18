@@ -45,6 +45,12 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-course ol{margin:0 0 12px;padding-left:1.4em;display:grid;gap:6px;line-height:1.5;}`,
   // A standing appointment: how often and how many visits, then every date, taken ones struck through.
   `${S} .fm-book-extras{display:grid;gap:10px;margin:0 0 22px;padding:0;border:0;min-width:0;}`,
+  `${S} .fm-book-lengths{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px;}`,
+  `${S} .fm-book-length{display:grid;gap:2px;min-height:44px;padding:6px 16px;border:var(--t-edge-w) solid var(--t-edge);background:transparent;color:inherit;border-radius:var(--rp-card-radius, 0px);text-align:left;cursor:pointer;}`,
+  `${S} .fm-book-length span{font-size:0.8125rem;opacity:0.8;}`,
+  `${S} .fm-book-length:hover,${S} .fm-book-length:focus-visible{border-color:var(--accent);}`,
+  `${S} .fm-book-length[aria-checked="true"]{background:var(--accent);color:var(--on-accent, rgb(var(--fg-rgb)));box-shadow:4px 4px 0 rgb(var(--fg-rgb));}`,
+  `${S} .fm-book-length[aria-checked="true"] span{opacity:1;}`,
   `${S} .fm-book-visit{display:grid;gap:12px;margin:0 0 22px;min-width:0;}`,
   `${S} .fm-book-visit-row{display:grid;gap:10px;padding:12px;border:var(--t-edge-w) solid var(--t-edge);border-radius:var(--rp-card-radius, 0px);}`,
   `${S} .fm-book-visit-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;}`,

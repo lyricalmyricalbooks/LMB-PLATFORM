@@ -12,7 +12,7 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -1708,10 +1708,11 @@ function CancelDialog({ booking: b, laterVisits = 0, onClose, onCancel }: { book
 }
 
 /** Picks a day and one of its free times for a service. `onPick` throws to keep the dialog open. */
-function TimeDialog({ title, description, service, initialDay, wanted = "", except = "", staffId = "", extras = [], confirmLabel, onClose, onPick, children, ready = true, after, allowOver = false }: {
+function TimeDialog({ title, description, service, initialDay, wanted = "", except = "", staffId = "", extras = [], length = "", confirmLabel, onClose, onPick, children, ready = true, after, allowOver = false }: {
   title: string; description?: string; service: BookingService; initialDay: string; except?: string;
   /** A start asked for (a tap on the calendar): picked as soon as the times load, if it is free. */ wanted?: string;
   /** The add-ons ticked (New booking): the free times fit the longer booking. */ extras?: string[];
+  /** The length chosen (New booking, a service sold in several lengths). */ length?: string;
   /** Only this person's free times ("" = anyone on the team, or the shop's one calendar). */ staffId?: string; confirmLabel: string;
   onClose: () => void; onPick: (startIso: string, over: boolean) => Promise<void>; children?: React.ReactNode; ready?: boolean;
   /** The tapped time may be booked even when it isn't free (plan 4, 1.4: book over, after a warning). One-to-one only. */ allowOver?: boolean;
@@ -1728,14 +1729,14 @@ function TimeDialog({ title, description, service, initialDay, wanted = "", exce
   useEffect(() => {
     let live = true;
     setTimes(null); setPicked(""); setOver(false);
-    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId, ...(extras.length ? { extras } : {}) }).then((r) => {
+    bookingsAdmin<{ times: string[] }>("times", { serviceId: service.id, day, except, staffId, ...(extras.length ? { extras } : {}), ...(length ? { length } : {}) }).then((r) => {
       if (!live) return;
       setTimes(r.times);
       const asked = wanted && r.times.find((t) => Date.parse(t) === Date.parse(wanted));
       if (asked) setPicked(asked);
     }).catch((e) => live && (setTimes([]), setProblem(e.message)));
     return () => { live = false; };
-  }, [day, service.id, staffId, extras.join(",")]);
+  }, [day, service.id, staffId, extras.join(","), length]);
   const save = async () => {
     setSaving(true); setProblem("");
     try { await onPick(picked, over); } catch (e: any) { setProblem(e?.message || "That didn't save."); } finally { setSaving(false); }
@@ -1822,17 +1823,17 @@ function PersonPick({ settings, serviceId, value, onChange }: { settings: Bookin
 }
 
 /** The dates of a standing appointment, each marked free or taken (op runCheck), under New booking's times. */
-function RunDates({ serviceId, start, run, staffId, extras = [], onFree }: { serviceId: string; start: string; run: { everyWeeks: number; visits: number }; staffId: string; extras?: string[]; onFree: (free: boolean) => void }) {
+function RunDates({ serviceId, start, run, staffId, extras = [], length = "", onFree }: { serviceId: string; start: string; run: { everyWeeks: number; visits: number }; staffId: string; extras?: string[]; length?: string; onFree: (free: boolean) => void }) {
   const [visits, setVisits] = useState<{ start: string; free: boolean }[] | null>(null);
   const [problem, setProblem] = useState("");
   useEffect(() => {
     let live = true;
     setVisits(null); setProblem(""); onFree(false);
-    bookingsAdmin<{ visits: { start: string; free: boolean }[] }>("runCheck", { serviceId, start, run, staffId, ...(extras.length ? { extras } : {}) })
+    bookingsAdmin<{ visits: { start: string; free: boolean }[] }>("runCheck", { serviceId, start, run, staffId, ...(extras.length ? { extras } : {}), ...(length ? { length } : {}) })
       .then((r) => { if (live) { setVisits(r.visits); onFree(r.visits.every((v) => v.free)); } })
       .catch((e) => live && setProblem(e?.message || "The dates couldn't be checked."));
     return () => { live = false; };
-  }, [serviceId, start, run.everyWeeks, run.visits, staffId, extras.join(",")]);
+  }, [serviceId, start, run.everyWeeks, run.visits, staffId, extras.join(","), length]);
   if (problem) return <p className="bkg-error" role="alert">{problem}</p>;
   if (!visits) return <LoadingState label="Checking every date…" />;
   const taken = visits.filter((v) => !v.free).length;
@@ -1878,25 +1879,35 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked, star
   // Add-ons ticked for this booking (ids of the service's extras).
   const [picked, setPicked] = useState<string[]>([]);
   const extras = (service.extras || []).filter((e) => picked.includes(e.id)).map((e) => e.id);
+  // A service sold in several lengths: the one chosen (none = the first).
+  const [lengthId, setLengthId] = useState("");
+  const lengths = service.lengths || [];
+  const lengthPick = lengths.some((l) => l.id === lengthId) ? lengthId : "";
+  const sized = withLength(service, lengthPick);
   // The picked person's own length and price for it, with the add-ons on top.
-  const personal = forPerson(service, settings, staffId);
-  const ownRate = personal.minutes !== service.minutes || personal.priceMinor !== service.priceMinor;
+  const personal = forPerson("problem" in sized ? service : sized.service, settings, staffId);
+  const ownRate = !lengths.length && (personal.minutes !== service.minutes || personal.priceMinor !== service.priceMinor);
   const asBooked = withExtras(personal, extras);
   const length = "problem" in asBooked ? service.minutes : asBooked.service.minutes;
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
-    <TimeDialog key={service.id} title={initial?.name ? "Book again" : "New booking"} service={service} initialDay={startAt ? dayOf(Date.parse(startAt), ZONE) : today()} wanted={startAt} staffId={staffId} extras={extras} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
+    <TimeDialog key={service.id} title={initial?.name ? "Book again" : "New booking"} service={service} initialDay={startAt ? dayOf(Date.parse(startAt), ZONE) : today()} wanted={startAt} staffId={staffId} extras={extras} length={lengthPick} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
       allowOver={!!startAt && !run && service.places <= 1 && !(service.courseDates || []).length}
-      after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} extras={extras} onFree={setRunFree} /> : undefined}
+      after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} extras={extras} length={lengthPick} onFree={setRunFree} /> : undefined}
       onPick={async (start, over) => {
-        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}), ...(extras.length ? { extras } : {}), ...(over ? { over: true } : {}) });
+        await bookingsAdmin("create", { serviceId: service.id, start, ...who, sendEmail, ...(staffId ? { staffId } : {}), ...(run ? { run } : {}), ...(extras.length ? { extras } : {}), ...(lengthPick ? { length: lengthPick } : {}), ...(over ? { over: true } : {}) });
         toast.success(run ? `${who.name.trim()} is booked in for ${visits} visits` : `${who.name.trim()} is booked in`);
         onBooked?.();
         onClose();
       }}>
-      <SelectField label="Service" value={service.id} onChange={(e) => { setServiceId(e.target.value); setPicked([]); if (!staffFor(settings, e.target.value).some((p) => p.id === staffId)) setStaffId(""); }}>
+      <SelectField label="Service" value={service.id} onChange={(e) => { setServiceId(e.target.value); setPicked([]); setLengthId(""); if (!staffFor(settings, e.target.value).some((p) => p.id === staffId)) setStaffId(""); }}>
         {services.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.minutes} min</option>)}
       </SelectField>
+      {lengths.length >= 2 && (
+        <SelectField label="How long" value={lengthPick || lengths[0].id} onChange={(e) => setLengthId(e.target.value)}>
+          {lengths.map((l) => <option key={l.id} value={l.id}>{lengthName(l)}{l.priceMinor ? ` · ${moneyText(l.priceMinor, SHOP_CURRENCY)}` : ""}</option>)}
+        </SelectField>
+      )}
       {(service.extras || []).length > 0 && (
         <fieldset className="bkg-extras-pick">
           <legend>Add-ons</legend>
@@ -1994,8 +2005,8 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
               <h3>{s.name}</h3>
               {!s.active && <StatusBadge tone="neutral">Hidden</StatusBadge>}
             </div>
-            <p className="bkg-service-meta">{s.gapBefore ? `${s.gapBefore} min before + ` : ""}{s.minutes} min{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
-            <p className="bkg-service-price">{s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
+            <p className="bkg-service-meta">{s.gapBefore ? `${s.gapBefore} min before + ` : ""}{(s.lengths || []).length >= 2 ? (s.lengths || []).map((l) => lengthName(l)).join(" / ") : `${s.minutes} min`}{s.gapAfter ? ` + ${s.gapAfter} min rest` : ""}{processingStretch(s, 0) ? ` · ${s.processMinutes} min processing` : ""}{s.places > 1 ? ` · class of ${s.places}` : ""}{rooms.find((r) => r.id === s.roomId) ? ` · ${rooms.find((r) => r.id === s.roomId)!.name}` : ""}</p>
+            <p className="bkg-service-price">{(s.lengths || []).length >= 2 && s.priceMinor > 0 ? `From ${moneyText(Math.min(...(s.lengths || []).map((l) => l.priceMinor)), SHOP_CURRENCY)}` : s.priceMinor > 0 ? moneyText(s.priceMinor, SHOP_CURRENCY) : "Free"}{s.payment === "deposit" ? <span className="bkg-service-pay">{moneyText(depositOf(s), SHOP_CURRENCY)} deposit</span> : s.payment === "atShop" ? <span className="bkg-service-pay">Paid at the visit</span> : null}{s.holdCard ? <span className="bkg-service-pay">Card on file · {moneyText(s.lateFeeMinor, SHOP_CURRENCY)} if missed</span> : null}{s.chargeTax && s.priceMinor > 0 ? <span className="bkg-service-pay">Plus tax</span> : null}{s.meet && s.places <= 1 ? <span className="bkg-service-pay">Video call</span> : null}{offersPack(s) ? <span className="bkg-service-pay">Pack of {s.packVisits} · {moneyText(s.packPriceMinor, SHOP_CURRENCY)}</span> : null}{s.rebookWeeks ? <span className="bkg-service-pay">Rebook reminder · {rebookSpan(s.rebookWeeks)}</span> : null}</p>
             {s.description && <p className="bkg-service-desc">{s.description}</p>}
             <div className="bkg-service-actions">
               <SecondaryButton size="sm" onClick={() => setEditing(s)}>Edit</SecondaryButton>
@@ -2102,6 +2113,8 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
     intro: service.introPriceMinor ? (service.introPriceMinor / 100).toFixed(2) : "",
     // Add-ons and options as the owner types them: minutes and price as text until saved.
     extraRows: (service.extras || []).map((e) => ({ id: e.id, name: e.name, minutes: e.minutes ? String(e.minutes) : "", price: e.priceMinor ? (e.priceMinor / 100).toFixed(2) : "" })),
+    // Lengths and prices clients choose from (two or more), as typed: the first is the service's own.
+    lengthRows: (service.lengths || []).map((l) => ({ id: l.id, name: l.name, minutes: String(l.minutes), price: l.priceMinor ? (l.priceMinor / 100).toFixed(2) : "" })),
   });
   // Card on file: only where something is left to charge (not paid in full), and only on Stripe.
   const paidInFull = Number(form.price) > 0 && form.pay === "full";
@@ -2120,11 +2133,24 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
   const setQuestion = (i: number, change: Partial<(typeof questions)[number]>) => set("questions", questions.map((q, j) => (j === i ? { ...q, ...change } : q)));
   const extraRows = form.extraRows;
   const setExtra = (i: number, change: Partial<(typeof extraRows)[number]>) => set("extraRows", extraRows.map((x, j) => (j === i ? { ...x, ...change } : x)));
+  const lengthRows = form.lengthRows;
+  // The first length is the service's own time and price, so every rule below (paying, deposits, packs) follows it.
+  const setLength = (i: number, change: Partial<(typeof lengthRows)[number]>) => setForm((f) => {
+    const rows = f.lengthRows.map((x, j) => (j === i ? { ...x, ...change } : x));
+    return { ...f, lengthRows: rows, ...(rows[0] ? { price: rows[0].price, minutes: Number(rows[0].minutes) || f.minutes } : {}) };
+  });
   const save = async () => {
     setSaving(true); setProblem("");
     try {
-      const priceMinor = Math.round(Number(form.price || 0) * 100);
-      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, lengthRows: sizes, ...rest } = form;
+      // Lengths only for one-to-one services; the rows that have minutes, with the first one's time and price as the service's.
+      const lengths = rest.places > 1 || (rest.courseDates || []).length ? [] : sizes.filter((x) => Number(x.minutes) > 0).map((x) => ({
+        id: x.id, name: x.name.trim(), minutes: Math.round(Number(x.minutes)), priceMinor: Math.round(Number(x.price || 0) * 100),
+      }));
+      const sized = lengths.length >= 2;
+      if (sized && lengths.some((l) => l.priceMinor > 0) && lengths.some((l) => l.priceMinor < 50)) throw new Error("Give every length a price of at least 0.50, or leave them all blank for free.");
+      const priceMinor = sized ? lengths[0].priceMinor : Math.round(Number(form.price || 0) * 100);
+      if (sized) rest.minutes = lengths[0].minutes;
       const sellPack = pack && priceMinor > 0;
       const holdCard = form.holdCard && !paidInFull && !square;
       const share = pay === "deposit" && priceMinor > 0;
@@ -2146,6 +2172,7 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         packDays: sellPack ? Number(packLasts) || 0 : 0,
         packAnyClass: sellPack && !!rest.packAnyClass,
         introPriceMinor: priceMinor > 0 ? Math.round(Number(intro || 0) * 100) : 0,
+        lengths: sized ? lengths : [],
         extras: rest.places > 1 || (rest.courseDates || []).length ? [] : rows.filter((x) => x.name.trim()).map((x) => ({
           id: x.id, name: x.name.trim(), minutes: Math.round(Number(x.minutes || 0)), priceMinor: priceMinor > 0 ? Math.round(Number(x.price || 0) * 100) : 0,
         })),
@@ -2160,10 +2187,10 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
       <div className="bkg-form">
         <TextField label="Name" placeholder="Studio visit" value={form.name} onChange={(e) => set("name", e.target.value)} />
         <div className="bkg-two">
-          <SelectField label="How long" value={String(form.minutes)} onChange={(e) => set("minutes", Number(e.target.value))}>
+          {!lengthRows.length && <SelectField label="How long" value={String(form.minutes)} onChange={(e) => set("minutes", Number(e.target.value))}>
             {[15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240].concat(form.minutes && ![15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240].includes(form.minutes) ? [form.minutes] : [])
               .map((m) => <option key={m} value={m}>{m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? "" : "s"}`}</option>)}
-          </SelectField>
+          </SelectField>}
           <SelectField label="Rest after" hint="Keeps you from being booked back to back." value={String(form.gapAfter)} onChange={(e) => set("gapAfter", Number(e.target.value))}>
             {[0, 5, 10, 15, 30, 45, 60].map((m) => <option key={m} value={m}>{m ? `${m} minutes` : "None"}</option>)}
           </SelectField>
@@ -2176,7 +2203,31 @@ export function ServiceDialog({ service, rooms, onClose, onSaved }: { service: B
         )}
         {!group && !course && <ProcessingFields minutes={form.minutes} after={form.processAfter || 0} length={form.processMinutes || 0}
           onChange={(after, length) => setForm((f) => ({ ...f, processAfter: after, processMinutes: length }))} />}
-        <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />
+        {!lengthRows.length && <TextField label={`Price (${SHOP_CURRENCY})`} hint="Leave blank for free." inputMode="decimal" placeholder="0.00" value={form.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} />}
+        {!group && !course && (
+          <fieldset className="bkg-questions">
+            <legend>Lengths and prices <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></legend>
+            <p className="bkg-questions-hint">{lengthRows.length
+              ? "Clients choose one when they book. Leave the prices blank for free. Remove them all to go back to one length and price."
+              : "One service in several lengths, like a 30, 60 or 90 minute massage. Clients choose one when they book."}</p>
+            {lengthRows.map((x, i) => (
+              <div key={x.id} className="bkg-question bkg-extra">
+                <div className="bkg-question-row">
+                  <TextField label={`Length ${i + 1} (minutes)`} type="number" inputMode="numeric" min={5} max={480} step={5} placeholder="60" value={x.minutes} onChange={(e) => setLength(i, { minutes: e.target.value })} />
+                  <TextField label={`Price (${SHOP_CURRENCY})`} inputMode="decimal" placeholder="0.00" value={x.price} onChange={(e) => setLength(i, { price: e.target.value.replace(/[^\d.]/g, "") })} />
+                  <button type="button" className="bkg-question-remove" aria-label={`Remove length ${i + 1}`} onClick={() => setForm((f) => { const rows = f.lengthRows.filter((_, j) => j !== i); return { ...f, lengthRows: rows, ...(rows[0] ? { price: rows[0].price, minutes: Number(rows[0].minutes) || f.minutes } : {}) }; })}><Trash2 size={16} aria-hidden /></button>
+                </div>
+                <TextField label="Name (optional)" placeholder={Number(x.minutes) > 0 ? lengthName({ name: "", minutes: Number(x.minutes) }) : "Full session"} value={x.name} maxLength={40} onChange={(e) => setLength(i, { name: e.target.value })} />
+              </div>
+            ))}
+            {lengthRows.length === 1 && <p className="bkg-questions-hint">Add one more: a service needs two or more lengths to offer a choice.</p>}
+            {lengthRows.length < MAX_LENGTHS
+              ? <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set("lengthRows", lengthRows.length
+                ? [...lengthRows, { id: `l${Date.now().toString(36)}`, name: "", minutes: "", price: "" }]
+                : [{ id: `l${Date.now().toString(36)}a`, name: "", minutes: String(form.minutes), price: form.price }, { id: `l${Date.now().toString(36)}b`, name: "", minutes: "", price: "" }])}>{lengthRows.length ? "Add a length" : "Offer several lengths"}</SecondaryButton>
+              : <p className="bkg-questions-hint">That's the most lengths a service can have ({MAX_LENGTHS}).</p>}
+          </fieldset>
+        )}
         {Number(form.price) > 0 && (
           <fieldset className="bkg-questions">
             <legend>When they pay</legend>
