@@ -263,7 +263,7 @@ export function BookImportDialog({ books, onClose, onDone, initialFile }: {
                 <option value="set">Set stock to the file's numbers</option>
               </SelectField>
               {moved && <p className="rp-hint" style={{ margin: 0 }}>Read as {SHAPE_WORDS[moved.shape]}: {moved.books.length} product{moved.books.length === 1 ? "" : "s"}. Line numbers are the old file's.</p>}
-              {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("Links to these books on your old shop will open them here once your address points at this shop. They are added to Settings › General › URL redirects.")}</p>}
+              {moved && oldPaths.size > 0 && <p className="rp-hint" style={{ margin: 0 }}>{w("Links to these books on your old shop will open them here once your address points at this shop. They are added to Online store › URL redirects.")}</p>}
               {photoCheckLine(photoCheck) && <p className="rp-hint" role="status" style={{ margin: 0 }}>{w(photoCheckLine(photoCheck))}</p>}
               {readNotes.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{w(n)}</p>)}
               {moved && moved.notices.map(n => <p key={n} className="rp-hint" style={{ margin: 0 }}>{noteWords(n, w)}</p>)}

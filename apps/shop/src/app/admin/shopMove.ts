@@ -791,7 +791,7 @@ export interface RedirectPlan {
 export function oldLinksMessage(links: { added: number; skipped: number; full: number; failed: boolean }): string {
   if (links.failed) return "The old shop links couldn't be saved. Import the same file again to retry; books already saved show as unchanged.";
   const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
-  let text = `${links.added} old shop link${plural(links.added, " now leads", "s now lead")} to ${plural(links.added, "its book", "their books")} (Settings › General › URL redirects).`;
+  let text = `${links.added} old shop link${plural(links.added, " now leads", "s now lead")} to ${plural(links.added, "its book", "their books")} (Online store › URL redirects).`;
   if (links.skipped) text += ` ${links.skipped} already led somewhere else and ${plural(links.skipped, "was", "were")} left as ${plural(links.skipped, "it was", "they were")}.`;
   if (links.full) text += ` Your shop is full: it keeps up to ${MAX_REDIRECTS.toLocaleString("en")} old links, so ${links.full.toLocaleString("en")} more ${plural(links.full, "wasn't", "weren't")} added. Delete old links you no longer need in URL redirects to make room.`;
   return text;

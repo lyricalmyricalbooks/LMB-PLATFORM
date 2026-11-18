@@ -28,7 +28,6 @@ import { CustomDomainCard } from "./CustomDomainCard";
 import { FormField, FormPage, FormReadOnly, FormRow, FormSection, FormToggle, StatusBar, formStatus } from "./riso/FormKit";
 import { paysOnSquare, platformCardsProvider, providerName, runsOnColophon, shopProfile, homeCountryName } from "../../lib/shopProfile";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
-import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
 import { AiWriterCard } from "./AiWriterCard";
 import { OwnAccountOnly } from "./OwnAccountOnly";
@@ -154,12 +153,15 @@ export function ShopSettings({
           {activeTab === "security" && <SecuritySettings />}
           {activeTab === "google" && <OwnerOnlyNote what="the Google connection" />}
           {activeTab === "google" && <GoogleSettings />}
+          {activeTab === "google" && <VisitorsSettings />}
           {/* QuickBooks is an app now: #settings/apps/quickbooks (and the old #settings/bookkeeping) opens it here. */}
           {activeTab === "apps" && <OwnerOnlyNote what="which apps are connected" />}
           {activeTab === "apps" && (
             <AppsSettings openQuickBooks={subTab === "quickbooks"} onQuickBooks={(open) => onSubTabChange?.(open ? "quickbooks" : "apps")}
               quickbooks={{ status: quickBooksStatus, panel: <BookkeepingSettings taxRates={settings.taxes?.rates || []} /> }} />
           )}
+          {activeTab === "apps" && <OwnAccountOnly><SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor></OwnAccountOnly>}
+          {activeTab === "data" && <YourDataSettings />}
           {activeTab === "plan" && <PlanSettings />}
           {activeTab === "billing" && <BillingSettings focusClose={subTab === "close-shop"} />}
           {/* Communications was retired: its links open Notifications. */}
@@ -170,7 +172,7 @@ export function ShopSettings({
   );
 }
 
-function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
+function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction }: any) {
   const SECTIONS = ["maintenance", "stockHolds", "digitalDownloads", "domain", "info", "location", "social", "socialOrder", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
@@ -195,19 +197,11 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const email = settings.info?.email || "";
   const missing = (name.trim() ? 0 : 1) + (email.trim() ? 0 : 1);
   // Your press first, as in the redesign's General page (11 November 2026).
-  const [view, setView] = useSubTab<string>("gs-details", subTab, onSubTabChange);
-  const tabs: SettingsTab[] = [
-    { id: "gs-details", title: "Your shop", unsaved: ["info", "location", "social", "socialOrder", "policies", "domain"].some((k) => hasChanges(k)) },
-    { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") || hasChanges("digitalDownloads") },
-    { id: "gs-visitors", title: "Visitors & Google" },
-    { id: "gs-tools", title: "Tools & records" },
-  ];
+  // Simpler admin, change 7: one scroll, no tabs. Visitors moved to Settings › Google, tools to Apps and Your data.
 
   return (
     <div className="rp-stack">
-      <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
-
-      <SettingsGroup id="gs-details" active={view === "gs-details"}>
+      <SettingsGroup id="gs-details" active>
         {/* v4 form kit (mockup 1e): sections named on the left, their fields in one card on the right. */}
         <FormPage>
           <SettingsAnchor id="gs-identity">
@@ -291,7 +285,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </FormPage>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-store" active={view === "gs-store"}>
+      <SettingsGroup id="gs-store" active>
         <SettingsAnchor id="gs-status">
           <SectionCard title="Store status" description="Open, paused or behind the wall.">
             {(() => {
@@ -371,39 +365,12 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-visitors" active={view === "gs-visitors"}>
-        <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
-        {/* Plan 6.17: a shop run by Colophon connects Google with one sign-in; other shops keep the older cards. */}
-        <SettingsAnchor id="gs-analytics"><ConnectGoogleCard fallback={<OwnAccountOnly><GoogleAnalyticsCard /></OwnAccountOnly>} /></SettingsAnchor>
-        <SettingsAnchor id="gs-clarity"><ClarityCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-ad-tracking"><AdPixelsCard /></SettingsAnchor>
-        <SettingsAnchor id="gs-search-console"><OwnAccountOnly><OwnKeysOnly><SearchConsoleCard /></OwnKeysOnly></OwnAccountOnly></SettingsAnchor>
-        <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
-      </SettingsGroup>
-
-      <SettingsGroup id="gs-tools" active={view === "gs-tools"}>
-        <SettingsAnchor id="gs-ai"><OwnAccountOnly><AiWriterCard /></OwnAccountOnly></SettingsAnchor>
-        <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
-        {/* The combined admin keeps backups, downloads and exports in one place: Stockroom › Backups. */}
-        {combinedAdmin() ? (
-          <SettingsAnchor id="gs-backups">
-            <SectionCard title="Backups & downloads" description="All in one place now: Stockroom › Backups.">
-              <SecondaryButton size="sm" onClick={() => { window.location.hash = "#stockroom/backups"; }}>Open Backups</SecondaryButton>
-            </SectionCard>
-          </SettingsAnchor>
-        ) : <>
-          <SettingsAnchor id="gs-download-shop"><DownloadShopCard /></SettingsAnchor>
-          <SettingsAnchor id="gs-local-backup"><LocalBackupCard /></SettingsAnchor>
-          <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
-        </>}
-        <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
-      </SettingsGroup>
-
       {/* One status bar for the whole page (v4 form kit): what is left, Discard, Save. */}
-      {(view === "gs-details" || view === "gs-store" || dirty.length > 0) && (
+      {(
+
         <StatusBar status={formStatus({ missing, dirty: dirty.length > 0 })} primaryLabel="Save" busy={!!savingSection}
           blocked={missing > 0 || dirty.length === 0}
-          onBlocked={() => { if (missing > 0) { setView("gs-details"); toast.error("Fill in your shop name and contact email first."); } }}
+          onBlocked={() => { if (missing > 0) { document.getElementById("gs-identity")?.scrollIntoView({ block: "start" }); toast.error("Fill in your shop name and contact email first."); } }}
           onPrimary={() => void saveAll()} cancelLabel="Discard" onCancel={dirty.length > 0 ? discard : undefined} />
       )}
 
@@ -1779,4 +1746,40 @@ export function SecretField({ label, placeholder, stored, onCommit, validate, on
 /** Shown only on a shop that isn't run by Colophon: a Colophon shop's Google parts are in Connect Google. */
 function OwnKeysOnly({ children }: { children: ReactNode }) {
   return useGoogleConnect().mode === "own" ? <>{children}</> : null;
+}
+
+/** Settings › Google's lower half (simpler admin, change 7): your own visits and the visitor tools, once General's Visitors tab. */
+function VisitorsSettings() {
+  return (
+    <div className="rp-stack">
+        <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
+        {/* Plan 6.17: a shop run by Colophon connects Google with one sign-in; other shops keep the older cards. */}
+        <SettingsAnchor id="gs-analytics"><ConnectGoogleCard fallback={<OwnAccountOnly><GoogleAnalyticsCard /></OwnAccountOnly>} /></SettingsAnchor>
+        <SettingsAnchor id="gs-clarity"><ClarityCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-ad-tracking"><AdPixelsCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-search-console"><OwnAccountOnly><OwnKeysOnly><SearchConsoleCard /></OwnKeysOnly></OwnAccountOnly></SettingsAnchor>
+          </div>
+  );
+}
+
+/** Settings › Your data (simpler admin, change 7): privacy requests, backups and downloads, and problems shoppers hit. */
+function YourDataSettings() {
+  return (
+    <div className="rp-stack">
+        <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
+        {/* The combined admin keeps backups, downloads and exports in one place: Stockroom › Backups. */}
+        {combinedAdmin() ? (
+          <SettingsAnchor id="gs-backups">
+            <SectionCard title="Backups & downloads" description="All in one place now: Stockroom › Backups.">
+              <SecondaryButton size="sm" onClick={() => { window.location.hash = "#stockroom/backups"; }}>Open Backups</SecondaryButton>
+            </SectionCard>
+          </SettingsAnchor>
+        ) : <>
+          <SettingsAnchor id="gs-download-shop"><DownloadShopCard /></SettingsAnchor>
+          <SettingsAnchor id="gs-local-backup"><LocalBackupCard /></SettingsAnchor>
+          <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
+        </>}
+        <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
+          </div>
+  );
 }

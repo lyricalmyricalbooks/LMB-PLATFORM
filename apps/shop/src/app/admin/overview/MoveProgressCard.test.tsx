@@ -30,7 +30,7 @@ describe("Your move so far", () => {
     expect(onOpen).toHaveBeenCalledWith("orders");
     // The old-links check sits on Settings › General › Visitors & Google, which the page switch alone can't open.
     act(() => button(host, "Check your old links")[0].click());
-    expect(window.location.hash).toBe("#settings/general/visitors");
+    expect(window.location.hash).toBe("#design");
     expect(onOpen).toHaveBeenCalledTimes(1);
     await act(async () => { button(host, "We had none")[0].click(); });
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ done: { "move-customers": expect.any(String) } });
@@ -61,7 +61,7 @@ describe("Your move so far, put away", () => {
     await act(async () => { await Promise.resolve(); });
     expect(host.textContent).toContain("4 customers and 1 past order came over");
     act(() => button(host, "Check your old links")[0].click());
-    expect(window.location.hash).toBe("#settings/general/visitors");
+    expect(window.location.hash).toBe("#design");
     await act(async () => { button(host, "Close")[0].click(); });
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ done: { "move-list": expect.any(String) } });
     expect(setDoc.mock.calls[0][0].done).toMatchObject({ ...all, "move-list": expect.any(String) });

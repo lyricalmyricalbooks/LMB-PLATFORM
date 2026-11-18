@@ -551,7 +551,7 @@ export function Dashboard() {
     }
     const ok = await confirm(on
       ? { title: "Close the shop for now?", message: w("Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin."), confirmLabel: "Show the wall" }
-      : { title: "Open your shop to shoppers?", message: "The “under construction” page comes down, and anyone with your shop's address can browse and buy straight away. You can close it again any time in Settings › General › Store status.", confirmLabel: "Open my shop" });
+      : { title: "Open your shop to shoppers?", message: "The “under construction” page comes down, and anyone with your shop's address can browse and buy straight away. You can close it again any time in Settings › Your shop › Store status.", confirmLabel: "Open my shop" });
     if (!ok) return false;
     setUcSaving(true);
     try {
@@ -822,7 +822,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "takePayment" || activeTab === "events" || activeTab === "classes" || activeTab === "giving" || activeTab === "memberships" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "takePayment" || activeTab === "events" || activeTab === "classes" || activeTab === "giving" || activeTab === "memberships" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps" || settingsTab === "data"));
   // Change 4 (simpler admin): alerts show at the top of Home's To do; #alerts still opens them on their own.
   const alertsView = (onHome: boolean) => (<AlertsPage onHome={onHome} alerts={shownAlerts} hiddenCount={allAlerts.length - shownAlerts.length}
         onDismiss={alertHides.dismiss} onShowHidden={alertHides.showAll}
@@ -859,10 +859,10 @@ export function Dashboard() {
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "bookings": return bookingsOn ? <Bookings /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
       case "takePayment": return bookingsOn ? <TakePayment /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
-      case "events": return eventsOn ? <Events /> : <EmptyState title="Events isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
-      case "giving": return givingOn ? <Giving /> : <EmptyState title="Donations & tips isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
-      case "memberships": return membershipsOn ? <Members /> : <EmptyState title="Memberships isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
-      case "classes": return classesOn ? <Classes /> : <EmptyState title="Classes isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
+      case "events": return eventsOn ? <Events /> : <EmptyState title="Events isn't on for your shop" description="It's in beta. Switch it on in Settings › Your shop › Ways to sell when it's offered to your shop." />;
+      case "giving": return givingOn ? <Giving /> : <EmptyState title="Donations & tips isn't on for your shop" description="It's in beta. Switch it on in Settings › Your shop › Ways to sell when it's offered to your shop." />;
+      case "memberships": return membershipsOn ? <Members /> : <EmptyState title="Memberships isn't on for your shop" description="It's in beta. Switch it on in Settings › Your shop › Ways to sell when it's offered to your shop." />;
+      case "classes": return classesOn ? <Classes /> : <EmptyState title="Classes isn't on for your shop" description="It's in beta. Switch it on in Settings › Your shop › Ways to sell when it's offered to your shop." />;
       case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
       case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;
       case "design": return settings ? <DesignHome settings={settings} onViewSite={openSite}

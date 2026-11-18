@@ -297,7 +297,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
                 <Sparkles size={13} aria-hidden /> Auto-fill from page
               </button>
               {aiWriterAvailable() && <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving || aiBusy} onClick={() => void writeWithAi()}
-                title="Draft the Google title and description with AI (Settings › General › AI writing assistant)">
+                title="Draft the Google title and description with AI (Settings › Apps › AI writing assistant)">
                 <Sparkles size={13} aria-hidden /> {aiBusy ? "Writing…" : "Write with AI"}
               </button>}
             </div>

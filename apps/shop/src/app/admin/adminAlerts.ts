@@ -29,8 +29,8 @@ const ALERT_ROUTES: Partial<Record<AdminAlert["action"], AlertRoute>> = {
   notifications: { tab: "settings", settingsTab: "notifications", subTab: "email-deliveries" }, // Waiting to send + Recent deliveries
   webhook: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },                 // Stripe › Webhook health
   payments: { tab: "settings", settingsTab: "payments" },                                       // the test mode switch: Ready to take payments?
-  general: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // Backups & export
-  backups: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // the combined admin opens Stockroom › Backups instead
+  general: { tab: "settings", settingsTab: "data" },                     // Backups & export
+  backups: { tab: "settings", settingsTab: "data" },                     // the combined admin opens Stockroom › Backups instead
   cardAccount: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },            // Card payments: Continue with Stripe
   billing: { tab: "settings", settingsTab: "billing" },                                         // Running costs: where it goes, the email-me amount
 };

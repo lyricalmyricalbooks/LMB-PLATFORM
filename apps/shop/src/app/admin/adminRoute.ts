@@ -15,11 +15,10 @@ export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "n
 /** The Settings page an id really opens (an alias resolves to its page). */
 export const settingsPageOf = (id: string): string => SETTINGS_TAB_ALIASES[id] || id;
 
-export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer", "google", "apps", "team", "security", "bookkeeping", "plan", "billing"] as const;
+export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer", "google", "apps", "team", "security", "bookkeeping", "plan", "billing", "data"] as const;
 
 /** Sub tabs per page (a Settings page id, or a top-level tab): address slug → the page's own tab id. The first is the default. */
 export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
-  general: [["details", "gs-details"], ["store", "gs-store"], ["visitors", "gs-visitors"], ["tools", "gs-tools"]],
   payments: [["status", "pay-status"], ["methods", "pay-methods"], ["more", "pay-more"]],
   notifications: [["templates", "email-templates"], ["setup", "email-setup"], ["deliveries", "email-deliveries"]],
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"], ["returns", "returns"]],
@@ -81,6 +80,9 @@ export function routeFromHash(hash: string, combined: boolean = combinedAdmin())
   }
   const [page, slug] = rest.split("/");
   if (head === "settings") {
+    // Simpler admin, change 7: General is one page now; its old Visitors and Tools tabs moved to Google and Your data.
+    if (page === "general" && slug === "visitors") return { tab: "settings", settingsTab: "google" };
+    if (page === "general" && slug === "tools") return { tab: "settings", settingsTab: "data" };
     const known = SETTINGS.has(page) && page !== "designer";
     const route: AdminRoute = { tab: "settings", settingsTab: known ? settingsPageOf(page) : "general" };
     if (known && !slug && ALIAS_SUB_TABS[page]) return { ...route, subTab: ALIAS_SUB_TABS[page] };

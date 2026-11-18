@@ -662,7 +662,7 @@ export function FollowUsSection({ settings, enableAnimations }: any) {
               </ul>
             ) : (
               // Studio preview only (never shoppers): a note for the owner, so it isn't Text & labels wording.
-              <p className="text-xs text-white/50">Your social media icons show here. Add your accounts in Settings › General › Social media.</p>
+              <p className="text-xs text-white/50">Your social media icons show here. Add your accounts in Settings › Your shop › Social media.</p>
             )}
           </div>
         </AnimationContainer>

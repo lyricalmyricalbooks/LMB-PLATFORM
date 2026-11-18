@@ -53,7 +53,9 @@ describe("admin route ↔ hash", () => {
         expect(subTabPage(base)).toBe(page);
       });
     }
-    expect(routeFromHash("#settings/general/visitors")).toEqual({ tab: "settings", settingsTab: "general", subTab: "gs-visitors" });
+    // General's old Visitors and Tools tabs open the pages they moved to (simpler admin, change 7).
+    expect(routeFromHash("#settings/general/visitors")).toEqual({ tab: "settings", settingsTab: "google" });
+    expect(routeFromHash("#settings/general/tools")).toEqual({ tab: "settings", settingsTab: "data" });
     expect(routeFromHash("#settings/payments/methods")).toEqual({ tab: "settings", settingsTab: "payments", subTab: "pay-methods" });
     expect(routeFromHash("#settings/notifications/deliveries")).toEqual({ tab: "settings", settingsTab: "notifications", subTab: "email-deliveries" });
     expect(routeFromHash("#inventory/link")).toEqual({ tab: "inventory" }); // the old stockroom link page is gone
@@ -66,7 +68,7 @@ describe("admin route ↔ hash", () => {
   it("opens the default sub tab for unknown slugs and pages without sub tabs", () => {
     expect(routeFromHash("#settings/general/nope")).toEqual({ tab: "settings", settingsTab: "general" });
     expect(routeFromHash("#settings/general/details")).toEqual({ tab: "settings", settingsTab: "general" });
-    expect(routeFromHash("#settings/general/store")).toEqual({ tab: "settings", settingsTab: "general", subTab: "gs-store" });
+    expect(routeFromHash("#settings/general/store")).toEqual({ tab: "settings", settingsTab: "general" });
     expect(routeFromHash("#inventory/nope")).toEqual({ tab: "inventory" });
     expect(routeFromHash("#settings/taxes/visitors")).toEqual({ tab: "settings", settingsTab: "taxes" });
     expect(routeFromHash("#customers/link")).toEqual({ tab: "customers" });
@@ -80,9 +82,9 @@ describe("admin route ↔ hash", () => {
     expect(sameSection("#orders", "#customers")).toBe(false);
     expect(sameSection("#settings/general", "#settings/payments")).toBe(false);
     // Switching a sub tab replaces the address too.
-    expect(sameSection("#settings/general", "#settings/general/visitors")).toBe(true);
+    expect(sameSection("#settings/payments", "#settings/payments/methods")).toBe(true);
     expect(sameSection("#inventory/link", "#inventory")).toBe(true);
-    expect(sameSection("#settings/general/visitors", "#settings/payments/methods")).toBe(false);
+    expect(sameSection("#settings/shipping/carrier", "#settings/payments/methods")).toBe(false);
     expect(sameSection("#inventory/link", "#customers")).toBe(false);
   });
 

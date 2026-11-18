@@ -5,6 +5,7 @@ import { diffDesigns, type DiffItem } from "./studio/designDiff";
 import { normalizeDesign } from "./studio/studioModel";
 import { liveLookName, pageRows, publishedLine, waitingWhere, type PageRow } from "./designPageWords";
 import { PageActions, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { RedirectsCard } from "./RedirectsCard";
 import type { StudioLocation } from "../lib/studioLocation";
 
 type Props = {
@@ -78,6 +79,9 @@ export function DesignHome({ settings, onOpenStudio, onViewSite }: Props) {
           ))}
         </ul>
       </section>
+
+      {/* Simpler admin, change 7: old link forwarding lives with your website, not in Settings. */}
+      <div id="gs-redirects"><RedirectsCard /></div>
     </div>
   );
 }
