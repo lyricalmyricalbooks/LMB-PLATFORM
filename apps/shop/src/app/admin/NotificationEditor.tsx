@@ -1,13 +1,17 @@
-import { useState, useEffect, useMemo, type ReactNode, type SyntheticEvent } from "react";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { useState, useEffect, useMemo, useRef, type SyntheticEvent } from "react";
+import { doc, getDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import toast from "react-hot-toast";
-import { placeItemsTable, risoButton, risoLayout, safeLogoUrl } from "./emailTheme";
+import { placeItemsTable, risoButton, risoLayout } from "./emailTheme";
 import { orderPreviewVars, previewItemsTable } from "./emailPreviewData";
 import { GmailSendingCard } from "./GmailSendingCard";
-import { PlatformSenderCard } from "./PlatformSenderCard";
 import { useSenderStatus } from "./senderStatus";
-import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
+import { currentRows } from "./emailLogDisplay";
+import { emailSenderData } from "./emailSenderApi";
+import { deliveryStats, sendMethod } from "./emailSenderView";
+import { EmailDeliveries, type QueuedEmail } from "./EmailDeliveries";
+import { EmailSendingSetup } from "./EmailSendingSetup";
+import "./emailSender.css";
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type EmailLanguage, type TemplateFields } from "./emailTemplateChecks";
 import { FRENCH_DEFAULTS } from "./emailFrenchDefaults";
 import { adminApi } from "./api";
@@ -23,7 +27,7 @@ import { combinedAdmin } from "./combined";
 import { useShopSells } from "./shopWords";
 import { emailDefaultsFor, sellsBooks, withShopEmailWords } from "../../shared/shopSells";
 import {
-  DataTable, ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SectionCard, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
+  ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SecondaryButton, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 
 type EmailView = "email-templates" | "email-setup" | "email-deliveries";
@@ -46,20 +50,7 @@ type EmailLogEntry = {
   outboxId?: string;
 };
 
-/** One email in the server's retry queue (Settings › Notifications › Waiting to send). Never its HTML. */
-type QueuedEmail = {
-  id: string;
-  to: string;
-  subject: string;
-  kind: string;
-  status: "pending" | "failed";
-  attempts: number;
-  nextAttemptAt: string | null;
-  lastError: string;
-  createdAt: string | null;
-};
 
-const MAX_TRIES = 8;
 
 
 type NotificationSettings = {
@@ -254,8 +245,8 @@ const TAB_META: Record<string, { label: string; group: string }> = {
   shipping_confirmation: { label: "Order Shipped", group: "orders" },
   part_shipped: { label: "Part Shipped", group: "orders" },
   delivery_update: { label: "Delivery", group: "orders" },
-  carrier_delivery_update: { label: "Out for delivery and delivered", group: "orders" },
-  request_received: { label: "Return or cancel request received", group: "orders" },
+  carrier_delivery_update: { label: "Out for delivery", group: "orders" },
+  request_received: { label: "Return or cancel request", group: "orders" },
   payment_failed: { label: "Payment didn't go through", group: "orders" },
   order_picked_up: { label: "Picked up", group: "orders" },
   order_cancelled: { label: "Order Cancelled", group: "orders" },
@@ -272,6 +263,15 @@ const GROUP_LABELS: Record<string, string> = { orders: "Orders", cart: "Cart", a
 const TEMPLATE_IDS = Object.keys(DEFAULT_SETTINGS).filter((k) => k !== "brand" && k !== "new_order_admin" && k !== "shopAlerts") as TemplateKey[];
 const TABS = TEMPLATE_IDS.map((id) => ({ id, label: TAB_META[id]?.label || id.replace(/_/g, " "), group: TAB_META[id]?.group || "other" }));
 const GROUP_IDS = [...Object.keys(GROUP_LABELS).filter((g) => TABS.some((t) => t.group === g)), "shopAlerts"];
+
+// The list's two main categories; the rest sit under "More".
+const MAIN_GROUPS = ["orders", "cart"];
+// The order an order's emails happen in, as the redesign lists them (anything not named goes last).
+const LIST_ORDER = ["order_confirmation", "order_pending_payment", "shipping_confirmation", "part_shipped", "order_cancelled", "order_refunded",
+  "payment_link", "payment_link_reminder", "delivery_update", "carrier_delivery_update", "request_received", "payment_failed", "order_picked_up", "review_request"];
+const listOrder = (id: string) => { const i = LIST_ORDER.indexOf(id); return i < 0 ? LIST_ORDER.length : i; };
+/** The sample order's number, as the preview fills it. */
+const SAMPLE_ORDER_ID = fillSample("order_confirmation", "{{order_id}}", {});
 
 const WORD_FIELDS = ["subject", "body", "buttonText", "signoff"] as const;
 /** Emails with no order behind them: they follow the shop's own language, not the shopper's (functions/emailFrench.js). */
@@ -367,7 +367,20 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const [previewOrderId, setPreviewOrderId] = useState("");
   const [deliveryLimit, setDeliveryLimit] = useState(50);
   const [deliveriesMore, setDeliveriesMore] = useState(false);
-  const narrow = useNarrow(640);
+  // Emails sub page: the long placeholder list, the preview width and the "More" categories menu.
+  const [allTokens, setAllTokens] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"desktop" | "phone">("desktop");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [moreOpen]);
   
   // Test Email states
   const [testEmail, setTestEmail] = useState("");
@@ -375,7 +388,6 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [deliveries, setDeliveries] = useState<EmailLogEntry[] | null>(null);
   const [deliveriesError, setDeliveriesError] = useState("");
-  const [deliveryFilter, setDeliveryFilter] = useState<"all" | "attention">("all");
   const [queue, setQueue] = useState<QueuedEmail[]>([]);
   const [queueError, setQueueError] = useState(false);
   // Typed "Days after shipping" while editing, so clearing the box doesn't snap back to 14.
@@ -402,22 +414,22 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
 
   async function loadDeliveries(count = deliveryLimit) {
     try {
-      const snap = await getDocs(query(collection(db, "emailLog"), orderBy("at", "desc"), limit(count)));
-      setDeliveries(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-      setDeliveriesMore(snap.docs.length >= count);
+      const rows = await emailSenderData.readLog(count);
+      setDeliveries(rows as EmailLogEntry[]);
+      setDeliveriesMore(rows.length >= count);
       setDeliveriesError("");
     } catch (err: any) {
       console.warn("Could not load email delivery log:", err);
       setDeliveries([]);
       setDeliveriesError(err?.code === "permission-denied"
         ? "The delivery list isn't switched on for this shop yet (its security rules need updating). Emails still send."
-        : "The delivery list couldn't be loaded. Choose Refresh to try again.");
+        : "The delivery list couldn't be loaded. Check your connection, then try again.");
     }
   }
 
   async function loadQueue() {
     try {
-      const data = await emailFunction({ action: "emailQueue" });
+      const data = await emailSenderData.call({ action: "emailQueue" });
       setQueue(Array.isArray(data.entries) ? data.entries : []);
       setQueueError(false);
     } catch (err) {
@@ -431,7 +443,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   async function retryQueued(entry: QueuedEmail) {
     setQueueBusy(entry.id);
     try {
-      const result = await emailFunction({ action: "retryEmail", id: entry.id });
+      const result = await emailSenderData.call({ action: "retryEmail", id: entry.id });
       if (result.status === "sent") toast.success(`Sent to ${entry.to}.`);
       else toast.error(`Still not sent: ${result.error || "the sender refused it"}${result.status === "queued" ? " It will be tried again automatically." : ""}`);
     } catch (err: any) {
@@ -448,7 +460,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
     if (!ok) return;
     setQueueBusy(entry.id);
     try {
-      await emailFunction({ action: "cancelEmail", id: entry.id });
+      await emailSenderData.call({ action: "cancelEmail", id: entry.id });
       toast.success("Removed from the queue.");
     } catch (err: any) {
       toast.error(plainError(err, "Couldn't stop this email"));
@@ -571,7 +583,8 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
     }));
   };
 
-  const handleSendTestEmail = async () => {
+  // Send a test: the words on screen (saved or not) for `templateId`, with the email look, to the address typed.
+  const sendTest = async (templateId: TemplateKey, language: EmailLanguage) => {
     if (!testEmail || !testEmail.includes("@")) {
       setTestResult({ ok: false, message: "Enter the email address the test should go to." });
       return;
@@ -579,23 +592,20 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
     setSendingTest(true);
     setTestResult(null);
     try {
-      // What is on screen, saved or not: the template's words and the email branding.
-      const { subject, body, buttonText, signoff } = shownWords;
+      const { subject, body, buttonText, signoff } = wordsFor(templateId, data, FRENCH_DEFAULTS[templateId] ? language : "en", shopDefaults);
       const { logoUrl, brandColor, emailTheme } = data.brand || ({} as NotificationSettings["brand"]);
-      await emailFunction({
-        templateId: activeTab,
+      await emailSenderData.call({
+        templateId,
         email: testEmail.trim(),
         template: { subject, body, buttonText, signoff },
-        language: editLanguage,
+        language: FRENCH_DEFAULTS[templateId] ? language : "en",
         brand: { logoUrl, brandColor, emailTheme },
       });
-
-      setTestResult({ ok: true, message: `Sent to ${testEmail.trim()}. Check that inbox (and its spam folder).` });
-      toast.success(`Test email sent to ${testEmail}!`);
+      setTestResult({ ok: true, message: `Sent to ${testEmail.trim()}. Check that inbox, and its spam folder.` });
+      toast.success(`Test email sent to ${testEmail.trim()}`);
     } catch (err: any) {
       console.error("Test Email error:", err);
-      const message = plainError(err, "The test email wasn't sent");
-      setTestResult({ ok: false, message });
+      setTestResult({ ok: false, message: plainError(err, "The test email wasn't sent") });
       toast.error("Test email was not sent.");
     } finally {
       setSendingTest(false);
@@ -652,14 +662,16 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   ];
   const defaults = editLanguage === "fr" ? FRENCH_DEFAULTS[activeTab] : shopDefaults[activeTab];
   const isDefault = WORD_FIELDS.every((k) => (shownWords[k] || "") === (defaults[k] || ""));
-  const resetTemplate = () => {
+  const resetTemplate = async () => {
+    const label = TABS.find((t) => t.id === activeTab)?.label || "this email";
+    if (!(await confirm({ title: `Reset ${label} to the default words?`, message: `Your ${editLanguage === "fr" ? "French" : "English"} words for this email go back to the default. Nothing is saved until you choose Save.`, confirmLabel: "Reset" }))) return;
     // Resetting one language leaves the other language's words as they are.
     setData((prev) => {
       const { fr, ...english } = prev[activeTab] || ({} as TemplateFields);
       const next = editLanguage === "fr" ? english : { ...shopDefaults[activeTab], ...(fr ? { fr } : {}) };
       return { ...prev, [activeTab]: { ...next, enabled: prev[activeTab]?.enabled } };
     });
-    toast.success("Default words restored. Save to keep them, or Discard to undo.");
+    toast.success("Default words back. Save to keep them.");
   };
   const remember = (field: "subject" | "body" | "signoff") => (e: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setCursor({ field, start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd });
@@ -673,32 +685,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
     setCursor({ field, start: next.caret, end: next.caret });
     toast.success(`Added ${token} to the ${field === "body" ? "body copy" : field === "subject" ? "subject line" : "sign-off"}.`);
   };
-  // Needs attention looks at each email's newest row: one a retry later delivered drops out.
-  const attentionRows = currentRows(deliveries || []).filter(needsAttention);
-  const shownDeliveries = deliveryFilter === "all" ? (deliveries || []) : attentionRows;
-  const attentionCount = attentionRows.length;
 
-  const queueColumns = [
-    { key: "status", header: "Status", render: (r: QueuedEmail) => <StatusBadge tone={r.status === "failed" ? "danger" : "warning"}>{r.status === "failed" ? "Gave up" : "Will retry"}</StatusBadge> },
-    { key: "to", header: "To", lead: true, render: (r: QueuedEmail) => r.to || "—" },
-    { key: "subject", header: "Subject", render: (r: QueuedEmail) => r.subject || "—" },
-    { key: "tries", header: "Tries", render: (r: QueuedEmail) => `${r.attempts} of ${MAX_TRIES}` },
-    { key: "next", header: "Next try", render: (r: QueuedEmail) => (r.status === "pending" && r.nextAttemptAt ? new Date(r.nextAttemptAt).toLocaleString() : "—") },
-    { key: "error", header: "Last problem", render: (r: QueuedEmail) => <span style={{ whiteSpace: "normal" }}>{r.lastError || "—"}</span> },
-    { key: "actions", header: "Actions", render: (r: QueuedEmail) => (
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <SecondaryButton size="sm" disabled={!!queueBusy} onClick={() => retryQueued(r)} aria-label={`Retry now: ${r.subject || "email"} to ${r.to}`}>{queueBusy === r.id ? "Sending…" : "Retry now"}</SecondaryButton>
-        <GhostButton size="sm" disabled={!!queueBusy} onClick={() => stopQueued(r)} aria-label={`Stop sending ${r.subject || "email"} to ${r.to}`}>Stop sending</GhostButton>
-      </div>
-    ) },
-  ];
-  const deliveryColumns = [
-    { key: "status", header: "Status", render: (r: EmailLogEntry) => { const badge = emailLogBadge(r); return <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>; } },
-    { key: "when", header: "When", render: (r: EmailLogEntry) => (r.at ? new Date(r.at).toLocaleString() : "—") },
-    { key: "to", header: "To", lead: true, render: (r: EmailLogEntry) => r.to || "—" },
-    { key: "subject", header: "Subject", render: (r: EmailLogEntry) => r.subject || "—" },
-    { key: "detail", header: "Detail", render: (r: EmailLogEntry) => <span style={{ whiteSpace: "normal" }}>{emailLogDetail(r)}</span> },
-  ];
   const senderIssues = senderProblems(sender);
   const senderDirty = JSON.stringify(sender) !== JSON.stringify(senderSaved);
   async function saveSender() {
@@ -744,330 +731,276 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   const gaveUpCount = queue.length - waitingCount;
   const pausedCount = TEMPLATE_IDS.filter((id) => (id === "review_request" ? data[id]?.enabled !== true : data[id]?.enabled === false)).length;
 
+  const stats = deliveryStats(deliveries || []);
+  const problemCount = Object.keys(allProblems).length;
+  const method = sendMethod({ shared: sharedBackup, gmailAddress: senderStatus.gmailAddress, lastKeySource: currentRows(deliveries || []).find((r) => r.status === "sent")?.keySource });
+  const moreGroups = GROUP_IDS.filter((g) => !MAIN_GROUPS.includes(g));
+  const groupLabel = (g: string) => GROUP_LABELS[g] || (g === "shopAlerts" ? "Shop alerts" : g);
+  const listed = [...groupTabs].sort((a, b) => listOrder(a.id) - listOrder(b.id));
+  const templateLabel = TABS.find((t) => t.id === activeTab)?.label || "Email";
+  const tokens = PLACEHOLDERS[activeTab as keyof typeof PLACEHOLDERS] || [];
+  const shownTokens = allTokens ? tokens : tokens.slice(0, 4);
+  const setupSubject = fillSample("order_confirmation", wordsFor("order_confirmation", data, "en", shopDefaults).subject || shopDefaults.order_confirmation.subject, { shop_name: previewShopName, ...orderPreviewVars(null) });
+  const isOn = (id: TemplateKey) => (id === "review_request" ? data[id]?.enabled === true : data[id]?.enabled !== false);
+
   return (
-    <div className="rp-stack">
-      <Tabs<EmailView> variant="page" label="Email sender" value={view} onChange={setView} tabs={[
-        { id: "email-templates", label: "Emails", unsaved: templatesDirty, ...(Object.keys(allProblems).length ? { count: Object.keys(allProblems).length } : {}) },
-        { id: "email-setup", label: "Sending setup", unsaved: brandDirty || senderDirty },
-        { id: "email-deliveries", label: "Deliveries", ...(queue.length + attentionCount ? { count: queue.length + attentionCount } : {}) },
-      ]} />
-      {/* At a glance: what needs the owner, whichever sub tab is open. */}
-      <nav aria-label="Email sender at a glance" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        {queueError ? <StatusBadge tone="warning">Couldn't check the send queue</StatusBadge>
-          : queue.length ? <StatusBadge tone={gaveUpCount ? "danger" : "warning"}>{gaveUpCount ? `${gaveUpCount} email${gaveUpCount === 1 ? "" : "s"} not sent` : `${waitingCount} email${waitingCount === 1 ? "" : "s"} waiting to send`}</StatusBadge>
-          : <StatusBadge tone="success">Nothing waiting to send</StatusBadge>}
-        {deliveries !== null && !deliveriesError && (attentionCount
-          ? <StatusBadge tone="danger">{attentionCount} delivery problem{attentionCount === 1 ? "" : "s"}</StatusBadge>
-          : <StatusBadge tone="success">Recent emails delivered</StatusBadge>)}
-        {Object.keys(allProblems).length > 0 && <StatusBadge tone="warning">{Object.keys(allProblems).length} template{Object.keys(allProblems).length === 1 ? "" : "s"} to check</StatusBadge>}
-        {pausedCount > 0 && <StatusBadge tone="neutral">{pausedCount} customer email{pausedCount === 1 ? "" : "s"} paused</StatusBadge>}
-        {(queue.length > 0 || attentionCount > 0) && <>
-          <span style={{ flex: "1 1 auto" }} />
-          <GhostButton size="sm" onClick={() => { if (attentionCount) setDeliveryFilter("attention"); setView("email-deliveries"); }}>Show deliveries</GhostButton>
-        </>}
-      </nav>
-
-
-      <TabPanel tabId="email-setup" active={view === "email-setup"}>
-      <div className="rp-stack">
-      {/* Plan 6.18: a shop run by Colophon sends through Colophon (or its own address once ready), so the Gmail app
-          password panel is hidden there. */}
-      {sharedBackup ? <PlatformSenderCard /> : <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} sender={senderStatus} />}
-
-      <div id="email-sender" style={{ scrollMarginTop: 16 }} />
-      <SectionCard title="Email sender" description="Who it's from. Where replies go.">
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-          <TextField label="Sender name" value={sender.fromName} placeholder={shopNameDefault} error={senderIssues.fromName}
-            onChange={(e) => setSender(prev => ({ ...prev, fromName: e.target.value }))} />
-          <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="owner@example.com" error={senderIssues.replyTo}
-            hint="Blank = the sending address."
-            onChange={(e) => setSender(prev => ({ ...prev, replyTo: e.target.value }))} />
-          {!sharedBackup && (
-            <TextField label="Backup sender address (Resend)" type="email" value={sender.fromEmail} placeholder="orders@your-domain.com" error={senderIssues.fromEmail}
-              hint="Resend backup only."
-              onChange={(e) => setSender(prev => ({ ...prev, fromEmail: e.target.value }))} />
-          )}
-        </div>
-        {senderError && <p className="rp-error-text" role="alert">{senderError}</p>}
-        <div style={{ marginTop: 12 }}>
-          <PrimaryButton onClick={saveSender} disabled={savingSender || comms === null || !senderDirty || Object.keys(senderIssues).length > 0}>{savingSender ? "Saving…" : "Save email sender"}</PrimaryButton>
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Email branding" description="One look for every email.">
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-          <TextField label="Brand logo URL" value={data.brand?.logoUrl || ""} placeholder="https://domain.com/logo.png"
-            error={data.brand?.logoUrl && !safeLogoUrl(data.brand.logoUrl) ? "Use an https:// image address. Other addresses are left out of emails." : undefined}
-            onChange={(e) => handleBrandChange("logoUrl", e.target.value)} />
-          <div className="rp-field">
-            <label className="rp-label" htmlFor="brand-color">Brand accent color</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input id="brand-color" type="color" aria-label="Pick brand accent color" value={data.brand?.brandColor || "#a9e8c6"} onChange={(e) => handleBrandChange("brandColor", e.target.value)}
-                style={{ width: 48, height: 44, padding: 2, border: "1px solid var(--rp-border)", background: "var(--rp-input-bg)" }} />
-              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#a9e8c6"
-                aria-invalid={badColor || undefined} onChange={(e) => handleBrandChange("brandColor", e.target.value)} />
-            </div>
-            {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #a9e8c6. Until then emails use mint.</p>}
-          </div>
-          <SelectField label="Email theme" value={["dark", "market", "index"].includes(String(data.brand?.emailTheme)) ? String(data.brand?.emailTheme) : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
-            hint="Light = cream page. Dark = night. Market stall and Index match those shop designs.">
-            <option value="light">Light (cream)</option>
-            <option value="dark">Dark (night)</option>
-            <option value="market">Market stall (yellow)</option>
-            <option value="index">Index rows (grey and black)</option>
-          </SelectField>
-        </div>
-        {!sharedBackup && <details style={{ marginTop: 16 }}>
-          <summary className="rp-label" style={{ cursor: "pointer" }}>Advanced: backup sender (Resend){resendStored ? " · key stored" : ""}</summary>
-          <p className="rp-hint">Backup if Gmail fails. Reaches only you without a verified domain.</p>
-          <TextField label="Resend API key" type="password" value={resendDraft} autoComplete="new-password" spellCheck={false}
-            placeholder={resendStored ? "Stored — enter a new key to replace it" : "re_…"}
-            error={resendKeyProblem(resendDraft) || undefined}
-            hint={resendStored ? "✓ A key is stored. It is never shown here." : "Optional if the RESEND_API_KEY Functions secret is set."}
-            onChange={(e) => {
-              const value = e.target.value;
-              setResendDraft(value);
-              // A key that fails the check is never passed up to be saved.
-              handleBrandChange("resendApiKey", resendKeyProblem(value) ? "" : value.trim());
-            }} />
-          {data.brand?.resendApiKeyStored && (
-            <GhostButton size="sm" style={{ marginTop: 6 }} disabled={removingResend} onClick={removeResendKey}>
-              {removingResend ? "Removing…" : "Remove stored key"}
-            </GhostButton>
-          )}
-          {resendStored && resendWasPublic && (
-            <p className="rp-hint" style={{ margin: "12px 0 0", color: "var(--rp-warning)" }}>
-              ⚠ This key was once saved where the storefront could read it and has been moved to the admin-only store. Rotate it in Resend to be safe.
-            </p>
-          )}
-        </details>}
-      </SectionCard>
-
-      </div>
-      </TabPanel>
-
-      <TabPanel tabId="email-templates" active={view === "email-templates"}>
-      <div className="rp-stack">
-      <div>
-        <Tabs label="Event group" value={group} onChange={pickGroup}
-          tabs={GROUP_IDS.map((g) => ({ id: g, label: `${GROUP_LABELS[g] || (g === "shopAlerts" ? "Shop alerts" : g)}${groupProblemCount(g) ? " ⚠" : ""}`, ...(groupProblemCount(g) ? { count: groupProblemCount(g) } : {}) }))} />
-        {group !== "shopAlerts" && groupTabs.length > 1 && (
-          <div style={{ marginTop: 12 }}>
-            <Tabs label="Email template" value={activeTab as string} onChange={(id) => setActiveTab(id as TemplateKey)}
-              tabs={groupTabs.map((t) => ({ id: t.id as string, label: `${t.label}${allProblems[t.id] ? " ⚠" : ""}` }))} />
+    <div className="es-page">
+      <div className="es-head">
+        <Tabs<EmailView> variant="page" label="Email sender" value={view} onChange={setView} tabs={[
+          { id: "email-templates", label: "Emails", unsaved: templatesDirty, ...(problemCount ? { count: problemCount } : {}) },
+          { id: "email-setup", label: "Sending setup", unsaved: brandDirty || senderDirty },
+          { id: "email-deliveries", label: "Deliveries", ...(stats.problems ? { count: stats.problems } : {}) },
+        ]} />
+        {view === "email-templates" && (
+          <div className="es-chips" aria-label="Emails at a glance" role="group">
+            {queueError ? <span className="es-chip" data-tone="warn">Couldn't check the send queue</span>
+              : queue.length ? <button type="button" className="es-chip" data-tone={gaveUpCount ? "problem" : "warn"} onClick={() => setView("email-deliveries")}>{gaveUpCount ? `${gaveUpCount} not sent` : `${waitingCount} waiting to send`}</button>
+              : <span className="es-chip" data-tone="good">Nothing waiting</span>}
+            {deliveries !== null && !deliveriesError && stats.problems > 0 && <button type="button" className="es-chip" data-tone="problem" onClick={() => setView("email-deliveries")}>{stats.problems} delivery problem{stats.problems === 1 ? "" : "s"}</button>}
+            {problemCount > 0 && <span className="es-chip" data-tone="warn">{problemCount} email{problemCount === 1 ? "" : "s"} to check</span>}
+            {pausedCount > 0 && <span className="es-chip">{pausedCount} email{pausedCount === 1 ? "" : "s"} off</span>}
           </div>
         )}
       </div>
 
-      {group === "shopAlerts" ? (
-        <SectionCard title="Shop alerts" description="Emails to you, not customers.">
-          <div className="rp-stack" style={{ gap: 16 }}>
-            <Toggle label="New order alerts — a paid order, or an order waiting for a manual payment" checked={shopAlerts.newOrder !== false}
-              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, newOrder: on } })} />
-            <p className="rp-hint" style={{ margin: 0 }}>Subject “[NEW ORDER] …”, fixed so filters keep working.</p>
-            <Toggle label="Shipped copy — a copy of each order you mark as shipped" checked={shopAlerts.shipped !== false}
-              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, shipped: on } })} />
-            <Toggle label="Daily “orders needing you” email (8am)" checked={shopAlerts.dailyOrderDigest !== false}
-              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, dailyOrderDigest: on } })} />
-            <p className="rp-hint" style={{ margin: 0 }}>Late orders, stuck parcels, odd labels. Silent on quiet days.</p>
-            <Toggle label="Running low — products that reach your low-stock line (in the 8am email)" checked={shopAlerts.lowStock !== false}
-              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, lowStock: on } })} />
-            <p className="rp-hint" style={{ margin: 0 }}>Once per item, again if it sells out. Set the line in Inventory.</p>
-            <Toggle label="Social post didn't go out — a scheduled post that Facebook, Instagram, Pinterest or TikTok refused" checked={shopAlerts.socialPostFailed !== false}
-              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, socialPostFailed: on } })} />
-            <Toggle label="Monday summary — last week's sales and visits, with a PDF of the highlights (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
-              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
-            <p className="rp-hint" style={{ margin: 0 }}>Sales, visits and best sellers vs last week.</p>
-            <WeeklySummaryNow />
-            {combinedAdmin() && (
-              <>
-                <Toggle label="Fair day summary — the day's takings at the Till and what sold (evenings, 9pm)" checked={shopAlerts.fairDaySummary !== false}
-                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, fairDaySummary: on } })} />
-                <p className="rp-hint" style={{ margin: 0 }}>Only on a day the Till sold something.</p>
-                <FairDaySummaryNow />
-              </>
-            )}
-          </div>
-        </SectionCard>
-      ) : (
-      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 460px), 1fr))" }}>
-        <SectionCard title={TABS.find((t) => t.id === activeTab)?.label || "Template"}
-          actions={<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            {!isDefault && <SecondaryButton size="sm" onClick={resetTemplate}>Reset to default</SecondaryButton>}
-            <StatusBadge tone={enabled ? "success" : "neutral"}>{enabled ? "Sending" : "Paused"}</StatusBadge>
-          </div>}>
-          <div className="rp-stack" style={{ gap: 20 }}>
-            <Toggle label="Send this email automatically" checked={enabled} onChange={() => handleToggleActive()} />
-            {activeTab === "review_request" && (
-              <TextField label="Days after shipping" type="number" min={1} max={90}
-                value={delayDraft ?? String((currentTemplate as any).delayDays ?? 14)}
-                hint="Days after shipping (1–90)."
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setDelayDraft(v);
-                  const n = Number(v);
-                  if (v.trim() !== "" && Number.isFinite(n) && n >= 1 && n <= 90) handleFieldChange("delayDays" as any, Math.round(n) as any);
-                }}
-                onBlur={() => {
-                  if (delayDraft !== null) {
-                    const n = Number(delayDraft);
-                    // Empty or invalid keeps the last good value; numbers out of range are clamped.
-                    if (delayDraft.trim() !== "" && Number.isFinite(n)) handleFieldChange("delayDays" as any, Math.min(90, Math.max(1, Math.round(n))) as any);
-                  }
-                  setDelayDraft(null);
-                }} />
-            )}
-            {hasFrench && (
-              <div>
-                <Tabs label="Language of this email" idPrefix="lang-" variant="page" value={editLanguage} onChange={(id) => setLanguage(id as EmailLanguage)}
-                  tabs={[{ id: "en", label: "English" }, { id: "fr", label: "French" }]} />
-                <p className="rp-hint" style={{ margin: "8px 0 0" }}>
-                  {NO_ORDER_EMAILS.has(activeTab)
-                    ? (editLanguage === "fr" ? "Used when your shop is in French." : "Sent in French when your shop is in French.")
-                    : (editLanguage === "fr" ? "For customers who shop in French. One switch covers both." : "Customers who shop in French get the French version.")}
-                </p>
-              </div>
-            )}
-            <TextField label="Subject line" value={shownWords.subject} placeholder="Subject line" onSelect={remember("subject")} onChange={(e) => handleWordChange("subject", e.target.value)} />
-            <TextArea label="Body copy" rows={7} value={shownWords.body} placeholder="Write your email body here…" onSelect={remember("body")} onChange={(e) => handleWordChange("body", e.target.value)} />
-            <TextField label="Button text" value={shownWords.buttonText} placeholder="View details" hint="Leave blank to hide the button." onChange={(e) => handleWordChange("buttonText", e.target.value)} />
-            <TextArea label="Sign-off" rows={2} value={shownWords.signoff} placeholder="Thanks," style={{ minHeight: 64 }} onSelect={remember("signoff")} onChange={(e) => handleWordChange("signoff", e.target.value)} />
-
-            {problems.length > 0 && (
-              <div role="status" className="rp-stack" style={{ gap: 8 }}>
-                {problems.map((p) => (
-                  <p key={p.text} className="rp-hint" style={{ margin: 0, padding: 12, border: `1px solid var(--rp-${p.tone})`, color: `var(--rp-${p.tone})`, background: `var(--rp-${p.tone}-tint)` }}>
-                    {p.tone === "danger" ? "✕ " : "! "}{p.text}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            <div>
-              <div className="rp-sect">Placeholders</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {(PLACEHOLDERS[activeTab as keyof typeof PLACEHOLDERS] || []).map((name) => (
-                  <button key={name} type="button" className="rp-btn rp-btn-secondary rp-btn-sm rp-mono" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}
-                    onMouseDown={(e) => e.preventDefault()} onClick={() => addPlaceholder(name)}>{`{{${name}}}`}</button>
-                ))}
-              </div>
-              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Click to insert at your cursor.</p>
-            </div>
-
-            <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
-              <div className="rp-sect">Send a test</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
-                <div id="notif-send-test" style={{ flex: "1 1 220px" }}>
-                  <TextField label="Send test to" type="email" value={testEmail} placeholder="admin@example.com" onChange={(e) => setTestEmail(e.target.value)} />
+      <TabPanel tabId="email-templates" active={view === "email-templates"}>
+        <div className="es-emails" data-alerts={group === "shopAlerts" || undefined}>
+          <nav className="es-card es-list" aria-label="Emails your shop sends">
+            <div className="es-pills" role="group" aria-label="Kind of email">
+              {MAIN_GROUPS.filter((g) => GROUP_IDS.includes(g)).map((g) => (
+                <button key={g} type="button" className="es-pill" aria-pressed={group === g} onClick={() => pickGroup(g)}>
+                  {groupLabel(g)}{groupProblemCount(g) ? <span className="es-count" aria-label={`${groupProblemCount(g)} to check`}> ⚠</span> : null}
+                </button>
+              ))}
+              {moreGroups.length > 0 && (
+                <div className="es-more" ref={moreRef}>
+                  <button type="button" className="es-pill" aria-haspopup="true" aria-expanded={moreOpen || moreGroups.includes(group)}
+                    onClick={() => setMoreOpen((o) => !o)}>{moreGroups.includes(group) ? groupLabel(group) : "More"} <span aria-hidden="true">▾</span></button>
+                  {moreOpen && (
+                    <div className="es-menu" role="menu">
+                      {moreGroups.map((g) => (
+                        <button key={g} type="button" role="menuitem" aria-current={group === g || undefined} onClick={() => { pickGroup(g); setMoreOpen(false); }}>
+                          {groupLabel(g)}{groupProblemCount(g) ? <span className="es-tag" data-tone="problem">Check</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <SecondaryButton onClick={handleSendTestEmail} disabled={sendingTest}>{sendingTest ? "Sending…" : "Send test"}</SecondaryButton>
+              )}
+            </div>
+            {group === "shopAlerts" ? (
+              <p className="es-hint" style={{ padding: "8px 12px" }}>Emails to you, not your customers.</p>
+            ) : (
+              <ul className="es-rows">
+                {listed.map((t) => (
+                  <li key={t.id}>
+                    <button type="button" className="es-msg" aria-current={activeTab === t.id || undefined} onClick={() => setActiveTab(t.id)}>
+                      <span className="es-dot" data-on={isOn(t.id) || undefined} aria-hidden="true" />
+                      <span>{t.label}{!isOn(t.id) && <span className="rp-sr-only"> (off)</span>}</span>
+                      {allProblems[t.id] ? <span className="es-tag" data-tone="problem">Check</span> : !isOn(t.id) ? <span className="es-tag" aria-hidden="true">Off</span> : <span />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </nav>
+
+          {group === "shopAlerts" ? (
+            <section className="es-card es-editor" aria-labelledby="es-alerts-title">
+              <div className="es-editor-head"><h2 className="es-title" id="es-alerts-title">Shop alerts</h2></div>
+              <div className="rp-stack" style={{ gap: 16 }}>
+                <Toggle label="New order alerts — a paid order, or an order waiting for a manual payment" checked={shopAlerts.newOrder !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, newOrder: on } })} />
+                <p className="es-hint">Subject “[NEW ORDER] …”, fixed so filters keep working.</p>
+                <Toggle label="Shipped copy — a copy of each order you mark as shipped" checked={shopAlerts.shipped !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, shipped: on } })} />
+                <Toggle label="Daily “orders needing you” email (8am)" checked={shopAlerts.dailyOrderDigest !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, dailyOrderDigest: on } })} />
+                <p className="es-hint">Late orders, stuck parcels, odd labels. Silent on quiet days.</p>
+                <Toggle label="Running low — products that reach your low-stock line (in the 8am email)" checked={shopAlerts.lowStock !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, lowStock: on } })} />
+                <p className="es-hint">Once per item, again if it sells out. Set the line in Inventory.</p>
+                <Toggle label="Social post didn't go out — a scheduled post that Facebook, Instagram, Pinterest or TikTok refused" checked={shopAlerts.socialPostFailed !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, socialPostFailed: on } })} />
+                <Toggle label="Monday summary — last week's sales and visits, with a PDF of the highlights (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
+                  onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
+                <p className="es-hint">Sales, visits and best sellers vs last week.</p>
+                <WeeklySummaryNow />
+                {combinedAdmin() && (
+                  <>
+                    <Toggle label="Fair day summary — the day's takings at the Till and what sold (evenings, 9pm)" checked={shopAlerts.fairDaySummary !== false}
+                      onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, fairDaySummary: on } })} />
+                    <p className="es-hint">Only on a day the Till sold something.</p>
+                    <FairDaySummaryNow />
+                  </>
+                )}
               </div>
-              {testResult && (
-                <p role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${testResult.ok ? "--rp-success" : "--rp-danger"})`, color: `var(${testResult.ok ? "--rp-success" : "--rp-danger"})`, background: `var(${testResult.ok ? "--rp-success-tint" : "--rp-danger-tint"})` }}>
-                  {testResult.ok ? "✓ " : "✕ "}{testResult.message}
+              <div className="es-foot">
+                <div className="es-row">
+                  <PrimaryButton onClick={handleSave} disabled={saving || !dirty}>{saving ? "Saving…" : dirty ? "Save" : "Saved"}</PrimaryButton>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <>
+              <section className="es-card es-editor" aria-labelledby="es-editor-title">
+                <div className="es-editor-head">
+                  <h2 className="es-title" id="es-editor-title">{templateLabel}</h2>
+                  <span className="es-auto">
+                    <span id="es-auto-label">Send automatically</span>
+                    <button type="button" role="switch" className="es-switch" aria-checked={enabled} aria-labelledby="es-auto-label" onClick={() => handleToggleActive()} />
+                  </span>
+                </div>
+                {activeTab === "review_request" && (
+                  <TextField label="Days after shipping" type="number" min={1} max={90}
+                    value={delayDraft ?? String((currentTemplate as any).delayDays ?? 14)}
+                    hint="1 to 90 days."
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDelayDraft(v);
+                      const n = Number(v);
+                      if (v.trim() !== "" && Number.isFinite(n) && n >= 1 && n <= 90) handleFieldChange("delayDays" as any, Math.round(n) as any);
+                    }}
+                    onBlur={() => {
+                      if (delayDraft !== null) {
+                        const n = Number(delayDraft);
+                        // Empty or invalid keeps the last good value; numbers out of range are clamped.
+                        if (delayDraft.trim() !== "" && Number.isFinite(n)) handleFieldChange("delayDays" as any, Math.min(90, Math.max(1, Math.round(n))) as any);
+                      }
+                      setDelayDraft(null);
+                    }} />
+                )}
+                {hasFrench && (
+                  <div className="es-lang">
+                    <Tabs label="Language of this email" idPrefix="lang-" variant="page" value={editLanguage} onChange={(id) => setLanguage(id as EmailLanguage)}
+                      tabs={[{ id: "en", label: "English" }, { id: "fr", label: "French" }]} />
+                    <p className="es-hint">
+                      {NO_ORDER_EMAILS.has(activeTab)
+                        ? (editLanguage === "fr" ? "Used when your shop is in French." : "Sent in French when your shop is in French.")
+                        : (editLanguage === "fr" ? "For shoppers who shop in French." : "French shoppers get the French version.")}
+                    </p>
+                  </div>
+                )}
+                <TextField label="Subject" value={shownWords.subject} placeholder="Subject line" onSelect={remember("subject")} onChange={(e) => handleWordChange("subject", e.target.value)} />
+                <TextArea label="Body" rows={6} value={shownWords.body} placeholder="Write your email here…" onSelect={remember("body")} onChange={(e) => handleWordChange("body", e.target.value)} />
+                <div className="es-two">
+                  <TextField label="Button" value={shownWords.buttonText} placeholder="No button" hint="Blank hides the button." onChange={(e) => handleWordChange("buttonText", e.target.value)} />
+                  <TextArea label="Sign-off" rows={2} value={shownWords.signoff} placeholder="Thanks," style={{ minHeight: 48 }} onSelect={remember("signoff")} onChange={(e) => handleWordChange("signoff", e.target.value)} />
+                </div>
+                {tokens.length > 0 && (
+                  <div className="es-insert" role="group" aria-label="Insert a detail at your cursor">
+                    <span className="es-insert-label">Insert</span>
+                    {shownTokens.map((name) => (
+                      <button key={name} type="button" className="es-token" title={`Insert {{${name}}}`} aria-label={`Insert ${name.replace(/_/g, " ")}`}
+                        onMouseDown={(e) => e.preventDefault()} onClick={() => addPlaceholder(name)}>{name}</button>
+                    ))}
+                    {tokens.length > 4 && (
+                      <button type="button" className="es-token" data-more aria-expanded={allTokens} onClick={() => setAllTokens((v) => !v)}>
+                        {allTokens ? "Fewer" : `+${tokens.length - 4} more`}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {problems.length > 0 && (
+                  <div role="status" className="rp-stack" style={{ gap: 8 }}>
+                    {problems.map((p) => <p key={p.text} className="es-note" data-tone={p.tone === "danger" ? "problem" : "warn"}>{p.text}</p>)}
+                  </div>
+                )}
+                <div className="es-foot">
+                  <form className="es-row" onSubmit={(e) => { e.preventDefault(); void sendTest(activeTab, editLanguage); }}>
+                    <div className="es-test">
+                      <label htmlFor="es-test-to">Test to:</label>
+                      <input id="es-test-to" type="email" value={testEmail} placeholder="you@yourpress.example" onChange={(e) => setTestEmail(e.target.value)} />
+                    </div>
+                    <SecondaryButton type="submit" className="es-outline" disabled={sendingTest}>{sendingTest ? "Sending…" : "Send test"}</SecondaryButton>
+                  </form>
+                  {testResult && view === "email-templates" && <p className="es-note" data-tone={testResult.ok ? "good" : "problem"} role="status">{testResult.message}</p>}
+                  <div className="es-row">
+                    <PrimaryButton onClick={handleSave} disabled={saving || !dirty}>{saving ? "Saving…" : dirty ? "Save" : "Saved"}</PrimaryButton>
+                    {dirty && <GhostButton onClick={() => { setData(JSON.parse(original)); setResendDraft(""); }}>Discard</GhostButton>}
+                    {!isDefault && <GhostButton onClick={() => { void resetTemplate(); }}>Reset to default</GhostButton>}
+                    {problemLabels.length > 0 && <span className="es-hint">Check: {problemLabels.join(", ")}</span>}
+                  </div>
+                </div>
+              </section>
+
+              <section className="es-card es-preview" aria-labelledby="es-preview-title">
+                <div className="es-card-head" style={{ margin: 0 }}>
+                  <h3 className="es-card-title" id="es-preview-title">Live preview</h3>
+                  <div className="es-pills" role="radiogroup" aria-label="Preview width">
+                    {(["desktop", "phone"] as const).map((m) => (
+                      <button key={m} type="button" role="radio" className="es-pill" aria-checked={previewMode === m} onClick={() => setPreviewMode(m)}>{m === "desktop" ? "Desktop" : "Phone"}</button>
+                    ))}
+                  </div>
+                </div>
+                <select className="es-select" aria-label="Preview with" value={previewOrderId} onFocus={loadRecentOrders} onMouseEnter={loadRecentOrders} onChange={(e) => setPreviewOrderId(e.target.value)}>
+                  <option value="">Sample order{SAMPLE_ORDER_ID ? ` · ${SAMPLE_ORDER_ID}` : ""}</option>
+                  {(recentOrders || []).map((o) => <option key={o.id} value={o.id}>{o.orderId || o.id} · {o.customer?.name || o.customer?.email || "Customer"}</option>)}
+                </select>
+                <p className="es-subject"><span className="rp-sr-only">Subject: </span>{subjectPreview}</p>
+                <div className="es-well" data-mode={previewMode}>
+                  <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder, previewShopName, shopDefaults, editLanguage)} sandbox="" title={`Preview of the ${templateLabel} email`} />
+                </div>
+                <p className="es-hint">{previewOrder ? "A real order's details. Nothing is sent." : "Sample details. Nothing is sent."}</p>
+              </section>
+            </>
+          )}
+        </div>
+      </TabPanel>
+
+      <TabPanel tabId="email-setup" active={view === "email-setup"}>
+        <EmailSendingSetup method={method} shared={sharedBackup} gmailAddress={senderStatus.gmailAddress} deliveries={deliveries}
+          sender={sender} setSender={setSender} senderIssues={senderIssues} shopNameDefault={shopNameDefault}
+          senderDirty={senderDirty} savingSender={savingSender} senderReady={comms !== null} senderError={senderError} onSaveSender={() => { void saveSender(); }}
+          brand={data.brand || {}} onBrand={handleBrandChange} badColor={badColor} lookDirty={brandDirty} savingLook={saving} onSaveLook={() => { void handleSave(); }}
+          subjectSample={setupSubject}
+          testEmail={testEmail} setTestEmail={setTestEmail} sendingTest={sendingTest} testResult={view === "email-setup" ? testResult : null}
+          onSendTest={() => { void sendTest("order_confirmation", "en"); }}
+          gmailCard={sharedBackup ? undefined : <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} sender={senderStatus} />}
+          backup={sharedBackup ? undefined : (
+            <details style={{ marginTop: 16 }}>
+              <summary className="rp-label" style={{ cursor: "pointer" }}>Advanced: backup sender (Resend){resendStored ? " · key stored" : ""}</summary>
+              <p className="es-hint" style={{ margin: "8px 0" }}>Backup if Gmail fails. Reaches only you without a verified domain.</p>
+              <TextField label="Resend API key" type="password" value={resendDraft} autoComplete="new-password" spellCheck={false}
+                placeholder={resendStored ? "Stored — enter a new key to replace it" : "re_…"}
+                error={resendKeyProblem(resendDraft) || undefined}
+                hint={resendStored ? "✓ A key is stored. It is never shown here." : "Optional if the RESEND_API_KEY Functions secret is set."}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setResendDraft(value);
+                  // A key that fails the check is never passed up to be saved.
+                  handleBrandChange("resendApiKey", resendKeyProblem(value) ? "" : value.trim());
+                }} />
+              {data.brand?.resendApiKeyStored && (
+                <GhostButton size="sm" style={{ marginTop: 6 }} disabled={removingResend} onClick={removeResendKey}>
+                  {removingResend ? "Removing…" : "Remove stored key"}
+                </GhostButton>
+              )}
+              {resendStored && resendWasPublic && (
+                <p className="es-note" data-tone="warn" style={{ marginTop: 12 }}>
+                  This key was once saved where the storefront could read it and has been moved to the admin-only store. Rotate it in Resend to be safe.
                 </p>
               )}
-              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Sends this draft with sample details.</p>
-            </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Live preview" description={subjectPreview}>
-          <div style={{ marginBottom: 12 }} onFocus={loadRecentOrders} onMouseEnter={loadRecentOrders}>
-            <SelectField label="Preview with" value={previewOrderId} onChange={(e) => setPreviewOrderId(e.target.value)}
-              hint="Preview with a real order. Nothing sent.">
-              <option value="">Sample order</option>
-              {(recentOrders || []).map((o) => <option key={o.id} value={o.id}>{o.orderId || o.id} · {o.customer?.name || o.customer?.email || "Customer"}</option>)}
-            </SelectField>
-          </div>
-          <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder, previewShopName, shopDefaults, editLanguage)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
-            style={{ width: "100%", height: 560, border: "1px solid var(--rp-border)", background: "var(--rp-surface)" }} />
-        </SectionCard>
-      </div>
-      )}
-
-      </div>
+            </details>
+          )} />
       </TabPanel>
 
       <TabPanel tabId="email-deliveries" active={view === "email-deliveries"}>
-      <div className="rp-stack">
-      {queueError && queue.length === 0 && (
-        <SectionCard title="Waiting to send" collapsible={false}>
-          <ErrorState title="Couldn't check for emails waiting to send" description="Some emails may be waiting to be tried again. Recent deliveries below still lists every attempt." onRetry={() => { void loadQueue(); }} />
-        </SectionCard>
-      )}
-      {queue.length > 0 && (
-        <div id="email-waiting" style={{ scrollMarginTop: 16 }}>
-        <SectionCard title="Waiting to send" collapsible={false} description={`Retried automatically, up to ${MAX_TRIES} times.`}
-          actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>
-          <RowsOrCards narrow={narrow} caption="Emails waiting to be sent again" rows={queue} rowKey={(r) => r.id}
-            rowState={(r) => (r.status === "failed" ? "failed" : undefined)} columns={queueColumns} />
-        </SectionCard>
-        </div>
-      )}
-
-      <SectionCard title="Recent deliveries" description="Last 90 days, newest first."
-        actions={<GhostButton onClick={() => { loadDeliveries(); loadQueue(); }}>Refresh</GhostButton>} flush>
-        <div style={{ padding: "12px 16px 0" }}>
-          <Tabs label="Show deliveries" value={deliveryFilter} onChange={(id) => setDeliveryFilter(id === "attention" ? "attention" : "all")}
-            tabs={[{ id: "all", label: "All", count: (deliveries || []).length }, { id: "attention", label: "Needs attention", count: attentionCount }]} />
-        </div>
-        <RowsOrCards narrow={narrow} caption="Recent email deliveries" rows={shownDeliveries} rowKey={(r) => r.id}
-          rowState={(r) => (r.status === "failed" ? "failed" : undefined)}
-          empty={<p className="rp-hint" style={{ margin: 0, padding: 16 }}>{deliveriesError || (deliveries === null ? "Loading…" : deliveryFilter === "attention" ? "Nothing needs attention — every recent email was accepted." : "No emails recorded yet. Send a test to check the setup.")}</p>}
-          columns={deliveryColumns} />
-        {deliveriesMore && (
-          <div style={{ padding: 16 }}>
-            <SecondaryButton size="sm" onClick={() => { const next = deliveryLimit + 50; setDeliveryLimit(next); loadDeliveries(next); }}>Load 50 more</SecondaryButton>
-          </div>
-        )}
-      </SectionCard>
-      </div>
+        <EmailDeliveries deliveries={deliveries} error={deliveriesError} more={deliveriesMore}
+          onMore={() => { const next = deliveryLimit + 50; setDeliveryLimit(next); void loadDeliveries(next); }}
+          queue={queue} queueError={queueError} busy={queueBusy}
+          onRetry={(entry) => { void retryQueued(entry); }} onStop={(entry) => { void stopQueued(entry); }}
+          onRefresh={() => { void loadDeliveries(); void loadQueue(); }} onOpenSetup={() => setView("email-setup")} />
       </TabPanel>
 
-      <SaveBar dirty={dirty} saving={saving} onSave={handleSave}
-        onDiscard={() => { setData(JSON.parse(original)); setResendDraft(""); }}
-        message={problemLabels.length ? `Unsaved template changes. Check: ${problemLabels.join(", ")}.` : "You have unsaved template changes."} />
+      {/* The Emails page has its own Save; the bar keeps a look or alert edit from being lost on the other pages. */}
+      {view !== "email-templates" && (
+        <SaveBar dirty={dirty} saving={saving} onSave={handleSave}
+          onDiscard={() => { setData(JSON.parse(original)); setResendDraft(""); }}
+          message={problemLabels.length ? `Unsaved email changes. Check: ${problemLabels.join(", ")}.` : "You have unsaved email changes."} />
+      )}
       {confirmNode}
     </div>
-  );
-}
-
-/** Under 640px each row becomes a stacked card (label: value), so nothing scrolls sideways. */
-function useNarrow(px: number) {
-  const query = `(max-width: ${px - 0.02}px)`;
-  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia?.(query);
-    if (!mq) return;
-    const on = () => setNarrow(mq.matches);
-    mq.addEventListener?.("change", on);
-    return () => mq.removeEventListener?.("change", on);
-  }, [query]);
-  return narrow;
-}
-
-function RowsOrCards<T>({ narrow, columns, rows, rowKey, caption, empty, rowState }: {
-  narrow: boolean; columns: Array<{ key: string; header: string; lead?: boolean; render: (r: T) => ReactNode }>; rows: T[]; rowKey: (r: T) => string;
-  caption: string; empty?: ReactNode; rowState?: (r: T) => "failed" | undefined;
-}) {
-  if (!narrow) return <DataTable<T> caption={caption} rows={rows} rowKey={rowKey} rowState={rowState} empty={empty} columns={columns} />;
-  if (!rows.length && empty) return <>{empty}</>;
-  return (
-    <ul aria-label={caption} style={{ listStyle: "none", margin: 0, padding: 0 }}>
-      {rows.map((r) => (
-        <li key={rowKey(r)} style={{ padding: 16, borderBottom: "1px solid var(--rp-divider)", background: rowState?.(r) === "failed" ? "var(--rp-danger-tint)" : undefined }}>
-          <dl style={{ margin: 0, display: "grid", gap: 6 }}>
-            {columns.map((c) => (
-              <div key={c.key} style={{ display: "grid", gridTemplateColumns: "88px 1fr", gap: 8, alignItems: "start" }}>
-                <dt className="rp-label" style={{ margin: 0 }}>{c.header}</dt>
-                <dd style={{ margin: 0, minWidth: 0, overflowWrap: "anywhere", fontWeight: c.lead ? 600 : undefined }}>{c.render(r)}</dd>
-              </div>
-            ))}
-          </dl>
-        </li>
-      ))}
-    </ul>
   );
 }
 
