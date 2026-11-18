@@ -4,6 +4,7 @@
 //   fm-mbr-price   big price with its interval       fm-mbr-perks   what members get, one per line
 //   fm-mbr-facts   the account card's rows           fm-mbr-actions the account card's buttons
 //   fm-mbr-member-price  a plan's member price line, marked with the shop's accent
+//   fm-mbr-ship    a box membership's address        fm-mbr-address the address form (fm-mbr-field each, fm-mbr-wide full row)
 const S = ".fm-track";
 
 export const MEMBERSHIP_CSS = [
@@ -23,4 +24,14 @@ export const MEMBERSHIP_CSS = [
   `.fm-mbr-facts dt{color:var(--muted, currentColor);font-size:14px;}`,
   `.fm-mbr-facts dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;}`,
   `.fm-mbr-actions{display:flex;flex-wrap:wrap;gap:12px;}`,
+  `.fm-mbr-ship{display:grid;gap:12px;padding-top:16px;border-top:1px solid color-mix(in srgb, currentColor 14%, transparent);}`,
+  `.fm-mbr-ship dd{text-align:right;line-height:1.5;overflow-wrap:anywhere;}`,
+  `.fm-mbr-address{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;padding-top:16px;border-top:1px solid color-mix(in srgb, currentColor 14%, transparent);}`,
+  `.fm-mbr-wide{grid-column:1/-1;}`,
+  `.fm-mbr-field{display:grid;gap:6px;min-width:0;}`,
+  `.fm-mbr-field label{font-size:13px;font-weight:600;color:var(--muted, currentColor);}`,
+  `.fm-mbr-field input,.fm-mbr-field select{width:100%;min-height:44px;padding:10px 14px;border-radius:12px;border:1px solid color-mix(in srgb, currentColor 22%, transparent);background:transparent;color:inherit;font:inherit;font-size:15px;}`,
+  `.fm-mbr-field select option{background:Canvas;color:CanvasText;}`,
+  `.fm-mbr-field input:focus-visible,.fm-mbr-field select:focus-visible{outline:2px solid var(--accent, currentColor);outline-offset:1px;}`,
+  `@media (max-width:560px){.fm-mbr-address{grid-template-columns:minmax(0,1fr);}}`,
 ].join("\n");

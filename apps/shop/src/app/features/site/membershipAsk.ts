@@ -6,16 +6,18 @@ import { functionFetch } from "../../lib/functionsBase";
 import { shopCurrency } from "../../../lib/shopProfile";
 import { isBookingPreview } from "./bookTimePreview";
 import { previewMembershipAnswer } from "./membershipPreview";
-import type { MemberState, PlanInterval } from "../../../shared/membershipRules";
+import type { BoxAddress, MemberState, PlanBox, PlanInterval } from "../../../shared/membershipRules";
 
-export type PublicPlan = { id: string; name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string; memberPercent?: number };
+export type PublicPlan = { id: string; name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string; memberPercent?: number; box?: PlanBox };
 export type MembershipInfo = { on: boolean; currency?: string; ready?: boolean; plans?: PublicPlan[] };
 export type MyMembership = {
   id: string; state: MemberState; plan: { name: string; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string } | null;
   periodEnd: string; trialEnd: string; card: { brand: string; last4: string } | null; startedAt: string; endedAt: string; test: boolean; cardPending: boolean;
+  /** A box membership (M3a): where the boxes go, null until the member gives one. */
+  box?: boolean; address?: BoxAddress | null;
 };
 
-export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard" | "membershipPage";
+export type MembershipAction = "membershipInfo" | "membershipJoin" | "membershipMine" | "membershipCancel" | "membershipResume" | "membershipCard" | "membershipPage" | "membershipAddress";
 
 export async function askMembership(action: MembershipAction, body: Record<string, unknown> = {}, user?: User | null): Promise<Record<string, any>> {
   if (isBookingPreview()) return previewMembershipAnswer(action, body, shopCurrency());

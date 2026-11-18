@@ -2,7 +2,8 @@
 // Keep my membership and Use a new card. `/account/membership` (the emails' link) scrolls here; `?joined=<id>` is the
 // card provider's way back after joining (it asks again while the payment settles), `?card=<id>` after a new card, and
 // `?join=<plan>` is a guest who chose a plan on the Membership page and has now signed in. The server decides
-// everything; words are Text & labels › Customer account › Membership.
+// everything; words are Text & labels › Customer account › Membership. A box membership (M3) also shows where the boxes go,
+// with Add or Change address (the server checks it, `membershipAddress`).
 import { useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { useLocation } from "react-router";
@@ -12,7 +13,8 @@ import { regionProps } from "./storefrontRegions";
 import { askMembership, type MyMembership } from "./membershipAsk";
 import { moneyText } from "./bookTimeRules";
 import { MEMBERSHIP_CSS } from "./membershipStyle";
-import { memberCan, memberNext, membershipErrorKey, memberStateKey, planEveryKey } from "./membershipWords";
+import { addressLine, memberCan, memberNext, membershipErrorKey, memberStateKey, planEveryKey } from "./membershipWords";
+import type { BoxAddress } from "../../../shared/membershipRules";
 import { useMembershipsLive } from "./membershipLive";
 
 const dateText = (iso: string) => {
@@ -43,6 +45,7 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
   const [busy, setBusy] = useState("");
   const [problem, setProblem] = useState("");
   const [note, setNote] = useState(q.has("card") ? "accountMemberCardSaved" : "");
+  const [editing, setEditing] = useState("");
   const ref = useRef<HTMLElement>(null);
   const tries = useRef(0);
 
@@ -75,6 +78,20 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
       if (answer.membership) setRows((now) => (now || []).map((r) => (r.id === m.id ? (answer.membership as MyMembership) : r)));
       if (action === "membershipCancel") setNote("accountMemberCancelled");
       if (action === "membershipResume") setNote("accountMemberResumed");
+    } catch (err: any) {
+      setProblem(membershipErrorKey(err?.code, err?.status));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const saveAddress = async (m: MyMembership, address: BoxAddress) => {
+    if (busy) return;
+    setBusy("membershipAddress"); setProblem(""); setNote("");
+    try {
+      const answer = await askMembership("membershipAddress", { id: m.id, address }, user);
+      if (answer.membership) setRows((now) => (now || []).map((r) => (r.id === m.id ? (answer.membership as MyMembership) : r)));
+      setEditing(""); setNote("accountMemberAddressSaved");
     } catch (err: any) {
       setProblem(membershipErrorKey(err?.code, err?.status));
     } finally {
@@ -134,6 +151,9 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
                   {next && <div><dt>{c("accountMemberWhen")}</dt><dd>{c(next.key, { date: next.at ? dateText(next.at) : "" })}</dd></div>}
                   {m.card && can.card && <div><dt>{c("accountMemberCard")}</dt><dd>{c("accountMemberCardEnding", { brand: m.card.brand ? m.card.brand[0].toUpperCase() + m.card.brand.slice(1) : "", last4: m.card.last4 })}</dd></div>}
                 </dl>
+                {m.box && m.state !== "ended" && m.state !== "pending" && (
+                  <BoxAddressPart c={c} m={m} editing={editing === m.id} busy={busy} onEdit={(on) => { setEditing(on ? m.id : ""); setProblem(""); setNote(""); }} onSave={(a) => saveAddress(m, a)} />
+                )}
                 {m.cardPending && <p role="status" className="text-sm fm-muted">{c("accountMemberCardPending")}</p>}
                 {(can.cancel || can.resume || can.card) && (
                   <div className="fm-mbr-actions">
@@ -150,5 +170,55 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
         </>
       )}
     </section>
+  );
+}
+
+type Copy = (key: string, vars?: Record<string, string | number>) => string;
+const BLANK: BoxAddress = { name: "", line1: "", line2: "", city: "", state: "", postalCode: "", country: "CA" };
+
+/** Where a box membership's boxes go: the address with Change, or a prompt and the form when there is none yet. */
+function BoxAddressPart({ c, m, editing, busy, onEdit, onSave }: { c: Copy; m: MyMembership; editing: boolean; busy: string; onEdit: (on: boolean) => void; onSave: (a: BoxAddress) => void }) {
+  const [form, setForm] = useState<BoxAddress>(m.address || BLANK);
+  useEffect(() => { if (editing) setForm(m.address || BLANK); }, [editing]);
+  const set = (patch: Partial<BoxAddress>) => setForm((f) => ({ ...f, ...patch }));
+  const id = (k: string) => `mbr-addr-${m.id}-${k}`;
+  if (!editing) {
+    return (
+      <div className="fm-mbr-ship">
+        {m.address ? (
+          <dl className="fm-mbr-facts"><div><dt>{c("accountMemberShipsTo")}</dt><dd translate="no">{m.address.name}<br />{addressLine(m.address)}</dd></div></dl>
+        ) : <p className="text-sm leading-6">{c("accountMemberNoAddress")}</p>}
+        <div className="fm-mbr-actions">
+          <button type="button" className={m.address ? "fm-track-btn fm-track-btn-ghost" : "fm-track-btn"} disabled={!!busy} onClick={() => onEdit(true)}>{c(m.address ? "accountMemberChangeAddress" : "accountMemberAddAddress")}</button>
+        </div>
+      </div>
+    );
+  }
+  const field = (k: keyof BoxAddress, label: string, auto: string, opts: { required?: boolean; wide?: boolean } = {}) => (
+    <div className={opts.wide ? "fm-mbr-field fm-mbr-wide" : "fm-mbr-field"}>
+      <label htmlFor={id(k)}>{c(label)}</label>
+      <input id={id(k)} autoComplete={auto} required={opts.required !== false} value={form[k]} onChange={(e) => set({ [k]: e.target.value })} />
+    </div>
+  );
+  return (
+    <form className="fm-mbr-address" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
+      {field("name", "accountMemberAddrName", "shipping name", { wide: true })}
+      {field("line1", "accountMemberAddrLine1", "shipping address-line1", { wide: true })}
+      {field("line2", "accountMemberAddrLine2", "shipping address-line2", { wide: true, required: false })}
+      {field("city", "accountMemberAddrCity", "shipping address-level2")}
+      {field("state", "accountMemberAddrState", "shipping address-level1")}
+      {field("postalCode", "accountMemberAddrPostal", "shipping postal-code")}
+      <div className="fm-mbr-field">
+        <label htmlFor={id("country")}>{c("accountMemberAddrCountry")}</label>
+        <select id={id("country")} autoComplete="shipping country" value={form.country} onChange={(e) => set({ country: e.target.value })}>
+          <option value="CA">{c("accountMemberCountryCA")}</option>
+          <option value="US">{c("accountMemberCountryUS")}</option>
+        </select>
+      </div>
+      <div className="fm-mbr-actions fm-mbr-wide">
+        <button type="submit" className="fm-track-btn" disabled={!!busy} aria-busy={busy === "membershipAddress"}>{busy === "membershipAddress" ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : null}{c("accountMemberSaveAddress")}</button>
+        {m.address && <button type="button" className="fm-track-btn fm-track-btn-ghost" disabled={!!busy} onClick={() => onEdit(false)}>{c("accountMemberKeepAddress")}</button>}
+      </div>
+    </form>
   );
 }

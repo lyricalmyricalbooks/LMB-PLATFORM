@@ -220,7 +220,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   const query = new URLSearchParams(window.location.search).get("members") || "";
   let plans: AdminPlan[] = query === "new" ? [] : [
     { id: "plan-friends", name: "Friends of the press", description: "Keep the press running.", perks: ["A new print each season", "Early tickets to launches", "First look at new books"], interval: "month", priceMinor: 1500, trialDays: 14, currency: "CAD", hidden: false, members: 3, memberPercent: 10 },
-    { id: "plan-patrons", name: "Patrons", description: "", perks: ["Every book we publish, posted to you", "Your name in the back of each book"], interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD", hidden: false, members: 1, memberPercent: 0 },
+    { id: "plan-patrons", name: "Patrons", description: "", perks: ["Every book we publish, posted to you", "Your name in the back of each book"], interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD", hidden: false, members: 1, memberPercent: 0, box: { items: [{ bookId: "b1", quantity: 1 }, { bookId: "b2", variantId: "v2", quantity: 1 }], cutoffDay: 15 } },
   ];
   const friends = { name: "Friends of the press", interval: "month" as const, priceMinor: 1500, trialDays: 14, currency: "CAD" };
   const member = (id: string, name: string, email: string, state: AdminMember["state"], extra: Partial<AdminMember> = {}): AdminMember => ({
@@ -231,7 +231,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     member("m1", "Ada Example", "ada@example.com", "active"),
     member("m2", "Ben Example", "ben@example.com", "pastDue", { card: { brand: "visa", last4: "0341" } }),
     member("m3", "Cleo Example", "cleo@example.com", "trial", { trialEnd: at(9), startedAt: at(-5), periodEnd: at(9) }),
-    member("m4", "Dev Example", "dev@example.com", "ending", { plan: { name: "Patrons", interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD" }, planId: "plan-patrons", periodEnd: at(40), card: { brand: "mastercard", last4: "4444" } }),
+    member("m4", "Dev Example", "dev@example.com", "ending", { plan: { name: "Patrons", interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD" }, planId: "plan-patrons", periodEnd: at(40), card: { brand: "mastercard", last4: "4444" }, box: true, address: { name: "Dev Example", line1: "12 Sample Street", line2: "", city: "Toronto", state: "ON", postalCode: "M5V 2T6", country: "CA" } }),
     member("m5", "Eli Example", "eli@example.com", "ended", { endedAt: at(-20), startedAt: at(-200) }),
   ];
   const live = (m: AdminMember) => ["trial", "active", "ending", "pastDue"].includes(m.state) && !m.test;

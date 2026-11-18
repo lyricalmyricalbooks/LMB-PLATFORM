@@ -334,6 +334,48 @@ describe("memberships (M1)", () => {
     expect(nextCheck("pastDue", "", now)).toBe("2026-11-18T19:00:00.000Z");
   });
 
+  test("a box plan asks for the address on the card page, keeps it, and the member can change it (M3a)", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, box: { items: [{ bookId: "book1", quantity: 1 }], cutoffDay: 10 } });
+    const info = await t.call({ action: "membershipInfo" });
+    expect(info.body.plans[0].box).toEqual({ items: [{ bookId: "book1", quantity: 1 }], cutoffDay: 10 });
+    const { body } = await t.call({ action: "membershipJoin", planId });
+    expect(t.opened[0].params.shipping_address_collection).toEqual({ allowed_countries: ["CA", "US"] });
+    t.finish("cs_test_000000");
+    t.sessions.get("cs_test_000000").collected_information = { shipping_details: { name: "Ada Reader", address: { line1: "12 Ink Lane", city: "Toronto", state: "ON", postal_code: "M6G 3H1", country: "CA" } } };
+    const mine = await t.call({ action: "membershipMine" });
+    expect(mine.body.memberships[0]).toMatchObject({ box: true, address: { name: "Ada Reader", city: "Toronto", country: "CA" } });
+    const bad = await t.call({ action: "membershipAddress", id: body.id, address: { name: "Ada", line1: "1 Rue", city: "Paris", postalCode: "75001", country: "FR" } });
+    expect([bad.statusCode, bad.body.code]).toEqual([400, "address"]);
+    const moved = await t.call({ action: "membershipAddress", id: body.id, address: { name: "Ada Reader", line1: "5 Press St", city: "Montreal", state: "QC", postalCode: "H2X 1Y4", country: "CA" } });
+    expect(moved.body.membership.address).toMatchObject({ line1: "5 Press St", city: "Montreal" });
+    t.signIn({ ...ADA, email: "someone@example.com" });
+    expect((await t.call({ action: "membershipAddress", id: body.id, address: {} })).statusCode).toBe(404);
+  });
+
+  test("a box added to a plan later reaches its members, who are asked for an address; taking it off removes it", async () => {
+    const t = setup();
+    const planId = await withPlan(t);
+    const { body } = await t.call({ action: "membershipJoin", planId });
+    t.finish("cs_test_000000", "active");
+    await t.call({ action: "membershipMine" });
+    await t.admin({ op: "savePlan", id: planId, plan: { ...PLAN, box: { items: [{ bookId: "book1" }], cutoffDay: 3 } } });
+    expect((await t.call({ action: "membershipMine" })).body.memberships[0]).toMatchObject({ id: body.id, box: true, address: null });
+    await t.admin({ op: "savePlan", id: planId, plan: PLAN });
+    expect(t.db.store.get(`membershipPlans/${planId}`).box).toBeNull();
+    expect((await t.call({ action: "membershipInfo" })).body.plans[0]).not.toHaveProperty("box");
+  });
+
+  test("a plan without a box asks for no address, and its members have none to change", async () => {
+    const t = setup();
+    const planId = await withPlan(t);
+    const { body } = await t.call({ action: "membershipJoin", planId });
+    expect(t.opened[0].params).not.toHaveProperty("shipping_address_collection");
+    t.finish("cs_test_000000");
+    expect((await t.call({ action: "membershipMine" })).body.memberships[0]).not.toHaveProperty("box");
+    expect((await t.call({ action: "membershipAddress", id: body.id, address: {} })).body.code).toBe("state");
+  });
+
   test("a members-only page shows its words only to a signed-in member, and its title to everyone else (M2b)", async () => {
     const t = setup();
     t.db.store.set("pages/p1", { slug: "zine-club", status: "members", title: "Zine club", body: "Secret words", updatedAt: "2026-11-01" });
