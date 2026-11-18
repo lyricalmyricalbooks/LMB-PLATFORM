@@ -180,13 +180,13 @@
 .be-edition-pick > button { flex: none; }
 
 /* Simpler admin, change 8: a new product shows the essentials first; the rest waits behind More details. */
-.be-main[data-essentials] [data-extra],
-.be-main[data-essentials] [data-be-section="editions"],
-.be-main[data-essentials] [data-be-section="boxset"],
-.be-main[data-essentials] [data-be-section="organize"],
-.be-main[data-essentials] [data-be-section="more"],
-.be-main[data-essentials] [data-be-section="seo"],
-.be-main[data-essentials] [data-be-section="options"]:not([data-essential]) { display: none; }
+/* Product types plan, change 10: a new product's other parts are rows with a plain summary (BookEditorParts.tsx). */
+.be-part-body { display: contents; }
+.be-part-body[hidden] { display: none; }
+.rp .be-part .rp-fk-section-head { align-self: center; }
+.rp .rp-fk-card.be-part-card { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px 12px 22px; text-align: left; }
+.rp .be-part-summary { flex: 1; min-width: 0; color: var(--rp-text-muted); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.rp .be-part-card .rp-btn { flex: none; }
 .be-more-parts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 0 16px; }
 .be-more-parts .rp-fk-hint { margin: 0; }
 
