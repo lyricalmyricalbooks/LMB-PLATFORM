@@ -650,9 +650,6 @@ export function Checkout() {
   });
 
   const catalogItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
-  // What the parcel's products allow (src/shared/shippingLimits.ts, as the server): a perishable product can't be
-  // posted, a ground-only one never takes an air service.
-  const parcelLimits = useMemo(() => shipLimits((catalogItems || []).filter(item => item.physical).map(item => booksMap.get(item.id))), [catalogItems, booksMap]);
 
   // Same arithmetic as the server (one shared copy, src/shared/discountMath.ts):
   // gift cards are never discounted; a code replaces automatic offers; a free gift is a line
@@ -707,6 +704,14 @@ export function Checkout() {
     const giftVariant = freeGift?.variantId ? (giftBook?.variants || []).find((v: any) => v.id === freeGift.variantId) : null;
     freeGiftRef.current = giftItem?.physical ? { id: freeGift!.id, variantId: freeGift!.variantId, price: freeGift!.price, quantity: 1, shippingProfileId: giftBook?.shippingProfileId || null, weightGrams: parseWeightGrams(giftVariant?.weight) ?? parseWeightGrams(giftBook?.weight) } : null;
   }
+  // What the parcel's products allow (src/shared/shippingLimits.ts, as the server): a perishable product can't be
+  // posted, a ground-only one never takes an air service. A physical free gift rides in the same parcel, so it counts
+  // too (the server adds it back before it checks).
+  const freeGiftPhysicalId = freeGiftRef.current?.id || null;
+  const parcelLimits = useMemo(() => shipLimits([
+    ...(catalogItems || []).filter(item => item.physical).map(item => booksMap.get(item.id)),
+    ...(freeGiftPhysicalId ? [booksMap.get(freeGiftPhysicalId)] : []),
+  ]), [catalogItems, booksMap, freeGiftPhysicalId]);
   // Lines that are taxed and shipped like the server's: gift cards out, the free gift in.
   const taxLines = useMemo(() => {
     if (!catalogItems) return null;

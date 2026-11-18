@@ -16,6 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.APPROVAL_TYPE_IDS = exports.APPROVAL_NOTE_MAX = exports.APPROVAL_REQUESTS = exports.APPROVALS_DOC = void 0;
 exports.approvalWhy = approvalWhy;
 exports.approvalTypeOf = approvalTypeOf;
+exports.looksAlcoholic = looksAlcoholic;
 exports.mayPublish = mayPublish;
 exports.approvalStatus = approvalStatus;
 exports.approvalAsk = approvalAsk;
@@ -38,7 +39,20 @@ function approvalWhy(typeId) {
 /** The type id a product needs a check for, or "" when it needs none. */
 function approvalTypeOf(product) {
     const type = (0, productTypes_1.typeOfProduct)(product);
-    return type?.traits?.approval === true ? type.id : "";
+    if (type?.traits?.approval === true)
+        return type.id;
+    // Before 18 November 2026 wine, beer and spirits were filed under Drinks. A Drinks product whose name says it is
+    // alcohol still needs the alcohol check, so one saved then can't be sold without it.
+    if (type?.id === "drinks" && looksAlcoholic(product))
+        return "alcohol";
+    return "";
+}
+const ALCOHOL_WORDS = /\b(wine|wines|beer|beers|ale|lager|stout|ipa|spirits?|cider|mead|sake|gin|vodka|rum|whisk(?:e)?y|bourbon|tequila|mezcal|brandy|liqueur|vermouth|prosecco|champagne|alcohol(?:ic)?)\b/i;
+const NOT_ALCOHOL = /\b(non[- ]?alcoholic|alcohol[- ]free|zero[- ]proof|de[- ]?alcoholi[sz]ed|root beer|ginger beer|0(?:\.0)?\s*%)/i;
+/** True when a product's name reads as an alcoholic drink (and doesn't say it is alcohol-free). */
+function looksAlcoholic(product) {
+    const title = String(product?.title ?? "");
+    return ALCOHOL_WORDS.test(title) && !NOT_ALCOHOL.test(title);
 }
 /** True when the product may go on sale: its type needs no check, or the shop's answer for it is yes. */
 function mayPublish(product, approvals) {

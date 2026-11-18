@@ -42,3 +42,17 @@ describe("firestore.rules carries the same list", () => {
     for (const list of lists) expect(list).toEqual([...shop.APPROVAL_TYPE_IDS].sort());
   });
 });
+
+describe("Drinks saved before the alcohol type", () => {
+  it("still needs the alcohol check when the name says it is alcohol", () => {
+    expect(shop.approvalTypeOf({ typeId: "drinks", title: "Moth Cider, 750 ml" })).toBe("alcohol");
+    expect(shop.approvalTypeOf({ typeId: "drinks", title: "House Red Wine" })).toBe("alcohol");
+    expect(shop.mayPublish({ typeId: "drinks", title: "Small-batch gin" }, null)).toBe(false);
+    expect(shop.mayPublish({ typeId: "drinks", title: "Small-batch gin" }, { types: { alcohol: { state: "approved" } } })).toBe(true);
+  });
+  it("leaves soft drinks alone", () => {
+    for (const title of ["Ginger beer", "Root beer", "Alcohol-free cider", "Non-alcoholic IPA", "Blood orange soda", "Gingerade", "Kombucha"]) {
+      expect(shop.approvalTypeOf({ typeId: "drinks", title })).toBe("");
+    }
+  });
+});
