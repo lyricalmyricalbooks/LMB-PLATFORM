@@ -2674,3 +2674,11 @@ div.rp-listcard-main { cursor: default; }
 /* The product's type in the editor: its name and group, with Change. */
 .rp-tp-current { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .rp-tp-current > span { display: grid; gap: 2px; }
+/* Ready-made sizes and choices from the product's type (product types plan, change 6). */
+.book-editor-riso .be-span-4 { grid-column: 1 / -1; }
+.book-editor-riso .be-quick { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--rp-surface-2); }
+.book-editor-riso .be-quick-label { font: 600 var(--rp-text-xs) var(--rp-font-mono, var(--rp-font-body)); letter-spacing: .04em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.book-editor-riso .be-quick .be-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; color: var(--rp-text); }
+.book-editor-riso .be-sizes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -2px; }
+.book-editor-riso .be-size { min-width: 48px; min-height: 36px; padding: 0 10px; border-radius: 999px; justify-content: center; }
+.book-editor-riso .be-size:not(.is-on) { border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text-muted); }

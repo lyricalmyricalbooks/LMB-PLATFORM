@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ProductOptionsEditor, rowsToOptions } from "./ProductOptionsEditor";
+import { ProductOptionsEditor, rowsToOptions, setForOption, toggleSize } from "./ProductOptionsEditor";
 
 const noop = () => {};
 
@@ -19,5 +19,21 @@ describe("product editor options (plan 10.2)", () => {
     expect(html).toContain('value="S, M"');
     expect(html).toContain("Update the editions (4)");
     expect(html).toContain("Stop using options");
+  });
+});
+
+describe("ready-made sizes in Options", () => {
+  it("knows which size list a saved option came from", () => {
+    expect(setForOption("Size", ["S", "M", "L"])?.id).toBe("letters");
+    expect(setForOption("Ring size", ["5", "6.5"])?.id).toBe("rings");
+    expect(setForOption("Size", ["Tiny", "M"])).toBeNull();
+    expect(setForOption("Colour", ["S"])).toBeNull();
+  });
+
+  it("taps a size on in the list's order, and off again", () => {
+    const row = { name: "Size", values: "S, L", set: "letters" };
+    expect(toggleSize(row, "M").values).toBe("S, M, L");
+    expect(toggleSize(row, "XS").values).toBe("XS, S, L");
+    expect(toggleSize(row, "L").values).toBe("S");
   });
 });
