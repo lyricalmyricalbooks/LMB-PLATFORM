@@ -135,6 +135,7 @@ export function Members() {
               {p.trialDays > 0 && <p className="mbr-meta">{p.trialDays === 1 ? "1 day free" : `${p.trialDays} days free`} before the first payment</p>}
               {p.memberPercent > 0 && <p className="mbr-meta">Members pay {p.memberPercent}% less for your products</p>}
               {p.box && <p className="mbr-meta">{boxText(p.box)}</p>}
+              {p.gifts && p.gifts.length > 0 && <p className="mbr-meta">Can be given as a gift: {p.gifts.map((g) => `${g.months} months ${money(g.priceMinor)}`).join(", ")}</p>}
               {p.perks.length > 0 && <ul className="mbr-perks">{p.perks.map((perk, i) => <li key={i}>{perk}</li>)}</ul>}
               <div className="mbr-plan-foot">
                 <span className="mbr-meta">{p.members === 1 ? "1 member" : `${p.members} members`}</span>
@@ -193,6 +194,7 @@ function MemberRow({ member: m, money, onChanged }: { member: AdminMember; money
           <strong>{m.name || m.email}</strong>
           <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
           {m.test && <StatusBadge tone="info" glyph={false}>Test</StatusBadge>}
+          {m.gift && <StatusBadge tone="neutral" glyph={false}>Gift</StatusBadge>}
         </div>
         <p className="mbr-meta">{[m.name ? m.email : "", m.startedAt ? `Member since ${dayText(m.startedAt)}` : ""].filter(Boolean).join(" · ")}</p>
         <p className="mbr-next">{nextText(m)}</p>
@@ -299,6 +301,12 @@ function PlanDrawer({ start, money, onClose, onSaved }: { start: AdminPlan | nul
             </>
           )}
         </fieldset>
+        {!form.boxOn && (
+          <div className="mbr-gift-on">
+            <Toggle label="Let people give this plan as a gift" checked={form.gifts} onChange={(gifts) => set({ gifts })} />
+            <p className="mbr-hint">Someone pays once for 3, 6 or 12 months at this plan's price, and the person they choose becomes a member until it ends. Nothing repeats. Not for plans that send a box.</p>
+          </div>
+        )}
         <Toggle label="Hide this plan: take no new members (current members stay)" checked={form.hidden} onChange={(hidden) => set({ hidden })} />
         {problem && !["name", "price", "trial", "perks", "percent", "box"].includes(problem.field) && <p className="mbr-problem" role="alert">{problem.text}</p>}
       </div>

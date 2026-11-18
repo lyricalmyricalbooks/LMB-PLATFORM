@@ -155,6 +155,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "membershipIntro", label: "Membership heading & description" },
     { id: "membershipPlans", label: "Plans with Join", required: true },
     { id: "membershipFinePrint", label: "Note under the plans" },
+    { id: "membershipGiftForm", label: "Gift form (how long, their details, Pay)", required: true },
     { id: "membershipNotice", label: "Closed and not-ready messages", required: true },
     { id: "membershipGlow", label: "Membership page top strip" },
   ] },

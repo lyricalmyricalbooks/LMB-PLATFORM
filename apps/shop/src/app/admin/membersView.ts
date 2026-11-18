@@ -22,7 +22,8 @@ export function stateBadge(state: MemberState): { label: string; tone: Tone } {
 export const everyText = (interval: PlanInterval) => (interval === "year" ? "a year" : "a month");
 
 /** The line under a member's name: what happens next, in plain words. */
-export function nextText(m: Pick<AdminMember, "state" | "periodEnd" | "trialEnd" | "endedAt">): string {
+export function nextText(m: Pick<AdminMember, "state" | "periodEnd" | "trialEnd" | "endedAt" | "gift">): string {
+  if (m.gift && m.state === "active") return `A ${m.gift.months}-month gift${m.gift.from ? ` from ${m.gift.from}` : ""}: ends ${m.periodEnd ? dayText(m.periodEnd) : "by itself"}, no payments`;
   if (m.state === "paused") return "Paused by the member: no payments, perks or boxes until they resume";
   if (m.state === "trial") return m.trialEnd ? `Trial ends ${dayText(m.trialEnd)}, first payment then` : "In the free trial";
   if (m.state === "active") return m.periodEnd ? `Next payment ${dayText(m.periodEnd)}` : "Paid up";
@@ -62,14 +63,16 @@ export function percentFromText(raw: string): { percent: number } | { problem: s
 export type BoxRow = { bookId: string; variantId: string; quantity: string };
 export type PlanForm = {
   name: string; description: string; perks: string; interval: PlanInterval; price: string; trial: string; percent: string; hidden: boolean;
+  /** Can be given as a gift (M5). */
+  gifts: boolean;
   /** Ships a box every month: its product rows and the cut-off day as typed. */
   boxOn: boolean; boxRows: BoxRow[]; cutoff: string;
 };
 export const blankBoxRow = (): BoxRow => ({ bookId: "", variantId: "", quantity: "1" });
-export const blankPlanForm = (): PlanForm => ({ name: "", description: "", perks: "", interval: "month", price: "", trial: "", percent: "", hidden: false, boxOn: false, boxRows: [blankBoxRow()], cutoff: "15" });
-export function planFormOf(p: { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent?: number; box?: PlanBox }): PlanForm {
+export const blankPlanForm = (): PlanForm => ({ name: "", description: "", perks: "", interval: "month", price: "", trial: "", percent: "", hidden: false, gifts: false, boxOn: false, boxRows: [blankBoxRow()], cutoff: "15" });
+export function planFormOf(p: { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent?: number; box?: PlanBox; gifts?: unknown }): PlanForm {
   return {
-    name: p.name, description: p.description, perks: p.perks.join("\n"), interval: p.interval, price: (p.priceMinor / 100).toFixed(2), trial: p.trialDays ? String(p.trialDays) : "", percent: p.memberPercent ? String(p.memberPercent) : "", hidden: p.hidden,
+    name: p.name, description: p.description, perks: p.perks.join("\n"), interval: p.interval, price: (p.priceMinor / 100).toFixed(2), trial: p.trialDays ? String(p.trialDays) : "", percent: p.memberPercent ? String(p.memberPercent) : "", hidden: p.hidden, gifts: !!p.gifts,
     boxOn: !!p.box, boxRows: p.box ? p.box.items.map((i) => ({ bookId: i.bookId, variantId: i.variantId || "", quantity: String(i.quantity) })) : [blankBoxRow()], cutoff: p.box ? String(p.box.cutoffDay) : "15",
   };
 }
@@ -91,7 +94,7 @@ export function planFromForm(form: PlanForm, money: (minor: number) => string): 
     if ("problem" in clean) return { problem: clean.problem, field: "box" };
     box = clean.box;
   }
-  return { plan: { name: form.name.trim(), description: form.description.trim(), perks, interval: form.interval, priceMinor: price.minor, trialDays: trial.days, hidden: form.hidden, memberPercent: percent.percent, box } };
+  return { plan: { name: form.name.trim(), description: form.description.trim(), perks, interval: form.interval, priceMinor: price.minor, trialDays: trial.days, hidden: form.hidden, memberPercent: percent.percent, box, ...(!form.boxOn && form.gifts ? { gifts: true } : {}) } };
 }
 
 /** "A box of 3 things on the 15th of each month" for a plan card. */

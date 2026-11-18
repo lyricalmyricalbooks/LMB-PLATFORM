@@ -30,7 +30,7 @@ import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
 import { membersData, type AdminMember, type AdminPlan } from "../app/admin/membersApi";
-import { cleanPlan } from "../shared/membershipRules";
+import { cleanPlan, GIFT_MONTHS, giftPriceMinor } from "../shared/membershipRules";
 import { givingData, type AdminFundraiser, type AdminGift, type FundraiserUpdate } from "../app/admin/givingApi";
 import { cleanGivingSettings } from "../shared/givingRules";
 import { cleanCharity, cleanReceiptAddress } from "../shared/charityReceipts";
@@ -252,7 +252,8 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       const id = String(body.id || `plan-${Date.now()}`);
       const was = plans.find((p) => p.id === id);
       if (was && (was.priceMinor !== clean.plan.priceMinor || was.interval !== clean.plan.interval)) throw Object.assign(new Error("A plan's price and how often it is paid can't change after it is made."), { code: "price" });
-      const next: AdminPlan = { ...clean.plan, id, currency: "CAD", members: was?.members || 0 };
+      const { gifts, ...rest } = clean.plan;
+      const next: AdminPlan = { ...rest, id, currency: "CAD", members: was?.members || 0, ...(gifts ? { gifts: GIFT_MONTHS.map((months) => ({ months, priceMinor: giftPriceMinor(rest, months) })) } : {}) };
       plans = was ? plans.map((p) => (p.id === id ? next : p)) : [...plans, next];
       return { ok: true, id };
     }

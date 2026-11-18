@@ -14,6 +14,9 @@ export function membershipErrorKey(code: unknown, status?: unknown): string {
     case "too_many": return "membershipErrorTooMany";
     case "state": return "accountMemberErrorState";
     case "address": return "accountMemberAddressError";
+    case "email": return "membershipErrorGiftEmail";
+    case "months": return "membershipErrorGeneric";
+    case "gift": return "accountMemberErrorState";
     default: return status === 429 ? "membershipErrorTooMany" : "membershipErrorGeneric";
   }
 }
@@ -24,7 +27,8 @@ export const memberStateKey = (state: MemberState) => `accountMemberState_${stat
 /**
  * The account card's "what happens next" line and its date, or null when there is nothing to say. `day` writes a date.
  */
-export function memberNext(m: { state: MemberState; periodEnd: string; trialEnd: string; endedAt: string; pausedAt?: string }): { key: string; at: string } | null {
+export function memberNext(m: { state: MemberState; periodEnd: string; trialEnd: string; endedAt: string; pausedAt?: string; gift?: unknown }): { key: string; at: string } | null {
+  if (m.gift && m.state === "active" && m.periodEnd) return { key: "accountMemberGiftEnds", at: m.periodEnd };
   if (m.state === "paused") return { key: "accountMemberPausedSince", at: m.pausedAt || "" };
   if (m.state === "trial" && m.trialEnd) return { key: "accountMemberTrialEnds", at: m.trialEnd };
   if (m.state === "active" && m.periodEnd) return { key: "accountMemberNextPayment", at: m.periodEnd };

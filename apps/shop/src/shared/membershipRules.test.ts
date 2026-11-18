@@ -4,6 +4,7 @@ import { createRequire } from "module";
 import * as shop from "./membershipRules";
 
 const server = createRequire(import.meta.url)("../../functions/shared/membershipRules.js") as typeof shop;
+const { cleanPlan, giftPriceMinor, GIFT_MONTHS, cleanGift, GIFT_MESSAGES, giftEnd } = shop;
 
 describe.each([["shop", shop], ["server", server]])("memberships rules (%s copy)", (_name, m) => {
   test("a plan needs a name, monthly or yearly, a price in range and a trial up to 60 days", () => {
@@ -117,5 +118,35 @@ describe.each([["shop", shop], ["server", server]])("box orders, M3b (%s copy)",
       { bookId: "gone", variantId: "", title: "A product that was removed", need: 4, have: 0 },
     ]);
     expect(boxShortfall([{ bookId: "a", quantity: 1 }], 0, (id) => books[id] || null)).toEqual([]);
+  });
+});
+
+describe("gift memberships (M5)", () => {
+  test("a plan allows gifts only when asked and never with a box", () => {
+    const base = { name: "Friends", interval: "month", priceMinor: 1500 };
+    expect((cleanPlan({ ...base, gifts: true }) as { plan: { gifts?: boolean } }).plan.gifts).toBe(true);
+    expect((cleanPlan(base) as { plan: { gifts?: boolean } }).plan.gifts).toBeUndefined();
+    const boxed = cleanPlan({ ...base, gifts: true, box: { items: [{ bookId: "b1", quantity: 1 }], cutoffDay: 5 } }) as { plan: { gifts?: boolean; box?: unknown } };
+    if (boxed.plan) expect(boxed.plan.gifts).toBeUndefined();
+  });
+  test("the price is months of the plan; a yearly plan by twelfths; anything else is nothing", () => {
+    expect(giftPriceMinor({ interval: "month", priceMinor: 1500 }, 3)).toBe(4500);
+    expect(giftPriceMinor({ interval: "year", priceMinor: 15000 }, 6)).toBe(7500);
+    expect(giftPriceMinor({ interval: "year", priceMinor: 9999 }, 3)).toBe(2500);
+    expect(giftPriceMinor({ interval: "month", priceMinor: 1500 }, 4)).toBe(0);
+    expect(GIFT_MONTHS).toEqual([3, 6, 12]);
+  });
+  test("cleanGift: months, a real email that isn't the buyer's, a short message", () => {
+    expect(cleanGift({ months: 6, email: " Ada@Example.com ", name: "  Ada  Lovelace ", message: "Hi\r\nthere\u0007" }, "ben@example.com")).toEqual({ gift: { months: 6, to: { email: "ada@example.com", name: "Ada Lovelace" }, message: "Hi\nthere" } });
+    expect(cleanGift({ months: 2, email: "a@b.co" })).toMatchObject({ field: "months" });
+    expect(cleanGift({ months: 3, email: "a@b" })).toMatchObject({ field: "email" });
+    expect(cleanGift({ months: 3, email: "ben@example.com" }, "BEN@example.com")).toMatchObject({ field: "email", problem: GIFT_MESSAGES.self });
+    expect((cleanGift({ months: 3, email: "a@b.co", message: "x".repeat(900) }) as { gift: { message: string } }).gift.message).toHaveLength(300);
+  });
+  test("giftEnd keeps the day of the month, or the month's last day", () => {
+    expect(giftEnd("2026-11-18T13:00:00.000Z", 3)).toBe("2027-02-18T13:00:00.000Z");
+    expect(giftEnd("2026-11-30T10:00:00.000Z", 3)).toBe("2027-02-28T10:00:00.000Z");
+    expect(giftEnd("2027-08-31T00:00:00.000Z", 12)).toBe("2028-08-31T00:00:00.000Z");
+    expect(giftEnd("nope", 3)).toBe("");
   });
 });

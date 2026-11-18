@@ -17,6 +17,8 @@ import { addressLine, memberCan, memberNext, membershipErrorKey, memberStateKey,
 import type { BoxAddress } from "../../../shared/membershipRules";
 import { useMembershipsLive } from "./membershipLive";
 
+/** A gift membership (M5) offers no actions. */
+const NO_ACTIONS: ReturnType<typeof memberCan> = { cancel: false, resume: false, pause: false, unpause: false, skip: false, card: false };
 const dateText = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
@@ -150,13 +152,15 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
           )}
           {shownRows.map((m) => {
             const next = memberNext(m);
-            const can = memberCan(m.state);
+            // A gift (M5) repeats nothing: nothing to cancel, pause or pay.
+            const can = m.gift ? NO_ACTIONS : memberCan(m.state);
             return (
               <div key={m.id} className="space-y-4">
                 <dl className="fm-mbr-facts">
                   <div><dt>{c("accountMemberPlan")}</dt><dd>{m.plan?.name || ""}</dd></div>
                   <div><dt>{c("accountMemberStatus")}</dt><dd>{c(memberStateKey(m.state))}{m.test ? ` · ${c("accountMemberTest")}` : ""}</dd></div>
-                  {m.plan && <div><dt>{c("accountMemberPrice")}</dt><dd translate="no">{moneyText(m.plan.priceMinor, m.plan.currency || "CAD")} {c(planEveryKey(m.plan.interval))}</dd></div>}
+                  {m.gift && <div><dt>{c("accountMemberGiftLabel")}</dt><dd>{m.gift.from ? c("accountMemberGiftFrom", { from: m.gift.from }) : c("accountMemberGift")}</dd></div>}
+                  {m.plan && !m.gift && <div><dt>{c("accountMemberPrice")}</dt><dd translate="no">{moneyText(m.plan.priceMinor, m.plan.currency || "CAD")} {c(planEveryKey(m.plan.interval))}</dd></div>}
                   {next && <div><dt>{c("accountMemberWhen")}</dt><dd>{c(next.key, { date: next.at ? dateText(next.at) : "" })}</dd></div>}
                   {m.card && can.card && <div><dt>{c("accountMemberCard")}</dt><dd>{c("accountMemberCardEnding", { brand: m.card.brand ? m.card.brand[0].toUpperCase() + m.card.brand.slice(1) : "", last4: m.card.last4 })}</dd></div>}
                 </dl>
