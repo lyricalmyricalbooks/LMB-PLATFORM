@@ -9,8 +9,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = void 0;
+exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = void 0;
 exports.cleanSpecialHours = cleanSpecialHours;
 exports.specialOn = specialOn;
 exports.hoursOnDay = hoursOnDay;
@@ -20,6 +20,7 @@ exports.blockSpan = blockSpan;
 exports.blockedBusy = blockedBusy;
 exports.cleanIntakeForm = cleanIntakeForm;
 exports.formVersion = formVersion;
+exports.bookingsOnDay = bookingsOnDay;
 exports.processingStretch = processingStretch;
 exports.depositOf = depositOf;
 exports.taxIn = taxIn;
@@ -201,6 +202,10 @@ function formVersion(form) {
         h = ((h * 33) ^ source.charCodeAt(i)) >>> 0;
     return `v${h.toString(36)}${source.length.toString(36)}`;
 }
+/** How many bookings start on `day` (the daily limit's count, plan 4, 1.8): not a closed class time or a person's own busy time. */
+function bookingsOnDay(busy, day, zone) {
+    return busy.filter((b) => !b.away && !b.closed && dayOf(b.start, zone) === day).length;
+}
 /** Processing time: it starts at least this far in, lasts at least this long, and ends before the service does. */
 exports.MIN_PROCESS_AFTER = 5;
 /** The most time before a booking (set-up or travel), in minutes. */
@@ -219,6 +224,8 @@ function processingStretch(service, start) {
     return { start: start + after * 60_000, end: start + (after + length) * 60_000 };
 }
 exports.BOOKING_STEPS = [15, 30, 60];
+/** The daily limit's choices (plan 4, 1.8); 0 is no limit. */
+exports.DAILY_CAPS = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
 exports.MAX_SERVICES = 30;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -698,6 +705,7 @@ function cleanBookingSettings(raw) {
         ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
         ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
         ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
+        ...(exports.DAILY_CAPS.includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),
     };
 }
 exports.MAX_REBOOK_WEEKS = 52;
@@ -1086,6 +1094,9 @@ function freeTimes(args) {
 function freeTimesFor({ service, settings, busy: booked, day, zone, nowMs }, windows, staffId) {
     if (!(0, exports.isDay)(day) || settings.daysOff.includes(day))
         return [];
+    // The daily limit (plan 4, 1.8): a day with that many bookings offers nothing more online.
+    if (settings.dailyCap && bookingsOnDay(booked, day, zone) >= settings.dailyCap)
+        return [];
     // The owner's blocked time is busy like a booking: the whole shop's for everyone, a person's for them.
     const busy = settings.blocks?.length ? [...booked, ...blockedBusy(settings.blocks, day, zone)] : booked;
     const { earliest, lastDay } = bookingWindow(settings, zone, nowMs);
@@ -1181,7 +1192,7 @@ function keptPerson(settings, serviceId, staffId) {
 function ownerBookingSettings(settings) {
     const allDay = Array.from({ length: 7 }, () => [{ start: "00:00", end: "23:59" }]);
     // Blocked time keeps clients out, never the owner: they can still put a booking there by hand.
-    return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [], specialHours: [],
+    return { ...settings, minNoticeHours: 0, maxDaysAhead: 366, hours: allDay, daysOff: [], step: 5, blocks: [], specialHours: [], dailyCap: 0,
         staff: (settings.staff || []).map((p) => ({ ...p, ownHours: false, hours: allDay, daysOff: [], specialHours: [] })) };
 }
 /** Whether `start` is free for a booking (someone can take it, or the shop's one calendar is free there). */
