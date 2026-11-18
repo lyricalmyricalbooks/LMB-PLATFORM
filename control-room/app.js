@@ -3676,6 +3676,9 @@ function waysBetaSection(shop) {
       w.use && w.id === "giving" ? blockedPill(w.use.blocked) : null,
       w.use && w.id === "memberships" ? meta(`${w.use.members} ${w.use.members === 1 ? "member" : "members"}`, w.use.trial ? `${w.use.trial} on a free trial` : null,
         `${money(w.use.monthlyMinor, w.use.currency)} a month`) : null,
+      w.use && w.id === "memberships" && (w.use.gifts || w.use.paused || w.use.posts) ? meta(w.use.gifts ? `${w.use.gifts} given as ${w.use.gifts === 1 ? "a gift" : "gifts"}` : null,
+        w.use.paused ? `${w.use.paused} paused` : null, w.use.posts ? `${w.use.posts} ${w.use.posts === 1 ? "post" : "posts"}` : null) : null,
+      w.use && w.id === "memberships" && w.use.plans?.length ? meta(...w.use.plans.map((p) => `${p.name}: ${p.members}`)) : null,
       w.use && w.id === "memberships" && w.use.pastDue ? pill("warning", `${w.use.pastDue} ${w.use.pastDue === 1 ? "payment" : "payments"} failed`) : null,
       w.on ? meta(w.ownerOn ? "owner switched it on" : "owner hasn't switched it on yet", w.changedAt ? `turned on ${dateOnly(w.changedAt)}${w.changedBy ? ` by ${w.changedBy}` : ""}` : null) : null)));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
