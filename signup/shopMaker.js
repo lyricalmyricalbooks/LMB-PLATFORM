@@ -101,6 +101,8 @@ export function shopFromSignup(row, { testMode }) {
     publishes: row.publishes ?? null,
     // "Anything else you'll sell?" (form.js ALSO_SELLS): the ways to sell (beta) the press asked for, when any.
     ...(Array.isArray(row.alsoSells) && row.alsoSells.length ? { alsoSells: row.alsoSells } : {}),
+    // "What do you sell? Pick all that fit." (form.js PRODUCT_GROUPS): the kinds of things a product shop sells.
+    ...(Array.isArray(row.productGroups) && row.productGroups.length ? { productGroups: row.productGroups } : {}),
     // French from a French sign-up browser (form.js): the welcome email goes in French before any plan email does.
     ...(row.language ? { language: row.language } : {}),
     testMode: testMode === true,

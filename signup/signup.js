@@ -182,8 +182,8 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
         const { pressName, plan, country, currency, answer, publishes, paymentProvider } = details;
         // The email language too: a choice made now replaces the earlier one, and none (automatic) clears it.
         const { language: _earlier, ...kept } = row;
-        const { alsoSells: _asked, ...rest } = kept;
-        row = { ...rest, ...(details.alsoSells ? { alsoSells: details.alsoSells } : {}), pressName, plan, country, currency, answer, publishes, paymentProvider, ...(details.language ? { language: details.language } : {}), ...(details.timeZone ? { timeZone: details.timeZone } : {}) };
+        const { alsoSells: _asked, productGroups: _groups, ...rest } = kept;
+        row = { ...rest, ...(details.alsoSells ? { alsoSells: details.alsoSells } : {}), ...(details.productGroups ? { productGroups: details.productGroups } : {}), pressName, plan, country, currency, answer, publishes, paymentProvider, ...(details.language ? { language: details.language } : {}), ...(details.timeZone ? { timeZone: details.timeZone } : {}) };
         await signups.set(row.shopId, row);
       }
       if (!row) {
@@ -213,6 +213,7 @@ export function createSignup({ accounts, signups, registry, billing, email, auth
           answer: details.answer,
           publishes: details.publishes,
           ...(details.alsoSells ? { alsoSells: details.alsoSells } : {}),
+          ...(details.productGroups ? { productGroups: details.productGroups } : {}),
           ...(details.language ? { language: details.language } : {}),
           ...agreement,
           paymentProvider: details.paymentProvider,

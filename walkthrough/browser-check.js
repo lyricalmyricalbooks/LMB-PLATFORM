@@ -101,8 +101,11 @@ async function checkFrontDoor(browser, walk, log) {
       // A general shop that hasn't said what it sells is asked to.
       await page.click("#start-form button[type=submit]");
       await visible("#sells-error");
-      await page.click("#sells-choices label.choice:has-text('Clothing & accessories')");
-      if ((await page.locator("#new-kind").textContent()) !== "Clothing & accessories") throw new Error("Your new store doesn't show what it sells");
+      await page.click("#sells-choices label.choice:has(input[value=clothing])");
+      if ((await page.locator("#new-kind").textContent()) !== "Clothing") throw new Error("Your new store doesn't show what it sells");
+      // Several kinds can be picked; the preview names the first and counts the rest.
+      await page.click("#sells-choices label.choice:has(input[value=jewelry])");
+      if ((await page.locator("#new-kind").textContent()) !== "Clothing and 1 more") throw new Error("Your new store doesn't count a second kind");
       await page.click("#today-choices label.choice:has(input[value=online])");
       await page.selectOption("#country", "CA");
       // Without the terms ticked, nothing is made.

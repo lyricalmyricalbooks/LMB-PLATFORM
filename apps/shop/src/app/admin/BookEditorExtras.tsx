@@ -9,6 +9,7 @@ import {
 import { productKind, type ProductKind } from "../../shared/productOptions";
 import { useShopSells, useShopWords } from "./shopWords";
 import { TypePicker } from "./TypePicker";
+import { useProductGroups } from "./productGroups";
 import { sellsGroups, typeGroup, typeOfProduct, type OwnType, type ProductType } from "../../shared/productTypes";
 import { MONEY_SIGN } from "./moneySign";
 
@@ -187,7 +188,8 @@ const KIND_LABELS: Record<ProductKind, string> = {
 export function ProductTypeCard({ form, onType }: { form: any; onType: (type: ProductType, own: OwnType | null) => void }) {
   const [picking, setPicking] = useState(false);
   const sells = useShopSells();
-  const groups = useMemo(() => sellsGroups(sells), [sells]);
+  const fallback = useMemo(() => sellsGroups(sells), [sells]);
+  const groups = useProductGroups(fallback);
   const giftCard = form.productType === "giftCard";
   const type = typeOfProduct(form);
   const named = !!form.typeId || giftCard || !!type;

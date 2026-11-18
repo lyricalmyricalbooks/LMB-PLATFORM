@@ -385,7 +385,10 @@ service cloud.firestore {
         // (Settings › General › What you sell), which reads before `publishes`.
         allow read: if isAdminReader();
         allow create, update: if isAdmin()
-          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "ways", "alsoSells", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+          && request.resource.data.keys().hasOnly(["sellingToday", "publishes", "sells", "sellsProducts", "ways", "alsoSells", "productGroups", "country", "plan", "done", "hiddenAt", "welcome", "progress", "details", "bring", "google", "payments", "shipping", "finalCheck", "createdAt", "updatedAt"])
+          // `productGroups`: the kinds of things the shop sells (sign-up's "Pick all that fit", changed in Settings ›
+          // What you sell), a short list of the product groups' ids.
+          && (!("productGroups" in request.resource.data) || (request.resource.data.productGroups is list && request.resource.data.productGroups.size() <= 16))
           && (resource == null || (request.resource.data.get("sellingToday", null) == resource.data.get("sellingToday", null)
             && request.resource.data.get("publishes", null) == resource.data.get("publishes", null)
             && request.resource.data.get("alsoSells", null) == resource.data.get("alsoSells", null)

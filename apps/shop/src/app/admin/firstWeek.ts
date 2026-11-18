@@ -47,6 +47,8 @@ export interface FirstWeekDoc {
   sellsProducts?: boolean;
   /** The ways to sell (beta) the owner asked for at sign-up ("Anything else you'll sell?"); never changed from the admin. */
   alsoSells?: string[];
+  /** The kinds of things a product shop sells (product groups' ids): sign-up's "Pick all that fit", changed in Settings. */
+  productGroups?: string[];
   /** Ways to sell (beta) the owner switched on in Settings (shared/waysToSell.ts): way id → on. */
   ways?: Partial<Record<import("../../shared/waysToSell").WayId, boolean>>;
   /** The country the press signed up from (two letters), for the shipping starter. */
