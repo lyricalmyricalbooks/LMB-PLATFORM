@@ -22,7 +22,7 @@ const SERVICES: BookingServiceView[] = [
     extras: [{ id: "x1", name: "Longer session", minutes: 30, priceMinor: 2000 }, { id: "x2", name: "Printed notes", minutes: 0, priceMinor: 500 }],
     questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
   { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8, group: "Classes" },
-  { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "", repeats: true },
+  { id: "sample-call", name: "Quick call", description: "Fifteen minutes on a video call.", minutes: 15, priceMinor: 0, payment: "free", location: "", repeats: true, online: true },
   { id: "sample-review", name: "Portfolio review", description: "The shop answers each request before it's booked.", minutes: 45, priceMinor: 0, payment: "free", location: "The studio", approval: true },
   { id: "sample-home", name: "Home visit", description: "We come to you, in the postal codes we travel to.", minutes: 60, priceMinor: 0, payment: "free", location: "", atClient: true, areas: ["M6G", "M5V"] },
 ];

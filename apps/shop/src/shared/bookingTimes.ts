@@ -1335,6 +1335,16 @@ export function dayOf(ms: number, zone: string): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
+/** A time zone name the runtime knows ("Europe/London"), else "" (plan 4, 2.9). */
+export function cleanZone(v: unknown): string {
+  if (typeof v !== "string" || v.length > 64 || !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(v)) return "";
+  try { new Intl.DateTimeFormat("en", { timeZone: v }); return v; } catch { return ""; }
+}
+/** True when two zones show a different clock at that moment (Toronto and New York don't). */
+export function zonesDiffer(a: string, b: string, ms: number): boolean {
+  return !!a && !!b && a !== b && offsetAt(a, ms) !== offsetAt(b, ms);
+}
+
 /** The day after (or `n` days after) a YYYY-MM-DD day. */
 export function addDays(day: string, n: number): string {
   const d = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)) + n));

@@ -3894,3 +3894,35 @@ describe("visits at the client's address (plan 4, 2.8)", () => {
     expect(t.emails[0].html).toContain("12 Main St, Toronto M6G 1A1");
   });
 });
+
+describe("the client's time zone for online visits (plan 4, 2.9)", () => {
+  test("a video call keeps the client's clock and the emails show it; others ignore it", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("visit").set({ meet: true }, { merge: true });
+    const info = (await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === "visit");
+    expect(info.online).toBe(true);
+    const start = at("2026-11-17", "10:00");
+    const ok = await t.pub({ action: "bookingStart", serviceId: "visit", start, ...CUSTOMER, zone: "Europe/London" });
+    expect(ok.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${ok.body.id}`).clientZone).toBe("Europe/London");
+    expect(t.emails[0].html).toContain("your time, London");
+    const view = await t.pub({ action: "bookingView", id: ok.body.id, key: ok.body.key });
+    expect(view.body.booking.clientZone).toBe("Europe/London");
+  });
+  test("a made-up zone, the shop's own clock or an in-person visit stores nothing", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("visit").set({ meet: true }, { merge: true });
+    const made = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "10:00"), ...CUSTOMER, zone: "Mars/Olympus" });
+    expect([made.statusCode, made.body.message]).toEqual([200, undefined]);
+    expect(t.db.store.get(`bookings/${made.body.id}`).clientZone).toBeUndefined();
+    const same = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "13:00"), ...CUSTOMER, zone: "America/New_York" });
+    expect([same.statusCode, same.body.message]).toEqual([200, undefined]);
+    expect(t.db.store.get(`bookings/${same.body.id}`).clientZone).toBeUndefined();
+    await t.db.collection("bookingServices").doc("visit").set({ meet: false }, { merge: true });
+    const room = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "15:00"), ...CUSTOMER, zone: "Europe/London" });
+    expect([room.statusCode, room.body.message]).toEqual([200, undefined]);
+    expect(t.db.store.get(`bookings/${room.body.id}`).clientZone).toBeUndefined();
+  });
+});

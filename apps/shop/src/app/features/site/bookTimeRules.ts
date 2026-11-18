@@ -1,6 +1,6 @@
 // Book a time page (features/site/BookTime.tsx): the pure rules. Days and times are the shop's own (the server sends its
 // time zone), so a shopper abroad sees the times the shop keeps, with the zone named under the picker.
-import { addDays, depositOf, joinsVisit, lengthName, MAX_RUN_DAYS, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_VISIT_PARTS, visitService } from "../../../shared/bookingTimes";
+import { addDays, cleanZone, dayOf, depositOf, joinsVisit, lengthName, MAX_RUN_DAYS, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_VISIT_PARTS, visitService } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
@@ -10,6 +10,7 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** A course: every one of its dates, earliest first. One sign-up takes a place on them all. */ courseStarts?: string[];
   /** Its group heading on the booking page ("Cuts") and one photo (plan 4, 2.3). */
   group?: string; photo?: string;
+  /** A video call (plan 4, 2.9): the page offers the client their own clock. */ online?: boolean;
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
   joining?: { missed: number; of: number; fullPriceMinor: number };
   /** Clients may book it as a standing appointment: the same time every few weeks, several visits at once. */ repeats?: boolean;
@@ -136,7 +137,7 @@ export function withCode<S extends BookingServiceView>(service: S, code: Booking
   return { ...service, priceMinor: code.priceMinor, ...(service.payment === "deposit" ? { depositMinor: code.payNowMinor, depositPercent: 0 } : {}) };
 }
 export type BookingView = {
-  id: string; serviceId: string; serviceName: string; minutes: number; location: string; /** A Google Meet link, for a video-call service. */ meetUrl?: string; start: string; end: string;
+  id: string; serviceId: string; serviceName: string; minutes: number; location: string; /** A Google Meet link, for a video-call service. */ meetUrl?: string; /** An online visit booked from another time zone: the client's own (plan 4, 2.9). */ clientZone?: string; start: string; end: string;
   /** Who takes it, when the shop lists people. */
   staffId?: string; staffName?: string;
   /** A course: every date this sign-up holds a place on. `canMove` false: it can be cancelled online but not moved. */
@@ -262,6 +263,19 @@ export function groupTimes(times: string[], zone: string): { group: TimeGroup; t
 }
 
 export const timeText = (iso: string, zone: string) => new Date(iso).toLocaleTimeString(undefined, { timeZone: zone, hour: "numeric", minute: "2-digit" });
+
+/** The browser's own time zone, "" when it can't say (plan 4, 2.9). */
+export function browserZone(): string {
+  try { return cleanZone(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch { return ""; }
+}
+
+/** A time on another clock than the shop's: "9:00 PM", with the weekday when it falls on another day there ("1:00 AM Wed"). */
+export function slotText(iso: string, view: string, shop: string): string {
+  const time = timeText(iso, view);
+  const ms = Date.parse(iso);
+  if (view === shop || dayOf(ms, view) === dayOf(ms, shop)) return time;
+  return `${time} ${new Date(iso).toLocaleDateString(undefined, { timeZone: view, weekday: "short" })}`;
+}
 
 /** "Tuesday 17 November, 10:00 – 11:00". */
 /** A course's dates, one line each: "Saturday, November 28, 6:00 PM". */
