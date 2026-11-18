@@ -46,6 +46,7 @@ const EventsPage = lazy(() => import("./features/site/EventsPage"));
 const ClassesPage = lazy(() => import("./features/site/ClassesPage"));
 const SupportPage = lazy(() => import("./features/site/SupportPage"));
 const MembershipPage = lazy(() => import("./features/site/MembershipPage"));
+const RentalsPage = lazy(() => import("./features/site/RentalsPage"));
 // The bag drawer is closed when a page opens: its code (and the shipping estimate's country list) loads next to
 // the page instead of inside the first download. It still mounts on every page as soon as it arrives.
 // If its code can't load (a dropped connection, a page open across a deploy) the page carries on without the bag
@@ -204,6 +205,7 @@ export default function App() {
                   <Route path="/classes" element={<ClassesPage />} />
                   <Route path="/support" element={<SupportPage />} />
                   <Route path="/membership" element={<MembershipPage />} />
+                  <Route path="/rentals" element={<RentalsPage />} />
                 <Route path="*" element={<NotFoundPage />} />
                 </Routes>
           </Suspense>

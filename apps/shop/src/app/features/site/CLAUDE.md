@@ -1092,3 +1092,13 @@ automatically. Only the page's words are private: a per-page section stack lives
 `supportOften`, `.fm-sup-often*`); monthly sends `monthly: true`. `?pledge=<id>&key=<key>` shows `Pledge` (region
 `supportPledge`): amount, months given, next payment, End with a confirm (`.fm-sup-confirm*`), polling while held. Words
 `supportOnce`, `supportMonthly*`, `supportPledge*` (Text & labels › Support page › Monthly gifts, French twins).
+
+## Rentals page (Rentals beta, R1b, 18 November 2026)
+`/rentals` (`RentalsPage.tsx`, token-only `rentalsStyle.ts`, requests `rentalsAsk.ts`) sits in the order slip's look
+(`fm-track-*` plus `fm-rnt-*`) and is its own Studio page, **Rentals** (surface `rentalsPage`, regions `rentalsLayout`).
+The item list (`rentalsInfo`), a picker per item (hourly: day, how long, free start times from `rentalTimes`; daily: pickup
+and return day with a quote), name and email, and Pay (`rentalStart`, a 10-minute hold and a card page). `?rental=<id>&key=`
+shows the rental after paying. Refusal codes (`taken`, `when`, `closed`, `not_available`) map to words, never shown raw.
+Studio's preview answers from `rentalsPreview.ts` (a camera kit by the hour, a cargo bike by the day). The footer link
+(`footer-rentals`, word `rentalsFooterLink`) follows `settings/website.rentalsLive` (`rentalsLive.ts`, kept by
+`functions/rentals.js`). Words: Text & labels › **Rentals page** (`rentals*`, French twins). Studio fixture `?rentals=1`.

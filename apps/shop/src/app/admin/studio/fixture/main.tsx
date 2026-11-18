@@ -30,6 +30,7 @@ if (new URLSearchParams(location.search).has("events")) fixture.settings.eventsL
 if (new URLSearchParams(location.search).has("classes")) fixture.settings.classesLive = true;
 if (new URLSearchParams(location.search).has("support")) fixture.settings.givingLive = true;
 if (new URLSearchParams(location.search).has("membership")) fixture.settings.membershipsLive = true;
+if (new URLSearchParams(location.search).has("rentals")) fixture.settings.rentalsLive = true;
 // Version history starts with the published design kept once (Studio › Theme actions › Version history).
 fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 Oct 2026", createdAt: "2026-10-08T15:00:00.000Z", design: JSON.parse(JSON.stringify(fixture.settings.design)) }];
 installFakeStudioApi(adminApi as any, fixture);

@@ -159,6 +159,16 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "membershipNotice", label: "Closed and not-ready messages", required: true },
     { id: "membershipGlow", label: "Membership page top strip" },
   ] },
+  { id: "rentalsLayout", title: "Rentals · layout & elements", copy: "Rentals page", files: ["features/site/RentalsPage.tsx"], regions: [
+    { id: "rentalsHeader", label: "Rentals page navigation" },
+    { id: "rentalsIntro", label: "Rentals heading & description" },
+    { id: "rentalsItems", label: "Things to rent", required: true },
+    { id: "rentalsPicker", label: "Date picker, details and Pay", required: true },
+    { id: "rentalsSummary", label: "Price summary" },
+    { id: "rentalsDone", label: "Your rental after paying", required: true },
+    { id: "rentalsNotice", label: "Closed and not-found messages", required: true },
+    { id: "rentalsGlow", label: "Rentals page top strip" },
+  ] },
   { id: "membersOnlyLayout", title: "Custom pages · members-only box", copy: "Custom pages & 404", files: ["features/site/membersPage.tsx"], regions: [
     { id: "membersOnlyBox", label: "Box on a members-only page", required: true },
   ] },

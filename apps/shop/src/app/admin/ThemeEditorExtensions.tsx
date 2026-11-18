@@ -2472,7 +2472,8 @@ export type PreviewModeId =
   | "events"
   | "classes"
   | "support"
-  | "membership";
+  | "membership"
+  | "rentals";
 
 export type PageTemplateMeta = {
   id: string;
@@ -2499,6 +2500,7 @@ export const PAGE_TEMPLATES: PageTemplateMeta[] = [
   { id: "classesPage", label: "Classes", description: "The page where customers see your timetable and sign up for a class.", previewMode: "classes" },
   { id: "supportPage", label: "Support", description: "The page where people give your shop a gift, and their thank-you.", previewMode: "support" },
   { id: "membershipPage", label: "Membership", description: "The page listing your membership plans, where people join.", previewMode: "membership" },
+  { id: "rentalsPage", label: "Rentals", description: "The page where people rent your things by the hour or the day.", previewMode: "rentals" },
 ];
 
 /**
