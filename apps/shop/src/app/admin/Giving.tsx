@@ -81,6 +81,7 @@ export function Giving() {
       <Fundraisers list={data.fundraisers || []} money={money} onEdit={setFundForm}
         onChanged={(next, removedId) => setData((d) => d && { ...d, fundraisers: [...(next ? [next] : []), ...(d.fundraisers || []).filter((f) => f.id !== (next?.id || removedId))] })} />
 
+      <h2 className="gvg-section-title">Gifts</h2>
       {data.gifts.length === 0 ? (
         <div className="bkg-tile">
           <EmptyState icon={<HeartHandshake size={24} aria-hidden />} title="No gifts yet"
@@ -179,16 +180,16 @@ function Fundraisers({ list, money, onEdit, onChanged }: {
   return (
     <section className="gvg-funds" aria-labelledby="gvg-funds-title">
       <div className="gvg-funds-head">
-        <h2 id="gvg-funds-title">Fundraiser</h2>
+        <h2 id="gvg-funds-title" className="gvg-section-title">Fundraiser</h2>
         {!current && <SecondaryButton icon={<Flag size={16} aria-hidden />} onClick={() => onEdit("new")}>Start a fundraiser</SecondaryButton>}
       </div>
       {current ? <FundraiserCard f={current} money={money} busy={busy} onEdit={() => onEdit(current)} onEnd={() => { void end(current); }} /> : (
         <p className="gvg-hint">A goal, a last day and your story at the top of your Support page, with a bar that fills as gifts come in. One runs at a time.</p>
       )}
       {past.length > 0 && (
-        <ul className="gvg-past" aria-label="Past fundraisers">
+        <><h3 className="gvg-past-title">Past fundraisers</h3><ul className="gvg-past" aria-label="Past fundraisers">
           {past.map((f) => <li key={f.id}><strong>{f.title}</strong><span>{fundraiserLines(f, money).raised}</span><span>{f.supporters === 1 ? "1 supporter" : `${f.supporters} supporters`}</span><span>Ended {dayText(f.endedAt || `${f.endsOn}T12:00:00Z`)}</span></li>)}
-        </ul>
+        </ul></>
       )}
       {confirmNode}
     </section>
