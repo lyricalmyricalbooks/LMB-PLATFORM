@@ -647,12 +647,21 @@ export function bookingShareLink(pageUrl: string, pick: { service?: string; pers
 const htmlText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /**
- * A Book now button to paste into another website: a plain link that opens the booking page in a new tab (the shop's
- * pages never open inside another site's frame). Its look is written into the button so it works on any website.
+ * A Book now button to paste into another website: a link that opens the booking page in a new tab. Its look is written
+ * into the button so it works on any website. With `overlayScript` (the shop's /book-button.js, plan 4 step 2.6) the
+ * link is marked and the script comes after it: a click on a computer then opens booking on top of that website, and
+ * without the script (or on a phone) it is still the same plain link.
  */
-export function bookButtonHtml(link: string, label: string, look: "dark" | "light" = "dark"): string {
+export function bookButtonHtml(link: string, label: string, look: "dark" | "light" = "dark", overlayScript = ""): string {
   const colours = look === "dark" ? "background:#111111;color:#ffffff;border:2px solid #111111" : "background:#ffffff;color:#111111;border:2px solid #111111";
-  return `<a href="${htmlText(link)}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 24px;border-radius:999px;${colours};font:600 16px/1.2 system-ui,sans-serif;text-decoration:none">${htmlText(label.trim() || "Book now")}</a>`;
+  const mark = overlayScript ? " data-book-overlay" : "";
+  const button = `<a href="${htmlText(link)}"${mark} target="_blank" rel="noopener" style="display:inline-block;padding:12px 24px;border-radius:999px;${colours};font:600 16px/1.2 system-ui,sans-serif;text-decoration:none">${htmlText(label.trim() || "Book now")}</a>`;
+  return overlayScript ? `${button}\n<script src="${htmlText(overlayScript)}" async></script>` : button;
+}
+
+/** The Book button's script on the shop's own address (public/book-button.js), from the booking page's address. */
+export function bookButtonScript(pageUrl: string): string {
+  return new URL("/book-button.js", pageUrl).toString();
 }
 
 // ── Dragging on the calendar (bookings plan 4, step 1.2) ─────────────────────────────────────────────────────────────

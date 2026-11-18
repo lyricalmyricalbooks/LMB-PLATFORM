@@ -105,6 +105,18 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
+  // The Book button (public/book-button.js, Bookings plan 4, 2.6) opens the booking page in a frame on the owner's other
+  // website. Only that page may be framed by another site; frame-ancestors wins over X-Frame-Options in every browser.
+  it('lets any website frame the booking page, and only that page', () => {
+    for (const path of ['/book', '/book.html']) {
+      const headers = Object.fromEntries(headersFor(path).map(h => [h.key, h.value]));
+      expect(headers['Content-Security-Policy'], path).toBe('frame-ancestors *');
+    }
+    for (const path of ['/books/x', '/booking', '/book/x', '/bookings', '/account']) {
+      expect(headersFor(path).find(h => h.key === 'Content-Security-Policy'), path).toBeUndefined();
+    }
+  });
+
   // Private pages (bag, checkout, tracking, wishlist, account, admin) are served as the app shell, whose HTML says
   // "index, follow" until the app runs; the header keeps them out of search results without JavaScript (audit 2026-10-21).
   const privatePaths = ['/spa', '/404', '/cart', '/checkout', '/track', '/wishlist', '/account', '/account/orders', '/admin', '/admin/x'];

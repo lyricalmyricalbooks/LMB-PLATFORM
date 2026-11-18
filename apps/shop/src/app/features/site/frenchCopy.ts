@@ -1509,6 +1509,7 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeTooLate: "Il est trop tard pour modifier en ligne. Veuillez contacter la boutique.",
   bookTimeAnother: "Réserver un autre moment",
   bookTimeBack: "Retour à la boutique",
+  bookTimeEmbedClose: "Fermer",
   membershipFooterLink: "Devenir membre",
   rentalsEyebrow: "Location",
   rentalsTitle: "Louez chez nous",

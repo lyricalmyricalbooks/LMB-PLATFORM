@@ -1193,6 +1193,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookTimeTooLate", label: "Too late to change", default: "It's too close to the start to change this online. Please contact the shop." },
       { key: "bookTimeAnother", label: "Book another link", default: "Book another time" },
       { key: "bookTimeBack", label: "Back link", default: "Back to Store" },
+      { key: "bookTimeEmbedClose", label: "Close link (booking page opened by the Book button on another website)", default: "Close" },
     ],
   },
   {

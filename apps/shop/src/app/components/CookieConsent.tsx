@@ -7,6 +7,7 @@ import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { useStudioOverlay } from "../features/site/studioOverlay";
 import { COOKIE_SETTINGS_EVENT, noteCookieBanner } from "../lib/consent";
+import { bookEmbedded } from "../features/site/bookEmbed";
 
 const STORAGE_KEY = "lm:cookie-consent";
 
@@ -54,6 +55,9 @@ export function CookieConsent() {
   useEffect(() => {
     // In the Studio preview the banner opens only when Studio asks for it, so it never covers the part being edited.
     if (inPreview) return;
+    // The booking page framed on another website (Bookings plan 4, 2.6) shows no banner: it would cover the small
+    // frame, and an undecided visitor is never tracked (lib/consent.ts), so nothing runs without an answer.
+    if (bookEmbedded(window.location.search)) return;
     const existing = readConsent();
     setDecided(!!existing);
     if (existing) {
