@@ -23,6 +23,7 @@ const SERVICES: BookingServiceView[] = [
     questions: [{ id: "q1", label: "What would you like to work on?", long: true, required: true }, { id: "q2", label: "How did you hear about us?", long: false, required: false }] },
   { id: "sample-class", name: "Saturday workshop", description: "A group class with a set number of places.", minutes: 120, priceMinor: 6000, payment: "deposit", depositMinor: 2000, location: "The studio", places: 8, group: "Classes" },
   { id: "sample-call", name: "Quick call", description: "Fifteen minutes by phone.", minutes: 15, priceMinor: 0, payment: "free", location: "", repeats: true },
+  { id: "sample-review", name: "Portfolio review", description: "The shop answers each request before it's booked.", minutes: 45, priceMinor: 0, payment: "free", location: "The studio", approval: true },
 ];
 /** Places left at the sample class's times, so "3 left", "Last place" and a full time (0) are on show. */
 const CLASS_LEFT = [8, 3, 0, 1, 6];
@@ -152,6 +153,10 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   if (action === "bookingStart") {
     sample = sampleBooking(zone, currency, nowMs, body.serviceId, body.start, body.code, body.giftCard);
     sampleRun = [];
+    // Ask me first (plan 4, 2.5): the sample becomes a request the shop has two days to answer.
+    if (SERVICES.find((x) => x.id === body.serviceId)?.approval && !body.run) {
+      sample = { ...sample, status: "requested", answerBy: new Date(nowMs + 48 * 3600_000).toISOString(), canWithdraw: true, canChange: false, canEarlier: false, canReview: false };
+    }
     if (body.run && typeof body.start === "string") {
       const run = fitRun({ everyWeeks: Math.max(1, Number(body.run.everyWeeks) || 1), visits: Math.max(2, Number(body.run.visits) || 2) });
       sample = { ...sample, run: { visit: 1, visits: run.visits, everyWeeks: run.everyWeeks } };

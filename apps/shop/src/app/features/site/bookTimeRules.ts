@@ -13,6 +13,7 @@ export type BookingServiceView = { id: string; name: string; description: string
   /** Joining a course already under way: the dates missed, of how many, and the whole course's price. */
   joining?: { missed: number; of: number; fullPriceMinor: number };
   /** Clients may book it as a standing appointment: the same time every few weeks, several visits at once. */ repeats?: boolean;
+  /** The shop answers each booking first: the client sends a request (plan 4, 2.5). */ approval?: boolean;
   /** A class that runs only with at least this many signed up (otherwise cancelled and refunded). */ minPlaces?: number;
   /** Its pack is a class pass: it books any weekly class. */ packAnyClass?: boolean;
   /** What someone new to the shop pays the first time (the server decides who is new). */ introPriceMinor?: number;
@@ -150,7 +151,9 @@ export type BookingView = {
   /** The length chosen of a service offered in several (its name already says which). */ lengthId?: string;
   /** A standing appointment: which visit of the run this is, how many there are and how often. */
   run?: { visit: number; visits: number; everyWeeks: number };
-  status: "held" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;
+  status: "held" | "requested" | "confirmed" | "cancelled"; payment: "free" | "card" | "deposit" | "atShop" | "pack"; paid: boolean; priceMinor: number; currency: string;
+  /** A request waiting for the shop: when it must answer by, and that the client can withdraw it. A request the shop said no to is `declined`. */
+  answerBy?: string; canWithdraw?: boolean; declined?: boolean;
   /** With payment "deposit": what was asked by card when booking, whether it is paid, and what is left for the visit. */
   depositMinor?: number; depositPaid?: boolean; dueMinor?: number;
   name: string; email: string; refunded: boolean; canChange: boolean; cancelHours: number;
@@ -263,6 +266,12 @@ export const timeText = (iso: string, zone: string) => new Date(iso).toLocaleTim
 /** A course's dates, one line each: "Saturday, November 28, 6:00 PM". */
 export function courseDateLines(starts: readonly string[], zone: string): string[] {
   return starts.map((iso) => `${new Date(iso).toLocaleDateString(undefined, { timeZone: zone, weekday: "long", day: "numeric", month: "long" })}, ${timeText(iso, zone)}`);
+}
+
+/** "Friday 20 November, 3:00 PM": when the shop answers a request by. */
+export function answerByText(iso: string, zone: string): string {
+  const day = new Date(iso).toLocaleDateString(undefined, { timeZone: zone, weekday: "long", day: "numeric", month: "long" });
+  return `${day}, ${timeText(iso, zone)}`;
 }
 
 export function whenText(start: string, end: string, zone: string): string {

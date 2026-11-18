@@ -578,6 +578,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     })(),
     booking("bk-12", services[1], at(2, 10), "Kai Example", { payment: "pack", priceMinor: 0, listPriceMinor: 4500, paid: true, pack: { id: "p".repeat(40), last4: "K7QD", visit: 2, visits: 5 } }),
     booking("bk-9", services[2], at(1, 13), "Ivy Example", { status: "held", paid: false }),
+    // A request waiting for the owner's answer (plan 4, 2.5).
+    booking("bk-17", services[0], at(2, 15), "Max Example", { status: "requested", answerBy: new Date(Date.now() + 20 * 3600_000).toISOString(), note: "Could we look at my portfolio for the residency?" }),
     booking("bk-10", services[2], at(1, 13), "Jo Example"),
     // Started two hours ago, so Charge fee shows whatever the time of day.
     booking("bk-11", services[0], new Date(Date.now() - 2 * 3_600_000).toISOString(), "Fay Example", { noShow: true, cardHold: true, lateFeeMinor: 2000, card: { customer: "cus_example", paymentMethod: "pm_example", brand: "visa", last4: "4242" } }),
@@ -651,6 +653,11 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     watchers.add(send); send();
     return () => void watchers.delete(send);
   };
+  bookingsData.followRequests = (onRows) => {
+    const send = () => onRows(rows.filter((b) => b.status === "requested"));
+    watchers.add(send); send();
+    return () => void watchers.delete(send);
+  };
   bookingsData.range = async (from, to) => [...rows, ...history].filter((b) => b.start >= from && b.start < to);
   bookingsData.admin = async (op, body) => {
     const id = String(body.id ?? "");
@@ -665,6 +672,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       return { ok: true, id: made.id, blocks: settings.blocks };
     }
     if (op === "removeBlock") { settings = { ...settings, blocks: (settings.blocks || []).filter((b) => b.id !== id) }; return { ok: true, blocks: settings.blocks }; }
+    if (op === "accept") rows = rows.map((b) => (b.id === id ? { ...b, status: "confirmed", answerBy: null } : b));
+    if (op === "decline") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", declined: true, answerBy: null } : b));
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", ...(b.pack && body.packBack !== false ? { pack: { ...b.pack, returned: true } } : {}) } : b));
     if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
     if (op === "packs") return { packs: packRows };

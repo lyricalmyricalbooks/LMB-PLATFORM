@@ -21,7 +21,7 @@ import { addDays, bookingIcs, googleCalendarLink } from "../../../shared/booking
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
-  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, earlierFromSearch, type EarlierOfferView, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
+  dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, earlierFromSearch, type EarlierOfferView, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, answerByText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
   peopleFor, withPicked, pricedPicks, asPerson, withLengthPick, cardPrice, groupServices, lengthLabel, type BookingLengthView, canJoinVisit, visitChoices, withVisit, type VisitPick, showNoteBox, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
@@ -354,6 +354,8 @@ function NewBooking({ c }: { c: Copy }) {
         const taxMinor = applied ? applied.taxMinor || 0 : service.taxMinor || 0;
         // What the card page asks for now: what is paid when booked, less any gift card; nothing with a pack.
         const payNow = pack ? 0 : gift ? gift.payNowMinor : upFrontMinor(priced);
+        // Ask me first (plan 4, 2.5): the shop answers before it is booked. The server decides the same way.
+        const asksFirst = !!service.approval && !pack && !also.length && !run;
         // A first-visit price is decided by the server from the email (an applied code's quote already has it), so the
         // page says it may apply instead of naming a total the card page might not ask for.
         // Like the server: the first-visit price replaces the visit's own price (the chosen person's, if they have one)
@@ -430,8 +432,10 @@ function NewBooking({ c }: { c: Copy }) {
             )}
             {payNow > 0 && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
+            {asksFirst && <p className="text-sm leading-6 fm-muted">{c("bookTimeRequestNote")}</p>}
             <button type="submit" className="fm-track-btn w-full" disabled={busy}>
               {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {c("bookTimeBooking")}</>
+                : asksFirst ? c("bookTimeRequestSend")
                 : pack ? (service.holdCard ? c("bookTimeSaveCard") : c("bookTimePackBook"))
                 : paysUpFront(priced) && !payNow ? c("bookTimeGiftBook")
                 : takesDeposit(priced) ? c("bookTimePayDeposit", { amount: moneyText(payNow, currency) })
@@ -871,6 +875,7 @@ function ServiceMeta({ service, currency, c, paidWith = "" }: { service: Booking
       <span translate="no">{paidWith || (service.priceMinor > 0 ? moneyText(service.priceMinor, currency) : c("bookTimeFree"))}{!paidWith && !!service.taxMinor && service.priceMinor > 0 && <> {c("bookTimePlusTax")}</>}</span>
       {service.location && <span><MapPin size={12} aria-hidden="true" /> {service.location}</span>}
       {(service.places || 1) > 1 && <span><Users size={12} aria-hidden="true" /> {c("bookTimeClassSize", { count: service.places! })}</span>}
+      {service.approval && <span>{c("bookTimeRequestTag")}</span>}
     </p>
   );
 }
@@ -1370,8 +1375,9 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   const endMs = Date.parse(booking.end);
   const canMove = booking.canChange && booking.canMove !== false && !!info?.on && !!info.today;
   const lastDay = info?.today ? addDays(info.today, Math.max(0, (info.maxDaysAhead || 60) - 1)) : "";
-  const title = booking.status === "cancelled" ? c("bookTimeCancelledTitle") : booking.status === "held" ? c("bookTimeHeldTitle") : c("bookTimeConfirmedTitle");
-  const stamp = booking.status === "cancelled" ? "ended" : booking.status === "held" ? "unpaid" : "paid";
+  const requested = booking.status === "requested";
+  const title = booking.status === "cancelled" ? c(booking.declined ? "bookTimeDeclinedTitle" : "bookTimeCancelledTitle") : requested ? c("bookTimeRequestTitle") : booking.status === "held" ? c("bookTimeHeldTitle") : c("bookTimeConfirmedTitle");
+  const stamp = booking.status === "cancelled" ? "ended" : booking.status === "held" || requested ? "unpaid" : "paid";
 
   const fullyPaid = booking.paid || (!!booking.restPaidMinor && !booking.dueMinor);
   // Booked visits of the run after this one: cancelling can take them too.
@@ -1447,7 +1453,9 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         </div>
         <p className="mt-4 text-base leading-7 fm-muted" role="status">
           {booking.status === "confirmed" ? c("bookTimeConfirmedText", { email: booking.email })
+            : requested ? c("bookTimeRequestText", { email: booking.email, when: answerByText(booking.answerBy || booking.start, zone) })
             : booking.status === "held" ? c("bookTimeHeldText")
+              : booking.declined ? c("bookTimeDeclinedText")
               : `${c("bookTimeCancelledText")}${booking.refunded ? ` ${c("bookTimeRefunded")}` : ""}`}
         </p>
       </div>
@@ -1562,6 +1570,24 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
               {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {newStart ? c("bookTimeMoveSave", { time: timeText(newStart, zone) }) : c("bookTimeMoveTitle")}
             </button>
             <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => { setMode("view"); setNewStart(""); }}>{c("bookTimeKeep")}</button>
+          </div>
+        </div>
+      )}
+
+      {requested && mode === "view" && booking.canWithdraw && (
+        <div {...regionProps("bookingsActions")} className="fm-book-actions">
+          <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer" onClick={() => { setMode("cancel"); setError(""); setNotice(""); }}>{c("bookTimeRequestWithdraw")}</button>
+        </div>
+      )}
+
+      {requested && mode === "cancel" && (
+        <div className="fm-track-notice" data-tone="warning" role="alertdialog" aria-labelledby="bt-withdraw-q">
+          <div><p id="bt-withdraw-q"><strong>{c("bookTimeRequestWithdrawSure")}</strong></p></div>
+          <div className="fm-book-actions">
+            <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void act("bookingCancel")}>
+              {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeRequestWithdrawYes")}
+            </button>
+            <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setMode("view")}>{c("bookTimeCancelNo")}</button>
           </div>
         </div>
       )}

@@ -72,6 +72,7 @@ const {
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanBlocks, MAX_BLOCKS, cleanCheckInCode, checkInCodeFrom,
   cleanRun, runStarts, runSettings, runsOnline, withExtras, withLength, processingStretch,
   MAX_VISIT_PARTS, joinsVisit, visitService, visitTimeline, visitStaff, visitFreeTimes, visitName, visitPlan,
+  answerBy, approvalAllowed,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -310,6 +311,9 @@ function publicBooking(id, booking, settings, nowMs) {
     depositMinor: b.payment === "deposit" ? b.depositMinor || 0 : 0, depositPaid: !!b.depositPaid, dueMinor: balanceDue(b),
     name: b.customer?.name || "", email: b.customer?.email || "", refunded: !!b.refund?.amountMinor,
     canChange: b.status === "confirmed" && customerCanChange(start, settings, nowMs),
+    // A request waiting for the owner (plan 4, 2.5): when it must be answered by; the client may withdraw it any time.
+    ...(b.status === "requested" ? { answerBy: b.answerBy || "", canWithdraw: true } : {}),
+    ...(b.declined ? { declined: true } : {}),
     // A course is one sign-up for all of its dates: it can be cancelled online, never moved.
     // A visit with several services is moved by the shop (each person's time has to fit again).
     canMove: b.status === "confirmed" && customerCanChange(start, settings, nowMs) && !b.course && !b.parts?.length,
@@ -599,7 +603,7 @@ function bookingActions({
         <p style="margin:0 0 4px;font-size:13px;">Show it at the desk when you arrive.${key ? " Your booking page has it as a code to scan." : ""}</p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
-      const subject = { thanks: `Thank you for coming: ${visitName(b)}`, tip: `Thank you for coming: ${visitName(b)}`, tipPaid: `Tip received: ${visitName(b)}, ${when}`, payRest: `Left to pay: ${visitName(b)}, ${when}`, restPaid: `Paid in full: ${visitName(b)}, ${when}`, fee: `Fee charged: ${visitName(b)}, ${when}`, notCleared: `Not booked: ${visitName(b)}, ${when}`, reminder: `Coming up: ${visitName(b)}, ${when}`, soon: `Soon: ${visitName(b)}, ${when}`, booked: `Booked: ${visitName(b)}, ${when}`, moved: `Moved: ${visitName(b)}, now ${when}`, cancelled: `Cancelled: ${visitName(b)}, ${when}` }[kind];
+      const subject = { thanks: `Thank you for coming: ${visitName(b)}`, tip: `Thank you for coming: ${visitName(b)}`, tipPaid: `Tip received: ${visitName(b)}, ${when}`, payRest: `Left to pay: ${visitName(b)}, ${when}`, restPaid: `Paid in full: ${visitName(b)}, ${when}`, fee: `Fee charged: ${visitName(b)}, ${when}`, notCleared: `Not booked: ${visitName(b)}, ${when}`, reminder: `Coming up: ${visitName(b)}, ${when}`, soon: `Soon: ${visitName(b)}, ${when}`, booked: `Booked: ${visitName(b)}, ${when}`, requested: `Request sent: ${visitName(b)}, ${when}`, declined: `Not booked: ${visitName(b)}, ${when}`, moved: `Moved: ${visitName(b)}, now ${when}`, cancelled: `Cancelled: ${visitName(b)}, ${when}` }[kind];
       const lead = {
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
         payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
@@ -611,10 +615,12 @@ function bookingActions({
         soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
         notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
         booked: `You're booked in with ${escapeHtml(shop)}.`,
+        requested: `Thank you. ${escapeHtml(shop)} looks at each booking before confirming it. The time is kept for you, and you'll get an email as soon as they answer${b.answerBy ? `, by ${escapeHtml(whenWords(b, b.answerBy))} at the latest` : ""}.`,
+        declined: refundText ? escapeHtml(refundText) : `${escapeHtml(shop)} can't take this booking, sorry. You're welcome to choose another time.`,
         moved: `Your booking with ${escapeHtml(shop)} has moved.`,
         cancelled: `${tooFew ? `Not enough people signed up for this ${b.course ? "course" : "class"} to run, so ${escapeHtml(shop)} has cancelled it. Sorry for the change of plans.` : `Your booking with ${escapeHtml(shop)} is cancelled.`}${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
       }[kind];
-      const ended = kind === "cancelled" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid" || kind === "thanks";
+      const ended = kind === "cancelled" || kind === "declined" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid" || kind === "thanks";
       // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
       const due = balanceDue(b);
       const taken = bookedCardTaken(b);
@@ -636,12 +642,12 @@ function bookingActions({
       const afterVisit = kind === "thanks" || kind === "tip";
       const own = afterVisit && siteReview && key ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(manageUrl(id, key))}#review">Leave a review</a></p>` : "";
       const review = own || (reviewUrl && afterVisit ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : "");
-      const again = kind === "thanks" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
+      const again = kind === "thanks" || kind === "declined" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
       // The form before the first visit, while it isn't signed: on the confirmation and the reminders.
-      const formState0 = ["booked", "moved", "reminder"].includes(kind) && key ? await formState(b, await readSettings().catch(() => null)).catch(() => null) : null;
+      const formState0 = ["booked", "requested", "moved", "reminder"].includes(kind) && key ? await formState(b, await readSettings().catch(() => null)).catch(() => null) : null;
       const formNote = formState0 && !formState0.signed ? `<p style="margin:16px 0 4px;"><strong>Before your visit:</strong> please fill in "${escapeHtml(formState0.form.title)}" on your booking page. It takes a minute, and you only do it once.</p>` : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", requested: "Booking requested", declined: "Not booked", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(visitName(b))}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
         <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
@@ -667,7 +673,7 @@ function bookingActions({
       if (owner && toOwner) {
         await sendEmail({
           to: owner,
-          subject: `[BOOKING] ${{ booked: "New", moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${visitName(b)}, ${when}`,
+          subject: `[BOOKING] ${{ booked: "New", requested: "Please answer",  moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${visitName(b)}, ${when}`,
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(visitName(b))}</h2>
             <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes${b.staffName ? ` · ${escapeHtml(withWhom(b))}` : ""}</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
@@ -675,10 +681,11 @@ function bookingActions({
             ${runDates}
             ${money}
             ${held}
+            ${kind === "requested" ? `<p style="margin:12px 0 0;"><strong>This is a request.</strong> Accept or decline it in Bookings${b.answerBy ? ` by ${escapeHtml(whenWords(b, b.answerBy))}` : ""}. If you don't, the time is let go and they are told.</p>` : ""}
             ${kind === "notCleared" ? `<p style="margin:12px 0 0;">Their bank payment was still clearing when the booking was due, so the time was released and nothing was taken. You may want to get in touch with them.</p>` : ""}
             ${b.note ? `<p style="margin:12px 0 0;">“${escapeHtml(b.note)}”</p>` : ""}
             ${(b.answers || []).map((a) => `<p style="margin:12px 0 0;"><strong>${escapeHtml(a.label)}</strong><br>${escapeHtml(a.answer)}</p>`).join("")}
-            ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Open Bookings", brand.accent, brand.theme)}`, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
+            ${risoButton(escapeHtml(siteLink("/admin#bookings")), kind === "requested" ? "Accept or decline" : "Open Bookings", brand.accent, brand.theme)}`, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
         });
       }
     } catch (err) {
@@ -1995,8 +2002,10 @@ function bookingActions({
           // With "anyone available" the page lists them (the Your team section) but offers no choice; with names hidden, nobody.
           staff: booksByPerson(settings) && settings.teamShown !== "hidden" ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates, photo, bio }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}), ...(photo ? { photo } : {}), ...(bio ? { bio } : {}) })) : [],
           ...(settings.teamShown === "anyone" ? { staffPick: false } : {}),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras, lengths, group, photo }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras, lengths, group, photo, approval }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
+            // The owner accepts each booking first (plan 4, 2.5): the page says it is a request.
+            ...(approval ? { approval: true } : {}),
             // Its group heading and photo on the booking page (plan 4, 2.3).
             ...(group ? { group } : {}),
             ...(photo ? { photo } : {}),
@@ -2328,6 +2337,9 @@ function bookingActions({
         }
         // The customer goes to a card page to pay now, to save a card for the missed-booking fee, or both.
         const paid = cardDue > 0 || holdCard;
+        // The owner accepts it first (plan 4, 2.5): a request holding the time. The shared rules only allow it where
+        // nothing is paid when booking; a gift card or a code that leaves something to pay by card books as usual.
+        const asking = service.approval === true && approvalAllowed(service) && !paid && !run && !visit;
         // Paid in full by the gift card with no page to visit: the booking's payment is done now.
         const giftPaid = gift && !paid ? (deposit ? { depositPaid: true } : { paid: true }) : {};
         const key = randomKey();
@@ -2335,7 +2347,7 @@ function bookingActions({
         const record = {
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, ...processingRecord(service), location: service.location,
           customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: answered.answers,
-          status: paid ? "held" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
+          status: paid ? "held" : asking ? "requested" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
           ...(gift ? { giftCard: gift } : {}),
@@ -2347,7 +2359,8 @@ function bookingActions({
           paid: false, ...giftPaid, sessions: [], holdUntil: paid ? new Date(nowMs + HOLD_MINUTES * MINUTE).toISOString() : null, manageKeyHash: hash(key),
           ...(holdCard ? { cardHold: true, lateFeeMinor: offered.lateFeeMinor, cardMode: mode } : {}),
           // Kept only until the payment is confirmed, so the confirmation email can carry the customer's link.
-          pendingKey: paid ? key : null,
+          pendingKey: paid || asking ? key : null,
+          ...(asking ? { answerBy: new Date(answerBy(nowMs, start)).toISOString() } : {}),
           source: "website", history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by: "customer" }], createdAt: at, updatedAt: at,
           ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
         };
@@ -2361,6 +2374,11 @@ function bookingActions({
         if (run && !paid) {
           const later = await bookRun({ firstId: id, first: record, service, settings, starts: runAt, staffId, by: "customer" });
           if (later.taken.length) { if (offered.intro) await releaseIntro(customer.email, id); return res.status(409).json({ error: "Someone just took one of those dates. Choose another time, gap or number of visits.", code: "run_taken", taken: later.taken }); }
+        }
+        if (asking) {
+          const written = pack ? (await bookings().doc(id).get()).data() : record;
+          await tellCustomer(id, { ...written, start: new Date(start).toISOString(), end: new Date(start + record.minutes * MINUTE).toISOString() }, "requested", { key });
+          return res.status(200).json({ id, key, status: "requested" });
         }
         if (!paid) {
           const written = pack ? (await bookings().doc(id).get()).data() : record;
@@ -2588,7 +2606,8 @@ function bookingActions({
       }
       if (action === "bookingCancel") {
         if (b.status === "cancelled") return res.status(200).json({ booking: publicBooking(id, b, settings, nowMs), ...(await runOf(id, b, key)) });
-        if (b.status !== "confirmed" || !customerCanChange(Date.parse(b.start), settings, nowMs)) {
+        // A request the owner hasn't answered can always be withdrawn: nothing was paid and nothing confirmed.
+        if (b.status !== "requested" && (b.status !== "confirmed" || !customerCanChange(Date.parse(b.start), settings, nowMs))) {
           return fail(res, 409, `This booking can't be cancelled online within ${settings.cancelHours} hours of its start. Please contact the shop.`, "too_late");
         }
         b = await settleRest(id, b);
@@ -3077,6 +3096,30 @@ function bookingActions({
         }
         return res.status(200).json({ ok: true, url: manageUrl(id, key), dueMinor: balanceDue(b), sent: req.body?.send === true });
       }
+      // Owner approves (plan 4, 2.5): accept turns a request into a booking; decline lets the time go and tells them.
+      if (op === "accept") {
+        if (b.status === "confirmed") return res.status(200).json({ ok: true });
+        if (b.status !== "requested") return fail(res, 409, "This request was already answered, or its time ran out.", "answered");
+        const at = now().toISOString();
+        const changes = { status: "confirmed", answerBy: null, pendingKey: null, acceptedAt: at, updatedAt: at, history: [...(b.history || []), { at, what: "accepted", by }].slice(-20) };
+        const accepted = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(bookings().doc(id));
+          if (snap.data()?.status !== "requested") return false;
+          tx.set(bookings().doc(id), changes, { merge: true });
+          return true;
+        });
+        if (!accepted) return fail(res, 409, "This request was already answered, or its time ran out.", "answered");
+        const next = await syncCalendar(id, { ...b, ...changes });
+        await tellCustomer(id, next, "booked", { key: b.pendingKey || "", byShop: true });
+        return res.status(200).json({ ok: true });
+      }
+      if (op === "decline") {
+        if (b.status === "cancelled") return res.status(200).json({ ok: true });
+        if (b.status !== "requested") return fail(res, 409, "Only a request can be declined. To call off a booking, cancel it.", "answered");
+        const reason = String(req.body?.reason || "").trim().slice(0, 300);
+        await declineRequest(id, b, by, reason);
+        return res.status(200).json({ ok: true });
+      }
       if (op === "cancel") {
         if (b.status === "cancelled") return res.status(200).json({ ok: true });
         b = await settleRest(id, b);
@@ -3259,9 +3302,42 @@ function bookingActions({
   }
 
   /** Confirms paid holds and frees the time of holds that ran out (their payment page closed first). */
+  /**
+   * Lets a request go (plan 4, 2.5): frees its time (a code, gift card or pack visit goes back), and tells the client,
+   * with the owner's own words when there are some. `by` "not answered" when the owner didn't answer in time.
+   */
+  async function declineRequest(id, b, by, reason = "") {
+    const at = now().toISOString();
+    const late = by === "not answered";
+    const changes = { status: "cancelled", cancelledAt: at, cancelledBy: by, declined: true, answerBy: null, pendingKey: null, updatedAt: at,
+      history: [...(b.history || []), { at, what: late ? "request not answered in time" : "declined", by }].slice(-20) };
+    // Only while it is still a request: an accept or a withdrawal at the same moment wins.
+    const written = await freeTime(id, b, changes, { still: (fresh) => fresh.status === "requested" });
+    if (!written) return false;
+    const shop = shopName() || "The shop";
+    const words = late ? `${shop} couldn't answer your request in time, so the time has been let go. Nothing was taken. You're welcome to choose another time.`
+      : `${shop} can't take this booking, sorry.${reason ? ` They said: “${reason}”` : ""} You're welcome to choose another time.`;
+    await tellCustomer(id, { ...b, ...changes }, "declined", { byShop: true, refundText: words });
+    return true;
+  }
+
+  /** Requests the owner didn't answer by their `answerBy`: let go (from the five-minute sweep). */
+  async function sweepRequests() {
+    const snap = await bookings().where("status", "==", "requested").limit(100).get();
+    const nowMs = now().getTime();
+    let freed = 0;
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      if (!(Date.parse(b.answerBy || b.start || "") <= nowMs)) continue;
+      if (await declineRequest(doc.id, b, "not answered").catch((err) => console.warn(`Booking ${doc.id}: letting a request go failed:`, err?.message || err))) freed += 1;
+    }
+    return freed;
+  }
+
   async function sweepHolds() {
     if (!(await featureOn())) return { confirmed: 0, freed: 0 };
     await sweepPacks().catch((err) => console.warn("bookings: the packs sweep failed:", err?.message || err));
+    await sweepRequests().catch((err) => console.warn("bookings: the requests sweep failed:", err?.message || err));
     const [snap, rests, onReaders] = await Promise.all([bookings().where("status", "==", "held").limit(100).get(), bookings().where("restOpen", "==", true).limit(100).get(), bookings().where("readerOpen", "==", true).limit(50).get()]);
     if (!onReaders.empty) await sweepReaders(onReaders.docs).catch((err) => console.warn("bookings: the card reader sweep failed:", err?.message || err));
     if (snap.empty && rests.empty) return { confirmed: 0, freed: 0 };

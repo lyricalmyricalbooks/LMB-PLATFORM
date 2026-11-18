@@ -43,7 +43,7 @@ export function dayList(list: readonly Booking[], zone: string): DayListGroup[] 
     if (!groups.has(key)) groups.set(key, { key, time: timeText(b.start, zone), serviceName: b.serviceName, people: [] });
     groups.get(key)!.people.push({
       id: b.id, name: b.customer.name, phone: b.customer.phone || "", email: b.customer.email, payment: paymentText(b), note: b.note || "",
-      answers: (b.answers || []).filter((a) => a.answer), tag: b.status === "held" ? "Not confirmed yet" : b.noShow ? "No-show" : "",
+      answers: (b.answers || []).filter((a) => a.answer), tag: b.status === "held" ? "Not confirmed yet" : b.status === "requested" ? "Waiting for your answer" : b.noShow ? "No-show" : "",
     });
   }
   return [...groups.values()];
@@ -300,7 +300,8 @@ export function bookingFigures(rows: readonly Booking[], zone: string, months: r
     const startMs = Date.parse(b.start);
     const day = dayOf(startMs, zone);
     const m = byMonth.get(day.slice(0, 7));
-    if (!m || b.status === "held") continue;
+    // A request isn't a booking yet, and a declined one never was.
+    if (!m || b.status === "held" || b.status === "requested" || b.declined) continue;
     m.takenMinor += moneyKept(b);
     if (b.status === "cancelled") { m.cancelled += 1; continue; }
     m.count += 1;
@@ -371,9 +372,10 @@ export function bookingList(rows: readonly Booking[], opts: { mode: ListMode; qu
 }
 
 /** The short tag a list row carries, or "" when the booking is plainly on. */
-export function listTag(b: Pick<Booking, "status" | "noShow" | "clearing">): string {
-  if (b.status === "cancelled") return "Cancelled";
+export function listTag(b: Pick<Booking, "status" | "noShow" | "clearing"> & { declined?: boolean }): string {
+  if (b.status === "cancelled") return b.declined ? "Declined" : "Cancelled";
   if (b.status === "held") return b.clearing ? "Payment clearing" : "Paying now";
+  if (b.status === "requested") return "Request";
   return b.noShow ? "No-show" : "";
 }
 
@@ -594,7 +596,7 @@ export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[],
   };
   for (const p of staff) line(p.id, p.name, commissionOf(p.commissionPercent));
   for (const b of rows) {
-    if (b.status === "held" || dayOf(Date.parse(b.start), zone).slice(0, 7) !== month) continue;
+    if (b.status === "held" || b.status === "requested" || dayOf(Date.parse(b.start), zone).slice(0, 7) !== month) continue;
     const kept = moneyKept(b);
     const taken = kept - taxIn(b, kept);
     const tips = tipTaken(b);
@@ -697,4 +699,22 @@ export function processingBand(b: Pick<Booking, "minutes" | "processAfter" | "pr
 /** "Processing 30 min, from 45 min in" for the booking drawer and the service list, or "". */
 export function processingText(s: { minutes: number; processAfter?: number; processMinutes?: number }): string {
   return processingStretch(s, 0) ? `Processing ${s.processMinutes} min, from ${s.processAfter} min in` : "";
+}
+
+/**
+ * Requests waiting for the owner's answer (plan 4, 2.5), the one to answer soonest first. A request whose answer time
+ * has passed is left out: the sweep lets it go within minutes.
+ */
+export function requestsWaiting(rows: readonly Booking[], nowMs: number): Booking[] {
+  const by = (b: Booking) => Date.parse(b.answerBy || b.start);
+  return rows.filter((b) => b.status === "requested" && by(b) > nowMs).sort((a, b) => by(a) - by(b) || a.start.localeCompare(b.start));
+}
+
+/** "Answer within 5 hours", "Answer within 40 minutes": how long the owner has left to answer a request. */
+export function answerWithin(b: Pick<Booking, "answerBy" | "start">, nowMs: number): string {
+  const left = Math.max(0, Date.parse(b.answerBy || b.start) - nowMs);
+  const minutes = Math.max(1, Math.round(left / 60_000));
+  if (minutes < 60) return `Answer within ${minutes} minute${minutes === 1 ? "" : "s"}`;
+  const hours = Math.round(minutes / 60);
+  return `Answer within ${hours} hour${hours === 1 ? "" : "s"}`;
 }
