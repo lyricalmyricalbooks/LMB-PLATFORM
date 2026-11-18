@@ -4,6 +4,7 @@
 //   /a11y-fixture.html?theme=<theme id>&path=/books/salt-hours
 //   …&design={"buttonRadius":0}   Studio settings laid over the theme, as if the press had changed them (to see a control work)
 //   …&settings={"givingTips":[5,10,15]}   shop settings beside the design (a switch the server keeps, like the tip line)
+//   …&books=none   no products (a services shop's booking website)
 //
 // The theme is applied as Studio's Apply does it (themedDesign); the sample books and the design go in through the
 // preview snapshot (useSiteData reads it), then the address becomes `path?preview=true` and the shop's own entry runs.
@@ -26,7 +27,7 @@ const design = { ...(theme ? themedDesign(theme, base) : base), ...extra };
 const win = window as any;
 win.__studioPreviewDesign = design;
 const shopSettings = JSON.parse(params.get("settings") || "{}");
-win.__studioPreviewState = { settings: { ...shopSettings, design }, books: A11Y_BOOKS, pages: [] };
+win.__studioPreviewState = { settings: { ...shopSettings, design }, books: params.get("books") === "none" ? [] : A11Y_BOOKS, pages: [] };
 win.__studioPreviewStatus = "live";
 win.__a11yThemes = [STARTING_LOOK, ...(THEME_LIBRARY as any[]).map(t => t.id)];
 

@@ -104,6 +104,15 @@ const WRITTEN: Record<string, string> = {
   searchNoBooks: "No products match.",
 };
 
+/** A services shop's starter words where a goods shop's would talk about made things (bookings plan 4, fix 2). */
+const SERVICES_WRITTEN: Record<string, string> = {
+  siteDefaultTitle: "{name} — Book online",
+  siteDefaultDescription: "{name}: see our services and book a time online.",
+  footerAbout: "See our services and book a time online, any time.",
+  newsletterHeading: "Stay in touch",
+  newsletterText: "News, openings and offers — now and then.",
+};
+
 /** Longer defaults where only a few words change: each pair must still match the default (the tests check). */
 export const SWAPPED: Record<string, [string, string][]> = {
   trackPreorder: [["the last book", "the last item"]],
@@ -127,7 +136,7 @@ const swapped = (key: string) =>
 /** The starter words for an answer, Text & labels key → words. Empty for a books shop. */
 export function starterWords(answer?: string | null): Record<string, string> {
   if (sellsBooks(answer)) return {};
-  const words: Record<string, string> = { ...WRITTEN };
+  const words: Record<string, string> = { ...WRITTEN, ...(sellsServices(answer) ? SERVICES_WRITTEN : {}) };
   for (const key of Object.keys(SWAPPED)) words[key] = swapped(key);
   return words;
 }
@@ -150,13 +159,15 @@ export function withShopWordsFor<T extends Record<string, any> | null | undefine
   if (!sellsBooks(answer)) return withStarterWords(design as Record<string, any>, answer) as T;
   const copy = (design as Record<string, any>).copy;
   if (!copy || typeof copy !== "object") return design;
-  const goods = starterWords("other");
-  const kept = Object.fromEntries(Object.entries(copy).filter(([key, text]) => !(key in goods && text === goods[key])));
+  const ours = [starterWords("other"), starterWords("services")];
+  const kept = Object.fromEntries(Object.entries(copy).filter(([key, text]) => !ours.some(words => key in words && text === words[key])));
   return Object.keys(kept).length === Object.keys(copy).length ? design : { ...design, copy: kept } as T;
 }
 
 /** The banner a shop that doesn't sell books starts with, until its owner writes one (Studio › Style › Announcement bar). */
 export const GOODS_ANNOUNCEMENT = "AN INDEPENDENT SHOP OF CAREFULLY MADE THINGS";
+/** The same for a services shop. */
+export const SERVICES_ANNOUNCEMENT = "BOOK ONLINE ANY TIME";
 
 const isBookHeroSubtitle = (text: unknown) => text === DEFAULT_HERO_SUBTITLE || text === LEGACY_HERO_SUBTITLE;
 const isBookAnnouncement = (text: unknown) => text === DEFAULT_ANNOUNCEMENT || text === LEGACY_ANNOUNCEMENT;
@@ -197,16 +208,18 @@ export function withShopStartFor<T extends Record<string, any>>(settings: T, sig
   const out: Record<string, any> = { ...settings };
   if (settings.info && !typedName(settings.info.name)) out.info = { ...settings.info, name: shopName(design) };
   // The banner and description: the starting words for any shop, with the old one-publisher wording read as the new words.
-  const bannerNow = goods ? GOODS_ANNOUNCEMENT : DEFAULT_ANNOUNCEMENT;
-  if (isBookAnnouncement(design.announcementText) && design.announcementText !== bannerNow) design = { ...design, announcementText: bannerNow };
-  if (Array.isArray(settings.announcements) && isBookAnnouncement(settings.announcements[0]?.message) && settings.announcements[0].message !== bannerNow) {
+  const services = sellsServices(sells);
+  const bannerNow = services ? SERVICES_ANNOUNCEMENT : goods ? GOODS_ANNOUNCEMENT : DEFAULT_ANNOUNCEMENT;
+  const starterBanner = (text: unknown) => isBookAnnouncement(text) || (services && text === GOODS_ANNOUNCEMENT);
+  if (starterBanner(design.announcementText) && design.announcementText !== bannerNow) design = { ...design, announcementText: bannerNow };
+  if (Array.isArray(settings.announcements) && starterBanner(settings.announcements[0]?.message) && settings.announcements[0].message !== bannerNow) {
     out.announcements = [{ ...settings.announcements[0], message: bannerNow }, ...settings.announcements.slice(1)];
   }
   if (out.info?.description === LEGACY_SHOP_DESCRIPTION) out.info = { ...out.info, description: DEFAULT_SHOP_DESCRIPTION };
   if (goods) {
     if (sameList(design.categories, CATEGORIES) || sameList(design.categories, LEGACY_CATEGORIES)) design = { ...design, categories: [] };
-    if (isBookDescription(out.info?.description)) {
-      out.info = { ...out.info, description: WRITTEN.siteDefaultDescription.replace("{name}", shopName(design)) };
+    if (isBookDescription(out.info?.description) || (services && out.info?.description === WRITTEN.siteDefaultDescription.replace("{name}", shopName(design)))) {
+      out.info = { ...out.info, description: (services ? SERVICES_WRITTEN : WRITTEN).siteDefaultDescription.replace("{name}", shopName(design)) };
     }
   }
   // The made-up Instagram account the starting design used to carry: read as none, so shoppers aren't sent to a stranger's page.
