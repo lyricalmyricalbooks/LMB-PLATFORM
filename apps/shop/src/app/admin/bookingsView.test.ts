@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable } from "./bookingsView";
+import { bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -302,5 +302,30 @@ describe("dragging on the calendar (plan 4, 1.2)", () => {
     expect(draggable(b({}), 6, now)).toBe(false);
     expect(draggable(b({ course: { starts: [], days: [] } }), 1, now)).toBe(false);
     expect(draggable(b({}), 1, Date.parse("2026-11-18T00:00:00.000Z"))).toBe(false);
+  });
+});
+
+describe("blocked time on the calendar (plan 4, 1.3)", () => {
+  const lunch = { id: "l", title: "Lunch", staffId: "", day: "2026-11-16", start: "12:30", end: "13:15", weekly: true, until: "" };
+  const dentist = { id: "d", title: "Dentist", staffId: "ana", day: "2026-11-17", start: "08:00", end: "10:00", weekly: false, until: "" };
+  const staff = [{ id: "ana", name: "Ana" }];
+  it("places a block by its clock, cut to the grid, on the right days", () => {
+    expect(blockedBands([lunch], "2026-11-23", 540, 1080)).toEqual([{ block: lunch, top: 210, height: 45, who: "Everyone" }]);
+    expect(blockedBands([lunch], "2026-11-24", 540, 1080)).toEqual([]);
+    // Starts before the grid's first hour: only the part on show.
+    expect(blockedBands([dentist], "2026-11-17", 540, 1080, staff)).toEqual([{ block: dentist, top: 0, height: 60, who: "Ana" }]);
+    expect(blockedBands([{ ...dentist, start: "06:00", end: "08:00" }], "2026-11-17", 540, 1080)).toEqual([]);
+  });
+  it("shows each team column the shop's blocks and its own", () => {
+    const both = [lunch, { ...dentist, day: "2026-11-16", start: "12:00", end: "14:00" }];
+    expect(blockedBands(both, "2026-11-16", 540, 1080, staff, "ana").map((b) => b.block.id)).toEqual(["d", "l"]);
+    expect(blockedBands(both, "2026-11-16", 540, 1080, staff, "ben").map((b) => b.block.id)).toEqual(["l"]);
+    expect(blockedBands(both, "2026-11-16", 540, 1080, staff, "").map((b) => b.block.id)).toEqual(["l"]);
+  });
+  it("says when and for how long in plain words", () => {
+    expect(blockWhen({ ...lunch, until: "2026-12-14" })).toMatch(/^Every Monday, until /);
+    expect(blockWhen(dentist)).toMatch(/17/);
+    expect(blockHours(lunch)).toBe("12:30 PM to 1:15 PM");
+    expect(blockHours({ start: "00:00", end: "24:00" })).toBe("All day");
   });
 });

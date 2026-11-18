@@ -69,7 +69,7 @@ const {
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
-  whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanCheckInCode, checkInCodeFrom,
+  whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanBlocks, MAX_BLOCKS, cleanCheckInCode, checkInCodeFrom,
   cleanRun, runStarts, runSettings, runsOnline, withExtras,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
@@ -2562,7 +2562,9 @@ function bookingActions({
         return res.status(200).json({ available: status.available === true, price: status.price || "" });
       }
       if (op === "saveSettings") {
-        const next = cleanBookingSettings(req.body?.settings);
+        // Blocked time has its own ops (an open Hours page must never undo a block made on the calendar meanwhile).
+        const { blocks: _sent, ...cleaned } = cleanBookingSettings(req.body?.settings);
+        const next = settings.blocks?.length ? { ...cleaned, blocks: settings.blocks } : cleaned;
         await settingsRef().set({ ...next, updatedAt: now().toISOString(), updatedBy: by });
         await tellWebsite(next.live);
         // Someone taken off the team: their Google Calendar link goes too, so Colophon stops holding their access.
@@ -2574,6 +2576,31 @@ function bookingActions({
         // Just switched on: the coming bookings go in too, and the owner learns whether Google is linked.
         const googleCalendar = next.googleCalendar && !settings.googleCalendar ? await fillCalendar() : undefined;
         return res.status(200).json({ ok: true, settings: next, ...(googleCalendar ? { googleCalendar } : {}) });
+      }
+      if (op === "addBlock" || op === "removeBlock") {
+        // Block time on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly meeting. Clients can't book it; the
+        // owner still can. Read and written in one go, so two tabs adding blocks never lose one.
+        const today = dayOf(now().getTime(), zone());
+        const id = op === "addBlock" ? `b${crypto.randomBytes(6).toString("hex")}` : String(req.body?.id || "");
+        let problem = "";
+        const blocks = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(settingsRef());
+          const stored = cleanBookingSettings(snap.exists ? snap.data() : null);
+          const kept = cleanBlocks(stored.blocks, today);
+          let nextBlocks = kept;
+          if (op === "removeBlock") nextBlocks = kept.filter((b) => b.id !== id);
+          else {
+            const [made] = cleanBlocks([{ ...(req.body?.block || {}), id }]);
+            if (!made) { problem = "Pick a day and a start before the end."; return kept; }
+            if (made.staffId && !(stored.staff || []).some((p) => p.id === made.staffId)) { problem = "That person isn't on your team."; return kept; }
+            if (kept.length >= MAX_BLOCKS) { problem = `You can keep up to ${MAX_BLOCKS} blocks. Remove an old one first.`; return kept; }
+            nextBlocks = [...kept, made];
+          }
+          tx.set(settingsRef(), { blocks: nextBlocks, updatedAt: now().toISOString(), updatedBy: by }, { merge: true });
+          return nextBlocks;
+        });
+        if (problem) return fail(res, 400, problem, "block");
+        return res.status(200).json({ ok: true, blocks, ...(op === "addBlock" ? { id } : {}) });
       }
       if (op === "setLive") {
         // The owner's on/off switch (Orders › Bookings): one tap, nothing else about the hours changes. Off hides the

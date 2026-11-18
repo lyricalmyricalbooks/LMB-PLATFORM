@@ -3,7 +3,7 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
+import { BellRing, CalendarOff, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Checkbox, DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
@@ -11,8 +11,8 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, MAX_FORM_TEXT } from "../../shared/bookingTimes";
+import { packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, zonedTime, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, withExtras, forPerson, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -45,6 +45,9 @@ export function Bookings() {
   const [creating, setCreating] = useState(false);
   // A tap on an empty time on the week grid: New booking, starting there.
   const [bookAt, setBookAt] = useState<{ start: string; staffId?: string } | null>(null);
+  // Block time (plan 4, 1.3): the form to block a stretch, and the block clicked on the calendar.
+  const [blocking, setBlocking] = useState<{ start?: string; staffId?: string } | null>(null);
+  const [blockShown, setBlockShown] = useState<BlockedBand | null>(null);
   const [switching, setSwitching] = useState(false);
   // Week or list, remembered on this computer.
   const [view, setView] = useState<CalendarView>(() => { try { const v = localStorage.getItem(VIEW_KEY); return v === "list" || v === "day" ? v : "week"; } catch { return "week"; } });
@@ -76,6 +79,7 @@ export function Bookings() {
   const weekLabel = thisWeek ? "This week" : `Week of ${dayText(monday)}`;
   const next = nextUp(upcoming, Date.now());
   const noServices = setup.services.length === 0;
+  const setBlocks = (blocks: TimeBlock[]) => setSetup((s) => (s ? { ...s, settings: { ...s.settings, blocks } } : s));
   const live = setup.settings.live;
   const hasTeam = booksByPerson(setup.settings);
   const shownView: CalendarView = view === "day" && !hasTeam ? "week" : view;
@@ -97,6 +101,7 @@ export function Bookings() {
   return (
     <div className="bkg-page">
       <PageActions>
+        <SecondaryButton icon={<CalendarOff size={16} aria-hidden />} onClick={() => setBlocking({})}>Block time</SecondaryButton>
         <PrimaryButton icon={<CalendarPlus size={16} aria-hidden />} onClick={() => setCreating(true)} disabled={noServices}>New booking</PrimaryButton>
       </PageActions>
 
@@ -163,9 +168,9 @@ export function Bookings() {
               tabs={[{ id: "week", label: "Week" }, ...(hasTeam ? [{ id: "day" as const, label: "Team day" }] : []), { id: "list", label: "List" }]} />
           </div>
           {shownView === "week"
-            ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} onBookAt={(start) => { setBookAt({ start }); setCreating(true); }} />
+            ? <WeekView monday={monday} setMonday={setMonday} rows={rows} error={rowsError} settings={setup.settings} services={setup.services} onOpen={setOpen} onBlock={setBlockShown} onBookAt={(start) => { setBookAt({ start }); setCreating(true); }} />
             : shownView === "day"
-              ? <TeamDayView day={teamDayShown} setDay={showDay} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} onBookAt={(start, staffId) => { setBookAt({ start, staffId }); setCreating(true); }} />
+              ? <TeamDayView day={teamDayShown} setDay={showDay} rows={rows} error={rowsError} settings={setup.settings} onOpen={setOpen} onBlock={setBlockShown} onBookAt={(start, staffId) => { setBookAt({ start, staffId }); setCreating(true); }} />
               : <ListView services={setup.services} onOpen={setOpen} />}
         </>)}
       </TabPanel>
@@ -193,15 +198,19 @@ export function Bookings() {
       </TabPanel>
 
       {open && <BookingDrawer booking={open} services={setup.services} settings={setup.settings} onClose={() => setOpen(null)} />}
-      {creating && <NewBookingDialog services={setup.services} settings={setup.settings} startAt={bookAt?.start} initial={bookAt?.staffId ? { staffId: bookAt.staffId } : undefined} onClose={() => { setCreating(false); setBookAt(null); }} />}
+      {creating && <NewBookingDialog services={setup.services} settings={setup.settings} startAt={bookAt?.start} initial={bookAt?.staffId ? { staffId: bookAt.staffId } : undefined} onClose={() => { setCreating(false); setBookAt(null); }}
+        onBlockInstead={bookAt ? () => { setBlocking(bookAt); setCreating(false); setBookAt(null); } : undefined} />}
+      {blocking && <BlockDialog settings={setup.settings} start={blocking.start} staffId={blocking.staffId} onClose={() => setBlocking(null)} onSaved={(blocks) => { setBlocks(blocks); setBlocking(null); }} />}
+      {blockShown && <BlockInfoDialog band={blockShown} onClose={() => setBlockShown(null)} onRemoved={(blocks) => { setBlocks(blocks); setBlockShown(null); }} />}
     </div>
   );
 }
 
 // ── Calendar ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, onBookAt }: {
+function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, onBlock, onBookAt }: {
   monday: string; setMonday: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; services: BookingService[]; onOpen: (b: Booking) => void;
+  /** A click on blocked time: what it is, and Remove. */ onBlock: (band: BlockedBand) => void;
   /** A tap on an empty time: New booking, starting there. */ onBookAt: (startIso: string) => void;
 }) {
   const serviceOf = (serviceId: string) => services.find((s) => s.id === serviceId);
@@ -305,6 +314,9 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
                   {hours.map((w) => (
                     <i key={w.start} className="bkg-tday-open" aria-hidden style={{ top: at(Math.max(0, minutesText(w.start) - grid.startMin)), height: at(minutesText(w.end) - Math.max(grid.startMin, minutesText(w.start))) }} />
                   ))}
+                  {blockedBands(settings.blocks, d, grid.startMin, grid.endMin, settings.staff).map((band) => (
+                    <BlockedBandButton key={band.block.id} band={band} at={at} showWho onBlock={onBlock} />
+                  ))}
                   {blocks.map((blk) => {
                     const first = blk.people[0];
                     const isClass = blk.places > 1;
@@ -344,7 +356,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
           </div>
         </div>
       )}
-      <p className="bkg-wgrid-hint">Click an empty time to book it. Drag a booking to move it, or pull its bottom edge to change its length.</p>
+      <p className="bkg-wgrid-hint">Click an empty time to book it. Drag a booking to move it, or pull its bottom edge to change its length. Striped time is blocked: clients can't book it.</p>
       {landing && <MoveDialog landing={landing} settings={settings} onClose={() => setLanding(null)} />}
       {shownClass && <ClassDialog slot={shownClass.blk} held={shownClass.held} service={serviceOf(shownClass.blk.serviceId)} onClose={() => setClassOpen(null)} onOpen={(b) => { setClassOpen(null); onOpen(b); }}
         onWaiting={() => { setClassOpen(null); setWaitingDay(shownClass.day); }} onJoin={(left) => { setClassOpen(null); setJoining({ service: serviceOf(shownClass.blk.serviceId)!, start: shownClass.blk.start, left }); }} />}
@@ -355,6 +367,118 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
           onRemoved={(id) => setWaiting((all) => all.filter((w) => w.id !== id))} />
       )}
     </div>
+  );
+}
+
+// ── Blocked time (bookings plan 4, step 1.3) ─────────────────────────────────────────────────────────────────────
+
+/** A striped stretch on a calendar column. On the week, a person's block names them. */
+function BlockedBandButton({ band, at, showWho = false, onBlock }: { band: BlockedBand; at: (min: number) => string; showWho?: boolean; onBlock: (band: BlockedBand) => void }) {
+  const { block } = band;
+  const title = block.title || "Blocked";
+  return (
+    <button type="button" className="bkg-blocked" data-person={block.staffId ? "" : undefined} data-short={band.height < 40 || undefined}
+      style={{ top: at(band.top), height: at(band.height) }}
+      aria-label={`Blocked, ${blockHours(block)}: ${title}${block.staffId ? `, ${band.who}` : ""}`} onClick={() => onBlock(band)}>
+      <span className="bkg-blocked-title">{title}</span>
+      {showWho && block.staffId && <span className="bkg-blocked-who">{band.who}</span>}
+    </button>
+  );
+}
+
+/** The shop's clock time of a moment ("09:30"), for the time boxes. */
+const clockOf = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const clockPlus = (hhmm: string, minutes: number) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = Math.min(24 * 60, h * 60 + m + minutes);
+  return total === 24 * 60 ? "24:00" : `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+};
+
+/** Block time: lunch, a dentist visit, a weekly meeting. Clients can't book it; the owner still can. */
+function BlockDialog({ settings, start, staffId = "", onClose, onSaved }: {
+  settings: BookingSettings; start?: string; staffId?: string; onClose: () => void; onSaved: (blocks: TimeBlock[]) => void;
+}) {
+  const from0 = start ? clockOf(start) : "12:00";
+  const [title, setTitle] = useState("");
+  const [who, setWho] = useState(staffId);
+  const [day, setDay] = useState(start ? dayOf(Date.parse(start), ZONE) : today());
+  const [allDay, setAllDay] = useState(false);
+  const [from, setFrom] = useState(from0);
+  const [to, setTo] = useState(clockPlus(from0, 60) === "24:00" ? "23:59" : clockPlus(from0, 60));
+  const [weekly, setWeekly] = useState(false);
+  const [until, setUntil] = useState("");
+  const [problem, setProblem] = useState("");
+  const [saving, setSaving] = useState(false);
+  const people = settings.staff.filter((p) => p.active || p.id === staffId);
+  const badTimes = !allDay && !(from && to && from < to);
+  const badUntil = weekly && !!until && until < day;
+  const save = async () => {
+    setSaving(true); setProblem("");
+    try {
+      const answer = await bookingsAdmin<{ blocks: TimeBlock[] }>("addBlock", { block: {
+        title: title.trim(), staffId: who, day, start: allDay ? "00:00" : from, end: allDay ? "24:00" : to, weekly, until: weekly ? until : "",
+      } });
+      toast.success(weekly ? "Blocked every week" : "Time blocked");
+      onSaved(answer.blocks);
+    } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title="Block time" description="Clients can't book blocked time. You can still book over it yourself."
+      footer={<><SecondaryButton onClick={onClose}>Close</SecondaryButton><PrimaryButton onClick={() => void save()} disabled={!day || badTimes || badUntil} busy={saving}>Block time</PrimaryButton></>}>
+      <div className="bkg-form">
+        <TextField label="What it's for (optional)" placeholder="Lunch, dentist, team meeting" value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
+        {people.length > 0 && (
+          <SelectField label="Who" value={who} onChange={(e) => setWho(e.target.value)} hint={who ? "Only their times are blocked." : "Nobody can be booked then."}>
+            <option value="">Everyone</option>
+            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </SelectField>
+        )}
+        <TextField label={weekly ? "Starting" : "Day"} type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} />
+        <Toggle label="All day" checked={allDay} onChange={setAllDay} />
+        {!allDay && (
+          <div className="bkg-two">
+            <TextField label="From" type="time" step={300} value={from} onChange={(e) => setFrom(e.target.value)} />
+            <TextField label="To" type="time" step={300} value={to} onChange={(e) => setTo(e.target.value)} error={badTimes ? "Pick an end after the start." : undefined} />
+          </div>
+        )}
+        <div className="bkg-two">
+          <SelectField label="Repeat" value={weekly ? "weekly" : "once"} onChange={(e) => setWeekly(e.target.value === "weekly")}>
+            <option value="once">Just this day</option>
+            <option value="weekly">Every {WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()]}</option>
+          </SelectField>
+          {weekly && <TextField label="Until (optional)" type="date" value={until} min={day} onChange={(e) => setUntil(e.target.value)} error={badUntil ? "Pick a day after it starts." : undefined} />}
+        </div>
+        {problem && <p className="bkg-error" role="alert">{problem}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+/** A block clicked on the calendar: what, who, when, and Remove. */
+function BlockInfoDialog({ band, onClose, onRemoved }: { band: BlockedBand; onClose: () => void; onRemoved: (blocks: TimeBlock[]) => void }) {
+  const { block } = band;
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
+  const remove = async () => {
+    setSaving(true); setProblem("");
+    try {
+      const answer = await bookingsAdmin<{ blocks: TimeBlock[] }>("removeBlock", { id: block.id });
+      toast.success("Block removed");
+      onRemoved(answer.blocks);
+    } catch (e: any) { setProblem(e?.message || "That didn't save. Please try again."); } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={block.title || "Blocked time"}
+      footerStart={<DestructiveButton onClick={() => void remove()} busy={saving}>{block.weekly ? "Remove every week" : "Remove block"}</DestructiveButton>}
+      footer={<SecondaryButton onClick={onClose}>Close</SecondaryButton>}>
+      <dl className="bkg-move-facts">
+        <dt>When</dt><dd>{blockWhen(block)}</dd>
+        <dt>Time</dt><dd>{blockHours(block)}</dd>
+        <dt>Who</dt><dd>{band.who}</dd>
+      </dl>
+      <p className="bkg-questions-hint">Clients can't book this time. You can still book over it yourself.</p>
+      {problem && <p className="bkg-error" role="alert">{problem}</p>}
+    </Dialog>
   );
 }
 
@@ -481,8 +605,9 @@ function ClassDialog({ slot, held, service, onClose, onOpen, onWaiting, onJoin }
  * The team's day (Services plan phase 4 part 2): one column per person across the opening hours, each booking placed by
  * its time, a person who isn't working that day shaded, and the bookings that name nobody in a column of their own.
  */
-function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBookAt }: {
+function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBlock, onBookAt }: {
   day: string; setDay: (d: string) => void; rows: Booking[] | null; error: string; settings: BookingSettings; onOpen: (b: Booking) => void;
+  /** A click on blocked time: what it is, and Remove. */ onBlock: (band: BlockedBand) => void;
   /** A tap on an empty time in a person's column: New booking with them, starting there. */ onBookAt: (startIso: string, staffId: string) => void;
 }) {
   const t = useMemo(() => teamDay(rows || [], settings, day, ZONE), [rows, settings, day]);
@@ -537,6 +662,9 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBookAt }: {
                 }}>
                 {!c.off && c.id !== "" && c.hours.map((w) => (
                   <i key={w.start} className="bkg-tday-open" aria-hidden style={{ top: at(Math.max(0, minutesText(w.start) - t.startMin)), height: at(minutesText(w.end) - Math.max(t.startMin, minutesText(w.start))) }} />
+                ))}
+                {blockedBands(settings.blocks, day, t.startMin, t.endMin, settings.staff, c.id).map((band) => (
+                  <BlockedBandButton key={band.block.id} band={band} at={at} onBlock={onBlock} />
                 ))}
                 {c.blocks.map((blk) => {
                   const first = blk.people[0];
@@ -1678,8 +1806,9 @@ function RunDates({ serviceId, start, run, staffId, extras = [], onFree }: { ser
 /** What Book again fills in: the client and their last service and person (Customers › a client). */
 export type BookAgain = { serviceId: string; staffId: string; name: string; email: string; phone: string };
 
-function NewBookingDialog({ services, settings, onClose, initial, onBooked, startAt }: {
+function NewBookingDialog({ services, settings, onClose, initial, onBooked, startAt, onBlockInstead }: {
   services: BookingService[]; settings: BookingSettings; onClose: () => void; initial?: Partial<BookAgain>; onBooked?: () => void;
+  /** From a tap on the calendar: switch to blocking that time instead (lunch, a break). */ onBlockInstead?: () => void;
   /** The time tapped on the calendar: its day opens, and the time is picked when it is free. */ startAt?: string;
 }) {
   // The service asked for, else the first one the person tapped on the calendar does, else the first.
@@ -1752,6 +1881,9 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked, star
       )}
       {run && <p className="bkg-questions-hint">{service.priceMinor > 0 ? "Each visit is paid at the visit, gets its own reminder and can be moved on its own." : "Each visit gets its own reminder and can be moved on its own."}</p>}
       <Toggle label="Email them the booking" checked={sendEmail} onChange={setSendEmail} />
+      {onBlockInstead && (
+        <p className="bkg-block-instead">Not a booking? <button type="button" className="rp-link" onClick={onBlockInstead}>Block this time instead</button></p>
+      )}
     </TimeDialog>
   );
 }
