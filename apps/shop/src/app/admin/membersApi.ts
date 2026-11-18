@@ -2,7 +2,7 @@
 // memberships are server-only records, so every read and change goes through the `membershipsAdmin` action.
 import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import type { BoxAddress, MemberState, PlanBox, PlanInterval } from "../../shared/membershipRules";
+import type { BoxAddress, BoxShortLine, MemberState, PlanBox, PlanInterval } from "../../shared/membershipRules";
 
 /** A plan as the owner sees it, with how many live, paid members it has. */
 export type AdminPlan = {
@@ -22,9 +22,13 @@ export type AdminMember = {
   startedAt: string; endedAt: string; createdAt: string; checkedAt: string; test: boolean; cardPending: boolean;
   /** A box membership and where its boxes go (M3a). */
   box?: boolean; address?: BoxAddress | null;
+  /** The last box made (M3b): its month (YYYY-MM) and order, and why this month's couldn't be made yet. */
+  lastBoxMonth?: string; lastBoxOrder?: string; boxProblem?: { month: string; text: string; at: string } | null;
 };
+/** Not enough stock for this month's boxes of one plan (M3b, from three days before the cut-off). */
+export type BoxWarning = { planId: string; planName: string; cutoffDay: number; members: number; month: string; short: BoxShortLine[] };
 export type MembersTotals = { members: number; monthlyMinor: number; pastDue: number };
-export type MembersList = { currency: string; ready: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals };
+export type MembersList = { currency: string; ready: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals; boxWarnings?: BoxWarning[] };
 /** What the plan form sends (shared/membershipRules `cleanPlan` checks it on the server). */
 export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent: number; box: PlanBox | null };
 export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint" | "payments";

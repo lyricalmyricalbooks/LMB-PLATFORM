@@ -15,12 +15,12 @@ twice for one member and month; records stay in the shop's folder; words in Text
 - [x] Admin plan form: "Ships a box" switch, product picker rows, cut-off day; the member list shows the address.
 
 ## M3b: box orders on the cut-off day
-- [ ] The sweep, on or after the cut-off day (shop time), makes one order per paid member (active or ending; not a
+- [x] The sweep, on or after the cut-off day (shop time), makes one order per paid member (active or ending; not a
       trial, not a failed payment) for that month: `boxes/{membershipId}_{YYYY-MM}` claimed in a transaction, then a
       normal order (lines at 0, `paymentMethod: "Membership"`, `membershipBox`) completed through
       `completeOrderWithoutCard` (stock comes off, the usual emails, oversold flagged).
-- [ ] Shipping: the order uses the member's address and the plan's shipping is included (no charge).
-- [ ] Short stock: three days before the cut-off, the owner's Members page shows "Not enough stock for this month's
+- [x] Shipping: the order uses the member's address and the plan's shipping is included (no charge).
+- [x] Short stock: three days before the cut-off, the owner's Members page shows "Not enough stock for this month's
       boxes" with what is short (members × quantity against stock), and the 8 a.m. email says so.
 
 ## M3c: skip a month and pause

@@ -25,8 +25,12 @@
 // through createStripeCheckoutSession `action: "membershipsAdmin"`. `sweep()` runs every 5 minutes (bookingSweep).
 "use strict";
 
+const { shopTimeZone } = require("./shared/shopTimeZone");
 const crypto = require("crypto");
-const { cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, cleanBoxAddress, MAX_PLANS, MAX_MEMBER_PERCENT, BOX_COUNTRIES } = require("./shared/membershipRules");
+const {
+  cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, cleanBoxAddress, MAX_PLANS, MAX_MEMBER_PERCENT, BOX_COUNTRIES,
+  boxMonth, shopDayOfMonth, shopHour, dayOrdinal, getsBox, paidByCutoff, inStockWarning, boxShortfall,
+} = require("./shared/membershipRules");
 const { waysOn } = require("./shared/waysToSell");
 
 const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress"]);
@@ -115,7 +119,10 @@ const memberView = (id, m) => ({
   ...(m.box ? { box: true, address: m.address || null } : {}),
 });
 /** A membership as the owner sees it. */
-const adminMember = (id, m) => ({ ...memberView(id, m), name: m.customer?.name || "", email: m.customer?.email || "", planId: m.planId || "", createdAt: m.createdAt || "", checkedAt: m.checkedAt || "" });
+const adminMember = (id, m) => ({
+  ...memberView(id, m), name: m.customer?.name || "", email: m.customer?.email || "", planId: m.planId || "", createdAt: m.createdAt || "", checkedAt: m.checkedAt || "",
+  ...(m.box ? { lastBoxMonth: m.lastBoxMonth || "", lastBoxOrder: m.lastBoxOrder || "", boxProblem: m.boxProblem || null } : {}),
+});
 
 /** When the sweep should read a membership again: soon after its paid period ends, and at least daily. Pure. */
 function nextCheck(state, periodEnd, nowMs) {
@@ -131,6 +138,8 @@ function membershipActions({
   db, requireAdmin, identify, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", currency,
   sendEmail = async () => {}, emailBrand = async () => ({}), ownerEmail = () => "",
   escapeHtml, risoLayout, risoButton, now = () => new Date(),
+  // Box plans (M3b): the shop's clock, and index.js's maker of one paid box order (returns its id; safe to call again).
+  zone = shopTimeZone, makeBoxOrder = null,
   randomId = () => crypto.randomBytes(12).toString("base64url").replace(/[^A-Za-z0-9]/g, "").slice(0, 16).padEnd(8, "0"),
 }) {
   const plans = () => db.collection("membershipPlans");
@@ -202,7 +211,7 @@ function membershipActions({
     const to = ownerEmail();
     if (!to) return;
     const line = `${m.customer.name || m.customer.email} joined ${m.plan?.name || "a plan"}.`;
-    await sendEmail({ to, subject: `${m.mode === "test" ? "[TEST] " : ""}[MEMBER] New member: ${m.plan?.name || ""}`.trim(), html: risoLayout(`<p>${escapeHtml(line)}</p><p>${risoButton(escapeHtml(siteLink("/admin#members")), "Open Members")}</p>`, {}) }).catch(() => {});
+    await sendEmail({ to, subject: `${m.mode === "test" ? "[TEST] " : ""}[MEMBER] New member: ${m.plan?.name || ""}`.trim(), html: risoLayout(`<p>${escapeHtml(line)}</p><p>${risoButton(escapeHtml(siteLink("/admin#memberships")), "Open Members")}</p>`, {}) }).catch(() => {});
   }
 
   // ── Reading the provider ───────────────────────────────────────────────────────────────────────────────────────
@@ -351,7 +360,99 @@ function membershipActions({
         closed += 1;
       }
     }
-    return { read, closed };
+    const boxes = await sweepBoxes().catch((err) => { console.warn("memberships: box orders failed:", err?.message || err); return { made: 0 }; });
+    return { read, closed, boxes: boxes.made };
+  }
+
+  // ── Boxes (M3b) ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  const BOX_RETRY = HOUR;
+  const BOXES_PER_RUN = 40;
+
+  /** Plans that send a box, with the members who get one this mode (paid, or in a trial that may turn paid). */
+  async function boxPlans() {
+    return (await listPlans({ hidden: true })).filter((p) => Array.isArray(p.data.box?.items) && p.data.box.items.length);
+  }
+  async function readBook(id) {
+    if (typeof id !== "string" || !id || id.includes("/")) return null;
+    const snap = await db.collection("books").doc(id).get().catch(() => null);
+    return snap?.exists ? snap.data() : null;
+  }
+
+  /**
+   * What this month's boxes are short of, plan by plan, during the three days before each cut-off (else an empty list).
+   * Members counted: box memberships in the shop's current mode that are paid or in a trial.
+   */
+  async function boxWarnings(nowMs = now().getTime()) {
+    const z = zone();
+    const day = shopDayOfMonth(nowMs, z);
+    const mode = await currentMode();
+    const out = [];
+    for (const plan of await boxPlans()) {
+      const { items, cutoffDay } = plan.data.box;
+      if (!inStockWarning(day, cutoffDay)) continue;
+      const snap = await members().where("planId", "==", plan.id).limit(MAX_LISTED).get();
+      const count = snap.docs.map((d) => d.data()).filter((m) => m.box && (m.mode || "live") === mode && (getsBox(m.state) || m.state === "trial")).length;
+      const books = new Map();
+      for (const item of items) if (!books.has(item.bookId)) books.set(item.bookId, await readBook(item.bookId));
+      const short = boxShortfall(items, count, (id) => books.get(id) || null);
+      if (short.length) out.push({ planId: plan.id, planName: String(plan.data.name || ""), cutoffDay, members: count, month: boxMonth(nowMs, z), short });
+    }
+    return out;
+  }
+
+  /** The owner's morning note about short stock: once per plan and month, from 8 a.m. shop time. */
+  async function warnOwner(nowMs) {
+    const to = ownerEmail();
+    if (!to || shopHour(nowMs, zone()) < 8) return;
+    for (const w of await boxWarnings(nowMs)) {
+      const ref = plans().doc(w.planId);
+      const fresh = await ref.get();
+      if (!fresh.exists || fresh.data().boxWarnedFor === w.month) continue;
+      await ref.set({ boxWarnedFor: w.month }, { merge: true });
+      const rows = w.short.map((l) => `<li>${escapeHtml(l.title)}: ${l.need} needed, ${l.have} on the shelf</li>`).join("");
+      const html = `<p>Not enough stock for this month's boxes for ${escapeHtml(w.planName)}. The orders are made on the ${dayOrdinal(w.cutoffDay)} for ${w.members} member${w.members === 1 ? "" : "s"}.</p><ul>${rows}</ul><p>${risoButton(escapeHtml(siteLink("/admin#memberships")), "Open Members")}</p>`;
+      await sendEmail({ to, subject: `[STOCK] Not enough for this month's ${w.planName} boxes`, html: risoLayout(html, {}) }).catch(() => {});
+    }
+  }
+
+  /**
+   * On or after each box plan's cut-off day (shop time), one paid order per member for the month: box memberships that
+   * are active or ending, have an address and were paid up by the cut-off. `makeBoxOrder` makes the order at a fixed id
+   * for the membership and month, so a second run (or two at once) never makes two. A refusal (a product removed, say) is
+   * kept on the membership and tried again after an hour.
+   */
+  async function sweepBoxes() {
+    if (!makeBoxOrder || !(await featureOn())) return { made: 0 };
+    const nowMs = now().getTime();
+    const z = zone();
+    const month = boxMonth(nowMs, z);
+    const day = shopDayOfMonth(nowMs, z);
+    await warnOwner(nowMs).catch((err) => console.warn("memberships: the stock note failed:", err?.message || err));
+    let made = 0, tried = 0;
+    for (const plan of await boxPlans()) {
+      const { cutoffDay } = plan.data.box;
+      if (day < cutoffDay) continue;
+      const snap = await members().where("planId", "==", plan.id).limit(MAX_LISTED).get();
+      for (const doc of snap.docs) {
+        if (tried >= BOXES_PER_RUN) return { made };
+        const m = doc.data();
+        if (!m.box || !getsBox(m.state) || !m.address || m.lastBoxMonth === month) continue;
+        if (!paidByCutoff(m, month, cutoffDay, z)) continue;
+        if (m.boxProblem?.month === month && nowMs - Date.parse(m.boxProblem.at || "") < BOX_RETRY) continue;
+        tried += 1;
+        const at = new Date(nowMs).toISOString();
+        try {
+          const orderId = await makeBoxOrder({ membershipId: doc.id, member: m, plan: { id: plan.id, ...plan.data }, month });
+          await members().doc(doc.id).set({ lastBoxMonth: month, lastBoxOrder: orderId, boxProblem: null, updatedAt: at }, { merge: true });
+          made += 1;
+        } catch (err) {
+          const text = String(err?.message || "The box order couldn't be made.").slice(0, 300);
+          await members().doc(doc.id).set({ boxProblem: { month, text, at }, updatedAt: at }, { merge: true });
+        }
+      }
+    }
+    return { made };
   }
 
   // ── Members (validateDiscountCode actions) ─────────────────────────────────────────────────────────────────────
@@ -522,6 +623,7 @@ function membershipActions({
         return res.status(200).json({
           currency: currency(), ready: !!acc.subscriptions, plans: allPlans.map((p) => ({ ...publicPlan(p.id, p.data, currency()), hidden: p.data.hidden === true, members: perPlan[p.id] || 0 })),
           members: list, totals: { members: counted.length, monthlyMinor: monthly, pastDue: counted.filter((x) => x.state === "pastDue").length },
+          boxWarnings: await boxWarnings().catch(() => []),
         });
       }
       if (op === "payments") {
@@ -623,7 +725,7 @@ function membershipActions({
     return best;
   }
 
-  return { handlePublic, handleAdmin, sweep, onEvent, featureOn, tellWebsite, priceFor, bestFor, hasMembership };
+  return { handlePublic, handleAdmin, sweep, sweepBoxes, boxWarnings, onEvent, featureOn, tellWebsite, priceFor, bestFor, hasMembership };
 }
 
 module.exports = { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS, nextCheck, mergePayments, PAGE_MINUTES };

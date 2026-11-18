@@ -2130,7 +2130,51 @@ const membershipDesk = membershipActions({
     if (!who?.email || who.email_verified !== true) return null;
     return { email: String(who.email).trim().toLowerCase(), uid: who.uid || "", name: who.name || "" };
   },
+  zone: () => shopTimeZone(), makeBoxOrder: (args) => makeMembershipBoxOrder(args),
 });
+
+// A membership's box for one month (Memberships M3b): an ordinary order at a fixed id (`BOX-<membership>-<YYYY-MM>`), so
+// it is never made twice. Priced by priceOrder as an owner-made deal (the payment-link path): every line and the shipping
+// at nothing, the catalog's names, editions, weights and refusals as usual, so a removed product or a missing edition stops
+// it. Then settled like a free order: stock comes off (oversold flagged), and the usual paid-order emails go out. A test
+// membership's box is a test order. Safe to call again: an existing order is only settled if it isn't paid yet.
+async function makeMembershipBoxOrder({ membershipId, member, plan, month }) {
+  const orderId = `BOX-${membershipId}-${month}`;
+  const ref = db.collection("orders").doc(orderId);
+  const existing = await ref.get();
+  if (!existing.exists) {
+    const a = member.address || {};
+    const address = { street: a.line1 || "", unit: a.line2 || "", city: a.city || "", state: a.state || "", zip: a.postalCode || "", country: a.country || "" };
+    const items = (plan.box?.items || []).map((item) => ({ id: item.bookId, ...(item.variantId ? { variantId: item.variantId } : {}), quantity: item.quantity }));
+    if (!items.length) throw new Error("The plan's box has no products.");
+    const order = {
+      customer: { name: a.name || member.customer?.name || "", email: String(member.customer?.email || "").trim().toLowerCase(), phone: "", address, billingAddress: address },
+      items,
+      trackingKey: crypto.randomBytes(32).toString("hex"),
+    };
+    const deal = { status: "open", expiresAt: new Date(Date.now() + 86400000).toISOString(), lines: items.map((item) => ({ ...item, price: 0 })), shipping: 0 };
+    const priced = await priceOrder(order, { orderId, paymentLink: deal });
+    if (priced.total !== 0) throw new Error("The box order didn't come to nothing, so it wasn't made.");
+    const createdAt = new Date().toISOString();
+    await ref.create({
+      ...order,
+      items: priced.items.map(({ shippingProfileId, ...item }) => item),
+      subtotal: priced.subtotal, discount: 0, appliedDiscount: null, shipping: priced.shipping,
+      ...(priced.shippingMethod ? { shippingMethod: priced.shippingMethod } : {}),
+      fulfillment: priced.fulfillment, tax: priced.tax, taxLines: priced.taxLines, total: 0,
+      giftCardAmount: 0, giftCardRedemptions: [],
+      orderId, status: "pending_payment", paymentStatus: "unpaid", paymentMethod: "Membership", source: "membership_box",
+      membershipBox: { membershipId, month, planId: plan.id || "", plan: String(plan.name || "") },
+      referralSource: "membership",
+      ...(member.mode === "test" ? { isTest: true } : {}),
+      createdAt, updatedAt: createdAt,
+      activity: [{ type: "event", message: `${plan.name || "Membership"} box for ${month}, made on the cut-off day.`, createdAt }],
+    }).catch((err) => { if (err?.code !== 6 && !/already exists/i.test(String(err?.message))) throw err; });
+  }
+  const result = await settlePayment(orderId, { provider: "Membership", message: "Paid by the membership.", sandbox: (o) => o.isTest === true });
+  if (!result.paid && result.reason !== "already-paid") throw new Error(`The box order couldn't be completed (${result.reason}).`);
+  return orderId;
+}
 
 // Member prices (Memberships M2a): checkout asks, with the shopper's sign-in, for member prices on the order it is about
 // to pay. Same proof of the order as the rest of checkout (its key or the sign-in). The server finds the shopper's

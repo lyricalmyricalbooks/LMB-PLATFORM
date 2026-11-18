@@ -113,7 +113,7 @@ function harness({ identity = null, docs = {}, intents = {}, charge = null, refu
     }
     throw new Error(`Unexpected network: ${text}`);
   };
-  const exposed = `${source}\nmodule.exports.__test = { applyOrderRefund, revertFailedRefund, checkStripeReversal, assertDiscountNotUsedByCustomer, priceOrder, resolveShipping, releaseSupersededAttempt };`;
+  const exposed = `${source}\nmodule.exports.__test = { applyOrderRefund, revertFailedRefund, checkStripeReversal, assertDiscountNotUsedByCustomer, priceOrder, resolveShipping, releaseSupersededAttempt, makeMembershipBoxOrder };`;
   vm.runInNewContext(exposed, { module: mod, exports: mod.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: mockFetch }, { filename: 'index.js' });
   async function call(handler, body = {}, { admin: asAdmin = false, orderKey = 'a'.repeat(64) } = {}) {
     const response = { code: 200, value: null, set() { return this; }, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; }, send(value) { this.value = value; return this; } };
@@ -854,4 +854,27 @@ test('member prices: only a signed-in member claims them, on an unpaid order the
   }
   const unverified = harness({ docs: docs(), identity: { email: 'reader@example.com', email_verified: false, uid: 'r1' } });
   expect((await unverified.call('createStripeCheckoutSession', { action: 'membershipPricing', orderId: 'o1' })).code).toBe(401);
+});
+
+// ── Membership boxes (M3b): the server makes one paid order at nothing per member and month ─────────────────────────
+test('membership box: one paid order at nothing, stock taken, never twice for the same month', async () => {
+  const docs = stockistDocs();
+  docs.books.tee = { ...docs.books.tee, stockLevel: 5, trackInventory: true };
+  const app = harness({ docs });
+  const args = {
+    membershipId: 'm1', month: '2026-12',
+    member: { mode: 'live', customer: { email: 'Ada@Example.com', name: 'Ada' }, address: { name: 'Ada Reader', line1: '1 King St', city: 'Toronto', state: 'ON', postalCode: 'M5H1A1', country: 'CA' } },
+    plan: { id: 'p1', name: 'Patron', box: { items: [{ bookId: 'tee', quantity: 2 }], cutoffDay: 5 } },
+  };
+  const make = () => app.makeMembershipBoxOrder(args);
+  const id = await make();
+  expect(id).toBe('BOX-m1-2026-12');
+  const order = app.docs.orders[id];
+  expect(order).toMatchObject({ total: 0, paymentMethod: 'Membership', source: 'membership_box', paymentStatus: 'paid' });
+  expect(order.customer.email).toBe('ada@example.com');
+  expect(order.customer.address).toMatchObject({ street: '1 King St', zip: 'M5H1A1', country: 'CA' });
+  expect(app.docs.books.tee.stockLevel).toBe(3);
+  expect(await make()).toBe(id);
+  expect(Object.keys(app.docs.orders)).toHaveLength(1);
+  expect(app.docs.books.tee.stockLevel).toBe(3);
 });

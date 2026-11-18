@@ -193,3 +193,52 @@ export function shopDayOfMonth(nowMs: number, zone: string): number {
 
 /** Who gets this month's box: paid members only (not a free trial, not a payment being retried). */
 export const getsBox = (state: MemberState) => state === "active" || state === "ending";
+
+/** The shop-clock hour (0 to 23). Pure. */
+export function shopHour(nowMs: number, zone: string): number {
+  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: zone, hour: "numeric", hourCycle: "h23" }).format(new Date(nowMs))) % 24;
+}
+
+/**
+ * Whether a member was paid up by this month's cut-off: their paid time (the trial's end, else the start) is before the
+ * cut-off day's end in `month`. Someone who started paying after the cut-off gets next month's box. Pure.
+ */
+export function paidByCutoff(m: { trialEnd?: string; startedAt?: string }, month: string, cutoffDay: number, zone: string): boolean {
+  const from = Date.parse(m.trialEnd || m.startedAt || "");
+  if (!Number.isFinite(from)) return true;
+  const fromMonth = boxMonth(from, zone);
+  if (fromMonth < month) return true;
+  if (fromMonth > month) return false;
+  return shopDayOfMonth(from, zone) <= cutoffDay;
+}
+
+/** The days the owner hears about short stock: the three days before the cut-off. Pure. */
+export const inStockWarning = (day: number, cutoffDay: number) => day < cutoffDay && day >= cutoffDay - 3;
+
+export type BoxStockBook = { title?: string; trackInventory?: boolean; allowBackorder?: boolean; stockLevel?: number; variants?: { id: string; name?: string; stockLevel?: number; stock?: number }[] } | null;
+export type BoxShortLine = { bookId: string; variantId: string; title: string; need: number; have: number };
+
+/**
+ * What this month's boxes need that the shelf doesn't have: for each box line, members × quantity against the counted
+ * stock. A product not counted (stock not tracked, or backorders allowed) is never short; a missing one has 0. Pure.
+ */
+export function boxShortfall(items: BoxItem[], members: number, getBook: (id: string) => BoxStockBook): BoxShortLine[] {
+  if (!(members > 0)) return [];
+  const need = new Map<string, BoxShortLine>();
+  for (const item of items) {
+    const key = `${item.bookId}|${item.variantId || ""}`;
+    const book = getBook(item.bookId);
+    const variant = item.variantId ? (book?.variants || []).find((v) => v.id === item.variantId) : null;
+    const title = [book?.title || "A product that was removed", variant?.name].filter(Boolean).join(", ");
+    const counted = !book || (book.trackInventory === true && book.allowBackorder !== true);
+    if (!counted) continue;
+    const have = !book ? 0 : item.variantId ? Math.max(0, Number(variant ? (variant.stockLevel ?? variant.stock) : 0) || 0) : Math.max(0, Number(book.stockLevel) || 0);
+    const line = need.get(key) || { bookId: item.bookId, variantId: item.variantId || "", title, need: 0, have };
+    line.need += members * item.quantity;
+    need.set(key, line);
+  }
+  return [...need.values()].filter((l) => l.need > l.have);
+}
+
+/** "15th": a day of the month in words. Pure. */
+export const dayOrdinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;

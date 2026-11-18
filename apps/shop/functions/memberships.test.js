@@ -86,6 +86,8 @@ function setup({ platform = true, owner = true, subscriptions = true } = {}) {
   };
   let n = 0;
   let signedIn = ADA;
+  const boxCalls = [];
+  const boxFail = { on: false };
   const desk = membershipActions({
     db,
     requireAdmin: async () => ({ email: "owner@example.com" }),
@@ -104,6 +106,8 @@ function setup({ platform = true, owner = true, subscriptions = true } = {}) {
     risoButton: (href, label) => `<a href="${href}">${label}</a>`,
     now: () => clock.now,
     randomId: () => `id${String(++n).padStart(6, "0")}`,
+    zone: () => "America/Toronto",
+    makeBoxOrder: async (args) => { boxCalls.push(args); if (boxFail.on) throw new Error("A product in the box was removed."); return `BOX-${args.membershipId}-${args.month}`; },
   });
   db.store.set("platform/features", { ways: { memberships: platform } });
   db.store.set("firstWeek/start", { ways: { memberships: owner } });
@@ -117,7 +121,7 @@ function setup({ platform = true, owner = true, subscriptions = true } = {}) {
     Object.assign(sessions.get(sessionId), { status: "complete", subscription: subId });
     return subId;
   };
-  return { db, desk, clock, emails, opened, closed, cardSet, sessions, subs, saved, invoices, invoiceReads, call, admin, finish, signIn: (who) => { signedIn = who; } };
+  return { db, desk, clock, emails, boxCalls, boxFail, opened, closed, cardSet, sessions, subs, saved, invoices, invoiceReads, call, admin, finish, signIn: (who) => { signedIn = who; } };
 }
 
 async function withPlan(t, plan = PLAN) {
@@ -236,9 +240,9 @@ describe("memberships (M1)", () => {
     const t = setup();
     const planId = await withPlan(t);
     await t.call({ action: "membershipJoin", planId });
-    expect(await t.desk.sweep()).toEqual({ read: 0, closed: 0 });
+    expect(await t.desk.sweep()).toEqual({ read: 0, closed: 0, boxes: 0 });
     t.clock.now = new Date(Date.parse("2026-11-18T13:00:00Z") + (PAGE_MINUTES + 1) * 60_000);
-    expect(await t.desk.sweep()).toEqual({ read: 1, closed: 1 });
+    expect(await t.desk.sweep()).toEqual({ read: 1, closed: 1, boxes: 0 });
     expect(t.closed).toEqual(["cs_test_000000"]);
     expect((await t.call({ action: "membershipMine" })).body.memberships).toEqual([]);
     // Free to join again.
@@ -364,6 +368,93 @@ describe("memberships (M1)", () => {
     await t.admin({ op: "savePlan", id: planId, plan: PLAN });
     expect(t.db.store.get(`membershipPlans/${planId}`).box).toBeNull();
     expect((await t.call({ action: "membershipInfo" })).body.plans[0]).not.toHaveProperty("box");
+  });
+
+  /** A paid box member who joined in October, with an address (M3b). */
+  let people = 0;
+  async function boxMember(t, planId, { state = "active", startedAt = "2026-10-01T15:00:00.000Z" } = {}) {
+    people += 1;
+    t.signIn({ ...ADA, email: `member${people}@example.com`, uid: `u${people}` });
+    const { body } = await t.call({ action: "membershipJoin", planId });
+    expect(body.id).toBeTruthy();
+    const sid = t.opened[t.opened.length - 1].params ? `cs_test_${String(t.opened.length - 1).padStart(6, "0")}` : "";
+    t.finish(sid, state === "trial" ? "trialing" : state === "pastDue" ? "past_due" : "active");
+    await t.call({ action: "membershipMine" });
+    await t.call({ action: "membershipAddress", id: body.id, address: { name: "Ada Reader", line1: "12 Ink Lane", city: "Toronto", state: "ON", postalCode: "M6G 3H1", country: "CA" } });
+    t.db.store.set(`memberships/${body.id}`, { ...t.db.store.get(`memberships/${body.id}`), startedAt });
+    return body.id;
+  }
+
+  test("on and after the cut-off day each paid box member gets one order a month, never twice (M3b)", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, trialDays: 0, box: { items: [{ bookId: "book1", quantity: 2 }], cutoffDay: 15 } });
+    const id = await boxMember(t, planId);
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 1 });
+    expect(t.boxCalls[0]).toMatchObject({ membershipId: id, month: "2026-11", plan: { id: planId, box: { cutoffDay: 15 } } });
+    expect(t.db.store.get(`memberships/${id}`)).toMatchObject({ lastBoxMonth: "2026-11", lastBoxOrder: `BOX-${id}-2026-11` });
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 0 });
+    expect(t.boxCalls).toHaveLength(1);
+    // Next month's box waits for next month's cut-off day.
+    t.clock.now = new Date("2026-12-14T17:00:00Z");
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 0 });
+    t.clock.now = new Date("2026-12-15T17:00:00Z");
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 1 });
+    expect(t.boxCalls[1].month).toBe("2026-12");
+    // The owner sees when the last box went.
+    expect((await t.admin({ op: "list" })).body.members[0]).toMatchObject({ lastBoxMonth: "2026-12" });
+  });
+
+  test("no box for a trial, a failed payment, no address, or someone who started paying after the cut-off", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, box: { items: [{ bookId: "book1", quantity: 1 }], cutoffDay: 15 } });
+    await boxMember(t, planId, { state: "trial" });
+    await boxMember(t, planId, { state: "pastDue" });
+    await boxMember(t, planId, { startedAt: "2026-11-17T15:00:00.000Z" });
+    const noAddress = await boxMember(t, planId);
+    const m = t.db.store.get(`memberships/${noAddress}`);
+    t.db.store.set(`memberships/${noAddress}`, { ...m, address: null });
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 0 });
+    expect(t.boxCalls).toHaveLength(0);
+  });
+
+  test("a box that can't be made is noted and tried again an hour later; nothing while Memberships is off", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, trialDays: 0, box: { items: [{ bookId: "book1", quantity: 1 }], cutoffDay: 15 } });
+    const id = await boxMember(t, planId);
+    t.boxFail.on = true;
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 0 });
+    expect(t.db.store.get(`memberships/${id}`).boxProblem).toMatchObject({ month: "2026-11", text: "A product in the box was removed." });
+    await t.desk.sweepBoxes();
+    expect(t.boxCalls).toHaveLength(1);
+    t.boxFail.on = false;
+    t.clock.now = new Date(t.clock.now.getTime() + 61 * 60_000);
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 1 });
+    expect(t.db.store.get(`memberships/${id}`).boxProblem).toBeNull();
+    t.db.store.set("platform/features", { ways: { memberships: false } });
+    t.clock.now = new Date("2026-12-16T17:00:00Z");
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 0 });
+  });
+
+  test("three days before the cut-off the owner hears what the boxes are short of, once, and sees it on the Members page", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, trialDays: 0, box: { items: [{ bookId: "book1", quantity: 2 }, { bookId: "book2", quantity: 1 }], cutoffDay: 20 } });
+    await boxMember(t, planId);
+    await boxMember(t, planId);
+    t.db.store.set("books/book1", { title: "Salt Hours", trackInventory: true, stockLevel: 3 });
+    t.db.store.set("books/book2", { title: "Tote", trackInventory: false });
+    const sent = t.emails.length;
+    await t.desk.sweepBoxes();
+    const stock = t.emails.slice(sent).filter((e) => e.subject.startsWith("[STOCK]"));
+    expect(stock).toHaveLength(1);
+    expect(stock[0].html).toContain("Salt Hours: 4 needed, 3 on the shelf");
+    expect(stock[0].html).toContain("on the 20th for 2 members");
+    await t.desk.sweepBoxes();
+    expect(t.emails.filter((e) => e.subject.startsWith("[STOCK]"))).toHaveLength(1);
+    const list = await t.admin({ op: "list" });
+    expect(list.body.boxWarnings).toEqual([{ planId, planName: PLAN.name, cutoffDay: 20, members: 2, month: "2026-11", short: [{ bookId: "book1", variantId: "", title: "Salt Hours", need: 4, have: 3 }] }]);
+    // Enough stock: nothing to say.
+    t.db.store.set("books/book1", { title: "Salt Hours", trackInventory: true, stockLevel: 9 });
+    expect((await t.admin({ op: "list" })).body.boxWarnings).toEqual([]);
   });
 
   test("a plan without a box asks for no address, and its members have none to change", async () => {

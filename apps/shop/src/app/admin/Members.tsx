@@ -18,6 +18,10 @@ import { SHOP_CURRENCY } from "./moneySign";
 import "./bookings.css";
 import "./members.css";
 
+const monthText = (month: string) => {
+  const [y, mo] = month.split("-").map(Number);
+  return y && mo ? new Date(Date.UTC(y, mo - 1, 15)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" }) : month;
+};
 const problemOf = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
 export function Members() {
@@ -63,6 +67,18 @@ export function Members() {
           </div>
         </div>
       )}
+
+      {(data.boxWarnings || []).map((w) => (
+        <div key={w.planId} className="rp-alert" data-tone="warning" role="status">
+          <span className="rp-alert-glyph" aria-hidden="true">!</span>
+          <div className="rp-alert-text">
+            <strong className="rp-alert-title">Not enough stock for this month's {w.planName} boxes.</strong>
+            <span className="rp-alert-detail">
+              {w.members} {w.members === 1 ? "box goes" : "boxes go"} out on the {ordinal(w.cutoffDay)}. Short: {w.short.map((s) => `${s.title} (need ${s.need}, have ${s.have})`).join(", ")}.
+            </span>
+          </div>
+        </div>
+      ))}
 
       <section className="bkg-bento mbr-bento" aria-label="At a glance">
         <div className="bkg-tile bkg-tile-mint">
@@ -172,6 +188,8 @@ function MemberRow({ member: m, money, onChanged }: { member: AdminMember; money
         <p className="mbr-next">{nextText(m)}</p>
         {m.card && <p className="mbr-meta">Card ending {m.card.last4}{m.cardPending ? " · a new card is being added" : ""}</p>}
         {m.box && <p className="mbr-meta mbr-ship"><Package size={14} aria-hidden /> {m.address ? addressText(m.address) : "No address yet: they're asked for one in their account"}</p>}
+        {m.box && m.lastBoxOrder && <p className="mbr-meta">Last box: {monthText(m.lastBoxMonth || "")}, <a href={`#orders/${encodeURIComponent(m.lastBoxOrder)}`}>order {m.lastBoxOrder}</a></p>}
+        {m.box && m.boxProblem && m.boxProblem.month !== m.lastBoxMonth && <p className="mbr-problem">This month's box couldn't be made yet: {m.boxProblem.text} It's tried again every hour.</p>}
       </div>
       <div className="mbr-side">
         {m.plan && <p className="mbr-amount">{money(m.plan.priceMinor)}<small>{m.plan.name}, {everyText(m.plan.interval)}</small></p>}
