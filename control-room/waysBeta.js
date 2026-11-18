@@ -38,6 +38,31 @@ export function eventsUse(events, places, nowMs) {
     paidMinor: places.reduce((sum, p) => sum + (Number.isFinite(p?.paidMinor) && p.paidMinor > 0 ? p.paidMinor : 0), 0),
   };
 }
+/**
+ * How a shop uses Donations & tips: gifts paid (test gifts left out), what they came to, and the tries the card-testing
+ * guard refused in the last 30 days, per reason (givingBlocked/{YYYY-MM-DD}, written by the shop's functions/giving.js).
+ * Many refused tries on a shop means someone is testing stolen cards on its Support page.
+ */
+export function givingUse(gifts, blockedDays, nowMs) {
+  const paid = gifts.filter((g) => g && g.status === "paid" && g.mode !== "test");
+  const since = new Date(nowMs - 29 * 86_400_000).toISOString().slice(0, 10);
+  const blocked = { tooSmall: 0, tooMany: 0, bot: 0, total: 0 };
+  for (const d of blockedDays) {
+    if (!d || typeof d.day !== "string" || d.day < since) continue;
+    for (const k of Object.keys(blocked)) blocked[k] += Number.isFinite(d[k]) && d[k] > 0 ? d[k] : 0;
+  }
+  return {
+    gifts: paid.length,
+    givenMinor: paid.reduce((sum, g) => sum + (Number.isFinite(g.chargedMinor) && g.chargedMinor > 0 ? g.chargedMinor : 0), 0),
+    currency: String(paid.find((g) => typeof g.currency === "string")?.currency || "CAD").toUpperCase(),
+    blocked,
+  };
+}
+/** The most gifts read for the use line (the admin's own list, functions/giving.js MAX_LISTED, reads as many). */
+const MAX_GIFTS = 500;
+/** One record per day with refused tries; a year and a bit covers every shop's last 30 days. */
+const MAX_BLOCKED_DAYS = 400;
+
 /** The most events read for the use line (the shop's own cap, apps/shop/src/shared/eventTickets.ts MAX_EVENTS). */
 const MAX_EVENTS = 200;
 
@@ -86,6 +111,15 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
           try {
             const [events, places] = await Promise.all(["events", "eventPlaces"].map((name) => shopData.find(shopId, name, { limit: MAX_EVENTS })));
             use.events = eventsUse(events.map((d) => d.data), places.map((d) => d.data), now().getTime());
+          } catch { /* the line is left out */ }
+        }
+        if (allowed.includes("giving") && shopData.find) {
+          try {
+            const [gifts, blocked] = await Promise.all([
+              shopData.find(shopId, "gifts", { limit: MAX_GIFTS }),
+              shopData.find(shopId, "givingBlocked", { limit: MAX_BLOCKED_DAYS }),
+            ]);
+            use.giving = givingUse(gifts.map((d) => d.data), blocked.map((d) => d.data), now().getTime());
           } catch { /* the line is left out */ }
         }
         return {

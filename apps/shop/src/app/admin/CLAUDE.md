@@ -1397,3 +1397,4 @@ thank-you words). Everything goes through `givingApi.ts` (`givingAdmin`); small 
 switch in Ways to sell sends `hint` so the website's Support link follows. Fixture: `admin-fixture.html?ways=giving&page=giving`
 (`&giving=new` for the empty page).
 Amounts & choices also has **Tip at checkout** (switch and percents, `percentsFromText`); an order's Tip shows on its page.
+Gifts reach the money pages through `stockroom/moneyRecords.ts` (`giftSales` in `serviceSales.ts`, op `list`): a Gift row (`sourceType` `gift`) on the paid day with what the giver paid, kept out of gross sales, tax periods and year figures; refunded and test gifts and the giver's name are left out.

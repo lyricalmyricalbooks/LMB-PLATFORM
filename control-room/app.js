@@ -3628,6 +3628,14 @@ function bookingsBetaSection(shop) {
   return slot;
 }
 
+// Donations: tries the card-testing guard refused in 30 days. A few are normal; many mean someone is trying stolen cards.
+const BLOCKED_WATCH = 20;
+function blockedPill(b) {
+  if (!b || !b.total) return pill("neutral", "no blocked tries in 30 days");
+  const parts = [b.tooMany ? `${b.tooMany} too many` : "", b.tooSmall ? `${b.tooSmall} too small` : "", b.bot ? `${b.bot} from bots` : ""].filter(Boolean).join(", ");
+  return el("span", { className: "cr-blocked" }, pill(b.total >= BLOCKED_WATCH ? "warning" : "info", `${plural(b.total, "blocked try", "blocked tries")} in 30 days`), el("span", { className: "cr-meta", textContent: parts }));
+}
+
 // Ways to sell (beta, control-room/waysBeta.js): six more things a shop can sell, each off until turned on here. A way
 // that isn't built yet shows "Not built yet" and has no switch. A plain yes or no turns one on or off; turning it off
 // keeps what the shop made with it.
@@ -3662,6 +3670,8 @@ function waysBetaSection(shop) {
       w.asked ? pill("info", "asked for at sign-up") : null,
       w.built || w.on ? flipOf(w) : null,
       w.use && w.id === "events" ? meta(`${w.use.events} ${w.use.events === 1 ? "event" : "events"}`, `${w.use.coming} coming`, `${w.use.ticketsSold} ${w.use.ticketsSold === 1 ? "ticket" : "tickets"} sold`) : null,
+      w.use && w.id === "giving" ? meta(`${w.use.gifts} ${w.use.gifts === 1 ? "gift" : "gifts"}`, `${money(w.use.givenMinor, w.use.currency)} given`) : null,
+      w.use && w.id === "giving" ? blockedPill(w.use.blocked) : null,
       w.on ? meta(w.ownerOn ? "owner switched it on" : "owner hasn't switched it on yet", w.changedAt ? `turned on ${dateOnly(w.changedAt)}${w.changedBy ? ` by ${w.changedBy}` : ""}` : null) : null)));
   }).catch((failure) => slot.replaceChildren(el("p", { className: "rp-hint", textContent: failure.message })));
   show();

@@ -3,7 +3,7 @@
 // once (a repeat writes nothing); off keeps the rest; the overview counts shops per way.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createWaysBeta, eventsUse, waysBetaRoutes, START_DOC } from "./waysBeta.js";
+import { createWaysBeta, eventsUse, givingUse, waysBetaRoutes, START_DOC } from "./waysBeta.js";
 import { FEATURES_DOC } from "./bookingsBeta.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { eventLine } from "./timeline.js";
@@ -136,4 +136,22 @@ test("the overview lists live shops with a website and counts shops per way", as
   assert.deepEqual(view.ways.map((way) => way.asked), [1, 1, 0, 0, 0, 0]);
   assert.deepEqual(view.totals, { shops: 2, withAny: 1 });
   assert.deepEqual(view.ways.map((way) => [way.id, way.built, way.shops]).slice(0, 2), [["events", true, 1], ["classes", false, 0]]);
+});
+
+test("the shop's record shows how it uses Donations: gifts, what they came to and the tries the guard refused", async () => {
+  const w = await world({ ways: WAYS });
+  await w.desk.set(ADMIN, { shopId: SHOP, way: "giving", on: true });
+  const day = (ago) => new Date(NOW - ago * 86_400_000).toISOString().slice(0, 10);
+  await w.shopData.set(SHOP, "gifts/a", { status: "paid", chargedMinor: 2603, currency: "CAD" });
+  await w.shopData.set(SHOP, "gifts/b", { status: "refunded", chargedMinor: 5000, currency: "CAD" });
+  await w.shopData.set(SHOP, "gifts/c", { status: "paid", chargedMinor: 1000, currency: "CAD", mode: "test" });
+  await w.shopData.set(SHOP, "gifts/d", { status: "held", chargedMinor: 1000, currency: "CAD" });
+  await w.shopData.set(SHOP, `givingBlocked/${day(0)}`, { day: day(0), tooMany: 6, bot: 1, total: 7 });
+  await w.shopData.set(SHOP, `givingBlocked/${day(29)}`, { day: day(29), tooSmall: 2, total: 2 });
+  // Older than 30 days, and another shop's tries, never count here.
+  await w.shopData.set(SHOP, `givingBlocked/${day(30)}`, { day: day(30), tooMany: 40, total: 40 });
+  await w.shopData.set("test-goods", `givingBlocked/${day(0)}`, { day: day(0), bot: 9, total: 9 });
+  const rows = Object.fromEntries((await w.desk.forShop(ADMIN, { shopId: SHOP })).ways.map((way) => [way.id, way]));
+  assert.deepEqual(rows.giving.use, { gifts: 1, givenMinor: 2603, currency: "CAD", blocked: { tooSmall: 2, tooMany: 6, bot: 1, total: 9 } });
+  assert.deepEqual(givingUse([], [], NOW), { gifts: 0, givenMinor: 0, currency: "CAD", blocked: { tooSmall: 0, tooMany: 0, bot: 0, total: 0 } });
 });
