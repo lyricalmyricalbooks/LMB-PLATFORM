@@ -172,10 +172,10 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
         </SelectField>
         {current && <>
           <h3>{w("Book assignments")}</h3>
-          <p>{w("Counts show direct assignments, including earlier category names. Parent menus also include their children. PUBLICATIONS automatically shows every book on the storefront.")}</p>
+          <p>{w("Counts show direct assignments, including earlier category names. Parent menus also include their children. PUBLICATIONS automatically shows every book on your website.")}</p>
           <p>{w("Assignments save immediately; Publish and Discard Draft do not undo them. They use the published category name so a discarded rename keeps books findable. Apply category details before changing assignments.")}</p>
           {!liveCurrent && <p>{w("Publish this new category before assigning books.")}</p>}
-          <TextField label={w("Find books by title, SKU or ISBN")} value={bookSearch} onChange={e => setBookSearch(e.target.value)} disabled={busy} />
+          <TextField label={w("Find books by title, item code or ISBN")} value={bookSearch} onChange={e => setBookSearch(e.target.value)} disabled={busy} />
           <SelectField label={w("Show books")} value={membership} onChange={e => setMembership(e.target.value)} disabled={busy}><option value="all">{w("All books")}</option><option value="assigned">Assigned here</option><option value="unassigned">Not assigned here</option></SelectField>
           <SecondaryButton disabled={busy || !loaded} onClick={() => setSelected(prev => [...new Set([...prev, ...filteredBooks.map(b => b.id)])].slice(0, 400))}>{w("Select matching books (up to 400)")}</SecondaryButton>
           <SecondaryButton disabled={busy} onClick={() => setSelected([])}>Clear selection</SecondaryButton>

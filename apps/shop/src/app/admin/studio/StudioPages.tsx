@@ -159,7 +159,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
 
   async function remove(p: Partial<Page>) {
     if (locked.current || !p.id) return;
-    if (!(await askConfirm({ title: "Delete page?", message: `“${p.title}” will be removed from the storefront and its menu. This can't be undone.`, confirmLabel: "Delete page" }))) return;
+    if (!(await askConfirm({ title: "Delete page?", message: `“${p.title}” will be removed from your website and its menu. This can't be undone.`, confirmLabel: "Delete page" }))) return;
     try { await adminApi.deletePage(p.id); setPages((prev) => prev.filter((x) => x.id !== p.id)); setEditing(null); say("ok", "Page deleted."); }
     catch { say("err", "Could not delete the page."); }
   }
@@ -354,7 +354,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       {loadError && <div role="alert" className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between gap-3"><span>Pages could not be loaded. Your existing list is preserved.</span><button className={btn} onClick={onRetryLoad}>Retry</button></div>}
       <div>
         <p className="text-sm font-bold">Pages</p>
-        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Blank pages and most starters are added to the storefront header and footer; each page chooses under “Where the link shows” (Header and footer, Footer only, or Not linked). Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
+        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Blank pages and most starters are added to your website's header and footer; each page chooses under “Where the link shows” (Header and footer, Footer only, or Not linked). Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button className={btnPrimary} onClick={() => setStarters(v => !v)} disabled={filling} aria-expanded={starters} aria-controls="studio-page-starters"><Plus size={14} /> New page</button>
@@ -381,7 +381,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
           </div>
         </section>
       )}
-      {ordered.length === 0 && <p className="text-xs text-neutral-500 border border-dashed border-neutral-300 rounded-lg p-4">No pages yet. Create one and it can appear in your storefront menu.</p>}
+      {ordered.length === 0 && <p className="text-xs text-neutral-500 border border-dashed border-neutral-300 rounded-lg p-4">No pages yet. Create one and it can appear in your website's menu.</p>}
       {ordered.map((p, i) => (
         <div key={p.id} className="border border-neutral-200 rounded-lg p-2 bg-white space-y-1">
           <div className="flex items-center gap-1">

@@ -35,7 +35,7 @@ describe('local fulfillment persistence authorization', () => {
  it('rejects anonymous, other accounts and unverified owner before writing', async () => {
   for (const user of [null, { email: 'other@example.com', emailVerified: true }, { email: 'owner@example.com', emailVerified: false }]) {
    taskAuth.currentUser = user;
-   await expect(adminApi.updateLocalFulfillment(config)).rejects.toThrow('Unauthorized');
+   await expect(adminApi.updateLocalFulfillment(config)).rejects.toThrow('Only the shop');
   }
   expect(setDoc).not.toHaveBeenCalled();
  });

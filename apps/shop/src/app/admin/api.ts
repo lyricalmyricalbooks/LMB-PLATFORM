@@ -812,7 +812,7 @@ export const adminApi = {
   },
 
   updateLocalFulfillment: async (config: LocalFulfillmentConfig) => {
-    if (!await currentAdminRole(auth.currentUser, refreshMyRole)) throw new Error("Unauthorized local fulfillment update.");
+    if (!await currentAdminRole(auth.currentUser, refreshMyRole)) throw new Error("Only the shop's team can change pickup or delivery.");
     const errors = validateLocalFulfillment(config);
     if (errors.length) throw new Error(errors.join(" "));
     await setDoc(doc(db, "settings", "website"), { localFulfillment: JSON.parse(JSON.stringify(config)) }, { mergeFields: ["localFulfillment"] });
@@ -1125,7 +1125,7 @@ export const adminApi = {
       const o: any = snap.data();
       const method = o.fulfillmentSelection?.method;
       if (method === "pickup") throw new Error("Pickup orders use the selected store address and do not have a customer shipping address to change.");
-      if (o.status === "completed" || o.status === "cancelled" || o.paymentStatus !== "paid" || o.isTest || o.labelUrl || ["shipped", "out_for_delivery", "delivered"].includes(o.fulfillmentStatus)) throw new Error("Address changes are unavailable after label purchase or dispatch.");
+      if (o.status === "completed" || o.status === "cancelled" || o.paymentStatus !== "paid" || o.isTest || o.labelUrl || ["shipped", "out_for_delivery", "delivered"].includes(o.fulfillmentStatus)) throw new Error("The address can't change once a label is bought or the order has shipped.");
       if (addressKey(o) !== originalKey) throw new Error("The address changed. Reload the order first.");
       const cleaned = Object.fromEntries(["street", "unit", "city", "state", "zip", "country"].map(k => [k, String(address[k] || "").trim().slice(0, 200)]));
       const oldAddress = o.customer?.address || {};
@@ -1156,7 +1156,7 @@ export const adminApi = {
       if (o.paymentStatus !== "paid" || o.status === "cancelled" || o.isTest === true || ["cancelled", "refunded"].includes(o.fulfillmentStatus)) throw new Error("Only active paid production orders can be prepared.");
       let message = "";
       if (action === "review") {
-        if (queueOf(o) === "In transit" || queueOf(o) === "Completed") throw new Error("This order has already been dispatched.");
+        if (queueOf(o) === "In transit" || queueOf(o) === "Completed") throw new Error("This order has already shipped.");
         if (addressIssues(o).length) throw new Error(addressIssues(o).join(" "));
         if (payload.addressKey !== addressKey(o)) throw new Error("The address changed. Reload and review it again.");
         operations.addressReviewed = addressKey(o); message = "Shipping address reviewed by publisher.";
@@ -1169,7 +1169,7 @@ export const adminApi = {
         if (!["Needs attention", "Ready to pack", "Ready to ship"].includes(queueOf(o))) throw new Error("Only undispatched orders can be held.");
         if (!String(payload.reason || "").trim()) throw new Error("Enter a hold reason.");
         operations.hold = String(payload.reason).trim().slice(0, 500); message = `Order held: ${operations.hold}`;
-      } else if (action === "release") { operations.hold = ""; message = "Fulfillment hold released.";
+      } else if (action === "release") { operations.hold = ""; message = "Order taken off hold.";
       } else if (action === "clear_review") {
         if (!o.review || o.review.status !== "needs_review") throw new Error("This order has nothing to review.");
         operations.reviewCleared = now; message = "Publisher checked the risky-looking payment and cleared the order.";
@@ -1184,7 +1184,7 @@ export const adminApi = {
         const problem = dispatchProblem(o); if (problem) throw new Error(problem);
         const tracking = trackingFields(payload);
         tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", ...tracking, shippedAt: now, updatedAt: now });
-        message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
+        message = `Shipped with ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
       } else if (action === "ship_part") {
         // Part of the order goes now (code plan 24.5); the order stays open until the rest is dispatched.
         const picks = payload.picks && typeof payload.picks === "object" ? payload.picks : {};
@@ -1198,7 +1198,7 @@ export const adminApi = {
         // A label bought in the stockroom that won't be used: take its tracking off
         // the order so the website can buy its own. Only before the parcel left.
         if (o.trackingSource !== "inventory-app" || o.labelUrl) throw new Error("This order has no inventory app label to remove.");
-        if (queueOf(o) === "In transit" || queueOf(o) === "Completed") throw new Error("This order has already been dispatched.");
+        if (queueOf(o) === "In transit" || queueOf(o) === "Completed") throw new Error("This order has already shipped.");
         tx.update(ref, { trackingNumber: deleteField(), trackingCarrier: deleteField(), trackingUrl: deleteField(), trackingSource: deleteField(), updatedAt: now });
         operations.labelHistory = [...(operations.labelHistory || []), { trackingNumber: o.trackingNumber || null, trackingCarrier: o.trackingCarrier || null, replacedAt: now, replacedBy: "admin (inventory app label removed)" }];
         operations.externalLabel = null;
@@ -1238,13 +1238,13 @@ export const adminApi = {
         tx.update(ref, { fulfillmentStatus: next, ...(next === "delivered" ? { deliveredAt: now } : { outForDeliveryAt: now }), updatedAt: now });
         message = next === "delivered" ? "Marked delivered by publisher." : "Marked out for delivery by publisher.";
       } else if (action === "local_transition") {
-        if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") throw new Error("Resolve the active return before continuing fulfillment.");
+        if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") throw new Error("Finish the open return before packing or shipping.");
         const method = o.fulfillmentSelection?.method;
         if (!['pickup', 'local_delivery'].includes(method)) throw new Error("Only local orders can use this workflow.");
         const current = String(o.fulfillmentStatus || "");
         if (current !== String(payload.expectedStatus || "")) throw new Error("This order changed. Reload before continuing.");
         if (reviewOpen(o)) throw new Error(REVIEW_PROBLEM);
-        if (operations.hold) throw new Error("Release the fulfillment hold before continuing.");
+        if (operations.hold) throw new Error("Take the order off hold first.");
         if (queueOf(o) === "Awaiting release") throw new Error("This pre-order hasn't been released yet. Press \"Ready to ship now\" if the books have arrived.");
         // Books already on their way may still be marked delivered (proof for the dispute).
         if (disputeOpen(o) && current !== "out_for_delivery") throw new Error(`This payment is disputed. Don't hand over the books until the dispute is settled in ${providerName()}.`);
@@ -1261,7 +1261,7 @@ export const adminApi = {
           : next === "out_for_delivery" ? { outForDeliveryAt: now }
           : { deliveredAt: now };
         tx.update(ref, { fulfillmentStatus: next, ...(final ? { status: "completed" } : {}), ...timestamps, updatedAt: now });
-        message = `Local fulfillment advanced to ${next}.`;
+        message = `Pickup or delivery moved to ${next}.`;
       }
       tx.set(privateRef, { ...operations, updatedAt: now, activity: [...(operations.activity || []), { type: "event", message, createdAt: now }] });
     });

@@ -40,9 +40,9 @@ describe("ship station", () => {
     expect(listPayment(byId("NEW")).text).toBe("Paid");
     expect(listPayment(byId("ETRANSFER")).text).toBe("Unpaid");
     expect(listPayment(byId("REFUNDED")).text).toBe("Refunded");
-    expect(listFulfilment(byId("OLD")).text).toBe("Unfulfilled");
+    expect(listFulfilment(byId("OLD")).text).toBe("To ship");
     expect(listFulfilment(byId("SHIPPED")).text).toBe("Shipped");
-    expect(listFulfilment(byId("DONE")).text).toBe("Fulfilled");
+    expect(listFulfilment(byId("DONE")).text).toBe("Done");
     expect(listFulfilment(byId("ETRANSFER")).text).toBe("Draft");
     expect(listFulfilment(byId("PRE")).text).toBe("Pre-order");
     expect(listFulfilment(paid("BAD", "2026-10-06T10:00:00Z", { operations: { addressReviewed: "" } })).text).toBe("Needs you");

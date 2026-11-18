@@ -111,7 +111,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const duplicate = async (b: any) => {
     try {
       const copy = await adminApi.duplicateBook(b.id);
-      toast.success("Copy created as a draft — add its own ISBN, SKU and stock");
+      toast.success("Copy created as a draft — add its own ISBN, item code and stock");
       loadBooks();
       onEdit(copy);
     } catch { toast.error("Failed to duplicate"); }
@@ -178,7 +178,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   if (books.length === 0) {
     return (
       <SectionCard>
-        <EmptyState icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it appears on the storefront as soon as it's published.")}
+        <EmptyState icon="📚" title={w("No books yet")} description={w("Add your first title to start selling — it shows on your website as soon as it's published.")}
           action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>{w("Add book")}</PrimaryButton>
             <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import spreadsheet</SecondaryButton>
@@ -230,7 +230,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               ref={(el) => { if (el) el.indeterminate = tickedHere > 0 && !allTicked; }}
               onChange={(e) => setPicked(e.target.checked ? new Set(rows.map((b) => b.id)) : new Set())} /></th>
             <th scope="col">{w("Book")}</th>
-            <th scope="col" className="bk-wide">{sellsBooks(sells) ? "Format · ISBN" : "Format · SKU"}</th>
+            <th scope="col" className="bk-wide">{sellsBooks(sells) ? "Format · ISBN" : "Format · item code"}</th>
             <th scope="col" className="bk-num bk-wide">Price</th>
             <th scope="col" className="bk-num bk-wide">Online</th>
             {COMBINED && <th scope="col" className="bk-num bk-wide">Stockroom</th>}

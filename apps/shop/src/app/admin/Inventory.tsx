@@ -331,7 +331,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
           : <div className="rp-row-link" style={{ cursor: "default", textDecoration: "none" }}>{r.title}</div>}
         <div className="rp-hint">
           {[r.edition, r.format].filter(Boolean).join(" · ") || "—"}
-          {r.sku && <> · SKU <span className="rp-mono">{r.sku}</span></>}
+          {r.sku && <> · Item code <span className="rp-mono">{r.sku}</span></>}
           {r.shelfLocation && <> · Shelf <span className="rp-mono">{r.shelfLocation}</span></>}
           {r.archived && " · Archived"}{r.draft && " · Draft"}{r.backorder && r.editable && " · Backorders on"}
         </div>
@@ -366,7 +366,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
     <ul className="inv-sheet" aria-label="Inventory">
       {pageRows.map((r) => {
         const cover = rowCoverUrl(r);
-        const meta = [r.edition || r.format, r.sku ? `SKU ${r.sku}` : "", r.shelfLocation ? `Shelf ${r.shelfLocation}` : "", r.draft ? "Draft" : "", r.archived ? "Archived" : ""].filter(Boolean).join(" · ");
+        const meta = [r.edition || r.format, r.sku ? `Item ${r.sku}` : "", r.shelfLocation ? `Shelf ${r.shelfLocation}` : "", r.draft ? "Draft" : "", r.archived ? "Archived" : ""].filter(Boolean).join(" · ");
         const counted = r.kind === "stock";
         return (
           <li key={r.id} className="inv-sheet-row">
@@ -376,7 +376,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
                 ? <button type="button" className="inv-sheet-title" onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in ${w("Books")}`}>{r.title}</button>
                 : <span className="inv-sheet-title">{r.title}</span>}
               <span className="inv-sheet-meta"><span className="inv-sheet-status" data-tone={TONE[r.status]}>{GLYPH[TONE[r.status]] ? <span aria-hidden="true">{GLYPH[TONE[r.status]]} </span> : null}{STATUS_LABELS[r.status]}</span>{meta ? <span className="rp-mono">· {meta}</span> : null}</span>
-              {counted && linked(r) ? <span className="inv-sheet-note">Synced from the app</span> : null}
+              {counted && linked(r) ? <span className="inv-sheet-note">Counted in the stockroom</span> : null}
             </span>
             <span className="inv-sheet-stock">{counted && !linked(r) ? stockCell(r) : counted ? <span className="rp-mono inv-sheet-count" aria-label={`Stock for ${rowName(r)}: ${r.stock}`}>{r.stock}</span> : null}</span>
           </li>
@@ -392,7 +392,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
     const countable = all.filter((r) => r.kind === "stock" && r.editable && !linked(r));
     const byId = new Map(countable.map((r) => [r.id, r]));
     const items: CountItem[] = countable.map((r) => ({ id: r.id, title: r.title, cover: rowCoverUrl(r), expected: r.stock, cost: costs[r.bookId] || undefined,
-      sub: [r.edition || r.format, r.sku ? `SKU ${r.sku}` : "", r.shelfLocation ? `Shelf ${r.shelfLocation}` : ""].filter(Boolean).join(" · ") }));
+      sub: [r.edition || r.format, r.sku ? `Item ${r.sku}` : "", r.shelfLocation ? `Shelf ${r.shelfLocation}` : ""].filter(Boolean).join(" · ") }));
     const finishCount = async (changes: { id: string; to: number }[]) => {
       const plan = changes.flatMap((c) => { const row = byId.get(c.id); return row ? [{ row, ch: { kind: "set" as const, to: c.to, expected: row.stock }, from: row.stock, to: c.to }] : []; });
       if (!(await confirmRestockEmails(plan))) return null;
@@ -434,7 +434,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
           )}
       </PageActions>
       <FilterBar>
-        <div className="rp-grow"><SearchField label={w("Search titles")} placeholder={w("Search titles, SKU or shelf…")} value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="rp-grow"><SearchField label={w("Search titles")} placeholder={w("Search titles, item codes or shelf…")} value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <SelectField label="Show" value={tab} onChange={(e) => setTab(e.target.value as Tab)}>
           {TAB_LABELS.map(([id, label]) => <option key={id} value={id}>{label} ({counts[id]})</option>)}
         </SelectField>

@@ -219,7 +219,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "showPageFooter", label: "Show page footer", kind: "toggle", defaultValue: true },
       { key: "showNotFoundMessage", label: "Show missing-page message", kind: "toggle", defaultValue: true },
       { key: "showNotFoundBack", label: "Show return to store link (missing page)", kind: "toggle", defaultValue: true },
-      { key: "pageChromeStyle", label: "Page colours", kind: "select", options: [{ value: "theme", label: "Match the storefront" }, { value: "classic", label: "Classic white page" }] },
+      { key: "pageChromeStyle", label: "Page colours", kind: "select", options: [{ value: "theme", label: "Match your website" }, { value: "classic", label: "Classic white page" }] },
       { key: "pageShowEyebrow", label: "Show small label above title", kind: "toggle" },
       { key: "pageTitleSize", label: "Title size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Extra large" }] },
       { key: "pageTitleUppercase", label: "Uppercase title", kind: "toggle" },
@@ -932,7 +932,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
   {
     id: "code",
     title: "Custom code (advanced)",
-    hint: "Runs on the live storefront only (not in this preview, checkout or admin). Use with care.",
+    hint: "Runs on your live website only (not in this preview, checkout or admin). Use with care.",
     fields: [
       { key: "customCss", label: "Custom CSS", kind: "textarea" },
       { key: "customHeadHtml", label: "Extra <head> HTML", kind: "textarea" },

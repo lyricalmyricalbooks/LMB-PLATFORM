@@ -117,12 +117,12 @@ export const booksLeftOutAfterRefund = (o: any) => ["refunded", "refund_pending"
   && (o?.sandboxPayment !== true || o?.inventoryDecrementedAt != null)
   && (o?.items || []).some((item: any) => item && !isDigitalItem(item) && Number(item.quantity) > 0);
 export function dispatchProblem(o: any): string {
- if (o.isTest) return "Test orders cannot be fulfilled.";
- if (terminal(o) || o.paymentStatus !== "paid") return "Only active paid orders can be dispatched.";
+ if (o.isTest) return "Practice orders can't be packed or shipped.";
+ if (terminal(o) || o.paymentStatus !== "paid") return "Only paid, open orders can be shipped.";
  const q = queueOf(o);
- if (fulfillmentMethod(o) !== "shipping") return "Local pickup and delivery orders cannot use carrier dispatch.";
- if (q === "In transit" || q === "Completed") return "This order has already been dispatched.";
- if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") return "Resolve the active return before dispatching the order.";
+ if (fulfillmentMethod(o) !== "shipping") return "Pickup and local delivery orders aren't sent by a carrier.";
+ if (q === "In transit" || q === "Completed") return "This order has already shipped.";
+ if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") return "Finish the open return before shipping the order.";
  if (disputeOpen(o)) return `This payment is disputed. Don't ship until the dispute is settled in ${providerName()}.`;
  if (refundFailed(o)) return "The refund for this order failed at the bank, so the customer was not refunded. Refund again or contact them before packing.";
  if (reviewOpen(o)) return REVIEW_PROBLEM;
@@ -138,10 +138,10 @@ export function dispatchProblem(o: any): string {
  */
 export function blockingProblem(o: any): string {
  if (queueOf(o) !== "Needs attention") return "";
- if (!o.items?.length) return "This order has no items. Resolve the order data before fulfillment.";
+ if (!o.items?.length) return "This order has no items, so there is nothing to pack.";
  const problem = dispatchProblem(o);
  if (!problem || /address|packing checklist/i.test(problem)) return "";
- if (/already been dispatched|Local pickup/.test(problem)) return "";
+ if (/already shipped|aren't sent by a carrier/.test(problem)) return "";
  return problem;
 }
 /** A cash / e-Transfer (manual) order still waiting for its money: the admin may mark it paid. */

@@ -47,11 +47,11 @@ export const hasPartShipments = (o: any) => partShipmentsOf(o).length > 0;
  * sending everything is the normal dispatch.
  */
 export function partShipmentProblem(o: any, picks: Record<string | number, unknown>): string {
-  if (o?.isTest) return "Test orders cannot be fulfilled.";
-  if (terminal(o) || o?.paymentStatus !== "paid") return "Only active paid orders can be sent.";
+  if (o?.isTest) return "Practice orders can't be packed or shipped.";
+  if (terminal(o) || o?.paymentStatus !== "paid") return "Only paid, open orders can be shipped.";
   if (fulfillmentMethod(o) !== "shipping") return "Pickup and local delivery orders are handed over in one go.";
   const q = queueOf(o);
-  if (q === "In transit" || q === "Completed") return "This order has already been dispatched.";
+  if (q === "In transit" || q === "Completed") return "This order has already shipped.";
   if (o.customerRequest?.status === "open") return "Answer the customer's cancel or return request first.";
   if (disputeOpen(o)) return "This payment is disputed. Don't ship until the dispute is settled.";
   if (refundFailed(o)) return "The refund for this order failed at the bank. Refund again or contact the customer before shipping.";

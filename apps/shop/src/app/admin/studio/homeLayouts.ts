@@ -23,7 +23,7 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
     id: "press-riso",
     name: "Riso",
-    description: "A print-led storefront with a bold cover carousel, overprint-colored marquee, catalog grid and editorial notes.",
+    description: "A print-led shop with a bold cover carousel, overprint-colored marquee, catalog grid and editorial notes.",
     sections: [
       { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent books, printed in small runs." } },
       { type: "MarqueeSection", settings: { text: "SMALL RUNS  /  LOUD INK  /  INDEPENDENT PUBLISHING", separator: "✦", speed: 28, fontSize: 13, bold: true, fontWeight: 900, letterSpacing: 0.18, uppercase: true, background: "#100f0d", color: "#faf6ec" } },
@@ -429,12 +429,12 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
       { type: "ImageWithTextSection", settings: { eyebrow: "OUR STORY", title: "Independent by design", body: "Tell the story behind your imprint — what you publish and why it matters.", ctaText: "Read more", layout: "image-left" } },
       { type: "FeaturedProductSection", settings: { eyebrow: "FEATURED", ctaText: "View product" } },
       { type: "TestimonialsSection", settings: { title: "WHAT COLLECTORS SAY" } },
-      { type: "NewsletterSection", settings: { title: "JOIN THE ARCHIVE", description: "Occasional dispatches about new publications." } },
+      { type: "NewsletterSection", settings: { title: "JOIN THE ARCHIVE", description: "Now and then, news about new publications." } },
     ],
   },
   {
     id: "conversion-focused",
-    name: "Conversion Focused",
+    name: "Made to sell",
     description: "Promo marquee, collections, benefits and a countdown — built to sell.",
     sections: [
       { type: "HeroSection", settings: { title: "SHOP THE DROP", subtitle: "Limited editions, while they last", ctaText: "SHOP NOW", height: "medium", align: "center" } },

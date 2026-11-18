@@ -47,9 +47,9 @@ describe("partShipmentProblem", () => {
     expect(partShipmentProblem({ ...order(), operations: {} }, { 0: 1 })).toMatch(/address/);
     expect(partShipmentProblem(order({ operations: { hold: "Waiting" } }), { 0: 1 })).toMatch(/hold/);
     expect(partShipmentProblem(order({ paymentStatus: "unpaid" }), { 0: 1 })).toMatch(/paid/);
-    expect(partShipmentProblem(order({ isTest: true }), { 0: 1 })).toMatch(/Test/);
+    expect(partShipmentProblem(order({ isTest: true }), { 0: 1 })).toMatch(/Practice/);
     expect(partShipmentProblem(order({ fulfillmentSelection: { method: "pickup" } }), { 0: 1 })).toMatch(/Pickup/);
-    expect(partShipmentProblem(order({ fulfillmentStatus: "shipped" }), { 0: 1 })).toMatch(/already been dispatched/);
+    expect(partShipmentProblem(order({ fulfillmentStatus: "shipped" }), { 0: 1 })).toMatch(/already shipped/);
     expect(canShipPart(order({ items: [{ id: "a", title: "One", quantity: 1 }] }))).toBe(false);
   });
 });

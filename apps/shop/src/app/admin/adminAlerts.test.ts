@@ -151,7 +151,7 @@ describe("stockroom label alerts", () => {
       pendingImport: { count: 3, oldestSince: "2026-10-09T12:00:00Z" }, lastPush: { failed: 2 },
       newMatches: { items: [{ key: "b2|", bookId: "b2", variantId: null, title: "Altrove", edition: "", inventoryBookId: "altrove" }] },
       app: { todo: { at: new Date().toISOString(), items: [{ id: "x", title: "Waiting", hash: "#todo" }] } },
-      shipmentIssues: [{ orderId: "A-1", reason: "Resolve the active return before dispatching the order.", at: "2026-10-11T14:00:00Z" }],
+      shipmentIssues: [{ orderId: "A-1", reason: "Finish the open return before shipping the order.", at: "2026-10-11T14:00:00Z" }],
     });
     expect(alerts.map((a) => a.id)).toEqual(["inventory-label-A-1"]);
     expect(alerts[0]).toMatchObject({ action: "order", orderIds: ["A-1"], title: "A label bought in the stockroom wasn't used for order A-1" });

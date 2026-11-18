@@ -139,8 +139,8 @@ export function HomePage({ setActiveTab, onSetWall, ownerName = "", services = f
         <RunRow kind="Orders" label="paid orders waiting to ship" one="paid order waiting to ship" count={todo ? todo.fulfil.length : null} loading={ordersLoading}
           detail={todo && todo.fulfil[0] ? (todo.fulfil[0].ageDays < 1 ? "Oldest was ordered today" : `Oldest has waited ${todo.fulfil[0].ageDays} day${todo.fulfil[0].ageDays === 1 ? "" : "s"}`) : ""}
           onOpen={() => go("orders")} openLabel="Ship orders" />
-        <RunRow kind="Reviews" label="reviews to moderate" one="review to moderate" count={counts ? counts.pendingReviews ?? null : null} loading={!counts}
-          detail="Readers are waiting to see these" detailOne="A reader is waiting to see it" onOpen={() => go("reviews")} openLabel="Moderate" />
+        <RunRow kind="Reviews" label="reviews to check" one="review to check" count={counts ? counts.pendingReviews ?? null : null} loading={!counts}
+          detail="Shoppers are waiting to see these" detailOne="A shopper is waiting to see it" onOpen={() => go("reviews")} openLabel="Check them" />
         <RunRow kind="Stock" label={w("book") === "book" ? "titles to reprint soon" : "products to restock soon"} one={w("book") === "book" ? "title to reprint soon" : "product to restock soon"} count={todo ? todo.reprint : null} loading={ordersLoading || stockLoading}
           detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => go("inventory")} openLabel="Open inventory" />
         <RunRow kind="Stock" label={w("book") === "book" ? "print books or editions sold out" : "products sold out"} one={w("book") === "book" ? "print book or edition sold out" : "product sold out"} count={todo ? todo.soldOut : null} loading={ordersLoading || stockLoading}

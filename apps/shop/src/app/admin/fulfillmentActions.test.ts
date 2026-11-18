@@ -69,7 +69,7 @@ describe("atomic fulfillment actions", () => {
  it("rejects a stale checklist without writing anything", async () => { records.set("order-operations/a", { addressReviewed: addressKey(base()) }); await expect(adminApi.fulfillmentAction("a", "pack", { packingKey: "stale" })).rejects.toThrow("Items changed"); expect(tx.update).not.toHaveBeenCalled(); expect(tx.set).not.toHaveBeenCalled(); });
  it("rejects unpaid dispatch and incomplete preparation", async () => { records.set("orders/a", { ...base(), paymentStatus: "unpaid" }); await expect(adminApi.fulfillmentAction("a", "dispatch", {})).rejects.toThrow(); expect(tx.update).not.toHaveBeenCalled(); });
  it("stores new internal notes only in private operations", async () => { await adminApi.addOrderNote("a", "Customer issue"); expect(tx.update).not.toHaveBeenCalled(); expect(tx.set.mock.calls[0][0].path).toBe("order-operations/a"); });
- it("prevents changing the address after buying a label", async () => { records.set("orders/a", { ...base(), labelUrl: "label" }); await expect(adminApi.correctOrderAddress("a", base().customer.address, addressKey(base()))).rejects.toThrow("after label purchase"); expect(tx.update).not.toHaveBeenCalled(); });
+ it("prevents changing the address after buying a label", async () => { records.set("orders/a", { ...base(), labelUrl: "label" }); await expect(adminApi.correctOrderAddress("a", base().customer.address, addressKey(base()))).rejects.toThrow("once a label is bought"); expect(tx.update).not.toHaveBeenCalled(); });
  it("allows local-delivery street corrections but protects the paid delivery area", async () => {
   const o: any = { ...base(), fulfillmentSelection: { method: "local_delivery", optionId: "zone" } };
   records.set("orders/a", o); records.set("order-operations/a", {});
@@ -103,6 +103,6 @@ describe("atomic fulfillment actions", () => {
  it("does not permit carrier dispatch for a local order", async () => {
   const o: any = { ...base(), fulfillmentSelection: { method: "pickup", optionId: "shop" } };
   records.set("orders/a", o); records.set("order-operations/a", { packed: packingKey(o), activity: [] });
-  await expect(adminApi.fulfillmentAction("a", "dispatch", { trackingCarrier: "Courier", trackingNumber: "123" })).rejects.toThrow("cannot use carrier dispatch");
+  await expect(adminApi.fulfillmentAction("a", "dispatch", { trackingCarrier: "Courier", trackingNumber: "123" })).rejects.toThrow("aren't sent by a carrier");
  });
 });

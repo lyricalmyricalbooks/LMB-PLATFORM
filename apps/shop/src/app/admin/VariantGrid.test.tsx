@@ -40,7 +40,7 @@ describe("Every combination", () => {
     expect(el.textContent).toContain("Shoppers pick them on the product page.");
     expect(el.textContent).toContain("items across all of them");
     expect(el.querySelectorAll("tbody tr")).toHaveLength(2);
-    expect((el.querySelector('[aria-label="SKU of M / Black"]') as HTMLInputElement).value).toBe("TEE-M");
+    expect((el.querySelector('[aria-label="Item code of M / Black"]') as HTMLInputElement).value).toBe("TEE-M");
     expect((el.querySelector('[aria-label="Stock of S / Black"]') as HTMLInputElement).value).toBe("4");
     expect(el.textContent).toContain("Price fromCA$30.00up to CA$32.00");
   });

@@ -110,7 +110,7 @@ export function paymentChip(o: any): { tone: Tone; text: string } {
 /** The Orders list's pills (redesign to the mockup, 11 November 2026). */
 export type ListFilter = "all" | "unfulfilled" | "unpaid" | "shipped" | "refunded";
 export const LIST_FILTERS: Array<{ id: ListFilter; label: string }> = [
-  { id: "all", label: "All" }, { id: "unfulfilled", label: "Unfulfilled" }, { id: "unpaid", label: "Unpaid" },
+  { id: "all", label: "All" }, { id: "unfulfilled", label: "To ship" }, { id: "unpaid", label: "Unpaid" },
   { id: "shipped", label: "Shipped" }, { id: "refunded", label: "Refunded" },
 ];
 const TO_SEND = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "Awaiting release"];
@@ -145,8 +145,8 @@ export function listFulfilment(o: any): { tone: Tone; text: string } {
   if (q === "Unpaid") return { tone: "neutral", text: "Draft" };
   if (q === "Awaiting release") return { tone: "info", text: "Pre-order" };
   if (q === "In transit") return { tone: "info", text: "Shipped" };
-  if (q === "Completed") return { tone: "neutral", text: "Fulfilled" };
-  return { tone: "warning", text: "Unfulfilled" };
+  if (q === "Completed") return { tone: "neutral", text: "Done" };
+  return { tone: "warning", text: "To ship" };
 }
 
 /** The list under a pill, newest first ("All" is the covers page's All orders). */
