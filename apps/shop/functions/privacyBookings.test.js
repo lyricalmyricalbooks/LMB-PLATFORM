@@ -92,6 +92,11 @@ function setup() {
       p2: { serviceName: 'Lesson', status: 'held', visits: 5, customer: { name: 'Ada', email: 'ada@example.com' }, pendingCode: 'ABCD-EFGH-JKLM' },
       p3: { serviceName: 'Lesson', status: 'held', visits: 5, customer: { name: 'Bo', email: 'bo@example.com' } },
     },
+    gifts: {
+      g1: { status: 'paid', amountMinor: 2500, chargedMinor: 2606, customer: { name: 'Ada', email: 'ada@example.com' }, note: 'For the press', keyHashes: ['k1'], paymentIntent: 'pi_g', sessions: ['cs_g'] },
+      g2: { status: 'cancelled', amountMinor: 1000, chargedMinor: 1000, customer: { name: 'Ada', email: 'ada@example.com' }, keyHashes: ['k2'] },
+      g3: { status: 'paid', amountMinor: 1000, chargedMinor: 1000, customer: { name: 'Bo', email: 'bo@example.com' }, keyHashes: ['k3'] },
+    },
     eventOrders: {
       t1: { eventTitle: 'Launch', status: 'paid', chargedMinor: 3000, customer: { name: 'Ada', email: 'ada@example.com' }, tickets: [{ code: 'ABCD-2345', name: 'General' }], ticketCodes: ['ABCD-2345'], keyHashes: ['k1'], paymentIntent: 'pi_t', sessions: ['cs_t'] },
       t2: { eventTitle: 'Open day', status: 'paid', chargedMinor: 0, customer: { name: 'Ada', email: 'ada@example.com' }, tickets: [{ code: 'WXYZ-6789', name: 'Free' }], keyHashes: ['k2'] },
@@ -154,6 +159,10 @@ describe("the owner's privacy export and erase", () => {
     expect(out.body.eventTickets.map(t => t.id).sort()).toEqual(['t1', 't2']);
     expect(out.body.eventTickets.find(t => t.id === 't1').tickets[0].code).toBe('ABCD-2345');
     for (const t of out.body.eventTickets) for (const key of ['keyHashes', 'pendingKey', 'sessions', 'paymentIntent']) expect(t).not.toHaveProperty(key);
+    // Gifts they gave, with what they wrote, without link keys or payment ids.
+    expect(out.body.gifts.map(g => g.id).sort()).toEqual(['g1', 'g2']);
+    expect(out.body.gifts.find(g => g.id === 'g1').note).toBe('For the press');
+    for (const g of out.body.gifts) for (const key of ['keyHashes', 'pendingKey', 'sessions', 'paymentIntent']) expect(g).not.toHaveProperty(key);
   });
 
   it("the erase clears that person's bookings and waiting list and nobody else's", async () => {
@@ -180,6 +189,11 @@ describe("the owner's privacy export and erase", () => {
     expect(tickets.get('t1')).toMatchObject({ customer: { name: 'Ada', email: 'ada@example.com' }, keyHashes: [], ticketCodes: ['ABCD-2345'] });
     expect(tickets.get('t2')).toMatchObject({ customer: { name: BOOKING_NAME_REMOVED, email: '' }, keyHashes: [], tickets: [{ code: 'WXYZ-6789', name: 'Free' }] });
     expect(tickets.get('t3')).toMatchObject({ customer: { name: 'Bo', email: 'bo@example.com' }, keyHashes: ['k3'] });
+    // Gifts: a card-paid one keeps its name as a payment record, an unpaid one loses it; nobody else's changes.
+    const given = db.store.get('gifts');
+    expect(given.get('g1')).toMatchObject({ customer: { name: 'Ada', email: 'ada@example.com' }, keyHashes: [] });
+    expect(given.get('g2')).toMatchObject({ customer: { name: BOOKING_NAME_REMOVED, email: '' }, keyHashes: [] });
+    expect(given.get('g3')).toMatchObject({ customer: { name: 'Bo' }, keyHashes: ['k3'] });
   });
 
   it("visit notes and photos: in the owner's export, deleted with their photos on erase, nobody else's touched", async () => {

@@ -1,0 +1,292 @@
+// Donations & tips (beta, giving.js): off until both switches are on; the card-testing guard ($5 lowest, a few card pages
+// per visitor and per email, a form a person filled in) refuses and counts; a gift opens the shop's card page for the
+// gift plus any covered fee and no tax, is confirmed once with a thank-you, and the owner can refund it once.
+import { describe, expect, test } from "vitest";
+import { createRequire } from "module";
+
+const realRequire = createRequire(import.meta.url);
+const { givingActions, FORM_MIN_SECONDS } = realRequire("./giving");
+
+function fakeDb() {
+  const store = new Map();
+  const key = (c, id) => `${c}/${id}`;
+  const snapOf = (c, id) => ({ id, exists: store.has(key(c, id)), data: () => structuredClone(store.get(key(c, id))), ref: ref(c, id) });
+  const ref = (c, id) => ({
+    id, path: key(c, id),
+    async get() { return snapOf(c, id); },
+    async set(data, opts) { store.set(key(c, id), opts?.merge ? { ...(store.get(key(c, id)) || {}), ...structuredClone(data) } : structuredClone(data)); },
+    async delete() { store.delete(key(c, id)); },
+  });
+  const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`)).map((k) => snapOf(c, k.slice(c.length + 1)));
+  const query = (c, filters = [], n = 1000) => ({
+    where: (f, _op, v) => query(c, [...filters, [f, v]], n),
+    limit: (m) => query(c, filters, m),
+    async get() {
+      const docs = list(c).filter((d) => filters.every(([f, v]) => d.data()[f] === v)).slice(0, n);
+      return { docs, empty: docs.length === 0 };
+    },
+  });
+  let queue = Promise.resolve();
+  return {
+    store,
+    collection: (c) => ({ doc: (id) => ref(c, id), ...query(c) }),
+    runTransaction(fn) {
+      const run = queue.then(() => fn({ get: (r) => r.get(), set: (r, d, o) => r.set(d, o) }));
+      queue = run.catch(() => {});
+      return run;
+    },
+  };
+}
+
+function res() {
+  const out = { statusCode: 200, body: null, headers: {} };
+  out.status = (c) => { out.statusCode = c; return out; };
+  out.json = (b) => { out.body = b; return out; };
+  out.set = (k, v) => { out.headers[k] = v; return out; };
+  return out;
+}
+
+const GIVER = { name: "Ada Reader", email: "ada@example.com" };
+
+function setup({ platform = true, owner = true, checkout = "card", admin = true, refundFails = false } = {}) {
+  const db = fakeDb();
+  const clock = { now: new Date("2026-11-18T13:00:00Z") };
+  const emails = [];
+  const opened = [];
+  const closed = [];
+  const refunds = [];
+  const sessions = new Map();
+  // Per bucket and key, like the real limiter: a counter per window that never resets inside a test.
+  const counts = new Map();
+  const card = checkout === null ? null : {
+    async open(params, idem) {
+      const id = `cs_test_${String(opened.length).padStart(8, "0")}`;
+      opened.push({ params, idem });
+      sessions.set(id, { id, payment_status: "unpaid", status: "open", amount_total: params.line_items[0].price_data.unit_amount, metadata: params.metadata, payment_intent: null });
+      return { id, url: `https://pay.example/${id}` };
+    },
+    async read(id) { return sessions.get(id) || null; },
+    async close(id) { closed.push(id); const s = sessions.get(id); if (s && s.payment_status !== "paid") s.status = "expired"; },
+  };
+  let n = 0;
+  const desk = givingActions({
+    db,
+    requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
+    payments: {
+      standaloneCheckout: async () => card,
+      async refund(args) {
+        if (refundFails) throw new Error("declined");
+        if (!refunds.some((r) => r.idempotencyKey === args.idempotencyKey)) refunds.push(args);
+        return { refundId: "re_1" };
+      },
+    },
+    shopTestMode: async () => true,
+    hitLimit: async (_db, bucket, req, opts, { key = "" } = {}) => {
+      if (!opts?.max) return true;
+      const id = `${bucket}:${key || req.ip || "visitor"}`;
+      counts.set(id, (counts.get(id) || 0) + 1);
+      return counts.get(id) <= opts.max;
+    },
+    LIMITS: {},
+    siteLink: (p) => `https://press.example${p}`,
+    shopName: () => "Moth Press",
+    currency: () => "CAD",
+    sendEmail: async (m) => { emails.push(m); },
+    ownerEmail: () => "owner@example.com",
+    escapeHtml: (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`),
+    risoLayout: (inner) => `<html>${inner}</html>`,
+    risoButton: (href, label) => `<a href="${href}">${label}</a>`,
+    now: () => clock.now,
+    randomId: () => `gift${String(++n).padStart(4, "0")}`,
+    randomKey: () => String(n).padStart(48, "a"),
+  });
+  const seed = async (settings = null) => {
+    await db.collection("platform").doc("features").set({ ways: { giving: platform } });
+    await db.collection("firstWeek").doc("start").set({ ways: { giving: owner } });
+    if (settings) await db.collection("givingSettings").doc("main").set(settings);
+  };
+  const pub = async (body, ip = "1.2.3.4") => { const r = res(); await desk.handlePublic({ body, ip }, r); return r; };
+  const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
+  const later = (seconds) => { clock.now = new Date(clock.now.getTime() + seconds * 1000); };
+  // The page's form, read a few seconds before giving, as a person would.
+  const form = async () => { const { body } = await pub({ action: "givingInfo" }); later(FORM_MIN_SECONDS + 1); return body.form; };
+  const give = async (extra = {}, ip) => pub({ action: "giftStart", amountMinor: 2500, giver: GIVER, form: await form(), ...extra }, ip);
+  const pay = (i = 0) => { const s = sessions.get(`cs_test_${String(i).padStart(8, "0")}`); s.payment_status = "paid"; s.status = "complete"; s.payment_intent = `pi_${i}`; };
+  const doc = async (c, id) => (await db.collection(c).doc(id).get()).data();
+  const blockedToday = async () => doc("givingBlocked", clock.now.toISOString().slice(0, 10));
+  return { db, desk, clock, emails, opened, closed, refunds, sessions, seed, pub, adm, later, form, give, pay, doc, blockedToday };
+}
+
+describe("on only while both switches are", () => {
+  test.each([[false, true], [true, false]])("platform %s, owner %s: givers see nothing and the admin is refused", async (platform, owner) => {
+    const t = setup({ platform, owner });
+    await t.seed();
+    expect((await t.pub({ action: "givingInfo" })).body).toEqual({ on: false });
+    expect((await t.pub({ action: "giftStart", amountMinor: 2500, giver: GIVER })).body).toEqual({ on: false });
+    expect((await t.adm({ op: "list" })).statusCode).toBe(403);
+    expect(t.opened).toHaveLength(0);
+  });
+  test("someone who isn't the shop's admin gets nothing", async () => {
+    const t = setup({ admin: false });
+    await t.seed();
+    expect((await t.adm({ op: "list" })).statusCode).toBe(401);
+  });
+});
+
+describe("the Support page", () => {
+  test("shows the owner's amounts and choices, the lowest gift and a form token", async () => {
+    const t = setup();
+    await t.seed({ amounts: [500, 2000], coverFee: false });
+    const { body } = await t.pub({ action: "givingInfo" });
+    expect(body).toMatchObject({ on: true, currency: "CAD", minMinor: 500, amounts: [500, 2000], otherAmount: true, coverFee: false, honour: true, cardsReady: true });
+    expect(body.form).toMatch(/^\d+\.[a-f0-9]{32}$/);
+  });
+});
+
+describe("giving", () => {
+  test("opens the shop's card page for the gift plus the covered fee, no tax, and confirms it once with a thank-you", async () => {
+    const t = setup();
+    await t.seed({ thanks: "Every gift keeps the press running." });
+    const start = await t.give({ coverFee: true, giver: { ...GIVER, anonymous: true, honour: { kind: "memory", name: "Grace" }, note: "Keep printing" } });
+    expect(start.statusCode).toBe(200);
+    expect(start.body).toEqual({ url: "https://pay.example/cs_test_00000000", giftId: "gift0001" });
+    expect(t.opened[0].params.line_items).toEqual([{ quantity: 1, price_data: { currency: "cad", unit_amount: 2606, product_data: { name: "Moth Press: Gift (card fee covered)" } } }]);
+    expect(t.opened[0].params.metadata).toEqual({ gift: "gift0001" });
+    expect(t.opened[0].idem).toBe("gift-gift0001");
+    expect(await t.doc("gifts", "gift0001")).toMatchObject({ status: "held", amountMinor: 2500, feeMinor: 106, chargedMinor: 2606, anonymous: true, honour: { kind: "memory", name: "Grace" }, note: "Keep printing", customer: GIVER });
+    expect(t.emails).toHaveLength(0);
+    t.pay(0);
+    const key = new URL(t.opened[0].params.success_url).searchParams.get("key");
+    const view = await t.pub({ action: "giftView", giftId: "gift0001", key });
+    expect(view.body.gift).toMatchObject({ status: "paid", amountMinor: 2500, chargedMinor: 2606, anonymous: true });
+    expect(JSON.stringify(view.body)).not.toMatch(/pi_0|keyHashes|ada@example/);
+    // The sweep finds it already paid: one thank-you and one owner note, never two.
+    await t.desk.sweep();
+    await t.pub({ action: "giftView", giftId: "gift0001", key });
+    expect(t.emails.map((e) => e.to)).toEqual(["ada@example.com", "owner@example.com"]);
+    expect(t.emails[0].html).toContain("Every gift keeps the press running.");
+    expect(t.emails[0].html).toContain("In memory of");
+    expect(t.emails[1].subject).toBe("[GIFT] Ada Reader (asked to stay anonymous) gave $25.00");
+  });
+  test("a wrong key finds nothing", async () => {
+    const t = setup();
+    await t.seed();
+    await t.give();
+    expect((await t.pub({ action: "giftView", giftId: "gift0001", key: "b".repeat(48) })).statusCode).toBe(404);
+  });
+  test("an unpaid page is closed by the sweep after it runs out", async () => {
+    const t = setup();
+    await t.seed();
+    await t.give();
+    await t.desk.sweep();
+    expect((await t.doc("gifts", "gift0001")).status).toBe("held");
+    t.later(32 * 60);
+    expect(await t.desk.sweep()).toEqual({ confirmed: 0, closed: 1 });
+    expect(t.closed).toEqual(["cs_test_00000000"]);
+    expect((await t.doc("gifts", "gift0001")).status).toBe("cancelled");
+  });
+  test("with no card payments set up, nothing is kept", async () => {
+    const t = setup({ checkout: null });
+    await t.seed();
+    expect((await t.give()).body.code).toBe("not_available");
+    expect(t.db.store.has("gifts/gift0001")).toBe(false);
+  });
+  test("an honour gift needs the person's name; a giver needs a name and email", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.give({ giver: { ...GIVER, honour: { kind: "honour", name: "" } } })).body.code).toBe("honour");
+    expect((await t.give({ giver: { email: "ada@example.com" } })).body.code).toBe("name");
+  });
+});
+
+describe("the card-testing guard", () => {
+  test("a gift under $5 is refused and counted", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.give({ amountMinor: 100 });
+    expect(r.statusCode).toBe(400);
+    expect(r.body.error).toBe("The lowest gift is $5.00.");
+    expect(t.opened).toHaveLength(0);
+    expect(await t.blockedToday()).toMatchObject({ tooSmall: 1, total: 1 });
+  });
+  test("a form sent too fast, made up or with the hidden field filled is a bot", async () => {
+    const t = setup();
+    await t.seed();
+    const { body } = await t.pub({ action: "givingInfo" });
+    expect((await t.pub({ action: "giftStart", amountMinor: 2500, giver: GIVER, form: body.form })).body.code).toBe("form");
+    expect((await t.pub({ action: "giftStart", amountMinor: 2500, giver: GIVER, form: `${t.clock.now.getTime() - 60_000}.${"0".repeat(32)}` })).body.code).toBe("form");
+    expect((await t.give({ website: "http://spam.example" })).body.code).toBe("form");
+    expect((await t.pub({ action: "giftStart", amountMinor: 2500, giver: GIVER })).body.code).toBe("form");
+    expect(t.opened).toHaveLength(0);
+    expect(await t.blockedToday()).toMatchObject({ bot: 4, total: 4 });
+  });
+  test("a form too old is refused", async () => {
+    const t = setup();
+    await t.seed();
+    const form = await t.form();
+    t.later(7 * 60 * 60);
+    expect((await t.pub({ action: "giftStart", amountMinor: 2500, giver: GIVER, form })).body.code).toBe("form");
+  });
+  test("five card pages an hour per visitor, three per email", async () => {
+    const t = setup();
+    await t.seed();
+    for (let i = 0; i < 3; i++) expect((await t.give()).statusCode).toBe(200);
+    // The same email from another visitor: the email's limit.
+    expect((await t.give({}, "5.6.7.8")).body.code).toBe("too_many");
+    // Other emails from the first visitor: two more, then the visitor's limit.
+    expect((await t.give({ giver: { name: "Bo", email: "bo@example.com" } })).statusCode).toBe(200);
+    expect((await t.give({ giver: { name: "Cy", email: "cy@example.com" } })).statusCode).toBe(200);
+    expect((await t.give({ giver: { name: "Di", email: "di@example.com" } })).body.code).toBe("too_many");
+    expect(t.opened).toHaveLength(5);
+    expect(await t.blockedToday()).toMatchObject({ tooMany: 2 });
+  });
+});
+
+describe("the owner", () => {
+  test("saves the settings, which come back cleaned, and the website link follows the switch", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("settings").doc("website").set({ title: "Moth Press" });
+    const saved = await t.adm({ op: "saveSettings", settings: { amounts: [100, 1500, "3000"], otherAmount: false, coverFee: false, honour: false, thanks: " Thanks! " } });
+    expect(saved.body.settings).toEqual({ amounts: [1500, 3000], otherAmount: false, coverFee: false, honour: false, thanks: "Thanks!" });
+    expect((await t.doc("settings", "website")).givingLive).toBe(true);
+    await t.db.collection("firstWeek").doc("start").set({ ways: { giving: false } });
+    expect((await t.adm({ op: "hint" })).body.givingLive).toBe(false);
+    expect((await t.doc("settings", "website")).givingLive).toBe(false);
+  });
+  test("lists paid gifts with totals that leave out test ones, and the tries blocked", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("gifts").doc("live0001").set({ status: "paid", mode: "live", amountMinor: 5000, chargedMinor: 5000, currency: "CAD", customer: GIVER, paidAt: "2026-11-10T10:00:00Z" });
+    await t.db.collection("gifts").doc("live0002").set({ status: "paid", mode: "live", amountMinor: 1000, chargedMinor: 1000, currency: "CAD", customer: GIVER, paidAt: "2026-10-10T10:00:00Z" });
+    await t.db.collection("gifts").doc("test0001").set({ status: "paid", mode: "test", amountMinor: 9999, chargedMinor: 9999, currency: "CAD", customer: GIVER, paidAt: "2026-11-11T10:00:00Z" });
+    await t.db.collection("gifts").doc("held0001").set({ status: "held", amountMinor: 700, customer: GIVER, createdAt: "2026-11-18T12:00:00Z" });
+    await t.give({ amountMinor: 50 });
+    const { body } = await t.adm({ op: "list" });
+    expect(body.gifts.map((g) => g.id)).toEqual(["test0001", "live0001", "live0002"]);
+    expect(body.totals).toEqual({ givenMinor: 6000, monthMinor: 5000, gifts: 2, givers: 1 });
+    expect(body.blocked).toMatchObject({ tooSmall: 1, total: 1 });
+  });
+  test("refunds a paid gift once and tells the giver", async () => {
+    const t = setup();
+    await t.seed();
+    await t.give();
+    t.pay(0);
+    await t.desk.sweep();
+    const first = await t.adm({ op: "refund", giftId: "gift0001" });
+    expect(first.body).toMatchObject({ ok: true, already: false, gift: { status: "refunded" } });
+    expect(t.refunds).toEqual([{ mode: "test", paymentIntentId: "pi_0", amountMinor: 2500, metadata: { gift: "gift0001" }, idempotencyKey: "gift-refund-gift0001" }]);
+    expect((await t.adm({ op: "refund", giftId: "gift0001" })).body.already).toBe(true);
+    expect(t.refunds).toHaveLength(1);
+    expect(t.emails.at(-1).subject).toBe("Your gift to Moth Press was refunded");
+  });
+  test("a refused refund changes nothing", async () => {
+    const t = setup({ refundFails: true });
+    await t.seed();
+    await t.give();
+    t.pay(0);
+    await t.desk.sweep();
+    expect((await t.adm({ op: "refund", giftId: "gift0001" })).body.code).toBe("refund_failed");
+    expect((await t.doc("gifts", "gift0001")).status).toBe("paid");
+  });
+});

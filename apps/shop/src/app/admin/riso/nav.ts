@@ -2,7 +2,7 @@ import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, UserPlus, Calculator, Wallet, FileText, Store, Megaphone, PiggyBank, ShieldCheck, Plug, Blocks,
   Share2, Send, ChartLine, CalendarDays, HandCoins, Ticket,
-  GraduationCap,
+  GraduationCap, HeartHandshake,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 import { COMBINED_PAGES, REORDER_TAB, SALES_TAB, STOCKROOM_ITEM_PREFIX, STOCKROOM_PAGES } from "../combined";
@@ -26,6 +26,8 @@ export const NAV: NavEntry[] = [
   { id: "events", label: "Events", icon: Ticket },
   // Classes (beta, ways to sell): Classes.tsx, the timetable over the Bookings engine; hidden until both switches are on.
   { id: "classes", label: "Classes", icon: GraduationCap },
+  // Donations & tips (beta, ways to sell): Giving.tsx, gifts from the Support page; hidden until both switches are on.
+  { id: "giving", label: "Donations", icon: HeartHandshake },
   // Facebook & Instagram, Pinterest, TikTok and Google & YouTube, like Shopify's sales channels (plan 27.5).
   { id: "channels", label: "Sales channels", icon: Share2 },
   // Posting a product to the connected accounts, now or later (plan 27.6), next to Discounts like Shopify's Marketing.
@@ -75,7 +77,7 @@ const SETTINGS_PAGES = (NAV.find((n) => n.id === "settings")?.children || []).ma
 export const MENU: Menu = [
   // Analytics sits under Home here, so the shop-only menu keeps its five items (plan 1.27).
   { label: "Home", icon: LayoutDashboard, pages: ["overview", "analytics"] },
-  { label: "Orders", icon: ShoppingCart, pages: ["orders", "bookings", "takePayment", "events", "classes", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
+  { label: "Orders", icon: ShoppingCart, pages: ["orders", "bookings", "takePayment", "events", "classes", "giving", "customers", "discounts", "giftCards", "socialPosts", "messages"] },
   // Sales channels sit with the products: where each one is listed (Studio opens full screen, so not under Design).
   { label: "Books", icon: BookOpen, pages: ["catalog", "inventory", "reviews", "channels"] },
   { label: "Design", icon: Palette, pages: ["design"] },
@@ -100,6 +102,7 @@ export const WEBSITE_SIDE: Menu = [
   // Events (beta, ways to sell) is its own item; it shows only in a shop with Events switched on.
   { label: "Events", icon: Ticket, pages: ["events"] },
   { label: "Classes", icon: GraduationCap, pages: ["classes"] },
+  { label: "Donations", icon: HeartHandshake, pages: ["giving"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Books", icon: BookOpen, pages: ["catalog", "reviews"] },
   // v4 (12 Nov 2026): Marketing sits above Analytics.
@@ -178,6 +181,7 @@ export const SERVICES_WEBSITE_SIDE: Menu = [
   { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
   { label: "Events", icon: Ticket, pages: ["events"] },
   { label: "Classes", icon: GraduationCap, pages: ["classes"] },
+  { label: "Donations", icon: HeartHandshake, pages: ["giving"] },
   { label: "Clients", icon: Users, pages: ["customers"] },
   { label: "Messages", icon: Inbox, pages: ["messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", SALES_TAB], labels: { orders: "Website sales" } },
@@ -202,6 +206,7 @@ export const SERVICES_MENU: Menu = [
   { label: "Take a payment", icon: HandCoins, pages: ["takePayment"] },
   { label: "Events", icon: Ticket, pages: ["events"] },
   { label: "Classes", icon: GraduationCap, pages: ["classes"] },
+  { label: "Donations", icon: HeartHandshake, pages: ["giving"] },
   { label: "Clients", icon: Users, pages: ["customers", "messages"] },
   { label: "Sales", icon: Receipt, pages: ["orders", "discounts", "giftCards", "socialPosts"], labels: { orders: "Website sales" } },
   { label: "Design", icon: Palette, pages: ["design"] },
@@ -232,7 +237,7 @@ export function navPages(nav: NavEntry[]): { id: string; label: string }[] {
 }
 
 /** Pages still in beta: the menu shows a small "Beta" beside them (ways to sell, Julian, 14 November 2026). */
-export const BETA_PAGES: ReadonlySet<string> = new Set(["events", "classes"]);
+export const BETA_PAGES: ReadonlySet<string> = new Set(["events", "classes", "giving"]);
 const betaTag = (id: string) => (BETA_PAGES.has(id) ? { tag: "Beta" } : {});
 
 /** The menu items. An item's id is its first page; an item with more than one page lists them as children. */
@@ -274,6 +279,7 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   takePayment: { title: "Take a payment", description: "Take payment at the desk, on a card reader or with a code the client scans." },
   events: { title: "Events", description: "Readings, launches and workshops, their tickets, and who is coming." },
   classes: { title: "Classes", description: "Your weekly timetable, who is in each class, and the classes you run." },
+  giving: { title: "Donations", description: "Gifts and tips from your Support page, who gave, and what you suggest." },
   customers: { title: "Customers", description: "Who buys from you: lifetime value, repeat buyers, and customers to win back." },
   inventory: { title: "Inventory", description: "Stock on hand, low-stock and reprint alerts, and quick count corrections." },
   catalog: { title: "Books", description: "Manage titles, pricing, formats, and inventory." },

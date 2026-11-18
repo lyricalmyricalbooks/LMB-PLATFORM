@@ -29,6 +29,8 @@ import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
+import { givingData, type AdminGift } from "../app/admin/givingApi";
+import { cleanGivingSettings } from "../shared/givingRules";
 import { refundMinorFor } from "../shared/eventTickets";
 import { waysIn } from "../shared/waysToSell";
 
@@ -51,6 +53,41 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
   waysData.watchAllowed = (onChange) => { onChange(allowed); return () => {}; };
   // The fixture's owner has switched on every way the platform offers, so each page shows.
   waysData.watchChosen = (onChange) => { onChange(allowed); return () => {}; };
+}
+
+// ── Donations (beta, `?ways=giving&page=giving`): four gifts, one refunded, and a few blocked tries (`&giving=new`: none
+// yet). In memory; changes answer at once. ──
+{
+  const DAY = 86_400_000;
+  const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+  const gift = (id: string, name: string, email: string, amountMinor: number, days: number, extra: Partial<AdminGift> = {}): AdminGift => ({
+    id, status: "paid", name, email, anonymous: false, honour: null, note: "", amountMinor, feeMinor: 0, chargedMinor: amountMinor, currency: "CAD",
+    createdAt: ago(days), paidAt: ago(days), refundedAt: "", test: false, ...extra,
+  });
+  let gifts: AdminGift[] = new URLSearchParams(window.location.search).get("giving") === "new" ? [] : [
+    gift("g1", "Ada Example", "ada@example.com", 5000, 1, { feeMinor: 176, chargedMinor: 5176, note: "Your books got me through a long winter. Keep printing!" }),
+    gift("g2", "Ben Example", "ben@example.com", 2500, 4, { anonymous: true, honour: { kind: "memory", name: "Grace Example" } }),
+    gift("g3", "Cleo Example", "cleo@example.com", 1000, 12),
+    gift("g4", "Dev Example", "dev@example.com", 2500, 40, { status: "refunded", refundedAt: ago(39) }),
+  ];
+  let settings = cleanGivingSettings({ amounts: [1000, 2500, 5000, 10000] });
+  givingData.admin = async (op, body) => {
+    if (op === "list") {
+      const paid = gifts.filter((g) => g.status === "paid" && !g.test);
+      const month = new Date().toISOString().slice(0, 7);
+      return {
+        currency: "CAD", settings, gifts, minMinor: 500, maxMinor: 1_000_000,
+        totals: { givenMinor: paid.reduce((a, g) => a + g.amountMinor, 0), monthMinor: paid.filter((g) => g.paidAt.startsWith(month)).reduce((a, g) => a + g.amountMinor, 0), gifts: paid.length, givers: new Set(paid.map((g) => g.email)).size },
+        blocked: gifts.length ? { tooSmall: 3, tooMany: 1, bot: 11, total: 15 } : { tooSmall: 0, tooMany: 0, bot: 0, total: 0 },
+      };
+    }
+    if (op === "saveSettings") { settings = cleanGivingSettings(body.settings); return { ok: true, settings }; }
+    if (op === "refund") {
+      gifts = gifts.map((g) => (g.id === body.giftId ? { ...g, status: "refunded" as const, refundedAt: new Date().toISOString() } : g));
+      return { ok: true, gift: gifts.find((g) => g.id === body.giftId) };
+    }
+    return { ok: true };
+  };
 }
 
 // ── Events (beta, `?ways=events&page=events`): three coming events and one past, with a guest list (`&events=new`:

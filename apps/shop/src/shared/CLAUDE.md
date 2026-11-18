@@ -111,3 +111,6 @@ browsers may write (mirroring `firestore.rules`).
   Booking fee (E3f): `feeMinor` on the event, `bookingFeeMinor` (once for each paid ticket).
 - Classes (beta, 17 November 2026): `bookingTimes.ts` `classStartsOn(day, service, zone)` gives a class's weekly starts
   on one shop day (earliest first, clock changes handled); the admin's timetable and, later, the website's read it.
+- Donations & tips (beta, 18 November 2026): `givingRules.ts` holds the owner's giving settings (`cleanGivingSettings`), the
+  $5 lowest and $10,000 highest gift (`giftAmountProblem`), the card fee a giver may cover (`coverFeeMinor`, `giftCharge`;
+  no sales tax ever) and the giver's details (`cleanGiver`, `giverShown`). The server's records are in `functions/giving.js`.
