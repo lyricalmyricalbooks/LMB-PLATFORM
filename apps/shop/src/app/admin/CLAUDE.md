@@ -1387,3 +1387,12 @@ the client's own folder), calls `clientVisitsApi.ts` (`clientVisitsData`, swappe
 `emailHash.ts` (Customers re-exports it). Privacy: functions/CLAUDE.md › Privacy and newsletter. Fixture:
 `admin-fixture.html?page=customers&sells=hair` › ben@example.com.
 
+
+## Donations (beta, 18 November 2026)
+
+`Giving.tsx` (menu "Donations", page id `giving`, Beta) shows when Donations & tips is on (`useWaysOn`). Totals (this month,
+all time, givers; test gifts left out), the card-testing guard's blocked tries for 30 days, every paid or refunded gift
+with resend and refund, and the Amounts & choices drawer (suggested amounts, other amount, cover the fee, honour,
+thank-you words). Everything goes through `givingApi.ts` (`givingAdmin`); small rules in `givingView.ts`. Flipping the
+switch in Ways to sell sends `hint` so the website's Support link follows. Fixture: `admin-fixture.html?ways=giving&page=giving`
+(`&giving=new` for the empty page).

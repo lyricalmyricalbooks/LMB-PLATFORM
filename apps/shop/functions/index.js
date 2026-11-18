@@ -163,6 +163,7 @@ const { shopConfig, functionLink } = require("./shopConfig");
 const { shopCurrency, shopSign, shopCountry } = require("./shopMoney");
 const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
 const { PUBLIC_EVENT_ACTIONS } = require("./events");
+const { PUBLIC_GIVING_ACTIONS } = require("./giving");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
 
@@ -2024,6 +2025,19 @@ const eventDesk = require("./events").eventActions({
   },
 });
 
+// Donations & tips (beta, giving.js): gifts from the website's Support page; on only while the platform allows it for the
+// shop and the owner switched it on. No sales tax on a gift.
+const givingDesk = require("./giving").givingActions({
+  db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
+  currency: () => shopCurrency(), sendEmail: message => sendEmail(message), ownerEmail: () => ADMIN_TO(),
+  escapeHtml, risoLayout, risoButton,
+  emailBrand: async () => {
+    const settings = await loadNotificationSettings();
+    const brand = settings.brand || {};
+    return { logoUrl: brand.logoUrl || "", accent: brand.brandColor || "", theme: brand.emailTheme || "light", shopName: String(settings.shopName || shopConfig.senderName || "") };
+  },
+});
+
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
 const { runNewsletterIssues, newsletterAdminActions, audienceCount, pastBuyerEmails, recipientRows } = require("./newsletterSend");
 async function newsletterOptedOutIds() {
@@ -2134,6 +2148,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   invoicePay: handleInvoicePay,
   bookingsAdmin: (req, res) => bookingDesk.handleAdmin(req, res),
   eventsAdmin: (req, res) => eventDesk.handleAdmin(req, res),
+  givingAdmin: (req, res) => givingDesk.handleAdmin(req, res),
   invoicePayOpen: handleInvoicePayOpen,
   addToOrder: handleCustomerAddOn,
   privacyRequest: handlePrivacyRequest,
@@ -4460,6 +4475,7 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   if (typeof req.body?.action === "string" && PUBLIC_BOOKING_ACTIONS.includes(req.body.action)) return bookingDesk.handlePublic(req, res);
   // Events and tickets (beta): the events page's own actions (events.js, rate limited there).
   if (typeof req.body?.action === "string" && PUBLIC_EVENT_ACTIONS.includes(req.body.action)) return eventDesk.handlePublic(req, res);
+  if (PUBLIC_GIVING_ACTIONS.includes(req.body?.action)) return givingDesk.handlePublic(req, res); // Donations (giving.js)
 
   // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
   // the server will charge. Customer lists and usage counts stay private.
@@ -4876,6 +4892,9 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   // Ticket orders (events.js) share this run: a paid hold is confirmed, an unpaid one frees its places.
   const tickets = await eventDesk.sweep().catch(err => { console.warn("bookingSweep: the ticket orders sweep failed:", err?.message || err); return {}; });
   if (tickets.confirmed || tickets.freed) console.log(`bookingSweep: ${tickets.confirmed} ticket orders confirmed, ${tickets.freed} freed`);
+  // Gifts (giving.js): a paid card page is confirmed, an unpaid one closed.
+  const given = await givingDesk.sweep().catch(err => { console.warn("bookingSweep: the gifts sweep failed:", err?.message || err); return {}; });
+  if (given.confirmed || given.closed) console.log(`bookingSweep: ${given.confirmed} gifts confirmed, ${given.closed} closed`);
 });
 
 // Social posts whose time has come (plan 27.4): each is claimed, then sent once to each of its places.

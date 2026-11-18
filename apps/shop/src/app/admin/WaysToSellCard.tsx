@@ -8,6 +8,7 @@ import { adminApi } from "./api";
 import { WAYS, waysIn, type Way, type WayId } from "../../shared/waysToSell";
 import { useWaysAllowed } from "./waysApi";
 import { eventsAdmin } from "./eventsApi";
+import { givingAdmin } from "./givingApi";
 import { bookingsData } from "./bookingsApi";
 import { FormSection } from "./riso/FormKit";
 import { StatusBadge } from "./riso/components";
@@ -69,6 +70,8 @@ export function WaysToSellCard() {
       if (way.id === "events") void eventsAdmin("hint").catch(() => {});
       // The same for the website's Classes links (classes run on the booking engine, functions/bookings.js).
       if (way.id === "classes") void bookingsData.admin("hint", {}).catch(() => {});
+      // And the website's Support links (functions/giving.js).
+      if (way.id === "giving") void givingAdmin("hint").catch(() => {});
       toast.success(waySavedWords(way, on));
     } catch {
       toast.error("Couldn't save that. Check your connection and try again.");

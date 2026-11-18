@@ -1719,3 +1719,17 @@ clocks skip in spring after the jump (2:30 is 3:30), so `runStarts`, classes and
 time that happens twice in autumn is the first one. `cancelLater` passes `still: untouched` to `freeTime`, which checks
 the booking again inside its transaction and writes nothing (returns null) when it was paid for since it was read; that
 visit counts as skipped.
+
+## Donations & tips (beta, 18 November 2026)
+
+`giving.js` (G1a; LMB-PLATFORM `tasks/todo/2026-11-18-giving-g1.md`): gifts from the website's Support page, paid on the
+shop's own card page like tickets (`payments.standaloneCheckout`, no shop order, the order webhook ignores it) for the
+gift plus the card fee when the giver covers it (`shared/givingRules` `giftCharge`), never sales tax. On only while both
+switches are (`ways.giving`). Server-only records: `gifts/{id}` (held, paid, cancelled, refunded), `givingSettings/main`,
+`givingBlocked/{day}` and `givingSecret/key`. Public actions `givingInfo`, `giftStart`, `giftView` (validateDiscountCode,
+bucket `giving`); owner ops through `givingAdmin` (`hint`, `list`, `saveSettings`, `resendThanks`, `refund`); `sweep()` in
+bookingSweep confirms paid pages and closes unpaid ones after 31 minutes. **Card-testing guard:** $5 lowest gift, 5 card
+pages an hour per visitor (`giftPage`) and 3 per email (`giftEmail`), a signed form token from `givingInfo` that must be
+3 seconds to 6 hours old, and a hidden `website` field that must stay empty. Every refusal is counted in `givingBlocked`
+(`tooSmall`, `tooMany`, `bot`). Privacy export and erase cover gifts (`redactedTicketOrderFields`: a card-paid gift keeps
+its name as a payment record).

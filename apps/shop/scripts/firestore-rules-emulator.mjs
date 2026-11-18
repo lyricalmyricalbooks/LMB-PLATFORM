@@ -651,6 +651,32 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't read another shop's ticket orders", assertFails(getDoc(doc(ownerS2, "eventOrders/o2"))));
 }
 
+// Donations & tips (beta, functions/giving.js): gifts, the owner's giving settings, blocked tries and the form key are
+// server-only. No browser reads or writes them, in its own shop or another: the admin and the website ask the server.
+{
+  await env.withSecurityRulesDisabled(ctx => Promise.all([
+    setDoc(doc(folder(ctx.firestore()), "gifts/g1"), { status: "paid", amountMinor: 2500, customer: { email: "reader@example.com" } }),
+    setDoc(doc(folder(ctx.firestore()), "givingSettings/main"), { amounts: [1000] }),
+    setDoc(doc(folder(ctx.firestore()), "givingBlocked/2026-11-18"), { bot: 1, total: 1 }),
+    setDoc(doc(folder(ctx.firestore()), "givingSecret/key"), { key: "k".repeat(64) }),
+    setDoc(doc(ctx.firestore(), "shops/s2/gifts/g2"), { status: "paid", amountMinor: 1000 }),
+  ]));
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
+  const ownerS2 = signedIn("o1", { email: "owner@example.com", email_verified: true }, { shop: "s2" });
+  const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  for (const path of ["gifts/g1", "givingSettings/main", "givingBlocked/2026-11-18", "givingSecret/key"]) {
+    await check(`owner can't read ${path} directly`, assertFails(getDoc(doc(owner, path))));
+    await check(`owner can't write ${path}`, assertFails(setDoc(doc(owner, path), { status: "refunded" }, { merge: true })));
+    await check(`anon can't read ${path}`, assertFails(getDoc(doc(anon, path))));
+    await check(`anon can't write ${path}`, assertFails(setDoc(doc(anon, path), { status: "paid" }, { merge: true })));
+    await check(`another shop's owner can't read this shop's ${path}`, assertFails(getDoc(doc(ownerThereInS1, path))));
+  }
+  await check("the giver can't read their gift directly", assertFails(getDoc(doc(reader, "gifts/g1"))));
+  await check("anon can't make a gift", assertFails(setDoc(doc(anon, "gifts/g9"), { status: "paid", amountMinor: 1 })));
+  await check("owner can't read another shop's gifts", assertFails(getDoc(doc(ownerS2, "gifts/g2"))));
+}
+
 // Walls between shops (docs/shared-system.md). Shop s2 has its own records; nobody from s1's sign-in list may touch
 // them, and nobody from s2's (or from no list at all) may touch s1's, whatever role or address the pass carries.
 {

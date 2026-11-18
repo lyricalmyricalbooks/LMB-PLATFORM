@@ -94,6 +94,8 @@ const LIMITS = {
   booking: { max: 120, windowMs: 10 * 60 * 1000 },
   // Events and tickets (events.js): the shop's events page, starting an order and the buyer's own page.
   event: { max: 120, windowMs: 10 * 60 * 1000 },
+  // Donations & tips (giving.js): the Support page and the giver's own page. Opening card pages has its own tighter limits there.
+  giving: { max: 60, windowMs: 10 * 60 * 1000 },
   // Admin Overview reads of Google Analytics (each is 3 Data API calls; GA4 allows thousands a day).
   ga4: { max: 60, windowMs: 10 * 60 * 1000 },
   // Books › Import reading an old shop's address (functions/oldShopRead.js): each read can fetch up to 20 pages.
