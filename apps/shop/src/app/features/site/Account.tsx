@@ -44,6 +44,7 @@ import { accountRequestLine, REQUESTS_ANCHOR } from "./OrderRequests";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { YourDataCard } from "./YourDataCard";
+import { AccountMembership } from "./AccountMembership";
 import { AccountLibrary } from "./AccountLibrary";
 import type { PlayTarget } from "./MediaPlayer";
 
@@ -1086,6 +1087,7 @@ function AccountContent() {
           )}
         </section>
 
+        {user && <AccountMembership design={settings?.design} user={user} />}
         {user && <YourDataCard design={settings?.design} user={user} />}
       </main>
 

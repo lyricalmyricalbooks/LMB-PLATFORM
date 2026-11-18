@@ -29,6 +29,8 @@ import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
+import { membersData, type AdminMember, type AdminPlan } from "../app/admin/membersApi";
+import { cleanPlan } from "../shared/membershipRules";
 import { givingData, type AdminFundraiser, type AdminGift, type FundraiserUpdate } from "../app/admin/givingApi";
 import { cleanGivingSettings } from "../shared/givingRules";
 import { cleanCharity, cleanReceiptAddress } from "../shared/charityReceipts";
@@ -167,6 +169,56 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       return { ok: true, gift: gifts.find((g) => g.id === body.giftId) };
     }
     return { ok: true };
+  };
+}
+
+// ── Members (beta, `?ways=memberships&page=memberships`): two plans and five members, one whose payment failed
+// (`&members=new`: none yet; `&members=square`: card payments that can't take memberships). In memory. ──
+{
+  const DAY = 86_400_000;
+  const at = (days: number) => new Date(Date.now() + days * DAY).toISOString();
+  const query = new URLSearchParams(window.location.search).get("members") || "";
+  let plans: AdminPlan[] = query === "new" ? [] : [
+    { id: "plan-friends", name: "Friends of the press", description: "Keep the press running.", perks: ["A new print each season", "10% off everything in the shop", "First look at new books"], interval: "month", priceMinor: 1500, trialDays: 14, currency: "CAD", hidden: false, members: 3 },
+    { id: "plan-patrons", name: "Patrons", description: "", perks: ["Every book we publish, posted to you", "Your name in the back of each book"], interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD", hidden: false, members: 1 },
+  ];
+  const friends = { name: "Friends of the press", interval: "month" as const, priceMinor: 1500, trialDays: 14, currency: "CAD" };
+  const member = (id: string, name: string, email: string, state: AdminMember["state"], extra: Partial<AdminMember> = {}): AdminMember => ({
+    id, state, plan: friends, planId: "plan-friends", name, email, periodEnd: at(12), trialEnd: "", card: { brand: "visa", last4: "4242" },
+    startedAt: at(-80), endedAt: "", createdAt: at(-80), checkedAt: at(0), test: false, cardPending: false, ...extra,
+  });
+  let members: AdminMember[] = query === "new" ? [] : [
+    member("m1", "Ada Example", "ada@example.com", "active"),
+    member("m2", "Ben Example", "ben@example.com", "pastDue", { card: { brand: "visa", last4: "0341" } }),
+    member("m3", "Cleo Example", "cleo@example.com", "trial", { trialEnd: at(9), startedAt: at(-5), periodEnd: at(9) }),
+    member("m4", "Dev Example", "dev@example.com", "ending", { plan: { name: "Patrons", interval: "year", priceMinor: 25000, trialDays: 0, currency: "CAD" }, planId: "plan-patrons", periodEnd: at(40), card: { brand: "mastercard", last4: "4444" } }),
+    member("m5", "Eli Example", "eli@example.com", "ended", { endedAt: at(-20), startedAt: at(-200) }),
+  ];
+  const live = (m: AdminMember) => ["trial", "active", "ending", "pastDue"].includes(m.state) && !m.test;
+  membersData.admin = async (op, body) => {
+    if (op === "list") {
+      const counted = members.filter(live);
+      return {
+        currency: "CAD", ready: query !== "square", members,
+        plans: plans.map((p) => ({ ...p, members: counted.filter((m) => m.planId === p.id).length })),
+        totals: { members: counted.length, monthlyMinor: counted.reduce((a, m) => a + (m.plan ? (m.plan.interval === "year" ? Math.round(m.plan.priceMinor / 12) : m.plan.priceMinor) : 0), 0), pastDue: counted.filter((m) => m.state === "pastDue").length },
+      };
+    }
+    if (op === "savePlan") {
+      const clean = cleanPlan(body.plan);
+      if ("problem" in clean) throw Object.assign(new Error(clean.problem), { code: clean.field });
+      const id = String(body.id || `plan-${Date.now()}`);
+      const was = plans.find((p) => p.id === id);
+      if (was && (was.priceMinor !== clean.plan.priceMinor || was.interval !== clean.plan.interval)) throw Object.assign(new Error("A plan's price and how often it is paid can't change after it is made."), { code: "price" });
+      const next: AdminPlan = { ...clean.plan, id, currency: "CAD", members: was?.members || 0 };
+      plans = was ? plans.map((p) => (p.id === id ? next : p)) : [...plans, next];
+      return { ok: true, id };
+    }
+    if (op === "endNow" || op === "refresh") {
+      members = members.map((m) => (m.id === body.id && op === "endNow" ? { ...m, state: "ended" as const, endedAt: new Date().toISOString() } : m));
+      return { ok: true, member: members.find((m) => m.id === body.id) };
+    }
+    return { ok: true, membershipsLive: true };
   };
 }
 

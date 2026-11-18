@@ -1,0 +1,43 @@
+/* Admin › Members (Members.tsx): plans, people and the plan drawer. The tiles come from bookings.css (the Colophon bento
+   look); this file adds only what Members needs. Tokens only. */
+.rp .mbr-soft { color: inherit; opacity: 0.72; }
+.rp .mbr-bento { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rp .mbr-note { margin: 0; max-width: 72ch; font-size: 14px; line-height: 1.55; color: var(--rp-text-muted); }
+.rp .mbr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 8px; }
+.rp .mbr-title { margin: 0; font: 600 20px/1.2 var(--rp-font-body); letter-spacing: -0.01em; }
+.rp .mbr-meta { margin: 0; font-size: 13px; color: var(--rp-text-muted); overflow-wrap: anywhere; }
+
+.rp .mbr-plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.rp .mbr-plan { display: grid; gap: 8px; align-content: start; }
+.rp .mbr-plan[data-hidden] { background: transparent; border: 1px dashed var(--rp-border); box-shadow: none; }
+.rp .mbr-plan-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.rp .mbr-plan-top h3 { margin: 0; font: 600 18px/1.3 var(--rp-font-body); letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.rp .mbr-price { margin: 0; font-size: 15px; color: var(--rp-text-muted); }
+.rp .mbr-price span { margin-right: 2px; font: 600 28px/1.05 var(--rp-font-body); letter-spacing: -0.02em; color: var(--rp-text); font-variant-numeric: tabular-nums; }
+.rp .mbr-perks { display: grid; gap: 4px; margin: 4px 0 0; padding: 0 0 0 18px; list-style: disc; font-size: 14px; line-height: 1.45; }
+.rp .mbr-plan-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--rp-border); }
+
+.rp .mbr-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.rp .mbr-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px 24px; }
+.rp .mbr-row[data-state="ended"] { background: transparent; border: 1px dashed var(--rp-border); box-shadow: none; }
+.rp .mbr-main { display: grid; gap: 6px; min-width: 0; }
+.rp .mbr-who { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.rp .mbr-who strong { font: 600 18px/1.3 var(--rp-font-body); letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.rp .mbr-next { margin: 0; font-size: 15px; }
+.rp .mbr-side { display: grid; gap: 8px; justify-items: end; text-align: right; }
+.rp .mbr-amount { margin: 0; font: 600 24px/1.1 var(--rp-font-body); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.rp .mbr-amount small { display: block; margin-top: 4px; font: 400 12px/1.3 var(--rp-font-body); letter-spacing: 0; color: var(--rp-text-muted); }
+.rp .mbr-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+
+.rp .mbr-form { display: grid; gap: 20px; }
+.rp .mbr-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.rp .mbr-hint { margin: -8px 0 0; font-size: 13px; color: var(--rp-text-muted); }
+.rp .mbr-problem { margin: 0; font-size: 14px; color: var(--rp-danger, var(--rp-text)); }
+
+@media (max-width: 640px) {
+  .rp .mbr-bento { grid-template-columns: minmax(0, 1fr); }
+  .rp .mbr-two { grid-template-columns: minmax(0, 1fr); }
+  .rp .mbr-row { grid-template-columns: minmax(0, 1fr); }
+  .rp .mbr-side { justify-items: start; text-align: left; }
+  .rp .mbr-actions { justify-content: flex-start; }
+}

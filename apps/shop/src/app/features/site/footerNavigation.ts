@@ -26,6 +26,8 @@ export function automaticFooterItems(settings: any, pages: any[]): MenuItem[] {
     ...(settings?.classesLive === true ? [{ id: "footer-classes", label: getCopy(d, "classesFooterLink"), type: "url" as const, value: "/classes", footerGroup: "connect" as const }] : []),
     // While the shop takes gifts (the server keeps `givingLive` in step, functions/giving.js).
     ...(settings?.givingLive === true ? [{ id: "footer-support", label: getCopy(d, "supportFooterLink"), type: "url" as const, value: "/support", footerGroup: "connect" as const }] : []),
+    // While the shop takes new members (the server keeps `membershipsLive` in step, functions/memberships.js).
+    ...(settings?.membershipsLive === true ? [{ id: "footer-membership", label: getCopy(d, "membershipFooterLink"), type: "url" as const, value: "/membership", footerGroup: "connect" as const }] : []),
     ...visible.map(p => ({ id: `footer-page-${p.id}`, label: p.title, type: "page" as const, value: p.slug })),
   ];
   const instagram = shopSocialLinks(settings).find((l) => l.key === "instagram")?.url;

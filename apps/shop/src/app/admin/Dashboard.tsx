@@ -84,6 +84,7 @@ const Bookings = lazy(() => import("./Bookings").then(m => ({ default: m.Booking
 const Events = lazy(() => import("./Events").then(m => ({ default: m.Events })));
 const Classes = lazy(() => import("./Classes").then(m => ({ default: m.Classes })));
 const Giving = lazy(() => import("./Giving").then(m => ({ default: m.Giving })));
+const Members = lazy(() => import("./Members").then(m => ({ default: m.Members })));
 const TakePayment = lazy(() => import("./TakePayment").then(m => ({ default: m.TakePayment })));
 const SalesChannels = lazy(() => import("./SalesChannels").then(m => ({ default: m.SalesChannels })));
 const SocialPosts = lazy(() => import("./SocialPosts").then(m => ({ default: m.SocialPosts })));
@@ -321,7 +322,8 @@ export function Dashboard() {
   const eventsOn = waysOn.includes("events");
   const classesOn = waysOn.includes("classes");
   const givingOn = waysOn.includes("giving");
-  const hiddenPages = new Set([...(bookingsOn ? [] : ["bookings", "takePayment"]), ...(eventsOn ? [] : ["events"]), ...(classesOn ? [] : ["classes"]), ...(givingOn ? [] : ["giving"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
+  const membershipsOn = waysOn.includes("memberships");
+  const hiddenPages = new Set([...(bookingsOn ? [] : ["bookings", "takePayment"]), ...(eventsOn ? [] : ["events"]), ...(classesOn ? [] : ["classes"]), ...(givingOn ? [] : ["giving"]), ...(membershipsOn ? [] : ["memberships"]), ...(googleOn ? [] : [SETTINGS_ITEM_PREFIX + "google"]), ...(runsOnColophon() ? [] : [SETTINGS_ITEM_PREFIX + "apps"]),
     ...(hasPublisherTools(sellsAnswer) ? [] : [STOCKROOM_ITEM_PREFIX + "artists"]),
     // A services shop ships nothing, so Settings has no Shipping page until it sells products too.
     ...(menuKind === "services" ? [SETTINGS_ITEM_PREFIX + "shipping"] : [])]);
@@ -816,7 +818,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "takePayment" || activeTab === "events" || activeTab === "classes" || activeTab === "giving" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
+  const migrated = activeTab === STOCKROOM_TAB || isCombinedTab(activeTab) || activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "help" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "bookings" || activeTab === "takePayment" || activeTab === "events" || activeTab === "classes" || activeTab === "giving" || activeTab === "memberships" || activeTab === "channels" || activeTab === "socialPosts" || activeTab === "design" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications" || settingsTab === "plan" || settingsTab === "billing" || settingsTab === "security" || settingsTab === "google" || settingsTab === "apps"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -853,6 +855,7 @@ export function Dashboard() {
       case "takePayment": return bookingsOn ? <TakePayment /> : <EmptyState title="Bookings isn't on for your shop" description="It's in beta. Ask us from Help if you'd like to try it." />;
       case "events": return eventsOn ? <Events /> : <EmptyState title="Events isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
       case "giving": return givingOn ? <Giving /> : <EmptyState title="Donations & tips isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
+      case "memberships": return membershipsOn ? <Members /> : <EmptyState title="Memberships isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
       case "classes": return classesOn ? <Classes /> : <EmptyState title="Classes isn't on for your shop" description="It's in beta. Switch it on in Settings › General › Ways to sell when it's offered to your shop." />;
       case "channels": return <SalesChannels onOpen={(page) => { if (page === "socialPosts" || page === "channels") goTo(page); else { setActiveTab("settings"); setSettingsTab(page); } }} />;
       case "socialPosts": return <SocialPosts onOpen={(page) => goTo(page)} startWithBook={postBook} onStarted={() => setPostBook(null)} />;

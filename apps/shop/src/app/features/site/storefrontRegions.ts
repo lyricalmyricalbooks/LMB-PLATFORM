@@ -57,12 +57,12 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "wishlistActions", label: "Saved-book actions" },
     { id: "wishlistShareBar", label: "Share wishlist / shared list bar" },
   ] },
-  { id: "accountLayout", title: "Customer account · layout & elements", copy: "Customer account", files: ["features/site/Account.tsx", "features/site/YourDataCard.tsx", "features/site/AccountLibrary.tsx", "features/site/MediaPlayer.tsx"], regions: [
+  { id: "accountLayout", title: "Customer account · layout & elements", copy: "Customer account", files: ["features/site/Account.tsx", "features/site/YourDataCard.tsx", "features/site/AccountMembership.tsx", "features/site/AccountLibrary.tsx", "features/site/MediaPlayer.tsx"], regions: [
     { id: "accountLogin", label: "Sign-in panel", required: true }, { id: "accountIntro", label: "Sign-in heading & description" },
     { id: "accountHeader", label: "Account navigation", required: true }, { id: "accountProfile", label: "Customer profile" },
     { id: "accountVitals", label: "Account cards", grid: true }, { id: "accountSaved", label: "Wishlist card" },
     { id: "accountOrders", label: "Order count card" }, { id: "accountAddress", label: "Address card", required: true },
-    { id: "accountAddressForm", label: "Address form", required: true }, { id: "accountHistory", label: "Order history", required: true }, { id: "accountYourData", label: "Your data" },
+    { id: "accountAddressForm", label: "Address form", required: true }, { id: "accountHistory", label: "Order history", required: true }, { id: "accountMembership", label: "Membership card" }, { id: "accountYourData", label: "Your data" },
     { id: "accountLibrary", label: "Your library" }, { id: "accountPlayer", label: "Listen and watch player" }, { id: "accountDownloads", label: "Purchased downloads", required: true }, { id: "accountShipment", label: "Shipment information", required: true },
     { id: "accountTrackOrder", label: "Track order link" }, { id: "accountBuyAgain", label: "Buy again button" },
     { id: "accountRequests", label: "Return & cancel requests" },
@@ -147,6 +147,14 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "supportReceiptCard", label: "Tax receipt after giving" },
     { id: "supportNotice", label: "Closed and not-found messages", required: true },
     { id: "supportGlow", label: "Support page top strip" },
+  ] },
+  { id: "membershipLayout", title: "Membership · layout & elements", copy: "Membership page", files: ["features/site/MembershipPage.tsx"], regions: [
+    { id: "membershipHeader", label: "Membership page navigation" },
+    { id: "membershipIntro", label: "Membership heading & description" },
+    { id: "membershipPlans", label: "Plans with Join", required: true },
+    { id: "membershipFinePrint", label: "Note under the plans" },
+    { id: "membershipNotice", label: "Closed and not-ready messages", required: true },
+    { id: "membershipGlow", label: "Membership page top strip" },
   ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
     { id: "stripePaymentPanel", label: "Stripe payment panel", required: true },

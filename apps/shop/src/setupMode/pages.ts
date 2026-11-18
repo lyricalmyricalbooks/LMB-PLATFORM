@@ -26,9 +26,9 @@ export const setupLocked = (page: string): boolean => !SETUP_PAGES.has(page);
 /**
  * The menu: exactly the admin's own (v4: the Website · Stockroom switch, each side's items; Plan sits under Settings, as
  * it does once the shop opens), so the admin a press meets in setup is the one it keeps. Help is in the rail's foot.
- * Pages the platform turns on shop by shop (Bookings, in beta) aren't promised before the shop exists.
+ * Pages the platform turns on shop by shop (Bookings, Events, Classes, Giving and Members, in beta) aren't promised before the shop exists.
  */
-const NOT_IN_SETUP: ReadonlySet<string> = new Set(["bookings", "events", "classes", "giving"]);
+const NOT_IN_SETUP: ReadonlySet<string> = new Set(["bookings", "events", "classes", "giving", "memberships"]);
 export function setupMenu(side: AdminSide = "website", nav: NavEntry[] = NAV): NavEntry[] {
   return withoutPages(sidebarItems(nav, sideMenu(side)), NOT_IN_SETUP);
 }

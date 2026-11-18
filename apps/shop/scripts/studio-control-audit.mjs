@@ -72,7 +72,7 @@ const books = await frame().evaluate(() => window.__studioPreviewState?.books ||
 const product = books[0]?.slug || books[0]?.id;
 const ROUTES = {
   heroPage: "/", storefront: "/?catalog=true", productPage: `/books/${product}`, cartPage: "/checkout",
-  accountPage: "/account", page: "/page/about", wishlistPage: "/wishlist", trackingPage: "/track", bookingsPage: "/book", eventsPage: "/events", classesPage: "/classes", supportPage: "/support", page404: "/nope-404",
+  accountPage: "/account", page: "/page/about", wishlistPage: "/wishlist", trackingPage: "/track", bookingsPage: "/book", eventsPage: "/events", classesPage: "/classes", supportPage: "/support", membershipPage: "/membership", page404: "/nope-404",
 };
 // Site-wide controls whose only drawing on the home page is a loading placeholder (gone once photos load,
 // so the result depended on the network): check them where they are drawn at rest.
@@ -91,6 +91,7 @@ const pageFor = (f) => {
   if (/^(events)/.test(k)) return { route: ROUTES.eventsPage };
   if (/^(classes)/.test(k)) return { route: ROUTES.classesPage };
   if (/^(support)/.test(k)) return { route: ROUTES.supportPage };
+  if (/^(membership)/.test(k)) return { route: ROUTES.membershipPage };
   if (/^(recovery)/.test(k)) return { route: ROUTES.page404 };
   if (/^(catalog|products)/.test(k)) return { route: ROUTES.storefront };
   if (/^(customPages)/.test(k)) return { route: ROUTES.page };
@@ -216,7 +217,7 @@ function setRoot(design, path, value) {
   for (const k of Object.keys(next)) {
     const v = next[k];
     if (k === top || !v || typeof v !== "object" || Array.isArray(v) || !(top in v)) continue;
-    if (["storefront", "productPage", "cartPage", "heroPage", "accountPage", "wishlistPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage", "supportPage", "collectionPage", "page", "page404"].includes(k) || k.startsWith("page:") || k.includes("~")) {
+    if (["storefront", "productPage", "cartPage", "heroPage", "accountPage", "wishlistPage", "trackingPage", "bookingsPage", "eventsPage", "classesPage", "supportPage", "membershipPage", "collectionPage", "page", "page404"].includes(k) || k.startsWith("page:") || k.includes("~")) {
       const copy = { ...v }; delete copy[top]; next[k] = copy;
     }
   }
