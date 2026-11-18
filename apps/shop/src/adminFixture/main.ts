@@ -29,7 +29,7 @@ import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
-import { givingData, type AdminFundraiser, type AdminGift } from "../app/admin/givingApi";
+import { givingData, type AdminFundraiser, type AdminGift, type FundraiserUpdate } from "../app/admin/givingApi";
 import { cleanGivingSettings } from "../shared/givingRules";
 import { cleanFundraiser, dayAfter } from "../shared/fundraiserRules";
 import { refundMinorFor } from "../shared/eventTickets";
@@ -89,7 +89,27 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       ] }),
     fund("f0", { title: "A new risograph drum", goalMinor: 150000, raisedMinor: 162000, supporters: 51, state: "ended", status: "ended", endsOn: dayAfter(today, -60), endedAt: ago(60) }),
   ];
+  // Updates to supporters (G2c): one sent on the running fundraiser and one on the past one.
+  let updates: FundraiserUpdate[] = !gifts.length ? [] : [
+    { id: "u1", fundraiserId: "f1", subject: "Halfway there, thank you!", status: "sent", audience: 30, sent: 30, failed: 0, createdAt: ago(6), finishedAt: ago(6), lastError: "" },
+    { id: "u0", fundraiserId: "f0", subject: "The new drum is here", status: "sent", audience: 51, sent: 50, failed: 1, createdAt: ago(40), finishedAt: ago(40), lastError: "" },
+  ];
+  const updatesBy = () => updates.reduce<Record<string, FundraiserUpdate[]>>((all, u) => ({ ...all, [u.fundraiserId]: [...(all[u.fundraiserId] || []), u] }), {});
   givingData.admin = async (op, body) => {
+    if (op === "updateCount") return { ok: true, audience: (funds.find((f) => f.id === body.fundraiserId)?.supporters || 0) };
+    if (op === "updateTest" || op === "updateSend") {
+      if (!String(body.subject || "").trim()) throw Object.assign(new Error("Give the update a subject line."), { code: "subject" });
+      if (!String(body.body || "").trim()) throw Object.assign(new Error("Write something in the update before sending it."), { code: "body" });
+      if (op === "updateTest") return { ok: true, to: "owner@example.com" };
+      const audience = funds.find((f) => f.id === body.fundraiserId)?.supporters || 0;
+      const update: FundraiserUpdate = { id: `u${Date.now()}`, fundraiserId: String(body.fundraiserId), subject: String(body.subject).trim(), status: "queued", audience, sent: 0, failed: 0, createdAt: new Date().toISOString(), finishedAt: "", lastError: "" };
+      updates = [update, ...updates];
+      return { ok: true, update };
+    }
+    if (op === "updateCancel" || op === "updateResume") {
+      updates = updates.map((u) => (u.id === body.id ? { ...u, status: op === "updateCancel" ? "cancelled" as const : "queued" as const, lastError: "" } : u));
+      return { ok: true, update: updates.find((u) => u.id === body.id) };
+    }
     if (op === "saveFundraiser") {
       const before = funds.find((f) => f.id === body.id);
       const clean = cleanFundraiser(body.fundraiser, today, before?.rewards || []);
@@ -115,7 +135,7 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
         currency: "CAD", settings, gifts, minMinor: 500, maxMinor: 1_000_000,
         totals: { givenMinor: paid.reduce((a, g) => a + g.amountMinor, 0), monthMinor: paid.filter((g) => g.paidAt.startsWith(month)).reduce((a, g) => a + g.amountMinor, 0), gifts: paid.length, givers: new Set(paid.map((g) => g.email)).size },
         blocked: gifts.length ? { tooSmall: 3, tooMany: 1, bot: 11, total: 15 } : { tooSmall: 0, tooMany: 0, bot: 0, total: 0 },
-        fundraisers: funds, today,
+        fundraisers: funds, today, updates: updatesBy(),
       };
     }
     if (op === "rewardSent") {

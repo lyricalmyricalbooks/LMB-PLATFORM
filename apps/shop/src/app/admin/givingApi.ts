@@ -14,11 +14,19 @@ export type AdminGift = {
 };
 /** A fundraiser as the owner sees it: the Support page's view plus when it was made, started and ended. */
 export type AdminFundraiser = Omit<PublicFundraiser, "rewards"> & { status: FundraiserStatus; createdAt: string; startedAt: string; endedAt: string; rewards: Reward[] };
+/** An update emailed to a fundraiser's givers (G2c, functions/fundraiserUpdates.js). */
+export type FundraiserUpdate = {
+  id: string; fundraiserId: string; subject: string; status: "queued" | "sending" | "sent" | "paused" | "cancelled";
+  audience: number; sent: number; failed: number; createdAt: string; finishedAt: string; lastError: string;
+};
 /** Tries the card-testing guard refused in the last 30 days, per reason. */
 export type BlockedTries = { tooSmall: number; tooMany: number; bot: number; total: number };
 export type GivingTotals = { givenMinor: number; monthMinor: number; gifts: number; givers: number };
-export type GivingList = { currency: string; settings: GivingSettings; gifts: AdminGift[]; totals: GivingTotals; blocked: BlockedTries; minMinor: number; maxMinor: number; fundraisers?: AdminFundraiser[]; today?: string };
-export type GivingAdminOp = "list" | "saveSettings" | "resendThanks" | "refund" | "hint" | "saveFundraiser" | "endFundraiser" | "rewardSent";
+export type GivingList = { currency: string; settings: GivingSettings; gifts: AdminGift[]; totals: GivingTotals; blocked: BlockedTries; minMinor: number; maxMinor: number; fundraisers?: AdminFundraiser[]; today?: string;
+  /** The last updates of each fundraiser, newest first, by fundraiser id. */
+  updates?: Record<string, FundraiserUpdate[]> };
+export type GivingAdminOp = "list" | "saveSettings" | "resendThanks" | "refund" | "hint" | "saveFundraiser" | "endFundraiser" | "rewardSent"
+  | "updateCount" | "updateTest" | "updateSend" | "updateCancel" | "updateResume";
 
 /** One object so the admin fixture (src/adminFixture/main.ts) can swap in sample gifts. */
 export const givingData = {

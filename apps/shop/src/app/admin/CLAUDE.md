@@ -1405,3 +1405,6 @@ has a running and a past fundraiser.
 **Rewards (G2b):** the drawer's Thank-you rewards (`RewardRow`, `rewardRowsOf`, `rewardsFromRows` in `givingView.ts`; a
 taken one can't be removed), the card lists each with `rewardLine`, and a gift with one shows it (mint until sent) with
 the posting address and **Mark sent** / Not sent yet (op `rewardSent`). The fixture's f1 has three rewards.
+**Updates (G2c):** **Write an update** on the running card (and on a past one with supporters) opens `UpdateDrawer`:
+subject, message, Send me a test, Send to N people (confirmed), and Your updates with Stop sending / Carry on
+(`updateState`, `updateBusy` in `givingView.ts`). The card shows the last update. The fixture has one sent on f1 and f0.

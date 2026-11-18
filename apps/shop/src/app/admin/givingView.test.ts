@@ -1,6 +1,6 @@
 // Donations & tips (beta): the admin page's amount box, suggested amounts and the blocked-tries line.
 import { describe, expect, test } from "vitest";
-import { amountFromText, blankReward, blockedLine, honourText, rewardLine, rewardRowsOf, rewardsFromRows, shipToText, withAmount } from "./givingView";
+import { amountFromText, blankReward, blockedLine, honourText, rewardLine, rewardRowsOf, rewardsFromRows, shipToText, updateBusy, updateState, withAmount } from "./givingView";
 
 const money = (minor: number) => `$${(minor / 100).toFixed(2)}`;
 
@@ -72,5 +72,23 @@ describe("thank-you rewards in the drawer (G2b)", () => {
     expect(rewardLine(r, money)).toBe("From $12.50 · 1 chosen");
     expect(rewardLine({ ...r, limit: 25, taken: 21 }, money)).toBe("From $12.50 · 21 of 25 chosen");
     expect(shipToText({ name: "Ada", street: "1 Main St", street2: "", city: "Toronto", state: "ON", zip: "M6G 3H1", country: "CA" })).toBe("Ada, 1 Main St, Toronto, ON M6G 3H1, CA");
+  });
+});
+
+describe("updates to supporters (G2c)", () => {
+  const u = { status: "sent" as const, audience: 30, sent: 30, failed: 0, createdAt: "2026-11-12T15:00:00Z", finishedAt: "2026-11-12T15:20:00Z" };
+  test("each state reads in plain words", () => {
+    expect(updateState(u)).toEqual({ tone: "success", badge: "Sent", line: "Sent to 30 people on Nov 12, 2026." });
+    expect(updateState({ ...u, sent: 29, failed: 1 }).line).toBe("Sent to 29 people on Nov 12, 2026. 1 address didn't take it.");
+    expect(updateState({ ...u, status: "queued", sent: 0 })).toMatchObject({ badge: "Sending", line: "Going to 30 people in the next 15 minutes or so." });
+    expect(updateState({ ...u, status: "sending", sent: 12 }).line).toBe("Sent to 12 of 30 so far.");
+    expect(updateState({ ...u, status: "paused", sent: 12 })).toMatchObject({ tone: "warning", badge: "Paused" });
+    expect(updateState({ ...u, status: "cancelled", sent: 1 }).line).toBe("Stopped after 1 person.");
+  });
+  test("a new update waits while one is going out or paused", () => {
+    expect(updateBusy(undefined)).toBe(false);
+    expect(updateBusy({ status: "sent" })).toBe(false);
+    expect(updateBusy({ status: "cancelled" })).toBe(false);
+    expect(["queued", "sending", "paused"].every((status) => updateBusy({ status: status as "queued" }))).toBe(true);
   });
 });

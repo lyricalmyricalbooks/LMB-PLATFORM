@@ -75,3 +75,16 @@
   .rp .gvg-gift-reward { grid-template-columns: auto minmax(0, 1fr); }
   .rp .gvg-gift-reward > .rp-btn { grid-column: 1 / -1; justify-self: start; }
 }
+
+/* Updates to supporters (G2c): the card's last update and the drawer's history. */
+.rp .gvg-fund-update { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; margin: 4px 0 0; padding: 10px 0 0; border: 0; border-top: 1px solid var(--rp-border); background: none; color: var(--rp-text-muted); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.rp .gvg-fund-update strong { color: var(--rp-text); font-weight: 600; overflow-wrap: anywhere; }
+.rp .gvg-fund-update > :last-child { margin-left: auto; }
+.rp .gvg-fund-update:hover strong { text-decoration: underline; }
+.rp .gvg-fund-update:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-text)); outline-offset: 2px; }
+.rp .gvg-past li .rp-btn, .rp .gvg-past li button { margin-left: auto; }
+.rp .gvg-updates { display: grid; gap: 8px; margin-top: 8px; }
+.rp .gvg-updates ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rp-border); }
+.rp .gvg-updates li { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--rp-border); }
+.rp .gvg-updates .gvg-meta { margin: 0; }
+.rp .gvg-updates .gvg-problem { margin: 0; }

@@ -1,7 +1,7 @@
 // Donations & tips (beta): the admin page's own small rules (Giving.tsx), kept apart so they can be tested.
 import { MAX_AMOUNTS, MAX_GIFT_MINOR, MIN_GIFT_MINOR } from "../../shared/givingRules";
 import { MAX_GOAL_MINOR, MAX_REWARDS, MIN_GOAL_MINOR, MIN_REWARD_MINOR, daysLeft, goalProgress, type PublicFundraiser, type Reward, type ShipTo } from "../../shared/fundraiserRules";
-import type { AdminGift, BlockedTries } from "./givingApi";
+import type { AdminGift, BlockedTries, FundraiserUpdate } from "./givingApi";
 
 /** An amount the owner typed in dollars ("25", "12.50", "$40") as cents, or the problem in plain words. */
 export function amountFromText(raw: string, money: (minor: number) => string): { minor: number } | { problem: string } {
@@ -111,3 +111,16 @@ export const shipToText = (a: ShipTo | null | undefined): string => (a ? [a.name
 
 /** Rewards still to post or hand over: paid gifts with a reward not marked sent. */
 export const rewardsToSend = (gifts: readonly AdminGift[]): number => gifts.filter((g) => g.status === "paid" && g.reward && !g.reward.sentAt).length;
+
+/** How an update to supporters stands, in a few words and a badge tone (G2c). */
+export function updateState(u: Pick<FundraiserUpdate, "status" | "audience" | "sent" | "failed" | "createdAt" | "finishedAt">): { tone: "success" | "info" | "warning" | "neutral"; badge: string; line: string } {
+  const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
+  const bounced = u.failed > 0 ? ` ${u.failed === 1 ? "1 address" : `${u.failed} addresses`} didn't take it.` : "";
+  if (u.status === "sent") return { tone: "success", badge: "Sent", line: `Sent to ${people(u.sent)} on ${dayText(u.finishedAt || u.createdAt)}.${bounced}` };
+  if (u.status === "paused") return { tone: "warning", badge: "Paused", line: `Reached ${u.sent} of ${u.audience} so far.` };
+  if (u.status === "cancelled") return { tone: "neutral", badge: "Stopped", line: `Stopped after ${people(u.sent)}.` };
+  return { tone: "info", badge: "Sending", line: u.sent > 0 ? `Sent to ${u.sent} of ${u.audience} so far.` : `Going to ${people(u.audience)} in the next 15 minutes or so.` };
+}
+
+/** True while an update is still going out or can carry on, so a new one has to wait. */
+export const updateBusy = (u: Pick<FundraiserUpdate, "status"> | undefined): boolean => !!u && (u.status === "queued" || u.status === "sending" || u.status === "paused");

@@ -19,6 +19,7 @@
 //                           server's `taken`: raised when a gift claims one at giftStart (inside the same transaction, so
 //                           a limit can't be passed), lowered when that gift's page closes unpaid or it is refunded, and
 //                           raised again if a closed page turns out paid (the giver paid, so they get it even past the limit).
+//   fundraiserUpdates/{id}  an update emailed to a fundraiser's givers (G2c, fundraiserUpdates.js, passed in as `updates`)
 //
 // Card-testing guard (people trying stolen cards with small gifts): the lowest gift is $5 (shared/givingRules MIN_GIFT_MINOR);
 // one visitor may open GIFT_PAGES_PER_HOUR card pages an hour and one email GIFT_PAGES_PER_EMAIL; the page's form token
@@ -121,6 +122,7 @@ const adminFundraiser = (id, f, today) => ({
 function givingActions({
   db, requireAdmin, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", currency,
   sendEmail = async () => {}, emailBrand = async () => ({}), ownerEmail = () => "",
+  updates = null,
   escapeHtml, risoLayout, risoButton, now = () => new Date(), timeZone = shopTimeZone,
   randomId = () => crypto.randomBytes(12).toString("base64url").replace(/[^A-Za-z0-9]/g, "").slice(0, 16).padEnd(8, "0"),
   randomKey = () => crypto.randomBytes(24).toString("hex"),
@@ -528,6 +530,9 @@ function givingActions({
       if (op === "hint") return res.status(200).json({ ok: true, givingLive: (await tellWebsite()) === true });
       if (!(await featureOn())) return fail(res, 403, "Donations & tips aren't turned on for this shop.", "off");
       const nowMs = now().getTime();
+      // Updates to a fundraiser's supporters (G2c, fundraiserUpdates.js).
+      const fundraiserData = async (fid) => { const snap = await fundraisers().doc(fid).get(); return snap.exists ? snap.data() : null; };
+      if (updates && (await updates.handle(op, req.body || {}, adminUser, res, fundraiserData))) return;
       if (op === "list") {
         const [paid, refunded] = await Promise.all(["paid", "refunded"].map((s) => gifts().where("status", "==", s).limit(MAX_LISTED).get()));
         const list = [...paid.docs, ...refunded.docs].map((d) => adminGift(d.id, d.data()))
@@ -543,7 +548,7 @@ function givingActions({
         const today = shopToday(nowMs);
         const funds = (await fundraisers().limit(50).get()).docs.map((d) => adminFundraiser(d.id, d.data(), today))
           .sort((a, b) => (a.state === "ended") - (b.state === "ended") || String(b.startedAt || b.createdAt).localeCompare(String(a.startedAt || a.createdAt)));
-        return res.status(200).json({ currency: currency(), settings: await readSettings(), gifts: list, totals, blocked: await blockedSince(nowMs), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, fundraisers: funds, today });
+        return res.status(200).json({ currency: currency(), settings: await readSettings(), gifts: list, totals, blocked: await blockedSince(nowMs), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, fundraisers: funds, today, updates: updates ? await updates.recent() : {} });
       }
       if (op === "saveFundraiser") {
         // New or edited; `start` puts it on the Support page. One runs at a time, and an ended one stays as it was.

@@ -4,13 +4,13 @@
 // Gifts are server-only records, so every read and change goes through the server (givingApi.ts). The tile of blocked
 // tries shows the card-testing guard at work.
 import { useEffect, useState } from "react";
-import { Check, ExternalLink, Flag, Gift, HeartHandshake, Mail, Pencil, Plus, Settings2, Square, Trash2, Undo2, X } from "lucide-react";
+import { Check, ExternalLink, Flag, Gift, HeartHandshake, Mail, Megaphone, Pencil, Play, Plus, Send, Settings2, Square, Trash2, Undo2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, StatusBadge, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-import { givingAdmin, type AdminFundraiser, type AdminGift, type GivingList } from "./givingApi";
-import { amountFromText, blankReward, blockedLine, dayText, fundraiserLines, giverLine, goalFromText, honourText, rewardLine, rewardRowsOf, rewardsFromRows, shipToText, withAmount, type RewardRow } from "./givingView";
+import { givingAdmin, type AdminFundraiser, type AdminGift, type FundraiserUpdate, type GivingList } from "./givingApi";
+import { amountFromText, blankReward, blockedLine, dayText, fundraiserLines, giverLine, goalFromText, honourText, rewardLine, rewardRowsOf, rewardsFromRows, shipToText, updateBusy, updateState, withAmount, type RewardRow } from "./givingView";
 import { moneyText } from "./eventsView";
 import { MAX_AMOUNTS, MAX_THANKS, MAX_TIP_CHOICES, cleanTipPercents, type GivingSettings } from "../../shared/givingRules";
 import { MAX_REWARDS, MAX_REWARD_TEXT, MAX_REWARD_TITLE, MAX_REWARD_WHEN, MAX_STORY, MAX_TITLE, dayAfter, goalProgress, type FundraiserInput } from "../../shared/fundraiserRules";
@@ -25,6 +25,7 @@ export function Giving() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [fundForm, setFundForm] = useState<AdminFundraiser | "new" | null>(null);
+  const [updating, setUpdating] = useState<AdminFundraiser | null>(null);
 
   const reload = () => givingAdmin<GivingList>("list")
     .then((answer) => { setData(answer); setError(""); })
@@ -78,7 +79,7 @@ export function Giving() {
         pages an hour, and forms sent by bots are turned away. Gifts carry no sales tax.
       </p>
 
-      <Fundraisers list={data.fundraisers || []} money={money} onEdit={setFundForm}
+      <Fundraisers list={data.fundraisers || []} money={money} onEdit={setFundForm} updates={data.updates || {}} onUpdate={setUpdating}
         onChanged={(next, removedId) => setData((d) => d && { ...d, fundraisers: [...(next ? [next] : []), ...(d.fundraisers || []).filter((f) => f.id !== (next?.id || removedId))] })} />
 
       <h2 className="gvg-section-title">Gifts</h2>
@@ -97,6 +98,9 @@ export function Giving() {
       {fundForm && <FundraiserDrawer start={fundForm === "new" ? null : fundForm} today={data.today || new Date().toISOString().slice(0, 10)} money={money}
         running={(data.fundraisers || []).find((f) => f.state === "live") || null} onClose={() => setFundForm(null)}
         onSaved={(next) => { setData((d) => d && { ...d, fundraisers: [next, ...(d.fundraisers || []).filter((f) => f.id !== next.id)] }); setFundForm(null); }} />}
+
+      {updating && <UpdateDrawer fundraiser={updating} updates={data.updates?.[updating.id] || []} onClose={() => setUpdating(null)}
+        onChanged={(u) => setData((d) => d && { ...d, updates: { ...(d.updates || {}), [u.fundraiserId]: [u, ...(d.updates?.[u.fundraiserId] || []).filter((x) => x.id !== u.id)] } })} />}
 
       {editing && <SettingsDrawer start={data.settings} money={money} onClose={() => setEditing(false)}
         onSaved={(settings) => { setData((d) => d && { ...d, settings }); setEditing(false); }} />}
@@ -180,8 +184,9 @@ function GiftRow({ gift, money, onChanged }: { gift: AdminGift; money: (minor: n
 }
 
 /** The fundraiser running (or drafted) on top, with its bar; past ones below in one line each. */
-function Fundraisers({ list, money, onEdit, onChanged }: {
+function Fundraisers({ list, money, onEdit, onChanged, updates, onUpdate }: {
   list: AdminFundraiser[]; money: (minor: number) => string; onEdit: (f: AdminFundraiser | "new") => void; onChanged: (next: AdminFundraiser | null, removedId?: string) => void;
+  updates: Record<string, FundraiserUpdate[]>; onUpdate: (f: AdminFundraiser) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [ask, confirmNode] = useConfirm();
@@ -207,12 +212,14 @@ function Fundraisers({ list, money, onEdit, onChanged }: {
         <h2 id="gvg-funds-title" className="gvg-section-title">Fundraiser</h2>
         {!current && <SecondaryButton icon={<Flag size={16} aria-hidden />} onClick={() => onEdit("new")}>Start a fundraiser</SecondaryButton>}
       </div>
-      {current ? <FundraiserCard f={current} money={money} busy={busy} onEdit={() => onEdit(current)} onEnd={() => { void end(current); }} /> : (
+      {current ? <FundraiserCard f={current} money={money} busy={busy} latest={updates[current.id]?.[0]} onEdit={() => onEdit(current)} onEnd={() => { void end(current); }}
+        onUpdate={() => onUpdate(current)} /> : (
         <p className="gvg-hint">A goal, a last day and your story at the top of your Support page, with a bar that fills as gifts come in. One runs at a time.</p>
       )}
       {past.length > 0 && (
         <><h3 className="gvg-past-title">Past fundraisers</h3><ul className="gvg-past" aria-label="Past fundraisers">
-          {past.map((f) => <li key={f.id}><strong>{f.title}</strong><span>{fundraiserLines(f, money).raised}</span><span>{f.supporters === 1 ? "1 supporter" : `${f.supporters} supporters`}</span><span>Ended {dayText(f.endedAt || `${f.endsOn}T12:00:00Z`)}</span></li>)}
+          {past.map((f) => <li key={f.id}><strong>{f.title}</strong><span>{fundraiserLines(f, money).raised}</span><span>{f.supporters === 1 ? "1 supporter" : `${f.supporters} supporters`}</span><span>Ended {dayText(f.endedAt || `${f.endsOn}T12:00:00Z`)}</span>
+            {f.supporters > 0 && <GhostButton icon={<Megaphone size={16} aria-hidden />} onClick={() => onUpdate(f)}>{updates[f.id]?.length ? "Updates" : "Write an update"}</GhostButton>}</li>)}
         </ul></>
       )}
       {confirmNode}
@@ -220,7 +227,9 @@ function Fundraisers({ list, money, onEdit, onChanged }: {
   );
 }
 
-function FundraiserCard({ f, money, busy, onEdit, onEnd }: { f: AdminFundraiser; money: (minor: number) => string; busy: boolean; onEdit: () => void; onEnd: () => void }) {
+function FundraiserCard({ f, money, busy, latest, onEdit, onEnd, onUpdate }: {
+  f: AdminFundraiser; money: (minor: number) => string; busy: boolean; latest?: FundraiserUpdate; onEdit: () => void; onEnd: () => void; onUpdate: () => void;
+}) {
   const { bar } = goalProgress(f.raisedMinor, f.goalMinor);
   const lines = fundraiserLines(f, money);
   return (
@@ -231,6 +240,7 @@ function FundraiserCard({ f, money, busy, onEdit, onEnd }: { f: AdminFundraiser;
           <StatusBadge tone={f.state === "live" ? "success" : "neutral"}>{f.state === "live" ? "Running" : "Draft"}</StatusBadge>
         </div>
         <div className="gvg-actions">
+          {f.state === "live" && <GhostButton icon={<Megaphone size={16} aria-hidden />} onClick={onUpdate} disabled={busy}>Write an update</GhostButton>}
           <GhostButton icon={<Pencil size={16} aria-hidden />} onClick={onEdit} disabled={busy}>{f.state === "draft" ? "Edit or start" : "Edit"}</GhostButton>
           <GhostButton icon={<Square size={16} aria-hidden />} onClick={onEnd} busy={busy}>{f.state === "draft" ? "Delete draft" : "End now"}</GhostButton>
         </div>
@@ -247,7 +257,116 @@ function FundraiserCard({ f, money, busy, onEdit, onEnd }: { f: AdminFundraiser;
           ))}
         </ul>
       )}
+      {latest && (
+        <button type="button" className="gvg-fund-update" onClick={onUpdate}>
+          <Megaphone size={14} aria-hidden /><span>Last update: <strong>{latest.subject}</strong></span>
+          <StatusBadge tone={updateState(latest).tone}>{updateState(latest).badge}</StatusBadge>
+        </button>
+      )}
     </div>
+  );
+}
+
+/**
+ * Donations › Fundraiser › Write an update (G2c): a subject and a message emailed to everyone who gave, once each, by the
+ * server a page at a time. A test goes to the owner first; the history below says how each one went.
+ */
+function UpdateDrawer({ fundraiser, updates, onClose, onChanged }: {
+  fundraiser: AdminFundraiser; updates: FundraiserUpdate[]; onClose: () => void; onChanged: (u: FundraiserUpdate) => void;
+}) {
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [audience, setAudience] = useState<number | null>(null);
+  const [busy, setBusy] = useState<"" | "test" | "send" | string>("");
+  const [problem, setProblem] = useState<{ field: string; words: string } | null>(null);
+  const [ask, confirmNode] = useConfirm();
+  const going = updates.find((u) => updateBusy(u));
+  useEffect(() => {
+    let alive = true;
+    givingAdmin<{ audience: number }>("updateCount", { fundraiserId: fundraiser.id })
+      .then((a) => { if (alive) setAudience(a.audience); })
+      .catch(() => { if (alive) setAudience(-1); });
+    return () => { alive = false; };
+  }, [fundraiser.id]);
+  const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
+
+  const send = async (op: "updateTest" | "updateSend") => {
+    if (!subject.trim()) { setProblem({ field: "subject", words: "Give the update a subject line." }); return; }
+    if (!body.trim()) { setProblem({ field: "body", words: "Write something in the update before sending it." }); return; }
+    if (op === "updateSend" && !(await ask({
+      title: `Send this to ${people(audience || 0)}?`,
+      message: `Everyone who gave to "${fundraiser.title}" gets it by email in the next few minutes. It can be stopped while it's going out, but not taken back.`,
+      confirmLabel: "Send update",
+    }))) return;
+    setBusy(op === "updateTest" ? "test" : "send");
+    try {
+      const answer = await givingAdmin<{ to?: string; update?: FundraiserUpdate }>(op, { fundraiserId: fundraiser.id, subject, body });
+      if (op === "updateTest") toast.success(`Test sent to ${answer.to}.`);
+      else if (answer.update) { onChanged(answer.update); setSubject(""); setBody(""); toast.success("Your update is on its way."); }
+    } catch (err) {
+      const code = (err as { code?: string })?.code || "";
+      setProblem({ field: code === "subject" || code === "body" ? code : "", words: problemOf(err, "That didn't go through. Try again.") });
+    } finally { setBusy(""); }
+  };
+  const act = async (u: FundraiserUpdate, op: "updateCancel" | "updateResume") => {
+    if (op === "updateCancel" && !(await ask({ title: "Stop this update?", message: `The ${u.sent} people it reached keep it; nobody else gets it.`, confirmLabel: "Stop sending" }))) return;
+    setBusy(u.id);
+    try {
+      const answer = await givingAdmin<{ update: FundraiserUpdate }>(op, { fundraiserId: fundraiser.id, id: u.id });
+      onChanged({ ...u, ...answer.update });
+    } catch (err) { toast.error(problemOf(err, "That didn't go through. Try again.")); }
+    finally { setBusy(""); }
+  };
+  const blocked = !!going || audience === 0;
+
+  return (
+    <Drawer open onClose={onClose} title="Write an update"
+      footer={<>
+        <GhostButton icon={<Mail size={16} aria-hidden />} onClick={() => { void send("updateTest"); }} busy={busy === "test"} disabled={!!busy && busy !== "test"}>Send me a test</GhostButton>
+        <PrimaryButton icon={<Send size={16} aria-hidden />} onClick={() => { void send("updateSend"); }} busy={busy === "send"} disabled={blocked || audience === null || (!!busy && busy !== "send")}>
+          {audience && audience > 0 ? `Send to ${people(audience)}` : "Send update"}
+        </PrimaryButton>
+      </>}>
+      <div className="gvg-form">
+        <p className="gvg-hint">
+          Tell the people who gave to <strong>{fundraiser.title}</strong> how it's going: a milestone, a thank-you, when rewards will be posted.
+          {audience === null ? " Counting your supporters…" : audience < 0 ? "" : audience === 0
+            ? " Nobody who gave can be emailed yet, so there's no one to send it to."
+            : ` It goes to ${people(audience)}, once each, with a link to stop these emails.`}
+        </p>
+        {going && <p className="gvg-hint" role="note">Your last update is still going out. You can send another once it's done or stopped.</p>}
+        <TextField label="Subject" maxLength={150} value={subject} error={problem?.field === "subject" ? problem.words : undefined} placeholder="We reached our goal!"
+          onChange={(e) => { setSubject(e.target.value); setProblem(null); }} />
+        <TextArea label="Message" rows={9} maxLength={10000} value={body} error={problem?.field === "body" ? problem.words : undefined}
+          placeholder="Thank you all. Printing starts next week, and rewards go out in March." hint="Plain text; blank lines start a new paragraph."
+          onChange={(e) => { setBody(e.target.value); setProblem(null); }} />
+        {problem && !problem.field && <p className="gvg-problem" role="alert">{problem.words}</p>}
+        {updates.length > 0 && (
+          <section className="gvg-updates" aria-labelledby="gvg-updates-title">
+            <h3 id="gvg-updates-title" className="gvg-section-title">Your updates</h3>
+            <ul>
+              {updates.map((u) => {
+                const state = updateState(u);
+                return (
+                  <li key={u.id}>
+                    <div className="gvg-who"><strong>{u.subject}</strong><StatusBadge tone={state.tone}>{state.badge}</StatusBadge></div>
+                    <p className="gvg-meta">{state.line}</p>
+                    {u.status === "paused" && u.lastError && <p className="gvg-problem">{u.lastError}</p>}
+                    {(u.status === "queued" || u.status === "sending" || u.status === "paused") && (
+                      <div className="gvg-actions">
+                        {u.status === "paused" && <SecondaryButton icon={<Play size={16} aria-hidden />} onClick={() => { void act(u, "updateResume"); }} busy={busy === u.id}>Carry on</SecondaryButton>}
+                        <GhostButton icon={<Square size={16} aria-hidden />} onClick={() => { void act(u, "updateCancel"); }} disabled={!!busy && busy !== u.id}>Stop sending</GhostButton>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+      </div>
+      {confirmNode}
+    </Drawer>
   );
 }
 
