@@ -789,8 +789,6 @@ div.rp-listcard-main { cursor: default; }
 .book-editor-riso .be-desc-preview .fm-pdp-desc-link { text-decoration: underline; }
 .book-editor-riso .be-toggles { display: flex; flex-wrap: wrap; gap: 6px 24px; margin-bottom: 14px; }
 .book-editor-riso .be-money { position: relative; }
-.book-editor-riso .be-money-sym { position: absolute; left: 12px; bottom: 12px; color: var(--rp-text-subtle); z-index: 1; pointer-events: none; }
-.book-editor-riso .be-money .rp-input { padding-left: 28px; }
 .book-editor-riso .be-stats { display: flex; flex-wrap: wrap; gap: 12px 32px; margin-top: 18px; padding-top: 14px; border-top: var(--rp-hair) solid var(--rp-divider); align-items: end; }
 .book-editor-riso .be-stats > div { display: flex; flex-direction: column; gap: 2px; }
 .book-editor-riso .be-stats span, .book-editor-riso .be-label-xs { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--rp-text-subtle); }
