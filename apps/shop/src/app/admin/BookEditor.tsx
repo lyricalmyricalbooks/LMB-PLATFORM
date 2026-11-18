@@ -85,7 +85,7 @@ import { ProductOptionsEditor } from "./ProductOptionsEditor";
 import { VariantGrid } from "./VariantGrid";
 import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
-import { typeById, typeOfProduct, type ProductType } from "../../shared/productTypes";
+import { typeById, typeOfProduct, type OwnType, type ProductType } from "../../shared/productTypes";
 import { missingLawFacts, safetyForType } from "./typeFacts";
 import { TypeFactsCard } from "./TypeFactsCard";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
@@ -1135,10 +1135,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const hasVariants = (formData.variants || []).length > 0;
   // Product types plan, change 3: a picked type sets its kind (so tax, customs and book fields follow) and, for Gift
   // cards, the gift card product; switching away from a gift card puts the editions back as they were.
-  const setType = (type: ProductType) => {
+  // Change 4: the shop's own type keeps its name (`typeName`) on top of the base type's questions.
+  const setType = (type: ProductType, own: OwnType | null = null) => {
     if (type.id === "gift-cards") setProductType("giftCard");
     else { if (isGiftCardProduct(formData)) setProductType("book"); setKind(type.kind); }
-    setFormData((prev: any) => ({ ...prev, typeId: type.id, ...safetyForType(prev, type) }));
+    setFormData((prev: any) => ({ ...prev, typeId: type.id, ...(type.kind !== "book" ? { googleCategory: type.google || "" } : {}), ...(own ? { typeName: own.name } : prev.typeName ? { typeName: "" } : {}), ...safetyForType(prev, type) }));
   };
   // Digital D1: a book format that is a download, or the "Digital product" switch any kind of shop has.
   const digitalFormat = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);

@@ -9,7 +9,7 @@ import {
 import { productKind, type ProductKind } from "../../shared/productOptions";
 import { useShopSells, useShopWords } from "./shopWords";
 import { TypePicker } from "./TypePicker";
-import { sellsGroups, typeGroup, typeOfProduct, type ProductType } from "../../shared/productTypes";
+import { sellsGroups, typeGroup, typeOfProduct, type OwnType, type ProductType } from "../../shared/productTypes";
 import { MONEY_SIGN } from "./moneySign";
 
 type Setter = (name: string, value: any) => void;
@@ -184,15 +184,16 @@ const KIND_LABELS: Record<ProductKind, string> = {
  * What a product is (product types plan, change 3): its type and group, with Change type opening the same "What is it?"
  * window Add product starts with. A product saved before types shows its kind and Choose a type.
  */
-export function ProductTypeCard({ form, onType }: { form: any; onType: (type: ProductType) => void }) {
+export function ProductTypeCard({ form, onType }: { form: any; onType: (type: ProductType, own: OwnType | null) => void }) {
   const [picking, setPicking] = useState(false);
   const sells = useShopSells();
   const groups = useMemo(() => sellsGroups(sells), [sells]);
   const giftCard = form.productType === "giftCard";
   const type = typeOfProduct(form);
   const named = !!form.typeId || giftCard || !!type;
-  const name = type?.name ?? KIND_LABELS[productKind(form)];
-  const group = type ? typeGroup(type.group)?.name : null;
+  const ownName = typeof form.typeName === "string" && form.typeName.trim() && type ? form.typeName.trim() : null;
+  const name = ownName ?? type?.name ?? KIND_LABELS[productKind(form)];
+  const group = type ? (ownName ? `Your type · like ${type.name}` : typeGroup(type.group)?.name) : null;
   return (
     <SectionCard title="Product type" description="The page asks only what this kind of product needs.">
       <div className="rp-tp-current">
@@ -206,8 +207,8 @@ export function ProductTypeCard({ form, onType }: { form: any; onType: (type: Pr
         <p className="be-note">Each edition is an amount, e.g. {MONEY_SIGN}25 — set them on the <strong>Amounts</strong> tab. Gift cards are always delivered by email, never shipped, taxed or discounted, and have no stock limit or add-ons.</p>
       )}
       {picking && (
-        <TypePicker open groups={groups} current={type?.id} allowBlank={false} title={named ? "Change type" : "Choose a type"}
-          onClose={() => setPicking(false)} onPick={(picked) => { setPicking(false); if (picked) onType(picked); }} />
+        <TypePicker open groups={groups} current={type?.id} currentName={ownName} allowBlank={false} title={named ? "Change type" : "Choose a type"}
+          onClose={() => setPicking(false)} onPick={(picked, own) => { setPicking(false); if (picked) onType(picked, own ?? null); }} />
       )}
     </SectionCard>
   );

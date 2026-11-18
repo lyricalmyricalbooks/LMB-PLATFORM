@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PRODUCT_KINDS } from "./productOptions";
 import { SIZE_SETS, orderSizes, sizeSet } from "./productSizes";
-import { PRODUCT_TYPES, TYPE_GROUPS, lawFacts, productGroup, searchTypes, sellsGroups, sizeListsFor, typeOfProduct, typeStart, shopGroups, typeById } from "./productTypes";
+import { PRODUCT_TYPES, TYPE_GROUPS, lawFacts, productGroup, searchTypes, sellsGroups, sizeListsFor, typeOfProduct, typeStart, shopGroups, typeById, cleanOwnTypes, searchOwnTypes, namesAType } from "./productTypes";
 
 describe("product types", () => {
   it("has about 100 types in 16 groups, every group used", () => {
@@ -71,7 +71,7 @@ describe("product types", () => {
   });
 
   it("starts a product with its type and kind, a printed book with no kind", () => {
-    expect(typeStart(typeById("candles")!)).toEqual({ typeId: "candles", kind: "other", format: "" });
+    expect(typeStart(typeById("candles")!)).toEqual({ typeId: "candles", kind: "other", format: "", googleCategory: typeById("candles")!.google });
     expect(typeStart(typeById("zines")!)).toEqual({ typeId: "zines" });
   });
 
@@ -100,5 +100,37 @@ describe("size lists", () => {
     expect(orderSizes("letters", ["XL", "s", "M", "Tall", "xl"])).toEqual(["s", "M", "XL", "Tall"]);
     expect(sizeSet("rings")?.values.slice(0, 3)).toEqual(["4", "4.5", "5"]);
     expect(orderSizes("nope", ["B", "A"])).toEqual(["B", "A"]);
+  });
+});
+
+describe("the shop's own types", () => {
+  it("keeps tidy names on known types, once each", () => {
+    const own = cleanOwnTypes([
+      { name: "  Tote   bags ", base: PRODUCT_TYPES.find((t) => t.group === "bags")!.id },
+      { name: "tote bags", base: "candles" },
+      { name: "Mystery", base: "not-a-type" },
+      { name: "", base: "candles" },
+      "junk",
+    ]);
+    expect(own).toHaveLength(1);
+    expect(own[0].name).toBe("Tote bags");
+    expect(own[0].id).toBe("own-tote-bags");
+    expect(cleanOwnTypes(null)).toEqual([]);
+  });
+
+  it("finds own types from the owner's words and spots names we already list", () => {
+    const own = [{ id: "own-tote-bags", name: "Tote bags", base: "candles" }];
+    expect(searchOwnTypes("tote", own).map((t) => t.name)).toEqual(["Tote bags"]);
+    expect(searchOwnTypes("mug", own)).toEqual([]);
+    expect(namesAType("Candles")).toBe(true);
+    expect(namesAType("candle")).toBe(true);
+    expect(namesAType("tote bag", own)).toBe(true);
+    expect(namesAType("Beeswax wraps")).toBe(false);
+  });
+
+  it("starts a product of an own type with the base type and the owner's name", () => {
+    const candles = typeById("candles")!;
+    expect(typeStart(candles, { id: "own-pillar-candles", name: "Pillar candles", base: "candles" })).toMatchObject({ typeId: "candles", typeName: "Pillar candles" });
+    expect(typeStart(candles)).not.toHaveProperty("typeName");
   });
 });

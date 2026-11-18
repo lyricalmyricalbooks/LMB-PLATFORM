@@ -1102,3 +1102,13 @@ shows the rental after paying. Refusal codes (`taken`, `when`, `closed`, `not_av
 Studio's preview answers from `rentalsPreview.ts` (a camera kit by the hour, a cargo bike by the day). The footer link
 (`footer-rentals`, word `rentalsFooterLink`) follows `settings/website.rentalsLive` (`rentalsLive.ts`, kept by
 `functions/rentals.js`). Words: Text & labels › **Rentals page** (`rentals*`, French twins). Studio fixture `?rentals=1`.
+
+## Size, colour and scent filters (18 November 2026)
+
+Product types plan, change 8. `CatalogControls.tsx` `optionFiltersIn` turns the products on screen's options into chip rows
+(Size, Colour, Metal, Scent, Material, Stone, Finish, Width, Length, Flavour, Weight; "Color" counts as Colour) when an option
+has two or more values. Picks live in `CatalogFilterState.options` (lower case); `appliedFilters` drops picks not on screen,
+and `applyCatalogControls`' last argument keeps products that come in a picked value of every picked option. The row's heading
+and chips are the owner's own option names and values, so no new Text & labels words. Not kept in the page address yet.
+`a11y-fixture.html?books=goods` shows shirts and candles with options. A product with a type also carries `googleCategory`
+(set when the type is picked), which `merchantFeed.mjs` uses for every kind but books.

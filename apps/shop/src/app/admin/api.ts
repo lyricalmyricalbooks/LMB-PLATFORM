@@ -1659,6 +1659,18 @@ export const adminApi = {
     return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).sort((a: any, b: any) => String(b.at || "").localeCompare(String(a.at || "")));
   },
 
+  // The shop's own product types (product types plan, change 4): names like "Tote bags", each built on one of ours.
+  // Not secret, so a settings doc is fine; the list is tidied on the way in and out.
+  getOwnTypes: async (): Promise<import("../../shared/productTypes").OwnType[]> => {
+    const snap = await getDoc(doc(db, "settings", "productTypes"));
+    const { cleanOwnTypes } = await import("../../shared/productTypes");
+    return snap.exists() ? cleanOwnTypes((snap.data() as any).own) : [];
+  },
+  saveOwnTypes: async (own: import("../../shared/productTypes").OwnType[]) => {
+    const { cleanOwnTypes } = await import("../../shared/productTypes");
+    await setDoc(doc(db, "settings", "productTypes"), { own: cleanOwnTypes(own), updatedAt: new Date().toISOString() });
+  },
+
   // Parcel presets (box sizes) for the label dialog. Not secret, so a settings doc is fine.
   getParcelPresets: async (): Promise<any[] | null> => {
     const snap = await getDoc(doc(db, "settings", "parcelPresets"));

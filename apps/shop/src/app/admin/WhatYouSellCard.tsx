@@ -12,6 +12,41 @@ import { SELLS_CHANGED_EVENT, SELLS_PRODUCTS_CHANGED_EVENT } from "./shopWords";
 import { SectionCard, SelectField, PrimaryButton, useConfirm } from "./riso/components";
 import { useBookingsOn } from "./bookingsApi";
 import { FormField } from "./riso/FormKit";
+import { X } from "lucide-react";
+import { typeById } from "../../shared/productTypes";
+import { removeOwnType, useOwnTypes } from "./ownTypes";
+
+/**
+ * Your own types (product types plan, change 4): the names the owner gave in "What is it?", each with the type it is
+ * built on. Removing one leaves the products that use it as they are.
+ */
+export function OwnTypesList() {
+  const own = useOwnTypes();
+  const [busy, setBusy] = useState<string | null>(null);
+  const remove = async (id: string, name: string) => {
+    setBusy(id);
+    try { await removeOwnType(id); toast.success(`Removed “${name}”. Products that use it keep it.`); }
+    catch { toast.error("Couldn't remove that. Check your connection and try again."); }
+    finally { setBusy(null); }
+  };
+  const hint = own.length ? "Offered by name when you add a product. Removing one leaves your products as they are." : "None yet. When you add a product and type a kind we don't list, you can keep it as your own.";
+  return (
+    <section className="rp-fk-field" aria-labelledby="own-types-label">
+      <div className="rp-fk-label-row"><h3 id="own-types-label" className="rp-fk-label" style={{ margin: 0 }}>Your own types</h3></div>
+      {own.length > 0 && (
+        <ul className="rp-tp-own-list">
+          {own.map((t) => (
+            <li key={t.id}>
+              <span><span className="rp-tp-name">{t.name}</span> <span className="rp-tp-group">· like {typeById(t.base)?.name}</span></span>
+              <button type="button" aria-label={`Remove ${t.name}`} disabled={busy === t.id} onClick={() => { void remove(t.id, t.name); }}><X size={16} aria-hidden /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <span className="rp-fk-hint">{hint}</span>
+    </section>
+  );
+}
 
 export const SELLS_CHOICES: { id: string; label: string }[] = [
   { id: "books", label: "Books" },
@@ -145,6 +180,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
       </div>
       <p className="rp-hint" role="status" style={{ margin: "12px 0 0" }}>{stockroomWordsNote(saved, heard, justSaved)}</p>
       {productsSwitch}
+      {!sellsServices(value) && <div style={{ marginTop: 16 }}><OwnTypesList /></div>}
       {confirmNode}
   </>);
   return (
@@ -156,6 +192,7 @@ export function WhatYouSellCard({ bare }: { bare?: boolean } = {}) {
         </span>}
       </FormField>
       {productsSwitch}
+      {(!servicesShop || products) && <OwnTypesList />}
       {confirmNode}
     </>) : <SectionCard title="What you sell" description="Sets the words in your admin and emails. Products you already have stay as they are.">{body}</SectionCard>
   );

@@ -58,9 +58,9 @@ describe("price and format filters", () => {
   it("never applies a filter the current view doesn't show", () => {
     const onlyPaperbacks = [paperback, { ...paperback, id: "p2", retailPrice: 12 }];
     const view = filterView(onlyPaperbacks);
-    expect(view).toEqual({ hasSale: false, availableFormats: ["paperback"], showPrice: false });
+    expect(view).toEqual({ hasSale: false, availableFormats: ["paperback"], showPrice: false, optionFilters: [] });
     const applied = appliedFilters({ formats: ["ebook"], minPrice: "100", maxPrice: "" }, view);
-    expect(applied).toEqual({ onSale: false, formats: [], priceRange: [0, Infinity] });
+    expect(applied).toEqual({ onSale: false, formats: [], priceRange: [0, Infinity], options: {} });
     expect(filterView(all).showPrice).toBe(true);
     expect(appliedFilters({ formats: ["ebook", "other"], minPrice: "", maxPrice: "" }, filterView(all)).formats).toEqual(["ebook"]);
   });
