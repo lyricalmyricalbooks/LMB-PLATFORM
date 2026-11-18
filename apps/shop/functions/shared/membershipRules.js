@@ -7,9 +7,12 @@
 // A plan is paid every month or every year on the shop's own card account, with an optional free trial. A member's
 // state comes from the card provider's subscription (memberState), never from the browser.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mayPause = exports.dayOrdinal = exports.inStockWarning = exports.getsBox = exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
+exports.mayPause = exports.dayOrdinal = exports.inStockWarning = exports.getsBox = exports.mayJoin = exports.hasPerks = exports.GIFT_MESSAGES = exports.MAX_GIFT_NAME = exports.MAX_GIFT_MESSAGE = exports.GIFT_MONTHS = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.BOX_COUNTRIES = exports.MAX_CUTOFF_DAY = exports.MAX_BOX_QUANTITY = exports.MAX_BOX_ITEMS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
 exports.cleanBox = cleanBox;
 exports.cleanPlan = cleanPlan;
+exports.giftPriceMinor = giftPriceMinor;
+exports.cleanGift = cleanGift;
+exports.giftEnd = giftEnd;
 exports.memberState = memberState;
 exports.planPriceWords = planPriceWords;
 exports.memberUnitPrice = memberUnitPrice;
@@ -105,7 +108,49 @@ function cleanPlan(raw) {
     const boxed = cleanBox(p.box);
     if ("problem" in boxed)
         return { problem: boxed.problem, field: "box" };
-    return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, exports.MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent, ...(boxed.box ? { box: boxed.box } : {}) } };
+    return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, exports.MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent, ...(boxed.box ? { box: boxed.box } : p.gifts === true ? { gifts: true } : {}) } };
+}
+// ── Gift memberships (M5) ─────────────────────────────────────────────────────────────────────────────────────────
+/** How many months a gift can be for. */
+exports.GIFT_MONTHS = Object.freeze([3, 6, 12]);
+exports.MAX_GIFT_MESSAGE = 300;
+exports.MAX_GIFT_NAME = 100;
+const EMAIL = /^[^\s@<>",;]{1,64}@[^\s@<>",;]{1,190}\.[A-Za-z]{2,24}$/;
+/** What a gift of `months` costs, paid once: the plan's monthly price that many times (a yearly plan by twelfths). Pure. */
+function giftPriceMinor(plan, months) {
+    if (!exports.GIFT_MONTHS.includes(months) || !Number.isInteger(plan?.priceMinor) || plan.priceMinor <= 0)
+        return 0;
+    return plan.interval === "year" ? Math.round((plan.priceMinor * months) / 12) : plan.priceMinor * months;
+}
+exports.GIFT_MESSAGES = Object.freeze({
+    months: "Choose 3, 6 or 12 months.",
+    email: "Enter the email address of the person the gift is for.",
+    self: "A gift is for someone else. To join yourself, choose Join.",
+});
+/** A gift as the buyer typed it, cleaned, or the first problem. `buyerEmail` keeps a gift from going to the buyer. Pure. */
+function cleanGift(raw, buyerEmail = "") {
+    const g = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {});
+    const months = Number(g.months);
+    if (!exports.GIFT_MONTHS.includes(months))
+        return { problem: exports.GIFT_MESSAGES.months, field: "months" };
+    const email = String(g.email ?? "").trim().toLowerCase().slice(0, 254);
+    if (!EMAIL.test(email))
+        return { problem: exports.GIFT_MESSAGES.email, field: "email" };
+    if (buyerEmail && email === String(buyerEmail).trim().toLowerCase())
+        return { problem: exports.GIFT_MESSAGES.self, field: "email" };
+    const name = text(g.name, exports.MAX_GIFT_NAME);
+    const message = String(g.message ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").trim().slice(0, exports.MAX_GIFT_MESSAGE);
+    return { gift: { months, to: { email, name }, message } };
+}
+/** The day a gift of `months` from `startIso` ends: the same day of the month, clamped to the month's last day. Pure. */
+function giftEnd(startIso, months) {
+    const start = new Date(startIso);
+    if (!Number.isFinite(start.getTime()) || !Number.isInteger(months) || months <= 0)
+        return "";
+    const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, 1, start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds()));
+    const last = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+    end.setUTCDate(Math.min(start.getUTCDate(), last));
+    return end.toISOString();
 }
 /** A member's state from the provider's subscription status (Stripe's words). Pure. */
 function memberState(status, cancelAtPeriodEnd = false, pausedForever = false) {

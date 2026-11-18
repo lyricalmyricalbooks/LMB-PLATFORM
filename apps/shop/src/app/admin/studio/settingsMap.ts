@@ -360,6 +360,10 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Choosing tickets & paying", match: /^events(TicketsHeading|Left|Fewer|More|PlusTax|Fee[A-Z]|Extras[A-Z]|Code[A-Z]|DiscountRow|YourDetails|Name$|Email|Need|Total|Pay|GetFree|Working|Error|TicketsChanged|NotAvailable|TooMany)/ },
     { title: "Your tickets", match: /^events(Going|Held|Ended|Refunded|TicketsCancelled|CodeQr$|TicketUsed|OrderNotFound|When|Where|NameRow|Tax|Paid|YourTickets|TicketNumber|ShowCode|JoinOnline|AddCalendar|GoogleCalendar|TryAgain)/ },
   ],
+  "Membership page": [
+    { title: "The page & plans", match: /^membership(Eyebrow|Title|Subtitle|Back|Loading|LoadError|Retry|Closed|NotReady|Every|MemberPrice|Trial|PerksLabel|BoxLine|Join|StartTrial|FinePrint|Error(Member|Plan|TooMany|Generic)|SeeAccount)/ },
+    { title: "Gift memberships", match: /^membership(Gift|ErrorGift)/ },
+  ],
   "Support page": [
     { title: "The page & amounts", match: /^support(Eyebrow|Title|Subtitle|Back$|Loading|LoadError|Retry|Closed|NotReady|AmountHeading|Other|PickAmount|TooSmall|TooBig)/ },
     { title: "Monthly gifts", match: /^support(Often|Once|Monthly|GiveMonthly|PerMonth|Pledge)/ },

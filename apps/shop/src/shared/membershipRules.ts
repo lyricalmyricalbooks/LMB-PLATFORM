@@ -48,6 +48,8 @@ export type MembershipPlan = {
   memberPercent: number;
   /** Ships a box every month (M3): missing for a plan without one. */
   box?: PlanBox;
+  /** Can be given as a gift for a set number of months, paid once (M5). Never on a box plan. */
+  gifts?: boolean;
 };
 
 export const PLAN_MESSAGES = Object.freeze({
@@ -104,7 +106,51 @@ export function cleanPlan(raw: unknown): { plan: MembershipPlan } | { problem: s
   const perks = (Array.isArray(p.perks) ? p.perks : []).map((x) => text(x, MAX_PERK)).filter(Boolean).slice(0, MAX_PERKS);
   const boxed = cleanBox(p.box);
   if ("problem" in boxed) return { problem: boxed.problem, field: "box" };
-  return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent, ...(boxed.box ? { box: boxed.box } : {}) } };
+  return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent, ...(boxed.box ? { box: boxed.box } : p.gifts === true ? { gifts: true } : {}) } };
+}
+
+// ── Gift memberships (M5) ─────────────────────────────────────────────────────────────────────────────────────────
+/** How many months a gift can be for. */
+export const GIFT_MONTHS: readonly number[] = Object.freeze([3, 6, 12]);
+export const MAX_GIFT_MESSAGE = 300;
+export const MAX_GIFT_NAME = 100;
+const EMAIL = /^[^\s@<>",;]{1,64}@[^\s@<>",;]{1,190}\.[A-Za-z]{2,24}$/;
+
+/** What a gift of `months` costs, paid once: the plan's monthly price that many times (a yearly plan by twelfths). Pure. */
+export function giftPriceMinor(plan: Pick<MembershipPlan, "interval" | "priceMinor">, months: number) {
+  if (!GIFT_MONTHS.includes(months) || !Number.isInteger(plan?.priceMinor) || plan.priceMinor <= 0) return 0;
+  return plan.interval === "year" ? Math.round((plan.priceMinor * months) / 12) : plan.priceMinor * months;
+}
+
+export const GIFT_MESSAGES = Object.freeze({
+  months: "Choose 3, 6 or 12 months.",
+  email: "Enter the email address of the person the gift is for.",
+  self: "A gift is for someone else. To join yourself, choose Join.",
+});
+
+export type GiftRequest = { months: number; to: { email: string; name: string }; message: string };
+
+/** A gift as the buyer typed it, cleaned, or the first problem. `buyerEmail` keeps a gift from going to the buyer. Pure. */
+export function cleanGift(raw: unknown, buyerEmail = ""): { gift: GiftRequest } | { problem: string; field: string } {
+  const g = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const months = Number(g.months);
+  if (!GIFT_MONTHS.includes(months)) return { problem: GIFT_MESSAGES.months, field: "months" };
+  const email = String(g.email ?? "").trim().toLowerCase().slice(0, 254);
+  if (!EMAIL.test(email)) return { problem: GIFT_MESSAGES.email, field: "email" };
+  if (buyerEmail && email === String(buyerEmail).trim().toLowerCase()) return { problem: GIFT_MESSAGES.self, field: "email" };
+  const name = text(g.name, MAX_GIFT_NAME);
+  const message = String(g.message ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").trim().slice(0, MAX_GIFT_MESSAGE);
+  return { gift: { months, to: { email, name }, message } };
+}
+
+/** The day a gift of `months` from `startIso` ends: the same day of the month, clamped to the month's last day. Pure. */
+export function giftEnd(startIso: string, months: number) {
+  const start = new Date(startIso);
+  if (!Number.isFinite(start.getTime()) || !Number.isInteger(months) || months <= 0) return "";
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, 1, start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds()));
+  const last = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+  end.setUTCDate(Math.min(start.getUTCDate(), last));
+  return end.toISOString();
 }
 
 /**

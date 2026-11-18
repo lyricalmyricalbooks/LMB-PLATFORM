@@ -242,9 +242,9 @@ describe("memberships (M1)", () => {
     const t = setup();
     const planId = await withPlan(t);
     await t.call({ action: "membershipJoin", planId });
-    expect(await t.desk.sweep()).toEqual({ read: 0, closed: 0, boxes: 0 });
+    expect(await t.desk.sweep()).toEqual({ read: 0, closed: 0, boxes: 0, gifts: 0 });
     t.clock.now = new Date(Date.parse("2026-11-18T13:00:00Z") + (PAGE_MINUTES + 1) * 60_000);
-    expect(await t.desk.sweep()).toEqual({ read: 1, closed: 1, boxes: 0 });
+    expect(await t.desk.sweep()).toEqual({ read: 1, closed: 1, boxes: 0, gifts: 0 });
     expect(t.closed).toEqual(["cs_test_000000"]);
     expect((await t.call({ action: "membershipMine" })).body.memberships).toEqual([]);
     // Free to join again.
@@ -526,5 +526,99 @@ describe("memberships (M1)", () => {
     for (const slug of ["about", "nope", "../x", ""]) expect((await t.call({ action: "membershipPage", slug })).statusCode).toBe(404);
     t.db.store.set("firstWeek/start", { ways: {} });
     expect((await t.call({ action: "membershipPage", slug: "zine-club" })).statusCode).toBe(404);
+  });
+});
+
+describe("gift memberships (M5)", () => {
+  const BEN = { email: "ben@example.com", uid: "u2", name: "Ben Buyer" };
+  const giftPlan = { ...PLAN, gifts: true };
+
+  test("only a plan the owner allows as a gift, never a box plan; the price is months of the plan, paid once", async () => {
+    const t = setup();
+    const plain = await withPlan(t);
+    const giftable = await withPlan(t, giftPlan);
+    const info = await t.call({ action: "membershipInfo" });
+    const byId = Object.fromEntries(info.body.plans.map((p) => [p.id, p]));
+    expect(byId[plain].gifts).toBeUndefined();
+    expect(byId[giftable].gifts).toEqual([{ months: 3, priceMinor: 4500 }, { months: 6, priceMinor: 9000 }, { months: 12, priceMinor: 18000 }]);
+
+    t.signIn(BEN);
+    expect((await t.call({ action: "membershipGift", planId: plain, gift: { months: 3, email: "ada@example.com" } })).body.code).toBe("plan");
+    expect((await t.call({ action: "membershipGift", planId: giftable, gift: { months: 4, email: "ada@example.com" } })).body.code).toBe("months");
+    expect((await t.call({ action: "membershipGift", planId: giftable, gift: { months: 3, email: "nope" } })).body.code).toBe("email");
+    expect((await t.call({ action: "membershipGift", planId: giftable, gift: { months: 3, email: "BEN@example.com" } })).body.code).toBe("email");
+
+    const r = await t.call({ action: "membershipGift", planId: giftable, gift: { months: 6, email: "Ada@Example.com", name: "Ada", message: "Happy birthday!" } });
+    expect(r.statusCode).toBe(200);
+    const { params, idem } = t.opened[0];
+    expect(params.mode).toBe("payment");
+    expect(params).not.toHaveProperty("client_reference_id");
+    expect(params.line_items[0].price_data).toEqual({ currency: "cad", unit_amount: 9000, product_data: { name: "Test Press: Gift membership, Friends of the press (6 months)" } });
+    expect(params.metadata).toEqual({ gift_membership: r.body.id });
+    expect(idem).toBe(`membership-gift-${r.body.id}`);
+    expect(t.db.store.get(`membershipGifts/${r.body.id}`)).toMatchObject({ state: "pending", months: 6, priceMinor: 9000, to: { email: "ada@example.com", name: "Ada" }, buyer: { email: BEN.email } });
+  });
+
+  test("once paid, the person it's for is a member until the months end, both get one email, and it ends by itself", async () => {
+    const t = setup();
+    const planId = await withPlan(t, giftPlan);
+    t.signIn(BEN);
+    const r = await t.call({ action: "membershipGift", planId, gift: { months: 3, email: "ada@example.com", name: "Ada", message: "Enjoy" } });
+    expect((await t.call({ action: "membershipGiftStatus", id: r.body.id })).body.gift).toMatchObject({ state: "pending" });
+
+    Object.assign(t.sessions.get("cs_test_000000"), { status: "complete", payment_status: "paid", payment_intent: "pi_1" });
+    expect((await t.call({ action: "membershipGiftStatus", id: r.body.id })).body.gift).toEqual({ id: r.body.id, state: "paid", months: 3, plan: PLAN.name, to: "Ada" });
+    await t.desk.sweep();
+    await t.call({ action: "membershipGiftStatus", id: r.body.id });
+    expect(t.emails.filter((e) => e.queue === "membership-gift-given")).toHaveLength(1);
+    expect(t.emails.filter((e) => e.queue === "membership-gift-sent")).toHaveLength(1);
+    expect(t.emails.find((e) => e.queue === "membership-gift-given")).toMatchObject({ to: "ada@example.com" });
+    expect(t.emails.find((e) => e.queue === "membership-gift-given").html).toContain("Enjoy");
+
+    // Someone else can't read Ben's gift.
+    t.signIn(ADA);
+    expect((await t.call({ action: "membershipGiftStatus", id: r.body.id })).statusCode).toBe(404);
+
+    const mine = await t.call({ action: "membershipMine" });
+    expect(mine.body.memberships).toHaveLength(1);
+    const m = mine.body.memberships[0];
+    expect(m).toMatchObject({ state: "active", gift: { months: 3, from: "Ben Buyer" }, periodEnd: "2027-02-18T13:00:00.000Z" });
+    expect(await t.desk.hasMembership(ADA.email, true)).toBe(true);
+    // Nothing to cancel or pay; joining waits until it ends.
+    expect((await t.call({ action: "membershipCancel", id: m.id })).body.code).toBe("gift");
+    expect((await t.call({ action: "membershipJoin", planId })).body.code).toBe("member");
+    // In the books once, and not counted as money every month.
+    const stored = t.db.store.get(`memberships/${m.id}`);
+    expect(stored.payments).toEqual([expect.objectContaining({ amountMinor: 4500, currency: "CAD" })]);
+    const listed = (await t.admin({ op: "list" })).body;
+    expect(listed.members).toEqual([expect.objectContaining({ email: "ada@example.com", gift: { months: 3, from: "Ben Buyer" } })]);
+    expect(listed.totals.monthlyMinor).toBe(0);
+
+    t.clock.now = new Date("2027-02-18T13:02:00Z");
+    await t.desk.sweep();
+    expect(t.db.store.get(`memberships/${m.id}`)).toMatchObject({ state: "ended", checkAfter: null });
+    expect(t.emails.filter((e) => e.queue === "membership-gift-ended")).toHaveLength(1);
+    await t.desk.sweep();
+    expect(t.emails.filter((e) => e.queue === "membership-gift-ended")).toHaveLength(1);
+    expect(await t.desk.hasMembership(ADA.email, true)).toBe(false);
+  });
+
+  test("an unpaid gift page closes after its hour and makes no membership; the owner can end a gift at once", async () => {
+    const t = setup();
+    const planId = await withPlan(t, giftPlan);
+    t.signIn(BEN);
+    const r = await t.call({ action: "membershipGift", planId, gift: { months: 12, email: "ada@example.com" } });
+    t.sessions.get("cs_test_000000").status = "expired";
+    t.clock.now = new Date(Date.parse("2026-11-18T13:00:00Z") + (PAGE_MINUTES + 5) * 60_000);
+    await t.desk.sweep();
+    expect(t.db.store.get(`membershipGifts/${r.body.id}`)).toMatchObject({ state: "ended", checkAfter: null });
+    expect([...t.db.store.keys()].filter((k) => k.startsWith("memberships/"))).toEqual([]);
+
+    const r2 = await t.call({ action: "membershipGift", planId, gift: { months: 3, email: "ada@example.com" } });
+    Object.assign(t.sessions.get("cs_test_000001"), { status: "complete", payment_status: "paid" });
+    await t.call({ action: "membershipGiftStatus", id: r2.body.id });
+    const ended = await t.admin({ op: "endNow", id: `g${r2.body.id}` });
+    expect(ended.statusCode).toBe(200);
+    expect(ended.body.member).toMatchObject({ state: "ended" });
   });
 });

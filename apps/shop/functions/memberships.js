@@ -30,10 +30,11 @@ const crypto = require("crypto");
 const {
   cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, cleanBoxAddress, MAX_PLANS, MAX_MEMBER_PERCENT, BOX_COUNTRIES,
   boxMonth, shopDayOfMonth, shopHour, dayOrdinal, getsBox, paidByCutoff, inStockWarning, boxShortfall, nextBoxMonth, mayPause,
+  GIFT_MONTHS, giftPriceMinor, cleanGift, giftEnd,
 } = require("./shared/membershipRules");
 const { waysOn } = require("./shared/waysToSell");
 
-const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress", "membershipSkip", "membershipUnskip", "membershipPause", "membershipUnpause"]);
+const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage", "membershipAddress", "membershipSkip", "membershipUnskip", "membershipPause", "membershipUnpause", "membershipGift", "membershipGiftStatus"]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,99}$/;
 /** How long a card page stays open. */
 const PAGE_MINUTES = 60;
@@ -88,6 +89,16 @@ const WORDS = {
     ended: "Your membership has ended and no more payments will be taken. Thank you for being a member.",
     button: "Open your membership",
     cardButton: "Add a new card",
+    giftSubject: (shop) => `You've been given a ${shop} membership`,
+    gift: (from, plan, months, date) => `${from} has given you ${months} months of ${plan}. Your membership starts today and runs until ${date}. Nothing more will be charged.`,
+    giftNote: "Their message:",
+    giftHow: "Sign in to the shop with this email address to use your membership.",
+    giftSentSubject: (shop) => `Your ${shop} gift membership is on its way`,
+    giftSent: (to, months, plan) => `Thank you. We've emailed ${to} to say you've given them ${months} months of ${plan}.`,
+    giftShopButton: "Visit the shop",
+    giftEndedSubject: (shop) => `Your gift membership to ${shop} has ended`,
+    giftEnded: "Your gift membership has ended. Nothing will be charged. You can join from the membership page any time.",
+    giftJoinButton: "See membership plans",
   },
   fr: {
     welcomeSubject: (shop) => `Bienvenue parmi les membres de ${shop}`,
@@ -102,11 +113,24 @@ const WORDS = {
     ended: "Votre abonnement est terminé et aucun autre paiement ne sera pris. Merci d'avoir été membre.",
     button: "Ouvrir votre abonnement",
     cardButton: "Ajouter une nouvelle carte",
+    giftSubject: (shop) => `On vous offre un abonnement à ${shop}`,
+    gift: (from, plan, months, date) => `${from} vous offre ${months} mois de ${plan}. Votre abonnement commence aujourd'hui et dure jusqu'au ${date}. Rien d'autre ne sera facturé.`,
+    giftNote: "Son message :",
+    giftHow: "Connectez-vous à la boutique avec cette adresse courriel pour profiter de votre abonnement.",
+    giftSentSubject: (shop) => `Votre abonnement-cadeau à ${shop} est en route`,
+    giftSent: (to, months, plan) => `Merci. Nous avons écrit à ${to} pour lui annoncer vos ${months} mois de ${plan}.`,
+    giftShopButton: "Visiter la boutique",
+    giftEndedSubject: (shop) => `Votre abonnement-cadeau à ${shop} est terminé`,
+    giftEnded: "Votre abonnement-cadeau est terminé. Rien ne sera facturé. Vous pouvez devenir membre depuis la page d'abonnement en tout temps.",
+    giftJoinButton: "Voir les formules",
   },
 };
 
 /** A plan as anyone sees it. */
-const publicPlan = (id, p, currency) => ({ id, name: p.name, description: p.description || "", perks: p.perks || [], interval: p.interval, priceMinor: p.priceMinor, trialDays: p.trialDays || 0, memberPercent: percentOf(p), currency, ...(p.box ? { box: p.box } : {}) });
+const publicPlan = (id, p, currency) => ({
+  id, name: p.name, description: p.description || "", perks: p.perks || [], interval: p.interval, priceMinor: p.priceMinor, trialDays: p.trialDays || 0, memberPercent: percentOf(p), currency,
+  ...(p.box ? { box: p.box } : p.gifts === true ? { gifts: GIFT_MONTHS.map((months) => ({ months, priceMinor: giftPriceMinor(p, months) })) } : {}),
+});
 /** The address the card page took (Stripe's older and newer places for it), cleaned; null when there is none (M3a). */
 function sessionAddress(session) {
   const ship = session?.collected_information?.shipping_details || session?.shipping_details || null;
@@ -119,6 +143,7 @@ const percentOf = (p) => (Number.isInteger(p?.memberPercent) && p.memberPercent 
 const memberView = (id, m) => ({
   id, state: m.state || "pending", plan: m.plan || null, periodEnd: m.periodEnd || "", trialEnd: m.trialEnd || "", card: m.card || null,
   startedAt: m.startedAt || "", endedAt: m.endedAt || "", test: m.mode === "test", cardPending: (m.cardSessions || []).some((c) => !c.done),
+  ...(m.gift ? { gift: { months: m.gift.months || 0, from: m.gift.from || "" } } : {}),
   ...(m.box ? { box: true, address: m.address || null, skipMonth: m.skipMonth || "" } : {}),
   ...(m.state === "paused" ? { pausedAt: m.pausedAt || "" } : {}),
 });
@@ -316,6 +341,7 @@ function membershipActions({
 
   /** Reads one membership again from the provider. Never throws: a failed read keeps what was saved. */
   async function refresh(id, m, { invoices = false } = {}) {
+    if (m.gift) return giftTick(id, m);
     try {
       const acc = await account(m.mode);
       if (!acc.subscriptions) return m;
@@ -367,7 +393,8 @@ function membershipActions({
       }
     }
     const boxes = await sweepBoxes().catch((err) => { console.warn("memberships: box orders failed:", err?.message || err); return { made: 0 }; });
-    return { read, closed, boxes: boxes.made };
+    const giftsSettled = await sweepGifts().catch((err) => { console.warn("memberships: gifts failed:", err?.message || err); return 0; });
+    return { read, closed, boxes: boxes.made, gifts: giftsSettled };
   }
 
   // ── Boxes (M3b) ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -462,6 +489,121 @@ function membershipActions({
   }
 
   // ── Members (validateDiscountCode actions) ─────────────────────────────────────────────────────────────────────
+
+  // ── Gift memberships (M5) ──────────────────────────────────────────────────────────────────────────────────────
+  // A signed-in buyer pays once for 3, 6 or 12 months of a plan that allows gifts (never a box plan). The gift is kept in
+  // membershipGifts/{id} (server-only); once its card page reads paid, the person it is for gets an ordinary membership
+  // (`memberships/g<giftId>`, `gift: {id, months, from}`, no subscription) that ends by itself at `periodEnd`. Nothing
+  // repeats, so the member has nothing to cancel or pay; they join a plan of their own after it ends.
+  const gifts = () => db.collection("membershipGifts");
+  const giftMemberId = (giftId) => `g${giftId}`.slice(0, 40);
+
+  /** A gift membership: ends by itself once its months are over. */
+  async function giftTick(id, m) {
+    const nowMs = now().getTime();
+    if (m.state === "ended") return m;
+    const end = Date.parse(m.periodEnd || "");
+    if (Number.isFinite(end) && end <= nowMs) {
+      const at = new Date(nowMs).toISOString();
+      const ended = { ...m, state: "ended", endedAt: at, checkAfter: null, updatedAt: at };
+      await members().doc(id).set({ state: "ended", endedAt: at, checkAfter: null, updatedAt: at }, { merge: true });
+      if (!m.endedEmailedAt) {
+        await tellGift("ended", ended);
+        await members().doc(id).set({ endedEmailedAt: at }, { merge: true });
+      }
+      return ended;
+    }
+    const due = Number.isFinite(end) ? new Date(end + MINUTE).toISOString() : null;
+    if (due && m.checkAfter !== due) await members().doc(id).set({ checkAfter: due }, { merge: true });
+    return m;
+  }
+
+  async function tellGift(kind, m, g = null) {
+    try {
+      const fr = french(m.locale);
+      const say = fr ? WORDS.fr : WORDS.en;
+      const brand = await emailBrand();
+      const shop = String(brand.shopName || shopName() || "").trim() || "the shop";
+      const p = (t) => `<p style="margin:0 0 12px;">${escapeHtml(t)}</p>`;
+      const planName = m.plan?.name || "";
+      let to, subject, body, button, link;
+      if (kind === "given") {
+        to = m.customer.email; subject = say.giftSubject(shop); button = say.button; link = accountUrl();
+        body = p(say.gift(m.gift.from || shop, planName, m.gift.months, dateWords(m.periodEnd, m.locale)))
+          + (g?.message ? p(say.giftNote) + `<blockquote style="margin:0 0 12px;padding:0 0 0 12px;border-left:3px solid currentColor;">${escapeHtml(g.message).replace(/\n/g, "<br>")}</blockquote>` : "")
+          + p(say.giftHow);
+      } else if (kind === "sent") {
+        to = g.buyer.email; subject = say.giftSentSubject(shop); button = say.giftShopButton; link = siteLink("/");
+        body = p(say.giftSent(g.to.name || g.to.email, g.months, planName));
+      } else {
+        to = m.customer.email; subject = say.giftEndedSubject(shop); button = say.giftJoinButton; link = siteLink("/membership");
+        body = p(say.giftEnded);
+      }
+      const html = risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(subject)}</h2>${body}<div style="margin:16px 0 0;">${risoButton(escapeHtml(link), button, brand.accent, brand.theme)}</div>`, { ...brand, shopName: shop });
+      await sendEmail({ to, subject: m.mode === "test" ? `[TEST] ${subject}` : subject, html, queue: `membership-gift-${kind}` });
+    } catch (err) {
+      console.warn(`memberships: the gift ${kind} email wasn't sent:`, err?.message || err);
+    }
+  }
+
+  /** Reads a pending gift's card page; once paid, makes the membership (safe to run twice) and sends both emails. */
+  async function settleGift(id, g) {
+    if (g.state !== "pending") return g;
+    const nowMs = now().getTime();
+    const acc = await account(g.mode);
+    let paid = null, open = false;
+    for (const sid of g.sessions || []) {
+      const session = await acc.checkout?.read(sid).catch(() => null);
+      if (!session) continue;
+      if (session.payment_status === "paid") { paid = session; break; }
+      if (session.status === "open") open = true;
+    }
+    const at = new Date(nowMs).toISOString();
+    if (!paid) {
+      if (!open && Date.parse(g.createdAt || "") + PAGE_MINUTES * MINUTE <= nowMs) {
+        await gifts().doc(id).set({ state: "ended", checkAfter: null, updatedAt: at }, { merge: true });
+        return { ...g, state: "ended" };
+      }
+      return g;
+    }
+    const memberId = giftMemberId(id);
+    const existing = await members().doc(memberId).get();
+    let m = existing.exists ? existing.data() : null;
+    if (!m) {
+      const periodEnd = giftEnd(at, g.months);
+      m = {
+        planId: g.planId, plan: g.plan, customer: { email: g.to.email, name: g.to.name || "", uid: "" }, state: "active", mode: g.mode,
+        gift: { id, months: g.months, from: g.buyer.name || "" }, sessions: [], cardSessions: [], locale: g.locale || "en",
+        // The one payment, so Bookkeeping counts it with the other membership payments (test ones are left out there).
+        payments: [{ id: `gift-${id}`, amountMinor: g.priceMinor, currency: String(g.currency || "").toUpperCase(), paidAt: at, periodEnd }],
+        startedAt: at, periodEnd, createdAt: at, updatedAt: at, checkAfter: new Date(Date.parse(periodEnd) + MINUTE).toISOString(),
+      };
+      await members().doc(memberId).set(m);
+    }
+    const paymentIntent = typeof paid.payment_intent === "string" ? paid.payment_intent : paid.payment_intent?.id || "";
+    await gifts().doc(id).set({ state: "paid", membershipId: memberId, paidAt: g.paidAt || at, checkAfter: null, updatedAt: at, ...(paymentIntent ? { paymentIntent } : {}) }, { merge: true });
+    if (!g.emailedAt) {
+      await tellGift("given", m, g);
+      await tellGift("sent", m, g);
+      await gifts().doc(id).set({ emailedAt: at }, { merge: true });
+    }
+    return { ...g, state: "paid", membershipId: memberId };
+  }
+
+  async function sweepGifts() {
+    const snap = await gifts().where("checkAfter", "<=", now().toISOString()).limit(30).get();
+    let settled = 0;
+    for (const doc of snap.docs) {
+      const before = doc.data();
+      const after = await settleGift(doc.id, before).catch((err) => { console.warn(`memberships: gift ${doc.id}:`, err?.message || err); return before; });
+      if (after.state === "pending") await gifts().doc(doc.id).set({ checkAfter: new Date(now().getTime() + 5 * MINUTE).toISOString() }, { merge: true });
+      else settled += 1;
+    }
+    return settled;
+  }
+
+  /** A gift as its buyer sees it on the thank-you. */
+  const giftView = (id, g) => ({ id, state: g.state === "paid" ? "paid" : g.state === "ended" ? "ended" : "pending", months: g.months, plan: g.plan?.name || "", to: g.to?.name || g.to?.email || "" });
 
   async function mine(email) {
     const snap = await members().where("customer.email", "==", email).limit(20).get();
@@ -563,11 +705,66 @@ function membershipActions({
         return res.status(200).json({ url: session.url, id });
       }
 
+      if (action === "membershipGift") {
+        if (!(await featureOn())) return fail(res, 409, "This shop isn't taking new members right now.", "off");
+        const planId = String(req.body?.planId || "");
+        const planSnap = ID.test(planId) ? await plans().doc(planId).get() : null;
+        const plan = planSnap?.exists ? planSnap.data() : null;
+        if (!plan || plan.hidden === true || plan.gifts !== true || plan.box) return fail(res, 404, "That plan can't be given as a gift. Reload the page to see the plans.", "plan");
+        const cleaned = cleanGift(req.body?.gift, who.email);
+        if ("problem" in cleaned) return fail(res, 400, cleaned.problem, cleaned.field);
+        const { months, to, message } = cleaned.gift;
+        const priceMinor = giftPriceMinor(plan, months);
+        if (!priceMinor) return fail(res, 404, "That plan can't be given as a gift. Reload the page to see the plans.", "plan");
+        if (!(await hitLimit(db, "membershipPage", req, { max: PAGES_PER_HOUR, windowMs: HOUR }, { key: `member:${who.email}` }))) {
+          return fail(res, 429, "You've tried several times in a short while. Please wait an hour and try again.", "too_many");
+        }
+        const mode = await currentMode();
+        const acc = await account(mode);
+        if (!acc.checkout) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
+        const id = randomId();
+        const at = new Date(nowMs).toISOString();
+        await gifts().doc(id).set({
+          planId, plan: { name: plan.name, interval: plan.interval, priceMinor: plan.priceMinor, trialDays: 0, currency: currency() }, months, priceMinor, currency: currency(),
+          buyer: { email: who.email, name: String(who.name || "").slice(0, 100), uid: who.uid || "" }, to, message, state: "pending", mode, sessions: [],
+          locale: french(req.body?.locale) ? "fr" : "en", createdAt: at, updatedAt: at, checkAfter: new Date(nowMs + 5 * MINUTE).toISOString(),
+        });
+        const shop = shopName();
+        const name = `${shop ? `${shop}: ` : ""}Gift membership, ${plan.name} (${months} months)`.slice(0, 250);
+        const metadata = { gift_membership: id };
+        let session;
+        try {
+          session = await acc.checkout.open({
+            mode: "payment", customer_email: who.email, metadata, expires_at: Math.floor(nowMs / 1000) + PAGE_MINUTES * 60,
+            success_url: siteLink(`/membership?gift=${encodeURIComponent(id)}`), cancel_url: siteLink("/membership"),
+            line_items: [{ quantity: 1, price_data: { currency: currency().toLowerCase(), unit_amount: priceMinor, product_data: { name } } }],
+            payment_intent_data: { description: name, metadata },
+          }, `membership-gift-${id}`);
+        } catch (err) {
+          await gifts().doc(id).set({ state: "ended", checkAfter: null, updatedAt: now().toISOString() }, { merge: true });
+          if (err?.code === "currency_mismatch") return fail(res, 409, err.message, "currency_mismatch");
+          if (["test_only", "not_connected", "not_available"].includes(err?.code)) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
+          throw err;
+        }
+        await gifts().doc(id).set({ sessions: [session.id] }, { merge: true });
+        return res.status(200).json({ url: session.url, id });
+      }
+
+      if (action === "membershipGiftStatus") {
+        const id = String(req.body?.id || "");
+        const snap = ID.test(id) ? await gifts().doc(id).get() : null;
+        if (!snap?.exists || snap.data().buyer?.email !== who.email) return fail(res, 404, "We couldn't find that gift.", "not_found");
+        const g = await settleGift(id, snap.data()).catch(() => snap.data());
+        return res.status(200).json({ gift: giftView(id, g) });
+      }
+
       // The member's own membership: cancel, resume, new card.
       const id = String(req.body?.id || "");
       const snap = ID.test(id) ? await members().doc(id).get() : null;
       if (!snap?.exists || snap.data().customer?.email !== who.email) return fail(res, 404, "We couldn't find that membership.", "not_found");
       const m = snap.data();
+      // A gift (M5) repeats nothing and ends by itself: there is nothing to cancel, pause or pay.
+      if (m.gift) return fail(res, 409, "A gift membership ends by itself, so there's nothing to change.", "gift");
       if (action === "membershipAddress") {
         // Where the boxes go (M3a): only on a box membership that hasn't ended.
         if (!m.box || m.state === "ended") return fail(res, 409, "That membership doesn't send boxes.", "state");
@@ -666,7 +863,7 @@ function membershipActions({
         const list = rows.docs.filter((d) => !d.data().neverStarted).map((d) => adminMember(d.id, d.data()))
           .sort((a, b) => (a.state === "ended") - (b.state === "ended") || String(b.startedAt || b.createdAt).localeCompare(String(a.startedAt || a.createdAt)));
         const counted = list.filter((x) => !x.test && LIVE.includes(x.state));
-        const monthly = counted.reduce((s, x) => s + (x.plan ? (x.plan.interval === "year" ? Math.round(x.plan.priceMinor / 12) : x.plan.priceMinor) : 0), 0);
+        const monthly = counted.reduce((s, x) => s + (x.plan && !x.gift ? (x.plan.interval === "year" ? Math.round(x.plan.priceMinor / 12) : x.plan.priceMinor) : 0), 0);
         const perPlan = Object.fromEntries(allPlans.map((p) => [p.id, counted.filter((x) => x.planId === p.id).length]));
         const acc = await account(await currentMode());
         return res.status(200).json({
@@ -722,6 +919,12 @@ function membershipActions({
         if (!snap?.exists) return fail(res, 404, "Unknown membership.");
         const m = snap.data();
         if (m.state === "ended") return fail(res, 409, "That membership has already ended.");
+        if (m.gift) {
+          // Nothing repeats: a gift ends here and now.
+          const ended = { ...m, state: "ended", endedAt: at, checkAfter: null, updatedAt: at, endedBy: adminUser.email || "admin" };
+          await members().doc(id).set({ state: "ended", endedAt: at, checkAfter: null, updatedAt: at, endedBy: adminUser.email || "admin" }, { merge: true });
+          return res.status(200).json({ ok: true, member: adminMember(id, ended) });
+        }
         const acc = await account(m.mode);
         if (!acc.subscriptions || !m.subscription) return fail(res, 409, "That membership can't be changed right now.");
         const saved = await apply(id, await acc.subscriptions.endNow(m.subscription));

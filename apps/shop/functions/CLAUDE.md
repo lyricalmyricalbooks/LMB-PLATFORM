@@ -1800,3 +1800,13 @@ through the order's customer. Square takes no app fee on them, so the platform r
 (`monthly_plan_only`, Julian's pick); memberships.js and giving.js answer that and `reconnect` (old scopes) as 409
 `not_available`. `subscriptions.cardChange` is false on Square: no New card button (`noNewCard`), setup mode refused, and
 `endNow` ends at the period end. The Members page shows a note for Square shops (`square: true`).
+
+## Gift memberships (M5a, 18 November 2026)
+
+A plan with `gifts: true` (never with a box; `cleanPlan` drops it) lists `gifts: [{months, priceMinor}]` publicly
+(`giftPriceMinor`: monthly price × months, a yearly plan by twelfths). `membershipGift` (signed in) keeps
+`membershipGifts/{id}` (server-only) and opens a one-off `mode: "payment"` page with `metadata.gift_membership` (no order
+reference, so the order webhook ignores it; Square's adapter keeps it beside the link). `settleGift` (sweep and
+`membershipGiftStatus`) makes `memberships/g<id>` once paid: state active, `gift {id, months, from}`, `periodEnd` from
+`giftEnd`, one `payments` entry for the books, no subscription. `refresh` sends gift memberships to `giftTick`, which ends
+them at `periodEnd` with one email. Member actions answer 409 `gift`; the owner's End now ends a gift at once.
