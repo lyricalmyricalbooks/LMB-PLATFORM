@@ -2,12 +2,14 @@
 // State lives in BookEditor's formData; these components only edit their own fields.
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { SectionCard, SelectField, StatusBadge, TextField, Toggle } from "./riso/components";
+import { SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, Toggle } from "./riso/components";
 import {
   ADD_ON_PRESETS, MAX_ADD_ONS, MAX_BUNDLE_PARTS, bundleAvailable, bundlePartProblem, newAddOn, saleStatus, saleWindowProblem,
 } from "./productExtras";
 import { productKind, type ProductKind } from "../../shared/productOptions";
-import { useShopWords } from "./shopWords";
+import { useShopSells, useShopWords } from "./shopWords";
+import { TypePicker } from "./TypePicker";
+import { sellsGroups, typeGroup, typeOfProduct, type ProductType } from "../../shared/productTypes";
 import { MONEY_SIGN } from "./moneySign";
 
 type Setter = (name: string, value: any) => void;
@@ -173,26 +175,39 @@ export function BoxSetEditor({ form, set, bookId, catalog, catalogError, on, onT
 }
 
 // ── Details › Product type ─────────────────────────────────────────
-/** What a product is (plan 10.3). Book is today's default; e-books stay a book format. */
-export const KIND_CHOICES: { id: ProductKind; label: string }[] = [
-  { id: "book", label: "Book" }, { id: "clothing", label: "Clothing" }, { id: "shoes", label: "Shoes" }, { id: "jewelry", label: "Jewelry" },
-  { id: "art", label: "Art or print" }, { id: "music", label: "Music" }, { id: "other", label: "Something else" },
-];
+/** The kinds a product saved before types existed can be, named for the card. */
+const KIND_LABELS: Record<ProductKind, string> = {
+  book: "Book", ebook: "E-book", clothing: "Clothing", shoes: "Shoes", jewelry: "Jewelry", art: "Art or print", music: "Music", other: "Something else",
+};
 
-export function ProductTypeCard({ form, onChange, onKind }: { form: any; onChange: (type: "book" | "giftCard") => void; onKind: (kind: ProductKind) => void }) {
+/**
+ * What a product is (product types plan, change 3): its type and group, with Change type opening the same "What is it?"
+ * window Add product starts with. A product saved before types shows its kind and Choose a type.
+ */
+export function ProductTypeCard({ form, onType }: { form: any; onType: (type: ProductType) => void }) {
+  const [picking, setPicking] = useState(false);
+  const sells = useShopSells();
+  const groups = useMemo(() => sellsGroups(sells), [sells]);
   const giftCard = form.productType === "giftCard";
-  const kind = productKind(form);
+  const type = typeOfProduct(form);
+  const named = !!form.typeId || giftCard || !!type;
+  const name = type?.name ?? KIND_LABELS[productKind(form)];
+  const group = type ? typeGroup(type.group)?.name : null;
   return (
-    <SectionCard title="Product type" description="Choose what this is: the editor shows the fields that fit it, and the product page shows only the details it has. Choose Gift card to sell gift cards: shoppers pick an amount and the code is emailed to them (or the person they're giving it to).">
-      <div role="radiogroup" aria-label="Product type" className="be-chips">
-        {[...KIND_CHOICES.map((k) => ({ id: k.id as string, label: k.label })), { id: "giftCard", label: "Gift card" }].map((t) => {
-          const on = t.id === "giftCard" ? giftCard : !giftCard && (t.id === kind || (t.id === "book" && kind === "ebook"));
-          const pick = () => { if (t.id === "giftCard") onChange("giftCard"); else { if (giftCard) onChange("book"); onKind(t.id as ProductKind); } };
-          return <button key={t.id} type="button" role="radio" aria-checked={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={pick}>{on ? "✓ " : ""}{t.label}</button>;
-        })}
+    <SectionCard title="Product type" description="The page asks only what this kind of product needs.">
+      <div className="rp-tp-current">
+        <span>
+          <span className="rp-tp-name">{name}</span>
+          {group && <span className="rp-tp-group">{group}</span>}
+        </span>
+        <SecondaryButton onClick={() => setPicking(true)}>{named ? "Change type" : "Choose a type"}</SecondaryButton>
       </div>
       {giftCard && (
         <p className="be-note">Each edition is an amount, e.g. {MONEY_SIGN}25 — set them on the <strong>Amounts</strong> tab. Gift cards are always delivered by email, never shipped, taxed or discounted, and have no stock limit or add-ons.</p>
+      )}
+      {picking && (
+        <TypePicker open groups={groups} current={type?.id} allowBlank={false} title={named ? "Change type" : "Choose a type"}
+          onClose={() => setPicking(false)} onPick={(picked) => { setPicking(false); if (picked) onType(picked); }} />
       )}
     </SectionCard>
   );

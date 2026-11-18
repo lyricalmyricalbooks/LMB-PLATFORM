@@ -2468,9 +2468,10 @@ div.rp-listcard-main { cursor: default; }
 }
 @media (max-width: 640px) {
   /* A long status ("3 items not counted yet") takes its own line above the buttons instead of squeezing to four lines. */
-  .rp .rp-fk-status { flex-wrap: wrap; border-radius: 24px; }
-  .rp .rp-fk-status-text { flex: 1 1 auto; min-width: 0; padding: 6px 0; }
-  .rp .rp-fk-status-actions { margin-left: auto; }
+  /* One slim row on phones (18 November 2026): a long status gets two short lines beside the buttons, so the bar stays low. */
+  .rp .rp-fk-status { flex-wrap: nowrap; border-radius: 24px; }
+  .rp .rp-fk-status-text { flex: 1 1 auto; min-width: 0; padding: 4px 0; font-size: 12.5px; line-height: 1.25; }
+  .rp .rp-fk-status-actions { margin-left: auto; flex: none; }
   .rp .rp-fk-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .rp .rp-fk-facts > div { padding: 10px 12px; }
 }
@@ -2628,3 +2629,48 @@ div.rp-listcard-main { cursor: default; }
   .rp-todo-go, .rp-todo-done, .rp-home-link, .od-link { min-height: var(--rp-touch); }
   .rp-check input { width: 24px; height: 24px; }
 }
+
+/* Pages without the phone's bottom menu (the product editor) keep the bar at the very bottom, not 72px up. */
+@media (max-width: 767px) {
+  .rp:not(:has(.rp-bottom-nav)) .rp-fk-status { bottom: calc(10px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 767px) {
+  .rp:not(:has(.rp-bottom-nav)) .rp-workspace:has(.rp-fk-status) { padding-bottom: 12px; }
+}
+
+/* "What is it?" (product types, 18 November 2026): Add product's first window. A large search, the shop's usual types as
+   tiles, every group a tap away. Tokens only. */
+.rp-tp { display: grid; gap: 14px; }
+.rp-tp-label { font: 600 var(--rp-text-base) var(--rp-font-body); color: var(--rp-text); }
+.rp-tp-search .rp-input { min-height: 52px; font-size: var(--rp-text-lg, 18px); padding-left: 44px; }
+.rp-tp-search .rp-search-icon { left: 15px; }
+.rp-tp-head { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.rp-tp-title { margin: 0; font: 600 var(--rp-text-xs) var(--rp-font-mono, var(--rp-font-body)); letter-spacing: .04em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp-tp-back { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: 0 10px 0 6px; border: 1px solid var(--rp-border); border-radius: 999px; background: var(--rp-surface); color: var(--rp-text); font: 600 var(--rp-text-sm) var(--rp-font-body); cursor: pointer; }
+.rp-tp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.rp-tp-list[data-grid] { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.rp-tp-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 14px; border-radius: 14px; border: 1px solid transparent; cursor: pointer; }
+.rp-tp-list:not([data-grid]) .rp-tp-option[data-active] { background: var(--rp-surface-2); border-color: var(--rp-border); }
+.rp-tp-list[data-grid] .rp-tp-option { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; border-color: var(--rp-border); background: var(--rp-surface); min-height: 64px; }
+.rp-tp-list[data-grid] .rp-tp-option[data-active], .rp-tp-list[data-grid] .rp-tp-option:hover { border-color: var(--rp-border-strong); background: var(--rp-surface-2); }
+.rp-tp-name { font: 600 var(--rp-text-base) var(--rp-font-body); color: var(--rp-text); }
+.rp-tp-now { font-weight: 500; color: var(--rp-text-subtle); }
+.rp-tp-group { font-size: var(--rp-text-sm); color: var(--rp-text-subtle); }
+.rp-tp-list[data-grid] .rp-tp-group { font-size: var(--rp-text-xs); }
+.rp-tp-empty { padding: 14px 16px; border-radius: 14px; background: var(--rp-surface-2); }
+.rp-tp-empty p { margin: 0; color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
+.rp-tp-empty p + p { margin-top: 4px; }
+.rp-tp-empty strong { color: var(--rp-text); }
+.rp-tp-groups { border-top: 1px solid var(--rp-divider); padding-top: 10px; }
+.rp-tp-groups > summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; font: 600 var(--rp-text-sm) var(--rp-font-body); color: var(--rp-text); text-decoration: underline; text-underline-offset: 3px; }
+.rp-tp-group-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 12px; }
+.rp-tp-group-list button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 6px 10px; border: 0; border-radius: 12px; background: transparent; text-align: left; cursor: pointer; color: var(--rp-text-subtle); }
+.rp-tp-group-list button:hover { background: var(--rp-surface-2); }
+.rp-tp-group-list button > span { display: grid; gap: 1px; }
+@media (max-width: 640px) {
+  .rp-tp-list[data-grid] { grid-template-columns: 1fr 1fr; }
+  .rp-tp-group-list { grid-template-columns: 1fr; }
+}
+/* The product's type in the editor: its name and group, with Change. */
+.rp-tp-current { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rp-tp-current > span { display: grid; gap: 2px; }

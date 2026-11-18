@@ -85,6 +85,7 @@ import { ProductOptionsEditor } from "./ProductOptionsEditor";
 import { VariantGrid } from "./VariantGrid";
 import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
+import type { ProductType } from "../../shared/productTypes";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
@@ -400,7 +401,10 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       if (prefill) setFormData((prev: any) => ({ ...prev, ...JSON.parse(JSON.stringify(prefill)) }));
       // Plan 10.1: a shop that signed up selling something other than books starts each new product as that kind
       // (sells.ts). The starting kind isn't an edit, so it goes into both the form and what "unsaved" compares with.
-      if (!(prefill as any)?.kind) {
+      // A gift card picked in "What is it?" becomes the gift card product the editor already knows (amounts, no stock).
+      if ((prefill as any)?.typeId === "gift-cards") setProductType("giftCard");
+      // A product whose type was picked already has its kind (a printed book keeps none), so the sign-up kind stays out.
+      if (!(prefill as any)?.kind && !(prefill as any)?.typeId) {
         Promise.resolve().then(() => adminApi.getFirstWeek()).then(doc => {
           const kind = startingKind(currentSells(doc));
           if (kind === "book") return;
@@ -1124,6 +1128,13 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const fmt = (n: any) => num(n).toFixed(2);
   const overrides = !!formData.manualCurrencyOverrides;
   const hasVariants = (formData.variants || []).length > 0;
+  // Product types plan, change 3: a picked type sets its kind (so tax, customs and book fields follow) and, for Gift
+  // cards, the gift card product; switching away from a gift card puts the editions back as they were.
+  const setType = (type: ProductType) => {
+    if (type.id === "gift-cards") setProductType("giftCard");
+    else { if (isGiftCardProduct(formData)) setProductType("book"); setKind(type.kind); }
+    setFormData((prev: any) => ({ ...prev, typeId: type.id }));
+  };
   // Digital D1: a book format that is a download, or the "Digital product" switch any kind of shop has.
   const digitalFormat = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
   const isDigital = digitalFormat || formData.digital === true;
@@ -1250,7 +1261,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
             <>
               <div role="tabpanel" id="bd-panel-basics" aria-labelledby="rp-tab-bd-basics" className="be-subpanel">
               {/* A new product chooses its type first; an existing one rarely changes it, so it moves to the end. */}
-              {!book && <ProductTypeCard form={formData} onChange={setProductType} onKind={setKind} />}
+              {!book && <ProductTypeCard form={formData} onType={setType} />}
               <SectionCard title={bookKind ? "Book details" : "Product details"} description="The essentials shoppers see first.">
                 <div className="be-grid">
                   <div className="be-span-2"><TextField label={bookKind ? "Book title" : "Product title"} name="title" value={formData.title} onChange={handleChange} placeholder={bookKind ? "e.g. Find Still Catches Me Shifted" : "e.g. Logo tee"} required /></div>
@@ -1327,7 +1338,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </div>
                 </div>
               </SectionCard>
-              {book && <ProductTypeCard form={formData} onChange={setProductType} onKind={setKind} />}
+              {book && <ProductTypeCard form={formData} onType={setType} />}
               </div>
               <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel">
               <SectionCard data-extra title={bookKind ? "Publishing details" : "Product details"} description={bookKind ? "Bibliographic data used on the product page and in search." : "Codes and facts used on the product page, for shipping and in search. Empty boxes don't show to shoppers."}>

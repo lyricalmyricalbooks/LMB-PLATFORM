@@ -79,6 +79,7 @@ import { useWaysAllowed, useWaysOn } from "./waysApi";
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
 // Heavy admin pages load in their own chunks when first opened.
 const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
+const AddProductPicker = lazy(() => import("./TypePicker").then(m => ({ default: m.AddProductPicker })));
 const FairHelperDesk = lazy(() => import("./FairHelperDesk").then(m => ({ default: m.FairHelperDesk })));
 const FairHelperInbox = lazy(() => import("./stockroom/FairHelperInbox").then(m => ({ default: m.FairHelperInbox })));
 const WebsiteOrdersAuto = lazy(() => import("./stockroom/WebsiteOrders").then(m => ({ default: m.WebsiteOrdersAuto })));
@@ -639,6 +640,7 @@ export function Dashboard() {
   // Declared before the loading/sign-in returns below: a hook after them crashes the admin on sign-in.
   // A new book's starting values and what to do once it's saved ("Add to the shop" from an inventory app book).
   const [newBookStart, setNewBookStart] = useState<{ prefill: Record<string, any>; onCreated: (id: string) => void } | null>(null);
+  const [pickingType, setPickingType] = useState(false);
 
   if (loading) {
     return (
@@ -701,8 +703,11 @@ export function Dashboard() {
       .catch(() => setBookLinkProblem(w("That book couldn't be opened just now. Try the link again in a minute, or find it on this Books page.")));
   };
 
-  const handleAddBook = () => {
-    setNewBookStart(null);
+  // Add product asks "What is it?" first (product types plan, change 3); the picked type shapes the new product's page.
+  const handleAddBook = () => setPickingType(true);
+  const startProduct = (start: Record<string, any> | null) => {
+    setPickingType(false);
+    setNewBookStart(start ? { prefill: start, onCreated: () => {} } : null);
     setEditingBook(null);
     setShowEditor(true);
   };
@@ -971,6 +976,10 @@ export function Dashboard() {
         footer={<SecondaryButton data-autofocus onClick={() => setBookLinkProblem(null)}>Close</SecondaryButton>}>
         <p style={{ margin: 0 }}>{bookLinkProblem}</p>
       </Dialog>
+      {pickingType && <Suspense fallback={null}>
+        <AddProductPicker sells={sellsAnswer} appearance={appearance} title={w("Add a book")}
+          onClose={() => setPickingType(false)} onStart={startProduct} />
+      </Suspense>}
       <AppShell
         appearance={appearance}
         // A stockroom page (the Fair till above all) says it's offline in its own words and keeps selling; the admin's
