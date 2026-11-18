@@ -66,6 +66,10 @@ export const TOUR_STEPS: TourStep[] = [
   { id: "giving", chapter: "website", combinedOnly: true, target: { nav: "giving" },
     title: "Donations",
     text: "Donations and tips from your Support page. Choose the amounts you suggest, and see who gave and what they wrote." },
+  // Only in a shop with Memberships switched on (beta; the menu item is hidden otherwise, and its stop with it).
+  { id: "memberships", chapter: "website", combinedOnly: true, target: { nav: "memberships" },
+    title: "Members",
+    text: "Membership plans people pay for every month or year. Make a plan, and see who is a member and when they pay next." },
   { id: "messages", chapter: "website", target: { nav: "messages" },
     title: "Messages",
     text: "Notes shoppers send from your contact form. Reply here and your answer goes by email." },
