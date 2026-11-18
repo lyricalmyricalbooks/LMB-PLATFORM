@@ -8,6 +8,8 @@ import type { MemberState, PlanInterval } from "../../shared/membershipRules";
 export type AdminPlan = {
   id: string; name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number;
   currency: string; hidden: boolean; members: number;
+  /** Whole percent off the shop's products for members at checkout (0: none). */
+  memberPercent: number;
 };
 /** The plan as it was when the member joined. */
 export type JoinedPlan = { name: string; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string };
@@ -20,7 +22,7 @@ export type AdminMember = {
 export type MembersTotals = { members: number; monthlyMinor: number; pastDue: number };
 export type MembersList = { currency: string; ready: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals };
 /** What the plan form sends (shared/membershipRules `cleanPlan` checks it on the server). */
-export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean };
+export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent: number };
 export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint" | "payments";
 /** One membership payment, for the money pages (no names or emails). */
 export type MemberPayment = { id: string; membershipId: string; plan: string; amountMinor: number; currency: string; paidAt: string; test: boolean };

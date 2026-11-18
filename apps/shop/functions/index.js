@@ -165,6 +165,7 @@ const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
 const { PUBLIC_EVENT_ACTIONS } = require("./events");
 const { PUBLIC_GIVING_ACTIONS } = require("./giving");
 const { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS } = require("./memberships");
+const { memberUnitPrice } = require("./shared/membershipRules");
 const { checkoutTipProblem, MIN_TIP_MINOR, MAX_TIP_MINOR } = require("./shared/givingRules");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
@@ -1305,6 +1306,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
   // is read again on every pricing, so a stockist who is paused after claiming pays the shop's price.
   const stockist = link ? null : await loadStockist(db, order.stockistId);
   const wholesaleCache = new Map();
+  // An order claimed by a member (Memberships M2a, handleMembershipPricing) pays the plan's member price on each product
+  // at the shop's price. The membership and its plan are read again here every time, so it counts only while it lasts.
+  const member = link || !order.memberId ? null : await membershipDesk.priceFor(order.memberId, await shopTestMode());
   for (const requested of order.items || []) {
     // A free gift is never taken from the browser: it is re-added below when the order earns it.
     if (!requested || requested.promoGift === true) continue;
@@ -1345,9 +1349,16 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
     }
     const giftCard = isGiftCardProduct(book);
     let unitBase = basePrice;
+    let wholesaleLine = false;
+    let memberLine = false;
     if (stockist && !giftCard) {
       const wholesale = wholesaleUnitPrice({ book, variant, wholesale: await privateWholesale(db, requested.id, wholesaleCache), basePrice });
-      if (wholesale != null) unitBase = wholesale;
+      if (wholesale != null) { unitBase = wholesale; wholesaleLine = wholesale < basePrice; }
+    }
+    // The lower of the trade and member price wins; a price the shopper chose (pay what you want) stays theirs.
+    if (member && !giftCard && basePrice === listPrice) {
+      const memberPrice = memberUnitPrice(basePrice, member.percent);
+      if (memberPrice < unitBase) { unitBase = memberPrice; wholesaleLine = false; memberLine = true; }
     }
     if (giftCard && !(basePrice > 0)) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
     let giftCardInfo = null;
@@ -1359,7 +1370,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       }
     }
     // Only fields the browser may describe are kept; everything that prices or ships comes from the catalog.
-    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, chosenPrice: _cp, ...rest } = requested;
+    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, wholesale: _w, memberPrice: _mp, chosenPrice: _cp, ...rest } = requested;
     // Each part weighs what its chosen edition weighs (falling back to the book).
     const partWeights = components.map(part => {
       const partBook = booksById[part.id] || {};
@@ -1374,7 +1385,8 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
       variantName: variant ? (variant.name || null) : null,
       quantity,
       price: Math.round((unitBase + picked.price) * 100) / 100,
-      ...(unitBase < basePrice ? { wholesale: true } : {}),
+      ...(wholesaleLine ? { wholesale: true } : {}),
+      ...(memberLine ? { memberPrice: true } : {}),
       ...(basePrice !== listPrice ? { chosenPrice: basePrice } : {}),
       ...(picked.addOns.length ? { basePrice: unitBase, addOns: picked.addOns } : {}),
       ...(components.length ? { bundle: true, components } : {}),
@@ -2109,6 +2121,36 @@ const membershipDesk = membershipActions({
   },
 });
 
+// Member prices (Memberships M2a): checkout asks, with the shopper's sign-in, for member prices on the order it is about
+// to pay. Same proof of the order as the rest of checkout (its key or the sign-in). The server finds the shopper's
+// membership with the best member price and keeps its id on the order; priceOrder checks it again every time it prices.
+async function handleMembershipPricing(req, res) {
+  const { orderId } = req.body || {};
+  if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) return res.status(400).json({ error: "not_found" });
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+  try {
+    const identity = await orderRequestIdentity(req);
+    if (!identity?.email || identity.email_verified !== true) return res.status(401).json({ error: "sign_in" });
+    const orderRef = db.collection("orders").doc(orderId);
+    const snap = await orderRef.get();
+    const order = snap.exists ? snap.data() : null;
+    if (!order) return res.status(404).json({ error: "not_found" });
+    if (!canViewOrder(order, { key: orderRequestKey(req), identity })) return res.status(403).json({ error: "access_required" });
+    if (String(order.paymentStatus || "").toLowerCase() === "paid" || ["cancelled", "completed"].includes(String(order.status || "").toLowerCase())) return res.status(409).json({ error: "closed" });
+    if (order.source === "payment_link") return res.status(200).json({ member: false });
+    const best = await membershipDesk.bestFor(String(identity.email).trim().toLowerCase(), await shopTestMode());
+    if (!best) {
+      if (order.memberId) await orderRef.update({ memberId: admin.firestore.FieldValue.delete(), updatedAt: new Date().toISOString() });
+      return res.status(200).json({ member: false });
+    }
+    if (order.memberId !== best.membershipId) await orderRef.update({ memberId: best.membershipId, updatedAt: new Date().toISOString() });
+    return res.status(200).json({ member: true, percent: best.percent, plan: best.plan });
+  } catch (err) {
+    console.error("Member pricing failed:", err);
+    return res.status(500).json({ error: "failed" });
+  }
+}
+
 // Customers › Newsletter (newsletterSend.js): who is on the list, and sending to them a page at a time from the sweep.
 const { runNewsletterIssues, newsletterAdminActions, audienceCount, pastBuyerEmails, recipientRows } = require("./newsletterSend");
 async function newsletterOptedOutIds() {
@@ -2214,6 +2256,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   resolvePaymentMismatch: handleResolveMismatch,
   orderRequest: handleOrderRequest,
   stockistPricing: handleStockistPricing,
+  membershipPricing: handleMembershipPricing,
   stockistStatus: handleStockistStatus,
   paymentLink: handlePaymentLink,
   invoicePay: handleInvoicePay,

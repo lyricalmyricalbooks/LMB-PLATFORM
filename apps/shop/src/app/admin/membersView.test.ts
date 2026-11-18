@@ -23,9 +23,11 @@ describe("Members page words", () => {
     expect(trialFromText("61")).toHaveProperty("problem");
   });
   test("the form round-trips a plan", () => {
-    const plan = { name: "Friends", description: "Hello", perks: ["A", "B"], interval: "year" as const, priceMinor: 9000, trialDays: 7, hidden: false };
+    const plan = { name: "Friends", description: "Hello", perks: ["A", "B"], interval: "year" as const, priceMinor: 9000, trialDays: 7, hidden: false, memberPercent: 15 };
     expect(planFromForm(planFormOf(plan), money)).toEqual({ plan });
     expect(planFromForm(blankPlanForm(), money)).toEqual({ problem: "Give the plan a name.", field: "name" });
-    expect(planFromForm({ ...blankPlanForm(), name: "X", price: "15", perks: " one \n\n two " }, money)).toMatchObject({ plan: { perks: ["one", "two"], trialDays: 0, priceMinor: 1500 } });
+    expect(planFromForm({ ...blankPlanForm(), name: "X", price: "15", perks: " one \n\n two " }, money)).toMatchObject({ plan: { perks: ["one", "two"], trialDays: 0, priceMinor: 1500, memberPercent: 0 } });
+    expect(planFromForm({ ...blankPlanForm(), name: "X", price: "15", percent: "10 %" }, money)).toMatchObject({ plan: { memberPercent: 10 } });
+    for (const percent of ["51", "7.5", "-3", "lots"]) expect(planFromForm({ ...blankPlanForm(), name: "X", price: "15", percent }, money)).toMatchObject({ field: "percent" });
   });
 });

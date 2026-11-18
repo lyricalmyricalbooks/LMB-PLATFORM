@@ -3,6 +3,7 @@
 //   fm-mbr-plans   the plan cards in a grid          fm-mbr-plan    one plan: name, price, trial, perks, Join
 //   fm-mbr-price   big price with its interval       fm-mbr-perks   what members get, one per line
 //   fm-mbr-facts   the account card's rows           fm-mbr-actions the account card's buttons
+//   fm-mbr-member-price  a plan's member price line, marked with the shop's accent
 const S = ".fm-track";
 
 export const MEMBERSHIP_CSS = [
@@ -12,6 +13,7 @@ export const MEMBERSHIP_CSS = [
   `${S} .fm-mbr-price{margin:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;}`,
   `${S} .fm-mbr-price strong{font-size:34px;line-height:1.05;font-weight:700;font-variant-numeric:tabular-nums;}`,
   `${S} .fm-mbr-desc{margin:0;font-size:15px;line-height:1.55;white-space:pre-line;color:var(--muted, currentColor);}`,
+  `${S} .fm-mbr-member-price{margin:0;padding:2px 0 2px 12px;border-left:3px solid var(--accent, currentColor);font-size:15px;line-height:1.45;font-weight:600;}`,
   `${S} .fm-mbr-perks{margin:0;padding:0 0 0 20px;display:grid;gap:6px;font-size:15px;line-height:1.45;list-style:disc;}`,
   `${S} .fm-mbr-plan .fm-track-btn{margin-top:auto;width:100%;}`,
   `${S} .fm-mbr-error{margin:0;font-size:14px;color:var(--danger, currentColor);}`,

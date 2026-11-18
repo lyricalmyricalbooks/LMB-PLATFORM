@@ -8,7 +8,7 @@ import { isBookingPreview } from "./bookTimePreview";
 import { previewMembershipAnswer } from "./membershipPreview";
 import type { MemberState, PlanInterval } from "../../../shared/membershipRules";
 
-export type PublicPlan = { id: string; name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string };
+export type PublicPlan = { id: string; name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string; memberPercent?: number };
 export type MembershipInfo = { on: boolean; currency?: string; ready?: boolean; plans?: PublicPlan[] };
 export type MyMembership = {
   id: string; state: MemberState; plan: { name: string; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string } | null;

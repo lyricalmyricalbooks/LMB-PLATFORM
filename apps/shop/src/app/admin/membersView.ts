@@ -1,5 +1,5 @@
 // Admin › Members (beta): the words and small sums the page shows. Pure, so membersView.test.ts covers them.
-import { MAX_PLAN_MINOR, MIN_PLAN_MINOR, MAX_TRIAL_DAYS, type MemberState, type PlanInterval } from "../../shared/membershipRules";
+import { MAX_PLAN_MINOR, MIN_PLAN_MINOR, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT, type MemberState, type PlanInterval } from "../../shared/membershipRules";
 import type { AdminMember, PlanInput } from "./membersApi";
 import { dayText } from "./givingView";
 
@@ -47,19 +47,29 @@ export function trialFromText(raw: string): { days: number } | { problem: string
   return { days: Number(t) };
 }
 
+/** A member price's percent typed by the owner ("" is none; a trailing % is fine). */
+export function percentFromText(raw: string): { percent: number } | { problem: string } {
+  const t = raw.trim().replace(/\s*%$/, "");
+  if (!t) return { percent: 0 };
+  if (!/^\d+$/.test(t) || Number(t) > MAX_MEMBER_PERCENT) return { problem: `Type a whole number from 0 to ${MAX_MEMBER_PERCENT}.` };
+  return { percent: Number(t) };
+}
+
 /** The plan form's text fields. */
-export type PlanForm = { name: string; description: string; perks: string; interval: PlanInterval; price: string; trial: string; hidden: boolean };
-export const blankPlanForm = (): PlanForm => ({ name: "", description: "", perks: "", interval: "month", price: "", trial: "", hidden: false });
-export function planFormOf(p: { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean }): PlanForm {
-  return { name: p.name, description: p.description, perks: p.perks.join("\n"), interval: p.interval, price: (p.priceMinor / 100).toFixed(2), trial: p.trialDays ? String(p.trialDays) : "", hidden: p.hidden };
+export type PlanForm = { name: string; description: string; perks: string; interval: PlanInterval; price: string; trial: string; percent: string; hidden: boolean };
+export const blankPlanForm = (): PlanForm => ({ name: "", description: "", perks: "", interval: "month", price: "", trial: "", percent: "", hidden: false });
+export function planFormOf(p: { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent?: number }): PlanForm {
+  return { name: p.name, description: p.description, perks: p.perks.join("\n"), interval: p.interval, price: (p.priceMinor / 100).toFixed(2), trial: p.trialDays ? String(p.trialDays) : "", percent: p.memberPercent ? String(p.memberPercent) : "", hidden: p.hidden };
 }
 /** The form as the server takes it, or the first problem and its field. */
-export function planFromForm(form: PlanForm, money: (minor: number) => string): { plan: PlanInput } | { problem: string; field: "name" | "price" | "trial" } {
+export function planFromForm(form: PlanForm, money: (minor: number) => string): { plan: PlanInput } | { problem: string; field: "name" | "price" | "trial" | "percent" } {
   if (!form.name.trim()) return { problem: "Give the plan a name.", field: "name" };
   const price = planPriceFromText(form.price, money);
   if ("problem" in price) return { problem: price.problem, field: "price" };
   const trial = trialFromText(form.trial);
   if ("problem" in trial) return { problem: trial.problem, field: "trial" };
+  const percent = percentFromText(form.percent);
+  if ("problem" in percent) return { problem: percent.problem, field: "percent" };
   const perks = form.perks.split("\n").map((l) => l.trim()).filter(Boolean);
-  return { plan: { name: form.name.trim(), description: form.description.trim(), perks, interval: form.interval, priceMinor: price.minor, trialDays: trial.days, hidden: form.hidden } };
+  return { plan: { name: form.name.trim(), description: form.description.trim(), perks, interval: form.interval, priceMinor: price.minor, trialDays: trial.days, hidden: form.hidden, memberPercent: percent.percent } };
 }

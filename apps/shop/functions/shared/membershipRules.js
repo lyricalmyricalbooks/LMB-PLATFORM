@@ -7,10 +7,11 @@
 // A plan is paid every month or every year on the shop's own card account, with an optional free trial. A member's
 // state comes from the card provider's subscription (memberState), never from the browser.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
+exports.mayJoin = exports.hasPerks = exports.PLAN_MESSAGES = exports.PLAN_INTERVALS = exports.MAX_MEMBER_PERCENT = exports.MAX_TRIAL_DAYS = exports.MAX_PLAN_MINOR = exports.MIN_PLAN_MINOR = exports.MAX_PERK = exports.MAX_PERKS = exports.MAX_PLAN_DESCRIPTION = exports.MAX_PLAN_NAME = exports.MAX_PLANS = void 0;
 exports.cleanPlan = cleanPlan;
 exports.memberState = memberState;
 exports.planPriceWords = planPriceWords;
+exports.memberUnitPrice = memberUnitPrice;
 exports.MAX_PLANS = 8;
 exports.MAX_PLAN_NAME = 60;
 exports.MAX_PLAN_DESCRIPTION = 400;
@@ -21,12 +22,15 @@ exports.MIN_PLAN_MINOR = 200;
 /** The highest price one payment takes. */
 exports.MAX_PLAN_MINOR = 500_000;
 exports.MAX_TRIAL_DAYS = 60;
+/** The most a plan can take off the shop's prices for its members (M2a). */
+exports.MAX_MEMBER_PERCENT = 50;
 exports.PLAN_INTERVALS = Object.freeze(["month", "year"]);
 exports.PLAN_MESSAGES = Object.freeze({
     name: "Give the plan a name.",
     interval: "Choose monthly or yearly.",
     price: (min, max) => `Enter a price from ${min} to ${max}.`,
     trial: `A free trial can be up to ${exports.MAX_TRIAL_DAYS} days.`,
+    percent: `A member price can take 0 to ${exports.MAX_MEMBER_PERCENT}% off.`,
 });
 const text = (value, max) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 /** The owner's plan, cleaned, or the first problem with the field it is about. Prices are whole cents. Pure. */
@@ -45,8 +49,11 @@ function cleanPlan(raw) {
     const trialDays = p.trialDays === undefined || p.trialDays === "" || p.trialDays === null ? 0 : Number(p.trialDays);
     if (!Number.isInteger(trialDays) || trialDays < 0 || trialDays > exports.MAX_TRIAL_DAYS)
         return { problem: exports.PLAN_MESSAGES.trial, field: "trial" };
+    const memberPercent = p.memberPercent === undefined || p.memberPercent === "" || p.memberPercent === null ? 0 : Number(p.memberPercent);
+    if (!Number.isInteger(memberPercent) || memberPercent < 0 || memberPercent > exports.MAX_MEMBER_PERCENT)
+        return { problem: exports.PLAN_MESSAGES.percent, field: "percent" };
     const perks = (Array.isArray(p.perks) ? p.perks : []).map((x) => text(x, exports.MAX_PERK)).filter(Boolean).slice(0, exports.MAX_PERKS);
-    return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, exports.MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true } };
+    return { plan: { name, description: String(p.description ?? "").replace(/\r\n?/g, "\n").trim().slice(0, exports.MAX_PLAN_DESCRIPTION), perks, interval, priceMinor, trialDays, hidden: p.hidden === true, memberPercent } };
 }
 /** A member's state from the provider's subscription status (Stripe's words). Pure. */
 function memberState(status, cancelAtPeriodEnd = false) {
@@ -75,4 +82,14 @@ function planPriceWords(priceMinor, interval, currency = "CAD", locale = "en-CA"
     if (fr)
         return `${money} par ${interval === "year" ? "année" : "mois"}`;
     return `${money} a ${interval}`;
+}
+/**
+ * A product's member price: the shop's unit price less the plan's percent, to the cent (rounded half up), never below
+ * zero. 0 percent, or a price that isn't a number, gives the price back. Pure; the server uses it in priceOrder (M2a).
+ */
+function memberUnitPrice(price, percent) {
+    if (!Number.isFinite(price) || price <= 0 || !Number.isInteger(percent) || percent <= 0)
+        return price;
+    const cents = Math.round(price * 100);
+    return Math.max(0, Math.round(cents * (100 - Math.min(percent, exports.MAX_MEMBER_PERCENT)) / 100)) / 100;
 }
