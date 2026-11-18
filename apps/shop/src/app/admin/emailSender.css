@@ -213,3 +213,5 @@
 .rp .es-page .rp-btn.es-outline { border-color: transparent; background: transparent; box-shadow: inset 0 0 0 1px var(--rp-border-strong); }
 .rp .es-page .rp-btn.es-outline:hover:not(:disabled) { background: var(--rp-surface-2); }
 .rp .es-lang .rp-tabs { flex: none; width: auto; }
+/* Phone pass: thumb-sized on touch screens. */
+@media (pointer: coarse) { .rp .es-chip, .rp .es-pill, .rp .es-token { min-height: var(--rp-touch); } }

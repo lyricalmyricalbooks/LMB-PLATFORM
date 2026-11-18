@@ -6,6 +6,9 @@ import { DataTable, EmptyState, ErrorState, LoadingState, MetricCard, PrimaryBut
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { linkedTo, type InventoryAppBook, type InventoryLinks } from "./inventoryLink";
 import { stockroomBridge, type StockroomBook, type StockroomMatch } from "./stockroomBridge";
+import { applyShelfCount, shelfCountPlan, shelfCountWords } from "./shelfCount";
+import { describeResult, stockroomWriteApi } from "./stockroom/stockroomWrite";
+import { localDay } from "@stockroom/calendar-day.js";
 
 
 /** The stockroom's channel names, in the words the rest of the admin uses. */
@@ -90,6 +93,7 @@ function BookFigures({ edition, id, words, onOpen }: { edition: string | null; i
         <MetricCard label="At stockists" value={b.onConsignment} footer={b.stockists.length ? `${b.stockists.length} ${b.stockists.length === 1 ? "shop" : "shops"}` : "None out"} />
         <MetricCard label="Sold, every channel" value={b.sold} footer={b.lastSale ? `Last sale ${b.lastSale}` : "No sales yet"} />
       </div>
+      <ShelfCount book={b} id={id} words={words} onSaved={() => { stockroomBridge.forget(); setTries((n) => n + 1); }} onOpen={() => onOpen(id)} />
       {where.length > 0 && (
         <DataTable caption="Where the copies are" rowKey={(r) => r.key} rows={where} stackOnPhone
           columns={[
@@ -109,6 +113,50 @@ function BookFigures({ edition, id, words, onOpen }: { edition: string | null; i
         <EmptyState inline title="No sales yet" description="Sales from the website, the fair till, stockists and invoices all show here." />
       )}
     </SectionCard>
+  );
+}
+
+/**
+ * Fix stock from the product page (simpler admin, change 11): count your own copies and the stockroom's records follow,
+ * written the stockroom's way (a write-off, or a plain count moved), so the stockroom stays the one true count.
+ */
+function ShelfCount({ book, id, words, onSaved, onOpen }: { book: StockroomBook; id: string; words: (t: string) => string; onSaved: () => void; onOpen: () => void }) {
+  const [count, setCount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: string; text: string } | null>(null);
+  const typed = count.trim() === "" ? null : Number(count);
+  const valid = typed !== null && Number.isInteger(typed) && typed >= 0;
+  const plan = valid ? shelfCountPlan(book, typed) : null;
+  const copiesOf = (n: number) => words(`${n} ${n === 1 ? "copy" : "copies"}`);
+  const save = async () => {
+    const change = plan && applyShelfCount(plan, localDay(), `count-${Date.now()}`);
+    if (!change || busy) return;
+    setBusy(true); setMsg(null);
+    try {
+      const result = await stockroomWriteApi.saveBookState(id, change);
+      const said = describeResult(result);
+      if (result.status === "saved" || result.status === "unchanged") { setCount(""); setMsg({ tone: "ok", text: "Saved. The stockroom shows your count now." }); onSaved(); }
+      else setMsg(said);
+    } catch {
+      setMsg({ tone: "error", text: "Nothing was saved. Try again." });
+    }
+    setBusy(false);
+  };
+  return (
+    <div className="be-shelf-count">
+      <div className="be-shelf-row">
+        <label className="be-shelf-field">
+          <span>{words("Copies on your shelf")}</span>
+          <input type="number" min={0} step={1} inputMode="numeric" value={count} placeholder={String(book.publisher)}
+            onChange={(e) => { setCount(e.target.value); setMsg(null); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void save(); } }} />
+        </label>
+        <PrimaryButton disabled={!plan || plan.kind === "same" || plan.kind === "more"} busy={busy} onClick={() => void save()}>Fix the count</PrimaryButton>
+      </div>
+      <p className="rp-hint" role="status" style={{ margin: 0 }}>
+        {msg ? msg.text : plan ? shelfCountWords(plan, copiesOf) : words(`The stockroom says ${copiesOf(book.publisher)} with you. Counted something different? Type what's there.`)}
+        {plan?.kind === "more" && <> <button type="button" className="rp-link" onClick={onOpen}>Open it in the stockroom</button></>}
+      </p>
+    </div>
   );
 }
 

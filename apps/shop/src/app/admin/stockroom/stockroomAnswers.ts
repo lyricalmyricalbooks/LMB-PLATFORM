@@ -34,7 +34,8 @@ export function answerFrom(question: Ask, records: StockroomRecords, opts: { now
       if (!book) return { missing: true };
       const state = records.states[question.book];
       // An item with no records yet starts as the stockroom starts it: everything printed on the shelf, nothing sold.
-      return bookSummary(question.book, state || { stock: book.maxPrint, hist: [], ledger: [], stores: [] }, book);
+      // `hasPrintRun` lets the book page's shelf count (shelfCount.ts) pick the stockroom's own way to correct it.
+      return { ...bookSummary(question.book, state || { stock: book.maxPrint, hist: [], ledger: [], stores: [] }, book), hasPrintRun: Number.isFinite(book.maxPrint) };
     }
   }
 }
