@@ -12,6 +12,7 @@ exports.cleanPlan = cleanPlan;
 exports.memberState = memberState;
 exports.planPriceWords = planPriceWords;
 exports.memberUnitPrice = memberUnitPrice;
+exports.memberFreeProduct = memberFreeProduct;
 exports.MAX_PLANS = 8;
 exports.MAX_PLAN_NAME = 60;
 exports.MAX_PLAN_DESCRIPTION = 400;
@@ -92,4 +93,16 @@ function memberUnitPrice(price, percent) {
         return price;
     const cents = Math.round(price * 100);
     return Math.max(0, Math.round(cents * (100 - Math.min(percent, exports.MAX_MEMBER_PERCENT)) / 100)) / 100;
+}
+const DIGITAL_FORMAT = /digital|e-book|ebook|epub|pdf|audiobook/i;
+/**
+ * Free for members (Memberships M2b): a download the owner gives to members at no cost. Only downloads count: the
+ * chosen edition must be digital, or, with none chosen, the product itself. The server prices it; the page only says so.
+ */
+function memberFreeProduct(book, variant) {
+    if (!book || book.memberFree !== true)
+        return false;
+    if (variant)
+        return variant.digital === true || variant.isDigital === true;
+    return book.digital === true || book.isDigital === true || DIGITAL_FORMAT.test(String(book.format || ""));
 }

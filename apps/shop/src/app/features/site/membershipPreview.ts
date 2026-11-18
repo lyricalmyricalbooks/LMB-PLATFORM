@@ -24,6 +24,8 @@ export function previewMembershipAnswer(action: string, _body: Record<string, un
   if (action === "membershipMine") return { memberships: [sampleMember(currency)], currency };
   if (action === "membershipCancel") { state = "ending"; return { membership: sampleMember(currency) }; }
   if (action === "membershipResume") { state = "active"; return { membership: sampleMember(currency) }; }
+  // A members-only page in the designer: shown as a member sees it (Studio reads the page itself).
+  if (action === "membershipPage") return { locked: true, signedIn: false, page: { id: "sample", slug: String(_body.slug || ""), title: "" } };
   // Join and New card would open a card page: the preview stays put.
   return { preview: true };
 }

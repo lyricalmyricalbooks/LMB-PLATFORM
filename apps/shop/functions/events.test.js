@@ -55,7 +55,7 @@ const EVENT = {
 };
 const BUYER = { name: "Ada Reader", email: "ada@example.com" };
 
-function setup({ platform = true, owner = true, checkout = "card", now = "2026-11-17T13:00:00Z", admin = true, shopTax = null, budget = true, openFails = null, refundFails = false, codeBox = true } = {}) {
+function setup({ platform = true, owner = true, checkout = "card", now = "2026-11-17T13:00:00Z", admin = true, shopTax = null, budget = true, openFails = null, refundFails = false, codeBox = true, members = null } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -78,6 +78,8 @@ function setup({ platform = true, owner = true, checkout = "card", now = "2026-1
   let codes = 0;
   const desk = eventActions({
     db, shopTax,
+    // Members book first: `members` is { on, who } (who: the member's email the request proves, or "").
+    membersFirst: members ? { on: async () => members.on, isMember: async (req) => !!req.member && members.who === req.member } : null,
     // The shop's own checks, as index.js does them: the code exists and is on; anything else is the customer's words.
     findDiscount: codeBox ? async (code) => {
       const snap = await db.collection("discounts").where("code", "==", code).limit(1).get();
@@ -117,7 +119,7 @@ function setup({ platform = true, owner = true, checkout = "card", now = "2026-1
     await db.collection("firstWeek").doc("start").set({ ways: { events: owner } });
     if (event) await db.collection("events").doc("launch01").set(event);
   };
-  const pub = async (body) => { const r = res(); await desk.handlePublic({ body }, r); return r; };
+  const pub = async (body, member = "") => { const r = res(); await desk.handlePublic({ body, member }, r); return r; };
   const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
   const pay = (i = 0) => { const s = sessions.get(`cs_test_${String(i).padStart(8, "0")}`); s.payment_status = "paid"; s.status = "complete"; s.payment_intent = `pi_${i}`; };
   const doc = async (c, id) => (await db.collection(c).doc(id).get()).data();
@@ -155,6 +157,31 @@ describe("the shop's page", () => {
       { id: "gen", name: "General", priceMinor: 1500, maxPerOrder: 10, left: 2, soldOut: false },
       { id: "free", name: "Friend of the press", priceMinor: 0, maxPerOrder: 10, left: 5, soldOut: false },
     ]);
+  });
+});
+
+describe("members book first (Memberships M2c)", () => {
+  const EARLY = { ...EVENT, publicFrom: "2026-11-20T12:00:00Z" };
+  test("before the time everyone can book, only a member buys; the page is told until when", async () => {
+    const t = setup({ members: { on: true, who: "ada@example.com" } });
+    await t.seed(EARLY);
+    expect((await t.pub({ action: "eventsInfo" })).body.events[0]).toMatchObject({ open: true, membersUntil: "2026-11-20T12:00:00.000Z" });
+    const stranger = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, ...BUYER });
+    expect(stranger.statusCode).toBe(403);
+    expect(stranger.body.code).toBe("members");
+    expect(t.opened).toHaveLength(0);
+    const member = await t.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, ...BUYER }, "ada@example.com");
+    expect(member.statusCode).toBe(200);
+    expect(member.body.url).toBeTruthy();
+  });
+  test("from that time, or with Memberships off, everyone books", async () => {
+    const later = setup({ members: { on: true, who: "" }, now: "2026-11-21T12:00:00Z" });
+    await later.seed(EARLY);
+    expect((await later.pub({ action: "eventsInfo" })).body.events[0].membersUntil).toBeUndefined();
+    expect((await later.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, ...BUYER })).statusCode).toBe(200);
+    const off = setup({ members: { on: false, who: "" } });
+    await off.seed(EARLY);
+    expect((await off.pub({ action: "eventStart", eventId: "launch01", tickets: { gen: 1 }, ...BUYER })).statusCode).toBe(200);
   });
 });
 

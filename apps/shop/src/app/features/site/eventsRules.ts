@@ -10,6 +10,8 @@ export type EventView = {
   online: boolean; open: boolean; cancelled: boolean; tickets: EventTicketView[]; extras?: EventExtraView[];
   /** The shop's booking fee, added once for each paid ticket (0 or missing: none). */
   feeMinor?: number;
+  /** Members book first (Memberships M2c): until this ISO time only members can get tickets. */
+  membersUntil?: string;
 };
 export type EventsInfo = { on: boolean; zone?: string; currency?: string; codes?: boolean; events?: EventView[] };
 /** A discount code the server accepted for the tickets picked: what comes off and what is left to pay. */

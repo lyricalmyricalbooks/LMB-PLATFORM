@@ -2123,6 +2123,9 @@ await check("the Events page opens in the designer with sample events, its heade
   await page.getByRole("button", { name: /Switch to Browse mode/ }).click();
   await frame.locator("[data-store-region=eventsCard]").nth(1).click();
   await frame.locator("[data-store-region=eventsTickets] .fm-evt-step").nth(1).click({ timeout: 10000 });
+  // The free sample talk lets members book first, so its form says until when (Memberships M2c).
+  await frame.locator("[data-store-region=eventsForm] .fm-track-notice[role=status]").first().waitFor({ timeout: 5000 });
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/events-members-first.png` });
   await frame.locator("#evt-name").fill("Ada Reader");
   await frame.locator("#evt-email").fill("ada@example.com");
   await frame.locator("[data-store-region=eventsForm] button[type=submit]").click();

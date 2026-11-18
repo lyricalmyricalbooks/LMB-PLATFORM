@@ -333,4 +333,24 @@ describe("memberships (M1)", () => {
     expect(nextCheck("active", "2026-11-01T00:00:00Z", now)).toBe("2026-11-18T13:15:00.000Z");
     expect(nextCheck("pastDue", "", now)).toBe("2026-11-18T19:00:00.000Z");
   });
+
+  test("a members-only page shows its words only to a signed-in member, and its title to everyone else (M2b)", async () => {
+    const t = setup();
+    t.db.store.set("pages/p1", { slug: "zine-club", status: "members", title: "Zine club", body: "Secret words", updatedAt: "2026-11-01" });
+    t.db.store.set("pages/p2", { slug: "about", status: "published", title: "About", body: "Hello" });
+    t.db.store.set("memberships/m1", { state: "active", mode: "test", planId: "x", customer: { email: ADA.email } });
+    const shown = await t.call({ action: "membershipPage", slug: "zine-club" });
+    expect(shown.body).toMatchObject({ locked: false, page: { id: "p1", slug: "zine-club", title: "Zine club", body: "Secret words" } });
+    // A live membership in a test shop, an ended one, signed out: the title only.
+    t.db.store.set("memberships/m1", { state: "active", mode: "live", planId: "x", customer: { email: ADA.email } });
+    expect((await t.call({ action: "membershipPage", slug: "zine-club" })).body).toEqual({ locked: true, signedIn: true, page: { id: "p1", slug: "zine-club", title: "Zine club" } });
+    t.db.store.set("memberships/m1", { state: "ended", mode: "test", planId: "x", customer: { email: ADA.email } });
+    expect((await t.call({ action: "membershipPage", slug: "zine-club" })).body.locked).toBe(true);
+    t.signIn(null);
+    expect((await t.call({ action: "membershipPage", slug: "zine-club" })).body).toMatchObject({ locked: true, signedIn: false });
+    // Only members pages, real slugs, and only while Memberships is on.
+    for (const slug of ["about", "nope", "../x", ""]) expect((await t.call({ action: "membershipPage", slug })).statusCode).toBe(404);
+    t.db.store.set("firstWeek/start", { ways: {} });
+    expect((await t.call({ action: "membershipPage", slug: "zine-club" })).statusCode).toBe(404);
+  });
 });

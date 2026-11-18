@@ -41,7 +41,14 @@ export type ShopEvent = {
   extras?: EventExtra[];
   /** The shop's own booking fee, added once for each paid ticket (free tickets never carry it). Missing = none. */
   feeMinor?: number;
+  /**
+   * Members book first (Memberships M2c): until this ISO time only customers with a membership can buy tickets; from
+   * then on everyone can. Missing = everyone from the start.
+   */
+  publicFrom?: string;
 };
+/** Who can buy now: everyone, members only (before `publicFrom`), or nobody. */
+export type SalesStage = "open" | "members" | "closed";
 /** What is taken for one event: tickets sold per kind, and the orders still paying. */
 export type EventPlaces = { sold?: Record<string, number>; held?: Record<string, { until: string; lines: Record<string, number> }> };
 export type OrderLine = { ticketId: string; name: string; qty: number; priceMinor: number };
@@ -123,17 +130,35 @@ export function cleanEvent(raw: unknown, id = ""): ShopEvent | { problem: string
   if (feeMinor < 0) return { problem: "A booking fee can't be less than nothing." };
   if (feeMinor > MAX_FEE_MINOR) return { problem: `A booking fee can be up to ${(MAX_FEE_MINOR / 100).toFixed(2)} a ticket.` };
   const status: EventStatus = e.status === "live" || e.status === "cancelled" ? e.status : "draft";
+  const publicFrom = isoTime(e.publicFrom);
+  if (publicFrom && Date.parse(publicFrom) >= Date.parse(start)) return { problem: "The members' head start ends before the event starts: pick an earlier time for everyone else." };
   return {
     id, title, description: longText(e.description, 4000), start, end, venue: text(e.venue, 120), address: text(e.address, 240),
     onlineUrl: webLink(e.onlineUrl), photo: webLink(e.photo), status, chargeTax: e.chargeTax === true, tickets,
     ...(extras.length ? { extras } : {}),
     ...(feeMinor ? { feeMinor } : {}),
+    ...(publicFrom ? { publicFrom } : {}),
   };
 }
 
 /** True while tickets can be bought: the event is live and hasn't started. */
 export function salesOpen(event: Pick<ShopEvent, "status" | "start">, nowMs: number): boolean {
   return event.status === "live" && Date.parse(event.start) > nowMs;
+}
+
+/**
+ * Who can buy tickets now. `membersOn` is whether the shop's Memberships are on: with them off, members-first is
+ * ignored and everyone can buy, so an event never gets stuck with nobody allowed in.
+ */
+export function salesStage(event: Pick<ShopEvent, "status" | "start" | "publicFrom">, nowMs: number, membersOn: boolean): SalesStage {
+  if (!salesOpen(event, nowMs)) return "closed";
+  const from = Date.parse(event.publicFrom || "");
+  return membersOn && Number.isFinite(from) && from > nowMs ? "members" : "open";
+}
+
+/** Whether this buyer may buy now: anyone while open, only a member before `publicFrom`. */
+export function maySell(stage: SalesStage, member: boolean): boolean {
+  return stage === "open" || (stage === "members" && member);
 }
 
 const count = (value: unknown): number => Math.max(0, Math.round(Number(value) || 0));
@@ -166,6 +191,7 @@ export const TICKET_MESSAGES = Object.freeze({
   closed: "Tickets for this event aren't on sale right now.",
   unknown: "One of those tickets isn't offered any more. Refresh the page and try again.",
   extraGone: "One of those extras isn't offered any more. Refresh the page and try again.",
+  members: "Members can get these tickets first. Sign in with the email on your membership, or come back when everyone can get them.",
 });
 
 /**

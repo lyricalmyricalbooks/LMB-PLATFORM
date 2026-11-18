@@ -30,6 +30,15 @@ describe.each([["shop", shop], ["server", server]])("memberships rules (%s copy)
     expect(m.memberUnitPrice(25, 80)).toBe(12.5);
   });
 
+  test("only downloads can be Free for members", () => {
+    expect(m.memberFreeProduct({ memberFree: true, digital: true })).toBe(true);
+    expect(m.memberFreeProduct({ memberFree: true, format: "PDF" })).toBe(true);
+    expect(m.memberFreeProduct({ memberFree: true, format: "Paperback" })).toBe(false);
+    expect(m.memberFreeProduct({ digital: true })).toBe(false);
+    expect(m.memberFreeProduct({ memberFree: true, digital: true }, { id: "print" })).toBe(false);
+    expect(m.memberFreeProduct({ memberFree: true }, { id: "pdf", digital: true })).toBe(true);
+  });
+
   test("a member's state follows the provider, and perks last while a payment is retried or the end is ahead", () => {
     expect(m.memberState("trialing")).toBe("trial");
     expect(m.memberState("active")).toBe("active");

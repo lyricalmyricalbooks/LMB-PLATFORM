@@ -165,7 +165,7 @@ const { PUBLIC_BOOKING_ACTIONS } = require("./bookings");
 const { PUBLIC_EVENT_ACTIONS } = require("./events");
 const { PUBLIC_GIVING_ACTIONS } = require("./giving");
 const { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS } = require("./memberships");
-const { memberUnitPrice } = require("./shared/membershipRules");
+const { memberUnitPrice, memberFreeProduct } = require("./shared/membershipRules");
 const { checkoutTipProblem, MIN_TIP_MINOR, MAX_TIP_MINOR } = require("./shared/givingRules");
 // The shop's id with the platform's services (X-Shop-Id): its record id in the shared system, else its own project.
 const platformShopId = () => shopConfig.shopId || shopConfig.project;
@@ -1359,6 +1359,8 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null,
     if (member && !giftCard && basePrice === listPrice) {
       const memberPrice = memberUnitPrice(basePrice, member.percent);
       if (memberPrice < unitBase) { unitBase = memberPrice; wholesaleLine = false; memberLine = true; }
+      // Free for members (Memberships M2b): a download the owner gives to members costs them nothing.
+      if (memberFreeProduct(book, variant) && unitBase > 0) { unitBase = 0; wholesaleLine = false; memberLine = true; }
     }
     if (giftCard && !(basePrice > 0)) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
     let giftCardInfo = null;
@@ -2043,6 +2045,15 @@ const eventDesk = require("./events").eventActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
   escapeHtml, risoLayout, risoButton, shopTax: () => serviceTax(),
+  // Members book first (Memberships M2c). membershipDesk is made further down, so it is looked up when asked.
+  membersFirst: {
+    on: () => membershipDesk.featureOn(),
+    isMember: async (req) => {
+      const who = await orderRequestIdentity(req);
+      if (!who?.email || who.email_verified !== true) return false;
+      return membershipDesk.hasMembership(String(who.email).trim().toLowerCase(), await shopTestMode());
+    },
+  },
   // Discount codes on tickets: checkout's own checks (eventDiscount.js says which codes and how much).
   findDiscount: async (code, email) => {
     const discount = await fetchValidDiscount(code);

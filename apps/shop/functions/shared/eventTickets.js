@@ -16,6 +16,8 @@ exports.cleanTicketKind = cleanTicketKind;
 exports.cleanExtra = cleanExtra;
 exports.cleanEvent = cleanEvent;
 exports.salesOpen = salesOpen;
+exports.salesStage = salesStage;
+exports.maySell = maySell;
 exports.placesTaken = placesTaken;
 exports.placesLeft = placesLeft;
 exports.soldCount = soldCount;
@@ -139,16 +141,34 @@ function cleanEvent(raw, id = "") {
     if (feeMinor > exports.MAX_FEE_MINOR)
         return { problem: `A booking fee can be up to ${(exports.MAX_FEE_MINOR / 100).toFixed(2)} a ticket.` };
     const status = e.status === "live" || e.status === "cancelled" ? e.status : "draft";
+    const publicFrom = isoTime(e.publicFrom);
+    if (publicFrom && Date.parse(publicFrom) >= Date.parse(start))
+        return { problem: "The members' head start ends before the event starts: pick an earlier time for everyone else." };
     return {
         id, title, description: longText(e.description, 4000), start, end, venue: text(e.venue, 120), address: text(e.address, 240),
         onlineUrl: webLink(e.onlineUrl), photo: webLink(e.photo), status, chargeTax: e.chargeTax === true, tickets,
         ...(extras.length ? { extras } : {}),
         ...(feeMinor ? { feeMinor } : {}),
+        ...(publicFrom ? { publicFrom } : {}),
     };
 }
 /** True while tickets can be bought: the event is live and hasn't started. */
 function salesOpen(event, nowMs) {
     return event.status === "live" && Date.parse(event.start) > nowMs;
+}
+/**
+ * Who can buy tickets now. `membersOn` is whether the shop's Memberships are on: with them off, members-first is
+ * ignored and everyone can buy, so an event never gets stuck with nobody allowed in.
+ */
+function salesStage(event, nowMs, membersOn) {
+    if (!salesOpen(event, nowMs))
+        return "closed";
+    const from = Date.parse(event.publicFrom || "");
+    return membersOn && Number.isFinite(from) && from > nowMs ? "members" : "open";
+}
+/** Whether this buyer may buy now: anyone while open, only a member before `publicFrom`. */
+function maySell(stage, member) {
+    return stage === "open" || (stage === "members" && member);
 }
 const count = (value) => Math.max(0, Math.round(Number(value) || 0));
 /** Tickets taken per kind: sold, plus held by orders still paying (`except` leaves one order's own hold out). */
@@ -179,6 +199,7 @@ exports.TICKET_MESSAGES = Object.freeze({
     closed: "Tickets for this event aren't on sale right now.",
     unknown: "One of those tickets isn't offered any more. Refresh the page and try again.",
     extraGone: "One of those extras isn't offered any more. Refresh the page and try again.",
+    members: "Members can get these tickets first. Sign in with the email on your membership, or come back when everyone can get them.",
 });
 /**
  * What an order of tickets is: its lines and total before tax, or why it can't be made. `wanted` is ticket id → how

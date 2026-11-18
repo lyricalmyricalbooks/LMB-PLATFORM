@@ -29,7 +29,8 @@ const crypto = require("crypto");
 const { cleanPlan, memberState, mayJoin, planPriceWords, hasPerks, MAX_PLANS, MAX_MEMBER_PERCENT } = require("./shared/membershipRules");
 const { waysOn } = require("./shared/waysToSell");
 
-const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard"]);
+const PUBLIC_MEMBERSHIP_ACTIONS = Object.freeze(["membershipInfo", "membershipJoin", "membershipMine", "membershipCancel", "membershipResume", "membershipCard", "membershipPage"]);
+const SLUG = /^[a-z0-9][a-z0-9-]{0,99}$/;
 /** How long a card page stays open. */
 const PAGE_MINUTES = 60;
 const MINUTE = 60_000;
@@ -360,6 +361,21 @@ function membershipActions({
         const acc = await account(await currentMode());
         return res.status(200).json({ on: true, currency: currency(), ready: !!acc.subscriptions, plans: (await listPlans()).map((p) => publicPlan(p.id, p.data, currency())) });
       }
+      if (action === "membershipPage") {
+        // A members-only page (M2b): status "members", which no rule lets a shopper read. Anyone learns its title (for
+        // the "for members" box); only a signed-in member with perks in this mode gets its words.
+        const slug = String(req.body?.slug || "").toLowerCase();
+        if (!SLUG.test(slug) || !(await featureOn())) return fail(res, 404, "There's no page here.", "not_found");
+        const found = await db.collection("pages").where("slug", "==", slug).where("status", "==", "members").limit(1).get();
+        const doc = found.docs[0];
+        if (!doc) return fail(res, 404, "There's no page here.", "not_found");
+        const p = doc.data();
+        const viewer = await identify(req);
+        const member = viewer?.email ? await hasMembership(viewer.email, (await currentMode()) === "test") : false;
+        const shown = { id: doc.id, slug, title: String(p.title || "") };
+        if (!member) return res.status(200).json({ locked: true, signedIn: !!viewer?.email, page: shown });
+        return res.status(200).json({ locked: false, page: { ...shown, body: String(p.body || ""), seoTitle: p.seoTitle || "", metaDescription: p.metaDescription || "", updatedAt: p.updatedAt || "" } });
+      }
       const who = await identify(req);
       if (!who?.email) return fail(res, 401, "Please sign in to your account first.", "sign_in");
 
@@ -550,7 +566,7 @@ function membershipActions({
   /**
    * The member price one membership gives right now, or null: Memberships is on, the membership has its perks (trial,
    * active, ending or a payment being retried), it lives in the same mode as the checkout (a test membership never lowers
-   * a real order's prices) and its plan takes a percent off. Read again on every pricing, so a membership that ends
+   * a real order's prices) and its plan still exists (its percent may be 0: Free for members still counts). Read again on every pricing, so a membership that ends
    * after checkout claimed it stops counting at once.
    */
   async function priceFor(membershipId, testMode) {
@@ -560,8 +576,13 @@ function membershipActions({
     if (!m || !hasPerks(m.state) || (m.mode === "test") !== (testMode === true) || !m.planId) return null;
     const plan = await plans().doc(String(m.planId)).get();
     const percent = plan.exists ? percentOf(plan.data()) : 0;
-    if (!percent || !(await featureOn())) return null;
+    // A plan with no percent still counts: its members get products marked Free for members (M2b).
+    if (!plan.exists || !(await featureOn())) return null;
     return { membershipId, percent, plan: String(plan.data().name || "") };
+  }
+  /** Whether this customer has a membership with perks in this mode (members-only pages, M2b). */
+  async function hasMembership(email, testMode) {
+    return (await mine(email)).some((r) => hasPerks(r.data.state) && (r.data.mode === "test") === (testMode === true));
   }
   /** The signed-in customer's membership that gives the best member price in this mode, or null. */
   async function bestFor(email, testMode) {
@@ -573,7 +594,7 @@ function membershipActions({
     return best;
   }
 
-  return { handlePublic, handleAdmin, sweep, onEvent, featureOn, tellWebsite, priceFor, bestFor };
+  return { handlePublic, handleAdmin, sweep, onEvent, featureOn, tellWebsite, priceFor, bestFor, hasMembership };
 }
 
 module.exports = { membershipActions, PUBLIC_MEMBERSHIP_ACTIONS, nextCheck, mergePayments, PAGE_MINUTES };
