@@ -504,6 +504,12 @@ function createStripeProvider({ db, Stripe, liveSecretKey, readAdminSecret, plat
       resume: async (id) => shaped(await stripe.subscriptions.update(id, { cancel_at_period_end: false }, requestOptions)),
       setCard: async (id, paymentMethod) => shaped(await stripe.subscriptions.update(id, { default_payment_method: paymentMethod }, requestOptions)),
       endNow: async (id) => shaped(await stripe.subscriptions.cancel(id, {}, requestOptions)),
+      // Skip and pause (M3c): payments due while held are voided, never charged later. With an ISO date the hold ends
+      // by itself then (a skipped month); without one it holds until `unpause`.
+      pause: async (id, resumesAt = "") => shaped(await stripe.subscriptions.update(id, {
+        pause_collection: { behavior: "void", ...(resumesAt ? { resumes_at: Math.floor(Date.parse(resumesAt) / 1000) } : {}) },
+      }, requestOptions)),
+      unpause: async (id) => shaped(await stripe.subscriptions.update(id, { pause_collection: "" }, requestOptions)),
       async invoices(id, limit = 12) {
         const page = await stripe.invoices.list({ subscription: id, limit }, requestOptions);
         return (page?.data || []).map((inv) => ({
@@ -602,6 +608,8 @@ function memberSubscription(sub) {
   return {
     id: String(sub.id || ""), status: String(sub.status || ""), customer: typeof sub.customer === "string" ? sub.customer : String(sub.customer?.id || ""),
     cancelAtPeriodEnd: sub.cancel_at_period_end === true,
+    // Held payments (M3c): paused, and until when ("" = until the member resumes).
+    paused: !!(sub.pause_collection && typeof sub.pause_collection === "object"), pausedUntil: time(sub.pause_collection?.resumes_at),
     periodStart: time(sub.current_period_start ?? item.current_period_start), periodEnd: time(sub.current_period_end ?? item.current_period_end),
     trialEnd: time(sub.trial_end), endedAt: time(sub.ended_at), canceledAt: time(sub.canceled_at),
     card: method && typeof method === "object" ? { brand: String(method.card?.brand || ""), last4: String(method.card?.last4 || "") } : null,

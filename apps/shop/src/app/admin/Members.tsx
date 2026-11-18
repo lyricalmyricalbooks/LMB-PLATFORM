@@ -188,6 +188,7 @@ function MemberRow({ member: m, money, onChanged }: { member: AdminMember; money
         <p className="mbr-next">{nextText(m)}</p>
         {m.card && <p className="mbr-meta">Card ending {m.card.last4}{m.cardPending ? " · a new card is being added" : ""}</p>}
         {m.box && <p className="mbr-meta mbr-ship"><Package size={14} aria-hidden /> {m.address ? addressText(m.address) : "No address yet: they're asked for one in their account"}</p>}
+        {m.box && m.skipMonth && m.state === "active" && <p className="mbr-meta">Skipping the {monthText(m.skipMonth)} box{m.plan?.interval === "month" ? ", and that month's payment" : ""}</p>}
         {m.box && m.lastBoxOrder && <p className="mbr-meta">Last box: {monthText(m.lastBoxMonth || "")}, <a href={`#orders/${encodeURIComponent(m.lastBoxOrder)}`}>order {m.lastBoxOrder}</a></p>}
         {m.box && m.boxProblem && m.boxProblem.month !== m.lastBoxMonth && <p className="mbr-problem">This month's box couldn't be made yet: {m.boxProblem.text} It's tried again every hour.</p>}
       </div>

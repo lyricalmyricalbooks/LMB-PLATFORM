@@ -23,7 +23,7 @@ export type AdminMember = {
   /** A box membership and where its boxes go (M3a). */
   box?: boolean; address?: BoxAddress | null;
   /** The last box made (M3b): its month (YYYY-MM) and order, and why this month's couldn't be made yet. */
-  lastBoxMonth?: string; lastBoxOrder?: string; boxProblem?: { month: string; text: string; at: string } | null;
+  lastBoxMonth?: string; lastBoxOrder?: string; skipMonth?: string; boxProblem?: { month: string; text: string; at: string } | null;
 };
 /** Not enough stock for this month's boxes of one plan (M3b, from three days before the cut-off). */
 export type BoxWarning = { planId: string; planName: string; cutoffDay: number; members: number; month: string; short: BoxShortLine[] };

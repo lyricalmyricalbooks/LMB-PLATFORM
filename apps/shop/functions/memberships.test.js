@@ -70,6 +70,8 @@ function setup({ platform = true, owner = true, subscriptions = true } = {}) {
     async resume(id) { subs.get(id).cancelAtPeriodEnd = false; return shape(subs.get(id)); },
     async setCard(id, pm) { cardSet.push({ id, pm }); const c = [...saved.values()].find((x) => x.paymentMethod === pm); if (c) subs.get(id).card = { brand: c.brand, last4: c.last4 }; return shape(subs.get(id)); },
     async invoices(id) { invoiceReads.push(id); return structuredClone(invoices.get(id) || []); },
+    async pause(id, resumesAt = "") { Object.assign(subs.get(id), { paused: true, pausedUntil: resumesAt }); return shape(subs.get(id)); },
+    async unpause(id) { Object.assign(subs.get(id), { paused: false, pausedUntil: "" }); return shape(subs.get(id)); },
     async endNow(id) { Object.assign(subs.get(id), { status: "canceled", endedAt: clock.now.toISOString() }); return shape(subs.get(id)); },
   };
   const checkout = {
@@ -402,6 +404,45 @@ describe("memberships (M1)", () => {
     expect(t.boxCalls[1].month).toBe("2026-12");
     // The owner sees when the last box went.
     expect((await t.admin({ op: "list" })).body.members[0]).toMatchObject({ lastBoxMonth: "2026-12" });
+  });
+
+  test("skip next box: no box that month, the next monthly payment held, and it can be brought back (M3c)", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, trialDays: 0, box: { items: [{ bookId: "book1", quantity: 1 }], cutoffDay: 15 } });
+    const id = await boxMember(t, planId);
+    // The 18th is past November's cut-off, so the next box is December's.
+    const skip = await t.call({ action: "membershipSkip", id });
+    expect(skip.statusCode).toBe(200);
+    expect(skip.body.membership).toMatchObject({ state: "active", skipMonth: "2026-12" });
+    const sub = t.subs.get(t.db.store.get(`memberships/${id}`).subscription);
+    expect(sub).toMatchObject({ paused: true, pausedUntil: "2026-12-03T13:00:00.000Z" });
+    expect((await t.call({ action: "membershipSkip", id })).statusCode).toBe(409);
+    t.clock.now = new Date("2026-12-15T17:00:00Z");
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 0 });
+    // Brought back before the cut-off: the box comes and the payment is no longer held.
+    t.clock.now = new Date("2026-12-10T17:00:00Z");
+    const back = await t.call({ action: "membershipUnskip", id });
+    expect(back.body.membership.skipMonth).toBe("");
+    expect(sub.paused).toBe(false);
+    t.clock.now = new Date("2026-12-15T17:00:00Z");
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 1 });
+  });
+
+  test("pause stops perks and boxes until the member resumes (M3c)", async () => {
+    const t = setup();
+    const planId = await withPlan(t, { ...PLAN, trialDays: 0, box: { items: [{ bookId: "book1", quantity: 1 }], cutoffDay: 15 } });
+    const id = await boxMember(t, planId);
+    const email = t.db.store.get(`memberships/${id}`).customer.email;
+    const paused = await t.call({ action: "membershipPause", id });
+    expect(paused.body.membership).toMatchObject({ state: "paused" });
+    expect(await t.desk.hasMembership(email, true)).toBe(false);
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 0 });
+    expect((await t.call({ action: "membershipPause", id })).statusCode).toBe(409);
+    expect((await t.admin({ op: "list" })).body.members[0].state).toBe("paused");
+    const resumed = await t.call({ action: "membershipUnpause", id });
+    expect(resumed.body.membership.state).toBe("active");
+    expect(await t.desk.hasMembership(email, true)).toBe(true);
+    expect(await t.desk.sweepBoxes()).toEqual({ made: 1 });
   });
 
   test("no box for a trial, a failed payment, no address, or someone who started paying after the cut-off", async () => {

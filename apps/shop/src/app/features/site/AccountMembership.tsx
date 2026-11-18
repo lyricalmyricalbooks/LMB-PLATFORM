@@ -22,6 +22,12 @@ const dateText = (iso: string) => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 };
 
+/** "December 2026" for a box month (YYYY-MM). */
+const monthName = (month: string) => {
+  const [y, m] = month.split("-").map(Number);
+  return y && m ? new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" }) : month;
+};
+
 /** Whether the account page should ask for memberships at all (a call per visit costs the shop). */
 export function wantsMembershipCard(pathname: string, search: string, live: boolean) {
   const q = new URLSearchParams(search);
@@ -68,9 +74,10 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
     return () => clearTimeout(t);
   }, [rows, joined]);
 
-  const act = async (action: "membershipCancel" | "membershipResume" | "membershipCard", m: MyMembership) => {
+  const act = async (action: "membershipCancel" | "membershipResume" | "membershipCard" | "membershipSkip" | "membershipUnskip" | "membershipPause" | "membershipUnpause", m: MyMembership) => {
     if (busy) return;
     if (action === "membershipCancel" && !window.confirm(c("accountMemberCancelConfirm"))) return;
+    if (action === "membershipPause" && !window.confirm(c("accountMemberPauseConfirm"))) return;
     setBusy(action); setProblem(""); setNote("");
     try {
       const answer = await askMembership(action, { id: m.id }, user);
@@ -78,6 +85,8 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
       if (answer.membership) setRows((now) => (now || []).map((r) => (r.id === m.id ? (answer.membership as MyMembership) : r)));
       if (action === "membershipCancel") setNote("accountMemberCancelled");
       if (action === "membershipResume") setNote("accountMemberResumed");
+      if (action === "membershipPause") setNote("accountMemberPaused");
+      if (action === "membershipUnpause") setNote("accountMemberUnpaused");
     } catch (err: any) {
       setProblem(membershipErrorKey(err?.code, err?.status));
     } finally {
@@ -154,11 +163,18 @@ function MembershipCard({ design, user, pathname, search }: { design: any; user:
                 {m.box && m.state !== "ended" && m.state !== "pending" && (
                   <BoxAddressPart c={c} m={m} editing={editing === m.id} busy={busy} onEdit={(on) => { setEditing(on ? m.id : ""); setProblem(""); setNote(""); }} onSave={(a) => saveAddress(m, a)} />
                 )}
+                {m.box && m.skipMonth && m.state === "active" && (
+                  <p className="text-sm leading-6">{c(m.plan?.interval === "month" ? "accountMemberSkipLineMonthly" : "accountMemberSkipLine", { month: monthName(m.skipMonth) })}</p>
+                )}
                 {m.cardPending && <p role="status" className="text-sm fm-muted">{c("accountMemberCardPending")}</p>}
-                {(can.cancel || can.resume || can.card) && (
+                {(can.cancel || can.resume || can.card || can.unpause) && (
                   <div className="fm-mbr-actions">
+                    {can.unpause && <button type="button" className="fm-track-btn" disabled={!!busy} aria-busy={busy === "membershipUnpause"} onClick={() => act("membershipUnpause", m)}>{c("accountMemberUnpause")}</button>}
+                    {m.box && can.skip && !m.skipMonth && <button type="button" className="fm-track-btn fm-track-btn-ghost" disabled={!!busy} aria-busy={busy === "membershipSkip"} onClick={() => act("membershipSkip", m)}>{c("accountMemberSkip")}</button>}
+                    {m.box && can.skip && !!m.skipMonth && <button type="button" className="fm-track-btn fm-track-btn-ghost" disabled={!!busy} aria-busy={busy === "membershipUnskip"} onClick={() => act("membershipUnskip", m)}>{c("accountMemberUnskip")}</button>}
                     {can.card && <button type="button" className={m.state === "pastDue" ? "fm-track-btn" : "fm-track-btn fm-track-btn-ghost"} disabled={!!busy} aria-busy={busy === "membershipCard"} onClick={() => act("membershipCard", m)}>{c("accountMemberNewCard")}</button>}
                     {can.resume && <button type="button" className="fm-track-btn" disabled={!!busy} aria-busy={busy === "membershipResume"} onClick={() => act("membershipResume", m)}>{c("accountMemberResume")}</button>}
+                    {can.pause && <button type="button" className="fm-track-btn fm-track-btn-ghost" disabled={!!busy} aria-busy={busy === "membershipPause"} onClick={() => act("membershipPause", m)}>{c("accountMemberPause")}</button>}
                     {can.cancel && <button type="button" className="fm-track-btn fm-track-btn-ghost" disabled={!!busy} aria-busy={busy === "membershipCancel"} onClick={() => act("membershipCancel", m)}>{c("accountMemberCancel")}</button>}
                   </div>
                 )}

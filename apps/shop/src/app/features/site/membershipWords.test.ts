@@ -30,8 +30,11 @@ describe("membership words", () => {
     expect(addressLine(null)).toBe("");
   });
   test("what a member may do", () => {
-    expect(memberCan("ending")).toEqual({ cancel: false, resume: true, card: true });
-    expect(memberCan("ended")).toEqual({ cancel: false, resume: false, card: false });
+    expect(memberCan("ending")).toEqual({ cancel: false, resume: true, card: true, pause: false, unpause: false, skip: false });
+    expect(memberCan("ended")).toEqual({ cancel: false, resume: false, card: false, pause: false, unpause: false, skip: false });
+    expect(memberCan("active")).toMatchObject({ pause: true, skip: true, unpause: false });
+    expect(memberCan("paused")).toMatchObject({ pause: false, skip: false, unpause: true, cancel: false, card: true });
+    expect(memberNext({ state: "paused", periodEnd: "", trialEnd: "", endedAt: "", pausedAt: "2026-11-20T12:00:00Z" })).toEqual({ key: "accountMemberPausedSince", at: "2026-11-20T12:00:00Z" });
     expect(memberCan("pastDue").cancel).toBe(true);
   });
 });
