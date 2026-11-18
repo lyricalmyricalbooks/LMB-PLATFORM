@@ -23,7 +23,7 @@ import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, earlierFromSearch, type EarlierOfferView, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, courseDateLines, tipMinorOf, tipOk, type TipPick,
   type BookingInfo, type BookingServiceView, type BookingView,
-  peopleFor, withPicked, pricedPicks, asPerson, showNoteBox, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
+  peopleFor, withPicked, pricedPicks, asPerson, canJoinVisit, visitChoices, withVisit, type VisitPick, showNoteBox, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
 
 type Copy = (key: string, vars?: Record<string, string | number>) => string;
@@ -87,11 +87,19 @@ function NewBooking({ c }: { c: Copy }) {
   // Who takes it when the shop lists people: one of them, or "" for anyone free. Someone may have their own price
   // and length for it, and the ticked extras go on top.
   const [staffId, setStaffId] = useState("");
+  // Several services in one visit (plan 4, 2.1): the services added after the first, each with who takes it.
+  const [also, setAlso] = useState<VisitPick[]>([]);
+  const alsoKey = also.map((a) => `${a.serviceId}:${a.staffId}`).join(",");
   const service = useMemo(() => {
     if (!listed) return null;
     const person = peopleFor(info, listed.id).find((p) => p.id === staffId);
-    return withPicked(asPerson(listed, person), picked);
-  }, [listed, info, staffId, picked.join(",")]);
+    const first = withPicked(asPerson(listed, person), picked);
+    const more = also.flatMap((a) => {
+      const sv = info?.services?.find((x) => x.id === a.serviceId);
+      return sv ? [asPerson(sv, peopleFor(info, sv.id).find((p) => p.id === a.staffId))] : [];
+    });
+    return withVisit(first, more);
+  }, [listed, info, staffId, picked.join(","), alsoKey]);
   const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [problems, setProblems] = useState<{ name?: string; email?: string; answers?: Record<string, string> }>({});
@@ -115,6 +123,7 @@ function NewBooking({ c }: { c: Copy }) {
     setApplied(null);
     setRun(null);
     setPicked([]);
+    setAlso([]);
     setStaffId(service && wanted.person && peopleFor(info, service.id).some((p) => p.id === wanted.person) ? wanted.person : "");
   }, [service?.id]);
   useEffect(() => {
@@ -133,6 +142,9 @@ function NewBooking({ c }: { c: Copy }) {
   useEffect(() => { setApplied(null); setStart(""); if (pricedPicks(listed, picked)) setPack(null); }, [picked.join(",")]);
   // Another person may cost something else: a code is tried again for their price.
   useEffect(() => setApplied(null), [staffId]);
+  // Another service in the visit changes its length and price: pick the time again, try the code again.
+  useEffect(() => { setApplied(null); setStart(""); if (also.length) { setRun(null); setPack(null); } }, [alsoKey]);
+  const alsoBody = also.length ? { also } : {};
   // A course is signed up for as a whole: its first date is the start, with nothing to pick.
   const course = service?.courseStarts?.length ? service.courseStarts : null;
   useEffect(() => { if (course && step === "time") setStart(course[0]); }, [service?.id, step, course?.[0]]);
@@ -197,13 +209,15 @@ function NewBooking({ c }: { c: Copy }) {
     setError("");
     try {
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...held, ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { window.location.href = answer.url; return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
       setBusy(false);
       // The person picked stopped doing this service meanwhile: back to anyone free and the times.
       // Someone took one of the run's dates meanwhile: back to the time, where the dates are checked again.
+      // A service added to the visit can't be booked with it any more: take the added ones off and pick again.
+      if (err?.code === "also") { setAlso([]); setStart(""); setStep("time"); setError(c("bookTimeAlsoProblem")); return; }
       if (err?.code === "run_taken") { setStep("time"); setError(c("bookTimeRunGone")); return; }
       if (err?.code === "staff") { setStaffId(""); setStart(""); setStep("time"); setError(c("bookTimeStaffProblem")); return; }
       if (err?.code === "taken" || err?.code === "started") {
@@ -295,10 +309,13 @@ function NewBooking({ c }: { c: Copy }) {
               })}
             </div>
           )}
-          {!course && <TimePicker serviceId={service.id} extras={picked} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
+          {!course && !pack && !usePack && listed && canJoinVisit(listed) && (
+            <VisitAdder offered={offered} first={listed} also={also} onChange={setAlso} info={info} currency={currency} c={c} />
+          )}
+          {!course && <TimePicker serviceId={service.id} extras={picked} also={also} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
             offer={service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : undefined}
             waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />}
-          {!course && service.repeats && !pack && <RunPicker serviceId={service.id} extras={picked} staffId={staffId} start={start} run={run} onRun={setRun} onFree={setRunFree} zone={zone} c={c} />}
+          {!course && service.repeats && !pack && !also.length && <RunPicker serviceId={service.id} extras={picked} staffId={staffId} start={start} run={run} onRun={setRun} onFree={setRunFree} zone={zone} c={c} />}
           <div className="fm-book-actions mt-2">
             <button type="button" className="fm-track-btn" disabled={!start || (!!run && runFree !== true)} onClick={() => { setError(""); setStep("details"); }}>
               {start && !course ? `${c("bookTimeContinue")} · ${timeText(start, zone)}` : c("bookTimeContinue")}
@@ -311,7 +328,7 @@ function NewBooking({ c }: { c: Copy }) {
           </div>
         </div>
       )}
-      {step === "time" && listed && !!listed.packVisits && !usePack && <PackOffer service={listed} currency={currency} c={c} />}
+      {step === "time" && listed && !!listed.packVisits && !usePack && !also.length && <PackOffer service={listed} currency={currency} c={c} />}
 
       {step === "details" && service && start && (() => {
         const priced = withCode(withTax(service), applied);
@@ -374,7 +391,7 @@ function NewBooking({ c }: { c: Copy }) {
                   onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </Field>
             )}
-            {(!!service.packVisits || pack) && !applied && !gift && !run && !pricedPicks(listed, picked) && (
+            {(!!service.packVisits || pack) && !applied && !gift && !run && !also.length && !pricedPicks(listed, picked) && (
               <ApplyBox region={regionProps("bookingsPackCode")} field="bt-pack" c={c} words={{ open: "bookTimePackOpen", label: "bookTimePackLabel", problem: "bookTimePackProblem" }}
                 applied={pack ? c("bookTimePackApplied", { last4: pack.last4, left: pack.left }) : ""}
                 onRemove={() => setPack(null)} maxLength={20}
@@ -384,13 +401,13 @@ function NewBooking({ c }: { c: Copy }) {
               <ApplyBox region={regionProps("bookingsCode")} field="bt-code" c={c} words={{ open: "bookTimeCodeOpen", label: "bookTimeCodeLabel", problem: "bookTimeCodeProblem" }}
                 applied={applied ? `${c("bookTimeCodeApplied", { code: applied.code })} · −${moneyText(applied.discountMinor, currency)}` : ""}
                 onRemove={() => setApplied(null)} maxLength={40}
-                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setApplied(await ask("bookingCode", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), code: typed, email: form.email.trim() }) as BookingCode); }} />
+                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setApplied(await ask("bookingCode", { serviceId: service.id, ...alsoBody, extras: picked, ...(staffId ? { staffId } : {}), code: typed, email: form.email.trim() }) as BookingCode); }} />
             )}
             {info.giftCards && paysUpFront(priced) && !pack && (
               <ApplyBox region={regionProps("bookingsGiftCard")} field="bt-gift" c={c} words={{ open: "bookTimeGiftOpen", label: "bookTimeGiftLabel", problem: "bookTimeGiftProblem" }}
                 applied={gift ? `${c("bookTimeGiftApplied", { last4: gift.last4 })} · −${moneyText(gift.giftMinor, currency)}` : ""}
                 onRemove={() => setGift(null)} maxLength={40}
-                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, extras: picked, ...(staffId ? { staffId } : {}), giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed }); }} />
+                onTry={async (typed) => { quotedFor.current = form.email.trim().toLowerCase(); setGift({ ...(await ask("bookingGiftCard", { serviceId: service.id, ...alsoBody, extras: picked, ...(staffId ? { staffId } : {}), giftCard: typed, email: form.email.trim(), ...(applied ? { code: applied.code } : {}) }) as Omit<BookingGift, "code">), code: typed }); }} />
             )}
             {payNow > 0 && <p className="text-sm leading-6 fm-muted">{c("bookTimePayNote", { minutes: 10 })}</p>}
             {service.holdCard && <p className="text-sm leading-6 fm-muted" translate="no">{c("bookTimeCardAgree", { fee: moneyText(service.lateFeeMinor || 0, currency), hours: info.cancelHours ?? 24 })}</p>}
@@ -408,6 +425,11 @@ function NewBooking({ c }: { c: Copy }) {
             <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
             {course && <Row label={c("bookTimeCourseDates", { count: course.length })} value={courseDateLines(course, zone).join(" · ")} />}
             {chosen && <Row label={c("bookTimeWith")} value={chosen.name} />}
+            {also.length > 0 && <Row label={c("bookTimeAlsoHeading")} value={also.flatMap((a) => {
+              const sv = info?.services?.find((x) => x.id === a.serviceId);
+              const person = sv ? peopleFor(info, sv.id).find((p) => p.id === a.staffId) : undefined;
+              return sv ? [person ? `${sv.name} (${person.name})` : sv.name] : [];
+            }).join(" · ")} />}
             {picked.length > 0 && <Row label={c("bookTimeExtrasRow")} value={(listed?.extras || []).filter((x) => picked.includes(x.id)).map((x) => x.name).join(", ")} />}
             {run && <Row label={c("bookTimeRunRow")} value={`${c("bookTimeRunVisitCount", { count: run.visits })} · ${runGap(run.everyWeeks, c)}`} />}
             {service.location && <Row label={c("bookTimeWhere")} value={service.location} />}
@@ -460,6 +482,62 @@ function ExtrasPicker({ extras, picked, onPick, currency, free, total, c }: {
         </p>
       )}
     </fieldset>
+  );
+}
+
+/**
+ * Several services in one visit (plan 4, 2.1): the services added after the first, each with its length, price and who
+ * takes it, and "Add another service" opening the ones that can still join (one-to-one services, up to three in all).
+ */
+function VisitAdder({ offered, first, also, onChange, info, currency, c }: {
+  offered: BookingServiceView[]; first: BookingServiceView; also: VisitPick[]; onChange: (also: VisitPick[]) => void;
+  info: BookingInfo; currency: string; c: Copy;
+}) {
+  const [open, setOpen] = useState(false);
+  const choices = visitChoices(offered, first, also);
+  if (!also.length && !choices.length) return null;
+  const set = (i: number, next: VisitPick | null) => onChange(next ? also.map((a, n) => (n === i ? next : a)) : also.filter((_, n) => n !== i));
+  return (
+    <div {...regionProps("bookingsVisit")} className="fm-book-visit">
+      {also.length > 0 && <p className="fm-track-mono">{c("bookTimeAlsoHeading")}</p>}
+      {also.map((a, i) => {
+        const sv = offered.find((x) => x.id === a.serviceId);
+        if (!sv) return null;
+        const people = peopleFor(info, sv.id);
+        const own = asPerson(sv, people.find((p) => p.id === a.staffId));
+        return (
+          <div key={a.serviceId} className="fm-book-visit-row">
+            <div className="fm-book-visit-head">
+              <strong>{sv.name}</strong>
+              <span className="fm-muted" translate="no">{[lengthText(own.minutes), own.priceMinor > 0 ? moneyText(own.priceMinor, currency) : c("bookTimeFree")].join(" · ")}</span>
+              <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer" onClick={() => set(i, null)}
+                aria-label={`${c("bookTimeAlsoRemove")}: ${sv.name}`}>{c("bookTimeAlsoRemove")}</button>
+            </div>
+            {people.length > 0 && (
+              <div className="fm-book-people" role="group" aria-label={`${c("bookTimeWith")}: ${sv.name}`}>
+                {[{ id: "", name: c("bookTimeAnyone") }, ...people].map((p) => (
+                  <button key={p.id || "anyone"} type="button" className="fm-book-person" aria-pressed={a.staffId === p.id} onClick={() => set(i, { ...a, staffId: p.id })}>{p.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {choices.length > 0 && (open ? (
+        <div className="fm-book-visit-pick" role="group" aria-label={c("bookTimeAlsoAdd")}>
+          {choices.map((sv) => (
+            <button key={sv.id} type="button" className="fm-book-visit-choice" onClick={() => { onChange([...also, { serviceId: sv.id, staffId: "" }]); setOpen(false); }}>
+              <span>{sv.name}</span>
+              <span className="fm-muted" translate="no">{[lengthText(sv.minutes), sv.priceMinor > 0 ? moneyText(sv.priceMinor, currency) : c("bookTimeFree")].join(" · ")}</span>
+            </button>
+          ))}
+          <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer justify-self-start" onClick={() => setOpen(false)}>{c("bookTimeAlsoCancel")}</button>
+        </div>
+      ) : (
+        <button type="button" className="fm-book-visit-add" onClick={() => setOpen(true)}>+ {c("bookTimeAlsoAdd")}</button>
+      ))}
+      {also.length > 0 && <p className="text-sm leading-6 fm-muted">{c("bookTimeAlsoNote")}</p>}
+    </div>
   );
 }
 
@@ -774,8 +852,9 @@ function Row({ label, value }: { label: string; value: string }) {
 
 // ── The day and time picker (new bookings and Change time) ─────────────────────────────────────────────────────────
 
-function TimePicker({ serviceId, extras = [], staffId = "", zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "", offer }: {
+function TimePicker({ serviceId, extras = [], also = [], staffId = "", zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "", offer }: {
   serviceId: string; /** Add-ons ticked: they lengthen the visit, so fewer late times fit. */ extras?: string[];
+  /** More services in the same visit, back to back (plan 4, 2.1): only times where they all fit. */ also?: VisitPick[];
   /** Only this person's free times ("" = anyone free). */ staffId?: string; zone: string; today: string; lastDay: string; picked: string; onPick: (iso: string) => void; c: Copy;
   /** A place held for this person from the waiting list: the server shows it as free to them only. */
   offer?: { offer: string; offerKey: string };
@@ -802,7 +881,7 @@ function TimePicker({ serviceId, extras = [], staffId = "", zone, today, lastDay
     let cancelled = false;
     setTimes(null);
     setFailed(false);
-    ask("bookingTimes", { serviceId, from, days: days.length || 1, ...(extras.length ? { extras } : {}), ...(staffId ? { staffId } : {}), ...(offer || {}) }).then((answer) => {
+    ask("bookingTimes", { serviceId, from, days: days.length || 1, ...(extras.length ? { extras } : {}), ...(also.length ? { also } : {}), ...(staffId ? { staffId } : {}), ...(offer || {}) }).then((answer) => {
       if (cancelled) return;
       const got = (answer.days || {}) as Record<string, string[]>;
       const hold = (answer.held || null) as { start: string; until: string } | null;
@@ -818,7 +897,7 @@ function TimePicker({ serviceId, extras = [], staffId = "", zone, today, lastDay
       setDay((current) => (current && days.includes(current) && ((got[current] || []).length || (gone[current] || []).length || booked.includes(current)) ? current : firstOpenDay(days, got)));
     }).catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, [serviceId, extras.join(","), staffId, from, attempt]);
+  }, [serviceId, extras.join(","), also.map((a) => `${a.serviceId}:${a.staffId}`).join(","), staffId, from, attempt]);
 
   const back = pageStep(from, today, lastDay, -1);
   const next = pageStep(from, today, lastDay, 1);
@@ -1340,7 +1419,9 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
         <Row label={c("bookTimeWhat")} value={`${booking.serviceName} · ${lengthText(booking.minutes)}`} />
         <Row label={c("bookTimeWhen")} value={whenText(booking.start, booking.end, zone)} />
         {!!booking.courseStarts?.length && <Row label={c("bookTimeCourseDates", { count: booking.courseStarts.length })} value={courseDateLines(booking.courseStarts, zone).join(" · ")} />}
-        {booking.staffName && <Row label={c("bookTimeWith")} value={booking.staffName} />}
+        {booking.visit && booking.visit.length > 1
+          ? booking.visit.map((p, i) => <Row key={i} label={timeText(p.start, zone)} value={p.staffName ? `${p.serviceName} (${p.staffName})` : p.serviceName} />)
+          : booking.staffName && <Row label={c("bookTimeWith")} value={booking.staffName} />}
         {!!booking.extras?.length && <Row label={c("bookTimeExtrasRow")} value={booking.extras.map((x) => x.name).join(", ")} />}
         {booking.run && <Row label={c("bookTimeRunRow")} value={`${c("bookTimeRunVisit", { visit: booking.run.visit, visits: booking.run.visits })} · ${runGap(booking.run.everyWeeks, c)}`} />}
         {booking.location && <Row label={c("bookTimeWhere")} value={booking.location} />}

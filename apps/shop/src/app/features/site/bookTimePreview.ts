@@ -161,6 +161,22 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
       sample = { ...sample, extras: ticked, minutes, priceMinor: sample.priceMinor + ticked.reduce((n, x) => n + x.priceMinor, 0),
         end: new Date(Date.parse(sample.start) + minutes * 60_000).toISOString() };
     }
+    // Several services in one visit: each added one straight after, the visit's length and price their sum.
+    const added = (Array.isArray(body.also) ? body.also : []).flatMap((a: any) => {
+      const sv = SERVICES.find((x) => x.id === a?.serviceId);
+      return sv ? [sv] : [];
+    });
+    if (added.length) {
+      let at = sample.end;
+      const visit = [{ serviceName: sample.serviceName, staffName: "", start: sample.start, end: sample.end }, ...added.map((sv: BookingServiceView) => {
+        const start = at;
+        at = new Date(Date.parse(start) + sv.minutes * 60_000).toISOString();
+        return { serviceName: sv.name, staffName: "", start, end: at };
+      })];
+      sample = { ...sample, visit, end: at, minutes: sample.minutes + added.reduce((n: number, sv: BookingServiceView) => n + sv.minutes, 0),
+        priceMinor: sample.priceMinor + added.reduce((n: number, sv: BookingServiceView) => n + sv.priceMinor, 0),
+        serviceName: visit.map((p) => p.serviceName).join(" + ") };
+    }
     if (typeof body.pack === "string" && body.pack) {
       sample = { ...sample, payment: "pack", paid: true, priceMinor: 0, packLast4: body.pack.replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase(), packVisit: 3, packVisits: 5,
         depositMinor: undefined, depositPaid: undefined, dueMinor: undefined, canPayRest: undefined, discountCode: undefined, discountMinor: undefined, giftCardLast4: undefined, giftMinor: undefined };

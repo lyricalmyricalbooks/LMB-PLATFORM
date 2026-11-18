@@ -1,6 +1,6 @@
 // Book a time page (features/site/BookTime.tsx): the pure rules. Days and times are the shop's own (the server sends its
 // time zone), so a shopper abroad sees the times the shop keeps, with the zone named under the picker.
-import { addDays, depositOf, MAX_RUN_DAYS, MAX_RUN_VISITS, MAX_RUN_WEEKS } from "../../../shared/bookingTimes";
+import { addDays, depositOf, joinsVisit, MAX_RUN_DAYS, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_VISIT_PARTS, visitService } from "../../../shared/bookingTimes";
 
 import type { BookingQuestion } from "../../../shared/bookingTimes";
 export type BookingServiceView = { id: string; name: string; description: string; minutes: number; priceMinor: number; payment: "free" | "full" | "deposit" | "atShop"; /** With payment "deposit": the deposit as an amount, or as a percent of the price. */ depositMinor?: number; depositPercent?: number; location: string; questions?: BookingQuestion[]; /** Above 1: a group class with this many places at each time. */ places?: number; /** Card on file: the customer saves a card, and missing the booking may cost `lateFeeMinor`. */ holdCard?: boolean; lateFeeMinor?: number;
@@ -106,6 +106,8 @@ export type BookingView = {
   canEarlier?: boolean; earlier?: boolean;
   /** The shop's form before the first visit, while this client hasn't signed it; or when they signed it. */
   form?: { title: string; text: string; questions: BookingQuestion[] }; formSigned?: string;
+  /** Several services in one visit: each in turn, with its time and who takes it (the first is the booking's own). */
+  visit?: { serviceName: string; staffName: string; start: string; end: string }[];
   /** Add-ons and options booked with it (minutes and priceMinor already include them). */
   extras?: BookingExtraView[];
   /** A standing appointment: which visit of the run this is, how many there are and how often. */
@@ -319,4 +321,36 @@ function sameQuestion(a: string, b: string): boolean {
 /** The built-in note box hides when the shop's own questions already ask the same thing, so the form never asks twice. */
 export function showNoteBox(questions: readonly { label: string }[], noteLabel: string): boolean {
   return !questions.some((q) => sameQuestion(q.label, noteLabel));
+}
+
+// ── Several services in one visit (bookings plan 4, 2.1) ─────────────────────────────────────────────────────────────
+
+/** A service added to the visit, and who takes it ("" = anyone free). */
+export type VisitPick = { serviceId: string; staffId: string };
+
+/** Whether a client may add more services to this one: one-to-one services only, never a class or a course. */
+export const canJoinVisit = (s: Pick<BookingServiceView, "places" | "courseStarts"> | null | undefined): boolean =>
+  !!s && joinsVisit({ places: s.places }) && !s.courseStarts?.length;
+
+/** The services that may still be added after `first` and those already added (up to three in one visit, none twice). */
+export function visitChoices<S extends BookingServiceView>(offered: readonly S[], first: S | null, added: readonly VisitPick[]): S[] {
+  if (!first || !canJoinVisit(first) || added.length >= MAX_VISIT_PARTS - 1) return [];
+  const taken = new Set([first.id, ...added.map((a) => a.serviceId)]);
+  return offered.filter((s) => canJoinVisit(s) && !taken.has(s.id));
+}
+
+/**
+ * The visit as one service on the page: names joined ("Cut + Colour"), lengths and prices added, the way to pay made from
+ * each service's own (the server's `visitService`), the tax added up. Display only: the server works it all out again.
+ */
+export function withVisit<S extends BookingServiceView>(first: S, more: readonly BookingServiceView[]): S {
+  if (!more.length) return first;
+  const all = [first, ...more];
+  const v = visitService({ ...first, gapAfter: 0 }, more.map((m) => ({ ...m, gapAfter: 0 })));
+  const taxMinor = all.reduce((n, s) => n + (s.taxMinor || 0), 0);
+  return {
+    ...first, name: all.map((s) => s.name).join(" + "), minutes: all.reduce((n, s) => n + s.minutes, 0),
+    priceMinor: v.priceMinor, payment: v.payment, depositMinor: v.depositMinor, depositPercent: 0, introPriceMinor: 0,
+    taxMinor: taxMinor || undefined, taxPpm: undefined, packVisits: 0, repeats: false,
+  };
 }

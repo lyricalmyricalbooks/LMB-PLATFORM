@@ -563,6 +563,15 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     booking("bk-15", services[0], at(0, 10, 15), "Gus Example"),
     booking("bk-13", services[3], at(0, 16), "Rue Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false, checkInCode: "RUE5-TQDA", note: "Bringing my own paper." }),
     booking("bk-8", services[2], at(1, 13), "Hal Example"),
+    // Several services in one visit (plan 4, 2.1): a review, then a riso session straight after, paid once.
+    (() => {
+      const first = booking("bk-16", services[0], at(3, 10), "Lea Example");
+      const partStart = first.end;
+      const part = { serviceId: services[1].id, serviceName: services[1].name, minutes: services[1].minutes, gapAfter: 0, priceMinor: services[1].priceMinor,
+        staffId: TEAM ? "ben" : "", staffName: TEAM ? "Ben Example" : "", roomId: "", roomName: "", start: partStart, end: plus(partStart, services[1].minutes) };
+      return { ...first, end: part.end, minutes: first.minutes + part.minutes, priceMinor: first.priceMinor + part.priceMinor,
+        leadPriceMinor: first.priceMinor, gapAfter: 0, parts: [part], paid: true, payment: "card" as const };
+    })(),
     booking("bk-12", services[1], at(2, 10), "Kai Example", { payment: "pack", priceMinor: 0, listPriceMinor: 4500, paid: true, pack: { id: "p".repeat(40), last4: "K7QD", visit: 2, visits: 5 } }),
     booking("bk-9", services[2], at(1, 13), "Ivy Example", { status: "held", paid: false }),
     booking("bk-10", services[2], at(1, 13), "Jo Example"),

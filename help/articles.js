@@ -75,6 +75,7 @@ export const ARTICLES = Object.freeze([
       "For different hours on a few dates, like December or a long weekend, add Holiday hours under Hours & rules. They replace your weekly hours on those days, and you can mark a day closed. Each person on your team can have their own too.",
       "To keep a day from getting too full, set Most online bookings a day under Hours & rules. Once a day has that many, clients can't book it online, but you can still add more yourself.",
       "A room or machine that takes more than one booking at once, like three massage tables or two kilns, can say so under Team & rooms › Rooms and equipment. Pick how many it takes at once, and it fills only when all are in use.",
+      "Clients can book several services in one visit, like a cut and a colour, with up to three services one after another. The calendar shows each service as its own card, and moving one moves the whole visit.",
     ],
   },
   {

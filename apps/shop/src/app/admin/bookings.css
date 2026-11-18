@@ -613,3 +613,10 @@
 .rp .bkg-special-what span { color: var(--rp-text-muted); font-size: 13px; }
 .rp .bkg-special-add { display: grid; gap: 12px; padding-top: 4px; }
 .rp .bkg-wgrid-head[data-special] .bkg-day-hours { color: var(--rp-primary-text); font-weight: 600; }
+
+/* Several services in one visit (plan 4, 2.1): the services in order, each with its time and person. */
+.rp .bkg-visit { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rp-border); border-radius: 14px; overflow: hidden; }
+.rp .bkg-visit li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 14px; }
+.rp .bkg-visit li + li { border-top: 1px solid var(--rp-border); }
+.rp .bkg-visit-time { font-family: var(--rp-font-mono); font-size: 13px; color: var(--rp-text-muted); min-width: 64px; }
+.rp .bkg-visit li > span:last-child:not(.bkg-visit-time) { color: var(--rp-text-muted); }
