@@ -14,7 +14,7 @@ export function TypeFactsCard({ form, type, onPatch }: { form: any; type: Produc
       description={law ? "Shown in the product's Details. The law asks for the marked ones before it goes on sale." : "Shown in the product's Details. Empty boxes don't show."}>
       <div className="be-grid">
         {facts.map((fact) => (
-          <TextField key={fact.key} label={fact.law ? `${fact.label} (required by law)` : fact.label}
+          <TextField key={fact.key} name={`fact-${fact.key}`} label={fact.law ? `${fact.label} (required by law)` : fact.label}
             value={factValue(form, fact.key)} maxLength={500} placeholder={fact.example ? `e.g. ${fact.example}` : undefined}
             onChange={(e) => onPatch(withFact(form, fact, e.target.value))} />
         ))}

@@ -2681,3 +2681,5 @@ div.rp-listcard-main { cursor: default; }
 .book-editor-riso .be-sizes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -2px; }
 .book-editor-riso .be-size { min-width: 48px; min-height: 36px; padding: 0 10px; border-radius: 999px; justify-content: center; }
 .book-editor-riso .be-size:not(.is-on) { border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text-muted); }
+/* Ready to publish's "Good to add": the extras after the four must-haves (product types plan, change 9). */
+.book-editor-riso .be-rail-sub { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rp-divider); font: 600 var(--rp-text-xs) var(--rp-font-mono, var(--rp-font-body)); letter-spacing: .06em; text-transform: uppercase; color: var(--rp-text-subtle); }

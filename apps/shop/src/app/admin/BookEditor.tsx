@@ -86,7 +86,7 @@ import { VariantGrid } from "./VariantGrid";
 import { ShopWordsContext } from "./shopWords";
 import { currentSells, goodsWords, startingKind } from "./sells";
 import { typeById, typeOfProduct, type ProductType } from "../../shared/productTypes";
-import { safetyForType } from "./typeFacts";
+import { missingLawFacts, safetyForType } from "./typeFacts";
 import { TypeFactsCard } from "./TypeFactsCard";
 import { adoptEditions, isBookKind, productKind, usesOptionPicker, variantsForOptions, type ProductKind, type ProductOption } from "../../shared/productOptions";
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
@@ -1157,18 +1157,24 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
   const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= lowLine;
 
+  // Product types plan, change 9: four must-haves, plus any fact the law asks for this type; the rest is good to add.
+  const lawGaps = giftCard ? [] : missingLawFacts(formData, typeOfProduct(formData));
+  const lawFacts = giftCard ? [] : (typeOfProduct(formData)?.facts ?? []).filter((f) => f.law);
   const checklist = [
     { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab, field: "title" },
-    { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab, field: "description" },
-    { label: "Cover image", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
+    { label: "Photo", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
     { label: "Price above $0", ok: num(formData.retailPrice) > 0 || (formData.variants || []).some((v: any) => num(v.price) > 0), tab: "pricing" as BookTab },
-    { label: "ISBN or item code", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: "isbn" },
+    { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab, field: "description" },
+    ...lawFacts.map((f) => ({ label: f.label, ok: !lawGaps.includes(f), tab: "details" as BookTab, field: `fact-${f.key}` })),
+  ];
+  const goodToAdd = [
+    { label: isBookKind(productKind(formData)) ? "ISBN or item code" : "Item code", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: isBookKind(productKind(formData)) ? "isbn" : "sku" },
     { label: "Category", ok: (formData.categories || []).length > 0, tab: "organize" as BookTab },
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
   const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, stock: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
-  checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
+  [...checklist, ...goodToAdd].filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
   const bookKind = isBookKind(productKind(formData));
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
@@ -1973,6 +1979,16 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                 </li>
               ))}
             </ul>
+            {goodToAdd.some((c) => !c.ok) && <>
+              <p className="be-rail-sub">Good to add</p>
+              <ul className="be-check">
+                {goodToAdd.filter((c) => !c.ok).map((c) => (
+                  <li key={c.label}>
+                    <button type="button" onClick={() => goTo(c.tab, c.field)}><span aria-hidden>+</span> {c.label}</button>
+                  </li>
+                ))}
+              </ul>
+            </>}
           </div>
         </aside>
       </div>
