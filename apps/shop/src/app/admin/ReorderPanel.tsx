@@ -57,8 +57,8 @@ export function ReorderList() {
     <div className="rp-sr">
       {rows.length > 0 && (
         <PageActions>
-          <SecondaryButton onClick={() => save("csv")}>Download CSV</SecondaryButton>
           <SecondaryButton onClick={() => save("xlsx")}>Download Excel</SecondaryButton>
+          <SecondaryButton onClick={() => save("csv")}>Download CSV</SecondaryButton>
         </PageActions>
       )}
       {data.stockroomMissed && <p className="rp-sr-status" role="status">Stockroom counts didn't load; showing website stock.</p>}

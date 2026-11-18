@@ -15,6 +15,9 @@ import {
 import { RecordsGate } from "./RecordsGate";
 import type { StockroomRecords } from "./stockroomData";
 import { addMoney, moneyText, type Owed } from "./stockists";
+
+/** How each invoice goes out, said under the customer's name (its own column crowded the table on a laptop). */
+const sendingWords = (r: RepeatRow) => (r.autoEmail ? (r.email ? "Emailed for you" : "No email: waits as a draft") : "Waits as a draft");
 import { describeResult, stockroomWriteApi } from "./stockroomWrite";
 import "./money.css";
 import "./sales.css";
@@ -75,14 +78,13 @@ export function RepeatingBoard({ initial }: { initial: StockroomRecords }) {
     : r.status === "active" ? <StatusBadge tone="success" glyph={false}>On</StatusBadge>
       : <StatusBadge tone="neutral" glyph={false}>{r.status === "paused" ? "Paused" : "Ended"}</StatusBadge>;
   const columns: Column<RepeatRow>[] = [
-    { key: "who", header: "Customer", lead: true, render: (r) => <button type="button" className="rp-sr-open" onClick={() => { setNotice(null); setEditing(formFromRepeat(records, r)); }} aria-label={`Edit the repeating invoice for ${r.billedTo}`}>{r.billedTo}</button> },
+    { key: "who", header: "Customer", lead: true, render: (r) => <><button type="button" className="rp-sr-open" onClick={() => { setNotice(null); setEditing(formFromRepeat(records, r)); }} aria-label={`Edit the repeating invoice for ${r.billedTo}`}>{r.billedTo}</button><div className="rp-hint">{sendingWords(r)}</div></> },
     { key: "every", header: "How often", render: (r) => everyWord(r.every) },
     { key: "next", header: "Next", render: (r) => r.status === "active" && r.nextDate ? <span style={{ whiteSpace: "nowrap" }}>{fmtD(r.nextDate)}</span> : "—" },
     { key: "amount", header: "Amount", numeric: true, render: repeatAmount },
-    { key: "send", header: "Sending", render: (r) => r.autoEmail ? (r.email ? "Emailed for you" : <span className="rp-hint">No email: waits as a draft</span>) : "Waits as a draft" },
     { key: "last", header: "Last made", render: (r) => r.lastMade ? <><span style={{ whiteSpace: "nowrap" }}>{r.lastMade.num || "—"}</span><div className="rp-hint">{fmtD(r.lastMade.date)}</div></> : "Not yet" },
     { key: "status", header: "Status", render: (r) => <>{statusCell(r)}{r.problem && <div className="rp-hint">{r.problem}</div>}</> },
-    { key: "action", header: "Action", render: (r) => <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+    { key: "action", header: "Action", render: (r) => <div style={{ display: "flex", gap: 8, flexWrap: "nowrap" }}>
       {r.status !== "ended" && <SecondaryButton size="sm" busy={acting === r.id} disabled={!!acting} onClick={() => run(r, pauseRepeatChange(r.id, r.status === "active", todayText(), Date.now()), r.status === "active" ? `Paused. Nothing more is billed to ${r.billedTo} until you start it again.` : `Started again. The next invoice is made on ${fmtD(r.nextDate < todayText() ? todayText() : r.nextDate)}.`)}>{r.status === "active" ? "Pause" : "Start again"}</SecondaryButton>}
       <SecondaryButton size="sm" disabled={!!acting} onClick={() => remove(r)} aria-label={`Delete the repeating invoice for ${r.billedTo}`}>Delete</SecondaryButton>
     </div> },

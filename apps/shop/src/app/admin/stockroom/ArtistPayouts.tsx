@@ -4,7 +4,7 @@
 import { useMemo } from "react";
 import { fmt, fmtD } from "@stockroom/money.js";
 
-import { DataTable, EmptyState, GhostButton } from "../riso/components";
+import { DataTable, EmptyState, SecondaryButton } from "../riso/components";
 import { useShopWords } from "../shopWords";
 import { authorMoneyPlan, pastSettlements } from "./authorMoney";
 import type { StockroomRecords } from "./stockroomData";
@@ -59,7 +59,7 @@ export function ArtistPayouts({ records, onOpenBook }: { records: StockroomRecor
           <p className="rp-tax-tile-foot">Payouts are left out of expenses</p>
         </div>
       </div>
-      <div className="rp-card rp-money-list">
+      <div className="rp-card rp-reorder-card">
         <DataTable stackOnPhone caption={w("Artist payouts")} rowKey={(r) => r.bookId} rows={rows}
           empty={<EmptyState inline title="No artist shares yet" description={w("Set an artist's share in a book's details and what you owe them shows here.")} />}
           columns={[
@@ -68,7 +68,7 @@ export function ArtistPayouts({ records, onOpenBook }: { records: StockroomRecor
             { key: "p", header: "Split", render: (r) => r.split || "-" },
             { key: "o", header: "Owed", numeric: true, render: (r) => (r.direction === "to-publisher" ? `They owe ${fmt(r.owed, r.currency)}` : fmt(r.direction === "to-artist" ? r.owed : 0, r.currency)) },
             { key: "t", header: "Status", render: (r) => (r.direction === "settled" ? (r.lastSettled ? `Paid ${fmtD(r.lastSettled)}` : "Settled") : r.lastSettled ? `Last paid ${fmtD(r.lastSettled)}` : "Not paid yet") },
-            ...(onOpenBook ? [{ key: "x", header: "", render: (r: ArtistRow) => <GhostButton size="sm" onClick={() => onOpenBook(r.bookId)}>{r.direction === "settled" ? "Open" : "Settle"}</GhostButton> }] : []),
+            ...(onOpenBook ? [{ key: "x", header: "", render: (r: ArtistRow) => <SecondaryButton size="sm" onClick={() => onOpenBook(r.bookId)}>{r.direction === "settled" ? "Open" : "Settle"}</SecondaryButton> }] : []),
           ]} />
       </div>
     </div>
