@@ -917,6 +917,7 @@ function's `secrets` list (and the global options) on a shop that uses a platfor
 `platformKey.test.js` fails when a functions file declares a bare `secrets: [` list. The card form gets the platform's
 publishable key and the press's account from the shop profile's `payments` (`platformStripe` in `src/lib/shopProfile.ts`).
 
+**Memberships (18 November 2026, M1).** Stripe's `standaloneCheckout(mode).subscriptions` reads and changes a member's subscription (`read`, `cancelAtEnd`, `resume`, `setCard`, `endNow`, `invoices`), answering `memberSubscription` (stripe.js: a plain shape; the period is read from the item on newer API versions). The page itself is `open` with `mode: "subscription"`; in platform mode the service adds the fee as a share of each invoice. Square has no `subscriptions` until M4: callers check for it.
 **Square (28 October 2026, code plan 2.2b).** `SHOP_PAYMENT_PROVIDER="square"` works only with `SHOP_PAYMENT_MODE=
 "platform"` (`providerModeOf` throws otherwise). `payments/square.js` answers the same interface in Stripe's words, so
 the callers stay as they are: Square objects are mapped to intent, session, charge, refund and dispute shapes, and the

@@ -32,7 +32,9 @@ export const TEST_SHOP_PAGE = `${REPO}/actions/workflows/test-shop.yml`;
 const DEPLOY_STEP = { text: "Back here, press Run Deploy the platform and wait for it to finish (about 5 minutes).", href: DEPLOY_PAGE, linkWords: "Run Deploy the platform" };
 
 // Stripe's events each endpoint must send: the ones services/payments and services/billing handle.
-export const CONNECT_EVENTS = Object.freeze(["account.updated", "account.application.deauthorized", "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.expired", "payment_intent.succeeded", "payment_intent.canceled", "charge.refunded"]);
+// Memberships (M1) added the four subscription and invoice events; the shop re-reads members anyway, so a missed one
+// only makes it slower.
+export const CONNECT_EVENTS = Object.freeze(["account.updated", "account.application.deauthorized", "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.expired", "payment_intent.succeeded", "payment_intent.canceled", "charge.refunded", "customer.subscription.updated", "customer.subscription.deleted", "invoice.paid", "invoice.payment_failed"]);
 export const BILLING_EVENTS = Object.freeze(["checkout.session.completed", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "customer.subscription.paused", "customer.subscription.resumed", "customer.subscription.trial_will_end", "invoice.paid", "invoice.payment_failed", "invoice.payment_action_required", "payment_method.automatically_updated"]);
 
 /**
