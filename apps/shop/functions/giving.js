@@ -19,6 +19,8 @@
 //                           server's `taken`: raised when a gift claims one at giftStart (inside the same transaction, so
 //                           a limit can't be passed), lowered when that gift's page closes unpaid or it is refunded, and
 //                           raised again if a closed page turns out paid (the giver paid, so they get it even past the limit).
+//   givingReceipts/{year}   the next tax receipt number of that year (`test-<year>` for test gifts), raised in the same
+//                           transaction that gives a gift its receipt (G3, shared/charityReceipts): numbers never repeat
 //   fundraiserUpdates/{id}  an update emailed to a fundraiser's givers (G2c, fundraiserUpdates.js, passed in as `updates`)
 //
 // Card-testing guard (people trying stolen cards with small gifts): the lowest gift is $5 (shared/givingRules MIN_GIFT_MINOR);
@@ -36,6 +38,7 @@ const { cleanGivingSettings, startingGivingSettings, giftAmountProblem, giftChar
 const { waysOn } = require("./shared/waysToSell");
 const { cleanFundraiser, fundraiserState, publicFundraiser, wallWith, wallWithout, rewardProblem, rewardsWithTaken, cleanShipTo } = require("./shared/fundraiserRules");
 const { dayOf: shopDayOf } = require("./shared/bookingTimes");
+const { cleanCharity, cleanReceiptAddress, receiptEligibleMinor, receiptNumber, receiptCounterId, receiptAddressLine, CHARITY_MESSAGES } = require("./shared/charityReceipts");
 const { shopTimeZone } = require("./shared/shopTimeZone");
 
 /** How long a card page stays open; the sweep closes it after that. Stripe's shortest is 30 minutes. */
@@ -75,6 +78,12 @@ const WORDS = {
     refundSubject: (shop) => `Your gift to ${shop} was refunded`,
     refundIntro: (shop) => `${shop} has refunded your gift.`,
     refundWhen: "The money goes back to the card you paid with, usually within 5 to 10 business days.",
+    receiptCancelled: (n) => `Your tax receipt ${n} is cancelled.`,
+    receiptTitle: { ca: "Official donation receipt for income tax purposes", us: "Receipt for your tax records" },
+    receiptNo: "Receipt number", issued: "Date issued", received: "Gift received", donor: "Donor", amount: "Amount of gift",
+    eligible: "Eligible amount of gift for tax purposes", charityNo: { ca: "Charity registration number", us: "Tax ID (EIN)" },
+    signed: "Signed by", replaces: "Replaces receipt", cra: "Canada Revenue Agency: canada.ca/charities-giving",
+    noGoods: "No goods or services were given in exchange for this gift.", test: "Test gift: this receipt can't be used for taxes.",
   },
   fr: {
     subject: (shop) => `Merci pour votre don à ${shop}`,
@@ -87,6 +96,12 @@ const WORDS = {
     refundSubject: (shop) => `Votre don à ${shop} a été remboursé`,
     refundIntro: (shop) => `${shop} a remboursé votre don.`,
     refundWhen: "L'argent est remis sur la carte utilisée pour le paiement, habituellement en 5 à 10 jours ouvrables.",
+    receiptCancelled: (n) => `Votre reçu fiscal ${n} est annulé.`,
+    receiptTitle: { ca: "Reçu officiel de don aux fins de l'impôt sur le revenu", us: "Reçu pour vos dossiers fiscaux" },
+    receiptNo: "Numéro du reçu", issued: "Date d'émission", received: "Don reçu le", donor: "Donateur", amount: "Montant du don",
+    eligible: "Montant admissible du don aux fins de l'impôt", charityNo: { ca: "Numéro d'enregistrement de l'organisme", us: "Numéro fiscal (EIN)" },
+    signed: "Signé par", replaces: "Remplace le reçu", cra: "Agence du revenu du Canada : canada.ca/organismes-bienfaisance-dons",
+    noGoods: "Aucun bien ni service n'a été fourni en échange de ce don.", test: "Don d'essai : ce reçu ne peut pas servir aux impôts.",
   },
 };
 
@@ -96,7 +111,28 @@ function publicGift(id, g) {
     id, status: g.status, amountMinor: g.amountMinor || 0, feeMinor: g.feeMinor || 0, chargedMinor: g.chargedMinor || 0, currency: g.currency,
     name: g.customer?.name || "", anonymous: g.anonymous === true, honour: g.honour || null, paidAt: g.paidAt || "", refunded: g.status === "refunded",
     reward: g.reward ? { title: g.reward.title || "", ships: g.reward.ships === true, when: g.reward.when || "", sent: !!g.reward.sentAt } : null,
+    receipt: g.receipt || null,
   };
+}
+
+/** The tax receipt block of an email (G3): the charity's wording for its kind, in the giver's language. */
+function receiptHtml(receipt, charity, say, locale, escapeHtml) {
+  if (!receipt || !charity) return "";
+  const money = (minor) => escapeHtml(moneyWords(minor, receipt.currency, locale));
+  const line = (label, value) => (value ? `<p style="margin:0 0 4px;"><strong>${label}:</strong> ${escapeHtml(value)}</p>` : "");
+  const kind = charity.kind === "us" ? "us" : "ca";
+  return `<div style="margin:20px 0 0;padding:16px;border:1px solid #ccc;">
+    <p style="margin:0 0 10px;font-weight:bold;">${say.receiptTitle[kind]}</p>
+    ${receipt.test ? `<p style="margin:0 0 8px;color:#a00;">${say.test}</p>` : ""}
+    ${line(say.receiptNo, receipt.number)}${line(say.replaces, receipt.replaces)}
+    ${line(say.issued, receipt.issuedOn)}${line(say.received, receipt.receivedOn)}
+    ${line(say.donor, [receipt.name, receiptAddressLine(receipt.address)].filter(Boolean).join(", "))}
+    <p style="margin:0 0 4px;"><strong>${say.amount}:</strong> ${money(receipt.eligibleMinor)}</p>
+    ${kind === "ca" ? `<p style="margin:0 0 4px;"><strong>${say.eligible}:</strong> ${money(receipt.eligibleMinor)}</p>` : ""}
+    <p style="margin:10px 0 4px;">${escapeHtml(charity.name)}, ${escapeHtml(charity.address)}</p>
+    ${line(say.charityNo[kind], charity.number)}${kind === "ca" ? line(say.signed, charity.signer) : ""}
+    <p style="margin:8px 0 0;font-size:12px;">${kind === "ca" ? say.cra : say.noGoods}</p>
+  </div>`;
 }
 
 /** A gift as the admin lists it: the giver's details are the owner's to see, even when the giver stays anonymous to others. */
@@ -107,6 +143,8 @@ const adminGift = (id, g) => ({
   fundraiserId: g.fundraiserId || "",
   reward: g.reward ? { id: g.reward.id || "", title: g.reward.title || "", ships: g.reward.ships === true, when: g.reward.when || "", sentAt: g.reward.sentAt || "" } : null,
   shipTo: g.shipTo || null,
+  receipt: g.receipt || null, receiptHistory: Array.isArray(g.receiptHistory) ? g.receiptHistory : [],
+  receiptAsked: g.receiptAsked === true, receiptAddress: g.receiptAddress || null,
 });
 
 /** One line of an address, for the emails and the admin. */
@@ -133,6 +171,17 @@ function givingActions({
   const fundraisers = () => db.collection("fundraisers");
   /** The shop's own day (YYYY-MM-DD in its time zone): a fundraiser runs to the end of its last day there. */
   const shopToday = (ms = now().getTime()) => shopDayOf(ms, timeZone());
+  const receiptCounter = (year, test) => db.collection("givingReceipts").doc(receiptCounterId(year, test));
+  /** A receipt from a counter read in the caller's transaction; `n` is the number used (the caller raises the counter). */
+  function newReceipt(counter, gift, eligibleMinor, issuedOn, receivedOn, replaces = "") {
+    const n = Math.max(1, Number(counter.exists ? counter.data().next : 1) || 1);
+    const year = Number(issuedOn.slice(0, 4));
+    return {
+      n, number: receiptNumber(year, n, gift.mode === "test"), year: Number(receivedOn.slice(0, 4)), issuedOn, receivedOn, eligibleMinor,
+      currency: gift.currency || currency(), name: String(gift.customer?.name || "").slice(0, 100),
+      address: cleanReceiptAddress(gift.receiptAddress), status: "issued", cancelledOn: "", replaces, test: gift.mode === "test",
+    };
+  }
 
   /** The fundraiser running now, or null. Started ones whose last day passed count as ended. */
   async function liveFundraiser(today = shopToday()) {
@@ -271,6 +320,7 @@ function givingActions({
           ${g.reward?.when ? line(say.rewardWhen, g.reward.when) : ""}
           ${g.reward?.ships && g.shipTo ? line(say.rewardPost, shipToLine(g.shipTo)) : ""}
           ${g.anonymous ? `<p style="margin:12px 0 0;">${say.anonymous}</p>` : ""}
+          ${receiptHtml(g.receipt, settings.charity, say, locale, escapeHtml)}
           <div style="margin:16px 0 0;">${key ? risoButton(escapeHtml(giftUrl(id, key)), say.button, brand.accent, brand.theme) : ""}</div>
         `, layout),
       });
@@ -310,6 +360,7 @@ function givingActions({
           <h2 style="margin:0 0 12px;">${escapeHtml(say.refundSubject(shop))}</h2>
           <p style="margin:0 0 16px;">${escapeHtml(say.refundIntro(shop))} ${escapeHtml(moneyWords(g.chargedMinor, g.currency, locale))}.</p>
           <p style="margin:0;">${say.refundWhen}</p>
+          ${g.receipt?.number ? `<p style="margin:12px 0 0;">${escapeHtml(say.receiptCancelled(g.receipt.number))}</p>` : ""}
         `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop }),
       });
       return true;
@@ -325,13 +376,25 @@ function givingActions({
   async function confirmPaid(id, g, { session = "", paymentIntent = null } = {}) {
     const at = now().toISOString();
     const changes = { status: "paid", paidAt: at, paidSession: session || null, paymentIntent, updatedAt: at, pendingKey: null };
+    const { charity } = await readSettings();
+    let receipt = null;
     const done = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(gifts().doc(id));
       if (!fresh.exists || !["held", "cancelled"].includes(fresh.data()?.status) || fresh.data()?.paidAt) return false;
       const gift = fresh.data();
       // A gift to a fundraiser counts toward it here, once, as it is paid (even after the last day: the giver paid in time).
       const fund = gift.fundraiserId ? await tx.get(fundraisers().doc(gift.fundraiserId)) : null;
+      // A registered charity's tax receipt, numbered in this same transaction so a number is never given twice (G3).
+      const eligibleMinor = gift.receipt ? 0 : receiptEligibleMinor(gift, charity);
+      const today = shopToday(Date.parse(at));
+      const counter = eligibleMinor > 0 ? await tx.get(receiptCounter(Number(today.slice(0, 4)), gift.mode === "test")) : null;
       tx.set(gifts().doc(id), changes, { merge: true });
+      if (counter) {
+        receipt = newReceipt(counter, gift, eligibleMinor, today, today);
+        tx.set(counter.ref, { next: receipt.n + 1, updatedAt: at }, { merge: true });
+        delete receipt.n;
+        tx.set(gifts().doc(id), { receipt }, { merge: true });
+      }
       if (fund?.exists) {
         const f = fund.data();
         const entry = gift.wall === true && !gift.anonymous && gift.customer?.name ? { gift: id, name: String(gift.customer.name).slice(0, 80), at } : null;
@@ -347,7 +410,7 @@ function givingActions({
       return true;
     });
     if (!done) return { ...g, ...((await gifts().doc(id).get()).data() || {}) };
-    const next = { ...g, ...changes };
+    const next = { ...g, ...changes, ...(receipt ? { receipt } : {}) };
     await tellThanks(id, next, g.pendingKey || "");
     return next;
   }
@@ -414,7 +477,9 @@ function givingActions({
         const snap = ID.test(id) ? await gifts().doc(id).get() : null;
         if (!snap?.exists || !keyFits(snap.data(), req.body?.key)) return fail(res, 404, "We couldn't find that gift. Check the link in your email.", "not_found");
         const g = await refreshGift(id, snap.data(), snap.data().status === "held" ? (await standalone()).checkout : null);
-        return res.status(200).json({ gift: publicGift(id, g) });
+        const view = publicGift(id, g);
+        const { charity } = view.receipt ? await readSettings() : { charity: null };
+        return res.status(200).json({ gift: view, charity: view.receipt && charity ? charity : null });
       }
       if (!(await featureOn())) return res.status(200).json({ on: false });
       const settings = await readSettings();
@@ -423,7 +488,7 @@ function givingActions({
         return res.status(200).json({
           on: true, currency: currency(), minMinor: MIN_GIFT_MINOR, maxMinor: MAX_GIFT_MINOR, cardsReady: !!checkout,
           amounts: settings.amounts, otherAmount: settings.otherAmount, coverFee: settings.coverFee, honour: settings.honour,
-          form: await formToken(nowMs), today: shopToday(nowMs), fundraiser: await liveFundraiser(shopToday(nowMs)).then((f) => (f ? publicFundraiser(f.id, f.data, shopToday(nowMs)) : null)),
+          form: await formToken(nowMs), today: shopToday(nowMs), receipts: settings.charity ? { kind: settings.charity.kind } : null, fundraiser: await liveFundraiser(shopToday(nowMs)).then((f) => (f ? publicFundraiser(f.id, f.data, shopToday(nowMs)) : null)),
         });
       }
       if (action === "giftStart") {
@@ -466,6 +531,10 @@ function givingActions({
             if ("problem" in shipTo) return fail(res, 400, shipTo.problem, shipTo.code);
           }
         }
+        // A tax receipt (registered charities only, G3): never with a reward; a Canadian one needs the giver's address.
+        const receiptAsked = !!settings.charity && !rewardId && req.body?.receipt === true;
+        const receiptAddress = receiptAsked ? cleanReceiptAddress(req.body?.receiptAddress) : null;
+        if (receiptAsked && settings.charity.kind === "ca" && !receiptAddress) return fail(res, 400, CHARITY_MESSAGES.receiptAddress, "receiptAddress");
         const { checkout, mode } = await standalone();
         if (!checkout) return fail(res, 409, "This shop can't take card payments for gifts yet. Please contact the shop.", "not_available");
         const charge = giftCharge(amountMinor, req.body?.coverFee, settings);
@@ -475,6 +544,7 @@ function givingActions({
         const record = {
           status: "held", customer: { name: giver.name, email: giver.email }, anonymous: giver.anonymous, honour: giver.honour, note: giver.note,
           ...(fund ? { fundraiserId: fund.id, wall: fund.data.wall !== false && req.body?.wall === true && !giver.anonymous } : {}),
+          ...(receiptAsked ? { receiptAsked: true, ...(receiptAddress ? { receiptAddress } : {}) } : {}),
           locale: french(req.body?.locale) ? "fr" : "en", ...charge, currency: currency(), mode, keyHashes: [hash(key)], pendingKey: key, sessions: [], createdAt: at, updatedAt: at,
         };
         if (rewardId) {
@@ -600,6 +670,8 @@ function givingActions({
         return res.status(200).json({ ok: true, fundraiser: adminFundraiser(id, next, today) });
       }
       if (op === "saveSettings") {
+        const charity = cleanCharity(req.body?.settings?.charity);
+        if ("problem" in charity) return fail(res, 400, charity.problem, charity.field);
         const settings = cleanGivingSettings(req.body?.settings);
         await settingsRef().set({ ...settings, updatedAt: new Date(nowMs).toISOString(), updatedBy: by });
         await tellWebsite();
@@ -614,6 +686,37 @@ function givingActions({
         const sentAt = req.body?.sent === false ? "" : at;
         await gifts().doc(id).set({ reward: { ...snap.data().reward, sentAt, sentBy: sentAt ? by : "" }, updatedAt: at }, { merge: true });
         return res.status(200).json({ ok: true, gift: adminGift(id, { ...snap.data(), reward: { ...snap.data().reward, sentAt } }) });
+      }
+      if (op === "reissueReceipt") {
+        // Correct the giver's name or address on a receipt: the old one is cancelled (kept in `receiptHistory`) and a
+        // new number is issued that names the one it replaces. Then the giver gets the new receipt by email.
+        const id = String(req.body?.giftId || "");
+        const name = String(req.body?.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100);
+        if (!name) return fail(res, 400, "Enter the giver's name as it should read on the receipt.", "name");
+        const { charity } = await readSettings();
+        if (!charity) return fail(res, 409, "Tax receipts are off. Turn them on in Amounts & choices first.", "off");
+        const address = cleanReceiptAddress(req.body?.address);
+        if (charity.kind === "ca" && !address) return fail(res, 400, "Fill in the giver's full address for the receipt.", "address");
+        const today = shopToday(nowMs);
+        const at = new Date(nowMs).toISOString();
+        const answer = await db.runTransaction(async (tx) => {
+          const snap = ID.test(id) ? await tx.get(gifts().doc(id)) : null;
+          const g = snap?.exists ? snap.data() : null;
+          if (!g || g.status !== "paid" || g.receipt?.status !== "issued") return { error: "Only a paid gift with a receipt can have it corrected." };
+          const counter = await tx.get(receiptCounter(Number(today.slice(0, 4)), g.mode === "test"));
+          const old = g.receipt;
+          const next = newReceipt(counter, { ...g, customer: { ...g.customer, name }, receiptAddress: address }, old.eligibleMinor, today, old.receivedOn, old.number);
+          tx.set(counter.ref, { next: next.n + 1, updatedAt: at }, { merge: true });
+          delete next.n;
+          const history = [...(Array.isArray(g.receiptHistory) ? g.receiptHistory : []), { ...old, status: "cancelled", cancelledOn: today }].slice(-10);
+          tx.set(gifts().doc(id), { receipt: next, receiptHistory: history, receiptAddress: address, updatedAt: at }, { merge: true });
+          return { gift: { ...g, receipt: next, receiptHistory: history, receiptAddress: address } };
+        });
+        if (answer.error) return fail(res, 409, answer.error);
+        const key = randomKey();
+        await gifts().doc(id).set({ keyHashes: [...(answer.gift.keyHashes || []), hash(key)].slice(-5) }, { merge: true });
+        await tellThanks(id, answer.gift, key, { toOwner: false });
+        return res.status(200).json({ ok: true, gift: adminGift(id, answer.gift) });
       }
       if (op === "resendThanks") {
         const id = String(req.body?.giftId || "");
@@ -648,7 +751,9 @@ function givingActions({
           const fundId = fresh.data().fundraiserId;
           const fund = fundId ? await tx.get(fundraisers().doc(fundId)) : null;
           const giveBack = fresh.data().rewardHeld === true && fresh.data().reward?.id;
-          tx.set(gifts().doc(id), { status: "refunded", refundedAt: at, refundedBy: by, refundedMinor: g.chargedMinor, updatedAt: at, ...(giveBack ? { rewardHeld: false } : {}) }, { merge: true });
+          // A refund cancels the tax receipt; its number is never given again.
+          const receipt = fresh.data().receipt?.status === "issued" ? { ...fresh.data().receipt, status: "cancelled", cancelledOn: shopToday(nowMs) } : null;
+          tx.set(gifts().doc(id), { status: "refunded", refundedAt: at, refundedBy: by, refundedMinor: g.chargedMinor, updatedAt: at, ...(giveBack ? { rewardHeld: false } : {}), ...(receipt ? { receipt } : {}) }, { merge: true });
           // A refunded gift no longer counts toward its fundraiser, and leaves the wall.
           if (fund?.exists) {
             const f = fund.data();

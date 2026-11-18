@@ -31,6 +31,7 @@ import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
 import { givingData, type AdminFundraiser, type AdminGift, type FundraiserUpdate } from "../app/admin/givingApi";
 import { cleanGivingSettings } from "../shared/givingRules";
+import { cleanCharity, cleanReceiptAddress } from "../shared/charityReceipts";
 import { cleanFundraiser, dayAfter } from "../shared/fundraiserRules";
 import { refundMinorFor } from "../shared/eventTickets";
 import { waysIn } from "../shared/waysToSell";
@@ -69,11 +70,16 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     gift("g1", "Ada Example", "ada@example.com", 5000, 1, { feeMinor: 176, chargedMinor: 5176, note: "Your books got me through a long winter. Keep printing!", fundraiserId: "f1",
       reward: { id: "rw2", title: "Signed print", ships: true, when: "January", sentAt: "" },
       shipTo: { name: "Ada Example", street: "12 Example St", street2: "", city: "Toronto", state: "ON", zip: "M6G 3H1", country: "CA" } }),
-    gift("g2", "Ben Example", "ben@example.com", 2500, 4, { anonymous: true, honour: { kind: "memory", name: "Grace Example" } }),
+    gift("g2", "Ben Example", "ben@example.com", 2500, 4, { anonymous: true, honour: { kind: "memory", name: "Grace Example" }, receiptAsked: true,
+      receipt: { number: "2026-00002", year: 2026, issuedOn: ago(4).slice(0, 10), receivedOn: ago(4).slice(0, 10), eligibleMinor: 2500, currency: "CAD", name: "Ben Example",
+        address: { street: "12 Sample St", street2: "", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "CA" }, status: "issued", cancelledOn: "", replaces: "", test: false } }),
     gift("g3", "Cleo Example", "cleo@example.com", 1000, 12, { fundraiserId: "f1", reward: { id: "rw1", title: "Thank-you postcard", ships: false, when: "", sentAt: ago(10) } }),
-    gift("g4", "Dev Example", "dev@example.com", 2500, 40, { status: "refunded", refundedAt: ago(39) }),
+    gift("g4", "Dev Example", "dev@example.com", 2500, 40, { status: "refunded", refundedAt: ago(39), receiptAsked: true,
+      receipt: { number: "2026-00001", year: 2026, issuedOn: ago(40).slice(0, 10), receivedOn: ago(40).slice(0, 10), eligibleMinor: 2500, currency: "CAD", name: "Dev Example",
+        address: { street: "3 Example Ave", street2: "", city: "Toronto", state: "ON", zip: "M6G 1A1", country: "CA" }, status: "cancelled", cancelledOn: ago(39).slice(0, 10), replaces: "", test: false } }),
   ];
-  let settings = cleanGivingSettings({ amounts: [1000, 2500, 5000, 10000] });
+  let settings = cleanGivingSettings({ amounts: [1000, 2500, 5000, 10000],
+    charity: { number: "123456789 RR 0001", name: "Sample Press Arts Society", address: "1 Sample St, Toronto ON M6G 1A1", signer: "Ada Example, Treasurer" } });
   const today = new Date().toISOString().slice(0, 10);
   const fund = (id: string, f: Partial<AdminFundraiser>): AdminFundraiser => ({
     id, title: "", story: "", goalMinor: 100000, raisedMinor: 0, supporters: 0, endsOn: dayAfter(today, 20), state: "live", status: "live",
@@ -142,7 +148,20 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
       gifts = gifts.map((g) => (g.id === body.giftId && g.reward ? { ...g, reward: { ...g.reward, sentAt: body.sent === false ? "" : new Date().toISOString() } } : g));
       return { ok: true, gift: gifts.find((g) => g.id === body.giftId) };
     }
-    if (op === "saveSettings") { settings = cleanGivingSettings(body.settings); return { ok: true, settings }; }
+    if (op === "saveSettings") {
+      const c = cleanCharity(body.settings && (body.settings as { charity?: unknown }).charity);
+      if ("problem" in c) throw Object.assign(new Error(c.problem), { code: c.field });
+      settings = cleanGivingSettings(body.settings); return { ok: true, settings };
+    }
+    if (op === "reissueReceipt") {
+      const g = gifts.find((x) => x.id === body.giftId);
+      if (!g?.receipt) throw new Error("Only a paid gift with a receipt can have it corrected.");
+      const address = cleanReceiptAddress(body.address);
+      if (!address) throw Object.assign(new Error("Fill in the giver's full address for the receipt."), { code: "address" });
+      const next = { ...g.receipt, number: "2026-00003", replaces: g.receipt.number, name: String(body.name), address, issuedOn: new Date().toISOString().slice(0, 10) };
+      gifts = gifts.map((x) => (x.id === g.id ? { ...x, receipt: next, receiptHistory: [{ ...g.receipt!, status: "cancelled" as const }] } : x));
+      return { ok: true, gift: gifts.find((x) => x.id === g.id) };
+    }
     if (op === "refund") {
       gifts = gifts.map((g) => (g.id === body.giftId ? { ...g, status: "refunded" as const, refundedAt: new Date().toISOString() } : g));
       return { ok: true, gift: gifts.find((g) => g.id === body.giftId) };

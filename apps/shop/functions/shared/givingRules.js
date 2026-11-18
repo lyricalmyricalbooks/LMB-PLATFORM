@@ -19,6 +19,7 @@ exports.coverFeeMinor = coverFeeMinor;
 exports.giftCharge = giftCharge;
 exports.cleanGiver = cleanGiver;
 exports.giverShown = giverShown;
+const charityReceipts_1 = require("./charityReceipts");
 /** The lowest gift: small enough for anyone, too big for a run of stolen-card tries to go unnoticed. */
 exports.MIN_GIFT_MINOR = 500;
 /** The highest gift one card page takes. */
@@ -71,6 +72,8 @@ function cleanGivingSettings(raw) {
         thanks: block(s.thanks, exports.MAX_THANKS),
         checkoutTip: s.checkoutTip === true,
         tipPercents: cleanTipPercents(s.tipPercents),
+        charity: (() => { const c = (0, charityReceipts_1.cleanCharity)(s.charity); return "charity" in c ? c.charity : null; })(),
+        yearlySummary: s.yearlySummary !== false,
     };
 }
 /** 1 to 4 whole percents from 1 to 50, smallest first; anything else is the defaults. */
@@ -97,7 +100,7 @@ function checkoutTipProblem(tipMinor) {
     return null;
 }
 /** The settings a shop starts with. */
-const startingGivingSettings = () => ({ amounts: [...exports.DEFAULT_AMOUNTS], otherAmount: true, coverFee: true, honour: true, thanks: "", checkoutTip: false, tipPercents: [...exports.DEFAULT_TIP_PERCENTS] });
+const startingGivingSettings = () => ({ amounts: [...exports.DEFAULT_AMOUNTS], otherAmount: true, coverFee: true, honour: true, thanks: "", checkoutTip: false, tipPercents: [...exports.DEFAULT_TIP_PERCENTS], charity: null, yearlySummary: true });
 exports.startingGivingSettings = startingGivingSettings;
 /** Why this amount can't be given (`code` says which), or null. The settings decide whether a typed amount is allowed. */
 function giftAmountProblem(amountMinor, settings) {

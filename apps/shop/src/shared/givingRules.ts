@@ -6,6 +6,8 @@
 // card fee when the giver chose to cover it. The lowest gift is MIN_GIFT_MINOR, so a stolen card can't be tried with a
 // few cents (the server also limits how often one visitor or one email may open a card page).
 
+import { cleanCharity, type Charity } from "./charityReceipts";
+
 /** The lowest gift: small enough for anyone, too big for a run of stolen-card tries to go unnoticed. */
 export const MIN_GIFT_MINOR = 500;
 /** The highest gift one card page takes. */
@@ -39,6 +41,10 @@ export type GivingSettings = {
   checkoutTip: boolean;
   /** The tip choices at checkout, in whole percents of the items, smallest first. */
   tipPercents: number[];
+  /** A registered charity's details: tax receipts are given only while this is set (G3, charityReceipts.ts). */
+  charity: Charity | null;
+  /** Each January, everyone who gave last year gets a summary of their gifts and receipts. */
+  yearlySummary: boolean;
 };
 
 export type Honour = { kind: "honour" | "memory"; name: string };
@@ -80,6 +86,8 @@ export function cleanGivingSettings(raw: unknown): GivingSettings {
     thanks: block(s.thanks, MAX_THANKS),
     checkoutTip: s.checkoutTip === true,
     tipPercents: cleanTipPercents(s.tipPercents),
+    charity: (() => { const c = cleanCharity(s.charity); return "charity" in c ? c.charity : null; })(),
+    yearlySummary: s.yearlySummary !== false,
   };
 }
 
@@ -106,7 +114,7 @@ export function checkoutTipProblem(tipMinor: unknown): "tip" | "tipTooSmall" | "
 }
 
 /** The settings a shop starts with. */
-export const startingGivingSettings = (): GivingSettings => ({ amounts: [...DEFAULT_AMOUNTS], otherAmount: true, coverFee: true, honour: true, thanks: "", checkoutTip: false, tipPercents: [...DEFAULT_TIP_PERCENTS] });
+export const startingGivingSettings = (): GivingSettings => ({ amounts: [...DEFAULT_AMOUNTS], otherAmount: true, coverFee: true, honour: true, thanks: "", checkoutTip: false, tipPercents: [...DEFAULT_TIP_PERCENTS], charity: null, yearlySummary: true });
 
 /** Why this amount can't be given (`code` says which), or null. The settings decide whether a typed amount is allowed. */
 export function giftAmountProblem(amountMinor: unknown, settings: GivingSettings): { code: "amount" | "tooSmall" | "tooBig" } | null {

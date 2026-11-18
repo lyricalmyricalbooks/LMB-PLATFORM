@@ -48,7 +48,7 @@ function res() {
 
 const GIVER = { name: "Ada Reader", email: "ada@example.com" };
 
-function setup({ platform = true, owner = true, checkout = "card", admin = true, refundFails = false } = {}) {
+function setup({ platform = true, owner = true, checkout = "card", admin = true, refundFails = false, testMode = true } = {}) {
   const db = fakeDb();
   const clock = { now: new Date("2026-11-18T13:00:00Z") };
   const emails = [];
@@ -80,7 +80,7 @@ function setup({ platform = true, owner = true, checkout = "card", admin = true,
         return { refundId: "re_1" };
       },
     },
-    shopTestMode: async () => true,
+    shopTestMode: async () => testMode,
     hitLimit: async (_db, bucket, req, opts, { key = "" } = {}) => {
       if (!opts?.max) return true;
       const id = `${bucket}:${key || req.ip || "visitor"}`;
@@ -248,7 +248,7 @@ describe("the owner", () => {
     await t.seed();
     await t.db.collection("settings").doc("website").set({ title: "Moth Press" });
     const saved = await t.adm({ op: "saveSettings", settings: { amounts: [100, 1500, "3000"], otherAmount: false, coverFee: false, honour: false, thanks: " Thanks! " } });
-    expect(saved.body.settings).toEqual({ amounts: [1500, 3000], otherAmount: false, coverFee: false, honour: false, thanks: "Thanks!", checkoutTip: false, tipPercents: [5, 10, 15] });
+    expect(saved.body.settings).toEqual({ amounts: [1500, 3000], otherAmount: false, coverFee: false, honour: false, thanks: "Thanks!", checkoutTip: false, tipPercents: [5, 10, 15], charity: null, yearlySummary: true });
     expect((await t.doc("settings", "website")).givingTips).toEqual([]);
     const tipping = await t.adm({ op: "saveSettings", settings: { amounts: [1500], otherAmount: true, checkoutTip: true, tipPercents: [20, 10, 10, 99] } });
     expect(tipping.body.settings).toMatchObject({ checkoutTip: true, tipPercents: [10, 20] });
@@ -443,5 +443,99 @@ describe("fundraiser rewards (G2b)", () => {
     const save = (rewards) => t.adm({ op: "saveFundraiser", id: fund.id, fundraiser: { ...FUND, rewards } });
     expect((await save([fund.rewards[0]])).body.error).toMatch(/can't be removed/);
     expect((await save([fund.rewards[0], { ...fund.rewards[1], limit: 0, taken: 0, title: "Signed print, larger" }])).body.fundraiser.rewards[1]).toMatchObject({ taken: 1, title: "Signed print, larger" });
+  });
+});
+
+describe("tax receipts (G3)", () => {
+  const CA = { number: "123456789rr0001", name: "Moth Press Society", address: "1 Press St, Toronto ON M6G 3H1", signer: "Ada Treasurer" };
+  const HOME = { street: "1 Main St", city: "Toronto", state: "ON", zip: "M6G 3H1", country: "CA" };
+  const BO = { name: "Bo Reader", email: "bo@example.com" };
+
+  test("the owner's charity is checked when saved, and the Support page learns which kind of receipt it gives", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.adm({ op: "saveSettings", settings: { charity: { ...CA, number: "12345" } } })).body.code).toBe("number");
+    expect((await t.adm({ op: "saveSettings", settings: { charity: { ...CA, signer: "" } } })).body.code).toBe("signer");
+    // A US tax ID needs no signer.
+    const us = await t.adm({ op: "saveSettings", settings: { charity: { ...CA, number: "12-3456789", signer: "" } } });
+    expect(us.body.settings.charity).toMatchObject({ kind: "us", number: "12-3456789" });
+    const ca = await t.adm({ op: "saveSettings", settings: { charity: CA } });
+    expect(ca.body.settings.charity).toMatchObject({ kind: "ca", number: "123456789 RR 0001" });
+    expect((await t.pub({ action: "givingInfo" })).body.receipts).toEqual({ kind: "ca" });
+    await t.adm({ op: "saveSettings", settings: { charity: { ...CA, on: false } } });
+    expect((await t.pub({ action: "givingInfo" })).body.receipts).toBeNull();
+  });
+
+  test("a paid gift gets the next number of the year, once; test gifts count on their own; the email carries it", async () => {
+    const t = setup({ testMode: false });
+    await t.seed({ charity: CA });
+    expect((await t.give({ receipt: true })).body.code).toBe("receiptAddress");
+    await t.give({ receipt: true, receiptAddress: HOME, coverFee: true });
+    await t.give({ receipt: true, receiptAddress: HOME, giver: BO }, "5.6.7.8");
+    // A gift that didn't ask for a receipt gets none.
+    await t.give({ giver: { name: "Cy", email: "cy@example.com" } }, "9.9.9.9");
+    t.pay(1); await t.desk.sweep();
+    t.pay(0); t.pay(2); await t.desk.sweep(); await t.desk.sweep();
+    const first = await t.doc("gifts", "gift0002");
+    const second = await t.doc("gifts", "gift0001");
+    expect(first.receipt).toMatchObject({ number: "2026-00001", status: "issued", eligibleMinor: 2500, name: "Bo Reader", year: 2026 });
+    expect(second.receipt).toMatchObject({ number: "2026-00002", eligibleMinor: 2606, address: { city: "Toronto" }, test: false });
+    expect((await t.doc("gifts", "gift0003")).receipt).toBeUndefined();
+    expect((await t.doc("givingReceipts", "2026")).next).toBe(3);
+    const thanks = t.emails.find((m) => m.to === "bo@example.com");
+    expect(thanks.html).toContain("2026-00001");
+    expect(thanks.html).toContain("123456789 RR 0001");
+    expect(thanks.html).toContain("Official donation receipt");
+    // The giver's own page shows it with the charity's details.
+    const key = new URL(t.opened[1].params.success_url).searchParams.get("key");
+    const view = await t.pub({ action: "giftView", giftId: "gift0002", key });
+    expect(view.body.gift.receipt.number).toBe("2026-00001");
+    expect(view.body.charity).toMatchObject({ name: "Moth Press Society", kind: "ca" });
+
+    const tt = setup();
+    await tt.seed({ charity: CA });
+    await tt.give({ receipt: true, receiptAddress: HOME });
+    tt.pay(0); await tt.desk.sweep();
+    expect((await tt.doc("gifts", "gift0001")).receipt).toMatchObject({ number: "TEST-2026-00001", test: true });
+    expect(tt.emails[0].html).toContain("can't be used for taxes");
+    expect(await tt.doc("givingReceipts", "test-2026")).toMatchObject({ next: 2 });
+  });
+
+  test("a gift with a thank-you reward gets no receipt; a US receipt needs no address", async () => {
+    const t = setup({ testMode: false });
+    await t.seed({ charity: { ...CA, number: "12-3456789", signer: "" } });
+    const fund = (await t.adm({ op: "saveFundraiser", fundraiser: { title: "Print", story: "", goalMinor: 300000, endsOn: "2026-12-31", rewards: [{ title: "Card", minMinor: 1000 }] }, start: true })).body.fundraiser;
+    const a = (await t.give({ fundraiserId: fund.id, rewardId: "rw1", amountMinor: 2500, receipt: true })).body.giftId;
+    const b = (await t.give({ receipt: true, giver: BO }, "5.6.7.8")).body.giftId;
+    t.pay(0); t.pay(1); await t.desk.sweep();
+    const rewarded = await t.doc("gifts", a);
+    expect(rewarded.receiptAsked).toBeUndefined();
+    expect(rewarded.receipt).toBeUndefined();
+    const plain = await t.doc("gifts", b);
+    expect(plain.receipt).toMatchObject({ number: "2026-00001", address: null });
+    expect(t.emails.find((m) => m.to === "bo@example.com").html).toContain("Receipt for your tax records");
+  });
+
+  test("a refund cancels the receipt for good; correcting a name cancels it and issues a new number naming the old", async () => {
+    const t = setup({ testMode: false });
+    await t.seed({ charity: CA });
+    await t.give({ receipt: true, receiptAddress: HOME });
+    await t.give({ receipt: true, receiptAddress: HOME, giver: BO }, "5.6.7.8");
+    t.pay(0); t.pay(1); await t.desk.sweep();
+    expect((await t.adm({ op: "reissueReceipt", giftId: "gift0001", name: "" })).statusCode).toBe(400);
+    expect((await t.adm({ op: "reissueReceipt", giftId: "gift0001", name: "Ada Q. Reader", address: { country: "CA" } })).body.code).toBe("address");
+    const fixed = await t.adm({ op: "reissueReceipt", giftId: "gift0001", name: "Ada Q. Reader", address: { ...HOME, street: "2 Main St" } });
+    expect(fixed.body.gift.receipt).toMatchObject({ number: "2026-00003", replaces: "2026-00001", name: "Ada Q. Reader", address: { street: "2 Main St" }, receivedOn: "2026-11-18" });
+    expect(fixed.body.gift.receiptHistory).toMatchObject([{ number: "2026-00001", status: "cancelled", cancelledOn: "2026-11-18" }]);
+    const mail = t.emails.at(-1);
+    expect(mail.to).toBe("ada@example.com");
+    expect(mail.html).toContain("2026-00003");
+    expect(mail.html).toContain("2026-00001");
+    await t.adm({ op: "refund", giftId: "gift0002" });
+    expect((await t.doc("gifts", "gift0002")).receipt).toMatchObject({ number: "2026-00002", status: "cancelled", cancelledOn: "2026-11-18" });
+    expect(t.emails.at(-1).html).toContain("Your tax receipt 2026-00002 is cancelled.");
+    // A cancelled receipt can't be corrected, and its number is never handed out again.
+    expect((await t.adm({ op: "reissueReceipt", giftId: "gift0002", name: "Bo" , address: HOME })).statusCode).toBe(409);
+    expect((await t.doc("givingReceipts", "2026")).next).toBe(4);
   });
 });

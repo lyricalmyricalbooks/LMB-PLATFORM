@@ -1049,6 +1049,11 @@ its smallest gift, words, when and how many are left (`rewardStock`); picking on
 (`amountForReward`) and says so. One that ships adds the posting address (`.fm-sup-ship`) to Your details. A
 `reward_*` refusal clears the pick and reloads the counts. Words `supportReward*`, `supportShip*`, `supportNeedAddress`
 (Text & labels › Support page › Fundraiser rewards & posting address). Clicking in Studio's preview needs Browse mode.
+**Tax receipts (G3a):** while `givingInfo.receipts` is set, Your details has "Send me a tax receipt" (region `supportReceipt`)
+and, for a Canadian charity, the address (`cleanReceiptAddress` before sending; 400 `receiptAddress` shows under it); with a
+reward picked it says none is given. The thank-you shows `TaxReceipt` (region `supportReceiptCard`) from `giftView`'s
+`charity`, with Print or save as PDF (`@media print` shows only the receipt). Words `supportReceipt*` (Text & labels ›
+Support page › Tax receipts, French twins). Studio shows them with `receipts=sample`.
 
 ## Tip at checkout (Donations & tips beta, G1c, 18 November 2026)
 `CheckoutTip.tsx` (pure `tipAtCheckout.ts`: `tipsOffered`, `tipBaseMinor`, `tipFor`) sits in the Pay step under the code

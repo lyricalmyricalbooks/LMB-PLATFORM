@@ -1759,3 +1759,10 @@ id (`listFundraiserGifts`, one equality filter, no index), paid only, 150 a run,
 `sent/{optOutId}` first (so two gifts by one person get one email), `marketing-optout` skipped, the unsubscribe link in
 every email. `bulk` with kind `campaign-fundraiser-update` (the platform's newsletter stream); its pause → `paused` at once.
 One active update per fundraiser (checked again inside the queuing transaction). Ended fundraisers can send too.
+**Tax receipts (G3a):** `shared/charityReceipts.ts`; the owner's charity is `givingSettings.charity` (refused by field in
+`saveSettings`). A gift asks with `receipt`/`receiptAddress` (`receiptAsked`); `confirmPaid` reads `givingReceipts/{year}`
+(`test-<year>` for test gifts) in the paid transaction when `receiptEligibleMinor` > 0, writes `receipt` and raises the
+counter, so numbers never repeat. A reward means no receipt. Refund → `receipt.status: "cancelled"`; op `reissueReceipt`
+cancels into `receiptHistory` (last 10) and issues the next number with `replaces`, then emails it. The number takes the
+year it was issued; `year` is the year the gift was received. A privacy erase keeps the receipt (a charity keeps copies)
+and clears `receiptAddress`.

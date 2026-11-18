@@ -88,3 +88,13 @@
 .rp .gvg-updates li { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--rp-border); }
 .rp .gvg-updates .gvg-meta { margin: 0; }
 .rp .gvg-updates .gvg-problem { margin: 0; }
+
+/* Tax receipts (G3): the receipt line on a gift, the settings part and the correction form. */
+.rp .gvg-receipt { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--rp-surface-2); }
+.rp .gvg-receipt > svg { flex: none; margin-top: 2px; color: var(--rp-text-muted); }
+.rp .gvg-receipt > div { flex: 1; min-width: 0; }
+.rp .gvg-receipt p { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.rp .gvg-receipt[data-cancelled] strong { text-decoration: line-through; color: var(--rp-text-muted); }
+.rp .gvg-receipts legend { display: inline-flex; align-items: center; gap: 8px; }
+.rp .gvg-address-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .rp .gvg-address-row { grid-template-columns: 1fr; } }
