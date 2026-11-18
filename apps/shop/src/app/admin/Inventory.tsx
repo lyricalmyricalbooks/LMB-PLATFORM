@@ -302,7 +302,7 @@ function InventoryPage({ onEditBook }: InventoryProps) {
     if (r.kind === "bundle") return <span className="rp-hint">Box set: {r.bundleSets === null ? "unlimited" : r.bundleSets} available from parts</span>;
     if (r.kind === "giftCard") return <span className="rp-hint">Gift card — no stock</span>;
     if (r.kind === "digital") return <span className="rp-hint">Digital</span>;
-    if (r.kind === "untracked") return <span className="rp-hint">Not tracked</span>;
+    if (r.kind === "untracked") return <span className="rp-hint" aria-label="Not tracked">—</span>;
     if (linked(r)) return (
       <div>
         <span className="rp-mono" aria-label={`Stock for ${rowName(r)}: ${r.stock}`}>{r.stock}</span>

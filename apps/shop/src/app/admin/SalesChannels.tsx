@@ -149,13 +149,17 @@ export function SalesChannels({ onOpen, openSignIn = (url) => window.location.as
                   ]} />
                 </>
               ) : available ? (
-                <PrimaryButton size="sm" disabled={!!busy} aria-label={`${lost ? "Connect again" : "Connect"} ${channel.name}`} onClick={() => connect(channel.id)}>
-                  {lost ? "Connect again" : "Connect"}
-                </PrimaryButton>
+                <>
+                  <PrimaryButton size="sm" disabled={!!busy} aria-label={`${lost ? "Connect again" : "Connect"} ${channel.name}`} onClick={() => connect(channel.id)}>
+                    {lost ? "Connect again" : "Connect"}
+                  </PrimaryButton>
+                  {/* Where the ⋯ menu sits on other rows, so every row's right-hand control lines up. */}
+                  <span className="sc-menu-gap" aria-hidden="true" />
+                </>
               ) : (
                 <>
                   <StatusBadge tone="neutral" glyph={false}>Coming soon</StatusBadge>
-                  {channel.id !== "tiktok" && <ActionMenu label={`Actions for ${channel.name}`} actions={[{ label: "Set up by hand", onSelect: openByHand }]} />}
+                  {channel.id !== "tiktok" ? <ActionMenu label={`Actions for ${channel.name}`} actions={[{ label: "Set up by hand", onSelect: openByHand }]} /> : <span className="sc-menu-gap" aria-hidden="true" />}
                 </>
               )}
             </li>

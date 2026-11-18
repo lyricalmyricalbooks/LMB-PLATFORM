@@ -300,6 +300,8 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   shipping: { title: "Shipping", description: "Shipping profiles, zones, and rates." },
   payments: { title: "Payments", description: "How customers pay you, and in which currency." },
   notifications: { title: "Email sender", description: "The emails your shop sends, and who they come from." },
+  google: { title: "Google", description: "Analytics, Search Console, Shopping listings and your sales spreadsheet." },
+  apps: { title: "Apps", description: "Apps that work with your shop, and what each can see." },
   security: { title: "Security", description: "Two-step sign-in for whoever is signed in." },
   general: { title: "General", description: "Your brand's details, your web address and how the shop runs." },
   taxes: { title: "Taxes", description: "The tax rates your checkout charges." },

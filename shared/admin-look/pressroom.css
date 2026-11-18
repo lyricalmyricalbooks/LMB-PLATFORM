@@ -1,5 +1,6 @@
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /*
  * Riso Press — the admin application design system
  * -----------------------------------------------------
@@ -341,7 +342,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-tab:hover { color: var(--rp-text); }
 .rp-tab[aria-selected="true"] { background: var(--rp-surface); color: var(--rp-text); border-color: var(--rp-border-strong); box-shadow: var(--rp-shadow-sm); }
 .rp-tab-count { font-size: var(--rp-text-xs); color: var(--rp-text-subtle); font-variant-numeric: tabular-nums; }
-.rp-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: var(--rp-space-5); }
+.rp-filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: var(--rp-space-5); }
 .rp-filter-bar > .rp-grow { flex: 1 1 240px; }
 .rp-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: var(--rp-hair) solid var(--rp-divider); font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
 
@@ -365,6 +366,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-listcard { list-style: none; margin: 0; padding: 8px 22px; background: var(--rp-surface); border-radius: var(--rp-radius-lg); }
 .rp-listcard > li { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--rp-divider); }
 .rp-listcard > li:first-child { border-top: 0; }
+.rp-listcard .sc-menu-gap { width: 44px; flex-shrink: 0; }
 .rp-listcard-main { flex: 1; min-width: 0; display: grid; gap: 4px; justify-items: start; text-align: left; background: none; border: 0; padding: 4px 0; color: var(--rp-text); font: inherit; cursor: pointer; }
 .rp-listcard-name { font-size: var(--rp-text-md); font-weight: 500; overflow-wrap: anywhere; }
 .rp-listcard-name.is-code { font-family: var(--rp-font-mono); font-weight: 400; letter-spacing: .02em; }
@@ -2584,6 +2586,8 @@ div.rp-listcard-main { cursor: default; }
    and Inventory's low-stock line reads at the same size as the hint beside it. */
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-toggle-track { border-radius: 999px; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-toggle-track::after { border-radius: 50%; }
+/* An off switch reads as a grey track on the cream page and in white cards alike (it vanished on the page before). */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-toggle-track:not([aria-checked="true"]) { background: var(--rp-border-strong); }
 .rp:not(.studio-editor) .inv-threshold label { font-size: var(--rp-text-sm); }
 /* Phone Orders: three figures in a two-column grid leave one half-width tile; it takes the whole row instead. */
 .rp:not(.studio-editor) .od-phone .od-figures.rp-kpi-grid > .rp-metric:last-child:nth-child(odd) { grid-column: 1 / -1; }
