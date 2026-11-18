@@ -24,10 +24,18 @@ describe("Members page words", () => {
   });
   test("the form round-trips a plan", () => {
     const plan = { name: "Friends", description: "Hello", perks: ["A", "B"], interval: "year" as const, priceMinor: 9000, trialDays: 7, hidden: false, memberPercent: 15 };
-    expect(planFromForm(planFormOf(plan), money)).toEqual({ plan });
+    expect(planFromForm(planFormOf(plan), money)).toEqual({ plan: { ...plan, box: null } });
     expect(planFromForm(blankPlanForm(), money)).toEqual({ problem: "Give the plan a name.", field: "name" });
     expect(planFromForm({ ...blankPlanForm(), name: "X", price: "15", perks: " one \n\n two " }, money)).toMatchObject({ plan: { perks: ["one", "two"], trialDays: 0, priceMinor: 1500, memberPercent: 0 } });
     expect(planFromForm({ ...blankPlanForm(), name: "X", price: "15", percent: "10 %" }, money)).toMatchObject({ plan: { memberPercent: 10 } });
     for (const percent of ["51", "7.5", "-3", "lots"]) expect(planFromForm({ ...blankPlanForm(), name: "X", price: "15", percent }, money)).toMatchObject({ field: "percent" });
+  });
+  test("a box plan's rows: empty rows are left out, and the box goes back as it came (M3a)", () => {
+    const plan = { name: "Club", description: "", perks: [], interval: "month" as const, priceMinor: 2500, trialDays: 0, hidden: false, memberPercent: 0, box: { items: [{ bookId: "b1", quantity: 2 }, { bookId: "b2", variantId: "hc", quantity: 1 }], cutoffDay: 20 } };
+    expect(planFromForm(planFormOf(plan), money)).toEqual({ plan });
+    const form = { ...blankPlanForm(), name: "Club", price: "25", boxOn: true };
+    expect(planFromForm(form, money)).toMatchObject({ field: "box" });
+    expect(planFromForm({ ...form, boxRows: [{ bookId: "b1", variantId: "", quantity: "" }, { bookId: "", variantId: "", quantity: "1" }] }, money)).toMatchObject({ plan: { box: { items: [{ bookId: "b1", quantity: 1 }], cutoffDay: 15 } } });
+    expect(planFromForm({ ...form, cutoff: "31", boxRows: [{ bookId: "b1", variantId: "", quantity: "1" }] }, money)).toMatchObject({ field: "box" });
   });
 });

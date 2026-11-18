@@ -2,7 +2,7 @@
 // memberships are server-only records, so every read and change goes through the `membershipsAdmin` action.
 import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import type { MemberState, PlanInterval } from "../../shared/membershipRules";
+import type { BoxAddress, MemberState, PlanBox, PlanInterval } from "../../shared/membershipRules";
 
 /** A plan as the owner sees it, with how many live, paid members it has. */
 export type AdminPlan = {
@@ -10,6 +10,8 @@ export type AdminPlan = {
   currency: string; hidden: boolean; members: number;
   /** Whole percent off the shop's products for members at checkout (0: none). */
   memberPercent: number;
+  /** Ships a box every month (M3a). */
+  box?: PlanBox;
 };
 /** The plan as it was when the member joined. */
 export type JoinedPlan = { name: string; interval: PlanInterval; priceMinor: number; trialDays: number; currency: string };
@@ -18,11 +20,13 @@ export type AdminMember = {
   id: string; state: MemberState; plan: JoinedPlan | null; planId: string; name: string; email: string;
   periodEnd: string; trialEnd: string; card: { brand: string; last4: string } | null;
   startedAt: string; endedAt: string; createdAt: string; checkedAt: string; test: boolean; cardPending: boolean;
+  /** A box membership and where its boxes go (M3a). */
+  box?: boolean; address?: BoxAddress | null;
 };
 export type MembersTotals = { members: number; monthlyMinor: number; pastDue: number };
 export type MembersList = { currency: string; ready: boolean; plans: AdminPlan[]; members: AdminMember[]; totals: MembersTotals };
 /** What the plan form sends (shared/membershipRules `cleanPlan` checks it on the server). */
-export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent: number };
+export type PlanInput = { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent: number; box: PlanBox | null };
 export type MembersAdminOp = "list" | "savePlan" | "endNow" | "refresh" | "hint" | "payments";
 /** One membership payment, for the money pages (no names or emails). */
 export type MemberPayment = { id: string; membershipId: string; plan: string; amountMinor: number; currency: string; paidAt: string; test: boolean };

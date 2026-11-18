@@ -1,5 +1,5 @@
 // Admin › Members (beta): the words and small sums the page shows. Pure, so membersView.test.ts covers them.
-import { MAX_PLAN_MINOR, MIN_PLAN_MINOR, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT, type MemberState, type PlanInterval } from "../../shared/membershipRules";
+import { MAX_PLAN_MINOR, MIN_PLAN_MINOR, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT, cleanBox, type BoxAddress, type MemberState, type PlanBox, type PlanInterval } from "../../shared/membershipRules";
 import type { AdminMember, PlanInput } from "./membersApi";
 import { dayText } from "./givingView";
 
@@ -56,13 +56,23 @@ export function percentFromText(raw: string): { percent: number } | { problem: s
 }
 
 /** The plan form's text fields. */
-export type PlanForm = { name: string; description: string; perks: string; interval: PlanInterval; price: string; trial: string; percent: string; hidden: boolean };
-export const blankPlanForm = (): PlanForm => ({ name: "", description: "", perks: "", interval: "month", price: "", trial: "", percent: "", hidden: false });
-export function planFormOf(p: { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent?: number }): PlanForm {
-  return { name: p.name, description: p.description, perks: p.perks.join("\n"), interval: p.interval, price: (p.priceMinor / 100).toFixed(2), trial: p.trialDays ? String(p.trialDays) : "", percent: p.memberPercent ? String(p.memberPercent) : "", hidden: p.hidden };
+/** One product row in a box plan's form (M3a): a product, maybe one of its editions, and how many as typed. */
+export type BoxRow = { bookId: string; variantId: string; quantity: string };
+export type PlanForm = {
+  name: string; description: string; perks: string; interval: PlanInterval; price: string; trial: string; percent: string; hidden: boolean;
+  /** Ships a box every month: its product rows and the cut-off day as typed. */
+  boxOn: boolean; boxRows: BoxRow[]; cutoff: string;
+};
+export const blankBoxRow = (): BoxRow => ({ bookId: "", variantId: "", quantity: "1" });
+export const blankPlanForm = (): PlanForm => ({ name: "", description: "", perks: "", interval: "month", price: "", trial: "", percent: "", hidden: false, boxOn: false, boxRows: [blankBoxRow()], cutoff: "15" });
+export function planFormOf(p: { name: string; description: string; perks: string[]; interval: PlanInterval; priceMinor: number; trialDays: number; hidden: boolean; memberPercent?: number; box?: PlanBox }): PlanForm {
+  return {
+    name: p.name, description: p.description, perks: p.perks.join("\n"), interval: p.interval, price: (p.priceMinor / 100).toFixed(2), trial: p.trialDays ? String(p.trialDays) : "", percent: p.memberPercent ? String(p.memberPercent) : "", hidden: p.hidden,
+    boxOn: !!p.box, boxRows: p.box ? p.box.items.map((i) => ({ bookId: i.bookId, variantId: i.variantId || "", quantity: String(i.quantity) })) : [blankBoxRow()], cutoff: p.box ? String(p.box.cutoffDay) : "15",
+  };
 }
 /** The form as the server takes it, or the first problem and its field. */
-export function planFromForm(form: PlanForm, money: (minor: number) => string): { plan: PlanInput } | { problem: string; field: "name" | "price" | "trial" | "percent" } {
+export function planFromForm(form: PlanForm, money: (minor: number) => string): { plan: PlanInput } | { problem: string; field: "name" | "price" | "trial" | "percent" | "box" } {
   if (!form.name.trim()) return { problem: "Give the plan a name.", field: "name" };
   const price = planPriceFromText(form.price, money);
   if ("problem" in price) return { problem: price.problem, field: "price" };
@@ -71,5 +81,25 @@ export function planFromForm(form: PlanForm, money: (minor: number) => string): 
   const percent = percentFromText(form.percent);
   if ("problem" in percent) return { problem: percent.problem, field: "percent" };
   const perks = form.perks.split("\n").map((l) => l.trim()).filter(Boolean);
-  return { plan: { name: form.name.trim(), description: form.description.trim(), perks, interval: form.interval, priceMinor: price.minor, trialDays: trial.days, hidden: form.hidden, memberPercent: percent.percent } };
+  let box: PlanBox | null = null;
+  if (form.boxOn) {
+    // A row with no product chosen is left out, so an extra empty row never blocks the save.
+    const items = form.boxRows.filter((r) => r.bookId).map((r) => ({ bookId: r.bookId, ...(r.variantId ? { variantId: r.variantId } : {}), quantity: r.quantity.trim() === "" ? 1 : Number(r.quantity) }));
+    const clean = cleanBox({ items, cutoffDay: Number(form.cutoff) });
+    if ("problem" in clean) return { problem: clean.problem, field: "box" };
+    box = clean.box;
+  }
+  return { plan: { name: form.name.trim(), description: form.description.trim(), perks, interval: form.interval, priceMinor: price.minor, trialDays: trial.days, hidden: form.hidden, memberPercent: percent.percent, box } };
 }
+
+/** "A box of 3 things on the 15th of each month" for a plan card. */
+export function boxText(box: PlanBox): string {
+  const count = box.items.reduce((n, i) => n + i.quantity, 0);
+  return `A box of ${count} ${count === 1 ? "thing" : "things"}, made on the ${ordinal(box.cutoffDay)} of each month`;
+}
+
+/** 1st, 2nd, 3rd, 4th … 28th. */
+export const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+
+/** One line for where a member's boxes go. */
+export const addressText = (a: BoxAddress) => [a.name, a.line1, a.line2, `${a.city}${a.state ? `, ${a.state}` : ""} ${a.postalCode}`.trim(), a.country === "US" ? "United States" : "Canada"].filter(Boolean).join(", ");

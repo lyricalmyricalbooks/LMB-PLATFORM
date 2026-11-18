@@ -3,16 +3,17 @@
 // Shown only when Memberships is on for the shop (both switches, Dashboard.tsx). Plans and memberships are server-only
 // records, so every read and change goes through the server (membersApi.ts).
 import { useEffect, useState } from "react";
-import { BadgeCheck, ExternalLink, Pencil, Plus, RefreshCw, X } from "lucide-react";
+import { BadgeCheck, ExternalLink, Package, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
-  Drawer, EmptyState, ErrorState, GhostButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextArea, TextField, Toggle, useConfirm,
+  Drawer, EmptyState, ErrorState, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 import { membersAdmin, type AdminMember, type AdminPlan, type MembersList } from "./membersApi";
-import { blankPlanForm, everyText, nextText, planFormOf, planFromForm, stateBadge, type PlanForm } from "./membersView";
+import { addressText, blankBoxRow, blankPlanForm, boxText, everyText, ordinal, nextText, planFormOf, planFromForm, stateBadge, type BoxRow, type PlanForm } from "./membersView";
+import { adminApi } from "./api";
 import { moneyText } from "./eventsView";
 import { dayText } from "./givingView";
-import { MAX_PERKS, MAX_PLAN_DESCRIPTION, MAX_PLAN_NAME, MAX_PLANS, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT } from "../../shared/membershipRules";
+import { MAX_BOX_ITEMS, MAX_BOX_QUANTITY, MAX_CUTOFF_DAY, MAX_PERKS, MAX_PLAN_DESCRIPTION, MAX_PLAN_NAME, MAX_PLANS, MAX_TRIAL_DAYS, MAX_MEMBER_PERCENT } from "../../shared/membershipRules";
 import { SHOP_CURRENCY } from "./moneySign";
 import "./bookings.css";
 import "./members.css";
@@ -107,6 +108,7 @@ export function Members() {
               <p className="mbr-price"><span>{money(p.priceMinor)}</span> {everyText(p.interval)}</p>
               {p.trialDays > 0 && <p className="mbr-meta">{p.trialDays === 1 ? "1 day free" : `${p.trialDays} days free`} before the first payment</p>}
               {p.memberPercent > 0 && <p className="mbr-meta">Members pay {p.memberPercent}% less for your products</p>}
+              {p.box && <p className="mbr-meta">{boxText(p.box)}</p>}
               {p.perks.length > 0 && <ul className="mbr-perks">{p.perks.map((perk, i) => <li key={i}>{perk}</li>)}</ul>}
               <div className="mbr-plan-foot">
                 <span className="mbr-meta">{p.members === 1 ? "1 member" : `${p.members} members`}</span>
@@ -169,6 +171,7 @@ function MemberRow({ member: m, money, onChanged }: { member: AdminMember; money
         <p className="mbr-meta">{[m.name ? m.email : "", m.startedAt ? `Member since ${dayText(m.startedAt)}` : ""].filter(Boolean).join(" · ")}</p>
         <p className="mbr-next">{nextText(m)}</p>
         {m.card && <p className="mbr-meta">Card ending {m.card.last4}{m.cardPending ? " · a new card is being added" : ""}</p>}
+        {m.box && <p className="mbr-meta mbr-ship"><Package size={14} aria-hidden /> {m.address ? addressText(m.address) : "No address yet: they're asked for one in their account"}</p>}
       </div>
       <div className="mbr-side">
         {m.plan && <p className="mbr-amount">{money(m.plan.priceMinor)}<small>{m.plan.name}, {everyText(m.plan.interval)}</small></p>}
@@ -189,6 +192,16 @@ function PlanDrawer({ start, money, onClose, onSaved }: { start: AdminPlan | nul
   const set = (patch: Partial<PlanForm>) => { setForm((f) => ({ ...f, ...patch })); setProblem(null); };
   const fixed = !!start;
   const err = (field: string) => (problem?.field === field ? problem.text : undefined);
+  // Products for the box rows, read once the box is switched on.
+  const [books, setBooks] = useState<{ id: string; title: string; variants: { id: string; name: string }[] }[] | null>(null);
+  useEffect(() => {
+    if (!form.boxOn || books) return;
+    adminApi.getAllBooks({ includePrivate: false })
+      .then((list: any[]) => setBooks(list.filter((b) => b && b.status !== "archived").map((b) => ({ id: String(b.id), title: String(b.title || "Untitled"), variants: (b.variants || []).filter((v: any) => v?.id).map((v: any) => ({ id: String(v.id), name: String(v.name || v.id) })) }))
+        .sort((a, b) => a.title.localeCompare(b.title))))
+      .catch(() => setBooks([]));
+  }, [form.boxOn, books]);
+  const setRow = (i: number, patch: Partial<BoxRow>) => set({ boxRows: form.boxRows.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
 
   const save = async () => {
     const clean = planFromForm(form, money);
@@ -201,7 +214,7 @@ function PlanDrawer({ start, money, onClose, onSaved }: { start: AdminPlan | nul
       onSaved();
     } catch (e) {
       const code = (e as { code?: string })?.code || "";
-      setProblem({ field: ["name", "price", "trial", "interval", "percent"].includes(code) ? code : "form", text: problemOf(e, "That didn't save. Check your connection and try again.") });
+      setProblem({ field: ["name", "price", "trial", "interval", "percent", "box"].includes(code) ? code : "form", text: problemOf(e, "That didn't save. Check your connection and try again.") });
     } finally { setBusy(false); }
   };
 
@@ -222,9 +235,45 @@ function PlanDrawer({ start, money, onClose, onSaved }: { start: AdminPlan | nul
         <TextField label="Free days before the first payment (optional)" inputMode="numeric" placeholder="0" hint={`Up to ${MAX_TRIAL_DAYS} days.`} value={form.trial} error={err("trial")} onChange={(e) => set({ trial: e.target.value })} />
         <TextField label="Member price: % off your products (optional)" inputMode="numeric" placeholder="0" hint={`Members pay this much less for every product at checkout, worked out by the shop when they're signed in. Gift cards stay at full price. Up to ${MAX_MEMBER_PERCENT}%.`} value={form.percent} error={err("percent")} onChange={(e) => set({ percent: e.target.value })} />
         <TextArea label="What members get (optional)" rows={4} hint={`One line each, up to ${MAX_PERKS}. Shown as a list on your Membership page.`} value={form.perks} error={err("perks")} onChange={(e) => set({ perks: e.target.value })} />
+        <fieldset className="mbr-box">
+          <legend className="sr-only">Box</legend>
+          <Toggle label="Send members a box every month" checked={form.boxOn} onChange={(boxOn) => set({ boxOn })} />
+          <p className="mbr-hint">Like a monthly club or a subscription box. On the cut-off day, each paid member gets an order for what's below, at no extra cost, and it ships like any other order. Members give their address when they join. Up to {MAX_BOX_ITEMS} products, {MAX_BOX_QUANTITY} of each.</p>
+          {form.boxOn && (
+            <>
+              {books === null ? <p className="mbr-meta">Loading your products…</p> : form.boxRows.map((r, i) => {
+                const book = books.find((b) => b.id === r.bookId);
+                return (
+                  <div key={i} className="mbr-box-row" data-edition={book?.variants.length ? "" : undefined}>
+                    <SelectField label={i === 0 ? "Product" : `Product ${i + 1}`} value={r.bookId} onChange={(e) => setRow(i, { bookId: e.target.value, variantId: "" })}>
+                      <option value="">Choose a product</option>
+                      {books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
+                    </SelectField>
+                    {!!book?.variants.length && (
+                      <SelectField label="Edition" value={r.variantId} onChange={(e) => setRow(i, { variantId: e.target.value })}>
+                        <option value="">Choose an edition</option>
+                        {book.variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </SelectField>
+                    )}
+                    <TextField label="How many" inputMode="numeric" value={r.quantity} placeholder="1"onChange={(e) => setRow(i, { quantity: e.target.value })} />
+                    <IconButton label="Remove this product" disabled={form.boxRows.length === 1} onClick={() => set({ boxRows: form.boxRows.filter((_, j) => j !== i) })}><Trash2 size={16} aria-hidden /></IconButton>
+                  </div>
+                );
+              })}
+              {books !== null && form.boxRows.length < MAX_BOX_ITEMS && (
+                <SecondaryButton icon={<Plus size={16} aria-hidden />} onClick={() => set({ boxRows: [...form.boxRows, blankBoxRow()] })}>Add another product</SecondaryButton>
+              )}
+              <SelectField label="Cut-off day" value={form.cutoff} hint="The day of each month the box orders are made. Members who are paid up that day get one." onChange={(e) => set({ cutoff: e.target.value })}>
+                {Array.from({ length: MAX_CUTOFF_DAY }, (_, i) => String(i + 1)).map((d) => <option key={d} value={d}>{ordinal(Number(d))} of the month</option>)}
+              </SelectField>
+              {problem?.field === "box" && <p className="mbr-problem" role="alert">{problem.text}</p>}
+            </>
+          )}
+        </fieldset>
         <Toggle label="Hide this plan: take no new members (current members stay)" checked={form.hidden} onChange={(hidden) => set({ hidden })} />
-        {problem && !["name", "price", "trial", "perks", "percent"].includes(problem.field) && <p className="mbr-problem" role="alert">{problem.text}</p>}
+        {problem && !["name", "price", "trial", "perks", "percent", "box"].includes(problem.field) && <p className="mbr-problem" role="alert">{problem.text}</p>}
       </div>
     </Drawer>
   );
 }
+

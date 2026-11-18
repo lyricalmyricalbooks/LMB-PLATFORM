@@ -13,6 +13,7 @@ export function membershipErrorKey(code: unknown, status?: unknown): string {
     case "not_available": return "membershipNotReady";
     case "too_many": return "membershipErrorTooMany";
     case "state": return "accountMemberErrorState";
+    case "address": return "accountMemberAddressError";
     default: return status === 429 ? "membershipErrorTooMany" : "membershipErrorGeneric";
   }
 }
@@ -38,3 +39,9 @@ export const memberCan = (state: MemberState) => ({
   resume: state === "ending",
   card: state !== "ended" && state !== "pending",
 });
+
+/** A box membership's address on one line ("12 Main St, Apt 3, Toronto, ON M6G 3H1, CA"). */
+export function addressLine(a: { line1: string; line2?: string; city: string; state?: string; postalCode: string; country: string } | null | undefined): string {
+  if (!a) return "";
+  return [a.line1, a.line2, a.city, [a.state, a.postalCode].filter(Boolean).join(" "), a.country].filter(Boolean).join(", ");
+}
