@@ -2061,6 +2061,22 @@ async function givingEmailLayout() {
   const brand = settings.brand || {};
   return { logoUrl: brand.logoUrl || "", accent: brand.brandColor || "", theme: brand.emailTheme || "light", shopName: String(settings.shopName || shopConfig.senderName || "") };
 }
+// Donations › Tax receipts › yearly summary (givingYearly.js, G3b): each January, one email per giver listing last
+// year's receipts. Gifts are read by the receipt's year (single-field index), then one giver's by address.
+const { runYearlySummary } = require("./givingYearly");
+const { cleanGivingSettings } = require("./shared/givingRules");
+const { dayOf: yearlyShopDay } = require("./shared/bookingTimes");
+const YEARLY_FIELDS = ["customer", "status", "receipt", "locale", "mode"];
+async function listYearlyGifts(year, afterId, limit) {
+  let query = db.collection("gifts").where("receipt.year", "==", Number(year)).orderBy("__name__").select(...YEARLY_FIELDS);
+  if (afterId) query = query.startAfter(afterId);
+  const snap = await query.limit(limit).get();
+  return snap.docs.map(d => ({ id: d.id, data: d.data() }));
+}
+async function yearlyGiverGifts(year, email) {
+  const snap = await db.collection("gifts").where("customer.email", "==", String(email)).select(...YEARLY_FIELDS).limit(500).get();
+  return snap.docs.map(d => d.data()).filter(g => Number(g.receipt?.year) === Number(year));
+}
 const fundraiserUpdateDesk = fundraiserUpdateActions({
   db, escapeHtml, risoLayout, risoButton, layout: givingEmailLayout, supportUrl: () => siteLink("/support"),
   unsubscribeLink: () => newsletterUnsubscribeLink(),
@@ -5342,6 +5358,18 @@ exports.unpaidPaymentSweep = onSchedule(
       });
       if (result.sent || result.status) console.log("unpaidPaymentSweep: fundraiser updates", result);
     } catch (err) { console.error("unpaidPaymentSweep: fundraiser updates failed:", err.message); }
+
+    // Donations › Tax receipts: in January, last year's summary to each giver with receipts (leased, never twice).
+    try {
+      const result = await runYearlySummary({
+        db, optOutId, escapeHtml, risoLayout, layout: givingEmailLayout,
+        today: () => yearlyShopDay(Date.now(), shopTimeZone()),
+        settings: async () => cleanGivingSettings((await db.collection("givingSettings").doc("main").get()).data() || {}),
+        unsubscribeUrl: await newsletterUnsubscribeLink(), listGifts: listYearlyGifts, giverGifts: yearlyGiverGifts, optedOutIds: newsletterOptedOutIds,
+        sendEmail: message => sendEmail({ ...message, secret: resendSecretValue() }),
+      });
+      if (result.sent || result.status) console.log("unpaidPaymentSweep: yearly giving summary", result);
+    } catch (err) { console.error("unpaidPaymentSweep: yearly giving summary failed:", err.message); }
 
     // Books › Digital product › Tell buyers: the next page of a new-version email that is sending (leased, never twice).
     try {

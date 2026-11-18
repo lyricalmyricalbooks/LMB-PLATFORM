@@ -670,12 +670,16 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
     setDoc(doc(folder(ctx.firestore()), "fundraiserUpdates/u1"), { fundraiserId: "f1", status: "sent", subject: "News" }),
     setDoc(doc(folder(ctx.firestore()), "fundraiserUpdates/u1/sent/h1"), { at: "2026-11-18" }),
     setDoc(doc(ctx.firestore(), "shops/s2/fundraiserUpdates/u2"), { fundraiserId: "f2", status: "sent" }),
+    setDoc(doc(folder(ctx.firestore()), "givingReceipts/2026"), { next: 4 }),
+    setDoc(doc(folder(ctx.firestore()), "givingYearly/2026"), { status: "sent", sent: 3 }),
+    setDoc(doc(folder(ctx.firestore()), "givingYearly/2026/sent/h1"), { at: "2027-01-02" }),
+    setDoc(doc(ctx.firestore(), "shops/s2/givingReceipts/2026"), { next: 9 }),
   ]));
   const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
   const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
   const ownerS2 = signedIn("o1", { email: "owner@example.com", email_verified: true }, { shop: "s2" });
   const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
-  for (const path of ["gifts/g1", "givingSettings/main", "givingBlocked/2026-11-18", "givingSecret/key", "fundraisers/f1", "fundraiserUpdates/u1", "fundraiserUpdates/u1/sent/h1"]) {
+  for (const path of ["gifts/g1", "givingSettings/main", "givingBlocked/2026-11-18", "givingSecret/key", "fundraisers/f1", "fundraiserUpdates/u1", "fundraiserUpdates/u1/sent/h1", "givingReceipts/2026", "givingYearly/2026", "givingYearly/2026/sent/h1"]) {
     await check(`owner can't read ${path} directly`, assertFails(getDoc(doc(owner, path))));
     await check(`owner can't write ${path}`, assertFails(setDoc(doc(owner, path), { status: "refunded" }, { merge: true })));
     await check(`anon can't read ${path}`, assertFails(getDoc(doc(anon, path))));
@@ -689,6 +693,8 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("owner can't read another shop's fundraiser", assertFails(getDoc(doc(ownerS2, "fundraisers/f2"))));
   await check("owner can't read another shop's fundraiser update", assertFails(getDoc(doc(ownerS2, "fundraiserUpdates/u2"))));
   await check("anon can't queue a fundraiser update", assertFails(setDoc(doc(anon, "fundraiserUpdates/u9"), { status: "queued" })));
+  await check("owner can't read another shop's receipt counter", assertFails(getDoc(doc(ownerS2, "givingReceipts/2026"))));
+  await check("anon can't move a receipt counter back", assertFails(setDoc(doc(anon, "givingReceipts/2026"), { next: 1 })));
 }
 
 // Walls between shops (docs/shared-system.md). Shop s2 has its own records; nobody from s1's sign-in list may touch

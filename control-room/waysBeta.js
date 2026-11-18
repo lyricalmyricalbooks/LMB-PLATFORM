@@ -41,9 +41,10 @@ export function eventsUse(events, places, nowMs) {
 /**
  * How a shop uses Donations & tips: gifts paid (test gifts left out), what they came to, and the tries the card-testing
  * guard refused in the last 30 days, per reason (givingBlocked/{YYYY-MM-DD}, written by the shop's functions/giving.js).
- * Many refused tries on a shop means someone is testing stolen cards on its Support page.
+ * Many refused tries on a shop means someone is testing stolen cards on its Support page. Also the tax receipts given
+ * (G3: issued, never a test gift's or a cancelled one) and the fundraisers (running now, and what all of them raised).
  */
-export function givingUse(gifts, blockedDays, nowMs) {
+export function givingUse(gifts, blockedDays, nowMs, fundraisers = []) {
   const paid = gifts.filter((g) => g && g.status === "paid" && g.mode !== "test");
   const since = new Date(nowMs - 29 * 86_400_000).toISOString().slice(0, 10);
   const blocked = { tooSmall: 0, tooMany: 0, bot: 0, total: 0 };
@@ -56,10 +57,18 @@ export function givingUse(gifts, blockedDays, nowMs) {
     givenMinor: paid.reduce((sum, g) => sum + (Number.isFinite(g.chargedMinor) && g.chargedMinor > 0 ? g.chargedMinor : 0), 0),
     currency: String(paid.find((g) => typeof g.currency === "string")?.currency || "CAD").toUpperCase(),
     blocked,
+    receipts: gifts.filter((g) => g && g.mode !== "test" && g.receipt && g.receipt.status === "issued" && g.receipt.test !== true).length,
+    fundraisers: {
+      count: fundraisers.filter(Boolean).length,
+      live: fundraisers.filter((f) => f && f.status === "live").length,
+      raisedMinor: fundraisers.reduce((sum, f) => sum + (Number.isFinite(f?.raisedMinor) && f.raisedMinor > 0 ? f.raisedMinor : 0), 0),
+    },
   };
 }
 /** The most gifts read for the use line (the admin's own list, functions/giving.js MAX_LISTED, reads as many). */
 const MAX_GIFTS = 500;
+/** The most fundraisers read (the shop keeps every one it made; one runs at a time). */
+const MAX_FUNDRAISERS = 200;
 /** One record per day with refused tries; a year and a bit covers every shop's last 30 days. */
 const MAX_BLOCKED_DAYS = 400;
 
@@ -115,11 +124,12 @@ export function createWaysBeta({ admins, registry, auditLog, shopData, activity 
         }
         if (allowed.includes("giving") && shopData.find) {
           try {
-            const [gifts, blocked] = await Promise.all([
+            const [gifts, blocked, fundraisers] = await Promise.all([
               shopData.find(shopId, "gifts", { limit: MAX_GIFTS }),
               shopData.find(shopId, "givingBlocked", { limit: MAX_BLOCKED_DAYS }),
+              shopData.find(shopId, "fundraisers", { limit: MAX_FUNDRAISERS }),
             ]);
-            use.giving = givingUse(gifts.map((d) => d.data), blocked.map((d) => d.data), now().getTime());
+            use.giving = givingUse(gifts.map((d) => d.data), blocked.map((d) => d.data), now().getTime(), fundraisers.map((d) => d.data));
           } catch { /* the line is left out */ }
         }
         return {
