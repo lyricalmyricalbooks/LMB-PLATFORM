@@ -128,6 +128,11 @@ function setup() {
       m2: { state: 'ended', neverStarted: true, customer: { name: 'Ada', email: 'ada@example.com', uid: 'u1' }, sessions: ['cs_n'] },
       m3: { state: 'active', customer: { name: 'Bo', email: 'bo@example.com', uid: 'u2' } },
     },
+    // Rentals (rentals.js): one of Ada's paid and back, one never paid.
+    rentals: {
+      r1: { status: 'returned', chargedMinor: 4000, customer: { name: 'Ada', email: 'ada@example.com' }, keyHashes: ['h'], card: { customer: 'cus_r', paymentMethod: 'pm_r', brand: 'Visa', last4: '4242' }, sessions: ['cs_r'], paymentIntent: 'pi_r', extraPages: [{ url: 'https://pay.example/x' }] },
+      r2: { status: 'cancelled', chargedMinor: 0, customer: { name: 'Ada', email: 'ada@example.com' } },
+    },
     // "Tell me if an earlier time opens".
     bookingEarlier: {
       free1: { bookingId: 'free1', serviceName: 'Studio visit', start: '2026-11-20T15:00:00.000Z', name: 'Ada', email: 'ada@example.com' },
@@ -269,5 +274,31 @@ describe("the shopper's own copy", () => {
     expect(out.code).toBe(200);
     expect(out.body).not.toHaveProperty('clientVisitNotes');
     expect(reads.some(([c]) => c === 'clientVisits')).toBe(false);
+  });
+});
+
+describe("rentals in the privacy export and erase", () => {
+  it("the export carries the person's rentals without keys, card ids or pay pages", async () => {
+    const { res, handlePrivacyAdmin } = setup();
+    const out = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyExport', email: 'ada@example.com' } }, out);
+    const r1 = out.body.rentals.find(r => r.id === 'r1');
+    expect(r1.card).toEqual({ brand: 'Visa', last4: '4242' });
+    for (const key of ['keyHashes', 'sessions', 'paymentIntent', 'extraPages']) expect(r1).not.toHaveProperty(key);
+  });
+
+  it("the erase waits for a rental that isn't back, then keeps paid ones as payment records without the card", async () => {
+    const { db, res, handlePrivacyAdmin } = setup();
+    db.store.get('rentals').set('r3', { status: 'out', customer: { name: 'Ada', email: 'ada@example.com' } });
+    const refused = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyErase', email: 'ada@example.com' } }, refused);
+    expect(refused.body).toMatchObject({ code: 'rental_open', rentals: ['r3'] });
+    db.store.get('rentals').get('r3').status = 'returned';
+    const out = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyErase', email: 'ada@example.com' } }, out);
+    expect(out.code).toBe(200);
+    const r = db.store.get('rentals');
+    expect(r.get('r1')).toMatchObject({ customer: { name: 'Ada', email: 'ada@example.com' }, card: null, keyHashes: [], extraPages: [] });
+    expect(r.get('r2').customer).toEqual({ name: 'Details removed', email: '' });
   });
 });
