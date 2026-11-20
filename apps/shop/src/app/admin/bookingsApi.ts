@@ -17,7 +17,8 @@ export type Booking = {
   /** The code the client shows at the desk, and when the shop checked them in (op checkIn). */ checkInCode?: string; checkedInAt?: string | null;
   /** A course: every date this one sign-up holds a place on (the first is `start`), and their shop days. */
   course?: { starts: string[]; days: string[]; /** Who takes each date, when it isn't the same person throughout. */ staff?: string[] };
-  refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin"; cancelledBy?: string;
+  refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin" | "desk"; cancelledBy?: string;
+  /** Which ready link a website booking came through (plan 4, 2.7); `walkIn` for one made at the desk. */ cameFrom?: string; walkIn?: boolean;
   /** A request (plan 4, 2.5): when it is let go unless answered; `declined` once the owner said no or ran out of time. */
   answerBy?: string | null; declined?: boolean;
   /** Card on file: the most the owner may charge after a missed booking, the saved card, and the fee once charged. */

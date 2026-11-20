@@ -553,7 +553,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     ...(s.processMinutes ? { processAfter: s.processAfter, processMinutes: s.processMinutes } : {}),
     ...(s.gapBefore ? { gapBefore: s.gapBefore } : {}),
     ...(TEAM ? (s.id === "riso" || s.id === "workshop" ? { staffId: "ben", staffName: "Ben Example" } : { staffId: "ana", staffName: "Ana Example" }) : {}),
-    ...(TEAM && s.roomId ? { roomId: s.roomId, roomName: "Print room" } : {}), ...extra,
+    ...(TEAM && s.roomId ? { roomId: s.roomId, roomName: "Print room" } : {}),
+    // Where it came from (plan 4, 2.7), spread over the ready links so Figures has something to show.
+    ...(["instagram", "", "qr", "google", "instagram", ""][id.charCodeAt(id.length - 1) % 6] ? { cameFrom: ["instagram", "", "qr", "google", "instagram", ""][id.charCodeAt(id.length - 1) % 6] } : {}),
+    ...extra,
   });
   let rows: Booking[] = mode === "on" ? [
     booking("bk-1", services[0], at(0, 11), "Ada Example", { meetUrl: "https://meet.google.com/abc-defg-hij", checkInCode: "K7QM-2XPA" }),

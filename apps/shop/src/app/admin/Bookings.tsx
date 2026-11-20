@@ -11,7 +11,7 @@ import {
 } from "./riso/components";
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, followRequests, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
-import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
@@ -31,7 +31,7 @@ const ZONE = shopTimeZone();
 const today = () => dayOf(Date.now(), ZONE);
 const bookPageUrl = () => new URL(`${(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/")}book`, window.location.origin).toString();
 
-export function Bookings() {
+export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
   const [tab, setTab] = useState<Tab>("calendar");
   // The empty Calendar's "Add a service" opens the form straight away, not just the tab.
   const [adding, setAdding] = useState(false);
@@ -155,7 +155,7 @@ export function Bookings() {
             <button type="button" className="bkg-pill" onClick={() => setSharing(true)} disabled={noServices}><QrCode size={14} aria-hidden /> Share</button>
             <a className="bkg-pill" href={bookPageUrl()} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden /> View</a>
           </div>
-          {sharing && <ShareDialog services={setup.services} settings={setup.settings} live={live} onClose={() => setSharing(false)} />}
+          {sharing && <ShareDialog services={setup.services} settings={setup.settings} live={live} shopName={shopName} onClose={() => setSharing(false)} />}
         </div>
       </section>
 
@@ -994,6 +994,7 @@ function FiguresPanel() {
   const topMonth = Math.max(1, ...figures.months.map((m) => m.count));
   const topDay = Math.max(1, ...figures.weekdays.map((w) => w.count));
   const topService = Math.max(1, ...figures.services.map((s) => s.count));
+  const topChannel = Math.max(1, ...figures.channels.map((ch) => ch.count));
   const busiest = figures.weekdays.reduce((best, w) => (w.count > best.count ? w : best), figures.weekdays[0]);
   return (
     <div className="bkg-figs">
@@ -1058,6 +1059,22 @@ function FiguresPanel() {
           ))}
         </ul>
       </section>
+
+      <section className="bkg-tile bkg-figs-channels" aria-labelledby="bkg-figs-channels">
+        <h2 id="bkg-figs-channels" className="bkg-figs-title">Where bookings came from <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+        <p className="bkg-figs-lead">{figures.channels.some((ch) => !["Your website", "By you", "At the desk"].includes(ch.name))
+          ? "Counted from the links in Share."
+          : "Put the links from Share on Instagram, Facebook, Google and your QR code, and each one counts here."}</p>
+        <ul className="bkg-bars bkg-bars-wide">
+          {figures.channels.map((ch) => (
+            <li key={ch.name}>
+              <span>{ch.name}</span>
+              <span className="bkg-bars-track" aria-hidden><i style={{ width: `${Math.round((ch.count / topChannel) * 100)}%` }} /></span>
+              <strong>{ch.count}</strong>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
@@ -1066,7 +1083,7 @@ function FiguresPanel() {
  * Share your booking page (Beta): the link, a QR code to print and a Book now button for another website, each opening
  * the whole page, one service, or one person for it.
  */
-function ShareDialog({ services, settings, live, onClose }: { services: BookingService[]; settings: BookingSettings; live: boolean; onClose: () => void }) {
+function ShareDialog({ services, settings, live, shopName, onClose }: { services: BookingService[]; settings: BookingSettings; live: boolean; shopName: string; onClose: () => void }) {
   const offered = services.filter((s) => s.active);
   const [service, setService] = useState("");
   const [person, setPerson] = useState("");
@@ -1074,19 +1091,24 @@ function ShareDialog({ services, settings, live, onClose }: { services: BookingS
   const [look, setLook] = useState<"dark" | "light">("dark");
   const [opens, setOpens] = useState<"over" | "tab">("over");
   const [qr, setQr] = useState("");
+  const [posterWords, setPosterWords] = useState("Book online");
   const people = booksByPerson(settings) && service ? staffFor(settings, service) : [];
   const chosen = offered.find((s) => s.id === service);
   const who = people.find((p) => p.id === person);
-  const link = bookingShareLink(bookPageUrl(), { service, person: who ? person : "" });
-  const button = bookButtonHtml(link, words, look, opens === "over" ? bookButtonScript(bookPageUrl()) : "");
+  const pick = { service, person: who ? person : "" };
+  const link = bookingShareLink(bookPageUrl(), pick);
+  // Each place gets its own link (plan 4, 2.7), so Figures can say where bookings came from.
+  const qrLink = bookingShareLink(bookPageUrl(), { ...pick, from: "qr" });
+  const buttonLink = bookingShareLink(bookPageUrl(), { ...pick, from: "button" });
+  const button = bookButtonHtml(buttonLink, words, look, opens === "over" ? bookButtonScript(bookPageUrl()) : "");
   // The preview shows the button alone: the script only matters on the other website.
-  const shown = bookButtonHtml(link, words, look);
+  const shown = bookButtonHtml(buttonLink, words, look);
   useEffect(() => {
     let alive = true;
     setQr("");
-    qrPicture(link, 8).then((pic) => { if (alive) setQr(pic); }, () => undefined);
+    qrPicture(qrLink, 8).then((pic) => { if (alive) setQr(pic); }, () => undefined);
     return () => { alive = false; };
-  }, [link]);
+  }, [qrLink]);
   const what = chosen ? `${chosen.name}${who ? ` with ${who.name}` : ""}` : "your booking page";
   const fileName = `book-${(chosen?.name || "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page"}-qr.gif`;
   return (
@@ -1112,11 +1134,32 @@ function ShareDialog({ services, settings, live, onClose }: { services: BookingS
           <h3 id="bkg-share-link" className="bkg-share-title">Link</h3>
           <div className="bkg-share-link"><code>{link}</code><SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} onClick={() => void copyText(link, "Link")}>Copy</SecondaryButton></div>
         </section>
+        <section className="bkg-share-part" aria-labelledby="bkg-share-social">
+          <h3 id="bkg-share-social" className="bkg-share-title">Instagram, Facebook and Google <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h3>
+          <p className="bkg-questions-hint">Each has its own link, so Figures shows where your bookings came from.</p>
+          <ul className="bkg-share-places">
+            {SOCIAL_PLACES.map((place) => {
+              const placeLink = bookingShareLink(bookPageUrl(), { ...pick, from: place.from });
+              return (
+                <li key={place.from}>
+                  <strong>{place.name}</strong>
+                  <p>{place.where}</p>
+                  <div className="bkg-share-link"><code>{placeLink}</code><SecondaryButton size="sm" icon={<Copy size={15} aria-hidden />} aria-label={`Copy the ${place.name} link`} onClick={() => void copyText(placeLink, `${place.name} link`)}>Copy</SecondaryButton></div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
         <section className="bkg-share-part bkg-share-qr" aria-labelledby="bkg-share-qr">
           <div>
             <h3 id="bkg-share-qr" className="bkg-share-title">QR code</h3>
-            <p className="bkg-questions-hint">For a flyer, your window or the till. A phone camera opens {what}.</p>
-            {qr && <a className="rp-btn rp-btn-secondary rp-btn-sm" href={qr} download={fileName}><Download size={15} aria-hidden /> Download</a>}
+            <p className="bkg-questions-hint">For a flyer, your window or the till. A phone camera opens {what}. The poster puts it on a page with your words.</p>
+            <TextField label="Poster words" value={posterWords} maxLength={40} onChange={(e) => setPosterWords(e.target.value)} />
+            <div className="bkg-share-qr-actions">
+              <SecondaryButton size="sm" icon={<Printer size={15} aria-hidden />} disabled={!qr}
+                onClick={() => printDaySheet(bookingPosterHtml({ shop: shopName, heading: posterWords, what: chosen ? what : "", qr, link }))}>Print a poster</SecondaryButton>
+              {qr && <a className="rp-btn rp-btn-secondary rp-btn-sm" href={qr} download={fileName}><Download size={15} aria-hidden /> Download</a>}
+            </div>
           </div>
           {qr ? <img src={qr} alt={`QR code that opens ${what}`} width={160} height={160} /> : <span className="bkg-share-qr-wait" aria-hidden />}
         </section>
@@ -1311,7 +1354,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
           {!!tipTaken(b) && <div><dt>Tip</dt><dd>{moneyText(tipTaken(b), b.currency)} by card</dd></div>}
           {b.fee && <div><dt>Fee</dt><dd>{moneyText(b.fee.amountMinor, b.currency)} charged{b.fee.reason ? ` for a ${b.fee.reason}` : ""}, {new Date(b.fee.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</dd></div>}
           {b.checkInCode && b.status === "confirmed" && <div><dt>Check-in code</dt><dd className="bkg-code">{b.checkInCode}</dd></div>}
-          <div><dt>Booked</dt><dd>{b.source === "admin" ? "By you" : "On your website"}{b.createdAt ? `, ${new Date(b.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</dd></div>
+          <div><dt>Booked</dt><dd>{bookedThrough(b)}{b.createdAt ? `, ${new Date(b.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</dd></div>
         </dl>
         {b.note && <blockquote className="bkg-note">“{b.note}”</blockquote>}
         {!!b.answers?.length && (
