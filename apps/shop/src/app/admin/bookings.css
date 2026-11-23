@@ -678,3 +678,33 @@
 /* Past visits spreadsheet (plan 4, 3.8) */
 .rp .bkg-past-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .rp .bkg-past-count { margin: 0; font-weight: 600; color: var(--rp-text); }
+/* The team desk (plan 4, 4.1): a front desk's or a service provider's day */
+.rp .tdesk { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+.rp .tdesk-bar { display: flex; align-items: center; gap: 8px; margin: 8px 0 16px; flex-wrap: wrap; }
+.rp .tdesk-day { margin: 0; font-size: 1.35rem; font-weight: 700; display: flex; flex-direction: column; min-width: 9ch; }
+.rp .tdesk-day small { font-size: .82rem; font-weight: 500; color: var(--rp-text-muted); }
+.rp .tdesk-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.rp .tdesk-counts > div { background: var(--rp-surface); border-radius: 18px; padding: 14px 16px; color: var(--rp-text-muted); font-size: .9rem; }
+.rp .tdesk-counts span { display: block; font-size: 1.6rem; font-weight: 700; color: var(--rp-text); line-height: 1.1; }
+.rp .tdesk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rp .tdesk-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; background: var(--rp-surface); border-radius: 18px; padding: 14px 16px; }
+.rp .tdesk-row[data-here] { box-shadow: inset 4px 0 0 var(--rp-success); }
+.rp .tdesk-row[data-noshow] { opacity: .72; }
+.rp .tdesk-time { font-weight: 700; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; }
+.rp .tdesk-time small { font-weight: 500; color: var(--rp-text-muted); font-size: .8rem; }
+.rp .tdesk-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rp .tdesk-who strong { font-size: 1.02rem; }
+.rp .tdesk-who span, .rp .tdesk-who a { color: var(--rp-text-muted); font-size: .88rem; }
+.rp .tdesk-who a { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; width: fit-content; }
+.rp .tdesk-who p { margin: 4px 0 0; font-size: .86rem; color: var(--rp-text-muted); }
+.rp .tdesk-acts { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 640px) {
+  .rp .tdesk-row { grid-template-columns: 76px auto minmax(0, 1fr); row-gap: 10px; }
+  .rp .tdesk-who { grid-column: 2 / -1; }
+  .rp .tdesk-time { white-space: nowrap; grid-row: span 2; align-self: start; }
+  .rp .tdesk-state { grid-column: 2; }
+  .rp .tdesk-acts { grid-column: 3; justify-self: start; }
+  .rp .tdesk-state:empty { display: none; }
+  .rp .tdesk-state:empty + .tdesk-acts { grid-column: 2 / -1; }
+  .rp .tdesk-counts > div { padding: 10px 12px; }
+}

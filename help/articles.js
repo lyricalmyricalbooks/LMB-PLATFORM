@@ -92,6 +92,7 @@ export const ARTICLES = Object.freeze([
       "When a client asks for a time in Messages, open their message and press Make a booking. Their name, email, phone and the service they named are filled in for you.",
       "To answer messages while you're closed, open Hours & rules and turn on Away reply. People who write through your contact form then hear back at once, with the time you open again.",
       "To take your past visits away as a spreadsheet, open the calendar's List, choose Past and press Spreadsheet. Pick the days, and keep only the no-shows if you like.",
+      "Someone who only answers the door or does the visits can have the Front desk or Service provider role under Settings › Team. They sign in and see just the day's bookings.",
     ],
   },
   {
@@ -547,6 +548,7 @@ export const ARTICLES = Object.freeze([
     answer: [
       "Yes. Open Settings › Team and add them with the Google email address they sign in with.",
       "Staff can do everything except change the team or your payment and email settings. Authors only see their own books, in the stockroom.",
+      "If you take bookings, Front desk sees the day, books clients and checks them in. A Service provider sees only their own visits and checks people in.",
     ],
     where: ["Settings › Team"],
   },

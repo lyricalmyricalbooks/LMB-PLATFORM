@@ -22,6 +22,7 @@ import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stock
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
 import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
+import { teamDeskData } from "../app/admin/teamDeskApi";
 import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type BookingService, type BookingSettings } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
@@ -525,7 +526,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     ...(CLASSES ? [service("wheel", "Four-week wheel course", 120, 18000, 5, { places: 6, location: "Studio", courseDates: COURSE_DAYS.map((d) => `${d}T10:00`) })] : []),
   ];
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
-  const TEAM = new URLSearchParams(window.location.search).get("team") === "1";
+  const TEAM = new URLSearchParams(window.location.search).get("team") === "1" || new URLSearchParams(window.location.search).has("desk");
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on", textReminders: mode === "on", textReplies: mode === "on",
     // Emails and texts to clients (plan 4, 3.5): the owner changed the confirmation's words.
     ...(mode === "on" ? { awayReply: true, awayWords: "Thanks for writing! We're at the print fair this weekend and back at the studio soon." } : {}),
@@ -790,6 +791,21 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     changed();
     return { ok: true };
   };
+  // The team desk (?desk=frontDesk|provider, plan 4, 4.1): the same sample day, trimmed the way the server's
+  // handleDesk trims it. Sam is the front desk; as a provider the page signs in as Ben and sees only his bookings.
+  const deskRole = new URLSearchParams(window.location.search).get("desk") === "provider" ? "provider" : "frontDesk";
+  teamDeskData.day = async (day) => {
+    const staff = (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name }));
+    const me = deskRole === "provider" ? { id: "ben", name: "Ben Example" } : null;
+    const zone = shopTimeZone();
+    const bookings = rows.filter((b) => dayOf(Date.parse(b.start), zone) === day && b.status !== "held")
+      .filter((b) => !me || b.staffId === me.id)
+      .sort((a, b) => a.start.localeCompare(b.start));
+    return { role: deskRole, day, days: 60, zone, me, staff,
+      services: deskRole === "provider" ? [] : services.filter((s) => s.active !== false).map((s) => ({ id: s.id, name: s.name, minutes: s.minutes, places: s.places || 1 })),
+      bookings };
+  };
+  teamDeskData.act = (op, body) => bookingsData.admin(op as never, body);
 }
 
 // ── Customers › a client › Visit notes and photos (services shops, `?sells=hair`): Ben has two visits, one with
@@ -1880,6 +1896,18 @@ if (new URLSearchParams(location.search).get("accountant") === "1") {
   const { BookkeeperDesk } = await import("../app/admin/BookkeeperDesk");
   await import("../styles/index.css");
   createRoot(document.getElementById("root")!).render(createElement(BookkeeperDesk, { email: "ben.example@example.com", appearance: "light" }));
+  helperShown = true;
+}
+
+// The team desk (?desk=frontDesk or ?desk=provider): what a Team member with the Front desk or Service provider role
+// sees instead of the admin (plan 4, 4.1). The sample day comes from the Bookings block above.
+if (new URLSearchParams(location.search).has("desk")) {
+  const role = new URLSearchParams(location.search).get("desk") === "provider" ? "provider" : "frontDesk";
+  const { createElement } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const { TeamDesk } = await import("../app/admin/TeamDesk");
+  await import("../styles/index.css");
+  createRoot(document.getElementById("root")!).render(createElement(TeamDesk, { email: role === "provider" ? "ben@example.com" : "sam@example.com", role, appearance: "light" }));
   helperShown = true;
 }
 

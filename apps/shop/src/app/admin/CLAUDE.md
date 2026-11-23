@@ -1499,3 +1499,10 @@ is never echoed. Tests: `functions/awayReply.test.js`, `src/shared/bookingAway.t
 Calendar › List › Past › **Spreadsheet** opens `PastVisitsDialog.tsx` (Beta): it reads `readBookingsBetween` for the shop
 days picked (`pastRange`, ≤ `MAX_PAST_DAYS`) and downloads `pastVisitRows` as CSV. `visitOutcome` (`pastVisits.ts`) names
 what happened; a hold that ran out, a waiting request and the future are never visits. Read only.
+
+**Front desk and service provider roles (23 November 2026, Bookings plan 4 step 4.1, `tasks/todo/2026-11-23-bookings-team-roles.md`).**
+Team roles `frontDesk` and `provider` (Beta, offered by `roleChoices` in `TeamSettings.tsx` only while Bookings is on).
+`teamDeskSignIn` (`api.ts`, via `deskRoleOf`) sends such a person to `TeamDesk.tsx` instead of the admin, like the
+accountant's desk. The page reads nothing itself: every call is `teamDeskData` (`teamDeskApi.ts`) → action
+`bookingsDesk`. Front desk: day, New booking, Check in, Didn't turn up, Cancel. Provider: only their own visits, Check in
+and Didn't turn up. Fixture: `admin-fixture.html?desk=frontDesk` or `?desk=provider`.

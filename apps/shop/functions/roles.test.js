@@ -189,3 +189,17 @@ describe('stampTeamSignIn', () => {
     expect(db.writes).toEqual([]);
   });
 });
+
+describe('front desk and service provider (Bookings plan 4, 4.1)', () => {
+  test('a desk role never passes the admin check; deskRole names it for a verified pass only', () => {
+    const { deskRole } = require('./roles');
+    for (const role of ['frontDesk', 'provider']) {
+      expect(adminRole({ email: 'sam@press.test', email_verified: true, role })).toBeNull();
+      expect(booksReader({ email: 'sam@press.test', email_verified: true, role })).toBeNull();
+      expect(deskRole({ email: 'sam@press.test', email_verified: true, role })).toBe(role);
+      expect(deskRole({ email: 'sam@press.test', email_verified: false, role })).toBeNull();
+      expect(memberProblem('sam@press.test', { role })).toBeNull();
+    }
+    expect(deskRole({ email: 'sam@press.test', email_verified: true, role: 'staff' })).toBeNull();
+  });
+});
