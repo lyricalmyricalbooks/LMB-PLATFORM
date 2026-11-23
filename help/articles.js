@@ -83,6 +83,7 @@ export const ARTICLES = Object.freeze([
       "Clients who sign in to their account on your website see a Your bookings box. It lists what they have coming up and their past visits, with Open to move or cancel one and Book again.",
       "To move from another booking tool, export its services as a spreadsheet. Under Services, press Bring your services from a spreadsheet and choose the file. They come in hidden, so you can check each one first.",
       "Under Hours & rules, Forms before a visit holds a health form, a waiver or an agreement. Clients sign each one on their booking page. Set Sign again to ask once a year.",
+      "Open a client under Clients to keep files with them, like a signed contract or a doctor's note. Press Add files and choose PDFs, documents or pictures. Only your team can open them.",
       "If you go to your clients, open the service and turn on Visit them at their place. Clients then give their address when they book. List the postal codes you travel to, and set Time before to your travel time.",
       "For a video call service, clients in another time zone see the times on their own clock, with a link to switch to yours. Their emails show both times.",
     ],

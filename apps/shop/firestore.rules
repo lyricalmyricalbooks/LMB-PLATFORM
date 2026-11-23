@@ -475,6 +475,24 @@ service cloud.firestore {
           allow write: if false;
         }
       }
+      match /clientFiles/{fileId} {
+        // Files kept with one client (Bookings plan 4, 3.2): signed forms, contracts, briefs. The team only, like
+        // clientVisits. The files themselves are in storage.rules client-files/. Only the name changes after adding.
+        allow read, delete: if isAdmin();
+        allow create: if isAdmin()
+          && request.resource.data.keys().hasOnly(["client", "email", "name", "path", "size", "type", "addedAt"])
+          && request.resource.data.client is string && request.resource.data.client.matches("^[0-9a-f]{64}$")
+          && request.resource.data.email is string && request.resource.data.email.size() <= 254
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
+          && request.resource.data.path is string
+          && request.resource.data.path.matches("^client-files/" + request.resource.data.client + "/[A-Za-z0-9._-]{1,120}$")
+          && request.resource.data.size is int && request.resource.data.size > 0 && request.resource.data.size <= 20971520
+          && request.resource.data.type is string && request.resource.data.type.size() <= 120
+          && request.resource.data.addedAt is string;
+        allow update: if isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name"])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120;
+      }
       match /clientVisits/{visitId} {
         // Visit notes and before/after photos on the client card (Services plan 2): colour formulas, session notes.
         // The team only: no read-only support visit, no bookkeeper. Photos are in storage.rules client-photos/.

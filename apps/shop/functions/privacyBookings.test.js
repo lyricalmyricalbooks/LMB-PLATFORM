@@ -127,6 +127,12 @@ function setup() {
       v1: { client: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', email: 'ada@example.com', day: '2026-11-10', note: 'Formula 6N + 20 vol', photos: [{ path: 'client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg', kind: 'before' }, { path: '../elsewhere.jpg', kind: 'after' }] },
       v2: { client: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', email: 'bo@example.com', day: '2026-11-11', note: 'Trim', photos: [{ path: 'client-photos/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/after-1-y.jpg', kind: 'after' }] },
     },
+    // Files the team kept on the client card (clientFiles, Bookings plan 4, 3.2).
+    clientFiles: {
+      cf1: { client: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', email: 'ada@example.com', name: 'Signed waiver.pdf', path: 'client-files/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/file-1-x.pdf', size: 2048, type: 'application/pdf', addedAt: '2026-11-10T10:00:00.000Z' },
+      cf2: { client: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', email: 'ada@example.com', name: 'Odd', path: '../../elsewhere.pdf', size: 10, type: 'application/pdf', addedAt: '2026-11-10T10:00:00.000Z' },
+      cf3: { client: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', email: 'bo@example.com', name: 'Brief.docx', path: 'client-files/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/file-2-y.docx', size: 4096, type: 'application/msword', addedAt: '2026-11-11T10:00:00.000Z' },
+    },
     // Memberships (memberships.js): one of Ada's that ended, one never started, and Bo's running one.
     memberships: {
       m1: { state: 'ended', startedAt: '2026-10-01T00:00:00.000Z', plan: { name: 'Friends' }, customer: { name: 'Ada', email: 'ada@example.com', uid: 'u1' }, card: { brand: 'visa', last4: '4242' }, sessions: ['cs_m'], subscription: 'sub_1', stripeCustomer: 'cus_1', mode: 'test' },
@@ -227,8 +233,25 @@ describe("the owner's privacy export and erase", () => {
     await handlePrivacyAdmin({ body: { action: 'privacyErase', email: 'ada@example.com' } }, out);
     expect([...db.store.get('clientVisits').keys()]).toEqual(['v2']);
     // Only a path inside the client-photos folder is ever deleted.
-    expect(deletedFiles).toEqual(['client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg']);
+    expect(deletedFiles.filter(p => !p.startsWith('client-files/'))).toEqual(['client-photos/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/before-1-x.jpg']);
     expect(out.body.deleted).toMatchObject({ clientVisits: 1, clientPhotos: 1 });
+  });
+});
+
+describe("client files in the privacy export and erase", () => {
+  it("the owner's export lists the files without storage paths; erase deletes them and only paths in the folder", async () => {
+    const { db, res, handlePrivacyAdmin, deletedFiles } = setup();
+    const exp = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyExport', email: 'ada@example.com' } }, exp);
+    expect(exp.body.clientFiles.map(f => f.id).sort()).toEqual(['cf1', 'cf2']);
+    expect(exp.body.clientFiles[0]).not.toHaveProperty('path');
+    const out = res();
+    await handlePrivacyAdmin({ body: { action: 'privacyErase', email: 'ada@example.com' } }, out);
+    expect([...db.store.get('clientFiles').keys()]).toEqual(['cf3']);
+    expect(deletedFiles).toContain('client-files/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/file-1-x.pdf');
+    expect(deletedFiles).not.toContain('../../elsewhere.pdf');
+    expect(deletedFiles.some(p => p.includes('bbbb'))).toBe(false);
+    expect(out.body.deleted).toMatchObject({ clientFiles: 2, clientFileUploads: 1 });
   });
 });
 
@@ -278,7 +301,8 @@ describe("the shopper's own copy", () => {
     await handleMyData({ headers: { authorization: 'Bearer t' }, body: { action: 'myDataExport' } }, out);
     expect(out.code).toBe(200);
     expect(out.body).not.toHaveProperty('clientVisitNotes');
-    expect(reads.some(([c]) => c === 'clientVisits')).toBe(false);
+    expect(out.body).not.toHaveProperty('clientFiles');
+    expect(reads.some(([c]) => c === 'clientVisits' || c === 'clientFiles')).toBe(false);
   });
 });
 

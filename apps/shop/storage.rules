@@ -45,6 +45,16 @@ service firebase.storage {
           && request.resource.size < 12 * 1024 * 1024
           && request.resource.contentType.matches("image/.*");
       }
+      // Files kept with one client (Bookings plan 4, 3.2): the team only, never public. PDFs, documents, spreadsheets
+      // and pictures (src/app/admin/clientFiles.ts CLIENT_FILE_TYPES), under 20 MB.
+      match /client-files/{client}/{file} {
+        allow read, delete: if isAdmin();
+        allow create: if isAdmin()
+          && client.matches("^[0-9a-f]{64}$")
+          && file.matches("^[A-Za-z0-9._-]{1,120}$")
+          && request.resource.size <= 20 * 1024 * 1024
+          && request.resource.contentType.matches("application/(pdf|msword|rtf|vnd[.]ms-excel|vnd[.]oasis[.]opendocument[.]text|vnd[.]openxmlformats-officedocument[.](wordprocessingml[.]document|spreadsheetml[.]sheet))|text/(plain|csv)|image/(jpeg|png|heic|webp|gif)");
+      }
       match /digital-assets/{allPaths=**} {
         allow read: if false; // Only accessible via Admin SDK signed URLs on the backend
         // Digital D1: one file is at most 5 GB (src/shared/digitalFiles.ts MAX_DIGITAL_FILE_BYTES); deleting is allowed.

@@ -54,3 +54,19 @@
   .rp .cv-thumb, .rp .cv-add { width: 76px; height: 76px; }
   .rp .cv-visit { padding: 12px 14px; }
 }
+
+/* Client files (ClientFiles.tsx) */
+.rp .cf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rp .cf-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 16px; background: var(--rp-surface-2); min-width: 0; }
+.rp .cf-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--rp-surface); color: var(--rp-text); }
+.rp .cf-text { display: grid; gap: 2px; min-width: 0; }
+.rp .cf-name { all: unset; cursor: pointer; font: 600 14px/1.35 var(--rp-font-body); color: var(--rp-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp .cf-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rp .cf-name:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-text)); outline-offset: 2px; border-radius: 4px; }
+.rp .cf-name:disabled { opacity: 0.6; cursor: progress; }
+.rp .cf-meta { font: 500 12px/1.4 var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp .cf-actions { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .rp .cf-row { grid-template-columns: auto minmax(0, 1fr); padding: 10px 12px; }
+  .rp .cf-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
