@@ -67,6 +67,8 @@ exports.cleanRates = cleanRates;
 exports.forPerson = forPerson;
 exports.zonedTime = zonedTime;
 exports.dayOf = dayOf;
+exports.cleanZone = cleanZone;
+exports.zonesDiffer = zonesDiffer;
 exports.addDays = addDays;
 exports.summaryDue = summaryDue;
 exports.secondReminderDue = secondReminderDue;
@@ -1154,6 +1156,22 @@ function zonedTime(day, hhmm, zone) {
 function dayOf(ms, zone) {
     const p = partsIn(zone, ms);
     return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+/** A time zone name the runtime knows ("Europe/London"), else "" (plan 4, 2.9). */
+function cleanZone(v) {
+    if (typeof v !== "string" || v.length > 64 || !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(v))
+        return "";
+    try {
+        new Intl.DateTimeFormat("en", { timeZone: v });
+        return v;
+    }
+    catch {
+        return "";
+    }
+}
+/** True when two zones show a different clock at that moment (Toronto and New York don't). */
+function zonesDiffer(a, b, ms) {
+    return !!a && !!b && a !== b && offsetAt(a, ms) !== offsetAt(b, ms);
 }
 /** The day after (or `n` days after) a YYYY-MM-DD day. */
 function addDays(day, n) {

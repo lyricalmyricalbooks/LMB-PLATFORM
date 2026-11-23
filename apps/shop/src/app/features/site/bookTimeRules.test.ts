@@ -159,3 +159,13 @@ describe("team on the booking page (plan 4, 2.4)", () => {
     expect(peopleFor({ staff, staffPick: false }, "x")).toEqual([]);
   });
 });
+
+describe("times on the client's own clock (plan 4, 2.9)", () => {
+  it("adds the weekday only when the time falls on another day there", async () => {
+    const { slotText } = await import("./bookTimeRules");
+    const evening = "2026-11-18T01:30:00Z"; // 8:30 PM Tuesday in Toronto, 1:30 AM Wednesday in London
+    expect(slotText(evening, "America/Toronto", "America/Toronto")).not.toMatch(/Wed|Tue/);
+    expect(slotText(evening, "Europe/London", "America/Toronto")).toMatch(/Wed/);
+    expect(slotText("2026-11-17T15:00:00Z", "Europe/London", "America/Toronto")).not.toMatch(/Tue|Wed/);
+  });
+});

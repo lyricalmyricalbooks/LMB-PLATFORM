@@ -72,7 +72,7 @@ const {
   whoIsFree, booksByPerson, classPlacesLeft, keptPerson, forPerson, ownerBookingSettings, cleanBlocks, MAX_BLOCKS, cleanCheckInCode, checkInCodeFrom,
   cleanRun, runStarts, runSettings, runsOnline, withExtras, withLength, processingStretch,
   MAX_VISIT_PARTS, joinsVisit, visitService, visitTimeline, visitStaff, visitFreeTimes, visitName, visitPlan,
-  answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine,
+  answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine, cleanZone, zonesDiffer,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -299,6 +299,7 @@ function publicBooking(id, booking, settings, nowMs) {
     // A standing appointment: which visit of the run this is.
     ...(b.series?.id ? { run: { visit: b.series.visit || 1, visits: b.series.visits || 1, everyWeeks: b.series.everyWeeks || 1 } } : {}),
     meetUrl: b.status === "confirmed" ? b.meetUrl || "" : "",
+    ...(cleanZone(b.clientZone) ? { clientZone: b.clientZone } : {}),
     status: b.status, payment: b.payment, paid: !!b.paid, priceMinor: b.priceMinor || 0, currency: b.currency,
     // Sales tax: the part of priceMinor that is tax.
     taxMinor: b.taxMinor || 0,
@@ -561,7 +562,16 @@ function bookingActions({
     const opts = { timeZone: zone() };
     const dayText = start.toLocaleDateString("en-CA", { ...opts, weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const timeText = start.toLocaleTimeString("en-CA", { ...opts, hour: "numeric", minute: "2-digit" });
-    return `${dayText} at ${timeText}`;
+    return `${dayText} at ${timeText}${theirClock(b.clientZone, start)}`;
+  }
+  /** An online visit booked from another time zone (plan 4, 2.9): " (8:00 p.m. Saturday your time, London)". */
+  function theirClock(clientZone, start) {
+    const theirs = cleanZone(clientZone);
+    if (!theirs || !zonesDiffer(theirs, zone(), start.getTime())) return "";
+    const time = start.toLocaleTimeString("en-CA", { timeZone: theirs, hour: "numeric", minute: "2-digit" });
+    const sameDay = dayOf(start.getTime(), theirs) === dayOf(start.getTime(), zone());
+    const day = sameDay ? "" : ` ${start.toLocaleDateString("en-CA", { timeZone: theirs, weekday: "long" })}`;
+    return ` (${time}${day} your time, ${theirs.split("/").pop().replace(/_/g, " ")})`;
   }
   /** "11:00 a.m." in the shop's zone. */
   const clockOf = (at) => new Date(at).toLocaleTimeString("en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
@@ -2002,12 +2012,14 @@ function bookingActions({
           // With "anyone available" the page lists them (the Your team section) but offers no choice; with names hidden, nobody.
           staff: booksByPerson(settings) && settings.teamShown !== "hidden" ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates, photo, bio }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}), ...(photo ? { photo } : {}), ...(bio ? { bio } : {}) })) : [],
           ...(settings.teamShown === "anyone" ? { staffPick: false } : {}),
-          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras, lengths, group, photo, approval, atClient, areas }, i) => ({
+          services: list.map(({ id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places, holdCard, lateFeeMinor, packVisits, packPriceMinor, packDays, courseDates, joining, repeats, minPlaces, packAnyClass, introPriceMinor, extras, lengths, group, photo, approval, atClient, areas, meet }, i) => ({
             id, name, description, minutes, priceMinor, payment, depositMinor, depositPercent, location, questions, places,
             // The owner accepts each booking first (plan 4, 2.5): the page says it is a request.
             ...(approval ? { approval: true } : {}),
             // At the client's address (plan 4, 2.8): the form asks for it, and checks the postal code against the area.
             ...(atClient ? { atClient: true, areas: areas || [] } : {}),
+            // An online visit (plan 4, 2.9): the page offers the client's own clock.
+            ...(meet && places <= 1 ? { online: true } : {}),
             // Its group heading and photo on the booking page (plan 4, 2.3).
             ...(group ? { group } : {}),
             ...(photo ? { photo } : {}),
@@ -2371,6 +2383,8 @@ function bookingActions({
           ...(asking ? { answerBy: new Date(answerBy(nowMs, start)).toISOString() } : {}),
           // Which ready link it came through (plan 4, 2.7): Instagram, Facebook, Google, the QR code or the Book now button.
           ...(bookingChannel(req.body.from) ? { cameFrom: bookingChannel(req.body.from) } : {}),
+          // An online visit booked from another time zone (plan 4, 2.9): the emails and its page show their clock too.
+          ...(service.meet && zonesDiffer(cleanZone(req.body.zone), zone(), start) ? { clientZone: cleanZone(req.body.zone) } : {}),
           source: "website", history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by: "customer" }], createdAt: at, updatedAt: at,
           ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
         };

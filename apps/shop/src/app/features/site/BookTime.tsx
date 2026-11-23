@@ -18,12 +18,12 @@ import { askBooking } from "./bookTimeAsk";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { BOOK_TIME_CSS } from "./bookTimeStyle";
 import { servicesFor } from "./serviceSections";
-import { addDays, bookingIcs, googleCalendarLink, inArea } from "../../../shared/bookingTimes";
+import { addDays, bookingIcs, googleCalendarLink, inArea, zonesDiffer } from "../../../shared/bookingTimes";
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 import {
   withCode, withTax, packFromSearch, packSaving, longDayText, type BookingCode, type BookingGift, type BookingPackUse, type BookingPackView,
   dayParts, firstOpenDay, groupTimes, lengthText, manageFromSearch, earlierFromSearch, type EarlierOfferView, wantedFromSearch, moneyText, monthLabel, pageDays, pageStep, paysUpFront, takesDeposit, timeText, upFrontMinor, whenText, answerByText, courseDateLines, tipMinorOf, tipOk, type TipPick,
-  type BookingInfo, type BookingServiceView, type BookingView,
+  type BookingInfo, type BookingServiceView, type BookingView, browserZone, slotText,
   peopleFor, withPicked, pricedPicks, asPerson, withLengthPick, cardPrice, groupServices, lengthLabel, type BookingLengthView, canJoinVisit, visitChoices, withVisit, type VisitPick, showNoteBox, ratesDiffer, type BookingExtraView, RUN_WEEK_CHOICES, runVisitChoices, fitRun, type BookingRun, type RunVisit,
 } from "./bookTimeRules";
 
@@ -127,6 +127,8 @@ function NewBooking({ c }: { c: Copy }) {
   const [problems, setProblems] = useState<{ name?: string; email?: string; address?: string; answers?: Record<string, string> }>({});
   // A visit at the client's place (plan 4, 2.8): where to go.
   const [place, setPlace] = useState({ street: "", city: "", postcode: "" });
+  // An online visit from another time zone (plan 4, 2.9): times on the client's own clock unless they switch back.
+  const [ownClock, setOwnClock] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // A discount code the server accepted for the chosen service (cleared when the service changes).
@@ -207,6 +209,11 @@ function NewBooking({ c }: { c: Copy }) {
   if (!info.on || !info.services?.length) return <Intro c={c}><div {...regionProps("bookingsNotice")} className="fm-track-notice" role="status"><p>{c("bookTimeClosed")}</p></div></Intro>;
 
   const zone = info.zone || shopTimeZone();
+  const mine = browserZone();
+  const switchable = !!service?.online && zonesDiffer(mine, zone, Date.now());
+  // The clock the page shows times on: the shop's, or the client's own for an online visit.
+  const view = switchable && ownClock ? mine : zone;
+  const clock = switchable ? { view, mine, onSwitch: () => setOwnClock((v) => !v) } : undefined;
   const currency = info.currency || "CAD";
   const today = info.today || "";
   const lastDay = addDays(today, Math.max(0, (info.maxDaysAhead || 60) - 1));
@@ -239,7 +246,7 @@ function NewBooking({ c }: { c: Copy }) {
     try {
       const from = bookingFrom(window.location.search, embedded);
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...(service.atClient ? { address: place } : {}), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -358,13 +365,13 @@ function NewBooking({ c }: { c: Copy }) {
           {!course && !pack && !usePack && listed && canJoinVisit(listed) && (
             <VisitAdder offered={offered} first={listed} also={also} onChange={setAlso} info={info} currency={currency} c={c} />
           )}
-          {!course && <TimePicker serviceId={service.id} extras={picked} also={also} length={lengthId} staffId={staffId} zone={zone} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
+          {!course && <TimePicker serviceId={service.id} extras={picked} also={also} length={lengthId} staffId={staffId} zone={zone} clock={clock} today={today} lastDay={lastDay} picked={start} onPick={setStart} c={c}
             offer={service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : undefined}
             waitlist startDay={service.id === wanted.service && wanted.day >= today && wanted.day <= lastDay ? wanted.day : ""} />}
           {!course && service.repeats && !pack && !also.length && <RunPicker serviceId={service.id} extras={picked} length={lengthId} staffId={staffId} start={start} run={run} onRun={setRun} onFree={setRunFree} zone={zone} c={c} />}
           <div className="fm-book-actions mt-2">
             <button type="button" className="fm-track-btn" disabled={!start || (!!run && runFree !== true)} onClick={() => { setError(""); setStep("details"); }}>
-              {start && !course ? `${c("bookTimeContinue")} · ${timeText(start, zone)}` : c("bookTimeContinue")}
+              {start && !course ? `${c("bookTimeContinue")} · ${slotText(start, view, zone)}` : c("bookTimeContinue")}
             </button>
             {steps[0] === "service" && (
               <button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer" onClick={() => setStep("service")}>
@@ -493,7 +500,7 @@ function NewBooking({ c }: { c: Copy }) {
             </button>
           </form>
           <aside {...regionProps("bookingsSummary")} className="fm-track-card p-6 fm-track-ledger">
-            <Row label={c("bookTimeWhen")} value={whenText(start, end, zone)} />
+            <Row label={c("bookTimeWhen")} value={whenText(start, end, view)} />
             {course && <Row label={c("bookTimeCourseDates", { count: course.length })} value={courseDateLines(course, zone).join(" · ")} />}
             {chosen && <Row label={c("bookTimeWith")} value={chosen.name} />}
             {also.length > 0 && <Row label={c("bookTimeAlsoHeading")} value={also.flatMap((a) => {
@@ -945,16 +952,19 @@ function Row({ label, value }: { label: string; value: string }) {
 
 // ── The day and time picker (new bookings and Change time) ─────────────────────────────────────────────────────────
 
-function TimePicker({ serviceId, extras = [], also = [], length = "", staffId = "", zone, today, lastDay, picked, onPick, c, waitlist = false, startDay = "", offer }: {
+function TimePicker({ serviceId, extras = [], also = [], length = "", staffId = "", zone, clock, today, lastDay, picked, onPick, c, waitlist = false, startDay = "", offer }: {
   serviceId: string; /** Add-ons ticked: they lengthen the visit, so fewer late times fit. */ extras?: string[];
   /** More services in the same visit, back to back (plan 4, 2.1): only times where they all fit. */ also?: VisitPick[];
   /** The length chosen of a service offered in several (plan 4, 2.2). */ length?: string;
-  /** Only this person's free times ("" = anyone free). */ staffId?: string; zone: string; today: string; lastDay: string; picked: string; onPick: (iso: string) => void; c: Copy;
+  /** Only this person's free times ("" = anyone free). */ staffId?: string; zone: string;
+  /** An online visit from another time zone (plan 4, 2.9): the clock shown and the switch between the two. */ clock?: { view: string; mine: string; onSwitch: () => void };
+  today: string; lastDay: string; picked: string; onPick: (iso: string) => void; c: Copy;
   /** A place held for this person from the waiting list: the server shows it as free to them only. */
   offer?: { offer: string; offerKey: string };
   /** New bookings only: full class times and booked-up days offer the waiting list. */
   waitlist?: boolean; startDay?: string;
 }) {
+  const view = clock?.view || zone;
   const [from, setFrom] = useState(startDay || today);
   // The waiting list: a class's full times by day, the booked-up days, and what the form on screen is for.
   const [full, setFull] = useState<Record<string, string[]>>({});
@@ -1025,7 +1035,7 @@ function TimePicker({ serviceId, extras = [], also = [], length = "", staffId = 
       </div>
       {held && (
         <div {...regionProps("bookingsNotice")} className="fm-track-notice mb-6" role="status">
-          <p>{c("bookTimeHeldNote", { time: timeText(held.start, zone), until: timeText(held.until, zone) })}</p>
+          <p>{c("bookTimeHeldNote", { time: slotText(held.start, view, zone), until: slotText(held.until, view, zone) })}</p>
         </div>
       )}
       {failed ? (
@@ -1046,19 +1056,19 @@ function TimePicker({ serviceId, extras = [], also = [], length = "", staffId = 
           </div>
         )
       ) : !shown.length ? <p className="fm-book-empty fm-muted">{c("bookTimeNoTimesDay")}</p> : (
-        groupTimes(shown, zone).map((g) => (
+        groupTimes(shown, view).map((g) => (
           <div key={g.group}>
             <p className="fm-track-mono fm-book-group">{c(g.group === "morning" ? "bookTimeMorning" : g.group === "afternoon" ? "bookTimeAfternoon" : "bookTimeEvening")}</p>
             <div className="fm-book-times">
               {g.times.map((t) => dayFull.includes(t) ? (
                 <button key={t} type="button" className="fm-book-time" data-full aria-pressed={waitFor?.start === t}
-                  aria-label={`${timeText(t, zone)}, ${c("bookTimeFull")}. ${c("bookTimeWaitTitle")}`} onClick={() => { setWaitNote(""); setWaitFor({ day, start: t }); }}>
-                  <span translate="no">{timeText(t, zone)}</span>
+                  aria-label={`${slotText(t, view, zone)}, ${c("bookTimeFull")}. ${c("bookTimeWaitTitle")}`} onClick={() => { setWaitNote(""); setWaitFor({ day, start: t }); }}>
+                  <span translate="no">{slotText(t, view, zone)}</span>
                   <small>{c("bookTimeFull")}</small>
                 </button>
               ) : (
                 <button key={t} type="button" className="fm-book-time" aria-pressed={t === picked} onClick={() => onPick(t)}>
-                  <span translate="no">{timeText(t, zone)}</span>
+                  <span translate="no">{slotText(t, view, zone)}</span>
                   {left[t] > 0 && <small data-last={left[t] === 1 || undefined}>{left[t] === 1 ? c("bookTimeLastPlace") : c("bookTimePlacesLeft", { count: left[t] })}</small>}
                 </button>
               ))}
@@ -1068,7 +1078,11 @@ function TimePicker({ serviceId, extras = [], also = [], length = "", staffId = 
       )}
       {shown.length > 0 && waitForm}
       {waitNote && <div className="fm-track-notice mb-6" role="status"><p>{waitNote}</p></div>}
-      <p className="fm-track-mono mb-6">{c("bookTimeZone", { zone: zoneName(zone) })}</p>
+      <p className="fm-track-mono mb-6">{c("bookTimeZone", { zone: zoneName(view) })}
+        {clock && (<>{" "}<button type="button" className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer underline underline-offset-2" onClick={clock.onSwitch}>
+          {clock.view === zone ? c("bookTimeZoneMine", { zone: zoneName(clock.mine) }) : c("bookTimeZoneShop", { zone: zoneName(zone) })}
+        </button></>)}
+      </p>
     </div>
   );
 }
@@ -1516,6 +1530,9 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       <div {...regionProps("bookingsConfirmation")} className="fm-track-card p-6 sm:p-8 fm-track-ledger">
         <Row label={c("bookTimeWhat")} value={`${booking.serviceName} · ${lengthText(booking.minutes)}`} />
         <Row label={c("bookTimeWhen")} value={whenText(booking.start, booking.end, zone)} />
+        {booking.clientZone && zonesDiffer(booking.clientZone, zone, startMs) && (
+          <Row label={c("bookTimeWhenYours", { zone: zoneName(booking.clientZone) })} value={whenText(booking.start, booking.end, booking.clientZone)} />
+        )}
         {!!booking.courseStarts?.length && <Row label={c("bookTimeCourseDates", { count: booking.courseStarts.length })} value={courseDateLines(booking.courseStarts, zone).join(" · ")} />}
         {booking.visit && booking.visit.length > 1
           ? booking.visit.map((p, i) => <Row key={i} label={timeText(p.start, zone)} value={p.staffName ? `${p.serviceName} (${p.staffName})` : p.serviceName} />)

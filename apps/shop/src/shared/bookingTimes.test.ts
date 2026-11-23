@@ -1048,3 +1048,16 @@ describe("visits at the client's place (plan 4, 2.8)", () => {
     expect("problem" in cls ? null : cls.atClient).toBeUndefined();
   });
 });
+
+describe("time zones for online visits (plan 4, 2.9)", () => {
+  it("keeps only zones the clock knows and tells when two clocks differ", async () => {
+    const { cleanZone, zonesDiffer } = await import("./bookingTimes");
+    expect(cleanZone("Europe/London")).toBe("Europe/London");
+    expect(cleanZone("Mars/Olympus")).toBe("");
+    expect(cleanZone("<script>")).toBe("");
+    const ms = Date.parse("2026-11-17T15:00:00Z");
+    expect(zonesDiffer("America/Toronto", "America/New_York", ms)).toBe(false);
+    expect(zonesDiffer("America/Toronto", "Europe/London", ms)).toBe(true);
+    expect(zonesDiffer("", "Europe/London", ms)).toBe(false);
+  });
+});
