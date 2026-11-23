@@ -5,7 +5,7 @@
 // applied keys and `global` on top. Before plan 1.25 a theme set only the page, text and accent colours, so a light
 // theme applied over the dark starting look kept black cards, a black footer and white muted text under dark words.
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { DEFAULT_COLOR_SCHEMES, readableOn } from "../../features/site/colorSchemes";
+import { DEFAULT_COLOR_SCHEMES, mixColors, readableOn } from "../../features/site/colorSchemes";
 import { paletteKeys, readableExtras } from "./brandKit";
 import { PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 
@@ -32,11 +32,11 @@ export function lookSchemes(look: Record<string, any>) {
   const bg = look.backgroundColor, text = look.textColor, accent = look.primaryColor;
   const onAccent = readableOn(accent, "#111111", "#ffffff");
   // The bright band uses the look's second colour when it has one (a fill colour, not one words are written in).
-  const band = look.secondaryColor || accent, onBand = readableOn(band, "#111111", "#ffffff");
+  const band = look.secondaryColor || accent, onBand = readableOn(band, "#000000", "#ffffff");
   return DEFAULT_COLOR_SCHEMES.map((s) => {
-    if (s.id === "scheme-default") return { id: s.id, name: s.name, v: 2, fromLook: true, background: bg, text, accent, onAccent, buttonBg: look.buttonColor || accent, buttonText: look.buttonTextColor || onAccent };
-    if (s.id === "scheme-inverse") return { id: s.id, name: s.name, v: 2, fromLook: true, background: text, text: bg, accent, onAccent, buttonBg: accent, buttonText: onAccent };
-    return { id: s.id, name: s.name, v: 2, fromLook: true, background: band, text: onBand, accent: onBand, onAccent: band, buttonBg: onBand, buttonText: band, link: onBand };
+    if (s.id === "scheme-default") return { id: s.id, name: s.name, v: 2, fromLook: true, background: bg, text, muted: mixColors(text, bg, 0.8), accent, onAccent, buttonBg: look.buttonColor || accent, buttonText: look.buttonTextColor || onAccent };
+    if (s.id === "scheme-inverse") return { id: s.id, name: s.name, v: 2, fromLook: true, background: text, text: bg, muted: mixColors(bg, text, 0.8), accent, onAccent, buttonBg: accent, buttonText: onAccent };
+    return { id: s.id, name: s.name, v: 2, fromLook: true, background: band, text: onBand, muted: mixColors(onBand, band, 0.8), accent: onBand, onAccent: band, buttonBg: onBand, buttonText: band, link: onBand };
   });
 }
 

@@ -177,8 +177,12 @@ const BTN_SHADOW = (x: string, y: string, colour: string) => `calc(${v("btn-shad
 const NO_BTN_SHADOW = (colour: string) => `calc(${v("btn-shadow", "0")} * ${v("shadow-x", "3px")}) calc(${v("btn-shadow", "0")} * ${v("shadow-x", "3px")}) 0 ${colour}`;
 
 /** The pieces every template shares: a readable floor for faint words, focus rings and reduced motion. */
-const TEMPLATE_BASE_CSS = `
+/** Faint words (white/20…/50 classes) never fade below a readable level. */
+const FAINT_FLOOR_CSS = `
 ${[["20", 0.7], ["25", 0.7], ["30", 0.7], ["40", 0.72], ["50", 0.75]].map(([n, a]) => `${S} .text-white\\/${n}{color:rgba(var(--fg-rgb),${a});}`).join("\n")}
+${S} .fm-card-price-old{opacity:.75 !important;}
+`;
+const TEMPLATE_BASE_CSS = `${FAINT_FLOOR_CSS}
 ${S} :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px;}
 ${S} ::selection{background:var(--accent);color:var(--on-accent);}
 ${S} h1,${S} h2,${S} h3{text-wrap:balance;}
@@ -586,5 +590,7 @@ export function themeStyleCss(design: StorefrontTokenInput | null | undefined): 
   if (d.themeStyle === "riso") return RISO_STOREFRONT_CSS + risoGrainCss(d);
   const id = templateStyleId(d);
   // The press's own settings come last, so a changed control always wins over the template's look.
-  return id ? TEMPLATE_BASE_CSS + TEMPLATE_CSS[id] + templateKnobCss(d) : "";
+  if (id) return TEMPLATE_BASE_CSS + TEMPLATE_CSS[id] + templateKnobCss(d);
+  // The Standard style (starter websites, older looks) still gets the shared readable floor for faint words.
+  return d.themeStyle === "default" ? FAINT_FLOOR_CSS : "";
 }
