@@ -30,6 +30,7 @@ import { loadAutomaticOffers } from "../features/site/automaticOffersLoad";
 import { loadShippingProfiles } from "../features/site/shippingProfilesLoad";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 import { smallPhotoUrl } from "../features/site/photoSources";
+import { placeholderImage } from "../features/site/constants";
 import { previewSampleCart } from "../features/site/previewSampleCart";
 import { inEditorPreview } from "../lib/trackingGuard";
 import { ga4ViewCart } from "../lib/ga4";
@@ -359,7 +360,7 @@ export function CartDrawer() {
                         {showNumbers && <span className="fm-bag-num pt-0.5" aria-hidden="true">{pad2(idx + 1)}</span>}
                         {showThumbs && (
                           <div className="fm-bag-thumb">
-                            {item.photoUrl && <img src={item.photoUrl} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
+                            <img src={item.photoUrl || placeholderImage(design)} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />
                           </div>
                         )}
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
@@ -446,7 +447,7 @@ export function CartDrawer() {
                     {emptyPicks.map((book: any) => (
                       <li key={book.id} className="fm-bag-upsell flex flex-wrap md:flex-nowrap gap-4 p-4 items-center">
                         <div className="fm-bag-thumb" style={{ width: "56px" }}>
-                          {book.photos?.[0]?.url && <img loading="lazy" decoding="async" src={smallPhotoUrl(book.photos[0])} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
+                          <img loading="lazy" decoding="async" src={book.photos?.[0]?.url ? smallPhotoUrl(book.photos[0]) : placeholderImage(design)} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="fm-bag-name fm-bag-upsell-name" title={book.title}>
@@ -473,7 +474,7 @@ export function CartDrawer() {
                   <p className="fm-bag-meta mb-4">{getCopy(design, "cartUpsellHeading")}</p>
                   <div className="fm-bag-upsell flex flex-wrap md:flex-nowrap gap-4 p-4 items-center">
                     <div className="fm-bag-thumb" style={{ width: "56px" }}>
-                      {recommendedBook.photos?.[0]?.url && <img loading="lazy" decoding="async" src={smallPhotoUrl(recommendedBook.photos[0])} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
+                      <img loading="lazy" decoding="async" src={recommendedBook.photos?.[0]?.url ? smallPhotoUrl(recommendedBook.photos[0]) : placeholderImage(design)} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="fm-bag-name fm-bag-upsell-name" title={recommendedBook.title}>{breakableTitle(recommendedBook.title)}</h3>

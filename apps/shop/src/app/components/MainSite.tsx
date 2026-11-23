@@ -1069,10 +1069,9 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                           <span 
                             style={{ 
                               color: storefrontDesign?.lowInventoryColor || "#f59e0b",
-                              borderColor: `${storefrontDesign?.lowInventoryColor || "#f59e0b"}40`,
-                              backgroundColor: `${storefrontDesign?.lowInventoryColor || "#f59e0b"}15`
+                              borderColor: `${storefrontDesign?.lowInventoryColor || "#f59e0b"}66`,
                             }}
-                            className="flex items-center gap-1 border backdrop-blur-md text-[8px] tracking-widest px-2 py-1 uppercase rounded-full"
+                            className="flex items-center gap-1 border bg-black/75 backdrop-blur-md text-[8px] font-bold tracking-widest px-2 py-1 uppercase rounded-sm"
                           >
                             <Zap size={9} /> {getCopy(activeDesign, "onlyLeft", { count: stock })}
                           </span>

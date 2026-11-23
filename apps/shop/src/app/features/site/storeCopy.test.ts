@@ -3,9 +3,9 @@ import { getCopy, DEFAULT_COPY, CopyError, copyErrorText } from './storeCopy';
 
 describe('getCopy', () => {
   it('separates processing time from address-specific carrier transit in the cart note', () => {
-    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/carrier transit/i);
-    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/after dispatch/i);
-    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/processing time is separate/i);
+    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/at checkout/i);
+    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/from when your order is sent/i);
+    expect(DEFAULT_COPY.cartDeliveryNote).toMatch(/packing it comes first/i);
     expect(DEFAULT_COPY.cartDeliveryNote).not.toMatch(/5.?7 business days/i);
   });
   it('keeps local validation reasons editable and replaces provider diagnostics', () => {

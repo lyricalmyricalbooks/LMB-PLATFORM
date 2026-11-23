@@ -1485,7 +1485,7 @@ export default function BookDetail() {
               data-section="products"
               data-studio-target="style:productCard" data-studio-label="Product photos"
               onPointerEnter={warmGallery} onTouchStart={warmGallery} onFocus={warmGallery}
-              className="w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
+              className="w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-start"
               style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? thumbRailWidth : 0) }}
             >
               {productImageLayout === "slider" ? (

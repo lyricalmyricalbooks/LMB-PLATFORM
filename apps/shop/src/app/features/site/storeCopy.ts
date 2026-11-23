@@ -84,7 +84,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "cartEstimateNone", label: "Shipping preview · None", default: "No profile estimate is available for this destination. Enter your full address at checkout to check carrier availability." },
       { key: "cartEstimateDigital", label: "Shipping preview · Digital", default: "No shipping is needed for digital items." },
       { key: "cartEstimateError", label: "Shipping preview · Error", default: "Shipping estimates could not be loaded. Please try again or continue to checkout." },
-      { key: "cartEstimateNotice", label: "Shipping preview · Notice", default: "Preliminary profile estimates before discounts and tax. Live carrier prices and eligibility require your full address at checkout. Transit starts after dispatch; processing time is separate. Your destination carries into checkout." },
+      { key: "cartEstimateNotice", label: "Shipping preview · Notice", default: "A rough guide before discounts and tax. You'll see exact prices once you enter your full address at checkout." },
 
       { key: "cartCodeToggle", label: "Discount code box · Opener", default: "Have a discount code?", hint: "Shown when Style › Cart drawer › Total & checkout button › Discount code box is on." },
       { key: "cartCodeLabel", label: "Discount code box · Field label", default: "Discount code" },
@@ -104,13 +104,13 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "cartTermsError", label: "Terms checkbox · Not ticked", default: "Please tick the box to agree before checking out." },
 
       { key: "cartTitle", label: "Cart heading", default: "Shopping Bag" },
-      { key: "cartEmpty", label: "Empty cart message", default: "The archive is empty." },
+      { key: "cartEmpty", label: "Empty cart message", default: "Your bag is empty." },
       { key: "cartTotalLabel", label: "Total label", default: "Estimated total" },
       { key: "cartCheckoutButton", label: "Checkout button", default: "PROCEED TO CHECKOUT" },
       {
         key: "cartDeliveryNote",
         label: "Delivery note",
-        default: "Carrier transit estimates appear at checkout after you enter your address and cover time after dispatch. Processing time is separate; see the Shipping Policy for order preparation timing. Taxes are calculated at checkout.",
+        default: "Shipping and tax are worked out at checkout. Delivery times count from when your order is sent; packing it comes first.",
         multiline: true,
       },
       { key: "cartCountLabel", label: "Item count line", default: "{count} in your bag", hint: "Use {count} for the number of copies in the bag." },
