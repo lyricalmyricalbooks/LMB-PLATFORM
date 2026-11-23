@@ -942,6 +942,23 @@ await check("Add section tries a section on the page while pointing at it, and a
   if (JSON.stringify(save.args[0].design).includes("__studio-candidate")) throw new Error("the try-on candidate leaked into the saved draft");
 });
 
+await check("Add section shows designs by kind, and a design adds its own settings", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  const library = page.locator("[data-studio-library]");
+  await library.getByRole("button", { name: "Opening banners", exact: true }).click();
+  if (await library.locator("[data-library-kind]").count() !== 1) throw new Error("the kind filter left other kinds showing");
+  const card = library.locator("[data-library-design='HeroSection~short'] .studio-library-card");
+  await card.getByText("Built from Hero Banner").waitFor({ timeout: 5000 });
+  await card.hover();
+  await library.getByText("Showing Short banner on the page").waitFor({ timeout: 5000 });
+  await card.click();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const hero = (await calls(page)).find(c => c.method === "saveDesign").args[0].design.heroPage.sections.find(s => s.type === "HeroSection");
+  if (hero?.settings?.height !== "small" || hero?.settings?.align !== "left") throw new Error(`design settings not added: ${JSON.stringify(hero?.settings)}`);
+});
+
 await check("+ Section above on the canvas opens Add section at that spot", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

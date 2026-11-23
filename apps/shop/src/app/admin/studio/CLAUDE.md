@@ -792,3 +792,11 @@ runs every library entry through `themeProblems` and applies it twice (same resu
    and `templateCoverage.test.ts` until green.
 4. Screenshot the real Studio fixture and the storefront on desktop and phone next to the Figma file, fix differences,
    and show the owner real screenshots, never a drawing. Existing shops are untouched: a starter applies whole only to new shops.
+
+**Section designs (23 November 2026, starter websites step 2, first part).** Add section lists **designs** grouped by
+**kind** (`studio/sectionDesigns.ts`: `SECTION_KINDS` opening banners → build your own, `kindOf`, `sectionDesigns(registry)`).
+A design is a section type plus some of its own settings; each type keeps its plain design (id = the type, card carries
+`data-library-type`), extra designs are `Type~key` (`data-library-design`, "Built from …"). Add section, the try-on candidate
+and Add it there instead all take a design id and resolve it with `designParts`. A new design may only set the section's
+own fields (`settingsWithoutControl` in themeCheck.ts; `sectionDesigns.test.ts`); a new section type must be placed in a
+kind there or the test fails.

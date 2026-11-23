@@ -35,11 +35,22 @@ function controls() {
   return cache;
 }
 
+/**
+ * The settings a section would carry that Studio can't change afterwards: anything that is not one of the section's own
+ * fields, its block list, or a field on its Style, Layout or Visibility tabs. Used by the theme check and by the section
+ * designs in Add section (sectionDesigns.ts).
+ */
+export function settingsWithoutControl(type: string, settings: Record<string, any> | undefined): string[] {
+  const own = new Set([...getSectionFields(type).map(f => f.key), getBlocksKey(type)]);
+  const { sectionStyle } = controls();
+  return Object.keys(settings || {}).filter(key => !own.has(key) && !sectionStyle.has(key));
+}
+
 /** Everything in the theme that Studio can't edit, in plain words. An empty list means the theme passes. */
 export function themeProblems(theme: any): string[] {
   const problems: string[] = [];
   if (!theme || typeof theme !== "object" || Array.isArray(theme)) return ["the theme is not an object"];
-  const { style, copy, sectionStyle } = controls();
+  const { style, copy } = controls();
   const name = theme.name || theme.id || "the theme";
 
   for (const key of Object.keys(theme)) {
@@ -75,10 +86,7 @@ export function themeProblems(theme: any): string[] {
         problems.push(`${where} isn't a section Studio can add`);
         return;
       }
-      const own = new Set([...getSectionFields(spec.type).map(f => f.key), getBlocksKey(spec.type)]);
-      for (const key of Object.keys(spec.settings || {})) {
-        if (!own.has(key) && !sectionStyle.has(key)) problems.push(`${where}: "${key}" has no control in the section's settings`);
-      }
+      for (const key of settingsWithoutControl(spec.type, spec.settings)) problems.push(`${where}: "${key}" has no control in the section's settings`);
     });
   }
 

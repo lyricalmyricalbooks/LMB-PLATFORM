@@ -106,6 +106,7 @@ import { runsOnColophon } from "../../../lib/shopProfile";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
+import { designParts } from "./sectionDesigns";
 import { StudioAiContext, type StudioAiValue } from "./StudioAiRewrite";
 import { StudioBlockPicker } from "./StudioBlockPicker";
 import { StudioBrandKit } from "./StudioBrandKit";
@@ -136,6 +137,11 @@ function designChecks(design: any) {
 
 /** React 19 renders `inert` from a boolean (an empty string now counts as off). */
 const inertWhen = (on: boolean) => (on ? { inert: true } : {});
+/** The section Add section tries on the page for a pointed design (never saved: it rides only in the preview). */
+const candidateSection = (designId: string) => {
+  const { type, settings } = designParts(designId);
+  return makeSection(type, { ...(getSectionMeta(type)?.defaults || {}), ...settings });
+};
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
 
@@ -1070,7 +1076,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const current = designRef.current;
     const candidateOwner = blockCandidate && blockPicker ? findSectionOwner(current, blockPicker) : null;
     const previewDesign = historyPreview?.design || themePreview?.design || ((candidate || draftCandidate) && adding !== null
-      ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, draftCandidate || makeSection(candidate!, getSectionMeta(candidate!)?.defaults || {}))
+      ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, draftCandidate || candidateSection(candidate!))
       : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
       : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta, shopWords)
       : current);
@@ -1726,9 +1732,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, []);
 
   // ── section actions ──
-  const addSection = (type: string) => {
+  /** Add section: a design id (sectionDesigns.ts; a plain design's id is its type) becomes an ordinary section. */
+  const addSection = (designId: string) => {
+    const { type, settings } = designParts(designId);
     const meta = getSectionMeta(type);
-    const s = makeSection(type, meta?.defaults || {});
+    const s = makeSection(type, { ...(meta?.defaults || {}), ...settings });
     const at = adding ?? sections.length;
     setList((l) => keepPageText(insertSection(l, s, at)), { label: `Add ${meta?.label || "section"}` });
     setSelectedId(s.id);
@@ -1911,10 +1919,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     say("warn", `Template “${name}” deleted. Anything that used it shows the default layout.`, undoAction());
   };
   /** Add section › "Add it there instead": add a section to the group or page it is made for, and go there. */
-  const addSectionBestPlace = (type: string) => {
+  const addSectionBestPlace = (designId: string) => {
+    const { type, settings } = designParts(designId);
     const meta = getSectionMeta(type);
     const best = meta?.bestIn;
-    const s = makeSection(type, meta?.defaults || {});
+    const s = makeSection(type, { ...(meta?.defaults || {}), ...settings });
     const label = { label: `Add ${meta?.label || "section"}` };
     if (best?.group) {
       const group = best.group;
@@ -1924,7 +1933,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       const page = best.template;
       change(d => writeSections(d, page, [...(d[page]?.sections || []), s]), label);
       setShowGlobal(false); setTemplateId(page);
-    } else { addSection(type); return; }
+    } else { addSection(designId); return; }
     setSelectedId(s.id); setAdding(null); setBlockId(null); setMobilePanel("settings");
     setTimeout(() => highlight(s.id, true), 600);
   };

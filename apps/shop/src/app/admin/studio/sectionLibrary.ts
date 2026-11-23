@@ -9,14 +9,6 @@ export const CANDIDATE_ID = "__studio-candidate";
 
 export type LibraryMeta = { type: string; label: string; description: string; category: string; bestIn?: { group?: string; template?: string; note: string } };
 
-/** Library cards matching a search, grouped by category in registry order. */
-export function libraryGroups(registry: LibraryMeta[], query: string): { category: string; items: LibraryMeta[] }[] {
-  const q = query.trim().toLowerCase();
-  const hits = registry.filter(m => !q || `${m.label} ${m.description} ${m.category} ${m.bestIn?.note || ""}`.toLowerCase().includes(q));
-  const order = Array.from(new Set(hits.map(m => m.category)));
-  return order.map(category => ({ category, items: hits.filter(m => m.category === category) }));
-}
-
 /** Where a section type fits, for the card's hint. `here` is the group or page being edited. */
 export function placementHint(meta: LibraryMeta, here: string): { note: string; elsewhere: boolean } | null {
   if (!meta.bestIn) return null;
