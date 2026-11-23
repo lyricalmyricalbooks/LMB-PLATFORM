@@ -2042,6 +2042,11 @@ const bookingDesk = require("./bookings").bookingActions({
   db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
   escapeHtml, risoLayout, risoButton,
+  // My bookings in the customer account (plan 4, 2.10): the signed-in customer's verified email, as memberships ask.
+  identify: async (req) => {
+    const who = await orderRequestIdentity(req);
+    return who?.email && who.email_verified === true ? { email: String(who.email).trim().toLowerCase() } : null;
+  },
   // Discount codes on bookings: checkout's own checks (bookingDiscount.js says which codes and how much).
   findDiscount: async (code, email) => {
     const discount = await fetchValidDiscount(code);

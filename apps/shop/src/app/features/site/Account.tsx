@@ -45,6 +45,8 @@ import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { YourDataCard } from "./YourDataCard";
 import { AccountMembership } from "./AccountMembership";
+import { AccountBookings } from "./AccountBookings";
+import { TRACKING_CSS } from "./trackingStyle";
 import { AccountLibrary } from "./AccountLibrary";
 import type { PlayTarget } from "./MediaPlayer";
 
@@ -604,7 +606,9 @@ function AccountContent() {
         </button>
       </TitleBar>
 
-      <main className="max-w-4xl mx-auto px-6 pt-16 relative z-10 space-y-12">
+      {/* The account cards (bookings, membership, your data) use the order slip's buttons. */}
+      <style>{TRACKING_CSS}</style>
+      <main className="fm-track max-w-4xl mx-auto px-6 pt-16 relative z-10 space-y-12">
         
         {/* Customer Header Info */}
         <section {...regionProps("accountProfile")} className="glass-card rounded-[2.5rem] border border-white/5 p-8 flex items-center gap-6">
@@ -1087,6 +1091,7 @@ function AccountContent() {
           )}
         </section>
 
+        {user && <AccountBookings design={settings?.design} user={user} />}
         {user && <AccountMembership design={settings?.design} user={user} />}
         {user && <YourDataCard design={settings?.design} user={user} />}
       </main>

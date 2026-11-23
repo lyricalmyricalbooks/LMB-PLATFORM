@@ -337,6 +337,9 @@ function publicBooking(id, booking, settings, nowMs) {
 
 function bookingActions({
   db, requireAdmin, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", zone, currency,
+  // My bookings in the customer account (plan 4, 2.10): (req) → { email } for a signed-in customer with a verified
+  // email, else null. None: the account shows no bookings.
+  identify = async () => null,
   sendEmail = async () => {}, emailBrand = async () => ({}), claimEmailSend = async () => true, ownerEmail = () => "",
   escapeHtml, risoLayout, risoButton, now = () => new Date(), randomId = () => crypto.randomBytes(12).toString("base64url").replace(/[^A-Za-z0-9]/g, "").slice(0, 16).padEnd(8, "0"),
   randomKey = () => crypto.randomBytes(24).toString("hex"),
@@ -1989,6 +1992,37 @@ function bookingActions({
         const days = {};
         for (const [day, list] of Object.entries(slots)) days[day] = list.map((ms) => new Date(ms).toISOString());
         return res.status(200).json({ on: true, zone: zone(), slotMinutes: settings.pickupSlotMinutes, days });
+      }
+      if (action === "bookingMine") {
+        // My bookings in the customer account (plan 4, 2.10): every booking made with their verified email, newest
+        // first, coming ones before past ones. Works with the switch off too: these are bookings already made.
+        const who = await identify(req);
+        if (!who?.email) return fail(res, 401, "Please sign in again to see your bookings.", "sign_in");
+        const snap = await bookings().where("customer.email", "==", who.email).limit(MINE_READ).get();
+        const rows = snap.docs.map((d) => ({ id: d.id, b: d.data() }))
+          .filter(({ b }) => b && b.status !== "held" && typeof b.start === "string");
+        const coming = rows.filter(({ b }) => Date.parse(b.end || b.start) > nowMs && b.status !== "cancelled")
+          .sort((x, y) => Date.parse(x.b.start) - Date.parse(y.b.start));
+        const past = rows.filter((r) => !coming.includes(r)).sort((x, y) => Date.parse(y.b.start) - Date.parse(x.b.start)).slice(0, MINE_PAST);
+        const card = ({ id, b }) => {
+          const p = publicBooking(id, b, settings, nowMs);
+          return { id, serviceId: p.serviceId, serviceName: p.serviceName, start: p.start, end: p.end, location: p.location, staffName: p.staffName,
+            status: b.status, noShow: !!b.noShow, ...(b.declined ? { declined: true } : {}), ...(p.clientZone ? { clientZone: p.clientZone } : {}), ...(p.meetUrl ? { online: true } : {}) };
+        };
+        return res.status(200).json({ on: true, zone: zone(), live: !!settings.live, coming: coming.map(card), past: past.map(card) });
+      }
+      if (action === "bookingOpen") {
+        // Open one of my bookings from the account: a fresh link key for that booking, only for its own customer.
+        const who = await identify(req);
+        if (!who?.email) return fail(res, 401, "Please sign in again to see your bookings.", "sign_in");
+        const id = String(req.body?.id || "");
+        if (!ID.test(id)) return fail(res, 404, "We couldn't find that booking.", "missing");
+        const snap = await bookings().doc(id).get();
+        const b = snap.exists ? snap.data() : null;
+        if (!b || String(b.customer?.email || "").trim().toLowerCase() !== who.email || b.status === "held") return fail(res, 404, "We couldn't find that booking.", "missing");
+        const key = randomKey();
+        await bookings().doc(id).set({ accountKeyHash: hash(key) }, { merge: true });
+        return res.status(200).json({ path: `/book?booking=${encodeURIComponent(id)}&key=${key}` });
       }
       if (action === "bookingInfo") {
         if (!settings.live) return res.status(200).json({ on: false });
@@ -4001,7 +4035,10 @@ async function customerBookingIcs({ db, shopId, id, key, shopName = "", nowMs = 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 /** The booking's own link, the reminder's, the tip email's or the owner's pay link: each opens the customer's booking page. */
-const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.reviewKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
+/** My bookings (plan 4, 2.10): how many bookings one customer's list reads, and how many past ones it shows. */
+const MINE_READ = 200;
+const MINE_PAST = 20;
+const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.reviewKeyHash, b.accountKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
 /** How long a page to pay the rest stays open, and how long before its end a fresh one is opened instead. */
 const REST_PAGE_MINUTES = 60;
 /** A payment sent to a card reader and left waiting is stopped after this long (the sweep). */
@@ -4014,6 +4051,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingMine", "bookingOpen", "bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
 module.exports = { PickupTimeProblem, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
