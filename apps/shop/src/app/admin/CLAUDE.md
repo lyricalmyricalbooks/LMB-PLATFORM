@@ -1471,3 +1471,11 @@ the answers (`texts.replies`), Y stamps `clientConfirmedAt`, C runs `cancelByCus
 booking page) inside the cancel rule, M texts a fresh link (`textKeyHash`, accepted by `keyFits`), each answered by text
 (`booking-reply`), then hands them back (`texts.repliesTaken`), so each is handled once. "CANCEL" spelled out is Twilio's
 opt-out word, which is why cancelling is the letter C.
+
+**Emails and texts to clients (23 November 2026, Bookings plan 4 step 3.5, `tasks/todo/2026-11-23-bookings-edit-messages.md`).**
+Hours & rules › **Emails and texts to clients** (Beta, `BookingMessagesTile.tsx`) saves `messages` (`{ en, fr }` → kind →
+`subject`/`heading`/`lead`, or `text` for the two reminder texts). The list, standard words, limits and placeholders are in the
+shared `bookingMessages.ts` (`MESSAGE_LIST`, `DEFAULT_MESSAGES`, `cleanMessages`, `fillMessage`). The server picks the client's
+language with `messageLanguage(booking.locale, shopLanguage())` (the booking page sends `document.documentElement.lang`), and
+fills `{client}` (first name), `{service}`, `{when}`, `{shop}`, `{amount}`, `{with}`. The details, buttons and refund or fee
+lines are added after the owner's words, so editing can never remove a link. A new booking email kind needs an entry in both.

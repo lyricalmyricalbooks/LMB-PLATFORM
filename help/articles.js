@@ -88,6 +88,7 @@ export const ARTICLES = Object.freeze([
       "For a video call service, clients in another time zone see the times on their own clock, with a link to switch to yours. Their emails show both times.",
       "To know who is coming, open Hours & rules and turn on Ask clients to confirm. The reminder email then has a Yes, I'll be there button. Your calendar marks each booking Confirmed or Not confirmed.",
       "With text reminders on, turn on Let clients answer by text. Clients reply Y to confirm, C to cancel or M to move, and your calendar follows within a few minutes.",
+      "To change what booking emails and texts say, open Hours & rules and find Emails and texts to clients. Write in English and French, and use {client} or {when} to fill in details.",
     ],
   },
   {

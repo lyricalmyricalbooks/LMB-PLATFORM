@@ -525,6 +525,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
   const TEAM = new URLSearchParams(window.location.search).get("team") === "1";
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on", textReminders: mode === "on", textReplies: mode === "on",
+    // Emails and texts to clients (plan 4, 3.5): the owner changed the confirmation's words.
+    ...(mode === "on" ? { messages: { en: { booked: { subject: "You're in, {client}: {service}, {when}", lead: "We can't wait to see you. Come ten minutes early for a cup of tea." } } } } : {}),
     // Holiday hours (plan 4, 1.7): shorter hours two days this week, and closed on Christmas Day.
     specialHours: [
       { id: "short", label: "Stocktake", from: addDays(dayOf(Date.now(), shopTimeZone()), 2), to: addDays(dayOf(Date.now(), shopTimeZone()), 3), hours: [{ start: "12:00", end: "16:00" }] },

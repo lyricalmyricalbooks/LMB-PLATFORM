@@ -76,6 +76,8 @@ const {
   answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine, cleanZone, zonesDiffer,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { emailWords, textWords, fillMessage, messageLanguage } = require("./shared/bookingMessages");
+const { shopLanguage } = require("./emailFrench");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
 const { emailIdentity } = require("./discountClaims");
 const { findCountry, regionCode } = require("./shared/shippingZones");
@@ -580,24 +582,32 @@ function bookingActions({
 
   // ── Emails ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  function whenWords(b, at = b.start) {
+  function whenWords(b, at = b.start, lang = "en") {
     const start = new Date(at);
     const opts = { timeZone: zone() };
-    const dayText = start.toLocaleDateString("en-CA", { ...opts, weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    const timeText = start.toLocaleTimeString("en-CA", { ...opts, hour: "numeric", minute: "2-digit" });
-    return `${dayText} at ${timeText}${theirClock(b.clientZone, start)}`;
+    const locale = lang === "fr" ? "fr-CA" : "en-CA";
+    const dayText = start.toLocaleDateString(locale, { ...opts, weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const timeText = start.toLocaleTimeString(locale, { ...opts, hour: "numeric", minute: "2-digit" });
+    return `${dayText} ${lang === "fr" ? "à" : "at"} ${timeText}${theirClock(b.clientZone, start, lang)}`;
   }
   /** An online visit booked from another time zone (plan 4, 2.9): " (8:00 p.m. Saturday your time, London)". */
-  function theirClock(clientZone, start) {
+  function theirClock(clientZone, start, lang = "en") {
     const theirs = cleanZone(clientZone);
     if (!theirs || !zonesDiffer(theirs, zone(), start.getTime())) return "";
-    const time = start.toLocaleTimeString("en-CA", { timeZone: theirs, hour: "numeric", minute: "2-digit" });
+    const locale = lang === "fr" ? "fr-CA" : "en-CA";
+    const time = start.toLocaleTimeString(locale, { timeZone: theirs, hour: "numeric", minute: "2-digit" });
     const sameDay = dayOf(start.getTime(), theirs) === dayOf(start.getTime(), zone());
-    const day = sameDay ? "" : ` ${start.toLocaleDateString("en-CA", { timeZone: theirs, weekday: "long" })}`;
-    return ` (${time}${day} your time, ${theirs.split("/").pop().replace(/_/g, " ")})`;
+    const day = sameDay ? "" : ` ${start.toLocaleDateString(locale, { timeZone: theirs, weekday: "long" })}`;
+    return ` (${time}${day} ${lang === "fr" ? "chez vous" : "your time"}, ${theirs.split("/").pop().replace(/_/g, " ")})`;
   }
   /** "11:00 a.m." in the shop's zone. */
-  const clockOf = (at) => new Date(at).toLocaleTimeString("en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
+  const clockOf = (at, lang = "en") => new Date(at).toLocaleTimeString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: zone(), hour: "numeric", minute: "2-digit" });
+
+  /** The client's language for a booking (plan 4, 3.5): the booking page's, else the shop's. Never throws. */
+  async function clientLanguage(b) {
+    if (b?.locale) return messageLanguage(b.locale, "en");
+    return messageLanguage("", await shopLanguage(db).catch(() => "en"));
+  }
   const manageUrl = (id, key) => siteLink(`/book?booking=${encodeURIComponent(id)}&key=${key}`);
 
   /** A confirmed booking's check-in code, made the first time it is needed (an email or the customer's page). */
@@ -617,103 +627,112 @@ function bookingActions({
       b = namesForClient(b, await readSettings().catch(() => null));
       const brand = await emailBrand();
       const shop = brand.shopName || shopName() || "the shop";
-      const when = whenWords(b);
-      // A course lists every one of its dates.
-      const dates = Array.isArray(b.course?.starts) && b.course.starts.length > 1
-        ? `<p style="margin:12px 0 4px;"><strong>All ${b.course.starts.length} dates:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${b.course.starts.map((iso) => `<li>${escapeHtml(whenWords(b, iso))}</li>`).join("")}</ul>` : "";
-      // A standing appointment lists every visit of the run when it is booked.
-      const runDates = run.length > 1
-        ? `<p style="margin:12px 0 4px;"><strong>All ${run.length} visits, every ${b.series?.everyWeeks === 1 ? "week" : `${b.series?.everyWeeks || ""} weeks`}:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${run.map((iso) => `<li>${escapeHtml(whenWords(b, iso))}</li>`).join("")}</ul><p style="margin:0 0 4px;font-size:13px;">Each visit gets its own reminder, and can be moved or cancelled on its own from your booking page.</p>` : "";
-      const where = b.location ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${escapeHtml(b.location)}</p>` : "";
-      // Several services in one visit: each in turn, with its time and who takes it.
-      const plan = visitPlan(b);
-      const visitList = plan.length > 1
-        ? `<p style="margin:12px 0 4px;"><strong>Your visit:</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${plan.map((p) => `<li>${escapeHtml(`${clockOf(p.start)} ${p.serviceName}${p.staffName ? `, with ${p.staffName}` : ""}`)}</li>`).join("")}</ul>` : "";
-      const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>Video call:</strong> <a href="${escapeHtml(b.meetUrl)}">Join with Google Meet</a></p>` : "";
+      const settings0 = await readSettings().catch(() => null);
+      const lang = await clientLanguage(b);
+      const T = EMAIL_LABELS[lang];
+      const money$ = (minor, l = lang) => moneyWords(minor, b.currency, l);
       const arriving = ["booked", "moved", "reminder", "soon"].includes(kind);
       if (arriving) b = await withCheckInCode(id, b).catch(() => b);
-      const checkIn = arriving && b.checkInCode ? `<p style="margin:16px 0 4px;"><strong>Check-in code:</strong> <span style="font-family:'DM Mono',Menlo,Consolas,monospace;font-size:20px;letter-spacing:.12em;">${escapeHtml(b.checkInCode)}</span></p>
-        <p style="margin:0 0 4px;font-size:13px;">Show it at the desk when you arrive.${key ? " Your booking page has it as a code to scan." : ""}</p>` : "";
-      const due0 = moneyWords(balanceDue(b), b.currency);
-      const tipText = moneyWords(tipTaken(b), b.currency);
-      // Confirm requests (plan 4, 3.3): the reminder asks for a tap on "Yes, I'll be there".
-      const askConfirm = kind === "reminder" && !!key && b.status === "confirmed" && !b.clientConfirmedAt && !!(await readSettings().catch(() => null))?.askToConfirm;
-      const subject = { thanks: `Thank you for coming: ${visitName(b)}`, tip: `Thank you for coming: ${visitName(b)}`, tipPaid: `Tip received: ${visitName(b)}, ${when}`, payRest: `Left to pay: ${visitName(b)}, ${when}`, restPaid: `Paid in full: ${visitName(b)}, ${when}`, fee: `Fee charged: ${visitName(b)}, ${when}`, notCleared: `Not booked: ${visitName(b)}, ${when}`, reminder: `Coming up: ${visitName(b)}, ${when}`, soon: `Soon: ${visitName(b)}, ${when}`, booked: `Booked: ${visitName(b)}, ${when}`, requested: `Request sent: ${visitName(b)}, ${when}`, declined: `Not booked: ${visitName(b)}, ${when}`, moved: `Moved: ${visitName(b)}, now ${when}`, cancelled: `Cancelled: ${visitName(b)}, ${when}` }[kind];
-      const lead = {
-        fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
-        payRest: `There is ${escapeHtml(due0)} left to pay for your booking with ${escapeHtml(shop)}. You can pay it by card now, so there is nothing to pay at your visit.`,
-        restPaid: `Thank you. You paid ${escapeHtml(moneyWords(restTaken(b), b.currency))} by card${tipTaken(b) ? `, with a ${escapeHtml(tipText)} tip` : ""}, so your booking with ${escapeHtml(shop)} is paid in full.`,
-        thanks: `Thank you for visiting ${escapeHtml(shop)}. We hope to see you again soon.${reviewUrl || siteReview ? " If you have a moment, a short review helps others find us." : ""}`,
-        tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.${reviewUrl || siteReview ? " And if you have a moment, a short review helps others find us." : ""}`,
-        tipPaid: `Thank you! Your ${escapeHtml(tipText)} tip for your visit to ${escapeHtml(shop)} has gone through.`,
-        reminder: askConfirm
-          ? `A reminder of your booking with ${escapeHtml(shop)}. Please tap "Yes, I'll be there" so they know to expect you. If you can't make it, cancel or move it below so the time can go to someone else.`
-          : `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
-        soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
-        notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
-        booked: `You're booked in with ${escapeHtml(shop)}.`,
-        requested: `Thank you. ${escapeHtml(shop)} looks at each booking before confirming it. The time is kept for you, and you'll get an email as soon as they answer${b.answerBy ? `, by ${escapeHtml(whenWords(b, b.answerBy))} at the latest` : ""}.`,
-        declined: refundText ? escapeHtml(refundText) : `${escapeHtml(shop)} can't take this booking, sorry. You're welcome to choose another time.`,
-        moved: `Your booking with ${escapeHtml(shop)} has moved.`,
-        cancelled: `${tooFew ? `Not enough people signed up for this ${b.course ? "course" : "class"} to run, so ${escapeHtml(shop)} has cancelled it. Sorry for the change of plans.` : `Your booking with ${escapeHtml(shop)} is cancelled.`}${refundText ? ` ${escapeHtml(refundText)}` : ""}`,
-      }[kind];
       const ended = kind === "cancelled" || kind === "declined" || kind === "notCleared" || kind === "fee" || kind === "tip" || kind === "tipPaid" || kind === "thanks";
-      // What is paid and what is left to pay at the visit, on every email about a booking that is still on.
       const due = balanceDue(b);
       const taken = bookedCardTaken(b);
-      const packLine = ended || !b.pack ? "" : `<p style="margin:0 0 4px;"><strong>Paid with your pack ••••${escapeHtml(b.pack.last4 || "")}:</strong> visit ${b.pack.visit || 1} of ${b.pack.visits || 1}</p>`;
-      const money = ended || !(b.priceMinor > 0) ? packLine : [
-        b.discount?.amountMinor ? `<p style="margin:0 0 4px;"><strong>Discount (${escapeHtml(b.discount.code)}):</strong> ${escapeHtml(moneyWords(b.discount.amountMinor, b.currency))} off</p>` : "",
-        taxLinesWords(b),
-        giftTaken(b) ? `<p style="margin:0 0 4px;"><strong>Gift card ••••${escapeHtml(b.giftCard.last4 || "")}:</strong> ${escapeHtml(moneyWords(giftTaken(b), b.currency))}</p>` : "",
-        b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>Deposit paid:</strong> ${escapeHtml(moneyWords(taken, b.currency))}</p>` : "",
-        due ? `<p style="margin:0 0 4px;"><strong>${kind === "payRest" ? "Left to pay" : "To pay at your visit"}:</strong> ${escapeHtml(moneyWords(due, b.currency))}</p>` : `<p style="margin:0 0 4px;"><strong>Paid:</strong> ${escapeHtml(moneyWords(b.priceMinor, b.currency))}</p>`,
-      ].join("");
-      // The card kept on file, and what missing the booking costs, on every email about a booking that is still on.
-      const cancelHours = ended || !b.card ? 0 : (await readSettings().catch(() => null))?.cancelHours || 0;
-      const held = ended || !b.card ? "" : `<p style="margin:0 0 4px;"><strong>Card on file:</strong> ${escapeHtml(cardWords(b.card))}. Missing this booking${cancelHours ? `, or cancelling less than ${cancelHours} hours before,` : ""} may cost ${escapeHtml(moneyWords(b.lateFeeMinor || 0, b.currency))}.</p>`;
-      const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${visitName(b)} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">Add to Google Calendar</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">Add to Apple Calendar</a>` : ""}</p>`;
-      const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? "Add a tip" : kind === "payRest" ? `Pay ${due0}` : "See or change your booking", brand.accent, brand.theme) : "";
+      const cancelHours = ended || !b.card ? 0 : settings0?.cancelHours || 0;
+      /** The details under the words, in one language (the client's; English for the owner's copy). */
+      const details = (l) => {
+        const L = EMAIL_LABELS[l];
+        const m$ = (minor) => moneyWords(minor, b.currency, l);
+        const dates = Array.isArray(b.course?.starts) && b.course.starts.length > 1
+          ? `<p style="margin:12px 0 4px;"><strong>${escapeHtml(L.allDates(b.course.starts.length))}</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${b.course.starts.map((iso) => `<li>${escapeHtml(whenWords(b, iso, l))}</li>`).join("")}</ul>` : "";
+        const runDates = run.length > 1
+          ? `<p style="margin:12px 0 4px;"><strong>${escapeHtml(L.allVisits(run.length, b.series?.everyWeeks))}</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${run.map((iso) => `<li>${escapeHtml(whenWords(b, iso, l))}</li>`).join("")}</ul><p style="margin:0 0 4px;font-size:13px;">${escapeHtml(L.eachVisit)}</p>` : "";
+        const plan = visitPlan(b);
+        const visitList = plan.length > 1
+          ? `<p style="margin:12px 0 4px;"><strong>${escapeHtml(L.yourVisit)}</strong></p><ul style="margin:0 0 8px;padding-left:20px;">${plan.map((p) => `<li>${escapeHtml(`${clockOf(p.start, l)} ${p.serviceName}${p.staffName ? `, ${L.withLower} ${p.staffName}` : ""}`)}</li>`).join("")}</ul>` : "";
+        const packLine = ended || !b.pack ? "" : `<p style="margin:0 0 4px;"><strong>${escapeHtml(L.paidWithPack(b.pack.last4 || ""))}</strong> ${escapeHtml(L.visitOf(b.pack.visit || 1, b.pack.visits || 1))}</p>`;
+        const taxNames = (Array.isArray(b.taxLines) ? b.taxLines : []).map((x) => x?.name).filter(Boolean).join(", ");
+        const money = ended || !(b.priceMinor > 0) ? packLine : [
+          b.discount?.amountMinor ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(L.discount(b.discount.code))}</strong> ${escapeHtml(L.off(m$(b.discount.amountMinor)))}</p>` : "",
+          b?.taxMinor > 0 ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(L.tax(taxNames))}</strong> ${escapeHtml(m$(b.taxMinor))}</p>` : "",
+          giftTaken(b) ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(L.giftCard(b.giftCard.last4 || ""))}</strong> ${escapeHtml(m$(giftTaken(b)))}</p>` : "",
+          b.payment === "deposit" && taken ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(L.depositPaid)}</strong> ${escapeHtml(m$(taken))}</p>` : "",
+          due ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(kind === "payRest" ? L.leftToPay : L.toPayAtVisit)}</strong> ${escapeHtml(m$(due))}</p>` : `<p style="margin:0 0 4px;"><strong>${escapeHtml(L.paid)}</strong> ${escapeHtml(m$(b.priceMinor))}</p>`,
+        ].join("");
+        const held = ended || !b.card ? "" : `<p style="margin:0 0 4px;"><strong>${escapeHtml(L.cardOnFile)}</strong> ${escapeHtml(L.cardWords(cardWords(b.card, l), cancelHours, m$(b.lateFeeMinor || 0)))}</p>`;
+        return { dates, runDates, visitList, money, held };
+      };
+      const mine = details(lang);
+      const when = whenWords(b, b.start, lang);
+      const where = b.location ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(T.where)}</strong> ${escapeHtml(b.location)}</p>` : "";
+      const video = b.meetUrl && b.status !== "cancelled" ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(T.videoCall)}</strong> <a href="${escapeHtml(b.meetUrl)}">${escapeHtml(T.joinMeet)}</a></p>` : "";
+      const checkIn = arriving && b.checkInCode ? `<p style="margin:16px 0 4px;"><strong>${escapeHtml(T.checkInCode)}</strong> <span style="font-family:'DM Mono',Menlo,Consolas,monospace;font-size:20px;letter-spacing:.12em;">${escapeHtml(b.checkInCode)}</span></p>
+        <p style="margin:0 0 4px;font-size:13px;">${escapeHtml(T.showAtDesk)}${key ? ` ${escapeHtml(T.codeToScan)}` : ""}</p>` : "";
+      const due0 = money$(due);
+      const tipText = moneyWords(tipTaken(b), b.currency);
+      // Confirm requests (plan 4, 3.3): the reminder asks for a tap on "Yes, I'll be there".
+      const askConfirm = kind === "reminder" && !!key && b.status === "confirmed" && !b.clientConfirmedAt && !!settings0?.askToConfirm;
+      // The words (plan 4, 3.5): the owner's for this kind and language, else the standard ones; then what the server adds.
+      const wordsKind = askConfirm ? "reminderConfirm" : kind === "cancelled" && tooFew ? "classCancelled" : kind;
+      const words = emailWords(settings0?.messages, lang, wordsKind);
+      const amount = { fee: money$(b.fee?.amountMinor || 0), payRest: due0, restPaid: money$(restTaken(b)), tipPaid: money$(tipTaken(b)) }[kind] || "";
+      const values = { client: String(b.customer?.name || "").trim().split(/\s+/)[0] || "", service: visitName(b), when, shop, amount };
+      const fill = (template) => fillMessage(template, values);
+      const refundWords = typeof refundText === "string" ? refundText : refundText?.[lang] || refundText?.en || "";
+      const added = [
+        kind === "requested" && b.answerBy ? T.answerBy(whenWords(b, b.answerBy, lang)) : "",
+        kind === "restPaid" && tipTaken(b) ? T.tipIncluded(money$(tipTaken(b))) : "",
+        kind === "fee" && b.card?.last4 ? T.feeCard(cardWords(b.card, lang)) : "",
+        (kind === "thanks" || kind === "tip") && (reviewUrl || siteReview) ? T.reviewAsk : "",
+        kind === "cancelled" ? refundWords : "",
+      ].filter(Boolean).join(" ");
+      // A decline with the owner's own reason says only that.
+      const leadText = kind === "declined" && refundWords ? refundWords : `${fill(words.lead)}${added ? ` ${added}` : ""}`;
+      const lead = escapeHtml(leadText).replace(/\n/g, "<br>");
+      const subject = fill(words.subject);
+      const calendar = ended ? "" : `<p style="margin:16px 0 0;"><a href="${escapeHtml(googleCalendarLink({ title: `${visitName(b)} · ${shop}`, start: Date.parse(b.start), end: Date.parse(b.end), location: b.location || "" }))}">${escapeHtml(T.addGoogle)}</a>${key ? ` &nbsp;·&nbsp; <a href="${escapeHtml(siteLink(`/calendar/b/${encodeURIComponent(id)}/${key}.ics`))}">${escapeHtml(T.addApple)}</a>` : ""}</p>`;
+      const manage = (!ended || kind === "tip") && key ? risoButton(escapeHtml(manageUrl(id, key)), kind === "tip" ? T.addTip : kind === "payRest" ? T.pay(due0) : T.seeOrChange, brand.accent, brand.theme) : "";
       // After the visit: leave a review (the shop's own link) and book the same service again.
       // On the shop's own website (Client reviews) when it takes them, through the booking page; else the shop's link.
       const afterVisit = kind === "thanks" || kind === "tip";
-      const own = afterVisit && siteReview && key ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(manageUrl(id, key))}#review">Leave a review</a></p>` : "";
-      const review = own || (reviewUrl && afterVisit ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : "");
-      const again = kind === "thanks" || kind === "declined" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
+      const own = afterVisit && siteReview && key ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(manageUrl(id, key))}#review">${escapeHtml(T.leaveReview)}</a></p>` : "";
+      const review = own || (reviewUrl && afterVisit ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(reviewUrl)}">${escapeHtml(T.leaveReview)}</a></p>` : "");
+      const again = kind === "thanks" || kind === "declined" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), T.bookAgain, brand.accent, brand.theme) : "";
       // The form before the first visit, while it isn't signed: on the confirmation and the reminders.
-      const formState0 = ["booked", "requested", "moved", "reminder"].includes(kind) && key ? await formState(b, await readSettings().catch(() => null)).catch(() => null) : null;
-      const formNote = formState0 && !formState0.signed ? `<p style="margin:16px 0 4px;"><strong>Before your visit:</strong> please fill in ${formState0.waiting.map((x) => `"${escapeHtml(x.form.title)}"`).join(" and ")} on your booking page. It takes a minute.</p>` : "";
+      const formState0 = ["booked", "requested", "moved", "reminder"].includes(kind) && key ? await formState(b, settings0).catch(() => null) : null;
+      const formNote = formState0 && !formState0.signed ? `<p style="margin:16px 0 4px;"><strong>${escapeHtml(T.beforeVisit)}</strong> ${T.fillIn(formState0.waiting.map((x) => `"${escapeHtml(x.form.title)}"`))}</p>` : "";
       const html = risoLayout(`
-        <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", requested: "Booking requested", declined: "Not booked", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
+        <h4 style="margin:0 0 8px;">${escapeHtml(fill(words.heading))}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(visitName(b))}</h2>
         <p style="margin:0 0 16px;">${lead}</p>
-        <p style="margin:0 0 4px;"><strong>When:</strong> ${escapeHtml(when)}</p>
-        <p style="margin:0 0 4px;"><strong>How long:</strong> ${b.minutes} minutes</p>
-        ${extrasWords(b) ? `<p style="margin:0 0 4px;"><strong>Extras:</strong> ${escapeHtml(extrasWords(b))}</p>` : ""}
-        ${b.staffName && !visitList ? `<p style="margin:0 0 4px;"><strong>With:</strong> ${escapeHtml(b.staffName)}</p>` : ""}
+        <p style="margin:0 0 4px;"><strong>${escapeHtml(T.when)}</strong> ${escapeHtml(when)}</p>
+        <p style="margin:0 0 4px;"><strong>${escapeHtml(T.howLong)}</strong> ${escapeHtml(T.minutes(b.minutes))}</p>
+        ${extrasWords(b) ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(T.extras)}</strong> ${escapeHtml(extrasWords(b))}</p>` : ""}
+        ${b.staffName && !mine.visitList ? `<p style="margin:0 0 4px;"><strong>${escapeHtml(T.with)}</strong> ${escapeHtml(b.staffName)}</p>` : ""}
         ${where}
-        ${visitList}
-        ${dates}
-        ${runDates}
+        ${mine.visitList}
+        ${mine.dates}
+        ${mine.runDates}
         ${video}
-        ${money}
-        ${held}
+        ${mine.money}
+        ${mine.held}
         ${checkIn}
         ${formNote}
-        ${askConfirm ? risoButton(escapeHtml(`${manageUrl(id, key)}&confirm=1`), "Yes, I'll be there", brand.accent, brand.theme) : ""}
+        ${askConfirm ? risoButton(escapeHtml(`${manageUrl(id, key)}&confirm=1`), T.yesThere, brand.accent, brand.theme) : ""}
         ${manage}
         ${again}
         ${review}
         ${calendar}
       `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
       await sendEmail({ to, subject, html });
+      const owners = lang === "en" ? mine : details("en");
+      const ownerWhen = whenWords(b);
+      const runDates = owners.runDates, money = owners.money, held = owners.held;
       const owner = ownerEmail();
       if (owner && toOwner) {
         await sendEmail({
           to: owner,
-          subject: `[BOOKING] ${{ booked: "New", requested: "Please answer",  moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${visitName(b)}, ${when}`,
+          subject: `[BOOKING] ${{ booked: "New", requested: "Please answer",  moved: "Moved", notCleared: "Payment didn't clear", restPaid: "Paid in full", tipPaid: `${tipText} tip` }[kind] || "Cancelled"}: ${visitName(b)}, ${ownerWhen}`,
           html: risoLayout(`<h2 style="margin:0 0 12px;">${escapeHtml(b.customer.name)}: ${escapeHtml(visitName(b))}</h2>
-            <p style="margin:0 0 4px;">${escapeHtml(when)} · ${b.minutes} minutes${b.staffName ? ` · ${escapeHtml(withWhom(b))}` : ""}</p>
+            <p style="margin:0 0 4px;">${escapeHtml(ownerWhen)} · ${b.minutes} minutes${b.staffName ? ` · ${escapeHtml(withWhom(b))}` : ""}</p>
             <p style="margin:0 0 4px;">${escapeHtml(b.customer.email)}${b.customer.phone ? ` · ${escapeHtml(b.customer.phone)}` : ""}</p>
             ${extrasWords(b) ? `<p style="margin:0 0 4px;">Extras: ${escapeHtml(extrasWords(b))}</p>` : ""}
             ${runDates}
@@ -1688,10 +1707,8 @@ function bookingActions({
     await syncCalendar(id, { ...b, ...changes });
     // A standing appointment: the later visits too, when asked (those with money on them are left).
     const run = andLater && b.series?.id ? await cancelLater(id, b, by, at) : null;
-    const laterWords = run?.cancelled ? ` Your ${run.cancelled === 1 ? "next visit is" : `${run.cancelled} later visits are`} cancelled too.` : "";
-    const paid = b.payment === "deposit" && !b.rest ? "deposit" : "payment";
-    const cardWordsBack = !refund ? "" : refund.amountMinor < onCard ? `${moneyWords(refund.amountMinor, b.currency)} of your ${paid} is being refunded to your card.` : `Your ${paid} is being refunded to your card.`;
-    if (notify && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, tooFew, refundText: `${cardWordsBack}${giftBack ? giftBackWords(b) : ""}${packBack ? packBackWords(b) : ""}${laterWords}`.trim() });
+    const refundText = backWords(b, { refunded: !!refund, partMinor: refund && refund.amountMinor < onCard ? refund.amountMinor : 0, giftBack, packBack, later: run?.cancelled || 0 });
+    if (notify && b.status === "confirmed") await tellCustomer(id, { ...b, ...changes }, "cancelled", { byShop: true, tooFew, refundText });
     return { ...(run ? { laterCancelled: run.cancelled, laterSkipped: run.skipped } : {}), refunded: !!refund, refundMinor: refund?.amountMinor || 0, ...(giftBack ? { giftBackMinor: b.giftCard.amountMinor } : {}), ...(packBack ? { packBack: true } : {}) };
   }
 
@@ -1944,11 +1961,29 @@ function bookingActions({
     }
   }
 
-  /** What the cancel email says about a pack's visit. */
-  const packBackWords = (b) => (b.pack ? " The visit is back on your pack, so you can book another time." : "");
-
-  /** What the cancel email says about the gift card's part. */
-  const giftBackWords = (b) => (b.giftCard?.amountMinor ? ` The ${moneyWords(b.giftCard.amountMinor, b.currency)} from your gift card is back on it.` : "");
+  /**
+   * What the cancel email adds about money and later visits, in English and French (plan 4, 3.5): the card refund (all,
+   * or `partMinor` of it), the gift card's part, the pack's visit and how many later visits went too.
+   */
+  function backWords(b, { refunded = false, partMinor = 0, giftBack = false, packBack = false, later = 0 } = {}) {
+    const out = {};
+    for (const lang of ["en", "fr"]) {
+      const fr = lang === "fr";
+      const deposit = b.payment === "deposit" && !b.rest;
+      const what = fr ? (deposit ? "dépôt" : "paiement") : (deposit ? "deposit" : "payment");
+      const card = !refunded ? "" : partMinor
+        ? (fr ? `${moneyWords(partMinor, b.currency, lang)} de votre ${what} vous est remboursé sur votre carte.` : `${moneyWords(partMinor, b.currency)} of your ${what} is being refunded to your card.`)
+        : (fr ? `Votre ${what} vous est remboursé sur votre carte.` : `Your ${what} is being refunded to your card.`);
+      const gift = giftBack && b.giftCard?.amountMinor
+        ? (fr ? ` Les ${moneyWords(b.giftCard.amountMinor, b.currency, lang)} de votre carte-cadeau y sont remis.` : ` The ${moneyWords(b.giftCard.amountMinor, b.currency)} from your gift card is back on it.`) : "";
+      const pack = packBack && b.pack ? (fr ? " La visite est remise sur votre forfait, vous pouvez donc réserver une autre fois." : " The visit is back on your pack, so you can book another time.") : "";
+      const runs = !later ? "" : fr
+        ? (later === 1 ? " Votre prochaine visite est aussi annulée." : ` Vos ${later} visites suivantes sont aussi annulées.`)
+        : ` Your ${later === 1 ? "next visit is" : `${later} later visits are`} cancelled too.`;
+      out[lang] = `${card}${gift}${pack}${runs}`.trim();
+    }
+    return out;
+  }
 
   // ── Customers (validateDiscountCode actions; no sign-in) ───────────────────────────────────────────────────────
 
@@ -2444,6 +2479,8 @@ function bookingActions({
           ...(bookingChannel(req.body.from) ? { cameFrom: bookingChannel(req.body.from) } : {}),
           // An online visit booked from another time zone (plan 4, 2.9): the emails and its page show their clock too.
           ...(service.meet && zonesDiffer(cleanZone(req.body.zone), zone(), start) ? { clientZone: cleanZone(req.body.zone) } : {}),
+          // The booking page's language (plan 4, 3.5): its emails and texts follow it.
+          ...(/^[a-z]{2}(-[A-Za-z]{2})?$/.test(String(req.body.locale || "")) ? { locale: String(req.body.locale) } : {}),
           source: "website", history: [{ at, what: run ? `booked (visit 1 of ${run.visits})` : "booked", by: "customer" }], createdAt: at, updatedAt: at,
           ...(run ? { series: { id: `run_${id}`, everyWeeks: run.everyWeeks, visits: run.visits, visit: 1 } } : {}),
         };
@@ -3519,8 +3556,7 @@ function bookingActions({
     const written = await freeTime(id, b, changes);
     const next = await syncCalendar(id, { ...b, ...written });
     const alsoCancelled = andLater ? (await cancelLater(id, b, "customer", at)).cancelled : 0;
-    const later = alsoCancelled ? ` Your ${alsoCancelled === 1 ? "next visit is" : `${alsoCancelled} later visits are`} cancelled too.` : "";
-    const refundText = `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}${packBackWords(b)}${later}`.trim();
+    const refundText = backWords(b, { refunded: !!refund, giftBack: true, packBack: true, later: alsoCancelled });
     await tellCustomer(id, next, "cancelled", { refundText });
     return { next, refund, refundText };
   }
@@ -3542,12 +3578,16 @@ function bookingActions({
       const settings = await readSettings();
       if (!settings.textReminders) return;
       b = namesForClient(b, settings);
-      const when = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
-      const shop = String(shopName() || "").trim().slice(0, 40);
+      // In the client's language, with the owner's own words when written (plan 4, 3.5).
+      const lang = await clientLanguage(b);
+      const L = TEXT_LABELS[lang];
+      const when = new Intl.DateTimeFormat(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
+      const shop = String(shopName() || "").trim().slice(0, 40) || L.theShop;
       // Answers by text (plan 4, 3.4): Y, C or M instead of the link, when the owner and the platform both allow it.
       const answers = settings.textReplies === true && (await texts.status().catch(() => null))?.replies === true;
-      const ask = answers ? "Reply Y to confirm, C to cancel, M to move." : `Change or cancel: ${manageUrl(id, key)}`;
-      const body = `${kind === "soon" ? "Soon" : "Reminder"}: ${visitName(b).slice(0, 60)}${shop ? ` at ${shop}` : ""}, ${when}${b.staffName ? ` with ${b.staffName.slice(0, 30)}` : ""}. ${ask} Reply STOP to stop texts.`;
+      const ask = answers ? L.askReply : `${L.changeOrCancel} ${manageUrl(id, key)}`;
+      const head = fillMessage(textWords(settings.messages, lang, kind === "soon" ? "textSoon" : "textReminder"), { service: visitName(b).slice(0, 60), shop, when, with: b.staffName ? `${L.with} ${b.staffName.slice(0, 30)}` : "" });
+      const body = `${head} ${ask} ${L.stop}`;
       const sent = await texts.send({ to: b.customer.phone, body, kind: `booking-${kind}`, idempotencyKey: `booking-${id}-${kind}-${hash(key).slice(0, 10)}`, ...(answers ? { replyRef: id } : {}) });
       if (sent?.optedOut) await bookings().doc(id).set({ customer: { ...b.customer, textOk: false } }, { merge: true });
       else if (sent?.ok) await bookings().doc(id).set({ [kind === "soon" ? "reminder2TextAt" : "reminderTextAt"]: now().toISOString() }, { merge: true });
@@ -3568,7 +3608,6 @@ function bookingActions({
     const waiting = await texts.replies().catch(() => []);
     if (!waiting.length) return { answered: 0 };
     const settings = await readSettings();
-    const shop = String(shopName() || "").trim().slice(0, 40) || "the shop";
     const nowMs = now().getTime();
     let answered = 0;
     for (const r of waiting) {
@@ -3577,30 +3616,33 @@ function bookingActions({
         const b = ref ? (await ref.get()).data() : null;
         if (!b?.customer?.phone) continue;
         const named = namesForClient(b, settings);
-        const when = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
+        const lang = await clientLanguage(b);
+        const L = TEXT_LABELS[lang];
+        const shop = String(shopName() || "").trim().slice(0, 40) || L.theShop;
+        const when = new Intl.DateTimeFormat(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
         const visit = `${visitName(named).slice(0, 60)}, ${when}`;
         const start = Date.parse(b.start || "");
         let body;
         if (b.status !== "confirmed" || !(start > nowMs)) {
-          body = `${visit} isn't booked any more, so there's nothing to change. Questions? Contact ${shop}.`;
+          body = L.notBooked(visit, shop);
         } else if (r.word === "yes") {
           if (!b.clientConfirmedAt) {
             const at = now().toISOString();
             await ref.set({ clientConfirmedAt: at, history: [...(b.history || []), { at, what: "said they'll be there (by text)", by: "customer" }].slice(-20) }, { merge: true });
           }
-          body = `Thanks, you're confirmed: ${visit}. See you then.`;
+          body = L.confirmed(visit);
         } else if (r.word === "cancel") {
-          if (!customerCanChange(start, settings, nowMs)) body = `${visit} is too close to cancel by text. Please contact ${shop}.`;
+          if (!customerCanChange(start, settings, nowMs)) body = L.tooClose(visit, shop);
           else {
             const done = await cancelByCustomer(r.ref, b, { how: " by text" });
-            body = done ? `Cancelled: ${visit}. ${done.refundText}`.trim() : `We couldn't cancel ${visit} just now. Please try again in a few minutes, or contact ${shop}.`;
+            body = done ? `${L.cancelled(visit)} ${done.refundText[lang] || ""}`.trim() : L.couldNotCancel(visit, shop);
           }
         } else {
-          if (!customerCanChange(start, settings, nowMs) || b.course || b.parts?.length) body = `${visit} can't be moved by text. Please contact ${shop}.`;
+          if (!customerCanChange(start, settings, nowMs) || b.course || b.parts?.length) body = L.cantMove(visit, shop);
           else {
             const key = randomKey();
             await ref.set({ textKeyHash: hash(key) }, { merge: true });
-            body = `Pick a new time for ${visit}: ${manageUrl(r.ref, key)}`;
+            body = L.pickNew(visit, manageUrl(r.ref, key));
           }
         }
         const sent = await texts.send({ to: b.customer.phone, body: body.slice(0, 450), kind: "booking-reply", idempotencyKey: `booking-${r.ref}-reply-${String(r.id).slice(-24)}` });
@@ -4201,8 +4243,85 @@ const REST_REUSE_MINUTES = 15;
 /** The "Add a tip" email goes this many hours after a visit ends. */
 const TIP_ASK_HOURS = 2;
 /** "Visa ending 4242", or "Your card" when its brand and number weren't read. */
-const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : "Card"} ending ${card.last4}` : "Your card");
-const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
+const cardWords = (card, lang = "en") => (card?.last4
+  ? `${card.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : lang === "fr" ? "Carte" : "Card"} ${lang === "fr" ? "se terminant par" : "ending"} ${card.last4}`
+  : lang === "fr" ? "Votre carte" : "Your card");
+
+/** The fixed words of booking texts, in English and French (plan 4, 3.4 and 3.5). */
+const TEXT_LABELS = Object.freeze({
+  en: {
+    theShop: "the shop", with: "with", stop: "Reply STOP to stop texts.", changeOrCancel: "Change or cancel:",
+    askReply: "Reply Y to confirm, C to cancel, M to move.",
+    notBooked: (visit, shop) => `${visit} isn't booked any more, so there's nothing to change. Questions? Contact ${shop}.`,
+    confirmed: (visit) => `Thanks, you're confirmed: ${visit}. See you then.`,
+    tooClose: (visit, shop) => `${visit} is too close to cancel by text. Please contact ${shop}.`,
+    cancelled: (visit) => `Cancelled: ${visit}.`,
+    couldNotCancel: (visit, shop) => `We couldn't cancel ${visit} just now. Please try again in a few minutes, or contact ${shop}.`,
+    cantMove: (visit, shop) => `${visit} can't be moved by text. Please contact ${shop}.`,
+    pickNew: (visit, link) => `Pick a new time for ${visit}: ${link}`,
+  },
+  fr: {
+    theShop: "la boutique", with: "avec", stop: "Répondez STOP pour ne plus recevoir de textos.", changeOrCancel: "Modifier ou annuler :",
+    askReply: "Répondez Y pour confirmer, C pour annuler, M pour déplacer.",
+    notBooked: (visit, shop) => `${visit} n'est plus réservé, il n'y a donc rien à changer. Des questions? Contactez ${shop}.`,
+    confirmed: (visit) => `Merci, c'est confirmé : ${visit}. À bientôt.`,
+    tooClose: (visit, shop) => `${visit} est trop proche pour être annulé par texto. Veuillez contacter ${shop}.`,
+    cancelled: (visit) => `Annulé : ${visit}.`,
+    couldNotCancel: (visit, shop) => `Nous n'avons pas pu annuler ${visit} pour l'instant. Réessayez dans quelques minutes, ou contactez ${shop}.`,
+    cantMove: (visit, shop) => `${visit} ne peut pas être déplacé par texto. Veuillez contacter ${shop}.`,
+    pickNew: (visit, link) => `Choisissez une nouvelle heure pour ${visit} : ${link}`,
+  },
+});
+
+/**
+ * The fixed words around a client's booking email (plan 4, 3.5), in English and French. The owner edits the subject,
+ * heading and opening words (shared/bookingMessages); these labels stay as they are.
+ */
+const EMAIL_LABELS = Object.freeze({
+  en: {
+    when: "When:", howLong: "How long:", minutes: (n) => `${n} minutes`, extras: "Extras:", with: "With:", withLower: "with", where: "Where:",
+    yourVisit: "Your visit:", allDates: (n) => `All ${n} dates:`,
+    allVisits: (n, weeks) => `All ${n} visits, every ${weeks === 1 ? "week" : `${weeks || ""} weeks`}:`,
+    eachVisit: "Each visit gets its own reminder, and can be moved or cancelled on its own from your booking page.",
+    videoCall: "Video call:", joinMeet: "Join with Google Meet",
+    checkInCode: "Check-in code:", showAtDesk: "Show it at the desk when you arrive.", codeToScan: "Your booking page has it as a code to scan.",
+    paidWithPack: (last4) => `Paid with your pack ••••${last4}:`, visitOf: (n, of) => `visit ${n} of ${of}`,
+    discount: (code) => `Discount (${code}):`, off: (amount) => `${amount} off`, tax: (names) => `Includes tax${names ? ` (${names})` : ""}:`,
+    giftCard: (last4) => `Gift card ••••${last4}:`, depositPaid: "Deposit paid:", leftToPay: "Left to pay:", toPayAtVisit: "To pay at your visit:", paid: "Paid:",
+    cardOnFile: "Card on file:",
+    cardWords: (card, hours, fee) => `${card}. Missing this booking${hours ? `, or cancelling less than ${hours} hours before,` : ""} may cost ${fee}.`,
+    addGoogle: "Add to Google Calendar", addApple: "Add to Apple Calendar",
+    addTip: "Add a tip", pay: (amount) => `Pay ${amount}`, seeOrChange: "See or change your booking", yesThere: "Yes, I'll be there",
+    leaveReview: "Leave a review", bookAgain: "Book again",
+    beforeVisit: "Before your visit:", fillIn: (titles) => `please fill in ${titles.join(" and ")} on your booking page. It takes a minute.`,
+    answerBy: (when) => `They'll answer by ${when} at the latest.`,
+    tipIncluded: (amount) => `That includes your ${amount} tip.`,
+    feeCard: (card) => `It went on your ${card.replace(/^Card\b/, "card")}.`,
+    reviewAsk: "If you have a moment, a short review helps others find us.",
+  },
+  fr: {
+    when: "Quand :", howLong: "Durée :", minutes: (n) => `${n} minutes`, extras: "Suppléments :", with: "Avec :", withLower: "avec", where: "Où :",
+    yourVisit: "Votre visite :", allDates: (n) => `Les ${n} dates :`,
+    allVisits: (n, weeks) => `Les ${n} visites, ${weeks === 1 ? "chaque semaine" : `toutes les ${weeks || ""} semaines`} :`,
+    eachVisit: "Chaque visite a son propre rappel, et peut être déplacée ou annulée seule depuis votre page de réservation.",
+    videoCall: "Appel vidéo :", joinMeet: "Rejoindre avec Google Meet",
+    checkInCode: "Code d'arrivée :", showAtDesk: "Montrez-le à l'accueil en arrivant.", codeToScan: "Votre page de réservation l'affiche aussi en code à scanner.",
+    paidWithPack: (last4) => `Payé avec votre forfait ••••${last4} :`, visitOf: (n, of) => `visite ${n} sur ${of}`,
+    discount: (code) => `Rabais (${code}) :`, off: (amount) => `${amount} de rabais`, tax: (names) => `Taxes incluses${names ? ` (${names})` : ""} :`,
+    giftCard: (last4) => `Carte-cadeau ••••${last4} :`, depositPaid: "Dépôt payé :", leftToPay: "Reste à payer :", toPayAtVisit: "À payer sur place :", paid: "Payé :",
+    cardOnFile: "Carte au dossier :",
+    cardWords: (card, hours, fee) => `${card}. Manquer cette réservation${hours ? `, ou l'annuler moins de ${hours} heures avant,` : ""} peut coûter ${fee}.`,
+    addGoogle: "Ajouter à Google Agenda", addApple: "Ajouter au calendrier Apple",
+    addTip: "Laisser un pourboire", pay: (amount) => `Payer ${amount}`, seeOrChange: "Voir ou modifier votre réservation", yesThere: "Oui, je serai là",
+    leaveReview: "Laisser un avis", bookAgain: "Réserver de nouveau",
+    beforeVisit: "Avant votre visite :", fillIn: (titles) => `veuillez remplir ${titles.join(" et ")} sur votre page de réservation. Ça prend une minute.`,
+    answerBy: (when) => `On vous répondra au plus tard le ${when}.`,
+    tipIncluded: (amount) => `Cela comprend votre pourboire de ${amount}.`,
+    feeCard: (card) => `Montant porté à votre ${card.replace(/^Carte\b/, "carte")}.`,
+    reviewAsk: "Si vous avez un moment, un court avis aide les autres à nous trouver.",
+  },
+});
+const moneyWords = (minor, currency, lang = "en") => new Intl.NumberFormat(lang === "fr" ? "fr-CA" : "en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
 const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingMine", "bookingOpen", "bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingConfirm", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
