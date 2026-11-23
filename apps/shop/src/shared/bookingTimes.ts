@@ -316,8 +316,11 @@ export type BookingSettings = {
   textReminders?: boolean;
   /** The most bookings clients can make online on one day (plan 4, 1.8); 0 or left out: no limit. The owner can add more. */
   dailyCap?: number;
-  /** A form clients fill in once before their first visit (Services plan 2, B4). Left out while there is none. */
-  intakeForm?: IntakeForm;
+  /**
+   * Forms clients fill in before a visit (Services plan 2, B4; several, with renewal, plan 4, 3.1): a health form, a
+   * waiver, a contract. Left out while there are none. An older saved `intakeForm` is read as the first, id "main".
+   */
+  intakeForms?: IntakeForm[];
   /** Time the owner blocked on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly team meeting. Left out while none. */
   blocks?: TimeBlock[];
   /** Holiday hours (plan 4, 1.7): different opening hours for a stretch of dates. Left out while none. */
@@ -419,25 +422,69 @@ export function blockedBusy(blocks: readonly TimeBlock[] | undefined, day: strin
 }
 
 /**
- * A health or consent form a client fills in once, signed with their typed name and a tick (the date is kept). It asks
- * again when its words change. `serviceIds` empty: every service.
+ * A health form, waiver or contract a client fills in, signed with their typed name and a tick (the date is kept). It
+ * asks again when its words change, and after `renewMonths` (0: never). `serviceIds` empty: every service.
  */
-export type IntakeForm = { on: boolean; title: string; text: string; questions: BookingQuestion[]; serviceIds: string[] };
+export type IntakeForm = { id: string; on: boolean; title: string; text: string; questions: BookingQuestion[]; serviceIds: string[]; renewMonths: number };
 export const MAX_FORM_TEXT = 6000;
+/** How many forms a shop can ask for. */
+export const MAX_FORMS = 5;
+/** How long a signature lasts, in months (0: until the words change). */
+export const FORM_RENEW_CHOICES = [0, 6, 12, 24] as const;
 
 /** The form as saved: words trimmed and capped, its questions cleaned; null when it has no words at all. */
-export function cleanIntakeForm(raw: unknown): IntakeForm | null {
+export function cleanIntakeForm(raw: unknown, fallbackId = "main"): IntakeForm | null {
   const f = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const body = typeof f.text === "string" ? f.text.trim().slice(0, MAX_FORM_TEXT) : "";
   const questions = cleanQuestions(f.questions);
   if (!body && !questions.length) return null;
   const serviceIds = [...new Set((Array.isArray(f.serviceIds) ? f.serviceIds : []).filter((x): x is string => typeof x === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(x)))].slice(0, MAX_SERVICES);
-  return { on: f.on === true, title: text(f.title, 80) || "Before your first visit", text: body, questions, serviceIds };
+  const id = typeof f.id === "string" && /^[A-Za-z0-9_-]{1,24}$/.test(f.id) ? f.id : fallbackId;
+  const renew = Number(f.renewMonths);
+  const renewMonths = (FORM_RENEW_CHOICES as readonly number[]).includes(renew) ? renew : 0;
+  return { id, on: f.on === true, title: text(f.title, 80) || "Before your first visit", text: body, questions, serviceIds, renewMonths };
 }
 
-/** Whether a booking of this service asks for the form. */
-export const formFor = (form: IntakeForm | null | undefined, serviceId: string): IntakeForm | null =>
-  form?.on && (!form.serviceIds.length || form.serviceIds.includes(serviceId)) ? form : null;
+/** The shop's forms, cleaned: at most MAX_FORMS, ids unique (the first keeps "main"), an older single `intakeForm` read as one. */
+export function cleanIntakeForms(list: unknown, older?: unknown): IntakeForm[] {
+  const raw = Array.isArray(list) ? list : older ? [older] : [];
+  const out: IntakeForm[] = [];
+  for (const [i, f] of raw.entries()) {
+    const form = cleanIntakeForm(f, i === 0 ? "main" : `f${i + 1}`);
+    if (!form) continue;
+    while (out.some((o) => o.id === form.id)) form.id = `${form.id}x`.slice(-24);
+    out.push(form);
+    if (out.length >= MAX_FORMS) break;
+  }
+  return out;
+}
+
+/** The forms a booking of this service asks for, in the shop's order. */
+export const formsFor = (forms: readonly IntakeForm[] | null | undefined, serviceId: string): IntakeForm[] =>
+  (forms || []).filter((f) => f.on && (!f.serviceIds.length || f.serviceIds.includes(serviceId)));
+
+/** The first form a booking of this service asks for (older callers). */
+export const formFor = (forms: readonly IntakeForm[] | null | undefined, serviceId: string): IntakeForm | null =>
+  formsFor(forms, serviceId)[0] || null;
+
+/** When a signature made at `signedAt` stops counting: never (null) without renewal. */
+export function formRunsOut(signedAt: string, renewMonths: number): number | null {
+  if (!renewMonths) return null;
+  const d = new Date(signedAt);
+  if (!Number.isFinite(d.getTime())) return 0;
+  d.setUTCMonth(d.getUTCMonth() + renewMonths);
+  return d.getTime();
+}
+
+/**
+ * Whether a signed record still counts for a visit at `atMs`: this wording, and not run out by then. A record with no
+ * signature (or another form's) never counts.
+ */
+export function formStillSigned(record: { version?: string; signedAt?: string } | null | undefined, form: IntakeForm, atMs: number): boolean {
+  if (!record?.signedAt || record.version !== formVersion(form)) return false;
+  const ends = formRunsOut(record.signedAt, form.renewMonths);
+  return ends === null || ends > atMs;
+}
 
 /** Which wording of the form a client signed: changing the title, words or questions asks everyone again. */
 export function formVersion(form: Pick<IntakeForm, "title" | "text" | "questions">): string {
@@ -1033,7 +1080,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     reviewUrl: reviewLink(s.reviewUrl),
     siteReviews: s.siteReviews === true,
     textReminders: s.textReminders === true,
-    ...(() => { const form = cleanIntakeForm(s.intakeForm); return form ? { intakeForm: form } : {}; })(),
+    ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
     ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
     ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
     ...((DAILY_CAPS as readonly number[]).includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),

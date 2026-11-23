@@ -37,9 +37,10 @@
 //                          it is held for them for the shop's waitHoldMinutes (an `offer_<id>` item in bookingDays) and emailed with a
 //                          link that books it; the entry goes once they book, once the hold runs out (the place then goes
 //                          to the next person) or once its day has passed.
-//   bookingForms/{emailHash} { email, name, signedName, signedAt, version, title, text, answers, bookingId }: the form a
-//                          client filled in before their first visit (Services plan 2, B4), the words they signed kept
-//                          with it. Server-only (health answers). One per email; signing a newer wording replaces it.
+//   bookingForms/{emailHash}[-{formId}] { email, name, formId, signedName, signedAt, version, title, text, answers, bookingId }:
+//                          a form a client filled in before a visit (Services plan 2, B4; several, plan 4, 3.1), the words
+//                          they signed kept with it. Server-only (health answers). The first form ("main") keeps the bare
+//                          email hash, so older signatures still count; signing again (new wording, or run out) replaces it.
 //   bookingEarlier/{bookingId} { bookingId, serviceId, serviceName, start, name, email, createdAt, passed[], offerStart?,
 //                          offerUntil?, offerKeyHash? }: a client who asked to hear if a time earlier than their own
 //                          one-to-one booking opens (Services plan 2, B5). Server-only. A freed earlier time goes to the
@@ -65,7 +66,7 @@
 // The customer's link to see, move or cancel is /book?booking=<id>&key=<key>; only a hash of the key is kept.
 const crypto = require("crypto");
 const {
-  cleanService, cleanBookingSettings, cleanAnswers, formFor, formVersion, freeTimes, isClass, isCourse, joinableCourse, runDecisionDue, classStartsOn, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
+  cleanService, cleanBookingSettings, cleanAnswers, formsFor, formVersion, formStillSigned, formRunsOut, freeTimes, isClass, isCourse, joinableCourse, runDecisionDue, classStartsOn, courseStarts, coursePlacesLeft, daysTouched, addDays, dayOf, isDay, customerCanChange,
   googleCalendarLink, bookingsFeedIcs, bookingIcs, MAX_SERVICES, depositOf, cardAsk, cardTaken, giftCardPart, giftTaken, bookedCardTaken, restTaken, balanceDue, restPayable, feeChargeable, tipTaken, tipFits, tipOpen, tipLimitMinor,
   secondReminderDue, summaryDue, thanksDue, rebookDue, reviewOpen, cleanVisitReview, REBOOK_WINDOW_DAYS, zonedTime, offersPack, packLeft, packProblem, packEndsOn, PACK_MESSAGES, MIN_CARD_MINOR,
   pickupSlots, pickupTimeProblem, PICKUP_MESSAGES, PICKUP_DAYS_AHEAD,
@@ -366,21 +367,37 @@ function bookingActions({
   const waitlist = () => db.collection("bookingWaitlist");
   const earlierList = () => db.collection("bookingEarlier");
   const formsList = () => db.collection("bookingForms");
-  const formDoc = (email) => formsList().doc(hash(String(email || "").trim().toLowerCase()).slice(0, 40));
-  /** The shop's form for this booking's service, and whether its client signed this wording already; null with none. */
+  const formDoc = (email, formId = "main") => {
+    const base = hash(String(email || "").trim().toLowerCase()).slice(0, 40);
+    return formsList().doc(formId === "main" ? base : `${base}-${formId}`);
+  };
+  /**
+   * The shop's forms for this booking's service, each with its client's signed record and whether it still counts at
+   * the visit (this wording, not run out by then); null with none.
+   */
   async function formState(b, settings) {
-    const form = formFor(settings?.intakeForm, b.serviceId);
-    if (!form || !EMAIL.test(String(b.customer?.email || ""))) return null;
-    const snap = await formDoc(b.customer.email).get();
-    const record = snap.exists ? snap.data() : null;
-    return { form, record, signed: record?.version === formVersion(form) };
+    const forms = formsFor(settings?.intakeForms, b.serviceId);
+    if (!forms.length || !EMAIL.test(String(b.customer?.email || ""))) return null;
+    const at = Date.parse(b.start) || now().getTime();
+    const list = await Promise.all(forms.map(async (form) => {
+      const snap = await formDoc(b.customer.email, form.id).get();
+      const record = snap.exists ? snap.data() : null;
+      return { form, record, signed: formStillSigned(record, form, at) };
+    }));
+    const waiting = list.filter((x) => !x.signed);
+    return { list, waiting, next: waiting[0] || null, signed: !waiting.length };
   }
-  /** A booking card with the form still to fill in (`form`) or when it was signed (`formSigned`). */
+  /**
+   * A booking card with the next form still to fill in (`form`, with how many are left in `formsLeft`) or, once every
+   * one counts, when the last was signed (`formSigned`).
+   */
   async function withForm(card, b, settings) {
     const state = b.status === "cancelled" ? null : await formState(b, settings);
     if (!state) return card;
-    return state.signed ? { ...card, formSigned: state.record.signedAt }
-      : { ...card, form: { title: state.form.title, text: state.form.text, questions: state.form.questions } };
+    if (state.signed) return { ...card, formSigned: state.list.map((x) => x.record.signedAt).sort().pop() };
+    const { form, record } = state.next;
+    const ranOut = !!record?.signedAt && record.version === formVersion(form);
+    return { ...card, form: { id: form.id, title: form.title, text: form.text, questions: form.questions, ...(ranOut ? { renew: true } : {}) }, formsLeft: state.waiting.length };
   }
   const packs = () => db.collection("bookingPacks");
 
@@ -658,7 +675,7 @@ function bookingActions({
       const again = kind === "thanks" || kind === "declined" ? risoButton(escapeHtml(siteLink(b.serviceId ? `/book?service=${encodeURIComponent(b.serviceId)}` : "/book")), "Book again", brand.accent, brand.theme) : "";
       // The form before the first visit, while it isn't signed: on the confirmation and the reminders.
       const formState0 = ["booked", "requested", "moved", "reminder"].includes(kind) && key ? await formState(b, await readSettings().catch(() => null)).catch(() => null) : null;
-      const formNote = formState0 && !formState0.signed ? `<p style="margin:16px 0 4px;"><strong>Before your visit:</strong> please fill in "${escapeHtml(formState0.form.title)}" on your booking page. It takes a minute, and you only do it once.</p>` : "";
+      const formNote = formState0 && !formState0.signed ? `<p style="margin:16px 0 4px;"><strong>Before your visit:</strong> please fill in ${formState0.waiting.map((x) => `"${escapeHtml(x.form.title)}"`).join(" and ")} on your booking page. It takes a minute.</p>` : "";
       const html = risoLayout(`
         <h4 style="margin:0 0 8px;">${escapeHtml({ thanks: "Thanks for coming", tip: "Thanks for coming", tipPaid: "Tip received", payRest: "Left to pay", restPaid: "Paid in full", fee: "Fee receipt", notCleared: "Payment didn't clear", reminder: "See you soon", soon: "Starting soon", booked: "Booking confirmed", requested: "Booking requested", declined: "Not booked", moved: "Booking moved", cancelled: "Booking cancelled" }[kind])}</h4>
         <h2 style="margin:0 0 12px;">${escapeHtml(visitName(b))}</h2>
@@ -2571,15 +2588,17 @@ function bookingActions({
       if (action === "bookingForm") {
         // The form before the first visit, signed with the client's typed name and a tick.
         const state = b.status === "cancelled" ? null : await formState(b, settings);
-        if (!state) return fail(res, 409, "There is no form to fill in for this booking.", "no_form");
+        // The form named (each is signed on its own), else the next one waiting.
+        const named = typeof req.body?.formId === "string" ? state?.list.find((x) => x.form.id === req.body.formId) : state?.next;
+        if (!state || !named) return fail(res, 409, "There is no form to fill in for this booking.", "no_form");
         const signedName = text(req.body?.signedName, 100);
         if (!signedName) return fail(res, 400, "Type your full name to sign.", "no_name");
         if (req.body?.agree !== true) return fail(res, 400, "Tick the box to agree.", "no_agree");
-        const answered = cleanAnswers(state.form.questions, req.body?.answers);
+        const answered = cleanAnswers(named.form.questions, req.body?.answers);
         if ("problem" in answered) return fail(res, 400, answered.problem, "answer");
         const signedAt = new Date(nowMs).toISOString();
-        await formDoc(b.customer.email).set({ email: b.customer.email.trim().toLowerCase(), name: b.customer.name || "", signedName, agreed: true, signedAt,
-          version: formVersion(state.form), title: state.form.title, text: state.form.text, answers: answered.answers, bookingId: id });
+        await formDoc(b.customer.email, named.form.id).set({ email: b.customer.email.trim().toLowerCase(), name: b.customer.name || "", formId: named.form.id, signedName, agreed: true, signedAt,
+          version: formVersion(named.form), title: named.form.title, text: named.form.text, answers: answered.answers, bookingId: id });
         return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings) });
       }
       if (action === "bookingEarlier") {
@@ -2972,10 +2991,21 @@ function bookingActions({
         // current wording.
         const email = String(req.body?.email || "").trim().toLowerCase();
         if (!EMAIL.test(email)) return fail(res, 400, "Unknown client.");
-        const snap = await formDoc(email).get();
-        const record = snap.exists ? snap.data() : null;
-        const current = record && settings.intakeForm ? record.version === formVersion(settings.intakeForm) : false;
-        return res.status(200).json({ form: record ? { signedName: record.signedName, signedAt: record.signedAt, title: record.title, text: record.text, answers: record.answers || [], current } : null, asks: !!settings.intakeForm?.on });
+        const forms = settings.intakeForms || [];
+        const nowMs0 = now().getTime();
+        const rows = await Promise.all(forms.map(async (f) => {
+          const snap = await formDoc(email, f.id).get();
+          const r = snap.exists ? snap.data() : null;
+          if (!r) return { id: f.id, title: f.title, on: f.on, signed: null };
+          const current = r.version === formVersion(f);
+          const runsOut = formRunsOut(r.signedAt, f.renewMonths);
+          return { id: f.id, title: f.title, on: f.on, signed: { signedName: r.signedName, signedAt: r.signedAt, title: r.title, text: r.text, answers: r.answers || [], current,
+            ...(runsOut !== null ? { runsOut: new Date(runsOut).toISOString(), ranOut: runsOut <= nowMs0 } : {}) } };
+        }));
+        const shown = rows.filter((r) => r.on || r.signed);
+        // `form`: the first form's record, for older pages.
+        const first = shown[0]?.signed || null;
+        return res.status(200).json({ forms: shown, form: first, asks: forms.some((f) => f.on) });
       }
       if (op === "waitlist") {
         // Who is waiting from one day to another (the week on screen). Read here because no browser may read the list.

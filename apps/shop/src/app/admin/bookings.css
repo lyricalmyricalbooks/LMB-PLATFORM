@@ -653,3 +653,14 @@
 .rp .bkg-requests button em { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-style: normal; font-size: 13px; font-weight: 600; white-space: nowrap; }
 @media (max-width: 560px) { .rp .bkg-requests button { grid-template-columns: 1fr; } .rp .bkg-requests button em { grid-column: 1; grid-row: auto; } }
 .rp .bkg-ask-line { margin: 0; padding: 12px 14px; border-radius: 14px; background: var(--rp-tile-apricot); color: var(--rp-on-tile); font-size: 14px; line-height: 1.45; }
+
+/* Forms before a visit (plan 4, 3.1): one row per form, its editor opened under it. */
+.rp .bkg-forms { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.rp .bkg-forms-item { border: 1px solid var(--rp-border); border-radius: 12px; padding: 12px 14px; background: var(--rp-surface); }
+.rp .bkg-forms-item[data-open] { border-color: var(--rp-text); }
+.rp .bkg-forms-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rp .bkg-forms-head h3 { margin: 0 0 2px; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rp .bkg-forms-head .bkg-cal-text { margin: 0; }
+.rp .bkg-forms-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.rp .bkg-forms-item .bkg-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rp-border); }
+.rp .bkg-forms-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }

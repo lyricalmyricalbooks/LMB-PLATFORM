@@ -528,6 +528,11 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       { id: "short", label: "Stocktake", from: addDays(dayOf(Date.now(), shopTimeZone()), 2), to: addDays(dayOf(Date.now(), shopTimeZone()), 3), hours: [{ start: "12:00", end: "16:00" }] },
       { id: "xmas", label: "Christmas Day", from: "2026-12-25", to: "2026-12-25", hours: [] },
     ],
+    // Forms before a visit (plan 4, 3.1): a health form for everyone and a yearly waiver for the workshop.
+    intakeForms: [
+      { id: "main", on: true, title: "Health form", text: "Please tell us about anything that could affect your visit.", questions: [{ id: "allergies", label: "Any allergies?", long: false, required: true }], serviceIds: [], renewMonths: 0 },
+      { id: "waiver", on: true, title: "Workshop waiver", text: "I understand the studio has inks, a press and a guillotine, and I take part at my own risk.", questions: [], serviceIds: ["workshop"], renewMonths: 12 },
+    ],
     ...(TEAM ? {
       rooms: [{ id: "printroom", name: "Print room", units: 2 }, { id: "chair1", name: "Chair by the window" }],
       staff: [
@@ -683,9 +688,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "packs") return { packs: packRows };
     // The form before the first visit: the fixture's first client signed it.
     if (op === "clientForm") {
-      const form = (settings as { intakeForm?: { on: boolean; title: string; text: string } }).intakeForm;
+      const forms = (settings as { intakeForms?: Array<{ id: string; on: boolean; title: string; text: string; renewMonths?: number }> }).intakeForms || [];
       const first = rows[0]?.customer?.email;
-      return { asks: !!form?.on, form: form?.on && body.email === first ? { signedName: rows[0].customer.name, signedAt: "2026-11-10T15:00:00.000Z", title: form.title, text: form.text, answers: [{ label: "Allergies", answer: "None" }], current: true } : null };
+      const signed = (f: { title: string; text: string; renewMonths?: number }) => ({ signedName: rows[0].customer.name, signedAt: "2026-11-10T15:00:00.000Z", title: f.title, text: f.text, answers: [{ label: "Allergies", answer: "None" }], current: true,
+        ...(f.renewMonths ? { runsOut: "2027-11-10T15:00:00.000Z", ranOut: false } : {}) });
+      const list = forms.filter((f) => f.on).map((f, i) => ({ id: f.id, title: f.title, on: true, signed: body.email === first && i === 0 ? signed(f) : null }));
+      return { asks: list.length > 0, forms: list, form: list[0]?.signed || null };
     }
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
