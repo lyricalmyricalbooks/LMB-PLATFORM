@@ -19,7 +19,7 @@ import { ShiftsPanel } from "./ShiftsPanel";
 import { RotaPanel } from "./RotaPanel";
 import type { ShiftRow } from "./shifts";
 import { hoursText } from "../../shared/timeClock";
-import { answerWithin, requestsWaiting, futureFigures, futureList, futureRows, FUTURE_WINDOWS, type FutureDays, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { answerWithin, requestsWaiting, teamPerformance, performanceRows, spanDays, PERFORMANCE_SPANS, SPAN_NAMES, type PerformanceSpan, type PerformanceLine, futureFigures, futureList, futureRows, FUTURE_WINDOWS, type FutureDays, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
@@ -204,7 +204,7 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
         <TeamPanel settings={setup.settings} services={setup.services} onSaved={reloadSetup} />
       </TabPanel>
       <TabPanel tabId="figures" active={tab === "figures"}>
-        {tab === "figures" && <FiguresPanel />}
+        {tab === "figures" && <FiguresPanel staff={setup.settings.staff} />}
       </TabPanel>
       {setup.settings.staff.length > 0 && (
         <TabPanel tabId="rota" active={tab === "rota"}>
@@ -1009,8 +1009,74 @@ const FIGURE_MONTHS = 6;
 
 /** The last six months at a glance: bookings and money month by month, the busiest days, the most booked services. */
 /** Figures: what is coming up (plan 4, 5.1) above the last six months. */
-function FiguresPanel() {
-  return <div className="bkg-figs-stack"><ComingUp /><PastFigures /></div>;
+function FiguresPanel({ staff }: { staff: StaffMember[] }) {
+  return <div className="bkg-figs-stack"><ComingUp />{staff.some((p) => p.active) && <TeamPerformancePanel staff={staff} />}<PastFigures /></div>;
+}
+
+/**
+ * Team performance (plan 4, 5.2, Beta): for this month, last month or the last three months, each person's visits, what
+ * they took, the average visit, hours booked, clients, how many visits were followed by another booking, and no-shows.
+ */
+function TeamPerformancePanel({ staff }: { staff: StaffMember[] }) {
+  const [span, setSpan] = useState<PerformanceSpan>("month");
+  const [rows, setRows] = useState<Booking[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [now] = useState(() => Date.now());
+  const day = today();
+  // The last three months back, and six months ahead so a visit's later booking counts as rebooked.
+  const widest = spanDays("quarter", day);
+  useEffect(() => {
+    let stale = false;
+    setRows(null); setError("");
+    readBookingsBetween(new Date(Date.parse(`${widest.from}T00:00:00Z`) - 86_400_000).toISOString(), new Date(now + 184 * 86_400_000).toISOString())
+      .then((r) => { if (!stale) setRows(r); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load your team's figures."); });
+    return () => { stale = true; };
+  }, [attempt, now, widest.from]);
+  const { from, to } = spanDays(span, day);
+  const perf = useMemo(() => (rows ? teamPerformance(rows, staff, ZONE, from, to, now) : null), [rows, staff, from, to, now]);
+  const money = (minor: number) => moneyText(minor, SHOP_CURRENCY);
+  const pct = (n: number | null) => (n === null ? "—" : `${n}%`);
+  const shown = perf?.people.filter((l) => l.visits || l.noShows) || [];
+  const best = shown.filter((l) => l.id && l.visits >= 3).sort((a, b) => (b.rebookPercent || 0) - (a.rebookPercent || 0))[0];
+  const columns = [
+    { key: "name", header: "Person", lead: true, render: (l: PerformanceLine) => <span className={l.id ? undefined : "bkg-pay-nobody"}>{l.name}</span> },
+    { key: "visits", header: "Visits", numeric: true, render: (l: PerformanceLine) => l.visits },
+    { key: "taken", header: "Taken before tax", numeric: true, render: (l: PerformanceLine) => money(l.takenMinor) },
+    { key: "avg", header: "Per visit", numeric: true, render: (l: PerformanceLine) => (l.visits ? money(l.perVisitMinor) : "—") },
+    { key: "hours", header: "Hours booked", numeric: true, render: (l: PerformanceLine) => hoursText(l.minutes) },
+    { key: "clients", header: "Clients", numeric: true, render: (l: PerformanceLine) => l.clients },
+    { key: "rebooked", header: "Booked again", numeric: true, render: (l: PerformanceLine) => pct(l.rebookPercent) },
+    { key: "noshows", header: "No-shows", numeric: true, render: (l: PerformanceLine) => (l.noShows ? `${l.noShows} · ${pct(l.noShowPercent)}` : "0") },
+  ];
+  return (
+    <section className="bkg-tile bkg-perf" aria-labelledby="bkg-perf">
+      <div className="bkg-ahead-head">
+        <div>
+          <h2 id="bkg-perf" className="bkg-figs-title">How your team did <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+          <p className="bkg-figs-lead">Visits that happened, what each person took, and how many clients booked again.</p>
+        </div>
+        <Tabs<PerformanceSpan> label="Which stretch" idPrefix="bkg-perf-" value={span} onChange={setSpan} tabs={PERFORMANCE_SPANS.map((id) => ({ id, label: SPAN_NAMES[id] }))} />
+      </div>
+      {error ? <ErrorState title="Couldn't load your team's figures" description={error} onRetry={() => setAttempt((n) => n + 1)} />
+        : !perf ? <LoadingState label="Adding up your team's visits…" />
+        : !shown.length ? <EmptyState inline title={`No visits ${span === "month" ? "yet this month" : SPAN_NAMES[span].toLowerCase()}`} description="Once clients come in, each person's visits, takings and rebookings show here." />
+        : (<>
+          <div className="bkg-ahead-nums">
+            <div className="bkg-ahead-num bkg-ahead-lead"><span>Visits</span><strong>{perf.total.visits}</strong><small>{perf.total.clients} {perf.total.clients === 1 ? "client" : "clients"}</small></div>
+            <div className="bkg-ahead-num"><span>Taken</span><strong>{money(perf.total.takenMinor)}</strong><small>{money(perf.total.perVisitMinor)} a visit</small></div>
+            <div className="bkg-ahead-num"><span>Booked again</span><strong>{pct(perf.total.rebookPercent)}</strong><small>{best ? `${best.name} leads at ${pct(best.rebookPercent)}` : "of visits so far"}</small></div>
+            <div className="bkg-ahead-num"><span>No-shows</span><strong>{perf.total.noShows}</strong><small>{perf.total.noShows ? `${pct(perf.total.noShowPercent)} of bookings due` : "none"}</small></div>
+          </div>
+          <DataTable caption={`How your team did: ${SPAN_NAMES[span].toLowerCase()}`} columns={columns} rows={shown} rowKey={(l) => l.id || "nobody"} stackOnPhone />
+          <div className="bkg-ahead-foot">
+            <span className="rp-hint">Booked again counts a visit when that client has another booking after it, with anyone.</span>
+            <SecondaryButton size="sm" icon={<FileSpreadsheet size={15} aria-hidden />} onClick={() => saveFile(`team-${span}-${day}.csv`, `\uFEFF${toCsv(performanceRows({ ...perf, people: shown }))}`, "text/csv;charset=utf-8")}>Spreadsheet</SecondaryButton>
+          </div>
+        </>)}
+    </section>
+  );
 }
 
 /**

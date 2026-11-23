@@ -1265,6 +1265,12 @@ windows: confirmed bookings whose start hasn't passed (requests counted apart as
 (`priceMinor`), paid (worth less `balanceDue`), still to take, the fullest day and 13 weeks from this Monday.
 `futureRows` makes the spreadsheet (`coming-up-<days>-days-<day>.csv`).
 
+**How your team did (Beta, 23 November 2026, plan 4 step 5.2):** Figures shows `TeamPerformancePanel` when Team & rooms
+has an active person. One read from three months back to six months ahead; `teamPerformance` (bookingsView) per person
+over `spanDays` (this month / last month / last 3 months): visits that happened, takings before tax shared as Team pay
+does, per visit, minutes of their own part, clients, booked again (the client has a later booking that isn't cancelled,
+with anyone) and no-shows. `performanceRows` is the spreadsheet.
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while

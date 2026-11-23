@@ -553,3 +553,53 @@ describe("coming up: the next 30, 60 and 90 days (plan 4, 5.1)", () => {
     ]);
   });
 });
+
+describe("team performance (plan 4, 5.2)", () => {
+  const Z = "America/Toronto";
+  const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00-05:00`).toISOString();
+  const bk = (id: string, start: string, staffId: string, email: string, extra: Partial<Booking> = {}): Booking => ({
+    id, serviceId: "s", serviceName: "Cut", minutes: 60, start, end: new Date(Date.parse(start) + 3_600_000).toISOString(),
+    customer: { name: email, email }, status: "confirmed", payment: "atShop", priceMinor: 6000, currency: "CAD", paid: true, staffId, staffName: staffId === "ana" ? "Ana" : "Ben", ...extra,
+  });
+  const staff = [{ id: "ana", name: "Ana", active: true }, { id: "ben", name: "Ben", active: true }, { id: "cy", name: "Cy", active: false }];
+  const now = Date.parse(at("2026-11-23", "12:00"));
+
+  it("counts visits, takings, hours, clients, rebooking and no-shows for each person, busiest first", async () => {
+    const { teamPerformance } = await import("./bookingsView");
+    const rows = [
+      bk("a1", at("2026-11-03", "10:00"), "ana", "ada@example.com"),
+      bk("a2", at("2026-11-10", "10:00"), "ana", "ada@example.com"),
+      bk("a3", at("2026-11-12", "10:00"), "ana", "bo@example.com"),
+      bk("a-miss", at("2026-11-14", "10:00"), "ana", "cy@example.com", { noShow: true, paid: false }),
+      bk("b1", at("2026-11-05", "10:00"), "ben", "dee@example.com"),
+      bk("b-gone", at("2026-11-06", "10:00"), "ben", "dee@example.com", { status: "cancelled" }),
+      bk("later", at("2026-11-30", "10:00"), "ben", "bo@example.com"),
+      bk("october", at("2026-10-20", "10:00"), "ana", "ada@example.com"),
+    ];
+    const perf = teamPerformance(rows, staff, Z, "2026-11-01", "2026-11-24", now);
+    expect(perf.people.map((l) => [l.name, l.visits, l.takenMinor, l.perVisitMinor, l.minutes, l.clients, l.rebooked, l.rebookPercent, l.noShows, l.noShowPercent])).toEqual([
+      ["Ana", 3, 18000, 6000, 180, 2, 2, 67, 1, 25],
+      ["Ben", 1, 6000, 6000, 60, 1, 0, 0, 0, 0],
+    ]);
+    expect(perf.total).toMatchObject({ visits: 4, takenMinor: 24000, clients: 3, rebooked: 2, rebookPercent: 50, noShows: 1, noShowPercent: 20 });
+  });
+
+  it("splits a visit with several services between the people who did each part", async () => {
+    const { teamPerformance, performanceRows } = await import("./bookingsView");
+    const start = at("2026-11-10", "10:00");
+    const two = bk("two", start, "ana", "ada@example.com", { priceMinor: 9000, minutes: 90,
+      parts: [{ serviceId: "t", serviceName: "Tone", minutes: 30, gapAfter: 0, priceMinor: 3000, staffId: "ben", staffName: "Ben", roomId: "", roomName: "", start: at("2026-11-10", "11:00"), end: at("2026-11-10", "11:30") }] });
+    const perf = teamPerformance([two], staff, Z, "2026-11-01", "2026-11-24", now);
+    expect(perf.people.map((l) => [l.name, l.visits, l.takenMinor, l.minutes])).toEqual([["Ana", 1, 6000, 60], ["Ben", 1, 3000, 30]]);
+    expect(perf.total).toMatchObject({ visits: 2, clients: 1 });
+    expect(performanceRows(perf)[0][0]).toBe("Person");
+    expect(performanceRows(perf).at(-1)).toEqual(["Everyone", "2", "90.00", "45.00", "1.50", "1", "0", "0", "0"]);
+  });
+
+  it("names the stretches: this month so far, last month, the last three months", async () => {
+    const { spanDays } = await import("./bookingsView");
+    expect(spanDays("month", "2026-11-23")).toEqual({ from: "2026-11-01", to: "2026-11-24" });
+    expect(spanDays("last", "2026-11-23")).toEqual({ from: "2026-10-01", to: "2026-11-01" });
+    expect(spanDays("quarter", "2026-01-15")).toEqual({ from: "2025-11-01", to: "2026-01-16" });
+  });
+});

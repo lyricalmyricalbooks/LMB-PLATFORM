@@ -100,6 +100,7 @@ export const ARTICLES = Object.freeze([
       "If a service uses product, like colour or wax, add what it costs per visit in the service. Team pay takes it off before working out commission.",
       "On a phone, a service provider's own day shows their next client first. They can check them in, take payment and keep a note on the visit.",
       "Bookings › Figures › Coming up shows the next 30, 60 or 90 days: bookings, what they're worth, what's paid and what's left to take. Save it as a spreadsheet.",
+      "Bookings › Figures › How your team did shows each person's visits, takings, hours and how many of their clients booked again, for this month or longer.",
     ],
   },
   {
