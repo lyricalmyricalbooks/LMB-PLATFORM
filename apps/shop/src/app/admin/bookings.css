@@ -729,3 +729,53 @@
 .rp .bkg-shift-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .rp .bkg-shift-break { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; }
 .rp .bkg-shift-error { margin: 0; color: var(--rp-danger); font-size: .9rem; }
+/* Shifts and time off on the team desk (plan 4, 4.3). */
+.rp .tdesk-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 28px; }
+.rp .tdesk-plan { background: var(--rp-surface); border-radius: 18px; padding: 16px 18px; display: grid; gap: 10px; align-content: start; }
+.rp .tdesk-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rp .tdesk-plan-title { margin: 0; font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.rp .tdesk-plan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.rp .tdesk-plan-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--rp-divider); }
+.rp .tdesk-plan-list li:first-child { border-top: 0; }
+.rp .tdesk-plan-list strong { font-size: .95rem; }
+.rp .tdesk-plan-list span { grid-column: 1; color: var(--rp-text-muted); font-size: .88rem; }
+.rp .tdesk-plan-list li > button { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.rp .tdesk-plan-empty { margin: 0; color: var(--rp-text-muted); font-size: .9rem; display: flex; gap: 8px; align-items: center; }
+/* Bookings › Shifts & time off (plan 4, 4.3). */
+.rp .bkg-rota { display: grid; gap: 28px; }
+.rp .bkg-rota-asks, .rp .bkg-rota-week, .rp .bkg-rota-past { display: grid; gap: 12px; }
+.rp .bkg-rota-asklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rp .bkg-rota-ask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--rp-surface); border-radius: 18px; padding: 14px 16px; box-shadow: inset 4px 0 0 var(--rp-warning); }
+.rp .bkg-rota-ask > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.rp .bkg-rota-ask span { color: var(--rp-text-muted); font-size: .9rem; }
+.rp .bkg-rota-askacts { display: flex; gap: 8px; }
+.rp .bkg-rota-clash { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--rp-warning) !important; font-weight: 600; font-size: .88rem; }
+.rp .bkg-rota-note { font-size: .84rem !important; }
+.rp .bkg-rota-total { color: var(--rp-text-muted); font-size: .9rem; }
+.rp .bkg-rota-grid { display: grid; background: var(--rp-surface); border-radius: 18px; overflow: hidden; }
+.rp .bkg-rota-row { display: grid; grid-template-columns: minmax(130px, 1.3fr) repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--rp-divider); }
+.rp .bkg-rota-row:first-child { border-top: 0; }
+.rp .bkg-rota-headrow span { padding: 12px 10px; font-family: var(--rp-font-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .bkg-rota-headrow span[data-today] { color: var(--rp-text); font-weight: 700; }
+.rp .bkg-rota-who { padding: 12px 14px; display: grid; gap: 2px; align-content: start; }
+.rp .bkg-rota-who small { color: var(--rp-text-muted); font-size: .8rem; }
+.rp .bkg-rota-cell { padding: 8px 6px; display: flex; flex-direction: column; gap: 4px; align-items: stretch; border-left: 1px solid var(--rp-divider); min-height: 64px; }
+.rp .bkg-rota-cell[data-today] { background: var(--rp-surface-sunken); }
+.rp .bkg-rota-dayname { display: none; }
+.rp .bkg-rota-chip { border: 0; border-radius: 999px; background: var(--rp-success-tint); color: var(--rp-text); font: inherit; font-size: .8rem; font-weight: 600; padding: 4px 8px; cursor: pointer; text-align: center; white-space: nowrap; }
+.rp .bkg-rota-chip:hover { box-shadow: inset 0 0 0 2px var(--rp-success); }
+.rp .bkg-rota-off { border-radius: 999px; background: var(--rp-warning-tint); color: var(--rp-text); font-size: .78rem; font-weight: 600; padding: 4px 8px; text-align: center; }
+.rp .bkg-rota-add { border: 1px dashed var(--rp-border); background: transparent; color: var(--rp-text-muted); border-radius: 999px; min-height: 26px; cursor: pointer; display: grid; place-items: center; opacity: .55; }
+.rp .bkg-rota-cell:hover .bkg-rota-add, .rp .bkg-rota-add:focus-visible { opacity: 1; }
+.rp .bkg-rota-chip:focus-visible, .rp .bkg-rota-add:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .rp .bkg-rota-ask { grid-template-columns: 1fr; }
+  .rp .bkg-rota-headrow { display: none; }
+  .rp .bkg-rota-row { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; gap: 6px; }
+  .rp .bkg-rota-who { grid-column: 1 / -1; padding: 6px; }
+  .rp .bkg-rota-cell { border-left: 0; background: var(--rp-surface-sunken); border-radius: 12px; min-height: 0; }
+  .rp .bkg-rota-cell[data-today] { box-shadow: inset 0 0 0 2px var(--rp-text); }
+  .rp .bkg-rota-dayname { display: block; font-style: normal; font-size: .78rem; font-weight: 700; color: var(--rp-text-muted); }
+  .rp .bkg-rota-add { opacity: 1; }
+}
+.rp .bkg-rota-past .tdesk-plan-list { background: var(--rp-surface); border-radius: 18px; padding: 4px 18px; }
