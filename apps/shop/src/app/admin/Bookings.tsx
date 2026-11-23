@@ -2,6 +2,7 @@
 // services customers can book and the opening hours, in the Colophon bento look (bookings.css, tokens only). Shown only
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
+import { serviceFromText } from "./bookFromMessage";
 import { BookingMessagesTile } from "./BookingMessagesTile";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, CalendarOff, CheckCircle2, CircleHelp, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
@@ -2071,7 +2072,11 @@ function RunDates({ serviceId, start, run, staffId, extras = [], length = "", on
 }
 
 /** What Book again fills in: the client and their last service and person (Customers › a client). */
-export type BookAgain = { serviceId: string; staffId: string; name: string; email: string; phone: string };
+export type BookAgain = {
+  serviceId: string; staffId: string; name: string; email: string; phone: string;
+  /** Book from a message (plan 4, 3.6): the booking's note, the window's title, and words to find the service in. */
+  note?: string; title?: string; serviceHint?: string;
+};
 
 function NewBookingDialog({ services, settings, onClose, initial, onBooked, startAt, onBlockInstead }: {
   services: BookingService[]; settings: BookingSettings; onClose: () => void; initial?: Partial<BookAgain>; onBooked?: () => void;
@@ -2084,7 +2089,7 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked, star
     || services[0]?.id || "");
   // The same person again, if they still take this service.
   const [staffId, setStaffId] = useState(() => (initial?.staffId && staffFor(settings, serviceId).some((p) => p.id === initial.staffId) ? initial.staffId : ""));
-  const [who, setWho] = useState({ name: initial?.name || "", email: initial?.email || "", phone: initial?.phone || "", note: "" });
+  const [who, setWho] = useState({ name: initial?.name || "", email: initial?.email || "", phone: initial?.phone || "", note: initial?.note || "" });
   const [sendEmail, setSendEmail] = useState(true);
   const service = services.find((s) => s.id === serviceId) || services[0];
   // Repeat: a standing appointment, the same time every few weeks (one-to-one services only).
@@ -2108,7 +2113,7 @@ function NewBookingDialog({ services, settings, onClose, initial, onBooked, star
   const length = "problem" in asBooked ? service.minutes : asBooked.service.minutes;
   const ready = who.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim());
   return (
-    <TimeDialog key={service.id} title={initial?.name ? "Book again" : "New booking"} service={service} initialDay={startAt ? dayOf(Date.parse(startAt), ZONE) : today()} wanted={startAt} staffId={staffId} extras={extras} length={lengthPick} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
+    <TimeDialog key={service.id} title={initial?.title || (initial?.name ? "Book again" : "New booking")} service={service} initialDay={startAt ? dayOf(Date.parse(startAt), ZONE) : today()} wanted={startAt} staffId={staffId} extras={extras} length={lengthPick} confirmLabel={run ? `Book ${visits} visits` : "Book"} onClose={onClose} ready={ready && (!run || runFree) && !("problem" in asBooked)}
       allowOver={!!startAt && !run && service.places <= 1 && !(service.courseDates || []).length}
       after={run ? (start) => <RunDates serviceId={service.id} start={start} run={run} staffId={staffId} extras={extras} length={lengthPick} onFree={setRunFree} /> : undefined}
       onPick={async (start, over) => {
@@ -2177,17 +2182,23 @@ function extraLabel(x: BookingExtra): string {
  */
 export function BookAgainDialog({ initial, onClose, onBooked }: { initial: BookAgain; onClose: () => void; onBooked?: () => void }) {
   const [setup, setSetup] = useState<{ services: BookingService[]; settings: BookingSettings } | null>(null);
+  // Book from a message: the service the message names, found once the services are read.
+  const [picked, setPicked] = useState("");
   useEffect(() => {
     let live = true;
     readBookingSetup().then((s) => {
       if (!live) return;
       if (!s.services.length) { toast.error("Add a service in Bookings first."); onClose(); return; }
+      if (!initial.serviceId && initial.serviceHint) {
+        const found = serviceFromText(initial.serviceHint, s.services);
+        if (found) setPicked(found);
+      }
       setSetup(s);
     }).catch((e) => { if (live) { toast.error(e?.message || "Your services couldn't be loaded. Try again."); onClose(); } });
     return () => { live = false; };
   }, []);
   if (!setup) return null;
-  return <NewBookingDialog services={setup.services} settings={setup.settings} initial={initial} onBooked={onBooked} onClose={onClose} />;
+  return <NewBookingDialog services={setup.services} settings={setup.settings} initial={picked ? { ...initial, serviceId: picked } : initial} onBooked={onBooked} onClose={onClose} />;
 }
 
 // ── Services ────────────────────────────────────────────────────────────────────────────────────────────────────────
