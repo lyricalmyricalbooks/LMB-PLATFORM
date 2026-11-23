@@ -768,3 +768,27 @@ discard, schedule or View website controls. Keep new top-bar actions that need a
 ## Studio look and phone top bar (13 November 2026)
 
 Studio wears the Colophon look through one block at the end of `studio.css`, scoped `:root[data-admin-look="colophon"] .studio-editor` (the radius tokens, pill top bar, filled rail tile, mint tips tile, 1px borders). Corners carry `!important` because `adminCompat.css` squares every Tailwind-rounded control. New Studio boxes: add the class to that block's lists instead of a 2px ink border. On a phone (767px and under) the top bar is two rows: labels inside `.studio-topbar-label` hide visually (still read aloud), the preview-size group and View website hide (View website is then the first Theme actions item), and top bar buttons are 44px. A browser check holds the bar to 120px. **Night mode:** `/studio-fixture.html?night=1` shows Studio as the admin's night mode does. Ink buttons (`bg-neutral-900`) take `--rp-primary` / `--rp-on-primary`, which flips at night; never pair the inverse fill with the info ink.
+
+## Starter websites (23 November 2026, plan "Editable starter websites", step 1)
+
+A **starter** is a whole website a new shop starts from (like a Squarespace template): a `THEME_LIBRARY` entry's look,
+its section lists (`content.sections`, by template id) and its starter pages (`content.starterPages`). `studio/starterDesign.ts`
+`applyStarter(design, theme, getSectionMeta, w)` applies look + layouts in the shop's words (`wordsFor`); `starterPagesToAdd`
+lists the draft pages. It applies whole only where the shop is new: Choose your look (`chooseLook.applyChosenLook`, which
+then adds the pages best effort through `addStarterPages`) and design-before-the-store (`designFirst/beforeShop.ts`
+`startingDesign`; pages wait for the real store). Studio › Themes still changes only the look, then offers the layouts as a
+separate undoable step (`applyLibraryTheme`), because by then the sections are the owner's own. `starterDesign.test.ts`
+runs every library entry through `themeProblems` and applies it twice (same result as once).
+
+**Adding a Figma design as a starter (repeatable, ~2-3 days each):**
+1. Read the Figma Make file (`get_design_context` node `0:1`, then each source file) and list its parts: page bands,
+   fonts, colours, buttons, cards, words, photos.
+2. Map every part to something Studio already edits: a palette in `PALETTES`, `global` keys with `STYLE_GROUPS` controls,
+   a Print style template (`lookCss` in `features/site/templateStyles.ts`) and sections from `SECTION_REGISTRY` with their
+   own fields. A part with no Studio home gets a new section design or control first (with its Studio control and
+   storefront reader), never a one-off.
+3. Add the `THEME_LIBRARY` entry with `content.sections` for each page it shapes and `content.starterPages`, and a
+   `lookFeel` in `admin/lookGallery.ts`. Run `starterDesign.test.ts`, `themeCheck.test.ts`, `themeReadability.test.tsx`
+   and `templateCoverage.test.ts` until green.
+4. Screenshot the real Studio fixture and the storefront on desktop and phone next to the Figma file, fix differences,
+   and show the owner real screenshots, never a drawing. Existing shops are untouched: a starter applies whole only to new shops.

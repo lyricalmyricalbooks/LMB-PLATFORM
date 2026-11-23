@@ -3,7 +3,9 @@
 // the press's own kind, its brand name, and every save kept on the press's setup record (`design`, through the platform's
 // door) instead of a shop database. When the store is made, the shop maker hands the design over (setup/handover.js) and
 // the new admin puts it on (admin/overview/SignupDesignStage.tsx). Pure parts here; the page itself is main.tsx.
-import { applyLook } from "../app/admin/studio/themeSwitch";
+import { applyStarter } from "../app/admin/studio/starterDesign";
+import { getSectionMeta } from "../app/admin/ThemeEditorExtensions";
+import { wordsFor } from "../shared/shopSells";
 import { libraryLook, sampleProducts } from "../app/admin/lookGallery";
 import { withStarterWords } from "../app/admin/sells";
 import { ThemeConflictError, type ThemeBackend } from "../app/admin/themeStore";
@@ -19,14 +21,15 @@ export function designLook(design: any): string {
 }
 
 /**
- * Where the designer starts: the design saved earlier, else the look picked in setup laid over the starting design, else
+ * Where the designer starts: the design saved earlier, else the starter picked in setup (its look and page layouts) laid over the starting design, else
  * the starting design. A shop that doesn't sell books gets its starter words, and the brand name is the site's name until
  * the press types another.
  */
 export function startingDesign(press: Pick<SetupPress, "design" | "look" | "pressName" | "sells">, base: any): any {
   if (press.design && typeof press.design === "object") return clone(press.design);
   const theme = press.look ? libraryLook(press.look) : null;
-  const design = withStarterWords(theme ? applyLook(clone(base), theme) : clone(base), press.sells || null);
+  const words = wordsFor(press.sells || null);
+  const design = withStarterWords(theme ? applyStarter(clone(base), theme, getSectionMeta, words) : clone(base), press.sells || null);
   const name = (press.pressName || "").trim();
   return name && !design.copy?.siteName ? { ...design, copy: { ...(design.copy || {}), siteName: name } } : design;
 }

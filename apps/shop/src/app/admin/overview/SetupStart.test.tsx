@@ -26,6 +26,8 @@ const { SetupStart } = await import("./SetupStart");
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.clearAllMocks(); });
 const flush = async () => { for (let i = 0; i < 12; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); }); };
+// Choosing loads the saving code (and the starter's section list) on first use: wait for it to finish.
+const settleChoice = async () => { for (let i = 0; i < 200 && !store.saveDraft.mock.calls.length; i++) await act(async () => { await new Promise(r => setTimeout(r, 25)); }); await flush(); };
 const settings = { info: { name: "Moth Press" }, design: { showUnderConstruction: true } };
 const base = { books: [], orders: [], readiness: [], settings };
 const mount = async (props: any) => {
@@ -64,7 +66,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
-    await flush();
+    await settleChoice();
     expect(store.saveDraft).toHaveBeenCalledTimes(1);
     const [, draft, rev] = store.saveDraft.mock.calls[0] as any[];
     expect(rev).toBe(3);
@@ -87,7 +89,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     api.getFirstWeek.mockResolvedValue({ plan: "both", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
     await act(async () => { button("Skip for now")!.click(); });
-    await flush();
+    await settleChoice();
     expect(api.updateFirstWeek).toHaveBeenCalledWith({ welcome: expect.objectContaining({ theme: "press-folio", skipped: true }) });
   });
 
@@ -96,7 +98,7 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     store.saveDraft.mockRejectedValueOnce(new Error("offline"));
     await mount({});
     await act(async () => { button("Use this look")!.click(); });
-    await flush();
+    await settleChoice();
     expect(document.querySelector("[role=alert]")).not.toBeNull();
     expect(api.updateFirstWeek).not.toHaveBeenCalledWith(expect.objectContaining({ welcome: expect.anything() }));
     expect(text()).toContain("Choose your look");

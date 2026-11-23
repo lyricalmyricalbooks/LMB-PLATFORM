@@ -1,12 +1,15 @@
 // Choose your look (plan 6.3): the welcome a new platform shop's owner sees the first time they open the admin, before
 // the setup guide. A gallery of every theme in Studio's THEME_LIBRARY (name, mood, three swatches and a small preview
 // with the press's name in the header), two or three suggested by sign-up's "What do you sell?" answer
-// (`firstWeek/start` › `publishes`). Choosing applies the theme to Studio's draft exactly as Studio › Themes › Use this
-// look does (`applyLook`, which also stores the look as the design's `themeBase`), then records `welcome` in
+// (`firstWeek/start` › `publishes`). Choosing applies the whole starter to Studio's draft (`applyStarter`, starterDesign.ts:
+// the look, stored as the design's `themeBase`, plus its page layouts and starter pages, plan "Editable starter websites"), then records `welcome` in
 // `firstWeek/start` so the welcome never shows again; Studio's theme switcher changes it later. Skip takes the first
 // suggestion. A shop with no `firstWeek/start` (made before this, or by hand) and a stockroom-only plan never see it.
 
-import { applyLook } from "./studio/themeSwitch";
+import { applyStarter, starterPagesToAdd } from "./studio/starterDesign";
+import { wordsFor } from "../../shared/shopSells";
+// Only Choose your look loads this file, on a click (ChooseLookWelcome imports it lazily), so the section list stays out of Home.
+import { getSectionMeta } from "./ThemeEditorExtensions";
 import { openWorkspace, saveDraft, ThemeConflictError } from "./themeStore";
 import { withStarterWords } from "./sells";
 import { adminApi } from "./api";
@@ -22,15 +25,32 @@ export * from "./lookGallery";
  * A shop that doesn't sell books also gets its starter words (sells.ts, plan 10.1) under any words the owner wrote.
  */
 export async function applyChosenLook(theme: LibraryTheme, settings: any, publishes?: string | null): Promise<void> {
+  const w = wordsFor(publishes);
   for (let attempt = 0; ; attempt++) {
     const ws = await openWorkspace(settings);
     try {
-      await saveDraft(ws, withStarterWords(applyLook(ws.draft || {}, theme), publishes), ws.rev);
-      return;
+      await saveDraft(ws, withStarterWords(applyStarter(ws.draft || {}, theme, getSectionMeta, w), publishes), ws.rev);
+      break;
     } catch (error) {
       if (!(error instanceof ThemeConflictError) || attempt >= 1) throw error;
     }
   }
+  await addStarterPages(theme);
+}
+
+/**
+ * The starter's pages, as drafts. Best effort: the look and layouts are saved already, a page whose address is taken
+ * is skipped (so a second run adds none), and any page can still be made in Studio › Pages.
+ */
+export async function addStarterPages(theme: LibraryTheme): Promise<number> {
+  let added = 0;
+  try {
+    for (const page of starterPagesToAdd(theme as any, await adminApi.getPages())) {
+      await adminApi.createPage(page);
+      added++;
+    }
+  } catch { /* Studio › Pages › New page offers the same starters */ }
+  return added;
 }
 
 /**

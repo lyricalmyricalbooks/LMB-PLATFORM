@@ -10,7 +10,7 @@ import { SetupGuideCard } from "./SetupGuideCard";
 import { PressDetailsStage } from "./PressDetailsStage";
 import { BringShopStage } from "./BringShopStage";
 import type { BringMarker } from "../bringShop";
-import { ownBooks } from "../chooseLook";
+import { ownBooks } from "../lookGallery";
 import { ShippingStage } from "./ShippingStage";
 import type { ShippingMarker } from "../shippingStage";
 import type { FinalCheckMarker } from "../finalCheckStage";
