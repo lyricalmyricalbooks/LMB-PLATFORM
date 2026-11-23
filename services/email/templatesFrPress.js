@@ -211,6 +211,7 @@ export const PRESS_TEMPLATES_FR = {
         "Si vous ne l'avez pas demandé, vous pouvez ignorer ce courriel. Personne ne peut se connecter sans le code.",
       ],
       footer: signOff(settings),
+      code,
     });
   },
 
