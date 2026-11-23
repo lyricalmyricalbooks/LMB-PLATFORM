@@ -86,6 +86,7 @@ export const ARTICLES = Object.freeze([
       "Open a client under Clients to keep files with them, like a signed contract or a doctor's note. Press Add files and choose PDFs, documents or pictures. Only your team can open them.",
       "If you go to your clients, open the service and turn on Visit them at their place. Clients then give their address when they book. List the postal codes you travel to, and set Time before to your travel time.",
       "For a video call service, clients in another time zone see the times on their own clock, with a link to switch to yours. Their emails show both times.",
+      "To know who is coming, open Hours & rules and turn on Ask clients to confirm. The reminder email then has a Yes, I'll be there button. Your calendar marks each booking Confirmed or Not confirmed.",
     ],
   },
   {

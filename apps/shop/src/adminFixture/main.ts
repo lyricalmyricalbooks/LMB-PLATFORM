@@ -524,7 +524,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   ];
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
   const TEAM = new URLSearchParams(window.location.search).get("team") === "1";
-  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on",
+  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on",
     // Holiday hours (plan 4, 1.7): shorter hours two days this week, and closed on Christmas Day.
     specialHours: [
       { id: "short", label: "Stocktake", from: addDays(dayOf(Date.now(), shopTimeZone()), 2), to: addDays(dayOf(Date.now(), shopTimeZone()), 3), hours: [{ start: "12:00", end: "16:00" }] },
@@ -568,7 +568,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   let rows: Booking[] = mode === "on" ? [
     booking("bk-1", services[0], at(0, 11), "Ada Example", { meetUrl: "https://meet.google.com/abc-defg-hij", checkInCode: "K7QM-2XPA" }),
     booking("bk-2", services[1], at(0, 14, 30), "Ben Example", { priceMinor: 5085, taxMinor: 585, taxLines: [{ name: "HST ON", cents: 585 }], tip: { amountMinor: 800, at: at(0, 15, 40) }, note: "First time on a riso.", answers: [{ label: "What are you printing?", answer: "A two-colour zine, 16 pages, A5." }, { label: "How many copies?", answer: "60" }] }),
-    booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin", series: { id: "run_bk-3", visit: 2, visits: 6, everyWeeks: 5 } }),
+    booking("bk-3", services[0], at(1, 10), "Cy Example", { source: "admin", series: { id: "run_bk-3", visit: 2, visits: 6, everyWeeks: 5 }, reminderSentAt: at(0, 10) }),
     // Made before the team was listed: names nobody, so the Team day shows its Not assigned column.
     ...(TEAM ? [booking("bk-14", services[0], at(0, 12), "Nia Example", { staffId: undefined, staffName: undefined })] : []),
     booking("bk-4", services[1], at(2, 13), "Dee Example", { status: "cancelled", refund: { amountMinor: 4500, at: at(0, 9) } }),
@@ -577,7 +577,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     // Inside Flo's ink drying (10:00 to 11:00): processing time leaves room for a short visit (plan 4, 1.5).
     booking("bk-15", services[0], at(0, 10, 15), "Gus Example"),
     booking("bk-13", services[3], at(0, 16), "Rue Example", { payment: "deposit", depositMinor: 3000, depositPaid: true, paid: false, checkInCode: "RUE5-TQDA", note: "Bringing my own paper." }),
-    booking("bk-8", services[2], at(1, 13), "Hal Example"),
+    // Confirm requests (plan 4, 3.3): Cy hasn't answered the reminder yet, Hal tapped "Yes, I'll be there".
+    booking("bk-8", services[1], at(1, 13), "Hal Example", { reminderSentAt: at(0, 13), clientConfirmedAt: at(0, 13, 20) }),
     // Several services in one visit (plan 4, 2.1): a review, then a riso session straight after, paid once.
     (() => {
       const first = booking("bk-16", services[0], at(3, 10), "Lea Example");

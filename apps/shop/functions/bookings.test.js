@@ -4050,3 +4050,58 @@ describe("bring your services from a spreadsheet (plan 4, 2.11)", () => {
     expect((await t.db.collection("bookingServices").doc(r.body.added[0].id).get()).data().active).toBe(true);
   });
 });
+
+describe("confirm requests (plan 4, 3.3)", () => {
+  test("the reminder asks for a tap, and the tap is kept once", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ askToConfirm: true }, { merge: true });
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking).toMatchObject({ askConfirm: true, clientConfirmed: false });
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
+    await t.desk.sweepReminders();
+    const mail = t.emails.find((m) => String(m.subject).startsWith("Coming up:"));
+    expect(mail.html).toContain("Yes, I'll be there");
+    expect(mail.html).toMatch(/key=[a-f0-9]+&#38;confirm=1/);
+    const yes = await t.pub({ action: "bookingConfirm", id: r.body.id, key: r.body.key });
+    expect(yes.body.booking).toMatchObject({ askConfirm: false, clientConfirmed: true });
+    const first = t.db.store.get(`bookings/${r.body.id}`).clientConfirmedAt;
+    expect(first).toBeTruthy();
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "12:00")));
+    await t.pub({ action: "bookingConfirm", id: r.body.id, key: r.body.key });
+    expect(t.db.store.get(`bookings/${r.body.id}`).clientConfirmedAt).toBe(first);
+  });
+
+  test("with the setting off the reminder has no button", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking.askConfirm).toBe(false);
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
+    await t.desk.sweepReminders();
+    expect(t.emails.find((m) => String(m.subject).startsWith("Coming up:")).html).not.toContain("Yes, I'll be there");
+  });
+
+  test("a wrong key, a past visit or a cancelled booking can't be confirmed", async () => {
+    const t = setup();
+    await t.seed();
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    expect((await t.pub({ action: "bookingConfirm", id: r.body.id, key: "b".repeat(48) })).statusCode).toBe(404);
+    t.clock.now = new Date(Date.parse(at("2026-11-18", "11:00")));
+    expect((await t.pub({ action: "bookingConfirm", id: r.body.id, key: r.body.key })).body.code).toBe("no_confirm");
+    const s = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-20", "10:00"), name: "Bo", email: "bo@example.com" });
+    await t.pub({ action: "bookingCancel", id: s.body.id, key: s.body.key });
+    expect((await t.pub({ action: "bookingConfirm", id: s.body.id, key: s.body.key })).statusCode).toBe(409);
+  });
+
+  test("moving the booking asks again", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ askToConfirm: true }, { merge: true });
+    const r = await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    await t.pub({ action: "bookingConfirm", id: r.body.id, key: r.body.key });
+    const moved = await t.pub({ action: "bookingMove", id: r.body.id, key: r.body.key, start: at("2026-11-19", "11:00") });
+    expect(moved.body.booking).toMatchObject({ clientConfirmed: false, askConfirm: true });
+    expect(t.db.store.get(`bookings/${r.body.id}`).clientConfirmedAt).toBeNull();
+  });
+});

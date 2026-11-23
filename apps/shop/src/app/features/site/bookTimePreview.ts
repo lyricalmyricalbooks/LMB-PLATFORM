@@ -76,6 +76,8 @@ function sampleBooking(zone: string, currency: string, nowMs: number, serviceId?
     status: "confirmed", payment: deposit ? "deposit" : service.priceMinor > 0 ? "card" : "free", paid: !deposit && service.priceMinor > 0, priceMinor: service.priceMinor, currency,
     ...(deposit ? { depositMinor: upFrontMinor(service), depositPaid: true, dueMinor: service.priceMinor - upFrontMinor(service), canPayRest: true, restPaidMinor: 0, tipPercents: [15, 18, 20], tipLimitMinor: 10_000 } : {}),
     name: "Sample Customer", email: "customer@example.com", refunded: false, canChange: true, cancelHours: 24, canEarlier: (listed.places || 1) <= 1 && !listed.courseStarts?.length, earlier: false,
+    // The confirm request shows on the sample so it can be designed (a real one shows only when the shop asks).
+    askConfirm: true, clientConfirmed: false,
     form: { id: "main", title: "Before your first visit", text: "Please tell us about anything that could affect your visit, like allergies or a recent treatment.", questions: [{ id: "allergies", label: "Any allergies?", long: false, required: false }] },
     formsLeft: 2,
     // The review box shows on the sample so it can be designed (a real one shows only after the visit).
@@ -226,6 +228,7 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
   }
   sample ||= sampleBooking(zone, currency, nowMs);
   if (action === "bookingEarlier") sample = { ...sample, earlier: body.on === true };
+  if (action === "bookingConfirm") sample = { ...sample, askConfirm: false, clientConfirmed: true };
   // Two forms: the health form, then a waiver; then both are signed.
   if (action === "bookingForm") {
     sample = sample.form?.id === "main"

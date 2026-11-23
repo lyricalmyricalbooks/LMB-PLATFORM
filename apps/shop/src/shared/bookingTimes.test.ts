@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { approvalAllowed,
+import { approvalAllowed, confirmState,
   groupServices, serviceGroup, servicePhoto, MAX_GROUP_LENGTH, MAX_BIO_LENGTH,
   rebookDue,
   addDays, bookingIcs, cleanBookingSettings, cleanService, clashes, customerCanChange, dayOf, daysTouched, DEFAULT_BOOKING_SETTINGS,
@@ -1059,5 +1059,26 @@ describe("time zones for online visits (plan 4, 2.9)", () => {
     expect(zonesDiffer("America/Toronto", "America/New_York", ms)).toBe(false);
     expect(zonesDiffer("America/Toronto", "Europe/London", ms)).toBe(true);
     expect(zonesDiffer("", "Europe/London", ms)).toBe(false);
+  });
+});
+
+describe("confirm requests (plan 4, 3.3)", () => {
+  const on = { askToConfirm: true, reminderHours: 24 };
+  const now = Date.parse("2026-11-17T12:00:00Z");
+  const b = { status: "confirmed", start: "2026-11-18T15:00:00Z", reminderSentAt: "2026-11-17T11:00:00Z", clientConfirmedAt: null };
+  it("waits after the reminder asked, and shows a tap as confirmed", () => {
+    expect(confirmState(b, on, now)).toBe("waiting");
+    expect(confirmState({ ...b, clientConfirmedAt: "2026-11-17T11:30:00Z" }, on, now)).toBe("confirmed");
+  });
+  it("says nothing when nothing was asked", () => {
+    expect(confirmState({ ...b, reminderSentAt: null }, on, now)).toBeNull();
+    expect(confirmState(b, { askToConfirm: false, reminderHours: 24 }, now)).toBeNull();
+    expect(confirmState(b, { askToConfirm: true, reminderHours: 0 }, now)).toBeNull();
+    expect(confirmState({ ...b, status: "cancelled" }, on, now)).toBeNull();
+    expect(confirmState(b, on, Date.parse("2026-11-18T16:00:00Z"))).toBeNull();
+  });
+  it("keeps the setting through cleaning", () => {
+    expect(cleanBookingSettings({ askToConfirm: true }).askToConfirm).toBe(true);
+    expect(cleanBookingSettings({ askToConfirm: "yes" }).askToConfirm).toBe(false);
   });
 });

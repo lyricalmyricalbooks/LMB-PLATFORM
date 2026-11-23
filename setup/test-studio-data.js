@@ -58,7 +58,7 @@ export function testStudioDocs() {
     {
       path: "bookingSettings/main",
       // Tuesday to Saturday, ten to six. Live, so the Book a time page answers.
-      data: { live: true, hours: SHOP_WEEK(), daysOff: [], minNoticeHours: 2, maxDaysAhead: 60, cancelHours: 24, step: 30, reminderHours: 24, secondReminderHours: 0, dailySummary: false, googleCalendar: false, waitHoldMinutes: 60, tips: true, tipPercents: [15, 18, 20], pickupTimes: false, pickupSlotMinutes: 30, pickupPerSlot: 4, pickupReadyHours: 2, staff: TEST_STUDIO_STAFF, rooms: [{ id: "colour-chair", name: "Colour chair" }], thankYou: false, reviewUrl: "", siteReviews: true, textReminders: false },
+      data: { live: true, hours: SHOP_WEEK(), daysOff: [], minNoticeHours: 2, maxDaysAhead: 60, cancelHours: 24, step: 30, reminderHours: 24, secondReminderHours: 0, dailySummary: false, googleCalendar: false, waitHoldMinutes: 60, tips: true, tipPercents: [15, 18, 20], pickupTimes: false, pickupSlotMinutes: 30, pickupPerSlot: 4, pickupReadyHours: 2, staff: TEST_STUDIO_STAFF, rooms: [{ id: "colour-chair", name: "Colour chair" }], thankYou: false, reviewUrl: "", siteReviews: true, textReminders: false, askToConfirm: false },
     },
   ];
 }

@@ -1454,3 +1454,9 @@ month runs to its end (a cancel, then Keep my shop open), a trial or failed paym
 sweep's `closeNow`. A closed shop gets **Open my shop again** (`reopen`: a new plan, no second trial, the card page).
 Plan & billing only links here. Fixture: `admin-fixture.html?plan=open|trial|cancelled|closed&page=settings/close`.
 Control room: Shops › filter "Closing or closed" (`leavingOf`).
+
+**Confirm requests (23 November 2026, Bookings plan 4 step 3.3, `tasks/todo/2026-11-23-bookings-confirm-requests.md`).**
+Hours & rules › **Ask clients to confirm** (Beta) saves `askToConfirm` (needs the reminder email on). The reminder adds a
+"Yes, I'll be there" button (`&confirm=1` on the booking link); public action `bookingConfirm` stamps `clientConfirmedAt`
+once (confirmed and still ahead), and a move clears it. `confirmState` (shared `bookingTimes.ts`) gives the calendar tag
+(`ConfirmTag`: Confirmed / Not confirmed, only after the reminder went) and the drawer line (`ConfirmLine`).

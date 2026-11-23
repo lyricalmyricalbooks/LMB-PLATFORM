@@ -79,7 +79,7 @@ function BookTimeContent() {
         </div>
       </nav>
       <main className="max-w-3xl mx-auto px-5 sm:px-8 pt-12 sm:pt-16 relative z-10">
-        {earlier ? <EarlierOffer id={earlier.id} ekey={earlier.ekey} c={c} /> : manage ? <ManageBooking id={manage.id} manageKey={manage.key} c={c} /> : packCode ? <PackPage code={packCode} c={c} /> : <NewBooking c={c} />}
+        {earlier ? <EarlierOffer id={earlier.id} ekey={earlier.ekey} c={c} /> : manage ? <ManageBooking id={manage.id} manageKey={manage.key} confirmAsked={new URLSearchParams(location.search).get("confirm") === "1"} c={c} /> : packCode ? <PackPage code={packCode} c={c} /> : <NewBooking c={c} />}
       </main>
       <TemplateSections design={design} templateId="bookingsPage" books={books} />
       <GlobalSections design={design} books={books} />
@@ -1381,7 +1381,7 @@ function EarlierOffer({ id, ekey, c }: { id: string; ekey: string; c: Copy }) {
   );
 }
 
-function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c: Copy }) {
+function ManageBooking({ id, manageKey, confirmAsked = false, c }: { id: string; manageKey: string; confirmAsked?: boolean; c: Copy }) {
   const embedded = useContext(Embedded);
   const [booking, setBooking] = useState<BookingView | null>(null);
   const [info, setInfo] = useState<BookingInfo | null>(null);
@@ -1395,6 +1395,8 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
   // A standing appointment: every visit of it, this one marked (sent with the booking by the server).
   const [runVisits, setRunVisits] = useState<RunVisit[]>([]);
   const polls = useRef(0);
+  // The reminder's "Yes, I'll be there" button: confirmed once, as soon as the booking is shown.
+  const confirmTried = useRef(false);
 
   const load = (quiet = false) => {
     if (!quiet) setState("loading");
@@ -1416,6 +1418,12 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
     const timer = window.setTimeout(() => { polls.current += 1; void load(true); }, 4000);
     return () => window.clearTimeout(timer);
   }, [booking]);
+  // Came from the reminder's "Yes, I'll be there" button: say so once the booking is in.
+  useEffect(() => {
+    if (!confirmAsked || confirmTried.current || !booking?.askConfirm) return;
+    confirmTried.current = true;
+    ask("bookingConfirm", { id, key: manageKey }).then((answer) => answer?.booking && setBooking(answer.booking)).catch(() => setError(c("bookTimeConfirmError")));
+  }, [confirmAsked, booking?.askConfirm]);
 
   if (state === "loading") return <Loading c={c} />;
   if (state === "failed") {
@@ -1465,6 +1473,19 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
       setBusy(false);
       if (err?.code === "nothing_due") void load(true);
       else setError(c("bookTimeError"));
+    }
+  };
+
+  // "Yes, I'll be there" (plan 4, 3.3). Saying it twice changes nothing on the server.
+  const confirm = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      setBooking((await ask("bookingConfirm", { id, key: manageKey })).booking);
+    } catch {
+      setError(c("bookTimeConfirmError"));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -1589,6 +1610,15 @@ function ManageBooking({ id, manageKey, c }: { id: string; manageKey: string; c:
 
       {booking.status === "confirmed" && mode === "view" && (
         <div {...regionProps("bookingsActions")} className="space-y-5">
+          {booking.askConfirm && (
+            <div className="fm-book-confirm" data-confirm="ask">
+              <p>{c("bookTimeConfirmAsk")}</p>
+              <button type="button" className="fm-track-btn" disabled={busy} onClick={() => void confirm()}>
+                {busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />} {c("bookTimeConfirmButton")}
+              </button>
+            </div>
+          )}
+          {booking.clientConfirmed && <p className="fm-book-confirm" data-confirm="done" role="status">{c("bookTimeConfirmDone")}</p>}
           {asksTip && (
             <TipPicker pick={tipPick} onPick={setTipPick} percents={tipPercents} priceMinor={booking.priceMinor} currency={booking.currency}
               limitMinor={tipLimit} optional={!!booking.canPayRest} tipMinor={tipMinor} c={c} />

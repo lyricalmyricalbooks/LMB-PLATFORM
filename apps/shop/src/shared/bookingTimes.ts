@@ -314,6 +314,11 @@ export type BookingSettings = {
    * ticked "Text me reminders" and gave a mobile number. Sent through the platform, billed to the shop at cost.
    */
   textReminders?: boolean;
+  /**
+   * Confirm requests (plan 4, 3.3): the reminder email asks the client to tap "Yes, I'll be there", and the calendar shows
+   * who has and who hasn't yet. Needs the reminder email on.
+   */
+  askToConfirm?: boolean;
   /** The most bookings clients can make online on one day (plan 4, 1.8); 0 or left out: no limit. The owner can add more. */
   dailyCap?: number;
   /**
@@ -564,6 +569,7 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   reviewUrl: "",
   siteReviews: false,
   textReminders: false,
+  askToConfirm: false,
   staff: [],
   rooms: [],
 };
@@ -1080,11 +1086,29 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     reviewUrl: reviewLink(s.reviewUrl),
     siteReviews: s.siteReviews === true,
     textReminders: s.textReminders === true,
+    askToConfirm: s.askToConfirm === true,
     ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
     ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
     ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
     ...((DAILY_CAPS as readonly number[]).includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),
   };
+}
+
+/**
+ * Where a booking stands on confirm requests (plan 4, 3.3): "confirmed" once the client tapped "Yes, I'll be there",
+ * "waiting" after the reminder asked and before they answered, null when nothing was asked (the setting is off, the
+ * booking isn't a confirmed one, its reminder hasn't gone, or it has already started).
+ */
+export function confirmState(
+  b: { status?: string; start?: string; reminderSentAt?: string | null; clientConfirmedAt?: string | null },
+  settings: Pick<BookingSettings, "askToConfirm" | "reminderHours"> | null | undefined,
+  nowMs: number,
+): "confirmed" | "waiting" | null {
+  if (b.status !== "confirmed") return null;
+  if (b.clientConfirmedAt) return "confirmed";
+  if (!settings?.askToConfirm || !settings.reminderHours || !b.reminderSentAt) return null;
+  const start = Date.parse(b.start || "");
+  return Number.isFinite(start) && start > nowMs ? "waiting" : null;
 }
 
 export const MAX_REBOOK_WEEKS = 52;

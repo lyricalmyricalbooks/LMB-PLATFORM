@@ -333,6 +333,9 @@ function publicBooking(id, booking, settings, nowMs) {
     checkInCode: b.status === "confirmed" && Date.parse(b.end) > nowMs ? b.checkInCode || "" : "", checkedIn: !!b.checkedInAt,
     // A review of the visit on the shop's website: whether one can be written here, and whether it was.
     canReview: reviewOpen(b, settings, nowMs), reviewed: !!b.reviewId,
+    // Confirm requests (plan 4, 3.3): whether the client said "Yes, I'll be there", and whether the page asks them to.
+    clientConfirmed: !!b.clientConfirmedAt && b.status === "confirmed",
+    askConfirm: !!settings.askToConfirm && b.status === "confirmed" && !b.clientConfirmedAt && start > nowMs,
   };
 }
 
@@ -633,6 +636,8 @@ function bookingActions({
         <p style="margin:0 0 4px;font-size:13px;">Show it at the desk when you arrive.${key ? " Your booking page has it as a code to scan." : ""}</p>` : "";
       const due0 = moneyWords(balanceDue(b), b.currency);
       const tipText = moneyWords(tipTaken(b), b.currency);
+      // Confirm requests (plan 4, 3.3): the reminder asks for a tap on "Yes, I'll be there".
+      const askConfirm = kind === "reminder" && !!key && b.status === "confirmed" && !b.clientConfirmedAt && !!(await readSettings().catch(() => null))?.askToConfirm;
       const subject = { thanks: `Thank you for coming: ${visitName(b)}`, tip: `Thank you for coming: ${visitName(b)}`, tipPaid: `Tip received: ${visitName(b)}, ${when}`, payRest: `Left to pay: ${visitName(b)}, ${when}`, restPaid: `Paid in full: ${visitName(b)}, ${when}`, fee: `Fee charged: ${visitName(b)}, ${when}`, notCleared: `Not booked: ${visitName(b)}, ${when}`, reminder: `Coming up: ${visitName(b)}, ${when}`, soon: `Soon: ${visitName(b)}, ${when}`, booked: `Booked: ${visitName(b)}, ${when}`, requested: `Request sent: ${visitName(b)}, ${when}`, declined: `Not booked: ${visitName(b)}, ${when}`, moved: `Moved: ${visitName(b)}, now ${when}`, cancelled: `Cancelled: ${visitName(b)}, ${when}` }[kind];
       const lead = {
         fee: `${escapeHtml(shop)} charged ${escapeHtml(moneyWords(b.fee?.amountMinor || 0, b.currency))} to your card${b.card?.last4 ? ` ending ${escapeHtml(b.card.last4)}` : ""} for ${b.status === "cancelled" ? "cancelling late" : "missing"} this booking, as agreed when you booked. Questions? Just reply to this email.`,
@@ -641,7 +646,9 @@ function bookingActions({
         thanks: `Thank you for visiting ${escapeHtml(shop)}. We hope to see you again soon.${reviewUrl || siteReview ? " If you have a moment, a short review helps others find us." : ""}`,
         tip: `Thank you for visiting ${escapeHtml(shop)}. If you'd like to thank the team, you can add a tip by card. It's up to you.${reviewUrl || siteReview ? " And if you have a moment, a short review helps others find us." : ""}`,
         tipPaid: `Thank you! Your ${escapeHtml(tipText)} tip for your visit to ${escapeHtml(shop)} has gone through.`,
-        reminder: `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
+        reminder: askConfirm
+          ? `A reminder of your booking with ${escapeHtml(shop)}. Please tap "Yes, I'll be there" so they know to expect you. If you can't make it, cancel or move it below so the time can go to someone else.`
+          : `A reminder of your booking with ${escapeHtml(shop)}. If you can't make it, please cancel or move it below so the time can go to someone else.`,
         soon: `Your booking with ${escapeHtml(shop)} is coming up soon. See you there.`,
         notCleared: `Your bank payment for this booking with ${escapeHtml(shop)} didn't clear in time, so the time has been released. Nothing was taken. You're welcome to book again.`,
         booked: `You're booked in with ${escapeHtml(shop)}.`,
@@ -693,6 +700,7 @@ function bookingActions({
         ${held}
         ${checkIn}
         ${formNote}
+        ${askConfirm ? risoButton(escapeHtml(`${manageUrl(id, key)}&confirm=1`), "Yes, I'll be there", brand.accent, brand.theme) : ""}
         ${manage}
         ${again}
         ${review}
@@ -1244,7 +1252,7 @@ function bookingActions({
       const resized = minutes !== b.minutes;
       const what = `moved from ${b.start}${resized ? ` (${b.minutes} to ${minutes} min)` : ""}${newName && assigned.record.staffId !== b.staffId ? ` to ${newName}` : ""}`;
       const changes = {
-        start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: new Date(nowMs).toISOString(), reminderSentAt: null,
+        start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: new Date(nowMs).toISOString(), reminderSentAt: null, clientConfirmedAt: null,
         ...(resized ? { minutes } : {}),
         ...staffChange, history: [...(b.history || []), { at: new Date(nowMs).toISOString(), what, by }].slice(-20),
       };
@@ -1302,7 +1310,7 @@ function bookingActions({
       const nextParts = parts.map((p, n) => ({ ...p, staffId: assigned[n + 1].record.staffId || "", staffName: assigned[n + 1].record.staffName || "" }));
       const at = new Date(nowMs).toISOString();
       const changes = {
-        start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: at, reminderSentAt: null,
+        start: new Date(start).toISOString(), end: new Date(end).toISOString(), updatedAt: at, reminderSentAt: null, clientConfirmedAt: null,
         staffId: "", staffName: "", roomId: "", roomName: "", ...assigned[0].record, parts: nextParts,
         history: [...(b.history || []), { at, what: `moved from ${b.start}`, by }].slice(-20),
       };
@@ -2626,6 +2634,16 @@ function bookingActions({
           }
         }
         return res.status(200).json({ booking: { ...card, earlier: b.earlierWanted === true } });
+      }
+      if (action === "bookingConfirm") {
+        // "Yes, I'll be there" (plan 4, 3.3), from the reminder's button or the booking page. Saying it twice changes nothing.
+        if (b.status !== "confirmed" || !(Date.parse(b.start) > nowMs)) return fail(res, 409, "This booking can't be confirmed now.", "no_confirm");
+        if (!b.clientConfirmedAt) {
+          const at = new Date(nowMs).toISOString();
+          await bookings().doc(id).set({ clientConfirmedAt: at }, { merge: true });
+          b = { ...b, clientConfirmedAt: at };
+        }
+        return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings) });
       }
       if (action === "bookingPayRest") {
         // A card page for what is left; the booking page reads it when the customer comes back.
@@ -4114,6 +4132,6 @@ const cardWords = (card) => (card?.last4 ? `${card.brand ? card.brand.charAt(0).
 const moneyWords = (minor, currency) => new Intl.NumberFormat("en-CA", { style: "currency", currency: String(currency || "CAD").toUpperCase() }).format(minor / 100);
 const REMINDER_SKIP_HOURS = 6;
 
-const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingMine", "bookingOpen", "bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
+const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingMine", "bookingOpen", "bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingConfirm", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
 module.exports = { PickupTimeProblem, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
