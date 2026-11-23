@@ -4,16 +4,17 @@
 // (teamDeskApi.ts › functions/bookings.js handleDesk), which holds each role to what it may do (DESK_OPS).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Coffee, LogIn, LogOut, Phone, RefreshCw, Timer } from "lucide-react";
+import { Banknote, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Coffee, CreditCard, LogIn, LogOut, Mail, NotebookPen, Phone, QrCode, RefreshCw, Timer } from "lucide-react";
 import {
   ActionMenu, Dialog, EmptyState, ErrorState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextArea, TextField, useConfirm,
 } from "./riso/components";
 import { adminApi } from "./api";
-import { addDays, dayOf, visitName } from "../../shared/bookingTimes";
+import { addDays, balanceDue, dayOf, restPayable, visitName } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import type { Booking } from "./bookingsApi";
-import { dayText, listTag, timeText } from "./bookingsView";
-import { teamDeskData, type DeskAnswer, type DeskClock } from "./teamDeskApi";
+import { dayText, listTag, moneyText, timeText } from "./bookingsView";
+import { teamDeskData, type DeskAnswer, type DeskBooking, type DeskClock } from "./teamDeskApi";
+import { qrPicture } from "./stockroom/qrCodesStore";
 import { hoursText, type ClockStep } from "../../shared/timeClock";
 import { DeskPlans } from "./DeskPlans";
 import "./bookings.css";
@@ -30,7 +31,7 @@ function dayName(day: string, today: string): string {
 }
 
 /** The people on the day's list: not cancelled, earliest first. */
-export function deskRows(list: readonly Booking[]): Booking[] {
+export function deskRows<T extends Booking>(list: readonly T[]): T[] {
   return list.filter((b) => b.status !== "cancelled").sort((a, b) => a.start.localeCompare(b.start) || a.customer.name.localeCompare(b.customer.name));
 }
 
@@ -42,6 +43,39 @@ export function deskCounts(rows: readonly Booking[], nowMs: number): { booked: n
     else if (!b.noShow && Date.parse(b.end) > nowMs && b.status === "confirmed") toCome++;
   }
   return { booked: rows.length, here, toCome };
+}
+
+/**
+ * Who is next (plan 4, 4.6 My day): the first booking still to come or under way that nobody has checked in or marked
+ * as a no-show. Null when the day is done.
+ */
+export function nextUp<T extends Booking>(rows: readonly T[], nowMs: number): T | null {
+  return rows.find((b) => b.status === "confirmed" && !b.checkedInAt && !b.noShow && Date.parse(b.end) > nowMs) || null;
+}
+
+/** A note's day as "12 Nov". */
+const noteDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "short" });
+
+/** "in 25 min", "in 1 hr 10 min", "now" (started already) for the next client card. */
+export function startsIn(startIso: string, nowMs: number): string {
+  const min = Math.round((Date.parse(startIso) - nowMs) / 60_000);
+  if (min <= 0) return "now";
+  if (min < 60) return `in ${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return `in ${h} hr${m ? ` ${m} min` : ""}`;
+}
+
+/**
+ * What is left to take at the visit (plan 4, 4.6): by card from the pay link or QR code when it is enough for a card
+ * payment, and marked paid at the shop when the visit is paid there (cash or the shop's own machine). Null when nothing.
+ */
+export function payAtVisit(b: Booking): { dueMinor: number; byCard: boolean; atShop: boolean } | null {
+  if (b.status !== "confirmed" || b.paid) return null;
+  const dueMinor = balanceDue(b);
+  const atShop = b.payment === "atShop" || (b.payment === "deposit" && !!b.depositPaid);
+  const byCard = restPayable(b);
+  if (dueMinor <= 0 || (!atShop && !byCard)) return null;
+  return { dueMinor, byCard, atShop };
 }
 
 /**
@@ -97,6 +131,9 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
   const rows = useMemo(() => deskRows(answer?.bookings || []), [answer]);
   const counts = deskCounts(rows, Date.now());
   const front = role === "frontDesk";
+  const next = day === today ? nextUp(rows, Date.now()) : null;
+  const [paying, setPaying] = useState<DeskBooking | null>(null);
+  const [noting, setNoting] = useState<DeskBooking | null>(null);
 
   const act = async (key: string, op: string, body: Record<string, unknown>, done: string) => {
     setBusy(key);
@@ -158,6 +195,7 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
                 <div><span>{counts.here}</span>checked in</div>
                 <div><span>{counts.toCome}</span>still to come</div>
               </div>
+              {next && <NextCard b={next} front={front} busy={!!busy} onCheckIn={() => void act(next.id, "checkIn", { id: next.id }, `${next.customer.name} is checked in`)} />}
               {rows.length === 0 ? (
                 <EmptyState title={front ? "Nothing booked" : "No clients booked with you"} description={day === today ? "Enjoy the quiet. New bookings show here as they come in." : "Pick another day with the arrows."}
                   action={front && answer.services.length ? <SecondaryButton icon={<CalendarPlus size={16} aria-hidden />} onClick={() => setCreating(true)}>New booking</SecondaryButton> : undefined} />
@@ -167,6 +205,7 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
                     const tag = listTag(b);
                     const here = !!b.checkedInAt;
                     const started = Date.parse(b.start) <= Date.now();
+                    const pay = payAtVisit(b);
                     return (
                       <li key={b.id} className="tdesk-row" data-here={here || undefined} data-noshow={b.noShow || undefined}>
                         <div className="tdesk-time">{timeText(b.start, ZONE)}<small>{b.minutes} min</small></div>
@@ -175,6 +214,9 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
                           <span>{visitName(b)}{front && b.staffName ? ` · with ${b.staffName}` : ""}</span>
                           {b.customer.phone && <a href={`tel:${b.customer.phone.replace(/[^\d+]/g, "")}`}><Phone size={13} aria-hidden /> {b.customer.phone}</a>}
                           {b.note && <p>{b.note}</p>}
+                          {b.visitNote ? <p className="tdesk-note"><NotebookPen size={13} aria-hidden /> <span><b>Your note:</b> {b.visitNote}</span></p>
+                            : b.lastVisit && <p className="tdesk-note"><NotebookPen size={13} aria-hidden /> <span><b>Last time ({noteDay(b.lastVisit.day)}):</b> {b.lastVisit.note}</span></p>}
+                          {pay && <p className="tdesk-due"><CreditCard size={13} aria-hidden /> {moneyText(pay.dueMinor, b.currency)} to pay</p>}
                         </div>
                         <div className="tdesk-state">
                           {here ? <StatusBadge tone="success">Checked in</StatusBadge> : tag ? <StatusBadge tone={tag === "No-show" ? "danger" : "warning"}>{tag}</StatusBadge> : null}
@@ -183,8 +225,11 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
                           {b.status === "confirmed" && !b.noShow && (here
                             ? <GhostButton size="sm" disabled={!!busy} onClick={() => void act(b.id, "checkIn", { id: b.id, value: false }, "Check-in taken off")}>Undo</GhostButton>
                             : <PrimaryButton size="sm" icon={<CheckCircle2 size={15} aria-hidden />} disabled={!!busy} onClick={() => void act(b.id, "checkIn", { id: b.id }, `${b.customer.name} is checked in`)}>Check in</PrimaryButton>)}
+                          {pay && here && <SecondaryButton size="sm" icon={<CreditCard size={15} aria-hidden />} disabled={!!busy} onClick={() => setPaying(b)}>Take payment</SecondaryButton>}
                           {b.status === "confirmed" && (
                             <ActionMenu label={`More for ${b.customer.name}`} actions={[
+                              ...(pay && !here ? [{ label: "Take payment", onSelect: () => setPaying(b) }] : []),
+                              { label: b.visitNote ? "Change your note" : "Add a visit note", onSelect: () => setNoting(b) },
                               ...(started && !here ? [{ label: b.noShow ? "They came after all" : "Didn't turn up", onSelect: () => void act(b.id, "noShow", { id: b.id, value: !b.noShow }, b.noShow ? "No-show taken off" : "Marked as a no-show") }] : []),
                               ...(front ? [{ label: "Cancel booking", tone: "danger" as const, onSelect: () => void cancel(b) }] : []),
                             ]} />
@@ -199,9 +244,119 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
           )}
         {answer && (answer.rota || answer.timeOff) && <DeskPlans rota={answer.rota || []} timeOff={answer.timeOff || []} today={today} onChanged={() => void load(day)} />}
       </main>
+      {paying && <DeskPayDialog b={paying} onClose={() => setPaying(null)} onPaid={() => { setPaying(null); void load(day); }} />}
+      {noting && <DeskNoteDialog b={noting} onClose={() => setNoting(null)} onSaved={() => { setNoting(null); void load(day); }} />}
       {creating && answer && <DeskBookingDialog day={day} answer={answer} onClose={() => setCreating(false)} onDone={() => { setCreating(false); void load(day); }} />}
       {confirmNode}
     </div>
+  );
+}
+
+/** The next client (plan 4, 4.6 My day): who, when, last time's note, and the one tap that checks them in. */
+function NextCard({ b, front, busy, onCheckIn }: { b: DeskBooking; front: boolean; busy: boolean; onCheckIn: () => void }) {
+  const when = startsIn(b.start, Date.now());
+  return (
+    <section className="tdesk-next" aria-labelledby="tdesk-next-title">
+      <div className="tdesk-next-head">
+        <span className="tdesk-next-label" id="tdesk-next-title">Next client</span>
+        <span className="tdesk-next-when">{timeText(b.start, ZONE)} · {when === "now" ? "now" : when}</span>
+      </div>
+      <strong className="tdesk-next-name">{b.customer.name}</strong>
+      <span className="tdesk-next-what">{visitName(b)} · {b.minutes} min{front && b.staffName ? ` · with ${b.staffName}` : ""}</span>
+      {b.lastVisit && <p className="tdesk-note"><NotebookPen size={14} aria-hidden /> <span><b>Last time ({noteDay(b.lastVisit.day)}):</b> {b.lastVisit.note}</span></p>}
+      {b.note && <p className="tdesk-next-msg">“{b.note}”</p>}
+      <div className="tdesk-next-acts">
+        <PrimaryButton icon={<CheckCircle2 size={16} aria-hidden />} disabled={busy} onClick={onCheckIn}>Check in</PrimaryButton>
+        {b.customer.phone && <SecondaryButton icon={<Phone size={16} aria-hidden />} onClick={() => { window.location.href = `tel:${b.customer.phone!.replace(/[^\d+]/g, "")}`; }}>Call</SecondaryButton>}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Take payment at the visit (plan 4, 4.6): a QR code the client scans to pay by card, the same link by email, or marked
+ * paid at the shop for cash or the shop's own card machine. The server checks the booking is theirs and still owes it.
+ */
+function DeskPayDialog({ b, onClose, onPaid }: { b: DeskBooking; onClose: () => void; onPaid: () => void }) {
+  const pay = payAtVisit(b);
+  const [busy, setBusy] = useState("");
+  const [qr, setQr] = useState("");
+  const due = moneyText(pay?.dueMinor || 0, b.currency);
+  const first = b.customer.name.split(" ")[0] || "They";
+  const run = async (what: "qr" | "send" | "paid") => {
+    setBusy(what);
+    try {
+      if (what === "paid") {
+        await teamDeskData.act("paidAtShop", { id: b.id });
+        toast.success(`${due} marked paid`);
+        onPaid();
+        return;
+      }
+      const r = await teamDeskData.act("payLink", { id: b.id, send: what === "send" });
+      if (what === "send") toast.success(`Pay link sent to ${b.customer.email}`);
+      else setQr(await qrPicture(r.url, 8));
+    } catch (e: any) {
+      toast.error(e?.message || "That didn't go through. Try again.");
+    } finally { setBusy(""); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={`Take ${due}`} description={`${visitName(b)} · ${b.customer.name}`}
+      footer={<SecondaryButton onClick={onClose}>{qr ? "Done" : "Close"}</SecondaryButton>}>
+      {qr ? (
+        <div className="bkg-qr">
+          <img src={qr} alt={`QR code to pay ${due}`} width={264} height={264} />
+          <p>{first} points their phone camera at the code and pays by card. It shows as paid once it goes through.</p>
+        </div>
+      ) : (
+        <div className="tdesk-pay">
+          {pay?.byCard && <>
+            <button type="button" className="tdesk-pay-way" disabled={!!busy} onClick={() => void run("qr")}>
+              <QrCode size={22} aria-hidden /><span><strong>Show a QR code</strong><small>They scan it and pay by card on their phone.</small></span>
+            </button>
+            {b.customer.email && <button type="button" className="tdesk-pay-way" disabled={!!busy} onClick={() => void run("send")}>
+              <Mail size={22} aria-hidden /><span><strong>Email the pay link</strong><small>To {b.customer.email}, to pay now or later.</small></span>
+            </button>}
+          </>}
+          {pay?.atShop && (
+            <button type="button" className="tdesk-pay-way" disabled={!!busy} onClick={() => void run("paid")}>
+              <Banknote size={22} aria-hidden /><span><strong>Paid at the shop</strong><small>Cash, or your own card machine.</small></span>
+            </button>
+          )}
+          {busy && <p className="rp-hint" role="status">Working on it…</p>}
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
+/** A short note on this visit (plan 4, 4.6): the formula, what was done, what to try next time. Kept on the client card. */
+function DeskNoteDialog({ b, onClose, onSaved }: { b: DeskBooking; onClose: () => void; onSaved: () => void }) {
+  const [note, setNote] = useState(b.visitNote || "");
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
+  const save = async () => {
+    setSaving(true); setProblem("");
+    try {
+      await teamDeskData.act("visitNote", { id: b.id, note: note.trim() });
+      toast.success(note.trim() ? "Note saved" : "Note taken off");
+      onSaved();
+    } catch (e: any) {
+      setProblem(e?.message || "The note couldn't be saved. Try again.");
+    } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={`Note on ${b.customer.name}'s visit`} description="It goes on their client card, and shows here next time they come in."
+      footer={<>
+        <SecondaryButton onClick={onClose}>Close</SecondaryButton>
+        <PrimaryButton busy={saving} onClick={() => void save()}>Save note</PrimaryButton>
+      </>}>
+      <div className="bkg-form">
+        {b.lastVisit && <p className="tdesk-note"><NotebookPen size={14} aria-hidden /> <span><b>Last time ({noteDay(b.lastVisit.day)}):</b> {b.lastVisit.note}</span></p>}
+        <TextArea label="What you did" rows={5} maxLength={4000} value={note} onChange={(e) => setNote(e.target.value)}
+          hint="The formula, products, or what to try next time. Only your team sees it." />
+        {problem && <p className="bkg-error" role="alert">{problem}</p>}
+      </div>
+    </Dialog>
   );
 }
 

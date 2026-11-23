@@ -1252,6 +1252,13 @@ the share; the public booking page's staff list never includes it. Shown only, n
 **Steps up (Beta, 23 November 2026, plan 4 step 4.4):** a person can have `commissionSteps` (up to 4 `{ overMinor, percent }`, kept only with `commissionPercent`); `commissionFor` (shared `bookingTimes.ts`) pays each share only on the month's takings above its amount. The person dialog edits them (`.bkg-steps`) with `commissionStepsText` as a summary; Team pay and its spreadsheet show them. Never on the public staff list. Fixture: Ana, 40% then 50% over $3,000.
 **Product used (Beta, 23 November 2026, plan 4 step 4.5):** a priced service may have `costMinor` (≤ its price, `cleanService`), set in the service dialog. `teamPay(…, services)` adds each service's cost to whoever did that part of a visit that happened (`costMinor` on the line, today's cost, not stored on the booking) and works commission out on takings less it; Team pay shows a Product used column and tile line, and the sheet a column, only once a cost exists. Never sent to clients (`bookingInfo` lists fields). Fixture: the riso session uses $6.
 
+**My day (Beta, 23 November 2026, plan 4 step 4.6):** `TeamDesk` shows a mint Next client card on today (`nextUp`: first
+confirmed booking not checked in, not a no-show, not over; `startsIn` words), each row's `lastVisit`/`visitNote` and what
+is left to pay (`payAtVisit`: QR code or emailed pay link when `restPayable`, Paid at the shop when paid there).
+`DeskPayDialog` and `DeskNoteDialog` call `payLink`, `paidAtShop` and `visitNote` through `teamDeskData.act`. On a phone a
+row's badge and actions wrap under the name. Fixture: `admin-fixture.html?desk=provider` (sets the admin look like
+Dashboard; notes kept in memory, the first booking has a note from last time).
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while

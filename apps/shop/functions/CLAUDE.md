@@ -1837,6 +1837,13 @@ sweep runs inside `bookingSweep`. Rate limit bucket `rental`. Not yet: privacy e
 each role may run (403 `desk_only`); a provider needs a staff row with their email (`not_on_team`), can't use a code
 (`no_code`) and only touches bookings they take (404 `not_yours`).
 
+**My day (23 November 2026, Bookings plan 4 step 4.6).** A provider may also run `paidAtShop`, `payLink` and `visitNote`
+on bookings they take (same `takes` check); the front desk gets `visitNote`. Op `visitNote` {id, note ≤ 4000} writes
+`clientVisits/bk-<bookingId>` (the client card's visit notes: `client` = sha256 of the lower-case email, booking's shop
+day, photos kept), so a second save changes it and an empty note deletes it unless it has photos; it adds a history
+line. Op `desk` adds `visitNote` and `lastVisit` {day, note} (latest note from an earlier day) to each booking
+(`deskNotes`: one equality query per client, at most 40 clients, no index).
+
 **Clock in and out (23 November 2026, Bookings plan 4 step 4.2).** `timeClock/{id}` (server only, no rule needed):
 `{ email, name, staffId?, day, in, out|null, breaks[], open, by, updatedAt, updatedBy }`, rules in `shared/timeClock.js`.
 Desk op `clock` {step in|break|back|out} for frontDesk/provider (an admin gets `desk_only`), in a transaction that finds

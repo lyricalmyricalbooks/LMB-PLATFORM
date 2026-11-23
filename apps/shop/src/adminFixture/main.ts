@@ -844,6 +844,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   // The team desk (?desk=frontDesk|provider, plan 4, 4.1): the same sample day, trimmed the way the server's
   // handleDesk trims it. Sam is the front desk; as a provider the page signs in as Ben and sees only his bookings.
   const deskRole = new URLSearchParams(window.location.search).get("desk") === "provider" ? "provider" : "frontDesk";
+  const deskNotes = new Map<string, string>();
   teamDeskData.day = async (day) => {
     const staff = (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name }));
     const me = deskRole === "provider" ? { id: "ben", name: "Ben Example" } : null;
@@ -851,9 +852,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     const bookings = rows.filter((b) => dayOf(Date.parse(b.start), zone) === day && b.status !== "held")
       .filter((b) => !me || b.staffId === me.id)
       .sort((a, b) => a.start.localeCompare(b.start));
+    // My day (plan 4, 4.6): notes written at the desk, and a note from last time on the day's first client.
+    const notes = bookings.map((b, n) => ({ ...b, visitNote: deskNotes.get(b.id) || "",
+      ...(n === 0 ? { lastVisit: { day: dayOf(Date.now() - 28 * 86_400_000, zone), note: "Root touch-up, 6N + 20 vol, 35 min. Next time try 7N, a little dark." } } : {}) }));
     return { role: deskRole, day, days: 60, zone, me, staff,
       services: deskRole === "provider" ? [] : services.filter((s) => s.active !== false).map((s) => ({ id: s.id, name: s.name, minutes: s.minutes, places: s.places || 1 })),
-      bookings };
+      bookings: notes };
   };
   // The desk person's own clock: Sam is on a break, Ben is working.
   let deskShift: Shift | null = deskRole === "provider"
@@ -871,6 +875,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       offRows = [...offRows, { ...made.ask, id: `t${Date.now().toString(36)}` }];
       return { ok: true };
     }
+    if (op === "visitNote") { const note = String(body.note || "").trim(); if (note) deskNotes.set(String(body.id), note); else deskNotes.delete(String(body.id)); return { ok: true, note }; }
     if (op === "withdrawTimeOff") { offRows = offRows.map((t) => (t.id === body.id ? { ...t, status: "withdrawn" } : t)); return { ok: true }; }
     if (op !== "clock") return bookingsData.admin(op as never, body);
     const next = clockStep(deskShift, body.step as ClockStep, new Date().toISOString(), { email: "sam@example.com", name: "Sam Example", day: dayOf(Date.now(), shopTimeZone()) });
@@ -1978,6 +1983,8 @@ if (new URLSearchParams(location.search).has("desk")) {
   const { createElement } = await import("react");
   const { createRoot } = await import("react-dom/client");
   const { TeamDesk } = await import("../app/admin/TeamDesk");
+  // The admin's look, as Dashboard sets it before it shows the desk.
+  (await import("../app/admin/riso/adminLook")).applyAdminLook();
   await import("../styles/index.css");
   createRoot(document.getElementById("root")!).render(createElement(TeamDesk, { email: role === "provider" ? "ben@example.com" : "sam@example.com", role, appearance: "light" }));
   helperShown = true;

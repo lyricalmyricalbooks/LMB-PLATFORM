@@ -9,13 +9,19 @@ import type { RotaShift, TimeOff } from "../../shared/teamRota";
 /** Where the signed-in person stands on the time clock (plan 4, 4.2), with minutes worked on this shift. */
 export type DeskClock = { state: "off" | "working" | "break"; since: string; shiftIn: string; minutes: number };
 
+/**
+ * A booking on the desk's list, with its visit notes (plan 4, 4.6 My day): this visit's own note, and the client's latest
+ * note from an earlier day, so the person taking them sees it before they start.
+ */
+export type DeskBooking = Booking & { visitNote?: string; lastVisit?: { day: string; note: string } };
+
 export type DeskAnswer = {
   role: "admin" | "frontDesk" | "provider";
   day: string; days: number; zone: string;
   me: { id: string; name: string } | null;
   staff: Array<{ id: string; name: string }>;
   services: Array<{ id: string; name: string; minutes: number; places: number }>;
-  bookings: Booking[];
+  bookings: DeskBooking[];
   /** Null for the owner and staff, who keep hours under Bookings › Team pay. */
   clock?: DeskClock | null;
   /** Shifts and time off (plan 4, 4.3): their planned shifts for two weeks and their asks. Left out for the owner. */
