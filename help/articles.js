@@ -99,6 +99,7 @@ export const ARTICLES = Object.freeze([
       "To pay a higher share in a good month, open a person in Team & rooms and add a step under Their pay. The higher share counts only on takings above that amount.",
       "If a service uses product, like colour or wax, add what it costs per visit in the service. Team pay takes it off before working out commission.",
       "On a phone, a service provider's own day shows their next client first. They can check them in, take payment and keep a note on the visit.",
+      "Bookings › Figures › Coming up shows the next 30, 60 or 90 days: bookings, what they're worth, what's paid and what's left to take. Save it as a spreadsheet.",
     ],
   },
   {

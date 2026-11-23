@@ -504,3 +504,52 @@ describe("where bookings came from (plan 4, 2.7)", () => {
     expect(bookingPosterHtml({ shop: "", heading: " ", what: "", qr: "x", link: "https://a.example/" })).toContain("<h1>Book online</h1>");
   });
 });
+
+describe("coming up: the next 30, 60 and 90 days (plan 4, 5.1)", () => {
+  const Z = "America/Toronto";
+  const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00-05:00`).toISOString();
+  const bk = (id: string, start: string, extra: Partial<Booking> = {}): Booking => ({
+    id, serviceId: "s", serviceName: "Cut", minutes: 60, start, end: new Date(Date.parse(start) + 3_600_000).toISOString(),
+    customer: { name: id, email: `${id}@example.com` }, status: "confirmed", payment: "atShop", priceMinor: 5000, currency: "CAD", paid: false, ...extra,
+  });
+  const now = Date.parse(at("2026-11-23", "12:00"));
+  const rows = [
+    bk("past-today", at("2026-11-23", "09:00")),
+    bk("later-today", at("2026-11-23", "15:00")),
+    bk("card", at("2026-11-30", "10:00"), { payment: "card", paid: true, priceMinor: 8000 }),
+    bk("same-day", at("2026-11-30", "13:00")),
+    bk("asked", at("2026-12-01", "10:00"), { status: "requested" }),
+    bk("gone", at("2026-12-02", "10:00"), { status: "cancelled" }),
+    bk("held", at("2026-12-02", "11:00"), { status: "held" }),
+    bk("day-45", at("2027-01-07", "10:00"), { payment: "deposit", depositMinor: 2000, depositPaid: true }),
+    bk("day-80", at("2027-02-11", "10:00")),
+    bk("too-far", at("2027-03-01", "10:00")),
+  ];
+
+  it("counts booked visits still to come, keeps requests apart and splits paid from still to take", async () => {
+    const { futureFigures } = await import("./bookingsView");
+    const f = futureFigures(rows, Z, "2026-11-23", now);
+    expect(f.windows.map((w) => [w.days, w.count, w.waiting, w.valueMinor, w.paidMinor, w.dueMinor])).toEqual([
+      [30, 3, 1, 18000, 8000, 10000],
+      [60, 4, 1, 23000, 10000, 13000],
+      [90, 5, 1, 28000, 10000, 18000],
+    ]);
+    expect(f.windows[0].busiest).toEqual({ day: "2026-11-30", count: 2 });
+    expect(f.weeks).toHaveLength(13);
+    expect(f.weeks[0]).toEqual({ monday: "2026-11-23", count: 1, valueMinor: 5000 });
+    expect(f.weeks[1]).toEqual({ monday: "2026-11-30", count: 2, valueMinor: 13000 });
+  });
+
+  it("nothing booked gives zeros and no busiest day; the spreadsheet lists each visit with what is left", async () => {
+    const { futureFigures, futureList, futureRows } = await import("./bookingsView");
+    expect(futureFigures([], Z, "2026-11-23", now).windows[2]).toMatchObject({ count: 0, waiting: 0, valueMinor: 0, busiest: null });
+    const sheet = futureRows(futureList(rows, Z, "2026-11-23", now, 30), Z);
+    expect(sheet[0]).toEqual(["Day", "Time", "Client", "Email", "Phone", "Service", "With", "Status", "Price", "Paid", "To pay"]);
+    expect(sheet.slice(1).map((r) => [r[0], r[2], r[7], r[8], r[9], r[10]])).toEqual([
+      ["2026-11-23", "later-today", "Booked", "50.00", "0.00", "50.00"],
+      ["2026-11-30", "card", "Booked", "80.00", "80.00", "0.00"],
+      ["2026-11-30", "same-day", "Booked", "50.00", "0.00", "50.00"],
+      ["2026-12-01", "asked", "Waiting for your answer", "50.00", "0.00", "0.00"],
+    ]);
+  });
+});

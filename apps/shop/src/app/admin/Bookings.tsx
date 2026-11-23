@@ -19,7 +19,7 @@ import { ShiftsPanel } from "./ShiftsPanel";
 import { RotaPanel } from "./RotaPanel";
 import type { ShiftRow } from "./shifts";
 import { hoursText } from "../../shared/timeClock";
-import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { answerWithin, requestsWaiting, futureFigures, futureList, futureRows, FUTURE_WINDOWS, type FutureDays, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
 import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
@@ -1008,7 +1008,81 @@ function ClosePackDialog({ pack: p, onClose, onClosed }: { pack: PackRow; onClos
 const FIGURE_MONTHS = 6;
 
 /** The last six months at a glance: bookings and money month by month, the busiest days, the most booked services. */
+/** Figures: what is coming up (plan 4, 5.1) above the last six months. */
 function FiguresPanel() {
+  return <div className="bkg-figs-stack"><ComingUp /><PastFigures /></div>;
+}
+
+/**
+ * Coming up (plan 4, 5.1, Beta): the next 30, 60 or 90 days. Bookings still to come, what they are worth, what is already
+ * paid and what is left to take at the visits, the fullest day, the next 13 weeks, and the list as a spreadsheet.
+ */
+function ComingUp() {
+  const [rows, setRows] = useState<Booking[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [days, setDays] = useState<FutureDays>(30);
+  const [now] = useState(() => Date.now());
+  useEffect(() => {
+    let stale = false;
+    setRows(null); setError("");
+    readBookingsBetween(new Date(now - 86_400_000).toISOString(), new Date(now + 92 * 86_400_000).toISOString())
+      .then((r) => { if (!stale) setRows(r); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load what's coming up."); });
+    return () => { stale = true; };
+  }, [attempt, now]);
+  const day = today();
+  const figures = useMemo(() => (rows ? futureFigures(rows, ZONE, day, now) : null), [rows, day, now]);
+  const head = (
+    <div className="bkg-ahead-head">
+      <div>
+        <h2 id="bkg-ahead" className="bkg-figs-title">Coming up <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+        <p className="bkg-figs-lead">Bookings still to come and the money they bring in.</p>
+      </div>
+      <Tabs<string> label="How far ahead" idPrefix="bkg-ahead-" value={String(days)} onChange={(v) => setDays(Number(v) as FutureDays)}
+        tabs={FUTURE_WINDOWS.map((d) => ({ id: String(d), label: `${d} days` }))} />
+    </div>
+  );
+  if (error) return <section className="bkg-tile bkg-ahead" aria-labelledby="bkg-ahead">{head}<ErrorState title="Couldn't load what's coming up" description={error} onRetry={() => setAttempt((n) => n + 1)} /></section>;
+  if (!figures) return <section className="bkg-tile bkg-ahead" aria-labelledby="bkg-ahead">{head}<LoadingState label="Looking ahead…" /></section>;
+  const w = figures.windows.find((x) => x.days === days) || figures.windows[0];
+  const weeks = figures.weeks.slice(0, Math.ceil(days / 7) + 1);
+  const topWeek = Math.max(1, ...weeks.map((x) => x.count));
+  const save = () => saveFile(`coming-up-${days}-days-${day}.csv`, `\uFEFF${toCsv(futureRows(futureList(rows || [], ZONE, day, now, days), ZONE))}`, "text/csv;charset=utf-8");
+  return (
+    <section className="bkg-tile bkg-ahead" aria-labelledby="bkg-ahead">
+      {head}
+      {w.count === 0 && w.waiting === 0 ? (
+        <EmptyState inline title={`Nothing booked in the next ${days} days`} description="Share your booking page, or look further ahead." />
+      ) : (<>
+        <div className="bkg-ahead-nums">
+          <div className="bkg-ahead-num bkg-ahead-lead"><span>Booked</span><strong>{w.count}</strong><small>{w.waiting ? `and ${w.waiting} ${w.waiting === 1 ? "request" : "requests"} to answer` : w.count === 1 ? "visit" : "visits"}</small></div>
+          <div className="bkg-ahead-num"><span>Worth</span><strong>{moneyText(w.valueMinor, SHOP_CURRENCY)}</strong><small>before tips</small></div>
+          <div className="bkg-ahead-num"><span>Already paid</span><strong>{moneyText(w.paidMinor, SHOP_CURRENCY)}</strong><small>cards, deposits, gift cards</small></div>
+          <div className="bkg-ahead-num"><span>Still to take</span><strong>{moneyText(w.dueMinor, SHOP_CURRENCY)}</strong><small>at the visits</small></div>
+        </div>
+        {w.busiest && <p className="bkg-ahead-busiest">Fullest day: <strong>{dayText(w.busiest.day, "long")}</strong>, {w.busiest.count} {w.busiest.count === 1 ? "booking" : "bookings"}.</p>}
+        <ol className="bkg-months bkg-ahead-weeks" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
+          {weeks.map((x) => (
+            <li key={x.monday} aria-label={`Week of ${dayText(x.monday, "long")}: ${x.count} ${x.count === 1 ? "booking" : "bookings"}, ${moneyText(x.valueMinor, SHOP_CURRENCY)}`}>
+              <strong aria-hidden>{x.count}</strong>
+              <span className="bkg-months-bar" aria-hidden>{x.count > 0 && <i style={{ height: `${Math.round((x.count / topWeek) * 100)}%` }} />}</span>
+              <span className="bkg-months-name" aria-hidden>{weekLabel(x.monday)}</span>
+            </li>
+          ))}
+        </ol>
+        <div className="bkg-ahead-foot">
+          <span className="rp-hint">Weeks start on Monday. A request counts once you accept it.</span>
+          <SecondaryButton size="sm" icon={<FileSpreadsheet size={15} aria-hidden />} onClick={save}>Spreadsheet</SecondaryButton>
+        </div>
+      </>)}
+    </section>
+  );
+}
+/** "Nov 30" for a week's column. */
+const weekLabel = (monday: string) => new Date(`${monday}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", month: "short", day: "numeric" });
+
+function PastFigures() {
   const [figures, setFigures] = useState<BookingFigures | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);

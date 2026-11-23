@@ -1259,6 +1259,12 @@ is left to pay (`payAtVisit`: QR code or emailed pay link when `restPayable`, Pa
 row's badge and actions wrap under the name. Fixture: `admin-fixture.html?desk=provider` (sets the admin look like
 Dashboard; notes kept in memory, the first booking has a note from last time).
 
+**Coming up (Beta, 23 November 2026, plan 4 step 5.1):** Figures opens with `ComingUp` (then the old panel, now
+`PastFigures`). It reads bookings from a day back to 92 days ahead and `futureFigures` (bookingsView) gives 30/60/90-day
+windows: confirmed bookings whose start hasn't passed (requests counted apart as `waiting`, never as money), worth
+(`priceMinor`), paid (worth less `balanceDue`), still to take, the fullest day and 13 weeks from this Monday.
+`futureRows` makes the spreadsheet (`coming-up-<days>-days-<day>.csv`).
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while
