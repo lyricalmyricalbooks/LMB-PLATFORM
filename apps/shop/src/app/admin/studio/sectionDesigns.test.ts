@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { SECTION_REGISTRY } from "../ThemeEditorExtensions";
+import { DEFAULT_COLOR_SCHEMES } from "../../features/site/colorSchemes";
+import { fieldBounds, getSectionFields, SECTION_REGISTRY } from "../ThemeEditorExtensions";
 import { designGroups, designParts, kindOf, SECTION_KINDS, sectionDesigns } from "./sectionDesigns";
+import { sectionStyleFields } from "./sectionStyleSchema";
 import { settingsWithoutControl } from "./themeCheck";
 
 const designs = sectionDesigns(SECTION_REGISTRY);
@@ -41,5 +43,31 @@ describe("section designs (starter websites, step 2)", () => {
     expect(designGroups(designs, "", "opening").map(g => g.kind)).toEqual(["opening"]);
     expect(designGroups(designs, "opening banners").flatMap(g => g.items).every(d => d.kind === "opening")).toBe(true);
     expect(designGroups(designs, "zzzz")).toEqual([]);
+  });
+  it("every design's values are ones its controls offer, and its colours are the theme's own schemes", () => {
+    const schemes = new Set(DEFAULT_COLOR_SCHEMES.map(s => s.id));
+    const style = sectionStyleFields(DEFAULT_COLOR_SCHEMES);
+    for (const d of designs) {
+      const fields: any[] = [...getSectionFields(d.type), ...style];
+      for (const [key, value] of Object.entries(d.settings)) {
+        const field = fields.find(f => f.key === key);
+        const where = `${d.id} ${key}`;
+        if (key === "colorSchemeId") expect(schemes.has(value), where).toBe(true);
+        else if (field.kind === "select") expect(field.options.map((o: any) => o.value), where).toContain(value);
+        else if (field.kind === "toggle") expect(typeof value, where).toBe("boolean");
+        else if (field.kind === "range" || field.kind === "number") {
+          const { min, max } = fieldBounds(field, { min: -Infinity, max: Infinity });
+          expect(value >= min && value <= max, where).toBe(true);
+        } else expect(field.kind, where).not.toBe("color");
+      }
+    }
+  });
+
+  it("names each design once within its kind, and offers at least three in every kind", () => {
+    for (const k of SECTION_KINDS) {
+      const labels = designs.filter(d => d.kind === k.id).map(d => d.label);
+      expect(new Set(labels).size, k.id).toBe(labels.length);
+      expect(labels.length, k.id).toBeGreaterThan(2);
+    }
   });
 });
