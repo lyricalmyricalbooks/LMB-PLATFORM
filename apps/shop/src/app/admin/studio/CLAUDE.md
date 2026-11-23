@@ -799,4 +799,4 @@ A design is a section type plus some of its own settings; each type keeps its pl
 `data-library-type`), extra designs are `Type~key` (`data-library-design`, "Built from …"). Add section, the try-on candidate
 and Add it there instead all take a design id and resolve it with `designParts`. A new design may only set the section's
 own fields (`settingsWithoutControl` in themeCheck.ts; `sectionDesigns.test.ts`); a new section type must be placed in a
-kind there or the test fails.
+kind there or the test fails. **Second round (same day):** 33 more designs, so every kind has at least three, including the parts the Juniper starters need (big capitals, dark story band, colour block, dark ticker, staggered collage, quick add, bright sign-up band). Dark and bright bands set only `colorSchemeId` to `scheme-inverse` / `scheme-accent` (the default schemes every shop falls back to), never a colour. `sectionDesigns.test.ts` also checks each value is one its control offers (select option, range bounds, scheme id) and that labels are unique within a kind.
