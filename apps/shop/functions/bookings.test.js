@@ -3966,3 +3966,35 @@ describe("my bookings in the customer account (plan 4, 2.10)", () => {
     expect(mine.body.coming.map((x) => x.id)).toEqual([made.body.id]);
   });
 });
+
+describe("bring your services from a spreadsheet (plan 4, 2.11)", () => {
+  test("adds new services hidden, skips names the shop has, and adds nothing the second time", async () => {
+    const t = setup();
+    await t.seed();
+    const sheet = [
+      { name: "Haircut", minutes: 45, priceMinor: 4000, payment: "atShop", group: "Cuts", description: "Wash and cut" },
+      { name: "studio visit", minutes: 30, priceMinor: 0, payment: "free" },
+      { name: "Odd", minutes: 2, priceMinor: 0, payment: "free" },
+      { name: "Yoga class", minutes: 60, priceMinor: 0, payment: "free", places: 8 },
+    ];
+    const first = await t.adm({ op: "importServices", services: sheet });
+    expect(first.statusCode).toBe(200);
+    expect(first.body.added.map((s) => s.name)).toEqual(["Haircut", "Yoga class"]);
+    expect(first.body.skipped.map((s) => s.name)).toEqual(["studio visit", "Odd"]);
+    const cut = (await t.db.collection("bookingServices").doc(first.body.added[0].id).get()).data();
+    expect(cut).toMatchObject({ name: "Haircut", minutes: 45, priceMinor: 4000, payment: "atShop", group: "Cuts", active: false, imported: true });
+    const yoga = (await t.db.collection("bookingServices").doc(first.body.added[1].id).get()).data();
+    expect(yoga.places).toBe(8);
+    expect(yoga.order).toBeGreaterThan(cut.order);
+    const again = await t.adm({ op: "importServices", services: sheet, show: true });
+    expect(again.body.added).toEqual([]);
+    expect(again.body.skipped).toHaveLength(4);
+  });
+  test("shows them at once when asked, and refuses an empty sheet", async () => {
+    const t = setup();
+    await t.seed();
+    expect((await t.adm({ op: "importServices", services: [] })).statusCode).toBe(400);
+    const r = await t.adm({ op: "importServices", services: [{ name: "Massage", minutes: 60, priceMinor: 9000, payment: "atShop" }], show: true });
+    expect((await t.db.collection("bookingServices").doc(r.body.added[0].id).get()).data().active).toBe(true);
+  });
+});
