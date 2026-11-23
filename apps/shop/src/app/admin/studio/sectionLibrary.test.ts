@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  CANDIDATE_ID, deletePreset, deleteSharedBlock, libraryGroups, placementHint, renamePreset, renameSharedBlock,
+  CANDIDATE_ID, deletePreset, deleteSharedBlock, placementHint, renamePreset, renameSharedBlock,
   sharedBlockUsage, withCandidate,
 } from "./sectionLibrary";
 
@@ -13,11 +13,6 @@ const registry = [
 ];
 
 describe("section library", () => {
-  it("groups by category and searches labels, descriptions and placement notes", () => {
-    expect(libraryGroups(registry, "").map(g => [g.category, g.items.map(i => i.type)])).toEqual([["Promo", ["A"]], ["Commerce", ["B", "C"]]]);
-    expect(libraryGroups(registry, "header").flatMap(g => g.items.map(i => i.type))).toEqual(["A"]);
-    expect(libraryGroups(registry, "nothing like this")).toEqual([]);
-  });
   it("says when a section is made for somewhere else", () => {
     expect(placementHint(registry[0], "headerSections")).toEqual({ note: "Best under the header (every page)", elsewhere: false });
     expect(placementHint(registry[0], "heroPage")?.elsewhere).toBe(true);

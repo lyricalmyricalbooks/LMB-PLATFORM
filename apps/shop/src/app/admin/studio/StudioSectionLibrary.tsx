@@ -1,9 +1,12 @@
 // Add section, Studio 2.6: a panel beside the preview (not a pop-up that covers it). Pointing at a card shows that
 // section on the page at the spot it would be added; clicking adds it. Saved sections and shared blocks are managed here.
+// Since step 2 of the starter websites plan the cards are section designs (sectionDesigns.ts), grouped by what they
+// are for, with a row of kinds to show one group. Callbacks get a design id; a plain design's id is its section type.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Pencil, Search, Trash2 } from "lucide-react";
 import type { SharedBlock } from "../../features/site/sharedBlocks";
-import { libraryGroups, placementHint, sharedBlockUsage, type LibraryMeta } from "./sectionLibrary";
+import { placementHint, sharedBlockUsage, type LibraryMeta } from "./sectionLibrary";
+import { designGroups, SECTION_KINDS, sectionDesigns, type SectionKind } from "./sectionDesigns";
 import { SectionThumb } from "./sectionThumbs";
 import { StudioAiDraft } from "./StudioAiDraft";
 import type { Section } from "./studioModel";
@@ -16,10 +19,11 @@ export type LibraryProps = {
   at: number;
   total: number;
   design: any;
-  onPreview: (type: string | null) => void;
-  onPick: (type: string) => void;
+  /** A design id (sectionDesigns.ts): the plain design of a section is its type. */
+  onPreview: (design: string | null) => void;
+  onPick: (design: string) => void;
   /** Adds the section where it works best (its `bestIn` group or page) instead of here. */
-  onPickBestPlace: (type: string) => void;
+  onPickBestPlace: (design: string) => void;
   onPickPreset: (preset: any) => void;
   onRenamePreset: (preset: any) => void;
   onDeletePreset: (preset: any) => void;
@@ -37,7 +41,10 @@ export function StudioSectionLibrary(p: LibraryProps) {
   const [q, setQ] = useState("");
   const [pointed, setPointed] = useState<string | null>(null);
   const timer = useRef<number>(0);
-  const groups = useMemo(() => libraryGroups(p.registry, q), [p.registry, q]);
+  const [kind, setKind] = useState<SectionKind | null>(null);
+  const designs = useMemo(() => sectionDesigns(p.registry), [p.registry]);
+  const metaOf = useMemo(() => new Map(p.registry.map(m => [m.type, m])), [p.registry]);
+  const groups = useMemo(() => designGroups(designs, q, kind, d => `${metaOf.get(d.type)?.label || ""} ${metaOf.get(d.type)?.bestIn?.note || ""}`), [designs, q, kind, metaOf]);
   const presets: any[] = (p.design.sectionPresets || []).filter((x: any) => !q || String(x.name || "").toLowerCase().includes(q.toLowerCase()));
   const shared: SharedBlock[] = p.design.sharedBlocks || [];
 
@@ -47,7 +54,7 @@ export function StudioSectionLibrary(p: LibraryProps) {
     timer.current = window.setTimeout(() => { setPointed(type); p.onPreview(type); }, type ? 160 : 0);
   };
   useEffect(() => () => { window.clearTimeout(timer.current); p.onPreview(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const label = pointed ? p.registry.find(m => m.type === pointed)?.label : null;
+  const label = pointed ? designs.find(d => d.id === pointed)?.label : null;
 
   return (
     <div className="studio-library" role="dialog" aria-modal="false" aria-label="Add section" data-studio-library
@@ -63,6 +70,12 @@ export function StudioSectionLibrary(p: LibraryProps) {
           <Search size={14} aria-hidden />
           <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search sections…" aria-label="Search sections" />
         </label>
+        <div className="studio-library-kinds" role="group" aria-label="Kinds of section">
+          <button type="button" className="studio-library-kind" aria-pressed={kind === null} onClick={() => setKind(null)}>All</button>
+          {SECTION_KINDS.map(k => (
+            <button key={k.id} type="button" className="studio-library-kind" aria-pressed={kind === k.id} onClick={() => setKind(kind === k.id ? null : k.id)}>{k.label}</button>
+          ))}
+        </div>
       </div>
 
       <div className="studio-library-body" onMouseLeave={() => point(null)}>
@@ -86,22 +99,26 @@ export function StudioSectionLibrary(p: LibraryProps) {
           </section>
         )}
         {groups.map(group => (
-          <section key={group.category} className="studio-library-group">
-            <h3>{group.category}</h3>
+          <section key={group.kind} className="studio-library-group" data-library-kind={group.kind}>
+            <h3>{group.label}</h3>
+            <p className="studio-hint studio-library-blurb">{group.blurb}</p>
             <div className="studio-library-grid">
-              {group.items.map(meta => {
-                const hint = placementHint(meta, p.surface);
+              {group.items.map(design => {
+                const meta = metaOf.get(design.type);
+                const hint = meta ? placementHint(meta, p.surface) : null;
+                const plain = design.id === design.type;
                 return (
-                  <div key={meta.type} className="studio-library-item" data-library-type={meta.type}>
-                    <button type="button" className="studio-library-card" aria-pressed={pointed === meta.type}
-                      onMouseEnter={() => point(meta.type)} onFocus={() => point(meta.type)} onClick={() => p.onPick(meta.type)}>
-                      <SectionThumb type={meta.type} />
-                      <span className="studio-library-name">{meta.label}</span>
-                      <small>{meta.description}</small>
+                  <div key={design.id} className="studio-library-item" data-library-design={design.id} data-library-type={plain ? design.type : undefined}>
+                    <button type="button" className="studio-library-card" aria-pressed={pointed === design.id}
+                      onMouseEnter={() => point(design.id)} onFocus={() => point(design.id)} onClick={() => p.onPick(design.id)}>
+                      <SectionThumb type={design.type} />
+                      <span className="studio-library-name">{design.label}</span>
+                      <small>{design.description}</small>
+                      {!plain && meta && <span className="studio-library-of">Built from {meta.label}</span>}
                       {hint && <span className={`studio-library-hint${hint.elsewhere ? " is-elsewhere" : ""}`}>{hint.note}</span>}
                     </button>
                     {hint?.elsewhere && (
-                      <button type="button" className="studio-link-button studio-library-there" onClick={() => p.onPickBestPlace(meta.type)}>
+                      <button type="button" className="studio-link-button studio-library-there" onClick={() => p.onPickBestPlace(design.id)}>
                         Add it there instead
                       </button>
                     )}
@@ -111,7 +128,7 @@ export function StudioSectionLibrary(p: LibraryProps) {
             </div>
           </section>
         ))}
-        {!groups.length && !presets.length && <p className="studio-hint">No sections match “{q}”.</p>}
+        {!groups.length && !presets.length && <p className="studio-hint">{q ? `No sections match “${q}”.` : "No sections of this kind."}</p>}
 
         {shared.length > 0 && (
           <details className="studio-library-group studio-library-shared">

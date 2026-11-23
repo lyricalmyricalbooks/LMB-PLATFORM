@@ -429,6 +429,13 @@
 .studio-library-saved { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--rp-divider); }
 .studio-library-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-library-actions .studio-link-button { width: auto; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+/* Section designs by kind (starter websites step 2): a wrapping row of kinds, a blurb under each heading. */
+.studio-library-kinds { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.studio-library-kind { flex: none; white-space: nowrap; min-height: 32px; padding: 4px 10px; font-size: 12px; font-weight: 700; border: 1px solid var(--rp-border); background: var(--rp-surface); color: inherit; cursor: pointer; }
+.studio-library-kind:hover, .studio-library-kind:focus-visible { border-color: var(--rp-border-strong); }
+.studio-library-kind[aria-pressed="true"] { background: var(--rp-primary); color: var(--rp-on-primary); border-color: var(--rp-primary); }
+.studio-library-blurb { margin: -4px 0 0; font-size: 12px; }
+.studio-library-of { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--rp-text-muted, inherit); }
 .studio-section-thumb { width: 100%; height: auto; aspect-ratio: 120 / 72; color: var(--rp-text, currentColor); background: var(--rp-surface-sunken, transparent); border: 1px solid var(--rp-divider); }
 .studio-block-thumb { width: 100%; height: auto; aspect-ratio: 96 / 54; color: var(--rp-text, currentColor); background: var(--rp-surface-sunken, transparent); border: 1px solid var(--rp-divider); }
 
@@ -761,6 +768,7 @@
 :root[data-admin-look="colophon"] .studio-editor .studio-tree-row[data-selected=true] { box-shadow: none; background: var(--rp-surface-2); }
 :root[data-admin-look="colophon"] .studio-editor :is(.studio-library-card:hover, .studio-library-card:focus-visible, .studio-library-card[aria-pressed="true"], .studio-library-card[aria-checked="true"]) { box-shadow: 0 0 0 2px var(--rp-primary); }
 :root[data-admin-look="colophon"] .studio-editor .studio-library-card { border-radius: 14px !important; overflow: hidden; }
+:root[data-admin-look="colophon"] .studio-editor .studio-library-kind { border-radius: 999px !important; }
 :root[data-admin-look="colophon"] .studio-editor .studio-brand-steps [aria-current="step"] button { box-shadow: none; }
 :root[data-admin-look="colophon"] .studio-editor .studio-workbench-bar button { border-radius: 0 !important; }
 :root[data-admin-look="colophon"] .studio-editor .studio-preview-frame { border-radius: 14px; }
