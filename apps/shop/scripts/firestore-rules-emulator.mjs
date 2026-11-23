@@ -318,6 +318,17 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("visit note extra key refused", assertFails(setDoc(doc(admin, "clientVisits/v6"), { ...visit, junk: 1 })));
   await check("this shop's owner can't read a visit note in another shop", assertFails(getDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "clientVisits/v1"))));
   await check("this shop's owner can't write a visit note in another shop", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "clientVisits/v7"), visit)));
+  // Files kept with one client (Bookings plan 4, 3.2): the team's only; only the name changes after adding.
+  const kept = { client: visit.client, email: "c@b.co", name: "Signed waiver.pdf", path: `client-files/${visit.client}/file-1-x.pdf`, size: 2048, type: "application/pdf", addedAt: "now" };
+  await check("admin keeps a client file", assertSucceeds(setDoc(doc(admin, "clientFiles/f1"), kept)));
+  await check("admin renames a client file", assertSucceeds(setDoc(doc(admin, "clientFiles/f1"), { ...kept, name: "Waiver 2026.pdf" })));
+  await check("a client file's path can't change", assertFails(setDoc(doc(admin, "clientFiles/f1"), { ...kept, path: `client-files/${visit.client}/other.pdf` })));
+  await check("anon can't read a client file", assertFails(getDoc(doc(anon, "clientFiles/f1"))));
+  await check("a client file outside its client's folder refused", assertFails(setDoc(doc(admin, "clientFiles/f2"), { ...kept, path: "client-files/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/file-1-x.pdf" })));
+  await check("a client file over 20 MB refused", assertFails(setDoc(doc(admin, "clientFiles/f3"), { ...kept, size: 20971521 })));
+  await check("a client file extra key refused", assertFails(setDoc(doc(admin, "clientFiles/f4"), { ...kept, junk: 1 })));
+  await check("this shop's owner can't read a client file in another shop", assertFails(getDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "clientFiles/f1"))));
+  await check("this shop's owner can't write a client file in another shop", assertFails(setDoc(doc(signedIn("admin", { email: "owner@example.com", email_verified: true }, { shop: "s2" }), "clientFiles/f5"), kept)));
   await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
   await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
   // Overview › Your first week (plan 3.3)

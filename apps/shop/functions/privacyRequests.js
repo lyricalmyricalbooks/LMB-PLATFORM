@@ -125,7 +125,7 @@ function privacyActions({
   // shopper's own copy) uses indexed lookups only, so a signed-in visitor can never make the shop read whole collections.
   async function personalDataFor(email, { scan = true } = {}) {
     const find = (collection, field, options = {}) => findByEmailData(db, collection, field, email, { ...options, scan });
-    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, gifts, memberships, giftsBought, giftsReceived, rentals] = await Promise.all([
+    const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, clientFiles, gifts, memberships, giftsBought, giftsReceived, rentals] = await Promise.all([
       find("orders", "customer.email"), find("stockAlerts", "email"),
       find("abandoned-carts", "email"), find("reviewContacts", "email"),
       find("contactMessages", "email"), db.collection("newsletter").doc(email).get(),
@@ -149,6 +149,8 @@ function privacyActions({
       // The team's visit notes and before/after photos (admin-only clientVisits). The owner's export and erase cover them;
       // the shopper's own copy leaves them out: they are the team's private notes, not something the shopper gave.
       scan ? find("clientVisits", "email") : Promise.resolve(Object.assign([], { truncated: false })),
+      // Files the team kept with them on the client card (admin-only clientFiles, Bookings plan 4, 3.2): same as the notes.
+      scan ? find("clientFiles", "email") : Promise.resolve(Object.assign([], { truncated: false })),
       // Gifts they gave from the Support page (giving.js).
       find("gifts", "customer.email"),
       // Their memberships (memberships.js).
@@ -168,8 +170,8 @@ function privacyActions({
     const reviews = contacts.length
       ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
       : [];
-    const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows], ["bookings", bookings], ["bookingWaitlist", waiting], ["bookingPacks", packs], ["eventOrders", ticketOrders], ["bookingForms", forms], ["clientVisits", visits], ["gifts", gifts], ["memberships", memberships], ["membershipGifts", memberGifts], ["rentals", rentals]].filter(([, d]) => d.truncated).map(([n]) => n);
-    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, gifts, memberships, memberGifts, rentals, operations, incompleteScan };
+    const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows], ["bookings", bookings], ["bookingWaitlist", waiting], ["bookingPacks", packs], ["eventOrders", ticketOrders], ["bookingForms", forms], ["clientVisits", visits], ["clientFiles", clientFiles], ["gifts", gifts], ["memberships", memberships], ["membershipGifts", memberGifts], ["rentals", rentals]].filter(([, d]) => d.truncated).map(([n]) => n);
+    return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, bookings, waiting, packs, ticketOrders, forms, intro, visits, clientFiles, gifts, memberships, memberGifts, rentals, operations, incompleteScan };
   }
 
   // The personal-data file for one person: what the admin downloads, and what a signed-in shopper downloads for themselves.
@@ -194,6 +196,8 @@ function privacyActions({
       bookingForms: rows(data.forms),
       bookingFirstVisitPrice: data.intro?.exists ? { bookingId: data.intro.data()?.bookingId || null, at: data.intro.data()?.at || null } : null,
       ...(data.visits.length ? { clientVisitNotes: rows(data.visits) } : {}),
+      // The file names and sizes the team kept; the files themselves are in the shop's private storage.
+      ...(data.clientFiles?.length ? { clientFiles: rows(data.clientFiles).map(({ path, ...file }) => file) } : {}),
       // A pack's code is the customer's key: never in the file (only its last four are kept anyway).
       bookingPacks: rows(data.packs).map(({ pendingCode, sessions, paidSession, paymentIntent, mode, ...pack }) => pack),
       // Event tickets: the codes are theirs; the link keys and payment ids stay out.
@@ -286,7 +290,9 @@ function privacyActions({
       const ops = [];
       // The visit photos named by the notes about to go (only paths inside the client-photos folder).
       const photoPaths = data.visits.flatMap(d => (d.data()?.photos || []).map(p => p?.path)).filter(p => typeof p === "string" && /^client-photos\/[0-9a-f]{64}\/[A-Za-z0-9._-]{1,120}$/.test(p));
-      for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows, ...data.waiting, ...data.forms, ...data.visits]) ops.push(b => b.delete(d.ref));
+      // And the files kept with them on the client card (only paths inside the client-files folder).
+      const filePaths = (data.clientFiles || []).map(d => d.data()?.path).filter(p => typeof p === "string" && /^client-files\/[0-9a-f]{64}\/[A-Za-z0-9._-]{1,120}$/.test(p));
+      for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows, ...data.waiting, ...data.forms, ...data.visits, ...(data.clientFiles || [])]) ops.push(b => b.delete(d.ref));
       // A pack never paid for is just a card page that was opened: it goes. A paid one is a payment record, kept like a
       // card-paid booking (its name and email; it holds nothing else about the person).
       const unpaidPacks = data.packs.filter(d => d.data()?.status === "held");
@@ -360,10 +366,14 @@ function privacyActions({
       for (const path of photoPaths) {
         try { await admin.storage().bucket().file(path).delete({ ignoreNotFound: true }); } catch { photosLeft.push(path); }
       }
+      const filesLeft = [];
+      for (const path of filePaths) {
+        try { await admin.storage().bucket().file(path).delete({ ignoreNotFound: true }); } catch { filesLeft.push(path); }
+      }
       if (data.user) await admin.auth().deleteUser(data.user.uid);
       await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now, source: "privacy-erase" }).catch(() => {});
       const summary = {
-        deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, waitingList: data.waiting.length, bookingForms: data.forms.length, clientVisits: data.visits.length, clientPhotos: photoPaths.length - photosLeft.length, unpaidPacks: unpaidPacks.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
+        deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, waitingList: data.waiting.length, bookingForms: data.forms.length, clientVisits: data.visits.length, clientPhotos: photoPaths.length - photosLeft.length, clientFiles: (data.clientFiles || []).length, clientFileUploads: filePaths.length - filesLeft.length, unpaidPacks: unpaidPacks.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
         anonymizedReviews: data.reviews.length,
         reviewAction: reviewMode,
         redactedUnpaidOrders: redactedOrders.map(d => d.id),
@@ -377,6 +387,7 @@ function privacyActions({
         membershipGifts: (data.memberGifts || []).length,
         rentals: (data.rentals || []).length,
         ...(photosLeft.length ? { photosNotDeleted: photosLeft } : {}),
+        ...(filesLeft.length ? { filesNotDeleted: filesLeft } : {}),
         ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
       };
       if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "erased", handledAt: now, handledBy: adminUser.email, summary }, { merge: true });

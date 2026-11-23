@@ -27,6 +27,8 @@ import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
 import { typeApprovalData } from "../app/admin/typeApprovalApi";
 import { clientVisitsData } from "../app/admin/clientVisitsApi";
+import { clientFilesData } from "../app/admin/clientFilesApi";
+import { clientFileFolder, type ClientFile } from "../app/admin/clientFiles";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
 import { eventsData, type AdminEvent, type TicketOrder } from "../app/admin/eventsApi";
@@ -811,6 +813,36 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   clientVisitsData.upload = async (client, kind, file) => { const path = `${clientPhotoFolder(client)}/${photoFileName(kind, Date.now(), Math.random().toString(36).slice(2, 8))}`; files.set(path, URL.createObjectURL(file)); return path; };
   clientVisitsData.photoUrl = async (path) => { const url = files.get(path); if (!url) throw new Error("missing"); return url; };
   clientVisitsData.removeFiles = async (paths) => { for (const p of paths) files.delete(p); };
+}
+
+// ── Customers › a client › Files (services shops, `?sells=hair`): Ben has a signed waiver, a brief and a picture.
+// Kept in memory; opening a sample file shows a small made-up document.
+{
+  const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  const blobs = new Map<string, Blob>();
+  let kept: ClientFile[] = [];
+  let made = false;
+  const seed = async (client: string) => {
+    if (made || client !== await emailHash("ben@example.com")) return;
+    made = true;
+    const p = (name: string) => `${clientFileFolder(client)}/${name}`;
+    const doc = (title: string) => new Blob([`${title}\n\nA sample file in the admin preview.`], { type: "text/plain" });
+    blobs.set(p("file-1-a.pdf"), doc("Signed waiver"));
+    blobs.set(p("file-2-b.docx"), doc("Colour brief"));
+    blobs.set(p("file-3-c.jpg"), doc("Inspiration picture"));
+    kept = [
+      { id: "cf-1", client, email: "ben@example.com", name: "Signed waiver.pdf", path: p("file-1-a.pdf"), size: 182_000, type: "application/pdf", addedAt: ago(40) },
+      { id: "cf-2", client, email: "ben@example.com", name: "Colour brief from Ben.docx", path: p("file-2-b.docx"), size: 46_000, type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", addedAt: ago(14) },
+      { id: "cf-3", client, email: "ben@example.com", name: "The look he wants.jpg", path: p("file-3-c.jpg"), size: 2_400_000, type: "image/jpeg", addedAt: ago(13) },
+    ];
+  };
+  clientFilesData.list = async (client) => { await seed(client); return kept.filter((f) => f.client === client).sort((a, b) => b.addedAt.localeCompare(a.addedAt)); };
+  clientFilesData.write = async (record) => { const id = `cf-${Date.now()}-${kept.length}`; kept = [{ ...record, id }, ...kept]; return id; };
+  clientFilesData.rename = async (id, name) => { kept = kept.map((f) => (f.id === id ? { ...f, name } : f)); };
+  clientFilesData.erase = async (id) => { kept = kept.filter((f) => f.id !== id); };
+  clientFilesData.upload = async (client, file) => { const path = `${clientFileFolder(client)}/file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${(/\.([a-z0-9]+)$/i.exec(file.name)?.[1] || "bin").toLowerCase()}`; blobs.set(path, file); return path; };
+  clientFilesData.blob = async (path) => { const b = blobs.get(path); if (!b) throw new Error("missing"); return b; };
+  clientFilesData.removeFiles = async (paths) => { for (const p of paths) blobs.delete(p); };
 }
 
 // ── Bookkeeping › Transactions › Bank feed (beta, a paid add-on): `?bank=soon|off|connect|signin|empty` (default: one

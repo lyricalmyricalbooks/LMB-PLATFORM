@@ -27,6 +27,7 @@ import { SHOP_CURRENCY } from "./moneySign";
 import "./clientCard.css";
 import { ClientFormFacts } from "./clientForm";
 import { ClientVisits } from "./ClientVisits.tsx";
+import { ClientFiles } from "./ClientFiles.tsx";
 import { emailHash } from "./emailHash";
 import { dayOf } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
@@ -404,6 +405,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
           {hasCard && <ClientCardView card={card} phone={phone} email={c.email} again={card.again && onBookAgain ? () => onBookAgain({ ...card.again!, name: c.name, email: c.email, phone }) : undefined}
             bookFirst={!card.again && onBookAgain ? () => onBookAgain({ serviceId: "", staffId: "", name: c.name, email: c.email, phone }) : undefined} />}
           {hasCard && services && <ClientVisits email={c.key} />}
+          {hasCard && services && <ClientFiles email={c.key} />}
           {(!services || c.orderCount > 0 || !hasCard || c.segment === "moved") && <p className="rp-hint" style={{ margin: 0 }}>
             {c.segment === "moved"
               ? services ? "Brought over from your old booking tool. Their visits there are in Private notes." : "Brought over from your old shop, with no order here yet. What they bought there is in Notes & tags."

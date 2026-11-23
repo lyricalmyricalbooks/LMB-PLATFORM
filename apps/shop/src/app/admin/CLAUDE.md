@@ -1387,6 +1387,15 @@ the client's own folder), calls `clientVisitsApi.ts` (`clientVisitsData`, swappe
 `emailHash.ts` (Customers re-exports it). Privacy: functions/CLAUDE.md › Privacy and newsletter. Fixture:
 `admin-fixture.html?page=customers&sells=hair` › ben@example.com.
 
+**Client files (23 November 2026, Bookings plan 4 step 3.2, `tasks/todo/2026-11-18-bookings-client-files.md`).** Under
+Visit notes and photos, `ClientFiles.tsx` (Beta) keeps up to `MAX_CLIENT_FILES` 30 files a client: PDFs, documents,
+spreadsheets and pictures (`CLIENT_FILE_TYPES`), up to 20 MB, kept as they are. Records `clientFiles` (`client`,
+`email`, `name` ≤ 120, `path`, `size`, `type`, `addedAt`; rules: admin only, the path inside `client-files/<client>/`,
+only `name` changes later) and files in `client-files/<client>/` (storage.rules: admin only, the same kinds; a test
+reads the rule against `CLIENT_FILE_TYPES`). Opened through `getBlob` in a tab opened at the click, never a download
+link. Pure rules `clientFiles.ts`, calls `clientFilesApi.ts` (`clientFilesData`, swapped by the fixture: Ben has three).
+Privacy: export lists them without the path, erase deletes records and files (functions/privacyRequests.js).
+
 
 ## Donations (beta, 18 November 2026)
 
