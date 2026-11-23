@@ -7,7 +7,7 @@
 //     colour behind it, from inline styles and the storefront's colour classes (`colorUtilityCss`), resolving the
 //     shop's colour variables and see-through layers. Text over a picture is skipped: its background is the picture.
 // `themeReadability.test.tsx` renders every section and book page block under every theme with both.
-import { contrastRatio, resolveScheme, schemeList } from "../../features/site/colorSchemes";
+import { contrastRatio, findScheme, resolveScheme, schemeList, schemeVars, usesAllRoles } from "../../features/site/colorSchemes";
 import { buildStorefrontTokenVars, colorUtilityCss } from "../../features/site/themeTokens";
 
 /** Body text needs 4.5:1 (WCAG AA); big headings and the bold capitals on buttons and tags need 3:1. */
@@ -171,9 +171,19 @@ function layer(colour: string, under: string, opacity = 1): string {
  * screen-reader-only) are skipped.
  */
 export function markupProblems(root: Element, design: any, where: string, page?: { text?: string; background?: string }): string[] {
-  const tokens = colourTokens(design);
+  const base = colourTokens(design);
+  const schemes = schemeList(design);
   const problems = new Set<string>();
-  const walk = (el: Element, text: string | null, bg: string | null, picture: boolean) => {
+  // A colour scheme band re-points the colour variables inside it (schemeCss), so its words resolve against its own.
+  const walk = (el: Element, text: string | null, bg: string | null, picture: boolean, tokens: Record<string, string> = base) => {
+    const scheme = el.getAttribute("data-scheme") ? findScheme(schemes, el.getAttribute("data-scheme")) : null;
+    if (scheme && usesAllRoles(scheme)) {
+      const own: Record<string, string> = { ...tokens };
+      for (const decl of schemeVars(scheme).split(";")) { const at = decl.indexOf(":"); if (at > 0) own[decl.slice(0, at)] = decl.slice(at + 1); }
+      tokens = own;
+      const full = resolveScheme(scheme);
+      bg = full.background; text = full.text;
+    }
     const cls = el.getAttribute("class") || "";
     const classes = cls.split(/\s+/);
     // Hidden from everyone: `hidden`, aria-hidden, screen-reader-only. "hidden md:block" still shows on computers.
@@ -206,10 +216,10 @@ export function markupProblems(root: Element, design: any, where: string, page?:
         if (ratio !== null && ratio < LARGE) problems.add(`${where}: “${words.slice(0, 40)}” is hard to read (${fmt(ratio)}: ${nextText} on ${nextBg})`);
       }
     }
-    for (const child of Array.from(el.children)) walk(child, nextText, nextBg, nextPicture);
+    for (const child of Array.from(el.children)) walk(child, nextText, nextBg, nextPicture, tokens);
   };
-  const text = resolveColour(page?.text || "var(--text)", tokens);
-  const bg = resolveColour(page?.background || "var(--bg-color)", tokens);
+  const text = resolveColour(page?.text || "var(--text)", base);
+  const bg = resolveColour(page?.background || "var(--bg-color)", base);
   for (const child of Array.from(root.children)) walk(child, text, bg, false);
   return [...problems];
 }

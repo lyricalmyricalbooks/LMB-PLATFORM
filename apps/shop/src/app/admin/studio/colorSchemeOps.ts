@@ -43,12 +43,15 @@ export function duplicateScheme(list: ColorScheme[], id: string, copyId: string)
   return [...list.slice(0, at + 1), copy, ...list.slice(at + 1)];
 }
 
+/** An edited scheme is the owner's own: the next look no longer replaces the list (themeLook.ts `lookSchemes`). */
+const mine = ({ fromLook: _drop, ...s }: any): ColorScheme => s;
+
 export const renameScheme = (list: ColorScheme[], id: string, name: string) =>
-  list.map((s) => (s.id === id ? { ...s, name } : s));
+  list.map((s) => (s.id === id ? mine({ ...s, name }) : s));
 
 /** Set one role. The scheme then uses every role (an older scheme is upgraded on its first colour edit). */
 export const setSchemeRole = (list: ColorScheme[], id: string, role: SchemeRole, value: string) =>
-  list.map((s) => (s.id === id ? { ...upgradeScheme(s), [role]: value } : s));
+  list.map((s) => (s.id === id ? mine({ ...upgradeScheme(s), [role]: value }) : s));
 
 /** Use every role for an older scheme without changing any stored colour. */
 export const upgradeSchemeIn = (list: ColorScheme[], id: string) => list.map((s) => (s.id === id ? upgradeScheme(s) : s));

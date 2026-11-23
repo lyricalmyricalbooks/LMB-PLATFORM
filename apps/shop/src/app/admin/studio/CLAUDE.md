@@ -806,3 +806,15 @@ A starter's `content.sections` may also hold `headerSections` and `globalSection
 `targetOf` → `setSections({kind:"global"})`) and `content.productBlocks` (the buy box, written to
 `productPage.productInfoBlocks`). The apply summary names each part it replaces. `themeProblems` flags an unknown buy box
 block and a required block marked hidden (`starterPages.test.ts`).
+
+### Starter websites, step 4: Slow Season and Catalogue (23 November 2026)
+`juniper-slow-season` and `juniper-catalogue` (themeLibrary.ts) are the first starters made only of Studio sections, with
+no template style: `lookGallery.ts` `STARTER_SITES` offers them after the ten built looks. Fonts Instrument Serif,
+Newsreader and Manrope were added to `FONT_CHOICES`. **Look colour schemes:** `themeLookKeys` writes the three starting
+schemes in the look's colours (`lookSchemes`: dark = text on page, bright = `secondaryColor` or the accent), marked
+`fromLook`, while the shop has no scheme of its own; editing a scheme (`colorSchemeOps` rename/role) drops `fromLook`, so the
+owner's schemes are never replaced. `markupProblems` (themeReadability.ts) now reads a `data-scheme` band's own colours.
+**Adding more Figma designs later:** 1) read the Figma file's parts and map each to a section design (sectionDesigns.ts,
+add one if missing); 2) add a library entry with `global`, a palette, `content.sections` (pages and every-page groups) and
+`productBlocks`; 3) add its id to `STARTER_SITES`; 4) run the theme, readability and font tests, then screenshot it in the
+Studio fixture. Existing shops are untouched.

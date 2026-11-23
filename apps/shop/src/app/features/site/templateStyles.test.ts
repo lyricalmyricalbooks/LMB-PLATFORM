@@ -16,7 +16,8 @@ describe("full storefront templates", () => {
     expect(themeStyleCss({ themeStyle: "mosaic" })).toContain(MOSAIC_CSS);
     expect(themeStyleCss({ themeStyle: "arch" })).toContain(ARCH_CSS);
     expect(themeStyleCss({ themeStyle: "riso" })).toContain(RISO_STOREFRONT_CSS);
-    expect(themeStyleCss({ themeStyle: "default" })).toBe("");
+    expect(themeStyleCss({ themeStyle: "default" })).toContain(".text-white");
+    expect(themeStyleCss({ themeStyle: "default" })).not.toContain("fm-newsletter-btn");
     expect(themeStyleCss({})).toBe("");
     expect(themeStyleCss(null)).toBe("");
   });

@@ -382,5 +382,21 @@
   "velvet-rose home": {
     "nodes": 213,
     "images": 0
+  },
+  "juniper-catalogue book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "juniper-catalogue home": {
+    "nodes": 271,
+    "images": 0
+  },
+  "juniper-slow-season book": {
+    "nodes": 264,
+    "images": 0
+  },
+  "juniper-slow-season home": {
+    "nodes": 264,
+    "images": 0
   }
 }
