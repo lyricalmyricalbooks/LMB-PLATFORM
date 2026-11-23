@@ -15,6 +15,7 @@ export type Booking = {
   customer: { name: string; email: string; phone?: string }; note?: string; answers?: { label: string; answer: string }[]; status: BookingStatus;
   payment: "free" | "card" | "deposit" | "atShop" | "pack"; priceMinor: number; /** With payment "deposit": the part taken by card when booked. */ depositMinor?: number; depositPaid?: boolean; currency: string; paid: boolean; noShow?: boolean; clearing?: boolean;
   /** The code the client shows at the desk, and when the shop checked them in (op checkIn). */ checkInCode?: string; checkedInAt?: string | null;
+  /** Confirm requests (plan 4, 3.3): the reminder email went, and when the client tapped "Yes, I'll be there". */ reminderSentAt?: string | null; clientConfirmedAt?: string | null;
   /** A course: every date this one sign-up holds a place on (the first is `start`), and their shop days. */
   course?: { starts: string[]; days: string[]; /** Who takes each date, when it isn't the same person throughout. */ staff?: string[] };
   refund?: { amountMinor: number; at: string } | null; source?: "website" | "admin" | "desk"; cancelledBy?: string;

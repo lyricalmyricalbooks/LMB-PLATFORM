@@ -54,6 +54,7 @@ exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
+exports.confirmState = confirmState;
 exports.runsOnline = runsOnline;
 exports.cleanRun = cleanRun;
 exports.runStarts = runStarts;
@@ -379,6 +380,7 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     reviewUrl: "",
     siteReviews: false,
     textReminders: false,
+    askToConfirm: false,
     staff: [],
     rooms: [],
 };
@@ -922,11 +924,27 @@ function cleanBookingSettings(raw) {
         reviewUrl: reviewLink(s.reviewUrl),
         siteReviews: s.siteReviews === true,
         textReminders: s.textReminders === true,
+        askToConfirm: s.askToConfirm === true,
         ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
         ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
         ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
         ...(exports.DAILY_CAPS.includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),
     };
+}
+/**
+ * Where a booking stands on confirm requests (plan 4, 3.3): "confirmed" once the client tapped "Yes, I'll be there",
+ * "waiting" after the reminder asked and before they answered, null when nothing was asked (the setting is off, the
+ * booking isn't a confirmed one, its reminder hasn't gone, or it has already started).
+ */
+function confirmState(b, settings, nowMs) {
+    if (b.status !== "confirmed")
+        return null;
+    if (b.clientConfirmedAt)
+        return "confirmed";
+    if (!settings?.askToConfirm || !settings.reminderHours || !b.reminderSentAt)
+        return null;
+    const start = Date.parse(b.start || "");
+    return Number.isFinite(start) && start > nowMs ? "waiting" : null;
 }
 exports.MAX_REBOOK_WEEKS = 52;
 // ── Standing appointments (Services plan 2, B1) ──────────────────────────────────────────────────────────────────

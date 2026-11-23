@@ -664,3 +664,6 @@
 .rp .bkg-forms-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .rp .bkg-forms-item .bkg-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rp-border); }
 .rp .bkg-forms-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+/* Confirm requests (plan 4, 3.3) */
+.rp .bkg-slot-tag[data-confirm="confirmed"] { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .bkg-slot-tag[data-confirm="waiting"] { background: var(--rp-tile-apricot); color: var(--rp-on-tile); }

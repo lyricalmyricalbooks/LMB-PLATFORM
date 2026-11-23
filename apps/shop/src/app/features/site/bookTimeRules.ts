@@ -144,6 +144,8 @@ export type BookingView = {
   courseStarts?: string[]; canMove?: boolean;
   /** "Tell me if an earlier time opens": whether this visit can ask, and whether it has. */
   canEarlier?: boolean; earlier?: boolean;
+  /** Confirm requests (plan 4, 3.3): the page asks for "Yes, I'll be there", and whether the client said it. */
+  askConfirm?: boolean; clientConfirmed?: boolean;
   /**
    * The next form to sign before the visit (plan 4, 3.1: several, `renew` when a signature ran out) with how many are
    * left, while any is waiting; or when the last was signed.

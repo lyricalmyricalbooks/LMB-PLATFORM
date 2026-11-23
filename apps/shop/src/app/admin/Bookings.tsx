@@ -3,7 +3,7 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, CalendarOff, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
+import { BellRing, CalendarOff, CheckCircle2, CircleHelp, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Checkbox, DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
@@ -12,7 +12,7 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, followRequests, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -346,6 +346,7 @@ function WeekView({ monday, setMonday, rows, error, settings, services, onOpen, 
                         {!isClass && first.status === "requested" && <span className="bkg-slot-tag">Request</span>}
                         {!isClass && first.noShow && <span className="bkg-slot-tag">No-show</span>}
                         {!isClass && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
+                        {!isClass && !first.noShow && !first.checkedInAt && <ConfirmTag booking={first} settings={settings} />}
                         {!isClass && draggable(first, blk.places, Date.now()) && <span className="bkg-drag-edge" data-edge aria-hidden />}
                       </button>
                     );
@@ -467,6 +468,25 @@ function BlockDialog({ settings, start, staffId = "", onClose, onSaved }: {
 }
 
 /** The processing stretch inside a booking's card: light stripes, so the free time inside it shows at a glance. */
+/** Confirm requests (plan 4, 3.3): "Confirmed" once the client tapped "Yes, I'll be there", else "Not confirmed" after the reminder asked. */
+function ConfirmTag({ booking, settings }: { booking: Booking; settings: BookingSettings }) {
+  const state = confirmState(booking, settings, Date.now());
+  if (!state) return null;
+  return <span className="bkg-slot-tag" data-confirm={state}>{state === "confirmed" ? "Confirmed" : "Not confirmed"}</span>;
+}
+function ConfirmLine({ booking: b, settings }: { booking: Booking; settings: BookingSettings }) {
+  const state = confirmState(b, settings, Date.now());
+  if (!state) return null;
+  return (
+    <p className="bkg-detail-line" data-confirm-line={state}>
+      {state === "confirmed" ? <CheckCircle2 size={16} aria-hidden /> : <CircleHelp size={16} aria-hidden />}
+      {state === "confirmed"
+        ? ` Said they'll be there${b.clientConfirmedAt ? `, ${new Date(b.clientConfirmedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })} at ${timeText(b.clientConfirmedAt, ZONE)}` : ""}.`
+        : ` Not confirmed yet. The reminder asked them to. You might give them a call.`}
+    </p>
+  );
+}
+
 function ProcessingBand({ booking, heightMin }: { booking: Booking; heightMin: number }) {
   const band = processingBand(booking, heightMin);
   return band ? <i className="bkg-processing" aria-hidden style={band}><span>Processing</span></i> : null;
@@ -721,6 +741,7 @@ function TeamDayView({ day, setDay, rows, error, settings, onOpen, onBlock, onBo
                       {!many && first.status === "held" && <span className="bkg-slot-tag">{first.clearing ? "Clearing" : "Paying"}</span>}
                       {!many && first.status === "requested" && <span className="bkg-slot-tag">Request</span>}
                       {!many && !first.noShow && first.checkedInAt && first.status === "confirmed" && <span className="bkg-slot-tag" data-here>Here</span>}
+                      {!many && !first.noShow && !first.checkedInAt && <ConfirmTag booking={first} settings={settings} />}
                       {!many && draggable(first, 1, Date.now()) && <span className="bkg-drag-edge" data-edge aria-hidden />}
                     </button>
                   );
@@ -1337,6 +1358,7 @@ function BookingDrawer({ booking: b, services, settings, onClose }: { booking: B
         {!!b.gapBefore && <p className="bkg-detail-line"><Clock size={16} aria-hidden /> {b.gapBefore} minutes kept free before it</p>}
         {!!processingText(b) && <p className="bkg-detail-line"><Hourglass size={16} aria-hidden /> {processingText(b)}: you're free for a short booking then</p>}
         {!!b.extras?.length && <p className="bkg-detail-line"><Plus size={16} aria-hidden /> Add-ons: {b.extras.map((x) => x.name).join(", ")}</p>}
+        <ConfirmLine booking={b} settings={settings} />
         {b.earlierWanted && b.status === "confirmed" && <p className="bkg-detail-line"><Clock size={16} aria-hidden /> Wants an earlier time if one opens. They're emailed when someone cancels.</p>}
         {b.series && <p className="bkg-detail-line"><CalendarPlus size={16} aria-hidden /> Standing appointment: visit {b.series.visit} of {b.series.visits}, {b.series.everyWeeks === 1 ? "every week" : `every ${b.series.everyWeeks} weeks`}</p>}
         {b.location && <p className="bkg-detail-line"><MapPin size={16} aria-hidden /> {b.location}</p>}
@@ -2755,6 +2777,17 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
             <SelectField label="Most online bookings a day" hint="Once a day has this many, clients can't book it online. You can still add more yourself." value={String(form.dailyCap || 0)} onChange={(e) => setForm({ ...form, dailyCap: Number(e.target.value) })}>
               {DAILY_CAPS.map((n) => <option key={n} value={n}>{n ? `${n} booking${n === 1 ? "" : "s"}` : "No limit"}</option>)}
             </SelectField>
+          </div>
+        </section>
+        <section className="bkg-tile" data-confirm-tile>
+          <h2 className="bkg-tile-title">Ask clients to confirm <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+          <div className="bkg-form">
+            <Toggle label={'Add a "Yes, I\'ll be there" button to the reminder'} checked={form.askToConfirm === true && form.reminderHours > 0} disabled={!form.reminderHours} onChange={(askToConfirm) => setForm({ ...form, askToConfirm })} />
+            <p className="bkg-cal-text">
+              {!form.reminderHours ? "Turn on the reminder email above first: the button goes in it."
+                : form.askToConfirm ? "Your calendar shows who has confirmed and who hasn't yet, so you know who to call."
+                : "Clients get the reminder as it is now, with no button."}
+            </p>
           </div>
         </section>
         <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} onChange={(textReminders) => setForm({ ...form, textReminders })} />
