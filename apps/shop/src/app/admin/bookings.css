@@ -779,3 +779,10 @@
   .rp .bkg-rota-add { opacity: 1; }
 }
 .rp .bkg-rota-past .tdesk-plan-list { background: var(--rp-surface); border-radius: 18px; padding: 4px 18px; }
+/* Commission that rises in a good month (plan 4, 4.4). */
+.rp .bkg-steps { display: grid; gap: 10px; justify-items: start; }
+.rp .bkg-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; width: 100%; }
+.rp .bkg-steps > .bkg-questions-hint, .rp .bkg-steps > .bkg-shift-error { justify-self: stretch; }
+/* A figure with its rule under it, wrapping inside the cell (plan 4, 4.4: steps make the rule long). */
+.rp .bkg-pay-cell { display: inline-grid; justify-items: end; gap: 2px; min-width: 0; max-width: 100%; }
+.rp .bkg-pay-cell .bkg-pay-pct { white-space: normal; text-align: right; overflow-wrap: anywhere; }

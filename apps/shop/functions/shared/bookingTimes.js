@@ -10,7 +10,7 @@
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.formsFor = exports.FORM_RENEW_CHOICES = exports.MAX_FORMS = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = exports.addressLine = exports.MAX_AREAS = exports.CHANNEL_NAMES = exports.BOOKING_CHANNELS = exports.APPROVAL_HOURS = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.AWAY_LOOKAHEAD_DAYS = exports.MAX_AWAY_WORDS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.MAX_STEP_MINOR = exports.MAX_COMMISSION_STEPS = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.AWAY_LOOKAHEAD_DAYS = exports.MAX_AWAY_WORDS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = void 0;
 exports.answerBy = answerBy;
 exports.approvalAllowed = approvalAllowed;
 exports.bookingChannel = bookingChannel;
@@ -68,6 +68,9 @@ exports.reviewLink = reviewLink;
 exports.thanksDue = thanksDue;
 exports.cleanRooms = cleanRooms;
 exports.cleanStaff = cleanStaff;
+exports.cleanCommissionSteps = cleanCommissionSteps;
+exports.commissionFor = commissionFor;
+exports.commissionStepsText = commissionStepsText;
 exports.commissionOf = commissionOf;
 exports.cleanRates = cleanRates;
 exports.forPerson = forPerson;
@@ -1173,12 +1176,62 @@ function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
             email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
             rates: cleanRates(p.rates),
             ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
+            ...(commissionOf(p.commissionPercent) && cleanCommissionSteps(p.commissionSteps).length ? { commissionSteps: cleanCommissionSteps(p.commissionSteps) } : {}),
             ...((0, timeClock_1.hourlyOf)(p.hourlyMinor) ? { hourlyMinor: (0, timeClock_1.hourlyOf)(p.hourlyMinor) } : {}),
             ...((0, exports.servicePhoto)(p.photo) ? { photo: (0, exports.servicePhoto)(p.photo) } : {}),
             ...((0, exports.personBio)(p.bio) ? { bio: (0, exports.personBio)(p.bio) } : {}),
         });
     }
     return out;
+}
+exports.MAX_COMMISSION_STEPS = 4;
+/** A month's takings a step can start at: at most $1,000,000. */
+exports.MAX_STEP_MINOR = 100_000_000;
+/** Steps as typed: each over a bigger amount than the one before, a share from 0.5 to 100; at most four. */
+function cleanCommissionSteps(raw) {
+    const out = [];
+    for (const x of Array.isArray(raw) ? raw : []) {
+        const r = (x && typeof x === "object" ? x : {});
+        const over = Math.round(Number(r.overMinor));
+        const percent = commissionOf(r.percent);
+        if (!Number.isFinite(over) || over <= 0 || over > exports.MAX_STEP_MINOR || !percent || Number(r.percent) > 100)
+            continue;
+        if (out.length && over <= out[out.length - 1].overMinor)
+            continue;
+        out.push({ overMinor: over, percent });
+        if (out.length === exports.MAX_COMMISSION_STEPS)
+            break;
+    }
+    return out;
+}
+/**
+ * A month's commission on `takenMinor`: `percent` up to the first step, then each step's share on the part above it.
+ * Rounded once, to the cent. A refund that leaves the month below zero earns nothing back.
+ */
+function commissionFor(takenMinor, percent, steps = []) {
+    if (!(takenMinor > 0) || !percent)
+        return 0;
+    let total = 0;
+    let from = 0;
+    let share = percent;
+    for (const s of steps) {
+        if (takenMinor <= s.overMinor)
+            break;
+        total += (s.overMinor - from) * share;
+        from = s.overMinor;
+        share = s.percent;
+    }
+    total += (takenMinor - from) * share;
+    return Math.round(total / 100);
+}
+/** "40% up to $3,000 a month, then 50%.": commission steps in plain words. `sign` is the shop's money sign. */
+function commissionStepsText(percent, steps, sign = "$") {
+    const money = (minor) => `${sign}${(minor / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+    if (!steps.length)
+        return `${percent}% of the month.`;
+    const parts = [`${percent}% up to ${money(steps[0].overMinor)} a month`];
+    steps.forEach((s, i) => parts.push(i + 1 < steps.length ? `${s.percent}% up to ${money(steps[i + 1].overMinor)}` : `${s.percent}%`));
+    return `${parts.join(", then ")}.`;
 }
 /** A commission share: a number from 0.5 to 100 in half steps; anything else is none (0). */
 function commissionOf(raw) {

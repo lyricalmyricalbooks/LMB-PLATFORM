@@ -2302,6 +2302,9 @@ describe("staff and rooms", () => {
     expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([]);
     await team(t);
     expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: ["visit"] }]);
+    // Pay never reaches the public page (plan 4, 4.4).
+    await team(t, { staff: [{ id: "ana", name: "Ana", commissionPercent: 40, commissionSteps: [{ overMinor: 300_000, percent: 50 }], hourlyMinor: 2_000 }] });
+    expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([{ id: "ana", name: "Ana", serviceIds: [] }]);
   });
 
   test("booking with anyone free assigns someone, and two bookings at once go to two people", async () => {
