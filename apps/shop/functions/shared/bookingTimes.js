@@ -10,7 +10,7 @@
 // (`places` above 1): then several people share one start, up to its places.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.balanceDue = exports.moneyKept = exports.moneyTaken = exports.feeTaken = exports.restTaken = exports.bookedCardTaken = exports.cardTaken = exports.giftReturned = exports.giftTaken = exports.cardAsk = exports.DAILY_SUMMARY_HOUR = exports.SECOND_REMINDER_HOURS = exports.REMINDER_HOURS = exports.WAIT_HOLD_MINUTES = exports.DEFAULT_BOOKING_SETTINGS = exports.MAX_SERVICES = exports.DAILY_CAPS = exports.BOOKING_STEPS = exports.MAX_PROCESS_MINUTES = exports.MIN_PROCESS_MINUTES = exports.MAX_GAP_BEFORE = exports.MIN_PROCESS_AFTER = exports.formFor = exports.formsFor = exports.FORM_RENEW_CHOICES = exports.MAX_FORMS = exports.MAX_FORM_TEXT = exports.blockOn = exports.MAX_BLOCKS = exports.MAX_SPECIAL_DAYS = exports.MAX_SPECIAL_HOURS = exports.MAX_ROOMS = exports.MAX_STAFF = exports.roomUnitsText = exports.ROOM_UNIT_CHOICES = exports.MAX_ROOM_UNITS = exports.MAX_EXTRA_MINUTES = exports.MAX_EXTRAS = exports.MAX_LENGTHS = exports.MAX_QUESTIONS = exports.isCourse = exports.MAX_COURSE_DATES = exports.isClass = exports.MAX_CLASS_TIMES = exports.MAX_PLACES = exports.addressLine = exports.MAX_AREAS = exports.CHANNEL_NAMES = exports.BOOKING_CHANNELS = exports.APPROVAL_HOURS = void 0;
-exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = void 0;
+exports.CHECK_IN_ALPHABET = exports.PICKUP_MESSAGES = exports.PACK_MESSAGES = exports.packEndsOn = exports.packLeft = exports.packUsed = exports.offersPack = exports.MAX_PACK_DAYS = exports.MAX_PACK_VISITS = exports.joinsVisit = exports.visitName = exports.MAX_VISIT_PARTS = exports.booksByPerson = exports.isDay = exports.weekdayOf = exports.PICKUP_DAYS_AHEAD = exports.MAX_PICKUP_PER_SLOT = exports.PICKUP_SLOT_MINUTES = exports.TEAM_SHOWN_CHOICES = exports.personBio = exports.MAX_BIO_LENGTH = exports.REVIEW_BODY_MAX = exports.REBOOK_WINDOW_DAYS = exports.MAX_RUN_DAYS = exports.MAX_RUN_WEEKS = exports.MAX_RUN_VISITS = exports.MAX_REBOOK_WEEKS = exports.AWAY_LOOKAHEAD_DAYS = exports.MAX_AWAY_WORDS = exports.MIN_LATE_DATES = exports.MAX_DECIDE_HOURS = exports.DECIDE_HOURS = exports.servicePhoto = exports.serviceGroup = exports.MAX_GROUP_LENGTH = exports.MAX_FREE_LATE_FEE = exports.tipFits = exports.tipLimitMinor = exports.tipChoices = exports.tipTaken = exports.restPayable = exports.MIN_CARD_MINOR = void 0;
 exports.answerBy = answerBy;
 exports.approvalAllowed = approvalAllowed;
 exports.bookingChannel = bookingChannel;
@@ -54,6 +54,8 @@ exports.cleanClassTimes = cleanClassTimes;
 exports.cleanQuestions = cleanQuestions;
 exports.cleanAnswers = cleanAnswers;
 exports.cleanBookingSettings = cleanBookingSettings;
+exports.awayText = awayText;
+exports.awayNow = awayNow;
 exports.confirmState = confirmState;
 exports.runsOnline = runsOnline;
 exports.cleanRun = cleanRun;
@@ -383,6 +385,7 @@ exports.DEFAULT_BOOKING_SETTINGS = {
     textReminders: false,
     textReplies: false,
     askToConfirm: false,
+    awayReply: false,
     staff: [],
     rooms: [],
 };
@@ -928,12 +931,47 @@ function cleanBookingSettings(raw) {
         textReminders: s.textReminders === true,
         textReplies: s.textReplies === true,
         askToConfirm: s.askToConfirm === true,
+        awayReply: s.awayReply === true,
+        ...(() => { const words = awayText(s.awayWords); return words ? { awayWords: words } : {}; })(),
         ...(() => { const messages = (0, bookingMessages_1.cleanMessages)(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
         ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
         ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
         ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
         ...(exports.DAILY_CAPS.includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),
     };
+}
+// ── Away reply (plan 4, 3.7) ─────────────────────────────────────────────────────────────────────────────────────
+exports.MAX_AWAY_WORDS = 600;
+/** The owner's away words, cleaned: plain text, line breaks kept (at most two in a row), at most MAX_AWAY_WORDS characters. */
+function awayText(raw) {
+    if (typeof raw !== "string")
+        return "";
+    return raw.replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, exports.MAX_AWAY_WORDS).trim();
+}
+/** How far ahead the away reply looks for the next opening; past that it just says the shop is away. */
+exports.AWAY_LOOKAHEAD_DAYS = 21;
+/**
+ * Is the shop closed at `nowMs`? null while it is open (inside a window of its hours on a day that isn't a day off),
+ * else `{ backAt }`: the moment it next opens within AWAY_LOOKAHEAD_DAYS, or null when it doesn't open in that time.
+ */
+function awayNow(settings, nowMs, zone) {
+    const today = dayOf(nowMs, zone);
+    for (let n = 0; n <= exports.AWAY_LOOKAHEAD_DAYS; n++) {
+        const day = addDays(today, n);
+        if ((settings.daysOff || []).includes(day))
+            continue;
+        const windows = [...hoursOnDay(settings, day)].sort((a, b) => a.start.localeCompare(b.start));
+        for (const w of windows) {
+            const start = zonedTime(day, w.start, zone);
+            const end = zonedTime(day, w.end, zone);
+            if (end <= nowMs)
+                continue;
+            if (start <= nowMs)
+                return null;
+            return { backAt: start };
+        }
+    }
+    return { backAt: null };
 }
 /**
  * Where a booking stands on confirm requests (plan 4, 3.3): "confirmed" once the client tapped "Yes, I'll be there",
