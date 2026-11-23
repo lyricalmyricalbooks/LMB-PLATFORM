@@ -1836,3 +1836,9 @@ sweep runs inside `bookingSweep`. Rate limit bucket `rental`. Not yet: privacy e
 (`deskBooking`: no key hashes, `payKey`/`pendingKey`, card only brand + last4; holds dropped). `DESK_OPS` lists what
 each role may run (403 `desk_only`); a provider needs a staff row with their email (`not_on_team`), can't use a code
 (`no_code`) and only touches bookings they take (404 `not_yours`).
+
+**Clock in and out (23 November 2026, Bookings plan 4 step 4.2).** `timeClock/{id}` (server only, no rule needed):
+`{ email, name, staffId?, day, in, out|null, breaks[], open, by, updatedAt, updatedBy }`, rules in `shared/timeClock.js`.
+Desk op `clock` {step in|break|back|out} for frontDesk/provider (an admin gets `desk_only`), in a transaction that finds
+the one `open` shift by email (equality filters only, no index). Owner ops `shifts` {from,to} (plus every open shift),
+`saveShift` (409 when a second open shift for one person), `removeShift`; all three are refused from the desk.

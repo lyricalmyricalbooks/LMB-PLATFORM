@@ -1506,3 +1506,10 @@ Team roles `frontDesk` and `provider` (Beta, offered by `roleChoices` in `TeamSe
 accountant's desk. The page reads nothing itself: every call is `teamDeskData` (`teamDeskApi.ts`) → action
 `bookingsDesk`. Front desk: day, New booking, Check in, Didn't turn up, Cancel. Provider: only their own visits, Check in
 and Didn't turn up. Fixture: `admin-fixture.html?desk=frontDesk` or `?desk=provider`.
+
+**Clock in and out (23 November 2026, Bookings plan 4 step 4.2, `tasks/todo/2026-11-23-bookings-clock-in.md`).**
+The team desk shows a time clock card (`TeamDesk.tsx` `ClockCard`, steps through `teamDeskData.act("clock")`). Team pay
+reads the month's shifts (`bookingsAdmin("shifts")`) into `teamPay(…, shifts)`: hours and `wagesMinor` at the person's
+`hourlyMinor` (Team & rooms › Their pay), a person with no entry on a `CLOCK_ONLY` line, a `forgotten` shift skipped.
+`ShiftsPanel.tsx` (Hours worked) lists, adds, fixes and removes shifts; times typed go through `shifts.ts` `momentOn`
+(a finish before the start is the next morning) and `cleanShift` before saving.
