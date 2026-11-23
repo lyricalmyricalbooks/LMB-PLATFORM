@@ -2285,6 +2285,11 @@ await check("a booked client can sign the form before the first visit, ask to he
   await form.getByText("I've read this and agree").click();
   if (process.env.STUDIO_SHOTS) await form.screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-form.png` });
   await form.getByRole("button", { name: "Sign" }).click();
+  // The sample asks for two forms (plan 4, 3.1): the waiver comes next, with no questions, then both are signed.
+  await form.getByRole("heading", { name: "Waiver" }).waitFor({ timeout: 10000 });
+  await form.locator("#bt-f-name").fill("Sample Client");
+  await form.getByText("I've read this and agree").click();
+  await form.getByRole("button", { name: "Sign" }).click();
   await frame.getByText(/^Form signed /).waitFor({ timeout: 10000 });
   if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsEarlier]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-earlier-tick.png` });
   // The link in the email: the earlier time, the booking it replaces, one button.
