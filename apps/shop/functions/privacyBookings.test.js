@@ -17,6 +17,11 @@ describe('what an erase writes onto a booking', () => {
     expect(fields).toMatchObject({ note: '', answers: [], pendingKey: null, manageKeyHash: '', reminderKeyHash: '', reminderSentAt: NOW, privacyRedactedAt: NOW });
   });
 
+  it("a visit at the client's place loses its address too (plan 4, 2.8)", () => {
+    expect(redactedBookingFields({ payment: 'card', paid: true, atClient: true, location: '12 Main St, Toronto M6G 1A1', customer: { name: 'Ada', email: 'a@example.com' } }, NOW).location).toBe('');
+    expect(redactedBookingFields({ payment: 'free', location: 'The studio', customer: { name: 'Ada', email: 'a@example.com' } }, NOW)).not.toHaveProperty('location');
+  });
+
   it('a card-paid or refunded booking keeps the name and email as a payment record', () => {
     for (const booking of [{ paid: true }, { paid: false, refund: { amountMinor: 2500 } }]) {
       expect(bookingPaid(booking)).toBe(true);

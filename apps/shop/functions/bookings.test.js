@@ -3873,3 +3873,24 @@ describe("owner approves (plan 4, 2.5)", () => {
     expect(saved.body.service.approval).toBeUndefined();
   });
 });
+
+describe("visits at the client's address (plan 4, 2.8)", () => {
+  test("asks for the address, keeps to the area, and makes the address the booking's place", async () => {
+    const t = setup();
+    await t.seed();
+    await t.db.collection("bookingServices").doc("visit").set({ atClient: true, areas: ["M6G", "M5"] }, { merge: true });
+    const info = (await t.pub({ action: "bookingInfo" })).body.services.find((s) => s.id === "visit");
+    expect(info).toMatchObject({ atClient: true, areas: ["M6G", "M5"] });
+    const start = at("2026-11-17", "10:00");
+    const none = await t.pub({ action: "bookingStart", serviceId: "visit", start, ...CUSTOMER });
+    expect(none.statusCode).toBe(400);
+    expect(none.body.code).toBe("address");
+    const away = await t.pub({ action: "bookingStart", serviceId: "visit", start, ...CUSTOMER, address: { street: "1 Far Rd", city: "Ottawa", postcode: "K1A 0A6" } });
+    expect(away.statusCode).toBe(400);
+    expect(away.body.code).toBe("area");
+    const ok = await t.pub({ action: "bookingStart", serviceId: "visit", start, ...CUSTOMER, address: { street: " 12  Main St ", city: "Toronto", postcode: "m6g 1a1" } });
+    expect(ok.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${ok.body.id}`)).toMatchObject({ location: "12 Main St, Toronto M6G 1A1", atClient: true });
+    expect(t.emails[0].html).toContain("12 Main St, Toronto M6G 1A1");
+  });
+});

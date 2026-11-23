@@ -80,6 +80,7 @@ export const ARTICLES = Object.freeze([
       "If you have another website, press Share above the calendar and copy the Book now button. Paste it where that website takes code. Clients then book on top of your page without leaving it, and on a phone it opens in a new tab.",
       "To check each booking before it's confirmed, open a free or pay-at-the-shop service and turn on Ask me before confirming. Clients then send a request, and you have two days to accept or decline it from the Requests box at the top of the calendar. A request you don't answer in time is declined for you, and the client gets an email either way.",
       "Share also has a link for each of Instagram, Facebook and Google, with where to paste it. Print a poster puts your QR code on a page for the window or the till. Figures then shows where your bookings came from.",
+      "If you go to your clients, open the service and turn on Visit them at their place. Clients then give their address when they book. List the postal codes you travel to, and set Time before to your travel time.",
     ],
   },
   {

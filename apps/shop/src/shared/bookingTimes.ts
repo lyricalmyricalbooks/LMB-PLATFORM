@@ -123,6 +123,13 @@ export type BookingService = {
    * where nothing is paid when booking (free or paid at the visit, no card kept), never with standing appointments.
    */
   approval?: boolean;
+  /**
+   * At the client's address (plan 4, 2.8): the client gives the visit's address when booking, and it becomes the
+   * booking's place. One-to-one only. `areas` are the postal or ZIP code starts the shop travels to (none: anywhere).
+   * Travel is the Time before and the rest after, so a visit never starts right after another one across town.
+   */
+  atClient?: boolean;
+  areas?: string[];
 };
 
 /** How long a request waits for the owner's answer before its time is let go (plan 4, 2.5). */
@@ -147,6 +154,32 @@ export function bookingChannel(value: unknown): BookingChannel | "" {
 }
 /** The channel in plain words, for the owner. */
 export const CHANNEL_NAMES: Record<BookingChannel, string> = { instagram: "Instagram", facebook: "Facebook", google: "Google", qr: "QR code", button: "Book now button" };
+
+/** The most postal or ZIP code starts one service may travel to. */
+export const MAX_AREAS = 40;
+const areaCode = (v: unknown): string => (typeof v === "string" ? v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7) : "");
+/** The postal or ZIP code starts a service travels to, from a list or the owner's typing ("M6G, M5V 1"), each once. */
+export function cleanAreas(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[,;\n]+/) : [];
+  return [...new Set(list.map(areaCode).filter(Boolean))].slice(0, MAX_AREAS);
+}
+/** True when a postal or ZIP code is in a service's area (any code when it has none). */
+export function inArea(postcode: unknown, areas: readonly string[] | undefined): boolean {
+  const code = areaCode(postcode);
+  return !areas?.length || (!!code && areas.some((a) => code.startsWith(a)));
+}
+/** The address a client gives for a visit at their place: street, city and postal code, all needed. */
+export type VisitAddress = { street: string; city: string; postcode: string };
+export function cleanVisitAddress(raw: unknown): VisitAddress | null {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const line = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+  const street = line(r.street, 120);
+  const city = line(r.city, 60);
+  const postcode = line(r.postcode, 12).toUpperCase();
+  return street && city && postcode ? { street, city, postcode } : null;
+}
+/** "12 Main St, Toronto M6G 1A1": the visit's address on one line, as the booking's place. */
+export const addressLine = (a: VisitAddress): string => `${a.street}, ${a.city} ${a.postcode}`;
 
 /** One weekly start of a group class: weekday 0 = Sunday … 6 = Saturday, time "HH:MM" on the shop's clock. */
 export type ClassTime = { weekday: number; time: string };
@@ -712,6 +745,8 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   const gapBefore = places === 1 && !courseDates.length ? whole(s.gapBefore, 0, MAX_GAP_BEFORE, 0) : 0;
   const processAfter = processMinutes ? whole(s.processAfter, 0, 8 * 60, 0) : 0;
   const approval = s.approval === true && approvalAllowed({ places, courseDates, payment, holdCard });
+  // At the client's address: one person's visit, never a class or a course.
+  const atClient = s.atClient === true && places === 1 && !courseDates.length;
   if (processMinutes && (processMinutes < MIN_PROCESS_MINUTES || processAfter < MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
     return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
   }
@@ -755,6 +790,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     // A request waits for the owner's answer, so a run of visits can't be booked with it.
     repeats: s.repeats === true && places === 1 && !courseDates.length && !approval,
     ...(approval ? { approval: true } : {}),
+    ...(atClient ? { atClient: true, areas: cleanAreas(s.areas) } : {}),
     // Extras change one person's booking length, so a class or course never has them; a free service adds time only.
     extras: places === 1 && !courseDates.length ? cleanExtras(s.extras, payment !== "free") : [],
     ...(processMinutes ? { processAfter, processMinutes } : {}),
