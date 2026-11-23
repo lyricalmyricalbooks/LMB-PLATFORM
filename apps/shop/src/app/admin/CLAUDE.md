@@ -1494,3 +1494,8 @@ Hours & rules › **Away reply** (`AwayReplyTile.tsx`, Beta) saves `awayReply` a
 (`shopEmails.js` `onContactMessage`, same `visitorReply` budget, sent even when Message received is off) while the booking
 engine is on (`bookings.engineOn`). Owner words and the time are template values, so they are escaped; the visitor's text
 is never echoed. Tests: `functions/awayReply.test.js`, `src/shared/bookingAway.test.ts`.
+
+**Past visits spreadsheet (23 November 2026, Bookings plan 4 step 3.8, `tasks/todo/2026-11-23-bookings-past-visits.md`).**
+Calendar › List › Past › **Spreadsheet** opens `PastVisitsDialog.tsx` (Beta): it reads `readBookingsBetween` for the shop
+days picked (`pastRange`, ≤ `MAX_PAST_DAYS`) and downloads `pastVisitRows` as CSV. `visitOutcome` (`pastVisits.ts`) names
+what happened; a hold that ran out, a waiting request and the future are never visits. Read only.

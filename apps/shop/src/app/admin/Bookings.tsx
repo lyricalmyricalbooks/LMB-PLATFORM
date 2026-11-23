@@ -5,6 +5,7 @@
 import { serviceFromText } from "./bookFromMessage";
 import { BookingMessagesTile } from "./BookingMessagesTile";
 import { AwayReplyTile } from "./AwayReplyTile";
+import { PastVisitsDialog } from "./PastVisitsDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, CalendarOff, CheckCircle2, CircleHelp, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -774,6 +775,7 @@ function ListView({ services, onOpen }: { services: BookingService[]; onOpen: (b
   const [serviceId, setServiceId] = useState("");
   const [rows, setRows] = useState<Booking[] | null>(null);
   const [error, setError] = useState("");
+  const [sheet, setSheet] = useState(false);
   useEffect(() => {
     setRows(null);
     const { from, to } = listRange(mode, Date.now());
@@ -800,7 +802,9 @@ function ListView({ services, onOpen }: { services: BookingService[]; onOpen: (b
           </SelectField>
         )}
         {filtered && <GhostButton onClick={() => { setQuery(""); setServiceId(""); }}>Clear</GhostButton>}
+        {mode === "past" && <SecondaryButton icon={<FileSpreadsheet size={16} aria-hidden />} onClick={() => setSheet(true)}>Spreadsheet</SecondaryButton>}
       </FilterBar>
+      {sheet && <PastVisitsDialog zone={ZONE} onClose={() => setSheet(false)} />}
       {error && <p className="bkg-error" role="alert">{error}</p>}
       {rows === null ? <div className="bkg-skeleton" aria-hidden /> : (
         <>

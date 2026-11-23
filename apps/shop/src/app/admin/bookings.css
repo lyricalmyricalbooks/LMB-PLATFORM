@@ -675,3 +675,6 @@
 .rp .bkg-msg-fill code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--rp-surface-2); }
 .rp .bkg-msg-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .rp .bkg-msg-foot .bkg-cal-text { margin: 0; }
+/* Past visits spreadsheet (plan 4, 3.8) */
+.rp .bkg-past-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rp .bkg-past-count { margin: 0; font-weight: 600; color: var(--rp-text); }
