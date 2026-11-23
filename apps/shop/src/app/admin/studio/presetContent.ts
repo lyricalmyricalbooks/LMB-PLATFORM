@@ -8,7 +8,8 @@
 //   no page already uses its address, so a press's own pages are never replaced or doubled.
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { PAGE_STARTERS, pageFromStarter, type PageStarter } from "./pageStarters";
-import { getSections, makeSection, setSections } from "./studioModel";
+import { isGroupSurface } from "../../features/site/sectionGroups";
+import { getSections, makeSection, setSections, type SectionTarget } from "./studioModel";
 
 export type PresetSectionSpec = { type: string; settings?: Record<string, any> };
 
@@ -17,6 +18,8 @@ export type PresetContent = {
   sections?: Record<string, PresetSectionSpec[]>;
   /** Studio › Pages starters this look comes with, by starter id (about, shipping, contact…). */
   starterPages?: string[];
+  /** The book page's buy box, top to bottom (Page layout › Buy box blocks); built-in and custom block types only. */
+  productBlocks?: { type: string; hidden?: boolean; settings?: Record<string, any> }[];
 };
 
 /** The page templates a preset may hold sections for, with the name the owner sees. */
@@ -36,7 +39,14 @@ export const PRESET_SECTION_TEMPLATES: Record<string, string> = {
   supportPage: "Support",
   membershipPage: "Membership",
   rentalsPage: "Rentals",
+  // Every-page section groups (starter websites step 3): what sits under the header and above the footer on every page.
+  headerSections: "Under the header (every page)",
+  globalSections: "Above the footer (every page)",
 };
+
+/** Where a preset's section list goes: a section group is a root list, any other id is a page template. */
+const targetOf = (id: string): SectionTarget =>
+  isGroupSurface(id) ? { kind: "global", group: id } : { kind: "template", id };
 
 type PresetLike = { homeLayoutTemplate?: string; content?: PresetContent };
 
@@ -58,7 +68,7 @@ export function presetStarterPages(preset: PresetLike): PageStarter[] {
 }
 
 export function hasPresetContent(preset: PresetLike): boolean {
-  return Object.keys(presetSections(preset)).length > 0 || presetStarterPages(preset).length > 0;
+  return Object.keys(presetSections(preset)).length > 0 || presetStarterPages(preset).length > 0 || !!preset?.content?.productBlocks?.length;
 }
 
 // Settings that hold an address, a picture or an id, never words: the shop's words leave them alone, so a link such as
@@ -87,7 +97,12 @@ export function applyPresetSections(design: any, preset: PresetLike, meta: (type
   let next = design;
   for (const [id, specs] of Object.entries(presetSections(preset))) {
     const sections = specs.map(s => makeSection(s.type, wordedSettings({ ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) }, w)));
-    next = setSections(next, { kind: "template", id }, sections);
+    next = setSections(next, targetOf(id), sections);
+  }
+  const blocks = preset?.content?.productBlocks;
+  if (Array.isArray(blocks) && blocks.length) {
+    const productInfoBlocks = blocks.map((b, i) => ({ id: `${b.type}-${i}`, type: b.type, ...(b.hidden ? { hidden: true } : {}), ...(b.settings ? { settings: wordedSettings(b.settings, w) } : {}) }));
+    next = { ...next, productPage: { ...(next.productPage || {}), productInfoBlocks } };
   }
   return next;
 }
@@ -108,9 +123,10 @@ export function presetPagesToAdd(preset: PresetLike, pages: { slug?: string }[])
 /** Plain lines for the confirm step: what would be replaced and added. */
 export function presetContentSummary(design: any, preset: PresetLike, pages: { slug?: string; title?: string }[]): string[] {
   const lines = Object.entries(presetSections(preset)).map(([id, specs]) => {
-    const now = getSections(design, { kind: "template", id }).length;
+    const now = getSections(design, targetOf(id)).length;
     return `${PRESET_SECTION_TEMPLATES[id]}: its ${specs.length} sections replace ${now ? `your ${now} current section${now === 1 ? "" : "s"}` : "the default ones"}`;
   });
+  if (preset?.content?.productBlocks?.length) lines.push("Book pages: its buy box layout replaces yours");
   const adding = presetPagesToAdd(preset, pages);
   const kept = presetStarterPages(preset).filter(s => pages.some(p => p.slug === s.slug));
   if (adding.length) lines.push(`Pages added as drafts (not shown to shoppers until you publish them): ${adding.map(p => p.title).join(", ")}`);
