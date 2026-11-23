@@ -11,6 +11,7 @@
 //     fields, its block list, or a field on its Style, Layout or Visibility tabs;
 //   - starter pages: ids Studio › Pages offers.
 import { COPY_SCHEMA } from "../../features/site/storeCopy";
+import { CUSTOM_BLOCKS, isBuiltIn, isRequired } from "../../features/site/productBlocks";
 import { getBlocksKey, getSectionFields, getSectionMeta } from "../ThemeEditorExtensions";
 import { PAGE_STARTERS } from "./pageStarters";
 import { PRESET_SECTION_TEMPLATES, presetSections } from "./presetContent";
@@ -90,6 +91,10 @@ export function themeProblems(theme: any): string[] {
     });
   }
 
+  for (const block of theme.content?.productBlocks || []) {
+    if (block?.type !== "divider" && !isBuiltIn(block?.type) && !CUSTOM_BLOCKS.some(c => c.type === block?.type)) problems.push(`${name}: "${block?.type}" isn't a buy box block`);
+    if (block?.hidden && isRequired(block.type)) problems.push(`${name}: the buy box can't hide "${block.type}"`);
+  }
   for (const id of theme.content?.starterPages || []) {
     if (id === "blank" || !PAGE_STARTERS.some(s => s.id === id)) problems.push(`${name}: "${id}" isn't a Studio › Pages starter`);
   }
