@@ -2,7 +2,7 @@
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
 import { forgotten, hourlyOf, shiftMinutes, type Shift } from "../../shared/timeClock";
 import { cleanCommissionSteps, commissionFor, type CommissionStep } from "../../shared/bookingTimes";
-import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, bookingChannel, CHANNEL_NAMES, type BookingChannel, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
+import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, bookingChannel, CHANNEL_NAMES, type BookingChannel, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
 
@@ -598,18 +598,21 @@ export type PayLine = {
   id: string; name: string; visits: number; takenMinor: number; percent: number; commissionMinor: number; tipsMinor: number;
   /** A higher share above an amount a month (plan 4, 4.4). */
   steps: CommissionStep[];
+  /** Product used on their visits this month (plan 4, 4.5), taken off their takings before commission. */
+  costMinor: number;
   /** Clock in and out (plan 4, 4.2): minutes on the clock this month, their hourly rate and what that comes to. */
   minutes: number; hourlyMinor: number; wagesMinor: number;
 };
-export type TeamPay = { month: string; people: PayLine[]; takenMinor: number; commissionMinor: number; tipsMinor: number; minutes: number; wagesMinor: number };
+export type TeamPay = { month: string; people: PayLine[]; takenMinor: number; costMinor: number; commissionMinor: number; tipsMinor: number; minutes: number; wagesMinor: number };
 
 /** A pay line for someone on the clock with no Team & rooms entry (a front desk): keyed by their email. */
 export const CLOCK_ONLY = "clock:";
 
-export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[], zone: string, month: string, now = Date.now(), shifts: readonly Shift[] = []): TeamPay {
+export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[], zone: string, month: string, now = Date.now(), shifts: readonly Shift[] = [], services: readonly Pick<BookingService, "id" | "costMinor">[] = []): TeamPay {
+  const costOf = (serviceId: string | undefined) => Math.max(0, services.find((x) => x.id === serviceId)?.costMinor || 0);
   const lines = new Map<string, PayLine>();
   const line = (id: string, name: string, percent: number, hourlyMinor = 0, steps: CommissionStep[] = []) => {
-    if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, percent, steps, commissionMinor: 0, tipsMinor: 0, minutes: 0, hourlyMinor, wagesMinor: 0 });
+    if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, percent, steps, costMinor: 0, commissionMinor: 0, tipsMinor: 0, minutes: 0, hourlyMinor, wagesMinor: 0 });
     return lines.get(id)!;
   };
   for (const p of staff) line(p.id, p.name, commissionOf(p.commissionPercent), hourlyOf(p.hourlyMinor), cleanCommissionSteps(p.commissionSteps));
@@ -621,6 +624,9 @@ export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[],
     // A visit with several services shares its money by each service's price (plan 4, 2.1); each person counts it once.
     const shares = visitShares(b);
     const counted = new Set<string>();
+    // Product used counts once the visit happened (not a no-show or a cancel): each service's own cost, on whoever did it.
+    const happened = b.status === "confirmed" && !b.noShow && Date.parse(b.start) <= now;
+    const serviceIds = [b.serviceId, ...(b.parts || []).map((x) => x.serviceId)];
     shares.forEach((sh, i) => {
       const id = sh.staffId || NOBODY;
       const l = line(id, id ? sh.staffName || "Someone no longer listed" : "Not given to anyone", 0);
@@ -629,7 +635,8 @@ export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[],
       l.takenMinor += part(taken);
       l.tipsMinor += part(tips);
       // A visit counts once it has started; later ones this month aren't visits yet.
-      if (!counted.has(id) && b.status === "confirmed" && !b.noShow && Date.parse(b.start) <= now) { l.visits += 1; counted.add(id); }
+      if (happened) l.costMinor += costOf(serviceIds[i]);
+      if (!counted.has(id) && happened) { l.visits += 1; counted.add(id); }
     });
   }
   // Hours on the clock: on the person's own line when their entry has their sign-in email, else a line of their own.
@@ -642,10 +649,10 @@ export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[],
   }
   const people = [...lines.values()]
     .filter((l) => l.visits || l.takenMinor || l.tipsMinor || l.minutes || staff.some((p) => p.id === l.id && p.active))
-    .map((l) => ({ ...l, commissionMinor: l.id && !l.id.startsWith(CLOCK_ONLY) ? commissionFor(l.takenMinor, l.percent, l.steps) : 0, wagesMinor: Math.round((l.minutes * l.hourlyMinor) / 60) }))
+    .map((l) => ({ ...l, commissionMinor: l.id && !l.id.startsWith(CLOCK_ONLY) ? commissionFor(l.takenMinor - l.costMinor, l.percent, l.steps) : 0, wagesMinor: Math.round((l.minutes * l.hourlyMinor) / 60) }))
     .sort((a, b) => Number(!a.id) - Number(!b.id) || b.takenMinor - a.takenMinor || b.minutes - a.minutes || a.name.localeCompare(b.name));
-  const sum = (k: "takenMinor" | "commissionMinor" | "tipsMinor" | "minutes" | "wagesMinor") => people.reduce((n, l) => n + l[k], 0);
-  return { month, people, takenMinor: sum("takenMinor"), commissionMinor: sum("commissionMinor"), tipsMinor: sum("tipsMinor"), minutes: sum("minutes"), wagesMinor: sum("wagesMinor") };
+  const sum = (k: "takenMinor" | "costMinor" | "commissionMinor" | "tipsMinor" | "minutes" | "wagesMinor") => people.reduce((n, l) => n + l[k], 0);
+  return { month, people, takenMinor: sum("takenMinor"), costMinor: sum("costMinor"), commissionMinor: sum("commissionMinor"), tipsMinor: sum("tipsMinor"), minutes: sum("minutes"), wagesMinor: sum("wagesMinor") };
 }
 
 /** The pay report as spreadsheet rows (amounts as plain numbers in the shop's currency). */
@@ -656,10 +663,13 @@ export function teamPayRows(pay: TeamPay): string[][] {
   const clock = pay.people.some((l) => l.minutes || l.hourlyMinor);
   const extra = (l: { minutes: number; hourlyMinor?: number; wagesMinor: number }, total = false) => clock ? [hours(l.minutes), total ? "" : l.hourlyMinor ? money(l.hourlyMinor) : "", money(l.wagesMinor)] : [];
   const all = (l: { commissionMinor: number; tipsMinor: number; wagesMinor: number }) => money(l.commissionMinor + l.tipsMinor + (clock ? l.wagesMinor : 0));
+  // A product used column only once a service has a cost (plan 4, 4.5).
+  const used = pay.costMinor > 0;
+  const cost = (l: { costMinor: number }) => used ? [money(l.costMinor)] : [];
   return [
-    ["Person", "Visits", "Taken before tax", "Commission %", "Commission", "Tips", ...(clock ? ["Hours", "Hourly rate", "Hourly pay", "Total pay"] : ["Commission and tips"])],
-    ...pay.people.map((l) => [l.name, String(l.visits), money(l.takenMinor), l.id && !l.id.startsWith(CLOCK_ONLY) ? [String(l.percent), ...l.steps.map((x) => `${x.percent} over ${money(x.overMinor)}`)].join(", then ") : "", money(l.commissionMinor), money(l.tipsMinor), ...extra(l), all(l)]),
-    ["Total", String(pay.people.reduce((n, l) => n + l.visits, 0)), money(pay.takenMinor), "", money(pay.commissionMinor), money(pay.tipsMinor), ...extra(pay, true), all(pay)],
+    ["Person", "Visits", "Taken before tax", ...(used ? ["Product used"] : []), "Commission %", "Commission", "Tips", ...(clock ? ["Hours", "Hourly rate", "Hourly pay", "Total pay"] : ["Commission and tips"])],
+    ...pay.people.map((l) => [l.name, String(l.visits), money(l.takenMinor), ...cost(l), l.id && !l.id.startsWith(CLOCK_ONLY) ? [String(l.percent), ...l.steps.map((x) => `${x.percent} over ${money(x.overMinor)}`)].join(", then ") : "", money(l.commissionMinor), money(l.tipsMinor), ...extra(l), all(l)]),
+    ["Total", String(pay.people.reduce((n, l) => n + l.visits, 0)), money(pay.takenMinor), ...cost(pay), "", money(pay.commissionMinor), money(pay.tipsMinor), ...extra(pay, true), all(pay)],
   ];
 }
 
