@@ -1460,3 +1460,14 @@ Hours & rules › **Ask clients to confirm** (Beta) saves `askToConfirm` (needs 
 "Yes, I'll be there" button (`&confirm=1` on the booking link); public action `bookingConfirm` stamps `clientConfirmedAt`
 once (confirmed and still ahead), and a move clears it. `confirmState` (shared `bookingTimes.ts`) gives the calendar tag
 (`ConfirmTag`: Confirmed / Not confirmed, only after the reminder went) and the drawer line (`ConfirmLine`).
+
+**Reply by text (23 November 2026, Bookings plan 4 step 3.4, `tasks/todo/2026-11-23-bookings-text-replies.md`).**
+Hours & rules › Text reminders › **Let clients answer by text** (Beta) saves `textReplies`; it works only when the platform's
+`texts.status` says `replies` (TEXTS on, Twilio's number posting to the platform's `/api/texts/inbound`). The reminder text
+then says "Reply Y to confirm, C to cancel, M to move." in place of the link and sends `replyRef: <booking id>`. The
+platform keeps per number (a keyed hash, never the number) the shop and booking that texted it last, and keeps a Y, C or M
+answered within 7 days for that shop (LMB-PLATFORM `services/texts`). `bookingSweep` calls `sweepTextReplies`: it takes
+the answers (`texts.replies`), Y stamps `clientConfirmedAt`, C runs `cancelByCustomer` (the same refund and emails as the
+booking page) inside the cancel rule, M texts a fresh link (`textKeyHash`, accepted by `keyFits`), each answered by text
+(`booking-reply`), then hands them back (`texts.repliesTaken`), so each is handled once. "CANCEL" spelled out is Twilio's
+opt-out word, which is why cancelling is the letter C.

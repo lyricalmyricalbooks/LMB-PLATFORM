@@ -524,7 +524,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   ];
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
   const TEAM = new URLSearchParams(window.location.search).get("team") === "1";
-  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on",
+  let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on", textReminders: mode === "on", textReplies: mode === "on",
     // Holiday hours (plan 4, 1.7): shorter hours two days this week, and closed on Christmas Day.
     specialHours: [
       { id: "short", label: "Stocktake", from: addDays(dayOf(Date.now(), shopTimeZone()), 2), to: addDays(dayOf(Date.now(), shopTimeZone()), 3), hours: [{ start: "12:00", end: "16:00" }] },
@@ -709,7 +709,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       return { ok: true };
     }
     // Text reminders: open with a price, or ?texts=soon for a platform without the text company's keys.
-    if (op === "textStatus") return textsSoon ? { available: false, price: "" } : { available: true, price: "1.6¢" };
+    if (op === "textStatus") return textsSoon ? { available: false, price: "" } : { available: true, price: "1.6¢", replies: true };
     if (op === "walkIn") {
       const s = services.find((x) => x.id === body.serviceId) || services[0];
       const walk = booking(`walk-${rows.length + 1}`, s, new Date().toISOString(), String(body.name), { payment: "atShop", paid: false, priceMinor: Number(body.priceMinor ?? s.priceMinor), source: "admin", customer: { name: String(body.name), email: String(body.email || "") } });

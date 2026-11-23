@@ -2705,22 +2705,10 @@ function bookingActions({
         if (b.status !== "requested" && (b.status !== "confirmed" || !customerCanChange(Date.parse(b.start), settings, nowMs))) {
           return fail(res, 409, `This booking can't be cancelled online within ${settings.cancelHours} hours of its start. Please contact the shop.`, "too_late");
         }
-        b = await settleRest(id, b);
-        let refund = null;
-        try { refund = await refundBooking(id, b); } catch (err) {
-          console.error(`Booking ${id} refund failed:`, err?.message || err);
-          return fail(res, 502, "Your refund couldn't be started, so the booking is still on. Please try again in a minute.");
-        }
-        const at = now().toISOString();
-        const changes = { status: "cancelled", cancelledAt: at, cancelledBy: "customer", updatedAt: at, ...(refund ? { refund } : {}),
-          history: [...(b.history || []), { at, what: refund ? "cancelled and refunded" : "cancelled", by: "customer" }].slice(-20) };
-        const written = await freeTime(id, b, changes);
-        const next = await syncCalendar(id, { ...b, ...written });
         // "Cancel this and the later visits" on a standing appointment, with the run's own key: its later visits go too.
-        const alsoCancelled = req.body?.andLater === true && hash(key) === b.manageKeyHash ? (await cancelLater(id, b, "customer", at)).cancelled : 0;
-        const later = alsoCancelled ? ` Your ${alsoCancelled === 1 ? "next visit is" : `${alsoCancelled} later visits are`} cancelled too.` : "";
-        await tellCustomer(id, next, "cancelled", { refundText: `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}${packBackWords(b)}${later}`.trim() });
-        return res.status(200).json({ booking: publicBooking(id, next, settings, nowMs), ...(await runOf(id, next, key)) });
+        const cancelled = await cancelByCustomer(id, b, { andLater: req.body?.andLater === true && hash(key) === b.manageKeyHash });
+        if (!cancelled) return fail(res, 502, "Your refund couldn't be started, so the booking is still on. Please try again in a minute.");
+        return res.status(200).json({ booking: publicBooking(id, cancelled.next, settings, nowMs), ...(await runOf(id, cancelled.next, key)) });
       }
       if (action === "bookingMove") {
         if (b.status !== "confirmed" || !customerCanChange(Date.parse(b.start), settings, nowMs)) {
@@ -2920,8 +2908,8 @@ function bookingActions({
       }
       if (op === "textStatus") {
         // The Text reminders switch: open (with the price of one text part) or "Opening soon".
-        const status = texts ? await texts.status().catch(() => ({ available: false, price: "" })) : { available: false, price: "" };
-        return res.status(200).json({ available: status.available === true, price: status.price || "" });
+        const status = texts ? await texts.status().catch(() => ({ available: false, price: "", replies: false })) : { available: false, price: "", replies: false };
+        return res.status(200).json({ available: status.available === true, price: status.price || "", replies: status.available === true && status.replies === true });
       }
       if (op === "saveSettings") {
         // Blocked time has its own ops (an open Hours page must never undo a block made on the calendar meanwhile).
@@ -3513,6 +3501,30 @@ function bookingActions({
     return { confirmed, freed };
   }
 
+  /**
+   * The client cancels (their booking page, or C by text): any rest settled, the payment refunded, the time freed, the
+   * calendar and the client told. `andLater` also cancels a standing appointment's later visits. Answers null, with the
+   * booking still on, when the refund couldn't be started.
+   */
+  async function cancelByCustomer(id, b, { andLater = false, how = "" } = {}) {
+    b = await settleRest(id, b);
+    let refund = null;
+    try { refund = await refundBooking(id, b); } catch (err) {
+      console.error(`Booking ${id} refund failed:`, err?.message || err);
+      return null;
+    }
+    const at = now().toISOString();
+    const changes = { status: "cancelled", cancelledAt: at, cancelledBy: "customer", updatedAt: at, ...(refund ? { refund } : {}),
+      history: [...(b.history || []), { at, what: `${refund ? "cancelled and refunded" : "cancelled"}${how}`, by: "customer" }].slice(-20) };
+    const written = await freeTime(id, b, changes);
+    const next = await syncCalendar(id, { ...b, ...written });
+    const alsoCancelled = andLater ? (await cancelLater(id, b, "customer", at)).cancelled : 0;
+    const later = alsoCancelled ? ` Your ${alsoCancelled === 1 ? "next visit is" : `${alsoCancelled} later visits are`} cancelled too.` : "";
+    const refundText = `${!refund ? "" : b.payment === "deposit" && !b.rest ? "Your deposit is being refunded to your card." : "Your payment is being refunded to your card."}${giftBackWords(b)}${packBackWords(b)}${later}`.trim();
+    await tellCustomer(id, next, "cancelled", { refundText });
+    return { next, refund, refundText };
+  }
+
   /** Whether the platform sends texts for this shop now (textSender.js caches it a few minutes). Never throws. */
   async function textsOpen() {
     if (!texts) return false;
@@ -3532,14 +3544,75 @@ function bookingActions({
       b = namesForClient(b, settings);
       const when = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
       const shop = String(shopName() || "").trim().slice(0, 40);
-      const body = `${kind === "soon" ? "Soon" : "Reminder"}: ${visitName(b).slice(0, 60)}${shop ? ` at ${shop}` : ""}, ${when}${b.staffName ? ` with ${b.staffName.slice(0, 30)}` : ""}. Change or cancel: ${manageUrl(id, key)} Reply STOP to stop texts.`;
-      const sent = await texts.send({ to: b.customer.phone, body, kind: `booking-${kind}`, idempotencyKey: `booking-${id}-${kind}-${hash(key).slice(0, 10)}` });
+      // Answers by text (plan 4, 3.4): Y, C or M instead of the link, when the owner and the platform both allow it.
+      const answers = settings.textReplies === true && (await texts.status().catch(() => null))?.replies === true;
+      const ask = answers ? "Reply Y to confirm, C to cancel, M to move." : `Change or cancel: ${manageUrl(id, key)}`;
+      const body = `${kind === "soon" ? "Soon" : "Reminder"}: ${visitName(b).slice(0, 60)}${shop ? ` at ${shop}` : ""}, ${when}${b.staffName ? ` with ${b.staffName.slice(0, 30)}` : ""}. ${ask} Reply STOP to stop texts.`;
+      const sent = await texts.send({ to: b.customer.phone, body, kind: `booking-${kind}`, idempotencyKey: `booking-${id}-${kind}-${hash(key).slice(0, 10)}`, ...(answers ? { replyRef: id } : {}) });
       if (sent?.optedOut) await bookings().doc(id).set({ customer: { ...b.customer, textOk: false } }, { merge: true });
       else if (sent?.ok) await bookings().doc(id).set({ [kind === "soon" ? "reminder2TextAt" : "reminderTextAt"]: now().toISOString() }, { merge: true });
       else if (sent && !sent.ok) console.warn(`bookings: the ${kind} text for ${id} wasn't sent: ${sent.message || "no answer"}`);
     } catch (err) {
       console.error("bookings: reminder text failed:", err?.message || err);
     }
+  }
+
+  /**
+   * Answers by text (plan 4, 3.4): the platform keeps each client's Y, C or M for the booking its reminder was about; this
+   * takes them every sweep and answers each by text. Y marks the booking confirmed, C cancels it when the cancel rules
+   * allow (with the refund, as on the booking page), M sends a link to pick a new time. A reply about a booking that's
+   * gone, past or changed gets a plain answer. Each reply is handled once: it's taken off the platform's list after.
+   */
+  async function sweepTextReplies() {
+    if (!texts?.replies || !(await featureOn())) return { answered: 0 };
+    const waiting = await texts.replies().catch(() => []);
+    if (!waiting.length) return { answered: 0 };
+    const settings = await readSettings();
+    const shop = String(shopName() || "").trim().slice(0, 40) || "the shop";
+    const nowMs = now().getTime();
+    let answered = 0;
+    for (const r of waiting) {
+      try {
+        const ref = ID.test(r.ref) ? bookings().doc(r.ref) : null;
+        const b = ref ? (await ref.get()).data() : null;
+        if (!b?.customer?.phone) continue;
+        const named = namesForClient(b, settings);
+        const when = new Intl.DateTimeFormat("en-CA", { timeZone: zone(), weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(b.start));
+        const visit = `${visitName(named).slice(0, 60)}, ${when}`;
+        const start = Date.parse(b.start || "");
+        let body;
+        if (b.status !== "confirmed" || !(start > nowMs)) {
+          body = `${visit} isn't booked any more, so there's nothing to change. Questions? Contact ${shop}.`;
+        } else if (r.word === "yes") {
+          if (!b.clientConfirmedAt) {
+            const at = now().toISOString();
+            await ref.set({ clientConfirmedAt: at, history: [...(b.history || []), { at, what: "said they'll be there (by text)", by: "customer" }].slice(-20) }, { merge: true });
+          }
+          body = `Thanks, you're confirmed: ${visit}. See you then.`;
+        } else if (r.word === "cancel") {
+          if (!customerCanChange(start, settings, nowMs)) body = `${visit} is too close to cancel by text. Please contact ${shop}.`;
+          else {
+            const done = await cancelByCustomer(r.ref, b, { how: " by text" });
+            body = done ? `Cancelled: ${visit}. ${done.refundText}`.trim() : `We couldn't cancel ${visit} just now. Please try again in a few minutes, or contact ${shop}.`;
+          }
+        } else {
+          if (!customerCanChange(start, settings, nowMs) || b.course || b.parts?.length) body = `${visit} can't be moved by text. Please contact ${shop}.`;
+          else {
+            const key = randomKey();
+            await ref.set({ textKeyHash: hash(key) }, { merge: true });
+            body = `Pick a new time for ${visit}: ${manageUrl(r.ref, key)}`;
+          }
+        }
+        const sent = await texts.send({ to: b.customer.phone, body: body.slice(0, 450), kind: "booking-reply", idempotencyKey: `booking-${r.ref}-reply-${String(r.id).slice(-24)}` });
+        if (sent?.optedOut) await ref.set({ customer: { ...b.customer, textOk: false } }, { merge: true });
+        answered += 1;
+      } catch (err) {
+        console.error(`bookings: the text reply for ${r.ref} failed:`, err?.message || err);
+      }
+    }
+    // Taken whatever happened: a reply that broke once is answered by the shop by hand, never twice by text.
+    await texts.repliesTaken(waiting.map((r) => r.id)).catch(() => {});
+    return { answered };
   }
 
   /**
@@ -4047,7 +4120,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
@@ -4119,7 +4192,7 @@ const DAY = 24 * HOUR;
 /** My bookings (plan 4, 2.10): how many bookings one customer's list reads, and how many past ones it shows. */
 const MINE_READ = 200;
 const MINE_PAST = 20;
-const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.tipKeyHash, b.reviewKeyHash, b.accountKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
+const keyFits = (b, key) => [b.manageKeyHash, b.reminderKeyHash, b.reminder2KeyHash, b.textKeyHash, b.tipKeyHash, b.reviewKeyHash, b.accountKeyHash, b.payKey ? hash(b.payKey) : ""].some((h) => h && sameHash(h, hash(key)));
 /** How long a page to pay the rest stays open, and how long before its end a fresh one is opened instead. */
 const REST_PAGE_MINUTES = 60;
 /** A payment sent to a card reader and left waiting is stopped after this long (the sweep). */

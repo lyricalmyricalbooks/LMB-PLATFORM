@@ -489,6 +489,7 @@
 .rp .bkg-tday-block[data-short] { grid-auto-flow: column; justify-content: start; align-items: baseline; gap: 6px; padding: 4px 8px; }
 .rp .bkg-tday-block[data-short] .bkg-slot-what, .rp .bkg-tday-block[data-short] .bkg-slot-tag { display: none; }
 .rp .bkg-texts-soon { margin: -8px 0 12px; }
+.rp .bkg-texts-replies { display: grid; gap: 14px; padding-top: 18px; border-top: 1px solid var(--rp-border); }
 
 /* Standing appointment (New booking › Repeat): the run's dates, each free or taken. */
 .rp .bkg-run { display: grid; gap: 8px; padding: 14px; border-radius: 16px; background: var(--rp-surface); }

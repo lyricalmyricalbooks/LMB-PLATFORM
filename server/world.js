@@ -143,7 +143,7 @@ import { firestoreAuditLog, firestoreRegistry } from "../clients/registry.js";
 import { registryFiles, shopDataClient, stockroomDataClient } from "../clients/shop.js";
 import {
   firestoreAccounts, firestoreActivity, firestoreBreaches, firestoreDeliveryStats, firestoreDevices, firestoreIncomeHistory, firestoreInvites,
-  firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreTextLog, firestoreSupport, firestoreWaitlist,
+  firestoreJobRuns, firestorePlatformState, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreShopNotes, firestoreTextLog, firestoreTextReplies, firestoreSupport, firestoreWaitlist,
   firestoreApps, firestoreAppCodes, firestoreAppInstalls, firestoreAppAlerts, firestoreAppAlertState, firestoreChitChats, firestoreMailchimp,
 } from "../clients/stores.js";
 import {
@@ -231,7 +231,8 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   // Bank feed (beta, a paid add-on): each shop's banks through Plaid, read-only (services/bankfeed).
   const bankFeed = createBankFeed({ env, fetch, registry, auditLog, plusTax: readBillingConfig(env).tax, now });
   // Text-message reminders: shops' booking reminders by text, billed at cost (services/texts).
-  const texts = createTexts({ env, fetch, registry, log: firestoreTextLog(platform), now });
+  // Replies by text (Y, C, M) come back to POST /api/texts/inbound, the address Twilio's number is set to post to.
+  const texts = createTexts({ env, fetch, registry, log: firestoreTextLog(platform), replies: firestoreTextReplies(platform), inboundUrl: `${settings.platformUrl}/api/texts/inbound`, now });
 
   // Billing on Stripe's test mode (services/payments alone reads the key).
   const billingStores = firestoreBillingStores(platform);
@@ -568,6 +569,10 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     if (path === "/api/billing/events") {
       if (request.method !== "POST") return { status: 405, body: { ok: false, message: "Send a POST." } };
       return billing.handleEvent({ headers: request.headers, rawBody: request.rawBody ?? "" });
+    }
+    if (path === "/api/texts/inbound") {
+      if (request.method !== "POST") return { status: 405, body: { ok: false, message: "Send a POST." } };
+      return texts.inbound(request);
     }
     if (path.startsWith(SHOP_BILLING_PREFIX)) return shopBilling(request);
     if (path === "/api/payments" || path.startsWith("/api/payments/")) return handlePayments({ ...request, path: path.slice("/api/payments".length) || "/" }, { service: payments });

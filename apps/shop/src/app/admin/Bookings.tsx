@@ -1572,14 +1572,15 @@ function TipsTile({ tips, percents, onChange }: { tips: boolean; percents: numbe
  * Text-message reminders (Services plan phase 7): the reminders also go by text to clients who tick "Text me reminders".
  * The platform sends them and puts them on the monthly bill at cost; "Opening soon" until it can.
  */
-function TextsTile({ on, reminders, onChange }: { on: boolean; reminders: boolean; onChange: (on: boolean) => void }) {
-  const [status, setStatus] = useState<{ available: boolean; price: string } | null>(null);
+function TextsTile({ on, reminders, replies, onChange, onReplies }: { on: boolean; reminders: boolean; replies: boolean; onChange: (on: boolean) => void; onReplies: (on: boolean) => void }) {
+  const [status, setStatus] = useState<{ available: boolean; price: string; replies?: boolean } | null>(null);
   useEffect(() => {
     let live = true;
-    bookingsAdmin<{ available: boolean; price: string }>("textStatus").then((s) => live && setStatus(s)).catch(() => live && setStatus({ available: false, price: "" }));
+    bookingsAdmin<{ available: boolean; price: string; replies?: boolean }>("textStatus").then((s) => live && setStatus(s)).catch(() => live && setStatus({ available: false, price: "" }));
     return () => { live = false; };
   }, []);
   const open = status?.available === true;
+  const answersOpen = open && status?.replies === true;
   return (
     <section className="bkg-tile" data-texts-tile>
       <h2 className="bkg-tile-title">Text reminders</h2>
@@ -1593,6 +1594,17 @@ function TextsTile({ on, reminders, onChange }: { on: boolean; reminders: boolea
             : !reminders ? "Turn on the reminder email above: texts go out at the same times."
             : `Clients who give a mobile number and tick "Text me reminders" get each reminder by text too. Each text costs ${status.price}, added to your monthly bill at cost. Long texts count as two.`}
         </p>
+        {open && on && (
+          <div className="bkg-texts-replies" data-text-replies>
+            <Toggle label="Let clients answer by text" checked={answersOpen && replies} disabled={!answersOpen} onChange={onReplies} />
+            <p className="bkg-cal-text">
+              <StatusBadge tone="info" glyph={false}>Beta</StatusBadge>{" "}
+              {!answersOpen ? "Opening soon: clients will answer a reminder with Y, C or M."
+                : replies ? "The reminder text asks them to reply Y to confirm, C to cancel or M to move. Your calendar changes within a few minutes, and they get a text back. Cancelling by text follows your cancel rule."
+                : "Reminder texts carry a link to change or cancel."}
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -2790,7 +2802,7 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
             </p>
           </div>
         </section>
-        <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} onChange={(textReminders) => setForm({ ...form, textReminders })} />
+        <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} replies={form.textReplies === true} onChange={(textReminders) => setForm({ ...form, textReminders })} onReplies={(textReplies) => setForm({ ...form, textReplies })} />
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <FormsTile forms={form.intakeForms || []} services={services} onChange={(intakeForms) => setForm({ ...form, intakeForms })} />

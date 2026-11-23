@@ -5093,6 +5093,9 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   if (sent.reminded) console.log(`bookingSweep: ${sent.reminded} reminders sent`);
   const soon = await bookingDesk.sweepSecondReminders();
   if (soon.reminded) console.log(`bookingSweep: ${soon.reminded} second reminders sent`);
+  // Clients' answers to reminder texts (Y, C, M), taken from the platform and answered by text.
+  const answered = await bookingDesk.sweepTextReplies().catch(err => { console.warn("bookingSweep: text replies failed:", err?.message || err); return {}; });
+  if (answered.answered) console.log(`bookingSweep: ${answered.answered} text replies answered`);
   const summary = await bookingDesk.sweepSummary();
   if (summary.sent) console.log(`bookingSweep: day summary for ${summary.day} sent`);
   const staffDays = await bookingDesk.sweepStaffDays();

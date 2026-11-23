@@ -9,7 +9,8 @@
 //            body     the parsed JSON when the request says it is JSON, else null
 //            rawBody  the exact text that came in, for signature checks (Stripe's, Square's)
 //            ip       the address the connection came from (fair-use limits read x-forwarded-for first)
-//   answer   { status, body?, html?, headers? }: `body` is sent as JSON, `html` as a page; `headers` adds headers
+//   answer   { status, body?, html?, xml?, headers? }: `body` is sent as JSON, `html` as a page, `xml` as XML (the
+//            empty answer Twilio's text webhook expects); `headers` adds headers
 //            (a redirect's Location)
 //
 // Every answer carries the platform's safety headers (security/headers.js) and is never cached. A body over `maxBytes`
@@ -80,14 +81,15 @@ const SAFETY = Object.fromEntries(safetyHeaders({ framing: "DENY" }).map(({ key,
 export function writeAnswer(res, answer) {
   const status = Number.isInteger(answer?.status) && answer.status >= 100 && answer.status < 600 ? answer.status : 500;
   const page = typeof answer?.html === "string";
-  const text = page ? answer.html : JSON.stringify(answer?.body ?? {});
+  const xml = !page && typeof answer?.xml === "string";
+  const text = page ? answer.html : xml ? answer.xml : JSON.stringify(answer?.body ?? {});
   res.writeHead(status, {
     ...SAFETY,
     // A page here is plain words with inline style and nothing else; JSON loads nothing at all.
     "Content-Security-Policy": page ? "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'" : "default-src 'none'; frame-ancestors 'none'",
     "Cache-Control": "no-store",
     ...(answer?.headers ?? {}),
-    "Content-Type": page ? "text/html; charset=utf-8" : "application/json; charset=utf-8",
+    "Content-Type": page ? "text/html; charset=utf-8" : xml ? "text/xml; charset=utf-8" : "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(text),
   });
   res.end(text);

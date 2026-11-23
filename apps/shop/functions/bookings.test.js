@@ -623,8 +623,8 @@ describe("text-message reminders", () => {
     await closed.seed();
     await turnOn(closed);
     expect((await closed.pub({ action: "bookingInfo" })).body.texts).toBe(false);
-    expect((await closed.adm({ op: "textStatus" })).body).toEqual({ available: false, price: "" });
-    expect((await off.adm({ op: "textStatus" })).body).toEqual({ available: true, price: "1.6¢" });
+    expect((await closed.adm({ op: "textStatus" })).body).toEqual({ available: false, price: "", replies: false });
+    expect((await off.adm({ op: "textStatus" })).body).toEqual({ available: true, price: "1.6¢", replies: false });
     expect((await setup().adm({ op: "textStatus" })).statusCode).toBe(403);
   });
 
@@ -670,6 +670,89 @@ describe("text-message reminders", () => {
     expect(door.sent).toHaveLength(1);
     expect(t.db.store.get(`bookings/${r.body.id}`).customer.textOk).toBe(false);
     expect(t.emails.some((m) => String(m.subject).startsWith("Soon:"))).toBe(true);
+  });
+
+  describe("answers by text (plan 4, 3.4)", () => {
+    const replyDoor = () => {
+      const door = textDoor();
+      door.waiting = [];
+      door.taken = [];
+      door.status = async () => ({ available: true, price: "1.6¢", replies: true });
+      door.replies = async () => door.waiting.splice(0);
+      door.repliesTaken = async (ids) => { door.taken.push(...ids); return { ok: true }; };
+      return door;
+    };
+    const book = async (t, start = at("2026-11-18", "10:00")) => {
+      await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, textReminders: true, textReplies: true, cancelHours: 12 });
+      const r = await t.pub({ action: "bookingStart", serviceId: "visit", start, ...CUSTOMER, phone: "416 555 0199", textOk: true });
+      t.clock.now = new Date(Date.parse(at("2026-11-17", "11:00")));
+      return r.body.id;
+    };
+
+    test("the reminder asks for Y, C or M and names its booking, only when the owner and the platform allow it", async () => {
+      const door = replyDoor();
+      const t = setup({ texts: door });
+      await t.seed();
+      const id = await book(t);
+      await t.desk.sweepReminders();
+      expect(door.sent[0].body).toMatch(/Reply Y to confirm, C to cancel, M to move\. Reply STOP to stop texts\.$/);
+      expect(door.sent[0].body).not.toMatch(/https:/);
+      expect(door.sent[0].replyRef).toBe(id);
+      expect((await t.adm({ op: "textStatus" })).body).toEqual({ available: true, price: "1.6¢", replies: true });
+
+      const plainDoor = textDoor();
+      const plain = setup({ texts: plainDoor });
+      await plain.seed();
+      await book(plain);
+      await plain.desk.sweepReminders();
+      expect(plainDoor.sent[0].body).toMatch(/Change or cancel: https:/);
+      expect(plainDoor.sent[0].replyRef).toBeUndefined();
+    });
+
+    test("Y confirms, M sends a new link, and each answer is taken once", async () => {
+      const door = replyDoor();
+      const t = setup({ texts: door });
+      await t.seed();
+      const id = await book(t);
+      door.waiting.push({ id: "SMa", ref: id, word: "yes", at: "2026-11-17T16:00:00Z" });
+      expect(await t.desk.sweepTextReplies()).toEqual({ answered: 1 });
+      expect(t.db.store.get(`bookings/${id}`).clientConfirmedAt).toBeTruthy();
+      expect(door.sent.at(-1)).toMatchObject({ to: "416 555 0199", kind: "booking-reply" });
+      expect(door.sent.at(-1).body).toMatch(/^Thanks, you're confirmed: Studio visit, /);
+      expect(door.taken).toEqual(["SMa"]);
+
+      door.waiting.push({ id: "SMb", ref: id, word: "move", at: "2026-11-17T16:01:00Z" });
+      await t.desk.sweepTextReplies();
+      const link = /https:\/\/press\.example\/book\?booking=[^&]+&key=([a-f0-9]+)/.exec(door.sent.at(-1).body);
+      expect(link).toBeTruthy();
+      expect((await t.pub({ action: "bookingView", id, key: link[1] })).statusCode).toBe(200);
+      expect(await t.desk.sweepTextReplies()).toEqual({ answered: 0 });
+    });
+
+    test("C cancels inside the rules, and refuses too close to the visit", async () => {
+      const door = replyDoor();
+      const t = setup({ texts: door });
+      await t.seed();
+      const id = await book(t);
+      door.waiting.push({ id: "SMc", ref: id, word: "cancel", at: "2026-11-17T16:00:00Z" });
+      await t.desk.sweepTextReplies();
+      const b = t.db.store.get(`bookings/${id}`);
+      expect([b.status, b.cancelledBy]).toEqual(["cancelled", "customer"]);
+      expect(b.history.at(-1).what).toBe("cancelled by text");
+      expect(door.sent.at(-1).body).toMatch(/^Cancelled: Studio visit, /);
+      door.waiting.push({ id: "SMd", ref: id, word: "yes", at: "2026-11-17T16:05:00Z" });
+      await t.desk.sweepTextReplies();
+      expect(door.sent.at(-1).body).toMatch(/isn't booked any more/);
+
+      const d = replyDoor();
+      const t2 = setup({ texts: d });
+      await t2.seed();
+      const near = await book(t2, at("2026-11-17", "15:00"));
+      d.waiting.push({ id: "SMe", ref: near, word: "cancel", at: "2026-11-17T16:00:00Z" });
+      await t2.desk.sweepTextReplies();
+      expect(t2.db.store.get(`bookings/${near}`).status).toBe("confirmed");
+      expect(d.sent.at(-1).body).toMatch(/too close to cancel by text/);
+    });
   });
 });
 
