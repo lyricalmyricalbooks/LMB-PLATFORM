@@ -43,8 +43,16 @@ export type LibraryTheme = { id: string; name: string; mood: string } & Record<s
  * switches and keeps its settings (themeSwitch.ts finds them by id); they are just not offered to new choosers.
  */
 const PICKER_LOOKS = ["press-atlas", "press-folio", "press-rows", "press-arch", "press-shelf", "press-kiln", "press-marquee", "press-mosaic", "press-lantern", "press-console"];
-export const isBuiltLook = (t: any) => PICKER_LOOKS.includes(t.id) && (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
-export const builtLooks = () => (THEME_LIBRARY as unknown as LibraryTheme[]).filter(isBuiltLook);
+/**
+ * Starter websites (plan "Editable starter websites", step 4): whole sites made only of Studio sections, so they need no
+ * template style of their own. Listed after the ten built looks until the gallery (step 5) groups them.
+ */
+export const STARTER_SITES = ["juniper-slow-season", "juniper-catalogue"];
+export const isBuiltLook = (t: any) => STARTER_SITES.includes(t.id) || PICKER_LOOKS.includes(t.id) && (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
+export const builtLooks = () => {
+  const all = (THEME_LIBRARY as unknown as LibraryTheme[]).filter(isBuiltLook);
+  return [...all.filter(t => !STARTER_SITES.includes(t.id)), ...all.filter(t => STARTER_SITES.includes(t.id))];
+};
 /** Any look in the library by id, including the older variants that are no longer offered. */
 export const libraryLook = (id: string) => (THEME_LIBRARY as unknown as LibraryTheme[]).find(t => t.id === id);
 const library = builtLooks;

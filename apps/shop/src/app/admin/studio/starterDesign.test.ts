@@ -1,3 +1,4 @@
+import { isGroupSurface } from "../../features/site/sectionGroups";
 import { describe, expect, it } from "vitest";
 import { getSectionMeta } from "../ThemeEditorExtensions";
 import { applyStarter, starterContents, starterPagesToAdd } from "./starterDesign";
@@ -19,7 +20,7 @@ describe("starter designs", () => {
     const once = applyStarter({}, theme, getSectionMeta);
     expect(once.themeBase?.id).toBe(theme.id);
     for (const [id, specs] of Object.entries(presetSections(theme))) {
-      const sections = getSections(once, { kind: "template", id });
+      const sections = getSections(once, isGroupSurface(id) ? { kind: "global", group: id } as any : { kind: "template", id });
       expect(sections.map((s: any) => s.type)).toEqual(specs.map((s) => s.type));
       for (const s of sections) expect(getSectionMeta(s.type)).toBeTruthy();
     }
@@ -51,5 +52,19 @@ describe("starter designs", () => {
     const all = starterPagesToAdd(theme, []);
     expect(all.every((p) => p.status === "draft")).toBe(true);
     expect(starterPagesToAdd(theme, all)).toEqual([]);
+  });
+});
+
+describe("a look's colour schemes", () => {
+  const slow: any = THEME_LIBRARY.find((t: any) => t.id === "juniper-slow-season");
+  it("follow the look while the shop hasn't made its own, and stay once the owner edits one", async () => {
+    const { themeLookKeys } = await import("./themeLook");
+    const { setSchemeRole } = await import("./colorSchemeOps");
+    const keys = themeLookKeys(slow, {});
+    const dark = keys.colorSchemes.find((s: any) => s.id === "scheme-inverse");
+    expect(dark.background).toBe(slow.global.textColor);
+    const edited = setSchemeRole(keys.colorSchemes, "scheme-inverse", "background", "#123456");
+    expect(themeLookKeys(slow, { colorSchemes: edited }).colorSchemes).toBeUndefined();
+    expect(themeLookKeys(slow, { colorSchemes: keys.colorSchemes }).colorSchemes).toEqual(keys.colorSchemes);
   });
 });

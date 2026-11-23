@@ -16,10 +16,10 @@ describe("Choose your look (plan 6.3)", () => {
       expect(typeof theme.name === "string" && typeof theme.mood === "string", theme.id).toBe(true);
     }
   });
-  it("the picker lists the 10 chosen looks once; each sign-up answer's default is one of them", () => {
+  it("the picker lists the 10 chosen looks and the 2 starter websites once; each sign-up answer's default is one of them", () => {
     const ids = builtLooks().map(t => t.id);
-    expect(ids).toHaveLength(10);
-    expect(new Set(ids).size).toBe(10);
+    expect(ids).toHaveLength(12);
+    expect(new Set(ids).size).toBe(12);
     for (const answer of ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other", null, "unknown"]) {
       const suggested = suggestedThemes(answer);
       expect(suggested.length, String(answer)).toBe(3);

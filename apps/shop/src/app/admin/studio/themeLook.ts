@@ -5,6 +5,7 @@
 // applied keys and `global` on top. Before plan 1.25 a theme set only the page, text and accent colours, so a light
 // theme applied over the dark starting look kept black cards, a black footer and white muted text under dark words.
 import { applyThemeKeysToSurfaces } from "../themeScope";
+import { DEFAULT_COLOR_SCHEMES, readableOn } from "../../features/site/colorSchemes";
 import { paletteKeys, readableExtras } from "./brandKit";
 import { PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 
@@ -16,7 +17,27 @@ export function themeLookKeys(theme: any, design: any = {}): Record<string, any>
     : {};
   keys.themeStyle = "default";
   for (const k of THEME_APPLIED_KEYS) if (theme?.[k] !== undefined) keys[k] = theme[k];
-  return { ...keys, ...(theme?.global || {}), themeLibraryPreset: theme?.id };
+  const out: Record<string, any> = { ...keys, ...(theme?.global || {}), themeLibraryPreset: theme?.id };
+  // A shop still on the starting colour schemes gets its three from this look, so dark and bright bands (sections set
+  // to Noir / Flare) follow the look; `fromLook` marks them so the next look replaces them. Schemes the owner made or
+  // edited (the scheme editor drops `fromLook`) are never replaced.
+  const own = design?.colorSchemes;
+  const mine = Array.isArray(own) && own.some((x: any) => !x?.fromLook);
+  if (!mine && out.backgroundColor && out.textColor && out.primaryColor) out.colorSchemes = lookSchemes(out);
+  return out;
+}
+
+/** The three starting colour schemes in a look's own colours (ids kept, so sections that name them follow). */
+export function lookSchemes(look: Record<string, any>) {
+  const bg = look.backgroundColor, text = look.textColor, accent = look.primaryColor;
+  const onAccent = readableOn(accent, "#111111", "#ffffff");
+  // The bright band uses the look's second colour when it has one (a fill colour, not one words are written in).
+  const band = look.secondaryColor || accent, onBand = readableOn(band, "#111111", "#ffffff");
+  return DEFAULT_COLOR_SCHEMES.map((s) => {
+    if (s.id === "scheme-default") return { id: s.id, name: s.name, v: 2, fromLook: true, background: bg, text, accent, onAccent, buttonBg: look.buttonColor || accent, buttonText: look.buttonTextColor || onAccent };
+    if (s.id === "scheme-inverse") return { id: s.id, name: s.name, v: 2, fromLook: true, background: text, text: bg, accent, onAccent, buttonBg: accent, buttonText: onAccent };
+    return { id: s.id, name: s.name, v: 2, fromLook: true, background: band, text: onBand, accent: onBand, onAccent: band, buttonBg: onBand, buttonText: band, link: onBand };
+  });
 }
 
 /** `design` as it looks after applying `theme` (sections and words kept). */
