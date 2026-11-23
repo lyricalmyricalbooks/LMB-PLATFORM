@@ -3,7 +3,7 @@
 // when the platform turned Bookings on for the shop (Dashboard.tsx hides the page otherwise). Reads come from the shop's
 // folder; every change goes through the server (bookingsApi.ts), which keeps two bookings from ever taking one time.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, CalendarOff, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
+import { BellRing, CalendarOff, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Checkbox, DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PageActions, PrimaryButton,
@@ -22,6 +22,7 @@ import { toCsv } from "./spreadsheetFile";
 import { qrPicture } from "./stockroom/qrCodesStore";
 import { saveFile } from "./xlsxWriter";
 import { PhotoField } from "./PhotoField";
+import { ServiceImportDialog } from "./ServiceImportDialog";
 import "./bookings.css";
 
 type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures" | "pay";
@@ -2115,6 +2116,7 @@ export const EMPTY_SERVICE: BookingService = { id: "", name: "", description: ""
 
 function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStarted }: { services: BookingService[]; rooms: BookingRoom[]; onChanged: () => void; startAdding?: boolean; onStarted?: () => void }) {
   const [editing, setEditing] = useState<BookingService | null>(null);
+  const [importing, setImporting] = useState(false);
   useEffect(() => { if (startAdding) { setEditing({ ...EMPTY_SERVICE, order: services.length }); onStarted?.(); } }, [startAdding]);
   const [ask, confirmNode] = useConfirm();
   const remove = async (s: BookingService) => {
@@ -2128,6 +2130,10 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
   const groupNames = grouped.map((g) => g.group).filter(Boolean);
   return (
     <div className="bkg-services">
+      <div className="bkg-services-bar">
+        <SecondaryButton size="sm" icon={<FileSpreadsheet size={16} aria-hidden />} onClick={() => setImporting(true)}>Bring your services from a spreadsheet</SecondaryButton>
+        <StatusBadge tone="info" glyph={false}>Beta</StatusBadge>
+      </div>
       {sections.map(({ group, services: inGroup }, i) => (
         <section key={group || "-"} className="bkg-service-group" aria-label={heads ? group || "No group" : undefined}>
           {heads && <h3 className="bkg-service-group-name">{group || "No group"} <span>{inGroup.length}</span></h3>}
@@ -2157,6 +2163,7 @@ function ServicesPanel({ services, rooms, onChanged, startAdding = false, onStar
           </div>
         </section>
       ))}
+      {importing && <ServiceImportDialog existing={services.map((s) => s.name)} onClose={() => setImporting(false)} onDone={onChanged} />}
       {editing && <ServiceDialog service={editing} rooms={rooms} groups={groupNames} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onChanged(); }} />}
       {confirmNode}
     </div>

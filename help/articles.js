@@ -81,6 +81,7 @@ export const ARTICLES = Object.freeze([
       "To check each booking before it's confirmed, open a free or pay-at-the-shop service and turn on Ask me before confirming. Clients then send a request, and you have two days to accept or decline it from the Requests box at the top of the calendar. A request you don't answer in time is declined for you, and the client gets an email either way.",
       "Share also has a link for each of Instagram, Facebook and Google, with where to paste it. Print a poster puts your QR code on a page for the window or the till. Figures then shows where your bookings came from.",
       "Clients who sign in to their account on your website see a Your bookings box. It lists what they have coming up and their past visits, with Open to move or cancel one and Book again.",
+      "To move from another booking tool, export its services as a spreadsheet. Under Services, press Bring your services from a spreadsheet and choose the file. They come in hidden, so you can check each one first.",
       "If you go to your clients, open the service and turn on Visit them at their place. Clients then give their address when they book. List the postal codes you travel to, and set Time before to your travel time.",
       "For a video call service, clients in another time zone see the times on their own clock, with a link to switch to yours. Their emails show both times.",
     ],
