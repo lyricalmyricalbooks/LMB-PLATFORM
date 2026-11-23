@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
   feelLabel, lookFeel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
@@ -42,6 +42,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   // One general list. The sign-up answer only decides which look "Skip for now" uses.
   const first = useMemo(() => suggestedThemes(publishes)[0], [publishes]);
   const [busy, setBusy] = useState("");
+  // Fetch the saving code while the press looks, so Use this look answers at once (it brings the section list for the starter).
+  useEffect(() => { if (!apply) void import("../chooseLook").catch(() => {}); }, [apply]);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<LookFilter>("all");
   const [trying, setTrying] = useState<string | null>(null);
