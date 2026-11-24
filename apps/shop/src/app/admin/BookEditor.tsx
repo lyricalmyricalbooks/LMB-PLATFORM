@@ -695,7 +695,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       if (book) {
         // Pass what the editor loaded so untouched stock keeps its live value.
         const saved: any = await adminApi.updateBook(book.id, toSave, initialData, { removeMissing: true });
-        toast.success(w("Book updated successfully"));
+        // A new product the draft autosave already created still gets its "Saved. Add another" moment.
+        if (!bookProp && onAddAnother) setJustCreated({ ...toSave, id: book.id });
+        else toast.success(w("Book updated successfully"));
         // Pre-order switch or release date changed: updateBook carried the new date onto paid, unsent pre-orders.
         const sync = saved?.preorderSync;
         if (sync?.failed) toast.error("Book saved, but its paid pre-orders couldn't be updated. Save again to retry.");
