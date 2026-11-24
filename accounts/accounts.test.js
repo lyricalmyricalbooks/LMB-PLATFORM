@@ -198,7 +198,7 @@ test("roles change and people leave, but a shop always keeps an owner", async ()
   assert.deepEqual((await w.accounts.myShops(OWNER)).shops, [], "the account's old list of shops gives no role");
   const logged = [...w.registry.events.get(SHOP).values()].map((e) => e.what);
   assert.deepEqual(logged.slice(-3), ["role-changed", "role-changed", "member-removed"]);
-  assert.deepEqual(ROLES, ["owner", "staff", "author", "bookkeeper", "fairHelper"]);
+  assert.deepEqual(ROLES, ["owner", "staff", "author", "bookkeeper", "fairHelper", "frontDesk", "provider"]);
 });
 
 test("the team list shows the shop's sign-up owner, members and open invites", async () => {
