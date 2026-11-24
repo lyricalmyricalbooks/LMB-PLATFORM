@@ -1302,6 +1302,12 @@ next 60 days, when it was last checked, or its problem in red, with Remove (asks
 `otherCalendars` (steps list, add, remove, refresh); the links never come back to the page. Fixture: `?page=bookings`
 (one Outlook calendar and one that stopped answering).
 
+**Send bookings to other apps (Beta, 24 November 2026, plan 4 step 5.8):** Hours & rules › `BookingHooksTile` (its own
+file, after Other calendars): up to 5 web addresses from other apps, each with what to send (new, moved, cancelled), an
+on/off switch, its last answer or problem (paused after many failures), Send a test, the check code, a signing key (shown on demand,
+with copy) and Remove (asks first). All through op `bookingHooks` (steps list, add, switch, test, remove). Fixture:
+`?page=bookings` (one working address).
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while

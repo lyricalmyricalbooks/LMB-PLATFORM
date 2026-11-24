@@ -8,6 +8,7 @@ import { AwayReplyTile } from "./AwayReplyTile";
 import { LoyaltyTile } from "./LoyaltyTile";
 import { PromoTextsTile } from "./PromoTextsTile";
 import { OtherCalendarsTile } from "./OtherCalendarsTile";
+import { BookingHooksTile } from "./BookingHooksTile";
 import { PastVisitsDialog } from "./PastVisitsDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, CalendarOff, CheckCircle2, CircleHelp, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
@@ -3108,6 +3109,7 @@ function HoursPanel({ settings, services, shopName, saved, onSaved, active }: { 
         </section>
         <CalendarTile google={form.googleCalendar} onGoogle={(on) => setForm({ ...form, googleCalendar: on })} />
         <OtherCalendarsTile staff={settings.staff} />
+        <BookingHooksTile />
       </div>
       {active && <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={() => setForm(saved ? settings : DEFAULT_BOOKING_SETTINGS)} message={saved ? undefined : "Save your hours to start taking bookings."} />}
     </div>

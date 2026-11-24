@@ -879,3 +879,11 @@
 .rp .bkg-ocal-how dl { margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
 .rp .bkg-ocal-how dt { font: 500 12px/1.3 var(--rp-font-mono); color: var(--rp-text-muted); }
 .rp .bkg-ocal-how dd { margin: 2px 0 0; line-height: 1.45; }
+/* Send bookings to other apps (plan 4, 5.8) */
+.rp .bkg-hook-row { display: grid; gap: 8px; padding: 12px 2px; border-bottom: 1px solid var(--rp-border); font-size: 14px; }
+.rp .bkg-hook-row:last-child { border-bottom: 0; }
+.rp .bkg-hook-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rp .bkg-hook-url { display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; font-family: var(--rp-font-mono); font-weight: 500; }
+.rp .bkg-hook-actions { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-left: -8px; }
+.rp .bkg-hook-events { display: grid; gap: 10px; }
+.rp .bkg-hook-events-label { margin: 0; font-weight: 600; font-size: 14px; }

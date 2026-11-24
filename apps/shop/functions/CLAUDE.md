@@ -1551,6 +1551,18 @@ a 3 MB cap (`fetchFeed` dependency for tests). The links and busy spans live in 
 `ical~<feedId>~n` in `bookingDays`, so `busyFrom` treats them as away (they block, but never count to the daily cap); a
 person who stops taking bookings is left out. Days whose items changed are rewritten in transactions that keep the rest.
 
+**Send bookings to other apps (Beta, 24 November 2026, plan 4 step 5.8).** `bookingHooks.js`. Trigger `bookingHooksOut`
+(`bookings/{bookingId}` written) asks `hookEvent(before, after)`: into confirmed is `booking.created`, out of it (or
+deleted) `booking.cancelled`, a new start, end or person `booking.moved`; anything else sends nothing. `hookBody` keeps the
+useful facts (times, service, person, place, customer, price, paid, note, answers; `was` for a move), never keys, card or
+history. Each hook (`bookingHooks/main`, server only, at most `MAX_HOOKS`) is posted to with header `x-booking-signature`
+`t=<seconds>,v1=<HMAC-SHA256 of "t.body">` from its `whsec_` secret. Only https names on port 443 (`hookUrlProblem`); the
+name is looked up first and any private, loopback or link-local address refused (`privateAddress`), redirects never
+followed, 10 s timeout. A failure goes to `bookingHookQueue/{id}`; `bookingSweep` calls `sweepBookingHooks` and tries
+again after `RETRY_MINUTES` (5, 30, 120, 360, 1080), then drops it. `PAUSE_AFTER` failures in a row switch the hook off
+(`paused`). Owner op `bookingHooks` (not in `DESK_OPS`): list, add, switch, test (a `booking.test` sample), remove (its
+waiting deliveries go too). Tests in `bookingHooks.test.js`.
+
 **Standing appointments (17 November 2026, Services plan 2 B1, `tasks/todo/2026-11-17-standing-appointments.md`).** A
 one-to-one service may set `repeats` (`cleanService`: never a class or course; Bookings › Services › edit › **Clients can book a
 standing appointment**). Clients can book a run only when `runsOnline` (shared: repeats, free or paid at the visit, no card on
