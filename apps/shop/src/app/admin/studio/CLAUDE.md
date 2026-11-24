@@ -853,7 +853,6 @@ italic `accentWord`, edge-to-edge photo, caption, round + link, underlined link;
 `PhotoOpeningSection`, `BigIntroSection`, `FeatureDuoSection` and `StoryOrbitSection` (CSS `.fm-po*`, `.fm-bi*`, `.fm-duo*`,
 `.fm-orbit*`; a two-line title is typed with a new line; `accentFont` loads a Google font for the quote/accent word).
 Showcase grids get the template's 01, 02… numbers through `[class*="showcase-grid-"]`. Plan: https://claude.ai/artifact/PKepfF8oXL3jZ5Ewo7S4Wv.
-(add Slow Season and Catalogue once rewritten). Plan: https://claude.ai/artifact/PKepfF8oXL3jZ5Ewo7S4Wv.
 
 ### Starters and Studio rethink, step 2: starters arrive with samples (24 November 2026)
 `applyStarter` / `applyPresetSections` take an optional `StarterPhotos` (`studio/starterPhotos.ts` `starterPhotos(sells)`):
