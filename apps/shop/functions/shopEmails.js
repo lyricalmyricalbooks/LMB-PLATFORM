@@ -9,11 +9,12 @@ const { sellsBooks } = require("./shared/shopSells");
 const { shopCountry, shopSign } = require("./shopMoney");
 const { DEFAULT_NOTIFICATIONS_FR, sayer, shopLanguage } = require("./emailFrench");
 const { awayReplyNow, awayTemplate } = require("./awayReply");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail, sendQueuedEmail,
-  sendWeeklySummary, sendFairDaySummary, siteLink, zone = () => "America/Toronto", now = () => Date.now(),
+  sendWeeklySummary, sendFairDaySummary, siteLink, zone = shopTimeZone, now = () => Date.now(),
 }) {
   // Studio › Style › Customer accounts. On unless the published design turns it off.
   async function customerAccountsEnabled() {
