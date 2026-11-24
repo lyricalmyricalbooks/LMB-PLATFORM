@@ -4,6 +4,7 @@
 import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { Booking } from "./bookingsApi";
+import type { RotaShift, TimeOff } from "../../shared/teamRota";
 
 /** Where the signed-in person stands on the time clock (plan 4, 4.2), with minutes worked on this shift. */
 export type DeskClock = { state: "off" | "working" | "break"; since: string; shiftIn: string; minutes: number };
@@ -17,6 +18,9 @@ export type DeskAnswer = {
   bookings: Booking[];
   /** Null for the owner and staff, who keep hours under Bookings › Team pay. */
   clock?: DeskClock | null;
+  /** Shifts and time off (plan 4, 4.3): their planned shifts for two weeks and their asks. Left out for the owner. */
+  rota?: (RotaShift & { id: string })[];
+  timeOff?: (TimeOff & { id: string })[];
 };
 
 async function callDesk(op: string, body: Record<string, unknown> = {}): Promise<any> {

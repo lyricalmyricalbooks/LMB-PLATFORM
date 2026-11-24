@@ -16,6 +16,7 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, followRequests, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { ShiftsPanel } from "./ShiftsPanel";
+import { RotaPanel } from "./RotaPanel";
 import type { ShiftRow } from "./shifts";
 import { hoursText } from "../../shared/timeClock";
 import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
@@ -32,7 +33,7 @@ import { PhotoField } from "./PhotoField";
 import { ServiceImportDialog } from "./ServiceImportDialog";
 import "./bookings.css";
 
-type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures" | "pay";
+type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures" | "pay" | "rota";
 type CalendarView = "week" | "day" | "list";
 const VIEW_KEY = "colophon.bookings.view";
 const ZONE = shopTimeZone();
@@ -173,7 +174,7 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
         tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length },
           ...(sellsPacks ? [{ id: "packs" as const, label: "Packs" }] : []),
           { id: "team", label: "Team & rooms", ...(setup.settings.staff.length ? { count: setup.settings.staff.filter((p) => p.active).length } : {}) }, { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" },
-          ...(setup.settings.staff.length ? [{ id: "pay" as const, label: "Team pay" }] : [])]} />
+          ...(setup.settings.staff.length ? [{ id: "rota" as const, label: "Shifts & time off" }, { id: "pay" as const, label: "Team pay" }] : [])]} />
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
@@ -205,6 +206,11 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
       <TabPanel tabId="figures" active={tab === "figures"}>
         {tab === "figures" && <FiguresPanel />}
       </TabPanel>
+      {setup.settings.staff.length > 0 && (
+        <TabPanel tabId="rota" active={tab === "rota"}>
+          {tab === "rota" && <RotaPanel today={today()} onSettingsChanged={reloadSetup} />}
+        </TabPanel>
+      )}
       {setup.settings.staff.length > 0 && (
         <TabPanel tabId="pay" active={tab === "pay"}>
           {tab === "pay" && <PayPanel staff={setup.settings.staff} onEditTeam={() => setTab("team")} />}

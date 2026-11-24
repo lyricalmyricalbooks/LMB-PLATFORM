@@ -94,6 +94,8 @@ export const ARTICLES = Object.freeze([
       "To take your past visits away as a spreadsheet, open the calendar's List, choose Past and press Spreadsheet. Pick the days, and keep only the no-shows if you like.",
       "Someone who only answers the door or does the visits can have the Front desk or Service provider role under Settings › Team. They sign in and see just the day's bookings.",
       "People on the Front desk or Service provider role clock in and out, with breaks, when they sign in. Their hours show under Team pay, times their hourly rate if they have one.",
+      "Plan who works when under Bookings › Shifts & time off, and copy last week to save typing. Your team sees their shifts when they sign in.",
+      "Your team asks for time off from their own sign-in. Approve it under Shifts & time off, and clients can't book them on those days.",
     ],
   },
   {

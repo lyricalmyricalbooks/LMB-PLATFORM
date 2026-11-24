@@ -1513,3 +1513,9 @@ reads the month's shifts (`bookingsAdmin("shifts")`) into `teamPay(…, shifts)`
 `hourlyMinor` (Team & rooms › Their pay), a person with no entry on a `CLOCK_ONLY` line, a `forgotten` shift skipped.
 `ShiftsPanel.tsx` (Hours worked) lists, adds, fixes and removes shifts; times typed go through `shifts.ts` `momentOn`
 (a finish before the start is the next morning) and `cleanShift` before saving.
+
+**Shifts and time off (23 November 2026, Bookings plan 4 step 4.3, `tasks/todo/2026-11-23-bookings-shifts-time-off.md`).**
+Tab **Shifts & time off** (id `rota`, with Team pay while there is a team): `RotaPanel.tsx` answers time off asks
+(`answerTimeOff`, then reloads the setup because days off or blocks changed), plans the week (`rotaGrid`, `saveRota`,
+`removeRota`, `copyRota`). On the team desk, `DeskPlans.tsx` shows the person's shifts and asks (`askTimeOff`,
+`withdrawTimeOff`). Planned shifts never change booking times; approved time off does (days off or a block).
