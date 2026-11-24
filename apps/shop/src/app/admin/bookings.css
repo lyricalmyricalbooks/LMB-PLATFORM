@@ -721,6 +721,33 @@
   .rp .tdesk-state:empty + .tdesk-acts { grid-column: 2 / -1; }
   .rp .tdesk-counts > div { padding: 10px 12px; }
 }
+/* My day (plan 4, 4.6): the next client in the mint tile, visit notes and what is left to pay on a row, ways to pay. */
+.rp .tdesk-next { background: var(--rp-tile-mint); color: var(--rp-on-tile); border-radius: 22px; padding: 18px 20px; margin: 0 0 16px; display: grid; gap: 4px; }
+.rp .tdesk-next-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.rp .tdesk-next-label { font-family: var(--rp-font-mono); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
+.rp .tdesk-next-when { font-weight: 700; font-variant-numeric: tabular-nums; }
+.rp .tdesk-next-name { font-size: 1.5rem; line-height: 1.15; margin-top: 4px; }
+.rp .tdesk-next-what { font-size: .95rem; }
+.rp .tdesk-next-msg { margin: 6px 0 0; font-size: .92rem; }
+.rp .tdesk-next .tdesk-note { background: var(--rp-surface); color: var(--rp-text); }
+.rp .tdesk-next-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.rp .tdesk-note { display: flex; gap: 6px; align-items: flex-start; margin: 6px 0 0; padding: 8px 10px; border-radius: 12px; background: var(--rp-surface-sunken); font-size: .86rem; color: var(--rp-text); white-space: pre-line; overflow-wrap: anywhere; }
+.rp .tdesk-note svg { flex: none; margin-top: 2px; }
+.rp .tdesk-who .tdesk-due { display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 0; font-weight: 600; color: var(--rp-text); }
+.rp .tdesk-pay { display: grid; gap: 10px; }
+.rp .tdesk-pay-way { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; text-align: left; min-height: var(--rp-touch); padding: 14px 16px; border-radius: 16px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); font: inherit; cursor: pointer; }
+.rp .tdesk-pay-way:hover:not(:disabled) { border-color: var(--rp-border-strong); }
+.rp .tdesk-pay-way:focus-visible { outline: none; box-shadow: var(--rp-focus-ring); }
+.rp .tdesk-pay-way:disabled { opacity: .6; cursor: progress; }
+.rp .tdesk-pay-way span { display: grid; gap: 2px; }
+.rp .tdesk-pay-way small { color: var(--rp-text-muted); font-size: .86rem; }
+@media (max-width: 640px) {
+  .rp .tdesk-next-acts > * { flex: 1 1 0; }
+  .rp .tdesk-acts > * { min-height: var(--rp-touch); }
+  /* A checked-in row carries its badge, Undo, Take payment and the menu: badge on its own line, actions wrap below. */
+  .rp .tdesk-row .tdesk-state, .rp .tdesk-row .tdesk-acts { grid-column: 2 / -1; }
+  .rp .tdesk-row .tdesk-acts { flex-wrap: wrap; justify-self: stretch; }
+}
 /* Hours worked under Team pay (plan 4, 4.2). */
 .rp .bkg-shifts { margin-top: 28px; display: grid; gap: 12px; }
 .rp .bkg-shifts-title { margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
