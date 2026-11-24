@@ -96,6 +96,7 @@ export const ARTICLES = Object.freeze([
       "People on the Front desk or Service provider role clock in and out, with breaks, when they sign in. Their hours show under Team pay, times their hourly rate if they have one.",
       "Plan who works when under Bookings › Shifts & time off, and copy last week to save typing. Your team sees their shifts when they sign in.",
       "Your team asks for time off from their own sign-in. Approve it under Shifts & time off, and clients can't book them on those days.",
+      "To pay a higher share in a good month, open a person in Team & rooms and add a step under Their pay. The higher share counts only on takings above that amount.",
     ],
   },
   {

@@ -1249,6 +1249,7 @@ Their own day: an email (morning list) and `PersonCalendar` (op `calendarFeed` w
 `tipTaken`, never part of takings. Visits are confirmed and not no-shows; held bookings never count; the month is the
 shop's own day. Bookings with no person sit on a last line with no commission. The person dialog's Their pay field sets
 the share; the public booking page's staff list never includes it. Shown only, never paid. Classes `.bkg-pay*`.
+**Steps up (Beta, 23 November 2026, plan 4 step 4.4):** a person can have `commissionSteps` (up to 4 `{ overMinor, percent }`, kept only with `commissionPercent`); `commissionFor` (shared `bookingTimes.ts`) pays each share only on the month's takings above its amount. The person dialog edits them (`.bkg-steps`) with `commissionStepsText` as a summary; Team pay and its spreadsheet show them. Never on the public staff list. Fixture: Ana, 40% then 50% over $3,000.
 
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),

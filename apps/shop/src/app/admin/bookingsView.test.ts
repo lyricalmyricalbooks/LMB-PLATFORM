@@ -208,6 +208,15 @@ describe("team pay", () => {
     expect(pay).toMatchObject({ takenMinor: 50_000, commissionMinor: 8_000, tipsMinor: 2_500 });
   });
 
+  it("pays a higher share on the part of a good month over each step (plan 4, 4.4)", () => {
+    const steps = [{ overMinor: 15_000, percent: 50 }];
+    const rows = [paid({ id: "1", staffId: "ana" }), paid({ id: "2", staffId: "ana" })];
+    const line = teamPay(rows, [person({ commissionPercent: 40, commissionSteps: steps })], ZONE, "2026-11", AFTER).people[0];
+    // $200 before tax: 40% of $150 is $60, then 50% of $50 is $25.
+    expect(line).toMatchObject({ takenMinor: 20_000, commissionMinor: 8_500, steps });
+    expect(teamPayRows(teamPay(rows, [person({ commissionPercent: 40, commissionSteps: steps })], ZONE, "2026-11", AFTER))[1][3]).toBe("40, then 50 over 150.00");
+  });
+
   it("keeps the month by the shop's own day", () => {
     // 2 a.m. UTC on 1 December is still 30 November in Toronto.
     const late = paid({ staffId: "ana", start: "2026-12-01T02:00:00.000Z", end: "2026-12-01T03:00:00.000Z" });
