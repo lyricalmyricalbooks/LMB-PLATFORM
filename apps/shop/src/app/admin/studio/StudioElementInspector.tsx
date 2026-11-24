@@ -25,13 +25,13 @@ type Props = {
   onOpenText: (group: string) => void;
   onOpenTarget: (target: string) => void;
   onClose: () => void;
-  /** Returns to the Page layout outline (the list of parts and sections), closing this part. */
+  /** Returns to the Page outline (the list of parts and sections), closing this part. */
   onBack?: () => void;
 };
 
 /**
  * One inspector for a built-in part of the page: its Words, Style, Layout and Visibility in tabs,
- * using the same controls as Theme settings and Text & labels (so changes, resets and undo match).
+ * using the same controls as Style and Text & labels (so changes, resets and undo match).
  */
 export function StudioElementInspector(p: Props) {
   const available = visibleTabs(p.tabs);
@@ -58,7 +58,7 @@ export function StudioElementInspector(p: Props) {
 
   return <aside ref={ref as any} className="studio-inspector studio-element-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined}
     aria-label={`${p.element.label} settings`} tabIndex={-1} data-studio-element-inspector>
-    {p.onBack && <button type="button" className="studio-structure-switch" onClick={p.onBack}><ArrowLeft size={14} aria-hidden="true" /> Back to Page layout</button>}
+    {p.onBack && <button type="button" className="studio-structure-switch" onClick={p.onBack}><ArrowLeft size={14} aria-hidden="true" /> Back to the page</button>}
     <header className="studio-inspector-head">
       <div><small>{p.path.length ? p.path.join(" › ") : "PAGE PART"}</small><h2>{p.element.label || "Page part"}</h2></div>
       <IconButton label="Close settings" onClick={p.onClose}><X size={17} /></IconButton>
@@ -92,8 +92,8 @@ export function StudioElementInspector(p: Props) {
       <div className="studio-element-links">
         {/* A whole-page part spans several categories (colours, fonts, spacing): one button each, so "Space between sections" opens Layout & spacing. */}
         {p.tabs.styleGroups.length > 1 && !p.element.region
-          ? p.tabs.styleGroups.map(g => <button key={g} type="button" className="studio-link-button" onClick={() => p.onOpenTarget(`style:${g}`)}>Open {styleGroupTitle(g)} in Theme settings</button>)
-          : p.tabs.styleGroups.length > 0 && <button type="button" className="studio-link-button" onClick={p.onOpenTheme}>Open in Theme settings</button>}
+          ? p.tabs.styleGroups.map(g => <button key={g} type="button" className="studio-link-button" onClick={() => p.onOpenTarget(`style:${g}`)}>Open {styleGroupTitle(g)} in Style</button>)
+          : p.tabs.styleGroups.length > 0 && <button type="button" className="studio-link-button" onClick={p.onOpenTheme}>Open in Style</button>}
         {p.tabs.copyGroups.map(g => <button key={g} type="button" className="studio-link-button" onClick={() => p.onOpenText(g)}>All words: {g}</button>)}
         {links.map(t => <button key={t} type="button" className="studio-link-button" onClick={() => p.onOpenTarget(t)}>{TARGET_LABELS[t] || t}</button>)}
       </div>

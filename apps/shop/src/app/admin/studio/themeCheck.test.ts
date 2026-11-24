@@ -13,13 +13,13 @@ describe("the theme check", () => {
 
   it("finds a top-level key Apply doesn't copy, and a global key with no control", () => {
     expect(themeProblems({ ...base, sparkle: true })).toEqual([expect.stringMatching(/"sparkle" isn't something Apply copies/)]);
-    expect(themeProblems({ ...base, global: { primaryColor: "#000000", glowStrength: 3 } })).toEqual(["Test: \"glowStrength\" has no Theme settings control"]);
+    expect(themeProblems({ ...base, global: { primaryColor: "#000000", glowStrength: 3 } })).toEqual(["Test: \"glowStrength\" has no Style control"]);
     expect(themeProblems({ ...base, fontSize: "md", productCTA: "BUY" })).toEqual([]);
   });
 
   it("checks words against Text & labels and colour-scheme parts against their controls", () => {
     expect(themeProblems({ ...base, global: { copy: { cartLabel: "Bag", notAWord: "x" } } })).toEqual(["Test: the words \"notAWord\" aren't in Text & labels"]);
-    expect(themeProblems({ ...base, global: { elementSchemes: { header: "scheme-1", basement: "scheme-1" } } })).toEqual(["Test: \"basement\" can't follow a colour scheme in Theme settings"]);
+    expect(themeProblems({ ...base, global: { elementSchemes: { header: "scheme-1", basement: "scheme-1" } } })).toEqual(["Test: \"basement\" can't follow a colour scheme in Style"]);
   });
 
   it("checks the palette, the home layout and the starter pages exist", () => {

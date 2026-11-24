@@ -7,7 +7,8 @@ import { ArrowLeft, Pencil, Search, Trash2 } from "lucide-react";
 import type { SharedBlock } from "../../features/site/sharedBlocks";
 import { placementHint, sharedBlockUsage, type LibraryMeta } from "./sectionLibrary";
 import { designGroups, SECTION_KINDS, sectionDesigns, type SectionKind } from "./sectionDesigns";
-import { SectionThumb } from "./sectionThumbs";
+import { SectionThumb, type ThumbLook } from "./sectionThumbs";
+import { googleFontHref } from "../../features/site/fonts";
 import { StudioAiDraft } from "./StudioAiDraft";
 import type { Section } from "./studioModel";
 
@@ -19,6 +20,8 @@ export type LibraryProps = {
   at: number;
   total: number;
   design: any;
+  /** The shop's colours, heading font and sample photos, so each picture looks like the shop. */
+  look?: ThumbLook;
   /** A design id (sectionDesigns.ts): the plain design of a section is its type. */
   onPreview: (design: string | null) => void;
   onPick: (design: string) => void;
@@ -38,6 +41,15 @@ export type LibraryProps = {
 };
 
 export function StudioSectionLibrary(p: LibraryProps) {
+  // The pictures' headline uses the shop's heading font: load it once into Studio's own page.
+  useEffect(() => {
+    const font = p.look?.font;
+    if (!font || typeof document === "undefined") return;
+    const id = `studio-thumb-font-${font.replace(/\W+/g, "-")}`;
+    if (document.getElementById(id)) return;
+    const link = Object.assign(document.createElement("link"), { id, rel: "stylesheet", href: googleFontHref(font) });
+    document.head.appendChild(link);
+  }, [p.look?.font]);
   const [q, setQ] = useState("");
   const [pointed, setPointed] = useState<string | null>(null);
   const timer = useRef<number>(0);
@@ -86,7 +98,7 @@ export function StudioSectionLibrary(p: LibraryProps) {
             {presets.map(preset => (
               <div key={preset.id} className="studio-library-saved">
                 <button type="button" className="studio-library-card" onClick={() => p.onPickPreset(preset)}>
-                  <SectionThumb type={preset.section?.type} />
+                  <SectionThumb type={preset.section?.type} settings={preset.section?.settings} look={p.look} />
                   <span className="studio-library-name">{preset.name}</span>
                   <small>Saved with Section tools › Save section for reuse</small>
                 </button>
@@ -111,7 +123,7 @@ export function StudioSectionLibrary(p: LibraryProps) {
                   <div key={design.id} className="studio-library-item" data-library-design={design.id} data-library-type={plain ? design.type : undefined}>
                     <button type="button" className="studio-library-card" aria-pressed={pointed === design.id}
                       onMouseEnter={() => point(design.id)} onFocus={() => point(design.id)} onClick={() => p.onPick(design.id)}>
-                      <SectionThumb type={design.type} />
+                      <SectionThumb type={design.type} settings={{ ...((meta as any)?.defaults || {}), ...design.settings }} look={p.look} />
                       <span className="studio-library-name">{design.label}</span>
                       <small>{design.description}</small>
                       {!plain && meta && <span className="studio-library-of">Built from {meta.label}</span>}

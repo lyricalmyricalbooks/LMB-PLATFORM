@@ -1,7 +1,7 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
 import { forgotten, hourlyOf, shiftMinutes, type Shift } from "../../shared/timeClock";
-import { cleanCommissionSteps, commissionFor, type CommissionStep } from "../../shared/bookingTimes";
+import { cleanCommissionSteps, commissionFor, visitName, type CommissionStep } from "../../shared/bookingTimes";
 import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, bookingChannel, CHANNEL_NAMES, type BookingChannel, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
@@ -814,4 +814,216 @@ export function answerWithin(b: Pick<Booking, "answerBy" | "start">, nowMs: numb
   if (minutes < 60) return `Answer within ${minutes} minute${minutes === 1 ? "" : "s"}`;
   const hours = Math.round(minutes / 60);
   return `Answer within ${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
+/** Coming up (plan 4, 5.1): how far ahead the owner can look. */
+export const FUTURE_WINDOWS = [30, 60, 90] as const;
+export type FutureDays = (typeof FUTURE_WINDOWS)[number];
+export type FutureWindow = {
+  days: FutureDays;
+  /** Confirmed bookings still to come in the window, and requests waiting for the owner's answer. */
+  count: number; waiting: number;
+  /** What the confirmed ones are worth, what is already paid (card, deposit, gift card, pack) and what is left to take. */
+  valueMinor: number; paidMinor: number; dueMinor: number;
+  /** The fullest day in the window, or null when nothing is booked. */
+  busiest: { day: string; count: number } | null;
+};
+export type FutureFigures = { windows: FutureWindow[]; weeks: { monday: string; count: number; valueMinor: number }[] };
+
+/** The bookings to come in the next `days` shop days from `today` (today counts): confirmed or waiting, start not passed. */
+export function futureList(rows: readonly Booking[], zone: string, today: string, nowMs: number, days: number): Booking[] {
+  const end = addDays(today, days);
+  return rows
+    .filter((b) => (b.status === "confirmed" || b.status === "requested") && Date.parse(b.start) >= nowMs)
+    .filter((b) => { const d = dayOf(Date.parse(b.start), zone); return d >= today && d < end; })
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/**
+ * The next 30, 60 and 90 days at a glance (plan 4, 5.1): bookings, what they are worth, what is paid and what is still to
+ * take, the fullest day, and the next 13 weeks week by week. A request counts as waiting, never as booked money.
+ */
+export function futureFigures(rows: readonly Booking[], zone: string, today: string, nowMs: number): FutureFigures {
+  const all = futureList(rows, zone, today, nowMs, 90);
+  const windows = FUTURE_WINDOWS.map((days): FutureWindow => {
+    const end = addDays(today, days);
+    const inside = all.filter((b) => dayOf(Date.parse(b.start), zone) < end);
+    const booked = inside.filter((b) => b.status === "confirmed");
+    const perDay = new Map<string, number>();
+    for (const b of booked) { const d = dayOf(Date.parse(b.start), zone); perDay.set(d, (perDay.get(d) || 0) + 1); }
+    let busiest: FutureWindow["busiest"] = null;
+    for (const [day, count] of [...perDay].sort((a, b) => a[0].localeCompare(b[0]))) if (!busiest || count > busiest.count) busiest = { day, count };
+    const valueMinor = booked.reduce((n, b) => n + (b.priceMinor || 0), 0);
+    const dueMinor = booked.reduce((n, b) => n + balanceDue(b), 0);
+    return { days, count: booked.length, waiting: inside.length - booked.length, valueMinor, paidMinor: valueMinor - dueMinor, dueMinor, busiest };
+  });
+  const first = weekStartOf(today);
+  const weeks = Array.from({ length: 13 }, (_, i) => ({ monday: addDays(first, i * 7), count: 0, valueMinor: 0 }));
+  for (const b of all) {
+    if (b.status !== "confirmed") continue;
+    const w = weeks.find((x) => x.monday === weekStartOf(dayOf(Date.parse(b.start), zone)));
+    if (w) { w.count++; w.valueMinor += b.priceMinor || 0; }
+  }
+  return { windows, weeks };
+}
+
+/** The coming-up list as spreadsheet rows, a header first: one row per booking, money in the shop's units. */
+export function futureRows(list: readonly Booking[], zone: string): string[][] {
+  const money = (minor: number) => (minor / 100).toFixed(2);
+  return [
+    ["Day", "Time", "Client", "Email", "Phone", "Service", "With", "Status", "Price", "Paid", "To pay"],
+    ...list.map((b) => {
+      const due = b.status === "confirmed" ? balanceDue(b) : 0;
+      return [dayOf(Date.parse(b.start), zone), timeText(b.start, zone), b.customer.name, b.customer.email, b.customer.phone || "", visitName(b), b.staffName || "",
+        b.status === "requested" ? "Waiting for your answer" : "Booked", money(b.priceMinor || 0), money(b.status === "confirmed" ? (b.priceMinor || 0) - due : 0), money(due)];
+    }),
+  ];
+}
+
+/** Team performance (plan 4, 5.2): one person's figures over a stretch of days. */
+export type PerformanceLine = {
+  id: string; name: string;
+  /** Visits that happened (started, not a no-show), and what they took before tax, with the average per visit. */
+  visits: number; takenMinor: number; perVisitMinor: number;
+  /** Minutes of their own part of those visits. */
+  minutes: number;
+  /** Different clients they saw, and how many of their visits were followed by another booking from that client. */
+  clients: number; rebooked: number; rebookPercent: number | null;
+  /** Bookings with them the client didn't turn up for, and that as a share of those due to happen. */
+  noShows: number; noShowPercent: number | null;
+};
+export type TeamPerformance = { people: PerformanceLine[]; total: PerformanceLine };
+
+/** The three stretches Team performance offers: this month so far, last month, the last three months. */
+export const PERFORMANCE_SPANS = ["month", "last", "quarter"] as const;
+export type PerformanceSpan = (typeof PERFORMANCE_SPANS)[number];
+export const SPAN_NAMES: Record<PerformanceSpan, string> = { month: "This month", last: "Last month", quarter: "Last 3 months" };
+/** The days a stretch covers: `from` included, `to` left out, as YYYY-MM-DD shop days. */
+export function spanDays(span: PerformanceSpan, today: string): { from: string; to: string } {
+  const first = `${today.slice(0, 7)}-01`;
+  const monthBack = (day: string, n: number) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - n); return d.toISOString().slice(0, 10); };
+  if (span === "month") return { from: first, to: addDays(today, 1) };
+  if (span === "last") return { from: monthBack(first, 1), to: first };
+  return { from: monthBack(first, 2), to: addDays(today, 1) };
+}
+
+/**
+ * How each person did over `from`–`to` (plan 4, 5.2). Money and visits are shared the same way as Team pay (each part of
+ * a visit with several services goes to whoever did it). "Rebooked" counts a visit when the same client has a later
+ * booking (with anyone) that isn't cancelled, so `rows` should run some months past `to`.
+ */
+export function teamPerformance(rows: readonly Booking[], staff: readonly Pick<StaffMember, "id" | "name" | "active">[], zone: string, from: string, to: string, nowMs: number): TeamPerformance {
+  const lines = new Map<string, PerformanceLine & { emails: Set<string> }>();
+  const line = (id: string, name: string) => {
+    if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, perVisitMinor: 0, minutes: 0, clients: 0, rebooked: 0, rebookPercent: null, noShows: 0, noShowPercent: null, emails: new Set() });
+    return lines.get(id)!;
+  };
+  for (const p of staff) if (p.active) line(p.id, p.name);
+  const email = (b: Booking) => String(b.customer?.email || "").trim().toLowerCase();
+  // Each client's later bookings, to tell whether a visit was followed by another one.
+  const starts = new Map<string, number[]>();
+  for (const b of rows) {
+    if (b.status === "cancelled" || b.status === "held" || !email(b)) continue;
+    const list = starts.get(email(b)) || [];
+    list.push(Date.parse(b.start));
+    starts.set(email(b), list);
+  }
+  for (const b of rows) {
+    if (b.status !== "confirmed") continue;
+    const day = dayOf(Date.parse(b.start), zone);
+    if (day < from || day >= to) continue;
+    const startMs = Date.parse(b.start);
+    if (startMs > nowMs) continue;
+    const kept = moneyKept(b);
+    const taken = kept - taxIn(b, kept);
+    const shares = visitShares(b);
+    const parts = b.parts || [];
+    const came = !b.noShow;
+    const again = (starts.get(email(b)) || []).some((t) => t > startMs);
+    const seen = new Set<string>();
+    shares.forEach((sh, i) => {
+      const id = sh.staffId || NOBODY;
+      const l = line(id, id ? sh.staffName || "Someone no longer listed" : "Not given to anyone");
+      const part = i === shares.length - 1 ? taken - shares.slice(0, -1).reduce((n, x) => n + Math.round(taken * x.share), 0) : Math.round(taken * sh.share);
+      l.takenMinor += part;
+      if (seen.has(id)) return;
+      seen.add(id);
+      if (!came) { l.noShows += 1; return; }
+      l.visits += 1;
+      l.minutes += i === 0 ? (parts.length ? Math.max(0, Math.round((Date.parse(parts[0].start) - startMs) / 60_000)) : b.minutes) : parts[i - 1]?.minutes || 0;
+      if (email(b)) l.emails.add(email(b));
+      if (again) l.rebooked += 1;
+    });
+  }
+  const finish = (l: PerformanceLine & { emails?: Set<string> }): PerformanceLine => {
+    const { emails, ...rest } = l;
+    return { ...rest, clients: emails ? emails.size : l.clients,
+      perVisitMinor: l.visits ? Math.round(l.takenMinor / l.visits) : 0,
+      rebookPercent: l.visits ? Math.round((l.rebooked / l.visits) * 100) : null,
+      noShowPercent: l.visits + l.noShows ? Math.round((l.noShows / (l.visits + l.noShows)) * 100) : null };
+  };
+  const all = [...lines.values()];
+  const people = all.filter((l) => l.visits || l.noShows || l.takenMinor || staff.some((p) => p.id === l.id && p.active))
+    .map(finish)
+    .sort((a, b) => (a.id === NOBODY ? 1 : 0) - (b.id === NOBODY ? 1 : 0) || b.takenMinor - a.takenMinor || a.name.localeCompare(b.name));
+  const everyone = new Set(all.flatMap((l) => [...l.emails]));
+  const sum = (k: "visits" | "takenMinor" | "minutes" | "rebooked" | "noShows") => people.reduce((n, l) => n + l[k], 0);
+  const total = finish({ id: "total", name: "Everyone", visits: sum("visits"), takenMinor: sum("takenMinor"), perVisitMinor: 0, minutes: sum("minutes"), clients: everyone.size, rebooked: sum("rebooked"), rebookPercent: null, noShows: sum("noShows"), noShowPercent: null });
+  return { people, total };
+}
+
+/** Team performance as spreadsheet rows: a header, each person, then everyone. */
+export function performanceRows(perf: TeamPerformance): string[][] {
+  const money = (minor: number) => (minor / 100).toFixed(2);
+  const pct = (n: number | null) => (n === null ? "" : String(n));
+  const row = (l: PerformanceLine) => [l.name, String(l.visits), money(l.takenMinor), money(l.perVisitMinor), (l.minutes / 60).toFixed(2), String(l.clients), pct(l.rebookPercent), String(l.noShows), pct(l.noShowPercent)];
+  return [["Person", "Visits", "Taken before tax", "Per visit", "Hours booked", "Clients", "Rebooked %", "No-shows", "No-show %"], ...perf.people.map(row), row(perf.total)];
+}
+
+/** One client's no-shows in the no-show report (plan 4, 5.3). */
+export type NoShowClient = { email: string; name: string; phone: string; count: number; lastDay: string; keptMinor: number };
+export type NoShowReport = {
+  /** Bookings due in the stretch (confirmed, time passed) and how many of them were no-shows. */
+  due: number; count: number; percent: number | null;
+  /** The price of the missed visits not covered, and what was kept anyway (a deposit, card payment or missed-visit fee). */
+  lostMinor: number; keptMinor: number;
+  /** Who missed, most first; `repeat` counts clients with two or more. */
+  clients: NoShowClient[]; repeat: number;
+  /** No-shows by weekday, Monday first. */
+  weekdays: { day: string; count: number }[];
+};
+
+/**
+ * The no-show report (plan 4, 5.3): over `from`–`to`, how many booked visits didn't happen because the client didn't come,
+ * what that cost and what was kept, which clients miss (repeat ones first) and which weekdays they fall on.
+ */
+export function noShowReport(rows: readonly Booking[], zone: string, from: string, to: string, nowMs: number): NoShowReport {
+  let due = 0, count = 0, lostMinor = 0, keptMinor = 0;
+  const clients = new Map<string, NoShowClient>();
+  const weekdays = [0, 0, 0, 0, 0, 0, 0];
+  for (const b of rows) {
+    if (b.status !== "confirmed" || Date.parse(b.start) > nowMs) continue;
+    const day = dayOf(Date.parse(b.start), zone);
+    if (day < from || day >= to) continue;
+    due++;
+    if (!b.noShow) continue;
+    count++;
+    const kept = moneyKept(b);
+    keptMinor += kept;
+    lostMinor += Math.max(0, (b.priceMinor || 0) - kept);
+    weekdays[(weekdayOf(day) + 6) % 7]++;
+    const key = String(b.customer?.email || b.customer?.name || b.id).trim().toLowerCase();
+    const c = clients.get(key) || { email: b.customer?.email || "", name: b.customer?.name || "", phone: b.customer?.phone || "", count: 0, lastDay: "", keptMinor: 0 };
+    c.count++; c.keptMinor += kept;
+    if (day > c.lastDay) { c.lastDay = day; c.name = b.customer?.name || c.name; c.phone = b.customer?.phone || c.phone; }
+    clients.set(key, c);
+  }
+  const list = [...clients.values()].sort((a, b) => b.count - a.count || b.lastDay.localeCompare(a.lastDay) || a.name.localeCompare(b.name));
+  return { due, count, percent: due ? Math.round((count / due) * 100) : null, lostMinor, keptMinor, clients: list, repeat: list.filter((c) => c.count >= 2).length,
+    weekdays: [1, 2, 3, 4, 5, 6, 0].map((d, i) => ({ day: WEEKDAYS[d], count: weekdays[i] })) };
+}
+
+/** The no-show list as spreadsheet rows. */
+export function noShowRows(r: NoShowReport): string[][] {
+  return [["Client", "Email", "Phone", "No-shows", "Last one", "Kept"], ...r.clients.map((c) => [c.name, c.email, c.phone, String(c.count), c.lastDay, (c.keptMinor / 100).toFixed(2)])];
 }

@@ -32,19 +32,23 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root?.unmount()); host.remove(); restore(); });
 
-// Studio opens in Essentials (plan 1.27); these tests start in Page layout unless a test says otherwise.
+// Studio opens in Essentials (plan 1.27); these tests start in Page unless a test says otherwise.
 async function mount(initialLocation?: Record<string, unknown>) {
   root = createRoot(host);
   await act(async () => { root.render(h(StudioEditor, { settings: fixture.settings, initialLocation: initialLocation ?? { leftTab: "sections" }, onExit: () => {} })); });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
 }
 
+// A button's words as a screen reader hears them: pictures marked aria-hidden (Add section's drawings) don't count.
+const spoken = (b: Element) => { const copy = b.cloneNode(true) as Element; copy.querySelectorAll("[aria-hidden=true]").forEach(n => n.remove()); return copy.textContent?.trim() || ""; };
 const buttons = (label: string | RegExp) => [...document.body.querySelectorAll("button")]
-  .filter(b => { const name = b.getAttribute("aria-label") || b.textContent?.trim() || ""; return typeof label === "string" ? name === label || b.textContent?.trim() === label : label.test(b.textContent || ""); });
+  .filter(b => { const text = spoken(b), name = b.getAttribute("aria-label") || text; return typeof label === "string" ? name === label || text === label : label.test(text); });
 const click = async (el: Element | undefined) => {
   if (!el) throw new Error("element not found");
   await act(async () => { (el as HTMLElement).click(); await new Promise(r => setTimeout(r, 0)); });
 };
+/** Settings open in the left panel in place of the list (step 6): go back to the list to read it. */
+const backToList = async () => { const back = document.body.querySelector("[data-studio-settings-back]") || undefined; if (back) await click(back); };
 const key = async (k: string, extra: KeyboardEventInit = {}) => {
   await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: k, ctrlKey: true, bubbles: true, ...extra })); await new Promise(r => setTimeout(r, 0)); });
 };
@@ -58,7 +62,7 @@ const homeSections = (design: any) => (design?.heroPage?.sections || []).map((s:
 describe("Studio editor (mounted with an in-memory API)", () => {
   it("opens on the page outline with every workspace and lists draft pages as templates", async () => {
     await mount();
-    for (const tab of ["Page layout", "Theme settings", "Text & labels", "Navigation", "Pages", "Media"]) expect(buttons(tab).length).toBeGreaterThan(0);
+    for (const tab of ["Page", "Style", "Pages", "Designs", "Text & labels", "Media"]) expect(buttons(tab).length).toBeGreaterThan(0);
     await click(buttons("Page to edit")[0]);
     const pagePicker = [...document.querySelectorAll("[role=option]")].map(o => o.querySelector("span")?.textContent);
     expect(pagePicker).toEqual(expect.arrayContaining(["Home", "About", "Open call (draft)", "Night Pages", "Header & footer sections (every page)"]));
@@ -72,40 +76,62 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(dialog?.querySelectorAll(".studio-shortcuts kbd").length).toBeGreaterThan(10);
   });
 
-  it("opens in Essentials the first time, with the shop's name as its first setting (plan 1.27)", async () => {
+  it("opens in Style › Basics the first time, with the shop's name as its first setting (plan 1.27)", async () => {
     localStorage.clear();
     await mount({});
-    expect(buttons("Essentials")[0].getAttribute("aria-pressed")).toBe("true");
+    const rail = (name: string) => document.body.querySelector(`nav[aria-label="Studio workspaces"] button[aria-label="${name}"]`);
+    expect(rail("Style")?.getAttribute("aria-pressed")).toBe("true");
+    expect(document.body.querySelector("[data-studio-workspace-switch] button[aria-pressed=true]")?.textContent).toBe("Basics");
     expect(host.querySelector('[data-studio-panel="essentials"] [data-copy-key="siteName"]')).toBeTruthy();
   });
 
   it("switching page keeps the open workspace and is remembered next time", async () => {
     await mount();
-    await click(buttons("Theme settings")[0]);
+    await click(buttons("Style")[0]);
     await click(buttons("Page to edit")[0]);
     await click([...document.querySelectorAll("[role=option]")].find(o => o.textContent?.includes("Night Pages")));
-    expect(buttons("Theme settings")[0].getAttribute("aria-pressed")).toBe("true");
+    expect(buttons("Style")[0].getAttribute("aria-pressed")).toBe("true");
     expect(buttons("Page to edit")[0].textContent).toContain("Night Pages");
     act(() => root.unmount());
     await mount({});
     expect(buttons("Page to edit")[0].textContent).toContain("Night Pages");
-    expect(buttons("Theme settings")[0].getAttribute("aria-pressed")).toBe("true");
+    expect(buttons("Style")[0].getAttribute("aria-pressed")).toBe("true");
   });
 
   it("adds a section, undoes it, and saves the draft without publishing", async () => {
     await mount();
     await click(buttons("Add section")[0]);
     await click(buttons(/^Newsletter/)[0]);
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     await key("z");
     expect(host.textContent).toMatch(/Home · 0 sections/);
     await key("z", { shiftKey: true });
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     await click(buttons("Save draft")[0]);
     const save = fixture.calls.find(c => c.method === "saveDesign");
     expect(save?.args[1]).toEqual({ publish: false });
     expect(homeSections(save?.args[0].design)).toEqual(["NewsletterSection"]);
     expect(homeSections(fixture.settings.design)).toEqual([]);
+  });
+
+  it("settings open in the left panel, and Try another design swaps the design keeping the words, undoably", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    expect(document.body.querySelector("[data-studio-settings-back]")?.textContent).toMatch(/Home · 1 section/);
+    expect(document.body.querySelector("[data-studio-design-switch]")).not.toBeNull();
+    await click(buttons(/Try another design/)[0]);
+    expect(host.textContent).toMatch(/Your words and photos came along/);
+    await click(buttons("Save draft")[0]);
+    const saved = fixture.calls.filter(c => c.method === "saveDesign").pop();
+    const [section] = saved?.args[0].design.heroPage.sections || [];
+    expect(section.type).toBe("NewsletterSection");
+    expect(section.settings.align).toBe("left");
+    await key("z");
+    await backToList();
+    expect(host.textContent).toMatch(/Home · 1 section/);
   });
 
   it("the status pill says what each state means for the shop, and the Publish list counts its changes", async () => {
@@ -155,6 +181,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
   it("live sync: a save in another tab comes straight in when nothing is unsaved here", async () => {
     await mount();
     await act(async () => { fixture.remoteSave!({ ...JSON.parse(JSON.stringify(fixture.settings.draftDesign)), heroPage: { sections: [{ id: "remote1", type: "NewsletterSection", settings: {} }] } }); await new Promise(r => setTimeout(r, 0)); });
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
     // Their saved draft is now this tab's saved draft (compared after normalising), so nothing reads as unsaved.
@@ -175,6 +202,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(banner.textContent).toMatch(/published in another tab or device/);
     await click(buttons("Bring in their changes")[0]);
     expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     await click(buttons("Save draft")[0]);
     const save = fixture.calls.find(c => c.method === "saveDesign");
@@ -285,16 +313,16 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await mount();
     await click(buttons("Media")[0]);
     expect(host.textContent).toContain("The media library isn't switched on yet");
-    await click(buttons("Page layout")[0]);
+    await click(buttons("Page")[0]);
     await click(buttons("Add section")[0]);
     await click(buttons(/^Image Banner/)[0]);
     expect(document.querySelector("input[placeholder='https://… or upload']")).not.toBeNull();
     expect(buttons("Upload image").length).toBeGreaterThan(0);
   });
 
-  it("opens Theme settings on its design-system and parts headings, and Find anything with Ctrl/Cmd+K", async () => {
+  it("opens Style on its design-system and parts headings, and Find anything with Ctrl/Cmd+K", async () => {
     await mount();
-    await click(buttons("Theme settings")[0]);
+    await click(buttons("Style")[0]);
     for (const heading of ["Where is it on the shop?", "Whole-site look", "Colours", "Typography", "Parts of your shop, top to bottom", "Top of every page", "Bottom of every page"]) expect(host.textContent).toContain(heading);
     expect(buttons("Show Header & announcement bar on the page").length).toBe(1);
     await key("k");
@@ -333,6 +361,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await click(buttons("Save draft")[0]);
     await click(buttons("Use the other version")[0]);
     expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     // Their version is now the saved one; a further edit saves on top of it without another conflict.
     await click(buttons("Add section")[0]);
@@ -354,6 +383,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
     expect(host.textContent).toMatch(/nothing was published/i);
     expect(homeSections(fixture.settings.design)).toEqual([]);
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     // Reviewed → Publish again goes out with both sets of changes.
     await click(buttons("Publish")[0]);

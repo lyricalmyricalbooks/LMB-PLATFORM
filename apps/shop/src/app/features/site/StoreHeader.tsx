@@ -425,7 +425,7 @@ export function StoreHeader({ design, pages, books, shop }: { design: any; pages
         ? <ShopHeader design={design} pages={pages} books={books} shop={shop} onSearch={openSearch} />
         : <PageHeader design={design} pages={pages} onSearch={openSearch} />}
       {searchUsed.current && <Suspense fallback={null}><SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={searchBooks} design={shop ? shop.surface : design} categories={searchCategories} /></Suspense>}
-      {/* Section groups shown on every page: under the header, and the pop-up (Studio › Page layout). */}
+      {/* Section groups shown on every page: under the header, and the pop-up (Studio › Page). */}
       <GroupSections design={design} group="headerSections" books={searchBooks} />
       <PopupSections design={design} books={searchBooks} />
     </>
@@ -442,7 +442,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
     () => buildNavItems(categories, pages, storefront.navOrder),
     [categories, pages, storefront.navOrder],
   );
-  // Theme settings › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own.
+  // Style › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own.
   const scheme = elementScheme(storefront, "header");
   const headerColor = scheme ? "var(--text-color)" : storefront.headerColor || storefront.textColor || "var(--text)";
   const headerBg = scheme ? "var(--bg-color)" : storefront.headerBg || storefront.backgroundColor || "var(--background)";
@@ -612,7 +612,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const revealOnScrollUp = (sf?.stickyHeader ?? true) && sf?.stickyHeaderHideOnScroll === true;
   useHeaderReveal(headerRef, revealOnScrollUp);
 
-  // Theme settings › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own
+  // Style › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own
   // (a transparent header stays see-through until the page scrolls).
   const headerScheme = elementScheme(sf, "header");
   const headerTextColor = headerScheme ? "var(--text-color)" : isHeaderTransparent ? storefrontText : (sf?.headerColor || storefrontText);
@@ -720,7 +720,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
               {splitNavigation(navItems, sf).primary.filter(item => item.kind === "page").map((item: any) => item.page).map((page: any) => (
                 <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity" style={ownNavLinkStyle(sf, location.pathname.endsWith(`/page/${page.slug}`))}>{page.title}</Link>
               ))}
-              {/* Navigation › Header menu: the same links the Modern and page headers show. */}
+              {/* Menus › Header menu: the same links the Modern and page headers show. */}
               {sf?.menus?.header?.length > 0 && <StoreMenu items={sf.menus.header} design={sf} />}
               {!design?.hideHeaderSearch && <button onClick={onSearch} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(design, "navSearch")}</span></button>}
               {showSys && (

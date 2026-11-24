@@ -709,7 +709,6 @@ themselves don't change.
   Intuit asks; the admin has no French yet, so there is no French label. Tax names are each rate's `bookName` (plan 7.11)
   or "Tax <place>" until then.
 
-
 ## Bookkeeper role (28 October 2026, code plan 7.17)
 
 Team role `bookkeeper` (Settings › Team, or the platform's account page): reads the money and changes nothing.
@@ -1296,7 +1295,6 @@ in `Bookings.tsx`, before Tips) asks op `textStatus`: "Opening soon" badge while
 switch **Send reminders by text too** (`textReminders`, saved with the form) and the price per text, billed at cost.
 Fixture: `admin-fixture.html?page=bookings` (`&texts=soon`).
 
-
 **Events and tickets (beta, 17 November 2026, `tasks/todo/2026-11-17-events-tickets-e1.md`):** Admin › Events
 (`Events.tsx`, `events.css`, the bento tiles from `bookings.css`). Shown only while Events is on for the shop:
 `useWaysOn` (`waysApi.ts`: the platform's `platform/features.ways` and the owner's `firstWeek/start.ways`) in
@@ -1362,7 +1360,6 @@ writes it. The customer page is `features/site/ClassesPage.tsx`.
 New booking ticks them (`bkg-extras-pick`, total length and price from the shared `withExtras`) and sends their ids to
 the times, run check and create ops; the drawer shows "Add-ons: …". The server works it all out again.
 
-
 **Prices and lengths by person (17 November 2026, Services plan 2 B3).** Bookings › Team › a person's dialog has "Their
 prices and lengths" (Beta) for each one-to-one service they do: minutes and (paid services) price, blank = the service's
 own, saved as `rates`. New booking shows "Their own: … minutes, …" when the picked person has one.
@@ -1392,7 +1389,6 @@ only `name` changes later) and files in `client-files/<client>/` (storage.rules:
 reads the rule against `CLIENT_FILE_TYPES`). Opened through `getBlob` in a tab opened at the click, never a download
 link. Pure rules `clientFiles.ts`, calls `clientFilesApi.ts` (`clientFilesData`, swapped by the fixture: Ben has three).
 Privacy: export lists them without the path, erase deletes records and files (functions/privacyRequests.js).
-
 
 ## Donations (beta, 18 November 2026)
 
@@ -1527,3 +1523,69 @@ is left to pay (`payAtVisit`: QR code or emailed pay link when `restPayable`, Pa
 `DeskPayDialog` and `DeskNoteDialog` call `payLink`, `paidAtShop` and `visitNote` through `teamDeskData.act`. On a phone a
 row's badge and actions wrap under the name. Fixture: `admin-fixture.html?desk=provider` (sets the admin look like
 Dashboard; notes kept in memory, the first booking has a note from last time).
+
+**Coming up (Beta, 23 November 2026, plan 4 step 5.1):** Figures opens with `ComingUp` (then the old panel, now
+`PastFigures`). It reads bookings from a day back to 92 days ahead and `futureFigures` (bookingsView) gives 30/60/90-day
+windows: confirmed bookings whose start hasn't passed (requests counted apart as `waiting`, never as money), worth
+(`priceMinor`), paid (worth less `balanceDue`), still to take, the fullest day and 13 weeks from this Monday.
+`futureRows` makes the spreadsheet (`coming-up-<days>-days-<day>.csv`).
+
+**How your team did (Beta, 23 November 2026, plan 4 step 5.2):** Figures shows `TeamPerformancePanel` when Team & rooms
+has an active person. One read from three months back to six months ahead; `teamPerformance` (bookingsView) per person
+over `spanDays` (this month / last month / last 3 months): visits that happened, takings before tax shared as Team pay
+does, per visit, minutes of their own part, clients, booked again (the client has a later booking that isn't cancelled,
+with anyone) and no-shows. `performanceRows` is the spreadsheet.
+
+**No-shows (Beta, 24 November 2026, plan 4 step 5.3):** Figures › `NoShowsPanel` (always shown). One read from three
+months back to tomorrow; `noShowReport` over a `spanDays` stretch: confirmed bookings whose time passed (`due`), the
+no-shows among them, `lostMinor` (price less `moneyKept`), `keptMinor`, clients grouped by lower-case email (repeat = 2+),
+weekdays Monday first. `noShowRows` is the spreadsheet.
+
+**Keep in touch (Beta, 24 November 2026, plan 4 step 5.4):** Hours & rules › `KeepInTouchTile` (after the thank-you tile):
+Welcome new clients, Wish clients a happy birthday (adds a month/day picker, region `bookingsBirthday`, to the booking form),
+Send "we miss you" (Never or `MISS_YOU_WEEKS`). Words are in Messages (welcome, birthday, missYou); sending is
+`functions/CLAUDE.md` › Keep in touch.
+
+**Loyalty points (Beta, 24 November 2026, plan 4 step 5.5):** Hours & rules › `LoyaltyTile` (its own file, after Keep in
+touch) edits `settings.loyalty` (shared `loyalty.ts`; kept while off so the numbers survive): points per dollar, extra per
+visit, reward level, reward money, code life, orders earn too, up to `MAX_BONUS_WEEKS` double/triple stretches (rows show as
+typed; saving cleans them). Customers › client card › `ClientPoints` (above visit notes) reads op `points` (front desk may)
+and writes op `pointsAdjust` (owner only) with `AdjustDialog`. The admin fixture answers both and turns points on in the full
+sample. The reward email's words are Messages › Points reward (`loyaltyReward`, placeholder `{code}`).
+
+**Promo texts (Beta, 24 November 2026, plan 4 step 5.6):** Hours & rules › `PromoTextsTile` (its own file, after Text
+reminders): the `promoTexts` switch ("Opening soon" while op `textStatus` says texts aren't open), **Send a promo text**
+(`SendDialog`: group from `PROMO_GROUPS`, a service for the service group, the message up to `MAX_PROMO`, a preview through
+the shared `promoBody`, count and cost from op `promoAudience`, sent with op `promoSend`) and the last ten (op
+`promoHistory`). HoursPanel now takes `shopName` for the preview. Fixture: `?page=bookings` (the full sample has it on).
+
+**Other calendars (Beta, 24 November 2026, plan 4 step 5.7):** Hours & rules › `OtherCalendarsTile` (its own file, after
+Your calendar): the owner pastes an Outlook, Apple, Google or other calendar's private link (`cleanFeedUrl` from
+`shared/calendarFeeds.ts` checks it as they type and names the kind), picks the whole shop or one active person and an
+optional name; a "Where to find the link" fold has the steps for each. The list shows each calendar's busy times in the
+next 60 days, when it was last checked, or its problem in red, with Remove (asks first) and Check now. All through op
+`otherCalendars` (steps list, add, remove, refresh); the links never come back to the page. Fixture: `?page=bookings`
+(one Outlook calendar and one that stopped answering).
+
+**Send bookings to other apps (Beta, 24 November 2026, plan 4 step 5.8):** Hours & rules › `BookingHooksTile` (its own
+file, after Other calendars): up to 5 web addresses from other apps, each with what to send (new, moved, cancelled), an
+on/off switch, its last answer or problem (paused after many failures), Send a test, the check code, a signing key (shown on demand,
+with copy) and Remove (asks first). All through op `bookingHooks` (steps list, add, switch, test, remove). Fixture:
+`?page=bookings` (one working address).
+
+## Adding products, round 3 (24 November 2026, plan https://claude.ai/artifact/MEmMDYot4WY3S1c8cRDRaL)
+
+- **Order of a new product's page:** type → photos (`media`) → name and maker → Price (one box; cost, wholesale and
+  reference USD/EUR fold under `.be-other-prices`) → Sale row → Stock (`data-be-section="stock-level"`) → Description →
+  About the maker row → type facts → the rest. The price must stay inside the first desktop screen (1440×900); check
+  with a script that reads the "Price (CAD)" label's top in `.rp-workspace`.
+- **Words that follow the type** live in `productPageWords.ts` (description hint per type group, photo hint, the
+  Other prices summary, the save bar's words). Its test fails if a non-book group mentions books.
+- **Save bar:** a draft (new, or saved as `draft`) gets `StatusBar` with `secondary` = Save draft (needs a name) and
+  Publish (needs every Ready to publish item; when blocked it calls `goTo` on the first missing one). A live or archived
+  product gets one Save. `handleSave(e, reviewed, close, status)` saves with that status; `pendingStatus` carries it
+  through the publish review. Status chips sit in the folded Visibility row. `FormStatus.short` is the phone wording.
+- **Autosave:** only for a product made in this editor (`!bookProp`) while it's a draft with a name: 4 seconds after a
+  change, `autosaveDraft` saves it as a draft without toasts. The first autosave creates it and holds `loading`, so
+  Publish can't create a second copy meanwhile. `lastDraft.ts` remembers it on this device for "Continue where you left
+  off" in `TypePicker` (14 days; forgotten once published, deleted or no longer a draft).

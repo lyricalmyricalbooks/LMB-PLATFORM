@@ -39,6 +39,14 @@ const bookingLocale = (): { locale?: string } => {
   } catch { return {}; }
 };
 
+/** The month names in the page's language, January first (the birthday picker, plan 4, 5.4). */
+const monthNames = (): string[] => {
+  const fmt = new Intl.DateTimeFormat(bookingLocale().locale || undefined, { month: "long", timeZone: "UTC" });
+  return Array.from({ length: 12 }, (_, i) => fmt.format(Date.UTC(2024, i, 1)));
+};
+/** Days to offer for a birthday month ("02" has 29: no year is asked); 31 before a month is picked. */
+const daysInMonth = (month: string): number => [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][Number(month) - 1] || 31;
+
 /** True while the page is framed on another website by the Book button (bookEmbed.ts). */
 const Embedded = createContext(false);
 
@@ -129,7 +137,7 @@ function NewBooking({ c }: { c: Copy }) {
     });
     return withVisit(first, more);
   }, [listed, info, staffId, picked.join(","), alsoKey, lengthId]);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false, promoOk: false, month: "", day: "" });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [problems, setProblems] = useState<{ name?: string; email?: string; address?: string; answers?: Record<string, string> }>({});
   // A visit at the client's place (plan 4, 2.8): where to go.
@@ -253,7 +261,7 @@ function NewBooking({ c }: { c: Copy }) {
     try {
       const from = bookingFrom(window.location.search, embedded);
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...bookingLocale(), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), promoOk: form.promoOk && !!form.phone.trim(), ...(info.birthday && form.month && form.day ? { birthday: `${form.month}-${form.day}` } : {}), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...bookingLocale(), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -442,8 +450,9 @@ function NewBooking({ c }: { c: Copy }) {
                 {problems.address && <p id="bt-address-err" className="fm-book-error">{problems.address}</p>}
               </fieldset>
             )}
-            {info.texts && (
-              <div {...regionProps("bookingsTexts")} className="text-sm leading-6">
+            {(info.texts || info.promoTexts) && (
+              <div {...regionProps("bookingsTexts")} className="text-sm leading-6 space-y-3">
+                {info.texts && <div>
                 <label htmlFor="bt-text-ok" className="flex items-start gap-2.5">
                   <input id="bt-text-ok" type="checkbox" checked={form.textOk} disabled={!form.phone.trim()}
                     onChange={(e) => setForm({ ...form, textOk: e.target.checked })}
@@ -451,7 +460,35 @@ function NewBooking({ c }: { c: Copy }) {
                   <span>{c("bookTimeTextOk")}</span>
                 </label>
                 <p id="bt-text-ok-hint" className="fm-muted text-xs mt-1">{c(form.phone.trim() ? "bookTimeTextOkHint" : "bookTimeTextOkNeedsPhone")}</p>
+                </div>}
+                {info.promoTexts && <div>
+                  <label htmlFor="bt-promo-ok" className="flex items-start gap-2.5">
+                    <input id="bt-promo-ok" type="checkbox" checked={form.promoOk} disabled={!form.phone.trim()}
+                      onChange={(e) => setForm({ ...form, promoOk: e.target.checked })}
+                      aria-describedby="bt-promo-ok-hint" className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--accent)]" />
+                    <span>{c("bookTimePromoOk")}</span>
+                  </label>
+                  <p id="bt-promo-ok-hint" className="fm-muted text-xs mt-1">{c(form.phone.trim() ? "bookTimePromoOkHint" : "bookTimePromoOkNeedsPhone")}</p>
+                </div>}
               </div>
+            )}
+            {info.birthday && (
+              <fieldset {...regionProps("bookingsBirthday")} className="min-w-0 border-0 p-0 mx-0 space-y-2" aria-describedby="bt-birthday-hint">
+                <legend className="fm-track-mono">{c("bookTimeBirthday")}</legend>
+                <div className="fm-book-birthday grid grid-cols-[2fr_1fr] gap-3">
+                  <select id="bt-birthday-month" aria-label={c("bookTimeBirthdayMonth")} className="fm-track-input" autoComplete="bday-month" value={form.month}
+                    onChange={(e) => setForm({ ...form, month: e.target.value })}>
+                    <option value="">{c("bookTimeBirthdayMonth")}</option>
+                    {monthNames().map((name, i) => <option key={name} value={String(i + 1).padStart(2, "0")}>{name}</option>)}
+                  </select>
+                  <select id="bt-birthday-day" aria-label={c("bookTimeBirthdayDay")} className="fm-track-input" autoComplete="bday-day" value={form.day}
+                    onChange={(e) => setForm({ ...form, day: e.target.value })}>
+                    <option value="">{c("bookTimeBirthdayDay")}</option>
+                    {Array.from({ length: daysInMonth(form.month) }, (_, i) => <option key={i} value={String(i + 1).padStart(2, "0")}>{i + 1}</option>)}
+                  </select>
+                </div>
+                <p id="bt-birthday-hint" className="fm-muted text-xs">{c("bookTimeBirthdayHint")}</p>
+              </fieldset>
             )}
             {questions.map((q) => {
               const id = `bt-q-${q.id}`;
@@ -1401,6 +1438,8 @@ function ManageBooking({ id, manageKey, confirmAsked = false, c }: { id: string;
   const [tipPick, setTipPick] = useState<TipPick>({ kind: "none" });
   // A standing appointment: every visit of it, this one marked (sent with the booking by the server).
   const [runVisits, setRunVisits] = useState<RunVisit[]>([]);
+  // Loyalty points (plan 4, 5.5): the client's balance, sent with the booking while the shop gives points.
+  const [points, setPoints] = useState<{ points: number; toNext: number; rewardMinor: number } | null>(null);
   const polls = useRef(0);
   // The reminder's "Yes, I'll be there" button: confirmed once, as soon as the booking is shown.
   const confirmTried = useRef(false);
@@ -1410,6 +1449,7 @@ function ManageBooking({ id, manageKey, confirmAsked = false, c }: { id: string;
     return ask("bookingView", { id, key: manageKey }).then((answer) => {
       setBooking(answer.booking || null);
       setRunVisits(answer.runVisits || []);
+      setPoints(answer.points || null);
       setState(answer.booking ? "ready" : "missing");
     }).catch((err: any) => setState(err?.status === 404 ? "missing" : "failed"));
   };
@@ -1590,6 +1630,11 @@ function ManageBooking({ id, manageKey, confirmAsked = false, c }: { id: string;
         {!!booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeFeeCharged", { fee: moneyText(booking.feeMinor, booking.currency) })}</p>}
         {booking.status === "confirmed" && (booking.checkedIn ? <p className="fm-book-checkin-done" role="status">{c("bookTimeCheckedIn")}</p>
           : booking.checkInCode ? <CheckInCode code={booking.checkInCode} c={c} /> : null)}
+        {points && booking.status !== "cancelled" && (
+          <p {...regionProps("bookingsPoints")} className="fm-book-points" translate="no">
+            {c("bookTimePoints", { points: String(points.points), more: String(points.toNext), amount: moneyText(points.rewardMinor, booking.currency) })}
+          </p>
+        )}
       </div>
 
       {runVisits.length > 1 && (

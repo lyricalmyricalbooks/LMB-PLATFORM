@@ -4,7 +4,7 @@ import { elementScheme } from "./colorSchemes";
 // Studio › Style › Footer & social links → CSS for the one storefront footer (StoreFooter.tsx).
 // Spacing always has a value (the defaults are the footer's own look); colours are emitted only
 // when set, so an untouched footer keeps the theme's token colours. While the footer follows a colour
-// scheme (Theme settings › Colour schemes › Footer), the scheme's colours replace the footer's own colour keys.
+// scheme (Style › Colour schemes › Footer), the scheme's colours replace the footer's own colour keys.
 
 const num = (value: unknown, fallback: number, min: number, max: number) => {
   const n = Number(value);

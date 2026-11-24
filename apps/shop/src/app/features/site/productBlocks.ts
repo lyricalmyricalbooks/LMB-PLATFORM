@@ -107,7 +107,7 @@ export function ruledSections(sections: ProductBlock[][]): ProductBlock[][] {
   return out;
 }
 
-// ── pure edits (Studio › Page layout › Buy box blocks) ────────────────────────────────────────────
+// ── pure edits (Studio › Page › Buy box blocks) ────────────────────────────────────────────
 const newId = (type: string) => `${type}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export function addBlock(list: ProductBlock[], type: CustomBlockType | "divider", at = list.length): { list: ProductBlock[]; id: string } {

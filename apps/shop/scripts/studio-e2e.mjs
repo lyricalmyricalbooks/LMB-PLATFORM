@@ -39,7 +39,7 @@ const results = [];
 const [shardNo, shardCount] = (process.env.STUDIO_SHARD || "1/1").split("/").map(Number);
 if (!(shardCount >= 1 && shardNo >= 1 && shardNo <= shardCount)) throw new Error(`STUDIO_SHARD must look like 2/3, not ${process.env.STUDIO_SHARD}`);
 let checkNo = 0;
-// Studio opens in Essentials (plan 1.27). Checks start in Page layout, as they were written for, unless they name a
+// Studio opens in Essentials (plan 1.27). Checks start in Page, as they were written for, unless they name a
 // workspace; FIRST_VISIT opens Studio exactly as a new press sees it.
 const FIRST_VISIT = "first-visit";
 function startAt(query) {
@@ -86,12 +86,28 @@ const calls = page => page.evaluate(() => window.__studioFixture.calls);
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 const desktop = { width: 1440, height: 900 };
 
-await check("Studio opens in Essentials: name, logo, colours and fonts first, everything else under All settings", desktop, async page => {
+// The rail's workspace buttons (Page, Style, Pages, Designs, then Text & labels and Media under More).
+const rail = (page, name) => page.locator(`nav[aria-label="Studio workspaces"] button[aria-label="${name}"]`);
+// Basics opens inside Style and Menus inside Pages, through the switch at the top of the panel.
+const openView = async (page, home, view) => {
+  if (await rail(page, home).getAttribute("aria-pressed") !== "true") await rail(page, home).click();
+  await page.locator("[data-studio-workspace-switch]").getByRole("button", { name: view, exact: true }).click();
+};
+// Settings open in the left panel in place of the list; this goes back to the list when they are showing.
+const showList = async (page) => {
+  const back = page.locator("[data-studio-settings-back], .studio-element-inspector > .studio-structure-switch");
+  if (await back.first().isVisible().catch(() => false)) await back.first().click();
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
+};
+
+await check("Studio opens in Style › Basics: name, logo, colours and fonts first, on a rail of Page, Style, Pages and Designs", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const panel = page.locator('[data-studio-panel="essentials"]');
   await panel.waitFor({ timeout: 10000 });
-  if (await page.getByRole("button", { name: "Essentials" }).first().getAttribute("aria-pressed") !== "true") throw new Error("Essentials is not the open workspace");
-  await page.locator(".studio-rail-section", { hasText: "All settings" }).waitFor();
+  if (await rail(page, "Style").getAttribute("aria-pressed") !== "true") throw new Error("Style is not the open workspace");
+  if ((await page.locator("[data-studio-workspace-switch] button[aria-pressed=true]").textContent()) !== "Basics") throw new Error("Basics is not the open view");
+  const railNames = await page.locator('nav[aria-label="Studio workspaces"] button').evaluateAll(bs => bs.map(b => b.getAttribute("aria-label")));
+  if (railNames.slice(0, 4).join(",") !== "Page,Style,Pages,Designs") throw new Error(`the rail reads ${railNames.join(", ")}`);
   // The shop's name here is the same word as Text & labels › Site name.
   const name = panel.locator('[data-copy-key="siteName"]').locator("input, textarea").first();
   await name.fill("Harbour Press");
@@ -99,7 +115,7 @@ await check("Studio opens in Essentials: name, logo, colours and fonts first, ev
   await frame.getByText("Harbour").first().waitFor({ timeout: 10000 });
   // A step's button opens its workspace.
   await panel.getByRole("button", { name: "Browse looks" }).click();
-  if (await page.getByRole("button", { name: "Themes" }).first().getAttribute("aria-pressed") !== "true") throw new Error("Browse looks did not open Themes");
+  if (await rail(page, "Designs").getAttribute("aria-pressed") !== "true") throw new Error("Browse looks did not open Designs");
 }, FIRST_VISIT);
 
 await check("preview connects with the unsaved design", desktop, async page => {
@@ -143,13 +159,13 @@ await check("desktop preview fits the canvas and zoom can show it at full size",
 });
 
 await check("page picker searches pages, collections and books, and keeps the workspace", desktop, async page => {
-  await page.getByRole("button", { name: "Theme settings" }).click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: "Page to edit" }).click();
   await page.getByRole("combobox", { name: "Find a page, collection or book" }).fill("paper");
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => document.querySelector("[aria-label='Page to edit']")?.textContent?.includes("Paper Weather"));
-  const pressed = await page.getByRole("button", { name: "Theme settings" }).getAttribute("aria-pressed");
-  if (pressed !== "true") throw new Error("switching page left Theme settings");
+  const pressed = await rail(page, "Style").getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error("switching page left Style");
   await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src")?.includes("/books/paper-weather"));
 });
 
@@ -225,7 +241,8 @@ await check("clicking a section in the preview opens its settings", desktop, asy
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await page.getByRole("button", { name: "Close settings" }).click();
-  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+  // Closing settings brings the list back into the left panel.
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
   await expectText(page, "Preview connected", 30000);
   // Studio sends its click-to-edit maps shortly after the preview connects.
   await page.waitForTimeout(1500);
@@ -256,7 +273,7 @@ await check("page structure lists the header, follows the pointer and opens the 
   await panel.getByRole("button", { name: "Open in preview" }).first().click();
   await frame.locator("[role=dialog][data-studio-label='Cart drawer']").waitFor({ state: "visible", timeout: 8000 });
   await panel.getByRole("button", { name: /^Shopping bag/ }).click();
-  const pressed = await page.getByRole("button", { name: "Theme settings", exact: true }).first().getAttribute("aria-pressed");
+  const pressed = await rail(page, "Style").getAttribute("aria-pressed");
   if (pressed !== "true") throw new Error("Shopping bag did not open its settings");
 });
 
@@ -266,7 +283,7 @@ await check("Back returns to where you were after a Find jump, and the path show
   const pressed = name => page.locator(`nav[aria-label="Studio workspaces"] button[aria-label="${name}"]`).getAttribute("aria-pressed");
   const back = page.locator("[data-studio-back]");
   if (!(await back.isDisabled())) throw new Error("Back is enabled before the owner has gone anywhere");
-  if (!(await crumbs()).startsWith("Page layout")) throw new Error(`the path does not start with the workspace: ${await crumbs()}`);
+  if (!(await crumbs()).startsWith("Page")) throw new Error(`the path does not start with the workspace: ${await crumbs()}`);
   await page.waitForTimeout(1000);
   await page.keyboard.press(`${mod}+k`);
   await page.getByRole("dialog").getByRole("combobox").fill("announcement");
@@ -274,25 +291,25 @@ await check("Back returns to where you were after a Find jump, and the path show
   await page.keyboard.press("Enter");
   await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
   // Find opens the Header & announcement bar settings: the path names them, and Back returns to the page.
-  await page.waitForFunction(() => /^Theme settings › Header & announcement bar/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+  await page.waitForFunction(() => /^Style › Header & announcement bar/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
     .catch(async () => { throw new Error(`the path does not name the part Find opened: ${await crumbs()}`); });
   if (await back.isDisabled()) throw new Error("Back stayed disabled after a Find jump");
   await page.waitForTimeout(900);
   await back.click();
-  await page.waitForFunction(() => /^Page layout › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
-    .catch(async () => { throw new Error(`Back did not return to Page layout › Home: ${await crumbs()}`); });
-  if ((await pressed("Page layout")) !== "true") throw new Error("Back did not keep Page layout on the rail");
+  await page.waitForFunction(() => /^Page › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`Back did not return to Page › Home: ${await crumbs()}`); });
+  if ((await pressed("Page")) !== "true") throw new Error("Back did not keep Page on the rail");
   if (!await back.isDisabled()) throw new Error("Back is still enabled with nowhere left to go");
   // A rail change is a jump too; Alt+Left (from the keyboard) returns from it, and the path names the workspace.
   await page.waitForTimeout(900);
-  await page.locator('nav[aria-label="Studio workspaces"] button[aria-label="Theme settings"]').click();
-  await page.waitForFunction(() => (document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").trim() === "Theme settings", null, { timeout: 5000 })
-    .catch(async () => { throw new Error(`the path does not name Theme settings: ${await crumbs()}`); });
+  await page.locator('nav[aria-label="Studio workspaces"] button[aria-label="Style"]').click();
+  await page.waitForFunction(() => (document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").trim() === "Style", null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`the path does not name Style: ${await crumbs()}`); });
   await page.waitForTimeout(900);
   await page.keyboard.press("Alt+ArrowLeft");
-  await page.waitForFunction(() => /^Page layout › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+  await page.waitForFunction(() => /^Page › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
     .catch(async () => { throw new Error(`Alt+Left did not go back: ${await crumbs()}`); });
-  if ((await pressed("Page layout")) !== "true") throw new Error("Alt+Left did not reopen Page layout on the rail");
+  if ((await pressed("Page")) !== "true") throw new Error("Alt+Left did not reopen Page on the rail");
 });
 
 await check("Back closes a page part opened by clicking the preview", desktop, async page => {
@@ -302,16 +319,17 @@ await check("Back closes a page part opened by clicking the preview", desktop, a
   await page.waitForTimeout(1000);
   await frame.locator("header [data-studio-copy='navSearch']").first().click({ timeout: 15000 });
   await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 8000 });
-  if (!/^Page layout › Home › \S/.test(await crumbs())) throw new Error(`the path does not name the clicked part: ${await crumbs()}`);
+  if (!/^Page › Home › \S/.test(await crumbs())) throw new Error(`the path does not name the clicked part: ${await crumbs()}`);
   await page.waitForTimeout(900);
   await page.locator("[data-studio-back]").click();
-  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
-  if ((await crumbs()) !== "Page layout › Home") throw new Error(`Back left the path at: ${await crumbs()}`);
+  // Closing settings brings the list back into the left panel.
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
+  if ((await crumbs()) !== "Page › Home") throw new Error(`Back left the path at: ${await crumbs()}`);
 });
 
-await check("Theme settings lists the shop top to bottom, and the Where-is-it map jumps to a part", desktop, async page => {
+await check("Style lists the shop top to bottom, and the Where-is-it map jumps to a part", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
   const titles = await page.locator(".studio-settings-heading h3").allTextContents();
   const want = ["Top of every page", "Shop & book pages", "Bag, checkout & accounts", "Custom pages & features", "Bottom of every page", "Pop-ups & notices"];
@@ -330,7 +348,7 @@ await check("Theme settings lists the shop top to bottom, and the Where-is-it ma
   }, null, { timeout: 5000 });
 });
 
-await check("Page layout: the click tip hides for good, and Style / Words on a part open its settings", desktop, async page => {
+await check("Page: the click tip hides for good, and Style / Words on a part open its settings", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const tip = page.getByRole("note").filter({ hasText: "click anything in the preview to edit it" });
   await tip.waitFor({ timeout: 5000 });
@@ -339,12 +357,12 @@ await check("Page layout: the click tip hides for good, and Style / Words on a p
   await panel.getByRole("button", { name: /^Header/ }).first().waitFor({ timeout: 15000 });
   await panel.getByRole("button", { name: "Words for Header", exact: true }).click();
   await page.getByRole("button", { name: "All text categories" }).waitFor({ timeout: 5000 });
-  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await rail(page, "Page").click();
   const headerGroup = panel.locator("summary", { hasText: "Header" });
   if (!(await panel.getByRole("button", { name: "Style settings for Header", exact: true }).isVisible().catch(() => false))) await headerGroup.click();
   await panel.getByRole("button", { name: "Style settings for Header", exact: true }).click();
   await page.locator("[data-studio-panel=style-focus]").waitFor({ timeout: 5000 });
-  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await rail(page, "Page").click();
   await tip.getByRole("button", { name: "Hide this tip" }).click();
   await tip.waitFor({ state: "detached", timeout: 3000 });
   await page.reload();
@@ -376,7 +394,8 @@ await check("a page part opens in the inspector with its words, and an edit show
   await page.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
   if ((await fields.nth(edited.i).inputValue()) !== edited.value) throw new Error("Undo did not restore the word");
   await page.keyboard.press("Escape");
-  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+  // Closing settings brings the list back into the left panel.
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
 });
 
 await check("a section's Style, Layout and Visibility tabs save its look", desktop, async page => {
@@ -422,13 +441,16 @@ await check("link and book pickers save the same strings as typed links", deskto
   // The preview shows only the picked book.
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Paper Weather" }).first().waitFor({ timeout: 15000 });
-  if (await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Night Pages" }).count()) throw new Error("the grid still shows a book that was not picked");
+  // Paper Weather is also in the grid before the pick reaches the preview, so wait for the unpicked book to leave.
+  await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Night Pages" }).first().waitFor({ state: "detached", timeout: 15000 })
+    .catch(() => { throw new Error("the grid still shows a book that was not picked"); });
 });
 
 await check("right-click a section to move it to another page, and Undo brings it back", desktop, async page => {
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
+  await showList(page);
   await page.locator(".studio-outline .studio-tree-row").first().click({ button: "right" });
   await page.getByRole("button", { name: "Move to another page…" }).click();
   const dialog = page.getByRole("dialog", { name: /Move section to another page/ });
@@ -445,6 +467,7 @@ await check("pick several sections and hide them together", desktop, async page 
     await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   }
   await expectText(page, "Home · 2 sections");
+  await showList(page);
   const labels = page.locator(".studio-outline .studio-tree-row > .studio-tree-label");
   await labels.nth(0).click({ modifiers: [mod] });
   await labels.nth(1).click({ modifiers: [mod] });
@@ -454,13 +477,13 @@ await check("pick several sections and hide them together", desktop, async page 
   await page.waitForFunction(() => document.querySelectorAll(".studio-outline .studio-tree-row[data-hidden=true]").length === 2);
 });
 
-await check("Theme settings › Show on page selects that part, opening the bag when needed", desktop, async page => {
+await check("Style › Show on page selects that part, opening the bag when needed", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: "Show Header & announcement bar on the page" }).click();
   await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 10000 });
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: "Show Cart drawer (shopping bag) on the page" }).click();
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[role=dialog][data-studio-label='Cart drawer']").waitFor({ state: "visible", timeout: 10000 });
@@ -470,8 +493,8 @@ await check("Theme settings › Show on page selects that part, opening the bag 
 await check("every Show on page button selects its part or opens its settings, never a dead end", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const openHome = async () => {
-    await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
-    const back = page.getByRole("button", { name: /All theme settings|Back to theme settings/ }).first();
+    await rail(page, "Style").click();
+    const back = page.getByRole("button", { name: /All style settings|Back to style settings/ }).first();
     if (await back.isVisible().catch(() => false)) await back.click();
     await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
   };
@@ -501,7 +524,7 @@ await check("Show on page works when that custom page is already open", desktop,
   await page.getByRole("button", { name: "Page to edit" }).click();
   await page.getByRole("option", { name: /^About/ }).first().click();
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: /^Show Custom pages/ }).click();
   await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 12000 });
   const picked = await page.getByRole("button", { name: "Page to edit" }).textContent();
@@ -509,14 +532,14 @@ await check("Show on page works when that custom page is already open", desktop,
 });
 
 await check("long text groups open as short sub-sections", desktop, async page => {
-  await page.getByRole("button", { name: "Text & labels", exact: true }).first().click();
+  await rail(page, "Text & labels").click();
   await page.getByRole("button", { name: /^Checkout/ }).first().click();
   await page.getByRole("button", { name: /Payment & the Pay button/ }).waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: /Error messages/ }).waitFor({ timeout: 5000 });
 });
 
 await check("page-only overrides are listed and can follow all pages", desktop, async page => {
-  await page.getByRole("button", { name: "Theme settings" }).click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: "Page to edit" }).click();
   await page.getByRole("combobox", { name: "Find a page, collection or book" }).fill("catalog");
   await page.keyboard.press("Enter");
@@ -548,12 +571,12 @@ await check("? opens the keyboard shortcuts", desktop, async page => {
 
 await check("a Studio link opens the right page and tool", desktop, async page => {
   await page.waitForFunction(() => document.querySelector("[aria-label='Page to edit']")?.textContent?.includes("Paper Weather"));
-  const pressed = await page.getByRole("button", { name: "Theme settings" }).getAttribute("aria-pressed");
-  if (pressed !== "true") throw new Error("the link did not open Theme settings");
+  const pressed = await rail(page, "Style").getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error("the link did not open Style");
 }, "#designer?b=paper-weather&tab=style");
 
 await check("Media lists a library image and opens its details", desktop, async page => {
-  await page.getByRole("button", { name: "Media", exact: true }).click();
+  await rail(page, "Media").click();
   const card = page.locator("[data-media-id='m-riso-print']");
   await card.waitFor({ timeout: 10000 });
   const thumbLoaded = await card.locator("img").evaluate(img => img.complete && img.naturalWidth > 0);
@@ -582,7 +605,7 @@ await check("an image field picks from the library; the preview gets srcset", de
 });
 
 await check("Media explains a library whose rules aren't deployed", desktop, async page => {
-  await page.getByRole("button", { name: "Media", exact: true }).click();
+  await rail(page, "Media").click();
   await expectText(page, "The media library isn't switched on yet");
 }, "?media=denied");
 
@@ -746,7 +769,7 @@ await check("Copy block in one section and paste it into another section of the 
   await page.locator("[data-studio-block-picker] [data-block-choice='new:text']").click();
   await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Copy block" }).click();
   await expectText(page, "Block copied");
-  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await rail(page, "Page").click();
   await addComposition();
   await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Paste copied block" }).click();
   await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Paste block"), null, { timeout: 5000 });
@@ -762,7 +785,7 @@ await check("Copy block in one section and paste it into another section of the 
 
 await check("New page offers starters; FAQ opens as a draft with its headings", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await rail(page, "Pages").click();
   await page.getByRole("button", { name: "New page" }).click();
   const gallery = page.locator("[data-studio-page-starters]");
   await gallery.waitFor({ timeout: 5000 });
@@ -774,7 +797,7 @@ await check("New page offers starters; FAQ opens as a draft with its headings", 
 
 await check("Header and footer colour schemes reach the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: /^Colour schemes/ }).first().click();
   for (const part of ["header", "footer"]) {
     const select = page.locator(`[data-style-key="elementSchemes.${part}"] select`);
@@ -794,7 +817,7 @@ await check("Header and footer colour schemes reach the preview", desktop, async
 
 await check("Design scales: a heading scale reaches the preview and a section's spacing step saves", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: /^Design scales/ }).first().click();
   const preview = page.locator("[data-studio-scale-preview]");
   await preview.getByText(/Choose a heading size scale/).waitFor({ timeout: 5000 });
@@ -807,7 +830,7 @@ await check("Design scales: a heading scale reaches the preview and a section's 
     return root && getComputedStyle(root).getPropertyValue("--fm-step-4").includes("clamp(");
   }, null, { timeout: 10000 });
   // A section picks a spacing step on its Layout tab.
-  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await rail(page, "Page").click();
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("dialog").getByRole("button", { name: /^Newsletter/ }).first().click();
   await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Layout" }).click();
@@ -821,7 +844,7 @@ await check("Design scales: a heading scale reaches the preview and a section's 
 
 await check("a new colour scheme reaches a section in the preview, and deleting it warns", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: /^Colour schemes/ }).first().click();
   const editor = page.locator("[data-studio-schemes]");
   await editor.getByRole("button", { name: "Add colour scheme" }).click();
@@ -831,9 +854,9 @@ await check("a new colour scheme reaches a section in the preview, and deleting 
   await scheme.locator("[data-scheme-role=background] input:not([type=color])").fill("#ffdde1");
   await scheme.getByText(/Text on background \d/).waitFor({ timeout: 5000 });
   // Give a new section that scheme from its Style tab.
-  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await rail(page, "Page").click();
   await page.getByRole("button", { name: "Add section" }).first().click();
-  // (Page layout also lists the built-in "Newsletter …" parts, so pick from the Add section dialog.)
+  // (Page also lists the built-in "Newsletter …" parts, so pick from the Add section dialog.)
   await page.getByRole("dialog").getByRole("button", { name: /^Newsletter/ }).first().click();
   await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Style" }).click();
   await page.locator("[data-section-style-key=colorSchemeId] select").selectOption({ label: "Zine pink" });
@@ -850,8 +873,8 @@ await check("a new colour scheme reaches a section in the preview, and deleting 
   if (!saved.colorSchemes?.some(s => s.id === id && s.name === "Zine pink" && s.v === 2)) throw new Error("saved draft is missing the new scheme");
   if (saved.heroPage.sections.find(s => s.type === "NewsletterSection")?.settings?.colorSchemeId !== id) throw new Error("the section did not save its scheme");
   // Deleting a scheme in use asks first; the section then falls back to the theme colours.
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
-  // Theme settings reopens on the category it was showing.
+  await rail(page, "Style").click();
+  // Style reopens on the category it was showing.
   await page.locator("[data-studio-schemes]").waitFor({ timeout: 5000 });
   const again = page.locator(`[data-studio-schemes] .studio-scheme[data-scheme-id="${id}"]`);
   await again.getByText("Used by 1 section").waitFor({ timeout: 5000 });
@@ -863,7 +886,7 @@ await check("a new colour scheme reaches a section in the preview, and deleting 
   await frame.waitForFunction(() => document.querySelector("[data-fm-section]") && !document.querySelector("[data-fm-section][data-scheme]"), null, { timeout: 10000 });
 });
 
-await check("the wishlist page shows the one shop header and footer, listed in Page layout", desktop, async page => {
+await check("the wishlist page shows the one shop header and footer, listed in Page", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();
   await frame.locator("header[data-section=navigation] [data-studio-label='Category bar']").first().waitFor({ state: "attached", timeout: 15000 });
@@ -894,7 +917,7 @@ await check("a Newsletter in the Pop-up group opens as a pop-up in the preview a
 
 await check("two announcement messages take turns in the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await rail(page, "Style").click();
   await page.getByRole("button", { name: /^Header & announcement bar/ }).first().click();
   const editor = page.locator("[data-studio-panel=announcements]");
   await editor.getByRole("button", { name: "Add message" }).click();
@@ -909,7 +932,7 @@ await check("two announcement messages take turns in the preview", desktop, asyn
 
 await check("a header link with sub-links can become a mega menu with a featured card", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Navigation", exact: true }).first().click();
+  await openView(page, "Pages", "Menus");
   const links = page.locator("[data-studio-panel='menus:links']");
   await links.getByRole("button", { name: "Add link" }).click();
   await links.getByRole("button", { name: "+ Add sub-link" }).last().click();
@@ -974,6 +997,7 @@ await check("a Promo strip goes under the header on every page with Add it there
   const item = page.locator("[data-library-type=PromoStripSection]");
   await item.getByText("Best under the header (every page)").waitFor({ timeout: 5000 });
   await item.getByRole("button", { name: "Add it there instead" }).click();
+  await showList(page);
   await page.locator(".studio-structure summary", { hasText: "Every page · Under the header" }).waitFor({ timeout: 5000 });
   const frame = page.frameLocator("iframe").first();
   await frame.getByText("New releases every month").first().waitFor({ timeout: 10000 });
@@ -1147,9 +1171,10 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   await dialog.locator("[data-health-id]").first().waitFor({ timeout: 5000 });
   await dialog.locator('[data-health-id^="noname:"]').first().getByRole("button", { name: "Edit this part" }).click();
   await page.locator("[data-studio-element-inspector], [data-studio-panel='section-inspector'], .studio-inspector [role=tab]").first().waitFor({ timeout: 5000 });
-  if (await page.getByText("Nothing selected").isVisible()) throw new Error("Edit this part opened nothing");
+  if (await page.locator(".studio-sidebar .studio-panel-context").isVisible()) throw new Error("Edit this part opened nothing");
   // Publish says how the page checks out.
   await page.keyboard.press("Escape");
+  await showList(page);
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await page.getByRole("button", { name: "Publish", exact: true }).click();
@@ -1234,7 +1259,7 @@ await check("Rewrite with AI: a section title is rewritten as one undoable chang
   await page.getByRole("button", { name: "Undo" }).first().click();
   await frame.getByText("Letters from the press").first().waitFor({ state: "detached", timeout: 10000 });
   // Text & labels: the {year} and {name} placeholders survive, and an answer that drops one changes nothing.
-  await page.getByRole("button", { name: "Text & labels", exact: true }).first().click();
+  await rail(page, "Text & labels").click();
   await page.getByRole("button", { name: /^Footer/ }).first().click();
   const field = page.locator('[data-copy-key="footerCopyright"]');
   await field.getByRole("button", { name: /^Rewrite .* with AI$/ }).click();
@@ -1301,7 +1326,7 @@ await check("Draft a section with AI: the draft shows on the page, Add to page s
   if ((faqs[0].settings.items || []).some(b => !b.id)) throw new Error("drafted blocks have no ids");
 });
 
-await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Theme settings, G then T switches workspace", desktop, async page => {
+await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Style, G then T switches workspace", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const wb = page.locator("[data-studio-workbench]");
   await wb.waitFor({ timeout: 5000 });
@@ -1331,19 +1356,19 @@ await check("Workbench: W opens it, Changes jumps back through edits, Setup's Sh
   await page.locator('[data-studio-workbench][data-open="false"]').waitFor({ timeout: 5000 });
   await page.keyboard.press("w");
   await page.locator('[data-studio-workbench][data-open="true"]').waitFor({ timeout: 5000 });
-  // Setup: Show me on the logo item opens Theme settings at Logo & wordmark.
+  // Setup: Show me on the logo item opens Style at Logo & wordmark.
   await wb.getByRole("tab", { name: /Setup/ }).click();
   await wb.getByText(/of \d+ done/).waitFor({ timeout: 5000 });
   const themeRow = wb.locator(['logo', 'colors', 'fonts', 'share'].map(id => `[data-setup-id="${id}"][data-done="false"]`).join(", ")).first();
-  if (!(await themeRow.count())) throw new Error("expected an open Theme settings item in Setup");
+  if (!(await themeRow.count())) throw new Error("expected an open Style item in Setup");
   await themeRow.getByRole("button", { name: "Show me" }).click();
-  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Theme" }).waitFor({ timeout: 5000 });
-  // G then L goes to Page layout; G then T back to Theme settings.
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Style" }).waitFor({ timeout: 5000 });
+  // G then L goes to Page; G then T back to Style.
   await page.evaluate(() => (document.activeElement)?.blur?.());
   await page.keyboard.press("g"); await page.keyboard.press("l");
-  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Layout" }).waitFor({ timeout: 5000 });
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Page" }).waitFor({ timeout: 5000 });
   await page.keyboard.press("g"); await page.keyboard.press("t");
-  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Theme" }).waitFor({ timeout: 5000 });
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Style" }).waitFor({ timeout: 5000 });
 });
 
 await check("importing a theme file warns in plain words about settings Studio can't change, and Cancel adds nothing", desktop, async page => {
@@ -1364,7 +1389,7 @@ await check("importing a theme file warns in plain words about settings Studio c
 
 await check("Themes saves the draft as a theme, previews a look without changing the draft, and creates a share link", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await rail(page, "Designs").click();
   const panel = page.locator("[data-studio-panel='themes']");
   await panel.locator("[data-theme-card='live']").waitFor({ timeout: 5000 });
   // Save as a theme.
@@ -1396,7 +1421,7 @@ await check("Themes saves the draft as a theme, previews a look without changing
 
 await check("a ready-made look offers its layout and starter pages after the look, and adds only pages the shop lacks", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await rail(page, "Designs").click();
   const panel = page.locator("[data-studio-panel='themes']");
   const card = panel.locator("[data-theme-card='preset:press-marquee']");
   await card.locator("[data-preset-content]").waitFor({ timeout: 5000 });
@@ -1419,6 +1444,20 @@ await check("a ready-made look offers its layout and starter pages after the loo
   await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[data-section]").first().waitFor({ timeout: 10000 });
+});
+
+await check("Try this starter keeps the design as it was in My themes, then puts the whole starter in the draft", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await rail(page, "Designs").click();
+  const panel = page.locator("[data-studio-panel='themes']");
+  const card = panel.locator("[data-theme-card='preset:juniper-slow-season']");
+  await card.getByRole("button", { name: "Try this starter" }).click();
+  await expectText(page, "Your design before it is saved in My themes");
+  const saved = (await calls(page)).filter(c => c.method === "saveThemes").pop();
+  if (!saved || !saved.args[0].some(t => /^Before /.test(t.name))) throw new Error("the design before the starter wasn't kept in My themes");
+  if (await page.getByRole("dialog").count()) throw new Error("Try this starter asked a question first");
+  await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
+  await panel.locator("[data-theme-card]", { hasText: "Before " }).first().waitFor({ timeout: 5000 });
 });
 
 await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
@@ -1445,9 +1484,9 @@ await check("switching looks lists what carried over, Bring back restores a repl
   await expectText(page, "Brought back");
   await font.waitFor({ state: "detached", timeout: 5000 });
   if (await essentials.count()) throw new Error("Essentials is still open behind Themes");
-  await page.getByRole("button", { name: "Essentials" }).first().click();
+  await openView(page, "Style", "Basics");
   if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Oswald") throw new Error("Bring back didn't restore the title font");
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await rail(page, "Designs").click();
   // Switching to Atlas replaces the list with Atlas's own.
   await panel.locator("[data-theme-card='preset:press-atlas']").getByRole("button", { name: "Use this look" }).click();
   await page.getByRole("dialog", { name: /Also use “Atlas” layout/ }).getByRole("button", { name: "Cancel" }).click();
@@ -1468,9 +1507,9 @@ await check("Themes keeps the press's own changes apart from their look, and Use
   await own.getByText("Your changes to Marquee").waitFor({ timeout: 5000 });
   if (!/Nothing changed yet/.test(await own.innerText())) throw new Error("a fresh look already lists changes");
   // Change the title font in Essentials: Themes now lists it as the press's own.
-  await page.getByRole("button", { name: "Essentials" }).first().click();
+  await openView(page, "Style", "Basics");
   await essentials.locator('[data-style-key="headingFont"] select').selectOption("Oswald");
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await rail(page, "Designs").click();
   await own.getByText("1 setting is yours").waitFor({ timeout: 5000 });
   await own.getByText("Show your changes (1)").click();
   const item = own.locator("[data-own-edit-list] li", { hasText: "Heading font" });
@@ -1478,7 +1517,7 @@ await check("Themes keeps the press's own changes apart from their look, and Use
   await item.getByRole("button", { name: /^Use the theme's / }).click();
   await expectText(page, "is the theme's again");
   await own.getByText("Nothing changed yet").waitFor({ timeout: 5000 });
-  await page.getByRole("button", { name: "Essentials" }).first().click();
+  await openView(page, "Style", "Basics");
   if (await essentials.locator('[data-style-key="headingFont"] select').inputValue() !== "Big Shoulders Display") throw new Error("Use the theme's didn't restore Marquee's title font");
 }, FIRST_VISIT);
 
@@ -1522,7 +1561,7 @@ await check("an edit while a theme preview is showing ends the preview, and the 
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await rail(page, "Designs").click();
   const panel = page.locator("[data-studio-panel='themes']");
   await panel.locator("[data-theme-card^='preset:']").first().getByRole("button", { name: "Preview", exact: true }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
@@ -1530,13 +1569,13 @@ await check("an edit while a theme preview is showing ends the preview, and the 
   await page.locator("[data-studio-theme-preview]").click({ position: { x: 4, y: 4 } });
   await page.keyboard.press(`${mod}+z`);
   await page.locator("[data-studio-theme-preview]").waitFor({ state: "detached", timeout: 5000 });
-  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await rail(page, "Page").click();
   await expectText(page, "Home · 0 sections");
 });
 
 await check("Pages shows the page being edited in the canvas, with unsaved words", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await rail(page, "Pages").click();
   await page.getByRole("button", { name: "Edit About" }).click();
   await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src")?.includes("/page/about"), null, { timeout: 5000 });
   await expectText(page, "Preview connected", 30000);
@@ -1590,7 +1629,7 @@ await check("a full-page link inside the preview moves Studio to that page", des
 });
 
 await check("a custom page takes uploaded and pasted pictures, with size, position and description", desktop, async page => {
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await rail(page, "Pages").click();
   await page.getByRole("button", { name: "Edit About" }).click();
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP4z8DAwMDAxMDAwAAAGQAD/7+5zQAAAABJRU5ErkJggg==", "base64");
   await page.locator('input[aria-label="Upload pictures"]').setInputFiles({ name: "spread.png", mimeType: "image/png", buffer: png });
@@ -1621,7 +1660,7 @@ await check("a custom page takes uploaded and pasted pictures, with size, positi
 });
 
 await check("Rewrite with AI on a custom page keeps its picture and centring, with its own Undo", desktop, async page => {
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await rail(page, "Pages").click();
   await page.getByRole("button", { name: "Edit About" }).click();
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP4z8DAwMDAxMDAwAAAGQAD/7+5zQAAAABJRU5ErkJggg==", "base64");
   await page.locator('input[aria-label="Upload pictures"]').setInputFiles({ name: "spread.png", mimeType: "image/png", buffer: png });
@@ -1665,7 +1704,7 @@ await check("Rewrite with AI on a custom page keeps its picture and centring, wi
 });
 
 await check("a custom page's search listing fills in from the page", desktop, async page => {
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await rail(page, "Pages").click();
   await page.getByRole("button", { name: "Edit About" }).click();
   await page.getByRole("button", { name: "Auto-fill from page" }).click();
   if (await page.getByLabel("Title on Google").inputValue() !== "About") throw new Error("search title wasn't filled from the page title");
@@ -1688,19 +1727,19 @@ await check("a custom page's search listing fills in from the page", desktop, as
   await page.getByRole("button", { name: /Fill in missing search listings/ }).waitFor({ state: "detached", timeout: 5000 });
 });
 
-// Theme settings helpers: open a category card on the Theme settings home, then set one control.
+// Style helpers: open a category card on the Style home, then set one control.
 const openStyleCategory = async (page, title) => {
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
-  const back = page.getByRole("button", { name: "All theme settings" });
+  await rail(page, "Style").click();
+  const back = page.getByRole("button", { name: "All style settings" });
   if (await back.count()) await back.first().click();
   await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: new RegExp("^" + title.replace(/[.*+?^${}()|[\]\\&]/g, "\\$&")) }).first().click();
 };
 const styleControl = (page, key, tag) => page.locator(`[data-style-key="${key}"] ${tag}`).first();
-// Search Theme settings for a control by its label and wait for its field.
+// Search Style for a control by its label and wait for its field.
 const findStyleField = async (page, label, key) => {
-  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
-  const back = page.getByRole("button", { name: "All theme settings" });
+  await rail(page, "Style").click();
+  const back = page.getByRole("button", { name: "All style settings" });
   if (await back.count()) await back.first().click();
   await page.getByLabel("Search style settings").fill(label);
   await page.locator(`[data-style-key="${key}"]`).first().waitFor({ timeout: 5000 });
@@ -1743,8 +1782,8 @@ await check("the default shop header follows the Header menu, link colour, stick
   const frame = page.frameLocator("iframe").first();
   const bar = frame.locator("header [data-studio-label='Category bar']");
   await bar.waitFor({ timeout: 15000 });
-  // Navigation › Header menu: a new link shows in the Reference header (it used to show only in Modern).
-  await page.getByRole("button", { name: "Navigation", exact: true }).first().click();
+  // Menus › Header menu: a new link shows in the Reference header (it used to show only in Modern).
+  await openView(page, "Pages", "Menus");
   await page.locator("[data-studio-panel='menus:links']").getByRole("button", { name: "Add link" }).click();
   await bar.locator("nav a").first().waitFor({ timeout: 10000 });
   // Shop categories says how many the Reference header shows.
@@ -1790,7 +1829,7 @@ await check("Header layout picks the shop header on its own, and empty follows t
   if (await styleControl(page, "catalogLayoutStyle", "select").inputValue() !== (startsClassic ? "reference" : "modern")) throw new Error("Header layout changed the shop page layout");
 });
 
-await check("Theme settings switches start in the state the shop shows", desktop, async page => {
+await check("Style switches start in the state the shop shows", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await openStyleCategory(page, "Badges & shop labels");
   const sale = page.getByRole("switch", { name: "Sale badge", exact: true }).first();
@@ -1804,7 +1843,7 @@ await check("the bag's own background wins over the checkout background", deskto
   await openStyleCategory(page, "Checkout");
   await openStyleField(page, "checkoutBgColor");
   await styleControl(page, "checkoutBgColor", "input:not([type=color])").fill("#000000");
-  await page.getByRole("button", { name: "All theme settings" }).first().click();
+  await page.getByRole("button", { name: "All style settings" }).first().click();
   await page.getByRole("button", { name: "Show Cart drawer (shopping bag) on the page" }).click();
   const frame = page.frames().find(f => /preview=true/.test(f.url()));
   await frame.waitForSelector(".fm-bag", { timeout: 10000 });
@@ -1827,6 +1866,7 @@ await check("Escape cancels a spacing drag even when Studio had the keyboard foc
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Preview connected", 30000);
   await page.waitForTimeout(1500);
+  await showList(page);
   await page.locator(".studio-outline .studio-tree-label").first().click();
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[data-studio-overlay][role=toolbar] button").filter({ hasText: /^Spacing$/ }).first().click({ timeout: 10000 });
@@ -1851,6 +1891,7 @@ await check("Escape cancels a spacing drag even when Studio had the keyboard foc
 await check("a sticky add-to-bag bar off a book page is marked as showing only on book pages", desktop, async page => {
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Sticky add-to-bag bar/ }).first().click();
+  await showList(page);
   await page.locator(".studio-outline").getByText("Shows only on book pages").first().waitFor({ timeout: 5000 });
 });
 
@@ -1861,6 +1902,7 @@ await check("adding a section to a custom page makes its text a movable Page con
   await page.locator("[data-studio-panel=page-content]").waitFor({ timeout: 10000 });
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await showList(page);
   const rows = page.locator(".studio-outline");
   await rows.getByText("2. Page content").waitFor({ timeout: 5000 });
   await rows.getByText("1. Newsletter").waitFor({ timeout: 5000 });
@@ -1880,18 +1922,22 @@ await check("mode button names what it does, and the inspector keeps its tab and
     await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   }
   const labels = page.locator(".studio-outline .studio-tree-label");
+  await showList(page);
   await labels.first().click();
   await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).click();
-  await labels.nth(1).click();
+  // Pick the other section in the preview while the settings stay open.
+  await page.frameLocator("iframe").first().locator("[data-fm-section]").nth(1).click({ timeout: 10000 });
+  await page.locator(".studio-inspector-actions").getByRole("button", { name: "Move down" }).and(page.locator("[disabled]")).waitFor({ timeout: 5000 });
   const selected = await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).getAttribute("aria-selected");
   if (selected !== "true") throw new Error("the inspector went back to Content when another section of the same kind was selected");
   const actions = page.locator(".studio-inspector-actions");
   if (!(await actions.getByRole("button", { name: "Move down" }).isDisabled())) throw new Error("Move down is enabled on the last section");
   await actions.getByRole("button", { name: "Move up" }).click();
-  await page.locator('.studio-outline .studio-tree-label[aria-current="true"]').getByText(/^1\./).waitFor({ timeout: 5000 });
-  // Clicking the rail tab you are on keeps the selection.
-  await page.getByRole("button", { name: "Page layout" }).first().click();
-  if (!(await page.locator(".studio-inspector-actions").count())) throw new Error("clicking the active rail tab closed the inspector");
+  await page.waitForFunction(() => document.querySelector('.studio-inspector-actions button[aria-label="Move up"]')?.disabled === true, null, { timeout: 5000 });
+  // Clicking the rail tab you are on goes back to its list.
+  await rail(page, "Page").click();
+  await page.locator(".studio-outline .studio-tree-label").first().waitFor({ timeout: 5000 });
+  if (await page.locator(".studio-inspector-actions").count()) throw new Error("clicking the active rail tab left the settings open");
 });
 
 await check("View website opens the shop in a new tab with the draft and says whether it is saved", desktop, async page => {
@@ -1912,12 +1958,12 @@ await check("View website opens the shop in a new tab with the draft and says wh
   await tab.close();
 });
 
-// Every part listed in Page layout: its row, its Style / Words shortcuts and every link button in the inspector
-// must open a settings panel, and a Theme settings element panel must hold at least one control.
+// Every part listed in Page: its row, its Style / Words shortcuts and every link button in the inspector
+// must open a settings panel, and a Style element panel must hold at least one control.
 async function checkPartButtons(page) {
   const dead = [];
   const openLayout = async () => {
-    await page.locator('nav[aria-label="Studio workspaces"] button[aria-label="Page layout"]').click();
+    await page.locator('nav[aria-label="Studio workspaces"] button[aria-label="Page"]').click();
     await page.locator(".studio-structure").waitFor({ timeout: 8000 });
     for (const d of await page.locator(".studio-structure details.studio-structure-group").all()) await d.evaluate(el => { el.open = true; });
   };
@@ -1932,7 +1978,7 @@ async function checkPartButtons(page) {
       return { links, emptyFocus: count === 0 };
     });
     if (result.links.length) dead.push(`${what} (${result.links.join(", ")})`);
-    if (result.emptyFocus) dead.push(`${what} (Theme settings opened with no settings)`);
+    if (result.emptyFocus) dead.push(`${what} (Style opened with no settings)`);
   };
   await openLayout();
   const rows = await page.locator(".studio-structure-row").count();
@@ -1961,7 +2007,7 @@ async function checkPartButtons(page) {
       await landed(`${label} › ${name}`);
     }
   }
-  if (rows < 5 || clicked < 20) throw new Error(`Page layout listed only ${rows} parts (${clicked} buttons tried)`);
+  if (rows < 5 || clicked < 20) throw new Error(`Page listed only ${rows} parts (${clicked} buttons tried)`);
   console.log(`  checked ${clicked} buttons on ${rows} parts`);
   if (dead.length) throw new Error(`buttons that open nothing: ${dead.join(" · ")}`);
 }
@@ -2067,13 +2113,13 @@ const noBookWords = async (page, where) => {
 };
 await check("a shop that doesn't sell books reads its own words on the product page layout", desktop, async page => {
   await expectText(page, "Product page");
-  await noBookWords(page, "Page layout");
+  await noBookWords(page, "Page");
 }, "?sells=clothing#designer?t=productPage&tab=sections");
 
-await check("a shop that doesn't sell books reads its own words in Theme settings", desktop, async page => {
+await check("a shop that doesn't sell books reads its own words in Style", desktop, async page => {
   await page.getByLabel("Search style settings").fill("product");
   await expectText(page, "Product cards in the shop grid");
-  await noBookWords(page, "Theme settings");
+  await noBookWords(page, "Style");
 }, "?sells=clothing#designer?tab=style");
 
 await check("a shop that doesn't sell books reads its own words in Text & labels", desktop, async page => {
@@ -2082,14 +2128,14 @@ await check("a shop that doesn't sell books reads its own words in Text & labels
   await noBookWords(page, "Text & labels");
 }, "?sells=clothing#designer?tab=text");
 
-await check("a shop that doesn't sell books reads its own words in Essentials, Navigation and Themes", desktop, async page => {
-  await noBookWords(page, "Essentials");
-  await page.getByRole("tab", { name: "Navigation" }).or(page.getByRole("button", { name: "Navigation", exact: true })).first().click();
+await check("a shop that doesn't sell books reads its own words in Basics, Menus and Designs", desktop, async page => {
+  await noBookWords(page, "Basics");
+  await openView(page, "Pages", "Menus");
   await expectText(page, "directly assigned products");
-  await noBookWords(page, "Navigation");
-  await page.getByRole("tab", { name: "Themes" }).or(page.getByRole("button", { name: "Themes", exact: true })).first().click();
+  await noBookWords(page, "Menus");
+  await rail(page, "Designs").click();
   await expectText(page, "Marquee");
-  await noBookWords(page, "Themes");
+  await noBookWords(page, "Designs");
 }, "?sells=clothing#designer?tab=essentials");
 
 await check("a shop that doesn't sell books: Find and Reset to default use its own words", desktop, async page => {
@@ -2107,7 +2153,7 @@ await check("a shop that doesn't sell books: Find and Reset to default use its o
   await noBookWords(page, "Find");
 }, "?sells=clothing#designer?tab=text");
 
-await check("a books shop still reads book words in Theme settings", desktop, async page => {
+await check("a books shop still reads book words in Style", desktop, async page => {
   await page.getByLabel("Search style settings").fill("book");
   await expectText(page, "Book cards in the shop grid");
 }, "#designer?tab=style");
@@ -2216,12 +2262,16 @@ await check("the Book a time form offers Text me reminders, which needs a phone 
   await frame.locator("[data-store-region=bookingsService]").nth(1).click();
   await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().click({ timeout: 10000 });
   await frame.locator("[data-store-region=bookingsTimes] button.fm-track-btn:not([disabled])").first().click();
-  const box = frame.locator("[data-store-region=bookingsTexts] input[type=checkbox]");
+  // The region holds the reminders box and, when promo texts are on, a separate "Text me offers" box.
+  const box = frame.locator("[data-store-region=bookingsTexts] #bt-text-ok");
+  const promo = frame.locator("[data-store-region=bookingsTexts] #bt-promo-ok");
   await box.waitFor({ timeout: 10000 });
   if (!(await box.isDisabled())) throw new Error("the tick box works before a phone number is given");
+  if ((await promo.count()) && !(await promo.isDisabled())) throw new Error("the offers tick box works before a phone number is given");
   await frame.locator("#bt-phone").fill("416 555 0199");
   await box.check();
   if (!(await box.isChecked())) throw new Error("the tick box didn't tick");
+  if ((await promo.count()) && (await promo.isChecked())) throw new Error("ticking reminders also said yes to offers");
   if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsForm]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-texts.png` });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 
@@ -2335,6 +2385,7 @@ await check("the four services sections (price list, team, big Book button, hour
   const big = await frame.locator(".fm-svc-call a").first().getAttribute("href");
   if (!/\/book(\?preview=true)?$/.test(big || "")) throw new Error(`the big Book button points at ${big}`);
   const days = frame.locator(".fm-svc-hours dt");
+  await days.first().waitFor({ timeout: 10000 });
   if (await days.count() !== 7) throw new Error(`the hours list shows ${await days.count()} days`);
   if (process.env.STUDIO_SHOTS) for (const [, part] of picks) await frame.locator(`.fm-svc-${part}`).first().screenshot({ path: `${process.env.STUDIO_SHOTS}/services-${part}.png` });
 });

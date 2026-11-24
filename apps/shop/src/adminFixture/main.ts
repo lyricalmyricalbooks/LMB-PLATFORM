@@ -1,10 +1,11 @@
 // Development-only entry for admin-fixture.html: the real admin (signed in through the dev-only ?debug=true door) with
 // sample orders and books. Every other admin call answers with nothing, as an offline shop would, so the check sees
 // each screen's real empty and error states too. Nothing here reaches Firestore.
+import { duplicateBookData } from "../app/admin/catalogList";
 import { adminApi } from "../app/admin/api";
 import { teamApi } from "../app/admin/teamApi";
 import { rememberShopOwner } from "../app/lib/ownerDevice";
-import { A11Y_BOOKS } from "../a11yFixture/books";
+import { A11Y_BOOKS, A11Y_GOODS } from "../a11yFixture/books";
 import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
 import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
@@ -28,6 +29,7 @@ import { cleanShift, clockState, clockStep, forgotten, shiftMinutes, type ClockS
 import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type BookingService, type BookingSettings } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
+import { startersData } from "../app/admin/platformStarters";
 import { typeApprovalData } from "../app/admin/typeApprovalApi";
 import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { clientFilesData } from "../app/admin/clientFilesApi";
@@ -98,6 +100,15 @@ stockroomApi.load = async (): Promise<StockroomRecords> => (EMPTY_STOCKROOM ? { 
     if (body.email) { log = [{ id: `l${log.length + 1}`, at: at(0), to: String(body.email), subject: "Test: Order confirmed", status: "sent" }, ...log]; return { ok: true }; }
     return {};
   };
+}
+
+// ── Starter websites (platform/starters, control-room/starterSites.js): `?starters=aurel-editorial*,juniper-catalogue`
+// offers those starters in that order, a trailing * marks one New; the rest are hidden. None without it (every starter). ──
+{
+  const listed = (new URLSearchParams(window.location.search).get("starters") || "").split(",").filter(Boolean);
+  const order = listed.map((id) => id.replace(/\*$/, ""));
+  const choice = listed.length ? { order, hidden: [], fresh: listed.filter((id) => id.endsWith("*")).map((id) => id.slice(0, -1)), known: order } : null;
+  startersData.watch = (onChange) => { onChange(choice); return () => {}; };
 }
 
 // ── Settings › General › Ways to sell (beta): `?ways=events,classes` are the ways the platform turned on for the shop
@@ -530,6 +541,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
   const TEAM = new URLSearchParams(window.location.search).get("team") === "1" || new URLSearchParams(window.location.search).has("desk");
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on", textReminders: mode === "on", textReplies: mode === "on",
+    // Loyalty points (plan 4, 5.5): on in the full sample, with one double-points week.
+    ...(mode === "on" ? { promoTexts: true, loyalty: { on: true, perDollar: 1, perVisit: 5, onOrders: true, rewardPoints: 100, rewardMinor: 1000, rewardDays: 180, bonusWeeks: [{ from: "2026-12-14", to: "2026-12-20", times: 2 }] } } : {}),
     // Emails and texts to clients (plan 4, 3.5): the owner changed the confirmation's words.
     ...(mode === "on" ? { awayReply: true, awayWords: "Thanks for writing! We're at the print fair this weekend and back at the studio soon." } : {}),
     ...(mode === "on" ? { messages: { en: { booked: { subject: "You're in, {client}: {service}, {when}", lead: "We can't wait to see you. Come ten minutes early for a cup of tea." } } } } : {}),
@@ -645,6 +658,17 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     id: id.repeat(40).slice(0, 40), last4: name.slice(0, 2).toUpperCase() + "7Q", serviceId: "riso", serviceName: "Risograph printing session", name, email: `${name.split(" ")[0].toLowerCase()}@example.com`,
     visits: 5, left, status: "active", priceMinor: 18000, currency: "CAD", expiresOn: dayAhead(300), paidAt: at(-20, 10), refundMinor: 0, uses: [], ...extra,
   });
+  // Send bookings to other apps (plan 4, 5.8): one address that works.
+  let fixtureHooks: Array<Record<string, unknown>> = [
+    { id: "h1", url: "https://hooks.example.com/catch/48213/abcdef", secret: "whsec_sample-key-for-the-fixture", events: ["booking.created", "booking.moved", "booking.cancelled"], on: true, paused: false, lastAt: "2026-11-24T13:20:00.000Z", lastStatus: 200, problem: "" },
+  ];
+  // Other calendars (plan 4, 5.7): one Outlook calendar for the whole shop and one Apple calendar that stopped answering.
+  let fixtureFeeds: Array<Record<string, unknown>> = [
+    { id: "f1", kind: "outlook", name: "Work calendar", who: "", ok: true, problem: "", readAt: "2026-11-24T14:45:00.000Z", count: 12, addedAt: "2026-11-20T15:00:00.000Z" },
+    { id: "f2", kind: "apple", name: "", who: "", ok: false, problem: "The calendar can't be read. Check it's still shared or published, then copy its link again.", readAt: "2026-11-23T10:00:00.000Z", count: 0, addedAt: "2026-11-21T15:00:00.000Z" },
+  ];
+  const fixturePromos: Array<Record<string, unknown>> = [{ id: "p1", text: "Two openings this Saturday morning. Book online any time.", group: "recent", serviceId: "", at: "2026-11-17T15:00:00.000Z", status: "sent", people: 9, sent: 9, failed: 0, stopped: 0 }];
+  const fixturePoints: Record<string, number> = {};
   let packRows: PackRow[] = mode === "on" ? [
     pk("p", "Kai Example", 3), pk("q", "Lea Example", 1), pk("r", "Mo Example", 5, { paidAt: at(-1, 9) }), pk("s", "Ned Example", 2, { expiresOn: dayAhead(9) }),
     pk("t", "Oda Example", 0, { paidAt: at(-90, 9) }), pk("u", "Pat Example", 2, { status: "closed", refundMinor: 7200, paidAt: at(-60, 9) }),
@@ -753,6 +777,38 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
         ...(f.renewMonths ? { runsOut: "2027-11-10T15:00:00.000Z", ranOut: false } : {}) });
       const list = forms.filter((f) => f.on).map((f, i) => ({ id: f.id, title: f.title, on: true, signed: body.email === first && i === 0 ? signed(f) : null }));
       return { asks: list.length > 0, forms: list, form: list[0]?.signed || null };
+    }
+    // Loyalty points: the fixture's first client has some; `?loyalty=1` turns points on in the sample settings.
+    if (op === "points" || op === "pointsAdjust") {
+      const loyal = (settings as { loyalty?: { on?: boolean; rewardPoints?: number; rewardMinor?: number } }).loyalty;
+      const step = loyal?.rewardPoints || 100;
+      const first = body.email === rows[0]?.customer?.email;
+      fixturePoints[String(body.email)] ??= first ? 65 : 0;
+      if (op === "pointsAdjust") fixturePoints[String(body.email)] = Math.max(0, fixturePoints[String(body.email)] + Number(body.points || 0));
+      const points = fixturePoints[String(body.email)];
+      const sample = first ? [{ id: "visit_1", kind: "visit", points: 65, at: "2026-11-11T15:00:00.000Z", note: "Cut", code: "" }] : [];
+      return { on: loyal?.on === true, points: points % step, earned: points, rewards: Math.floor(points / step), toNext: step - (points % step), rewardPoints: step, rewardMinor: loyal?.rewardMinor || 1000, rows: sample, rewardsSent: 0 };
+    }
+    // Promo texts: one sent last week; sending records it (always open in the fixture, whatever the hour).
+    if (op === "promoAudience") return { available: !textsSoon, price: "1.6¢", count: body.group === "recent" ? 9 : body.group === "service" ? 4 : 14, open: true, lastAt: fixturePromos[0]?.at || null, nextAt: null };
+    if (op === "promoSend") { fixturePromos.unshift({ id: `p${fixturePromos.length + 1}`, text: String(body.text || ""), group: String(body.group || "all"), serviceId: String(body.serviceId || ""), at: new Date().toISOString(), status: "sent", people: 14, sent: 13, failed: 0, stopped: 1 }); return { sent: 13, failed: 0, stopped: 1 }; }
+    if (op === "promoHistory") return { promos: fixturePromos };
+    if (op === "bookingHooks") {
+      const id = String(body.id || "");
+      if (body.step === "add") fixtureHooks = [...fixtureHooks, { id: `h${fixtureHooks.length + 1}`, url: String(body.url || ""), secret: "whsec_sample", events: body.events || [], on: true, paused: false, lastAt: null, lastStatus: null, problem: "" }];
+      if (body.step === "remove") fixtureHooks = fixtureHooks.filter((h) => h.id !== id);
+      if (body.step === "switch") fixtureHooks = fixtureHooks.map((h) => (h.id === id ? { ...h, on: body.on === true } : h));
+      if (body.step === "test") fixtureHooks = fixtureHooks.map((h) => (h.id === id ? { ...h, lastAt: new Date().toISOString(), lastStatus: 200, problem: "" } : h));
+      return { hooks: fixtureHooks, ok: true, problem: "" };
+    }
+    if (op === "otherCalendars") {
+      if (body.step === "add") {
+        const url = String(body.url || "");
+        const kind = /icloud/i.test(url) ? "apple" : /google/i.test(url) ? "google" : /outlook|office|live\./i.test(url) ? "outlook" : "other";
+        fixtureFeeds = [...fixtureFeeds, { id: `f${fixtureFeeds.length + 1}`, kind, name: String(body.name || ""), who: String(body.who || ""), ok: true, problem: "", readAt: new Date().toISOString(), count: 5, addedAt: new Date().toISOString() }];
+      }
+      if (body.step === "remove") fixtureFeeds = fixtureFeeds.filter((f) => f.id !== body.id);
+      return { feeds: fixtureFeeds };
     }
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
@@ -1461,7 +1517,23 @@ inventoryLinkApi.catalog = async () => ({ books: [
   (adminApi as any).saveOwnTypes = async (own: any[]) => { ownTypes = own.map((t) => ({ ...t })); };
   // A new product saves into memory too (Saved · Add another), unless a mode below keeps its own shelf.
   let made = 0;
-  (adminApi as any).createBook = async (book: any) => ({ ...book, id: `new-${++made}` });
+  const kept = new Map<string, any>();
+  (adminApi as any).createBook = async (book: any) => { const saved = { ...book, id: `new-${++made}` }; kept.set(saved.id, saved); return saved; };
+  (adminApi as any).updateBook = async (id: string, patch: any) => { if (kept.has(id)) kept.set(id, { ...kept.get(id), ...patch }); return {}; };
+  // Make a copy (adding products round 3): the same rule as the real one, kept in memory.
+  (adminApi as any).duplicateBook = async (id: string) => {
+    const from = kept.get(id) || A11Y_BOOKS.find((b: any) => b.id === id);
+    if (!from) throw new Error("Original book not found");
+    const saved = { ...duplicateBookData(from), id: `copy-${++made}` };
+    kept.set(saved.id, saved);
+    return saved;
+  };
+  (adminApi as any).getBook = async (id: string) => kept.get(id) || A11Y_BOOKS.find((b: any) => b.id === id) || null;
+  // `?books=goods`: the books plus a general shop's tees and candles (no weights), to see Needs attention on the list.
+  // Products made here (Add several, Make a copy) join the list after the sample ones.
+  const listed = (adminApi as any).getAllBooks;
+  const goods = new URLSearchParams(location.search).get("books") === "goods";
+  (adminApi as any).getAllBooks = async () => [...(goods ? [...A11Y_BOOKS, ...A11Y_GOODS] : await listed()), ...kept.values()];
 }
 
 // Settings › Team: the fixture signs in as the owner, with three people on the Team.
@@ -1577,13 +1649,14 @@ if (new URLSearchParams(location.search).get("guide")) {
 }
 
 // ?start=details|bring|look|shipping|final (Get started screenshots): a new private shop part way through the run.
+// `&sold=clothing` (or any sign-up answer) makes it a shop that sells that instead of books.
 const startAt = new URLSearchParams(location.search).get("start");
 if (startAt) {
   const at = "2026-11-01T10:00:00.000Z";
   const order = ["details", "bring", "look", "shipping", "final"];
   const upTo = Math.max(0, order.indexOf(startAt));
   const marks: Record<string, any> = { details: { at }, bring: { at, skipped: true }, look: { at, theme: "riso" }, shipping: { at, skipped: true } };
-  const week: any = { plan: "both", sellingToday: "starting", publishes: "books" };
+  const week: any = { plan: "both", sellingToday: "starting", publishes: new URLSearchParams(location.search).get("sold") || "books" };
   order.slice(0, upTo).forEach((step) => { week[step === "look" ? "welcome" : step] = marks[step]; });
   const api = adminApi as any;
   api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));

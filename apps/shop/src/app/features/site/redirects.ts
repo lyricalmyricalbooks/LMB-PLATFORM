@@ -1,4 +1,4 @@
-// URL redirects (Shopify "Navigation › URL redirects"): the owner maps an old address to a new one so bookmarks, search
+// URL redirects (Shopify "Menus › URL redirects"): the owner maps an old address to a new one so bookmarks, search
 // results and printed links keep working after a book or page is renamed. Pure and storefront-safe.
 //
 // Storage (plan 5.6): the list is kept in numbered pages of `REDIRECTS_PER_PAGE` in the public, admin-written

@@ -108,7 +108,7 @@ function samplePack(nowMs: number, zone: string, currency: string): BookingPackV
 export function previewAnswer(action: string, body: Record<string, any> = {}, currency = "CAD", nowMs = Date.now(), zone = shopTimeZone()): Record<string, any> {
   const today = dayOf(nowMs, zone);
   if (action === "bookingInfo") {
-    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, texts: true, hours: SAMPLE_HOURS, reviews: SAMPLE_REVIEWS, staff: [{ id: "ana", name: "Ana", bio: "Ten years at the bench. Ask her about paper.", serviceIds: [], rates: [{ serviceId: "sample-session", minutes: 75, priceMinor: 6000 }] }, { id: "ben", name: "Ben", bio: "Runs the Saturday classes.", serviceIds: ["sample-session", "sample-class"] }] } satisfies BookingInfo;
+    return { on: true, zone, currency, cancelHours: 24, maxDaysAhead: 60, today, services: SERVICES, codes: true, giftCards: true, texts: true, promoTexts: true, birthday: true, hours: SAMPLE_HOURS, reviews: SAMPLE_REVIEWS, staff: [{ id: "ana", name: "Ana", bio: "Ten years at the bench. Ask her about paper.", serviceIds: [], rates: [{ serviceId: "sample-session", minutes: 75, priceMinor: 6000 }] }, { id: "ben", name: "Ben", bio: "Runs the Saturday classes.", serviceIds: ["sample-session", "sample-class"] }] } satisfies BookingInfo;
   }
   if (action === "bookingTimes") {
     const from = typeof body.from === "string" ? body.from : today;
@@ -243,5 +243,6 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
     sampleRun = sampleRun.map((v) => (v.current || body.andLater === true ? { ...v, status: "cancelled" } : v));
   }
-  return { booking: sample, ...(sampleRun.length ? { runVisits: sampleRun } : {}) };
+  // A sample points balance, so Studio can style the loyalty points line.
+  return { booking: sample, ...(sampleRun.length ? { runVisits: sampleRun } : {}), points: { points: 65, toNext: 35, rewardMinor: 1000 } };
 }

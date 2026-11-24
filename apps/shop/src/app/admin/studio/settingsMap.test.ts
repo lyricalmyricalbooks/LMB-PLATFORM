@@ -7,9 +7,9 @@ import {
 } from "./settingsMap";
 
 // The friendlier Studio layout must never hide a control: these checks fail if a category, a text
-// group or a single field stops being reachable from the Theme settings / Text & labels home.
+// group or a single field stops being reachable from the Style / Text & labels home.
 
-describe("Theme settings home", () => {
+describe("Style home", () => {
   const placed = THEME_HEADINGS.flatMap((h) => h.groups);
 
   it("puts every Style category (and the Studio-only ones) under exactly one heading", () => {
@@ -130,7 +130,7 @@ describe("Text & labels home", () => {
   });
 });
 
-describe("Theme settings bands and Show on page", () => {
+describe("Style bands and Show on page", () => {
   it("opens with the parts of the shop top to bottom, then the whole-site look, then advanced tools", () => {
     expect(THEME_HEADINGS.filter(h => h.band).map(h => h.band)).toEqual(["Parts of your shop, top to bottom", "Whole-site look", "Advanced"]);
     expect(THEME_HEADINGS.find(h => h.id === "system")!.groups[0]).toBe("themeLook");

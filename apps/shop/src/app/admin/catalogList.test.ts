@@ -37,8 +37,8 @@ describe("catalog list rows", () => {
     expect(inlineEditable({ retailPrice: 5 })).toBe(true);
   });
   it("duplicates without identifiers, stock or featured flag", () => {
-    const c = duplicateBookData({ id: "x", title: "A", isbn: "1", sku: "S", slug: "a", stockLevel: 4, isFeatured: true, status: "published", digitalFileUrl: "u" });
-    expect(c).toMatchObject({ title: "A (Copy)", isbn: "", sku: "", slug: "", stockLevel: 0, isFeatured: false, status: "draft", digitalFileUrl: "" });
+    const c = duplicateBookData({ id: "x", title: "A", isbn: "1", sku: "S", slug: "a", stockLevel: 4, isFeatured: true, status: "published", digitalFileUrl: "u", photos: [{ url: "p" }], retailPrice: 30 });
+    expect(c).toMatchObject({ title: "A (copy)", photos: [], retailPrice: 30, isbn: "", sku: "", slug: "", stockLevel: 0, isFeatured: false, status: "draft", digitalFileUrl: "" });
     expect(c.id).toBeUndefined();
   });
   it("names box sets and recommendations that point at deleted books", () => {

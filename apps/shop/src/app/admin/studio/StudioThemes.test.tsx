@@ -28,7 +28,7 @@ const button = (text: string, scope: ParentNode = document.body) =>
 const click = (b: HTMLElement) => act(async () => { b.click(); await new Promise(r => setTimeout(r, 0)); });
 afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; });
 
-describe("Studio › Themes", () => {
+describe("Studio › Designs", () => {
   it("shows the live theme, the draft, My themes and ready-made looks with thumbnails", async () => {
     const props = setup();
     await mount(props);
@@ -42,6 +42,24 @@ describe("Studio › Themes", () => {
     expect(props.onPreview).toHaveBeenCalledWith(expect.objectContaining({ id: "preset:p1", design: expect.objectContaining({ backgroundColor: "#ffffff" }) }));
     await click(button("Use this look"));
     expect(props.onApplyPreset).toHaveBeenCalledWith(props.presets[0]);
+  });
+
+  it("a whole-website starter leads with Try this starter and still offers only its look", async () => {
+    const starter = { id: "s1", name: "Juniper", global: { backgroundColor: "#ffffff" } };
+    const props = setup({ presets: [starter, ...setup().presets], starterIds: ["s1"], onTryStarter: vi.fn() });
+    await mount(props);
+    const card = document.querySelector('[data-theme-card="preset:s1"]')!;
+    const actions = [...card.querySelectorAll(".studio-theme-actions button")].map(b => (b.textContent || "").trim());
+    expect(actions[0]).toBe("Try this starter");
+    expect(actions).toContain("Use only its look");
+    await click(button("Try this starter", card));
+    expect(props.onTryStarter).toHaveBeenCalledWith(starter);
+    await click(button("Use only its look", card));
+    expect(props.onApplyPreset).toHaveBeenCalledWith(starter);
+    // A plain look keeps Use this look and no starter button.
+    const plain = document.querySelector('[data-theme-card="preset:p1"]')!;
+    expect(button("Use this look", plain)).toBeTruthy();
+    expect(button("Try this starter", plain)).toBeUndefined();
   });
 
   it("draws every look on the press's own covers and product name", async () => {

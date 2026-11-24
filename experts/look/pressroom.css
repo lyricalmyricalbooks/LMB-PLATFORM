@@ -2,6 +2,7 @@
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
+/* GENERATED from shared/admin-look/pressroom.css by shared/admin-look/sync.mjs. Edit the source, never this copy. */
 /*
  * Riso Press — the admin application design system
  * -----------------------------------------------------
@@ -528,6 +529,8 @@ div.rp-listcard-main { cursor: default; }
 
 /* Stack helpers */
 .rp-stack { display: flex; flex-direction: column; gap: var(--rp-space-5); }
+/* In a stack the gap already spaces the filter row from its table; its own margin doubled it (daily polish, 24 Nov 2026). */
+:is(.rp-stack, .rp-stock) > .rp-filter-bar { margin-bottom: 0; }
 .rp-grid-metrics { display: grid; gap: var(--rp-space-4); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 
 /* ── Login ─────────────────────────────────────────────────────────────── */
@@ -2380,6 +2383,14 @@ div.rp-listcard-main { cursor: default; }
 .rp .rp-fk-cancel { background: var(--rp-canvas); color: var(--rp-text); }
 .rp .rp-fk-primary { background: var(--rp-primary); color: var(--rp-on-primary); }
 .rp .rp-fk-primary[aria-disabled="true"] { opacity: .45; }
+/* A second button before the main one (Save draft next to Publish): outlined so the main one still leads. */
+.rp .rp-fk-status .rp-fk-secondary { background: transparent; box-shadow: inset 0 0 0 1.5px var(--rp-text); }
+.rp .rp-fk-secondary[aria-disabled="true"] { opacity: .45; }
+@media (min-width: 768px) { .rp .rp-fk-status .rp-fk-short { display: none; } }
+/* With three buttons the words may take two lines; the buttons stay on the right instead of dropping below. */
+.rp .rp-fk-status:has(.rp-fk-secondary) { flex-wrap: nowrap; border-radius: 28px; }
+.rp .rp-fk-status:has(.rp-fk-secondary) .rp-fk-status-text { min-width: 0; line-height: 1.35; }
+.rp .rp-fk-status:has(.rp-fk-secondary) .rp-fk-status-actions { flex-shrink: 0; }
 @media (max-width: 767px) {
   .rp .rp-fk-section-head { flex-basis: 100%; }
   .rp .rp-fk-card { flex-basis: 100%; padding: 18px; }
@@ -2387,6 +2398,9 @@ div.rp-listcard-main { cursor: default; }
   .rp .rp-fk-status { bottom: calc(72px + env(safe-area-inset-bottom)); flex-wrap: nowrap; gap: 8px; padding: 6px 6px 6px 14px; }
   .rp .rp-fk-status-text { font-size: 13px; gap: 8px; min-width: 0; }
   .rp .rp-fk-status button { padding: 12px 16px; }
+  /* With two buttons there is no room for Close on a phone: the Back link above the page does the same. */
+  .rp .rp-fk-status .rp-fk-cancel-extra { display: none; }
+  .rp .rp-fk-status .rp-fk-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 .rp .rp-fk-drop { min-height: 88px; padding: 26px; border: 1.5px dashed var(--rp-border-strong); border-radius: 16px; background: transparent; color: var(--rp-text); font: 600 14px/1.3 var(--rp-font-body); cursor: pointer; }
 .rp .rp-fk-drop:hover { background: var(--rp-surface-2); }
@@ -2575,9 +2589,11 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
 /* The same filled pill on every other page's cards: on a white card the plain secondary button had no fill and no edge,
    so "Try again", "Log expense" and the like read as stray text (daily polish, 18 November 2026). */
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-btn-secondary { border: 0; background: var(--rp-input-bg); color: var(--rp-text); box-shadow: none; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
+/* The list cards (Backups, QR codes, Online store) and the receipts-by-email card are white cards too: their "Open",
+   "Choose" and "Check and add" were loose words (daily polish, 24 November 2026). On a cream receipt card the pill is white. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card, .rp-cardbox, .rp-er):not(.rp-settings *) .rp-btn-secondary { border: 0; background: var(--rp-input-bg); color: var(--rp-text); box-shadow: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card, .rp-cardbox, .rp-er):not(.rp-settings *) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card, .rp-cardbox, .rp-er):not(.rp-settings *) :is(.rp-card, .rp-er-item) .rp-btn-secondary { background: var(--rp-surface); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings .rp-fk-control:has(> span > .rp-select + .rp-btn) { background: transparent; box-shadow: none; }
 /* A short word beside a menu label ("Beta"): small mono capitals in a thin outline, on the rail's own colours. */
 .rp-nav-tag { margin-left: 8px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 999px; font: 500 9px/1.2 var(--rp-font-mono); letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.72; }
@@ -2687,6 +2703,12 @@ div.rp-listcard-main { cursor: default; }
 .rp-tp-add { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; border: 1px dashed var(--rp-border-strong); border-radius: 14px; background: transparent; color: var(--rp-text); text-align: left; cursor: pointer; }
 .rp-tp-add:hover, .rp-tp-add:focus-visible { background: var(--rp-surface-2); border-style: solid; }
 .rp-tp-add > span { display: grid; gap: 2px; }
+/* "Continue where you left off" (adding products round 3, change 8): the draft that saved itself, first in the window. */
+.rp-tp-resume { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; margin-bottom: 18px; padding: 12px 16px; border: 0; border-radius: 14px; background: var(--rp-tile-mint, var(--rp-primary-tint)); color: var(--rp-text); text-align: left; cursor: pointer; }
+.rp-tp-resume:hover { box-shadow: inset 0 0 0 1.5px var(--rp-text); }
+.rp-tp-resume:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-tp-resume > span { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.rp-tp-resume .rp-tp-group { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-tp-naming { display: grid; gap: 6px; justify-items: start; padding: 14px 16px; border-radius: 14px; background: var(--rp-surface-2); }
 .rp-tp-naming p { margin: 0; color: var(--rp-text-muted); font-size: var(--rp-text-sm); }
 .rp-tp-naming strong { color: var(--rp-text); font-size: var(--rp-text-base); }

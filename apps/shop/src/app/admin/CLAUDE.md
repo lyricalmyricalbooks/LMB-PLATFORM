@@ -61,6 +61,10 @@ another admin call takes it from its own small file the same way. `adminApiImpor
 ### Deploy
 - Rules deploy before the frontend; Functions with it.
 
+### Product editor
+- On a new product's page the price must stay inside the first desktop screen (1440×900); words that follow the product type live in `productPageWords.ts` (its test fails if a non-book group mentions books).
+- Autosave only for a product made in this editor while it is a named draft; the first autosave holds `loading` so Publish can't create a second copy.
+
 ## Feature notes
 
 Details of each feature live in [`docs/agent-notes/admin.md`](../../../docs/agent-notes/admin.md) (read the section before changing that feature; Grep its heading). Sections:
@@ -106,3 +110,4 @@ Details of each feature live in [`docs/agent-notes/admin.md`](../../../docs/agen
 - Email sender redesign (18 November 2026, Julian's mockups)
 - Rentals (beta, R1, 18 November 2026)
 - Close shop (18 November 2026, Julian: "where do i even close the shop? … make it easy with a button")
+- Adding products, round 3 (24 November 2026, plan https://claude.ai/artifact/MEmMDYot4WY3S1c8cRDRaL)

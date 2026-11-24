@@ -74,8 +74,13 @@ const {
   cleanRun, runStarts, runSettings, runsOnline, withExtras, withLength, processingStretch,
   MAX_VISIT_PARTS, joinsVisit, visitService, visitTimeline, visitStaff, visitFreeTimes, visitName, visitPlan,
   answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine, cleanZone, zonesDiffer,
+  cleanBirthday, birthdaysOn, visitHappened, WELCOME_AFTER_HOURS, KEEP_IN_TOUCH_WINDOW_DAYS,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { hooksFor } = require("./bookingHooks");
+const { cleanFeedUrl, feedHostAllowed, busyFromIcs, looksLikeCalendar, MAX_FEEDS, FEED_DAYS } = require("./shared/calendarFeeds");
+const { cleanPromo, cleanGroup, promoBody, promoHours, phoneKey, RECENT_DAYS, MAX_PROMO_TEXTS, PROMO_GAP_HOURS, PROMO_FROM_HOUR, PROMO_UNTIL_HOUR } = require("./shared/promoTexts");
+const { cleanLoyalty, loyaltyEarns, visitPoints, orderPoints, rewardsDue, pointsToNext, rewardCode, cleanAdjust, LOYALTY_WINDOW_DAYS } = require("./shared/loyalty");
 const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
 const { cleanRotaShift, cleanTimeOff, daysBetween, timeOffWhen, MAX_ROTA_WEEK, MAX_NOTE } = require("./shared/teamRota");
 const { emailWords, textWords, fillMessage, messageLanguage } = require("./shared/bookingMessages");
@@ -92,7 +97,7 @@ const HOLD_MINUTES = 10;
  * clients in, marks their own no-shows and (My day, 4.6) takes payment and keeps a note on their own visits.
  */
 const DESK_OPS = Object.freeze({
-  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm", "visitNote"]),
+  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm", "visitNote", "points"]),
   provider: Object.freeze(["checkIn", "noShow", "paidAtShop", "payLink", "visitNote"]),
 });
 /** A visit note's longest length, as the client card's (src/app/admin/clientVisits.ts MAX_VISIT_NOTE, firestore.rules). */
@@ -206,6 +211,47 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const GCAL = "gcal~";
 const TEAM_BUSY_EVERY_MS = 15 * 60_000;
 const TEAM_BUSY_DAYS = 60;
+// Outlook, Apple and other calendars (plan 4, 5.7): busy times copied the same way as `ical~<feed>~<start>~<end>` (`g:
+// true`, `p` only for a person's calendar; none closes the time for everyone). The addresses are secrets, kept only in
+// server-only `bookingCalendars/main`.
+const ICAL = "ical~";
+const FEED_EVERY_MS = 15 * 60_000;
+const FEED_MAX_BYTES = 3 * 1024 * 1024;
+const FEED_TIMEOUT_MS = 10_000;
+
+/**
+ * Reads one calendar address: `{ ok: true, text }`, `{ ok: false, status }`, or throws when it can't be reached. Only
+ * https to the calendars `feedHostAllowed` names, on every redirect too (at most three), 10 seconds, 3 MB.
+ */
+async function readFeed(url) {
+  let at = url;
+  for (let hop = 0; hop < 4; hop += 1) {
+    const u = new URL(at);
+    if (u.protocol !== "https:" || u.username || u.password || u.port || !feedHostAllowed(u.hostname)) throw new Error("not_allowed");
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FEED_TIMEOUT_MS);
+    try {
+      const res = await fetch(at, { redirect: "manual", signal: ctrl.signal, headers: { accept: "text/calendar, text/plain;q=0.5" } });
+      const next = res.headers.get("location");
+      if (res.status >= 300 && res.status < 400 && next) { at = new URL(next, at).toString(); continue; }
+      if (!res.ok || !res.body) return { ok: false, status: res.status };
+      const reader = res.body.getReader();
+      const parts = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > FEED_MAX_BYTES) { await reader.cancel().catch(() => {}); return { ok: false, status: 413 }; }
+        parts.push(Buffer.from(value));
+      }
+      return { ok: true, text: Buffer.concat(parts).toString("utf8") };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error("too_many_redirects");
+}
 
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const hash = (key) => crypto.createHash("sha256").update(String(key)).digest("hex");
@@ -227,8 +273,8 @@ function busyFrom(daySnaps, nowMs, except = "") {
         ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}),
         // A class time cancelled for too few people (sweepMinimum): it closes that class then, nothing else.
         ...(item.closed === true ? { closed: true } : {}),
-        // A person's own calendar busy time (`gcal~…`): not a booking, so it never counts towards the daily limit.
-        ...(item.g === true || id.startsWith(GCAL) ? { away: true } : {}),
+        // A calendar busy time (`gcal~…`, `ical~…`): not a booking, so it never counts towards the daily limit.
+        ...(item.g === true || id.startsWith(GCAL) || id.startsWith(ICAL) ? { away: true } : {}),
         // Processing time inside it (plan 4, 1.5): the person is free for a booking that fits wholly in there.
         ...(Array.isArray(item.g) && Number.isFinite(item.g[0]) && Number.isFinite(item.g[1]) && item.g[0] < item.g[1] ? { free: { start: item.g[0], end: item.g[1] } } : {}) });
     }
@@ -278,7 +324,7 @@ function cleanCustomer(body) {
   if (!EMAIL.test(email)) return { problem: "Please add an email address we can send your booking to." };
   const phone = text(body?.phone, 40);
   // Text reminders only with a number and the client's own tick (the shop's switch is checked when sending).
-  return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "" };
+  return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), promoOk: body?.promoOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "", birthday: cleanBirthday(body?.birthday) };
 }
 
 /** A booking's add-ons in words ("Deep conditioning, Long hair"), "" with none. */
@@ -367,6 +413,10 @@ function bookingActions({
   // Discount codes on bookings: (code, email) → the shop's discount, checked like checkout's (on, dates, usage limit,
   // who may use it, one use per customer across orders), or throws with the customer's words. None: codes are refused.
   findDiscount = null,
+  // Outlook, Apple and other calendars (plan 4, 5.7): (url) → { ok, text } | { ok: false, status }; tests pass a fake.
+  fetchFeed = readFeed,
+  // Send bookings to other apps (plan 4, 5.8): the post and the name lookup; tests pass fakes. None: the real ones.
+  fetchHook = undefined, lookupHost = undefined,
   // Sales tax on services (index.js): async () → (amountMinor) → { taxMinor, taxLines } at the shop's rate for where it
   // is (Settings › Taxes matched to Settings › General › Location), or null when the shop collects none. None: no tax.
   shopTax = null,
@@ -2122,6 +2172,10 @@ function bookingActions({
           reviews: settings.siteReviews ? await visitReviews() : [],
           // Whether the form offers "Text me reminders": the owner's switch, and the platform sending texts.
           texts: !!settings.textReminders && (await textsOpen()),
+          // Whether the form offers "Text me offers" (plan 4, 5.6): the owner's promo switch, and the platform sending texts.
+          ...(settings.promoTexts && (await textsOpen()) ? { promoTexts: true } : {}),
+          // Whether the form asks for a birthday (plan 4, 5.4): only while the shop sends birthday emails.
+          ...(settings.birthdayEmail ? { birthday: true } : {}),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
           // With "anyone available" the page lists them (the Your team section) but offers no choice; with names hidden, nobody.
           staff: booksByPerson(settings) && settings.teamShown !== "hidden" ? settings.staff.filter((p) => p.active).map(({ id, name, serviceIds, rates, photo, bio }) => ({ id, name, serviceIds, ...(rates?.length ? { rates } : {}), ...(photo ? { photo } : {}), ...(bio ? { bio } : {}) })) : [],
@@ -2480,7 +2534,8 @@ function bookingActions({
           serviceId: service.id, serviceName: service.name, minutes: service.minutes, gapAfter: service.gapAfter, ...processingRecord(service),
           // A visit at the client's place happens at their address: emails, calendars and the day list all show it.
           location: visitAt ? addressLine(visitAt) : service.location, ...(visitAt ? { atClient: true } : {}),
-          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}) }, note: customer.note, answers: answered.answers,
+          // A birthday (month and day only) is kept only while the shop sends birthday emails (plan 4, 5.4).
+          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}), ...(customer.promoOk && settings.promoTexts ? { promoOk: true } : {}), ...(customer.birthday && settings.birthdayEmail ? { birthday: customer.birthday } : {}) }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : asking ? "requested" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
@@ -2648,7 +2703,11 @@ function bookingActions({
         if (b.status === "held") b = await refreshHeld(id, b, (await standalone()).checkout);
         if (b.restOpen) b = await refreshRest(id, b, (await standalone()).checkout);
         if (Date.parse(b.end) > nowMs) b = await withCheckInCode(id, b);
-        return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings), ...(await runOf(id, b, key)) });
+        // Loyalty points (plan 4, 5.5): the client's balance and how far to the next reward, while points are on.
+        const loyal = cleanLoyalty(settings.loyalty);
+        const points = loyal.on && b.customer?.email ? await pointsOf(b.customer.email, loyal).catch(() => null) : null;
+        return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings), ...(await runOf(id, b, key)),
+          ...(points ? { points: { points: points.points, toNext: points.toNext, rewardMinor: points.rewardMinor } } : {}) });
       }
       if (action === "bookingForm") {
         // The form before the first visit, signed with the client's typed name and a tick.
@@ -2915,6 +2974,57 @@ function bookingActions({
         await tellWebsite(settings.live);
         return res.status(200).json({ ok: true });
       }
+      if (op === "otherCalendars") {
+        // Outlook, Apple and other calendars (plan 4, 5.7). step "list"; "add" { url, who, name } (read once first, so a
+        // wrong link is refused at once); "remove" { id }; "refresh". Owner only: the addresses are secret links.
+        const step = String(req.body?.step || "list");
+        if (step === "list") return res.status(200).json({ feeds: await feedsView() });
+        if (step === "refresh") {
+          await sweepOtherCalendars({ force: true });
+          return res.status(200).json({ feeds: await feedsView() });
+        }
+        if (step === "add") {
+          const clean = cleanFeedUrl(req.body?.url);
+          if ("problem" in clean) return fail(res, 400, clean.problem);
+          const who = String(req.body?.who || "");
+          if (who && !(settings.staff || []).some((p) => p.id === who && p.active)) return fail(res, 400, "That person isn't taking bookings.");
+          const name = text(req.body?.name, 60);
+          const ref = calendarsDoc();
+          const snap = await ref.get();
+          const feeds = snap.exists && Array.isArray(snap.data()?.feeds) ? snap.data().feeds : [];
+          if (feeds.length >= MAX_FEEDS) return fail(res, 400, `You can add up to ${MAX_FEEDS} calendars.`);
+          if (feeds.some((f) => f.url === clean.url && (f.who || "") === who)) return fail(res, 400, "That calendar is already added.");
+          const nowMs = now().getTime();
+          const from = zonedTime(dayOf(nowMs, zone()), "00:00", zone());
+          const tried = await readOne({ url: clean.url }, from, from + FEED_DAYS * DAY);
+          if (tried.problem) return fail(res, 400, tried.problem);
+          const id = `f${hash(`${clean.url}|${who}`).slice(0, 10)}`;
+          await db.runTransaction(async (tx) => {
+            const cur = await tx.get(ref);
+            const data = cur.exists ? cur.data() || {} : {};
+            const list = Array.isArray(data.feeds) ? data.feeds.filter((f) => f.id !== id) : [];
+            tx.set(ref, { ...data, feeds: [...list, { id, url: clean.url, kind: clean.kind, name, who, addedAt: new Date(nowMs).toISOString(), ok: true, problem: "", count: tried.spans.length }], at: "" });
+          });
+          await sweepOtherCalendars({ force: true });
+          return res.status(200).json({ feeds: await feedsView(), added: id });
+        }
+        if (step === "remove") {
+          const id = String(req.body?.id || "");
+          await db.runTransaction(async (tx) => {
+            const cur = await tx.get(calendarsDoc());
+            const data = cur.exists ? cur.data() || {} : {};
+            tx.set(calendarsDoc(), { ...data, feeds: (Array.isArray(data.feeds) ? data.feeds : []).filter((f) => f.id !== id) });
+          });
+          await sweepOtherCalendars({ force: true });
+          return res.status(200).json({ feeds: await feedsView() });
+        }
+        return fail(res, 400, "Unknown step.");
+      }
+      if (op === "bookingHooks") {
+        // Send bookings to other apps (plan 4, 5.8): owner only, since the secrets sign what goes out.
+        const out = await hooks.ownerStep(req.body, { shop: shopName() });
+        return out.problem ? fail(res, out.status, out.problem) : res.status(out.status).json(out.json);
+      }
       if (op === "teamCalendar") {
         // A person's own Google Calendar (Services plan 2, B6). step "status": who is linked (and busy times read again
         // when a minute has passed); "link": a one-use link for them, emailed when `send` and they have an email;
@@ -3178,6 +3288,40 @@ function bookingActions({
         const staffId = keptPerson(settings, service.id, req.body?.staffId);
         const starts = runStarts(start, run, zone());
         return res.status(200).json({ visits: [{ start: new Date(start).toISOString(), free: true }, ...(await runPlan({ service, settings, starts: starts.slice(1), staffId, owner: true }))] });
+      }
+      if (op === "promoAudience") {
+        // Send a promo text: how many it reaches, what one text costs, and when the last one went.
+        const group = cleanGroup(req.body?.group);
+        const people = await promoAudience(group, String(req.body?.serviceId || ""), now().getTime());
+        const status = texts ? await texts.status().catch(() => ({ available: false, price: "" })) : { available: false, price: "" };
+        const last = await lastPromo();
+        return res.status(200).json({ available: status.available === true, price: status.price || "", count: people.length, open: promoHours(now().getTime(), zone()),
+          lastAt: last?.at || null, nextAt: last ? new Date(Date.parse(last.at) + PROMO_GAP_HOURS * HOUR).toISOString() : null });
+      }
+      if (op === "promoSend") {
+        const r = await sendPromo({ settings, group: cleanGroup(req.body?.group), serviceId: String(req.body?.serviceId || ""), text: req.body?.text, by });
+        if (r.problem) return fail(res, r.code === "too_soon" || r.code === "nobody" ? 409 : 400, r.problem, r.code);
+        return res.status(200).json(r);
+      }
+      if (op === "promoHistory") {
+        const snap = await promoLog().orderBy("at", "desc").limit(10).get();
+        return res.status(200).json({ promos: snap.docs.map((d) => { const p = d.data(); return { id: d.id, text: p.text, group: p.group, serviceId: p.serviceId || "", at: p.at, status: p.status, people: p.people || 0, sent: p.sent || 0, failed: p.failed || 0, stopped: p.stopped || 0 }; }) });
+      }
+      if (op === "points" || op === "pointsAdjust") {
+        // A client's loyalty points (client card): the balance and newest rows; pointsAdjust adds or takes points by hand.
+        const email = String(req.body?.email || "").trim().toLowerCase();
+        if (!EMAIL.test(email)) return fail(res, 400, "Unknown client.");
+        const s = cleanLoyalty(settings.loyalty);
+        if (op === "pointsAdjust") {
+          if (!s.on) return fail(res, 400, "Turn on loyalty points first.");
+          const points = cleanAdjust(req.body?.points);
+          if (points === null) return fail(res, 400, "Type a whole number of points to add or take, not zero.");
+          const note = String(req.body?.note || "").trim().slice(0, 120);
+          const result = await earnPoints(email, `adjust_${crypto.randomBytes(8).toString("hex")}`, points, s, { kind: "adjust", note });
+          for (const r of result.codes) await tellReward(email, r.code, r.expiry, s, settings, null);
+          return res.status(200).json({ ...(await pointsOf(email, s, true)), on: s.on, rewardsSent: result.codes.length });
+        }
+        return res.status(200).json({ ...(await pointsOf(email, s, true)), on: s.on });
       }
       if (op === "clientForm") {
         // The form a client signed before their first visit (client card and booking drawer), and whether it is the
@@ -4015,6 +4159,100 @@ function bookingActions({
     return { days: changed.length };
   }
 
+  // ── Outlook, Apple and other calendars (Bookings plan 4, step 5.7) ───────────────────────────────────────────
+  // `bookingCalendars/main` (server only, no rule): `feeds` [{ id, url, kind, name, who, addedAt, readAt, ok, problem,
+  // count }] and `spans` { feedId: [{ s, e }] }, what was last written into the day records. Rules: shared/calendarFeeds.ts.
+  const calendarsDoc = () => db.collection("bookingCalendars").doc("main");
+  // Send bookings to other apps (plan 4, 5.8; bookingHooks.js).
+  const hooks = hooksFor({ db, now, fetchImpl: fetchHook, lookup: lookupHost });
+
+  /** A calendar's problem in plain words, from what reading it gave. */
+  function feedProblem(got) {
+    if (got?.ok && looksLikeCalendar(got.text)) return "";
+    if (got?.ok || [401, 403, 404, 410].includes(got?.status)) return "The calendar can't be read. Check it's still shared or published, then copy its link again.";
+    if (got?.status === 413) return "The calendar is too big to read. Share a smaller calendar.";
+    return "The calendar didn't answer. It will be tried again soon.";
+  }
+
+  async function readOne(feed, from, to) {
+    const got = await fetchFeed(feed.url).catch((err) => ({ ok: false, status: err?.message === "not_allowed" ? 403 : 0 }));
+    const problem = feedProblem(got);
+    return problem ? { problem } : { spans: busyFromIcs(got.text, from, to, zone()) };
+  }
+
+  /** The day records' items for the calendars' busy times: day → { key: item }. */
+  function feedBusyItems(feeds, spans) {
+    const days = new Map();
+    for (const f of feeds) {
+      for (const x of Array.isArray(spans?.[f.id]) ? spans[f.id] : []) {
+        if (!Number.isFinite(x?.s) || !Number.isFinite(x?.e) || x.e <= x.s) continue;
+        for (const d of daysTouched(x.s, x.e, zone())) {
+          if (!days.has(d)) days.set(d, {});
+          days.get(d)[`${ICAL}${f.id}~${x.s}~${x.e}`] = { start: x.s, end: x.e, g: true, ...(f.who ? { p: f.who } : {}) };
+        }
+      }
+    }
+    return days;
+  }
+
+  /**
+   * Reads every calendar again (at most every 15 minutes unless `force`) and writes only the days whose busy times
+   * changed, each in a transaction that leaves every booking's item as it is. A calendar that can't be read keeps the
+   * busy times it had and shows its problem; one whose person left the team stops closing times.
+   */
+  async function sweepOtherCalendars({ force = false } = {}) {
+    if (!(await featureOn())) return { days: 0 };
+    const ref = calendarsDoc();
+    const snap = await ref.get();
+    const before = snap.exists ? snap.data() || {} : {};
+    const feeds = Array.isArray(before.feeds) ? before.feeds : [];
+    const old = before.spans && typeof before.spans === "object" ? before.spans : {};
+    if (!feeds.length && !Object.keys(old).length) return { days: 0 };
+    const nowMs = now().getTime();
+    const last = Date.parse(before.at || "");
+    if (!force && Number.isFinite(last) && nowMs - last < FEED_EVERY_MS) return { days: 0 };
+    const settings = await readSettings();
+    const team = new Set((settings.staff || []).filter((p) => p.active).map((p) => p.id));
+    const from = zonedTime(dayOf(nowMs, zone()), "00:00", zone());
+    const to = from + FEED_DAYS * DAY;
+    const spans = {};
+    const read = new Date(nowMs).toISOString();
+    const nextFeeds = [];
+    for (const f of feeds) {
+      if (f.who && !team.has(f.who)) { nextFeeds.push({ ...f, ok: false, problem: "That person isn't taking bookings, so this calendar is paused." }); continue; }
+      const got = await readOne(f, from, to);
+      if (got.problem) {
+        if (Array.isArray(old[f.id]) && old[f.id].length) spans[f.id] = old[f.id];
+        nextFeeds.push({ ...f, ok: false, problem: got.problem });
+      } else {
+        if (got.spans.length) spans[f.id] = got.spans;
+        nextFeeds.push({ ...f, ok: true, problem: "", readAt: read, count: got.spans.length });
+      }
+    }
+    // What was written before, by every calendar that had busy times (one just removed included).
+    const was = feedBusyItems(Object.keys(old).map((id) => ({ id, who: feeds.find((f) => f.id === id)?.who || "" })), old);
+    const will = feedBusyItems(nextFeeds.filter((f) => !f.who || team.has(f.who)), spans);
+    const keysOf = (items) => Object.keys(items || {}).sort().join("|");
+    const today = dayOf(nowMs, zone());
+    const changed = [...new Set([...was.keys(), ...will.keys()])].filter((d) => d >= today && keysOf(was.get(d)) !== keysOf(will.get(d))).sort();
+    for (const d of changed) {
+      await db.runTransaction(async (tx) => {
+        const daySnap = await tx.get(dayRef(d));
+        const items = Object.fromEntries(Object.entries((daySnap.exists ? daySnap.data()?.items : null) || {}).filter(([k]) => !k.startsWith(ICAL)));
+        tx.set(dayRef(d), { items: { ...items, ...(will.get(d) || {}) } });
+      });
+    }
+    await ref.set({ feeds: nextFeeds, spans, at: read });
+    return { days: changed.length };
+  }
+
+  /** The calendars as the admin sees them: never the address (it is a secret link). */
+  async function feedsView() {
+    const snap = await calendarsDoc().get();
+    const feeds = snap.exists && Array.isArray(snap.data()?.feeds) ? snap.data().feeds : [];
+    return feeds.map((f) => ({ id: f.id, kind: f.kind, name: f.name || "", who: f.who || "", ok: f.ok !== false, problem: f.problem || "", readAt: f.readAt || null, count: f.count || 0, addedAt: f.addedAt || null }));
+  }
+
   /** The email with a team member's own link to share their busy times. */
   async function sendCalendarLink(person, url) {
     const brand = await emailBrand();
@@ -4178,6 +4416,384 @@ function bookingActions({
       }
     }
     return { reminded };
+  }
+
+  /**
+   * Keep in touch (plan 4, 5.4, Beta): the welcome email the day after a client's first visit, the birthday email on the
+   * day, and "we miss you" `missYouWeeks` after their last visit with nothing booked since. One record per client,
+   * `clientMail/<hash of the email>` (server only, no address kept), says what went: `welcomeAt`, `birthdayYear`,
+   * `missYouFor` (the visit it was about). Marked before sending, so a second sweep never sends twice. Marketing mail:
+   * an unsubscribe link, and nobody who unsubscribed. At most MAX_KEEP_IN_TOUCH of each a sweep.
+   */
+  const MAX_KEEP_IN_TOUCH = 50;
+  const clientMail = (email) => db.collection("clientMail").doc(hash(email));
+  /** Every booking a client made, at most 200 (the same read the rebook reminder uses). */
+  const bookingsOf = async (email) => (await bookings().where("customer.email", "==", email).limit(200).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  async function sweepKeepInTouch() {
+    const none = { welcomed: 0, birthdays: 0, missed: 0 };
+    if (!optedOut || !unsubscribeUrl || !(await featureOn())) return none;
+    const settings = await readSettings();
+    if (!settings.welcomeEmail && !settings.birthdayEmail && !(settings.missYouWeeks > 0)) return none;
+    const nowMs = now().getTime();
+    const out = { ...none };
+    const emailOf = (b) => String(b?.customer?.email || "").trim().toLowerCase();
+    /** Claims one kind for a client in a transaction; false when it went already (or the record says not to). */
+    const claim = (email, fits, mark) => db.runTransaction(async (tx) => {
+      const ref = clientMail(email);
+      const doc = await tx.get(ref);
+      const had = doc.exists ? doc.data() : {};
+      if (!fits(had)) return false;
+      tx.set(ref, { ...mark, updatedAt: new Date(nowMs).toISOString() }, { merge: true });
+      return true;
+    });
+
+    if (settings.welcomeEmail) {
+      // First visits that ended WELCOME_AFTER_HOURS ago, within the window.
+      const to = new Date(nowMs - WELCOME_AFTER_HOURS * HOUR).toISOString();
+      const from = new Date(nowMs - WELCOME_AFTER_HOURS * HOUR - KEEP_IN_TOUCH_WINDOW_DAYS * DAY).toISOString();
+      const snap = await bookings().where("end", ">=", from).where("end", "<=", to).limit(500).get();
+      for (const doc of snap.docs) {
+        if (out.welcomed >= MAX_KEEP_IN_TOUCH) break;
+        const b = doc.data();
+        const email = emailOf(b);
+        if (!EMAIL.test(email) || !visitHappened(b, nowMs)) continue;
+        // Their first: no earlier visit that happened.
+        const theirs = await bookingsOf(b.customer.email);
+        if (theirs.some((o) => o.id !== doc.id && o.start < b.start && visitHappened(o, nowMs))) continue;
+        if (await optedOut(email)) continue;
+        if (!(await claim(email, (had) => !had.welcomeAt, { welcomeAt: new Date(nowMs).toISOString() }))) continue;
+        await tellKeepInTouch("welcome", { id: doc.id, ...b }, email, settings);
+        out.welcomed += 1;
+      }
+    }
+
+    if (settings.birthdayEmail) {
+      const today = dayOf(nowMs, zone());
+      const year = today.slice(0, 4);
+      // From 9 a.m. shop time, so nobody is woken by it.
+      if (nowMs >= zonedTime(today, "09:00", zone())) {
+        const seen = new Set();
+        for (const md of birthdaysOn(today)) {
+          const snap = await bookings().where("customer.birthday", "==", md).limit(500).get();
+          for (const doc of snap.docs) {
+            if (out.birthdays >= MAX_KEEP_IN_TOUCH) break;
+            const b = doc.data();
+            const email = emailOf(b);
+            if (!EMAIL.test(email) || seen.has(email) || b.status === "held") continue;
+            seen.add(email);
+            // Their newest birthday wins: a later booking may have corrected it.
+            const theirs = (await bookingsOf(b.customer.email)).filter((o) => o.customer?.birthday).sort((x, y) => String(y.createdAt || y.start).localeCompare(String(x.createdAt || x.start)));
+            if (theirs[0] && theirs[0].customer.birthday !== md) continue;
+            if (await optedOut(email)) continue;
+            if (!(await claim(email, (had) => had.birthdayYear !== year, { birthdayYear: year }))) continue;
+            await tellKeepInTouch("birthday", { id: doc.id, ...b }, email, settings);
+            out.birthdays += 1;
+          }
+        }
+      }
+    }
+
+    if (settings.missYouWeeks > 0) {
+      const dueAt = nowMs - settings.missYouWeeks * 7 * DAY;
+      const from = new Date(dueAt - KEEP_IN_TOUCH_WINDOW_DAYS * DAY).toISOString();
+      const snap = await bookings().where("end", ">=", from).where("end", "<=", new Date(dueAt).toISOString()).limit(500).get();
+      for (const doc of snap.docs) {
+        if (out.missed >= MAX_KEEP_IN_TOUCH) break;
+        const b = doc.data();
+        const email = emailOf(b);
+        if (!EMAIL.test(email) || !visitHappened(b, nowMs)) continue;
+        // Their last: nothing booked since (still to come or already been), and no rebook reminder about this visit.
+        if (b.rebookSentAt) continue;
+        const theirs = await bookingsOf(b.customer.email);
+        if (theirs.some((o) => o.id !== doc.id && o.start > b.start && o.status !== "cancelled")) continue;
+        if (await optedOut(email)) continue;
+        if (!(await claim(email, (had) => had.missYouFor !== doc.id, { missYouFor: doc.id }))) continue;
+        await tellKeepInTouch("missYou", { id: doc.id, ...b }, email, settings);
+        out.missed += 1;
+      }
+    }
+    return out;
+  }
+
+  /** One keep-in-touch email (welcome, birthday, missYou) in the client's language and the owner's words. Never throws. */
+  async function tellKeepInTouch(kind, b, email, settings) {
+    try {
+      const brand = await emailBrand();
+      const lang = await clientLanguage(b);
+      const shop = brand.shopName || shopName() || (lang === "fr" ? "la boutique" : "the shop");
+      const T = EMAIL_LABELS[lang];
+      const words = emailWords(settings?.messages, lang, kind);
+      const lastDay = new Date(b.start).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: zone(), day: "numeric", month: "long", year: "numeric" });
+      const values = { client: String(b.customer?.name || "").trim().split(/\s+/)[0] || "", service: visitName(b), when: kind === "missYou" ? lastDay : "", shop };
+      const fill = (template) => fillMessage(template, values);
+      const lead = escapeHtml(fill(words.lead)).replace(/\n/g, "<br>");
+      // With names hidden, the Book link doesn't pick the person either.
+      const withPerson = b.staffId && settings?.teamShown !== "hidden" ? `&with=${encodeURIComponent(b.staffId)}` : "";
+      const link = siteLink(kind === "birthday" || !b.serviceId ? "/book" : `/book?service=${encodeURIComponent(b.serviceId)}${withPerson}`);
+      const html = risoLayout(`
+        <h2 style="margin:0 0 12px;">${escapeHtml(fill(words.heading))}</h2>
+        <p style="margin:0 0 16px;">${lead}</p>
+        ${risoButton(escapeHtml(link), kind === "birthday" ? T.bookATime : T.bookNext, brand.accent, brand.theme)}
+        <p style="margin-top:28px;font-size:11px;color:#888;">${escapeHtml(T.noMoreEmails)} <a href="${escapeHtml(await unsubscribeUrl(email))}">${escapeHtml(T.unsubscribe)}</a>.</p>
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to: email, subject: fill(words.subject), html });
+    } catch (err) {
+      console.error(`bookings: ${kind} email failed:`, err?.message || err);
+    }
+  }
+
+  // ── Promo texts (Bookings plan 4, step 5.6) ────────────────────────────────────────────────────────────────────
+  // One text to a group of clients who ticked "Text me offers" (`customer.promoOk`, its own yes, apart from reminder
+  // texts). Each promo is kept in `promoTexts/{id}` ({ text, group, serviceId, at, by, status, sent, failed, stopped });
+  // the record is made first, in a transaction that also checks the last one was PROMO_GAP_HOURS ago, so two clicks
+  // can't send twice. Rules: shared/promoTexts.ts.
+  const promoLog = () => db.collection("promoTexts");
+
+  /** The clients a promo reaches, one per phone number: `[{ phone, ids, b }]` (`b`, their newest booking). */
+  async function promoAudience(group, serviceId, nowMs) {
+    const snap = await bookings().where("customer.promoOk", "==", true).limit(3000).get();
+    const byPhone = new Map();
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      const key = phoneKey(b.customer?.phone);
+      if (key.length < 10) continue;
+      const start = Date.parse(b.start);
+      const fits = group === "all"
+        || (group === "recent" && b.status === "confirmed" && !b.noShow && start <= nowMs && start >= nowMs - RECENT_DAYS * DAY)
+        || (group === "service" && b.status !== "cancelled" && b.serviceId === serviceId);
+      const had = byPhone.get(key) || { phone: b.customer.phone, ids: [], b, fits: false };
+      had.ids.push(doc.id);
+      had.fits = had.fits || fits;
+      if (String(b.start) > String(had.b.start)) { had.b = b; had.phone = b.customer.phone; }
+      byPhone.set(key, had);
+    }
+    return [...byPhone.values()].filter((c) => c.fits).slice(0, MAX_PROMO_TEXTS);
+  }
+
+  /** The last promo sent, or null. */
+  async function lastPromo() {
+    const snap = await promoLog().orderBy("at", "desc").limit(1).get();
+    return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+  }
+
+  /**
+   * Sends one promo: `{ sent, failed, stopped }`, or `{ problem, code }` when it can't go (texts not open, off, at night,
+   * too soon after the last, nobody to send to, wrong words).
+   */
+  async function sendPromo({ settings, group, serviceId, text, by }) {
+    if (!settings.promoTexts) return { problem: "Turn on promo texts first.", code: "off" };
+    if (!(await textsOpen())) return { problem: "Texts aren't open for your shop yet.", code: "closed" };
+    const nowMs = now().getTime();
+    if (!promoHours(nowMs, zone())) return { problem: `Promo texts go out between ${PROMO_FROM_HOUR} a.m. and ${PROMO_UNTIL_HOUR - 12} p.m. your time.`, code: "hours" };
+    const words = cleanPromo(text);
+    if ("problem" in words) return { problem: words.problem, code: "words" };
+    const people = await promoAudience(group, serviceId, nowMs);
+    if (!people.length) return { problem: "Nobody in this group has said yes to texts yet.", code: "nobody" };
+    const ref = promoLog().doc();
+    const at = new Date(nowMs).toISOString();
+    const claimed = await db.runTransaction(async (tx) => {
+      const last = await tx.get(promoLog().orderBy("at", "desc").limit(1));
+      const lastAt = last.empty ? 0 : Date.parse(last.docs[0].data().at);
+      if (nowMs - lastAt < PROMO_GAP_HOURS * HOUR) return false;
+      tx.set(ref, { text: words.text, group, serviceId: group === "service" ? serviceId : "", at, by, status: "sending", people: people.length, sent: 0, failed: 0, stopped: 0 });
+      return true;
+    });
+    if (!claimed) return { problem: "You sent a promo text in the last day. You can send the next one tomorrow.", code: "too_soon" };
+    const brand = await emailBrand().catch(() => ({}));
+    const shop = brand.shopName || shopName() || "";
+    const out = { sent: 0, failed: 0, stopped: 0 };
+    // Ten at a time: quick enough for 500 people, gentle on the text company.
+    for (let i = 0; i < people.length; i += 10) {
+      await Promise.all(people.slice(i, i + 10).map(async (c) => {
+        const lang = await clientLanguage(c.b).catch(() => "en");
+        const sent = await texts.send({ to: c.phone, body: promoBody(words.text, shop, lang), kind: "booking-promo", idempotencyKey: `promo-${ref.id}-${phoneKey(c.phone)}` }).catch(() => null);
+        if (sent?.optedOut) {
+          out.stopped += 1;
+          // They texted STOP: no more promos to them, on any of their bookings.
+          await Promise.all(c.ids.map((id) => bookings().doc(id).get().then((d) => d.exists && bookings().doc(id).set({ customer: { ...d.data().customer, promoOk: false, textOk: false } }, { merge: true }))));
+        } else if (sent?.ok) out.sent += 1;
+        else out.failed += 1;
+      }));
+    }
+    await ref.set({ ...out, status: "sent", doneAt: now().toISOString() }, { merge: true });
+    return out;
+  }
+
+  // ── Loyalty points (Bookings plan 4, step 5.5) ─────────────────────────────────────────────────────────────────
+  // `loyalty/<hash(email)>` holds a client's balance; `loyalty/<hash>/entries/<key>` one row per earning, reward or
+  // change, keyed so the same visit or order never earns twice (`visit_<id>`, `order_<id>`). At `rewardPoints` the
+  // points become a one-use discount code (`discounts/{id}`, only for that email, works on bookings and the shop),
+  // made in the same transaction and emailed after it. Rules: shared/loyalty.ts.
+  const MAX_LOYALTY = 200;
+  const LOYALTY_VISIT_WAIT_HOURS = 24;
+  const loyaltyDoc = (email) => db.collection("loyalty").doc(hash(email));
+
+  /** The discount record a reward makes: fixed money off, one use, only for this email, until `expiry` (a shop day). */
+  function rewardDiscount(code, email, s, nowIso, expiry) {
+    return {
+      code, type: "fixed", value: s.rewardMinor / 100, isActive: true, startDate: null, expiryDate: expiry,
+      minOrderAmount: null, minQuantity: null, maxDiscountAmount: null, usageLimit: 1, usageCount: 0, onePerCustomer: true,
+      forBookings: true, forTickets: false, appliesTo: "all", selectedCategories: [], selectedProducts: [],
+      allowedEmailDomains: "", allowedCustomerEmails: email, description: "Loyalty reward", buyQuantity: null, getQuantity: null,
+      getDiscountValue: null, tiers: null, method: "code", title: "", giftBookId: null, giftVariantId: null,
+      loyaltyReward: true, createdAt: nowIso, updatedAt: nowIso,
+    };
+  }
+
+  /**
+   * Adds `points` (negative takes) for one client under entry `key`, once, and pays out any rewards now due. Returns
+   * `{ added, balance, codes }` (`added` false when that key was already counted). The reward codes are made inside the
+   * transaction, so a reward is never paid twice and never lost.
+   */
+  async function earnPoints(email, key, points, s, row) {
+    const who = String(email || "").trim().toLowerCase();
+    const nowMs = now().getTime();
+    const nowIso = new Date(nowMs).toISOString();
+    const expiry = dayOf(nowMs + s.rewardDays * DAY, zone());
+    return db.runTransaction(async (tx) => {
+      const ref = loyaltyDoc(who);
+      const entry = ref.collection("entries").doc(key);
+      const [had, seen] = await Promise.all([tx.get(ref), tx.get(entry)]);
+      const before = had.exists ? had.data() : { email: who, points: 0, earned: 0, spent: 0, rewards: 0 };
+      if (seen.exists) return { added: false, balance: before.points || 0, codes: [] };
+      const balance = Math.max(0, (before.points || 0) + points);
+      const { rewards, left } = rewardsDue(s, balance);
+      const codes = [];
+      for (let i = 0; i < rewards; i += 1) {
+        let code = rewardCode(Math.random);
+        for (let tries = 0; tries < 3; tries += 1) {
+          const taken = await tx.get(db.collection("discounts").where("code", "==", code).limit(1));
+          if (taken.empty) break;
+          code = rewardCode(Math.random);
+        }
+        const discount = db.collection("discounts").doc();
+        tx.set(discount, rewardDiscount(code, who, s, nowIso, expiry));
+        tx.set(ref.collection("entries").doc(`reward_${discount.id}`), { kind: "reward", points: -s.rewardPoints, code, rewardMinor: s.rewardMinor, expiry, at: nowIso });
+        codes.push({ code, expiry });
+      }
+      tx.set(entry, { ...row, points, at: nowIso });
+      tx.set(ref, {
+        email: who, points: left,
+        earned: (before.earned || 0) + Math.max(0, points),
+        spent: (before.spent || 0) + rewards * s.rewardPoints + Math.max(0, -points),
+        rewards: (before.rewards || 0) + rewards, updatedAt: nowIso,
+      });
+      return { added: true, balance: left, codes };
+    });
+  }
+
+  /** "You've earned a reward" with the code, in the client's language and the owner's words. Never throws. */
+  async function tellReward(email, code, expiry, s, settings, b) {
+    try {
+      const brand = await emailBrand();
+      const lang = b ? await clientLanguage(b) : "en";
+      const shop = brand.shopName || shopName() || (lang === "fr" ? "la boutique" : "the shop");
+      const words = emailWords(settings?.messages, lang, "loyaltyReward");
+      const until = new Date(`${expiry}T12:00:00Z`).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+      const values = { client: String(b?.customer?.name || "").trim().split(/\s+/)[0] || "", amount: moneyWords(s.rewardMinor, currency(), lang), code, when: until, shop };
+      const fill = (template) => fillMessage(template, values);
+      const T = EMAIL_LABELS[lang];
+      const html = risoLayout(`
+        <h2 style="margin:0 0 12px;">${escapeHtml(fill(words.heading))}</h2>
+        <p style="margin:0 0 16px;">${escapeHtml(fill(words.lead)).replace(/\n/g, "<br>")}</p>
+        <p style="margin:0 0 16px;font-size:22px;letter-spacing:2px;"><strong>${escapeHtml(code)}</strong></p>
+        ${risoButton(escapeHtml(siteLink("/book")), T.bookATime, brand.accent, brand.theme)}
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to: email, subject: fill(words.subject), html });
+    } catch (err) {
+      console.error("bookings: reward email failed:", err?.message || err);
+    }
+  }
+
+  /**
+   * Points for visits that happened and paid shop orders, each once, then the reward emails. `{ visits, orders, rewards }`.
+   * Reads only what is new since the last sweep: `loyaltyState/main` keeps how far visits (`visitsTo`, by end) and
+   * orders (`ordersTo`, by paidAt) were read. A visit earns a day after it ends (LOYALTY_VISIT_WAIT_HOURS), so one marked
+   * a no-show the next morning never earns; an order earns an hour after it is paid. Switching points on reads back
+   * LOYALTY_WINDOW_DAYS at most. Off, or nothing to earn: nothing is read.
+   */
+  async function sweepLoyalty() {
+    const none = { visits: 0, orders: 0, rewards: 0 };
+    if (!(await featureOn())) return none;
+    const settings = await readSettings();
+    const s = cleanLoyalty(settings.loyalty);
+    if (!loyaltyEarns(s)) return none;
+    const nowMs = now().getTime();
+    const stateRef = db.collection("loyaltyState").doc("main");
+    const state = (await stateRef.get()).data() || {};
+    const oldest = new Date(nowMs - LOYALTY_WINDOW_DAYS * DAY).toISOString();
+    const startOf = (saved) => (typeof saved === "string" && saved > oldest ? saved : oldest);
+    const out = { ...none };
+    const pay = async (email, result, b) => {
+      for (const r of result.codes) { await tellReward(email, r.code, r.expiry, s, settings, b); out.rewards += 1; }
+    };
+    let budget = MAX_LOYALTY;
+
+    // Visits: ended after the last sweep's mark, up to a day ago.
+    const visitsUpTo = new Date(nowMs - LOYALTY_VISIT_WAIT_HOURS * HOUR).toISOString();
+    let visitsTo = startOf(state.visitsTo);
+    if (visitsTo < visitsUpTo) {
+      const snap = await bookings().where("end", ">", visitsTo).where("end", "<=", visitsUpTo).orderBy("end").limit(MAX_LOYALTY).get();
+      let stopped = false;
+      for (const doc of snap.docs) {
+        if (budget <= 0) { stopped = true; break; }
+        const b = doc.data();
+        const email = String(b?.customer?.email || "").trim().toLowerCase();
+        if (EMAIL.test(email) && visitHappened(b, nowMs)) {
+          // A visit paid with a pack earns only the visit bonus: the pack itself was paid when it was bought.
+          const paidMinor = b.pack ? 0 : Math.max(0, Number(b.priceMinor) || 0);
+          const points = visitPoints(s, paidMinor, dayOf(Date.parse(b.start), zone()));
+          if (points > 0) {
+            budget -= 1;
+            const result = await earnPoints(email, `visit_${doc.id}`, points, s, { kind: "visit", ref: doc.id, service: visitName(b), paidMinor });
+            if (result.added) { out.visits += 1; await pay(email, result, { id: doc.id, ...b }); }
+          }
+        }
+        visitsTo = b.end;
+      }
+      if (!stopped && snap.docs.length < MAX_LOYALTY) visitsTo = visitsUpTo;
+    }
+
+    // Paid shop orders: paid after the last mark, up to an hour ago (refunds are taken off what earns).
+    const ordersUpTo = new Date(nowMs - HOUR).toISOString();
+    let ordersTo = startOf(state.ordersTo);
+    if (s.onOrders && ordersTo < ordersUpTo) {
+      const snap = await db.collection("orders").where("paidAt", ">", ordersTo).where("paidAt", "<=", ordersUpTo).orderBy("paidAt")
+        .select("customer", "total", "refundedAmountMinor", "paymentStatus", "isTest", "sandboxPayment", "practiceOrder", "practice", "paidAt").limit(MAX_LOYALTY).get();
+      let stopped = false;
+      for (const doc of snap.docs) {
+        if (budget <= 0) { stopped = true; break; }
+        const o = doc.data();
+        const email = String(o?.customer?.email || "").trim().toLowerCase();
+        const real = o.paymentStatus === "paid" && !o.isTest && !o.sandboxPayment && !o.practiceOrder && !o.practice;
+        if (real && EMAIL.test(email)) {
+          const paidMinor = Math.max(0, Math.round((Number(o.total) || 0) * 100) - (Number(o.refundedAmountMinor) || 0));
+          const points = orderPoints(s, paidMinor, dayOf(Date.parse(o.paidAt), zone()));
+          if (points > 0) {
+            budget -= 1;
+            const result = await earnPoints(email, `order_${doc.id}`, points, s, { kind: "order", ref: doc.id, paidMinor });
+            if (result.added) { out.orders += 1; await pay(email, result, { customer: o.customer }); }
+          }
+        }
+        ordersTo = o.paidAt;
+      }
+      if (!stopped && snap.docs.length < MAX_LOYALTY) ordersTo = ordersUpTo;
+    } else if (!s.onOrders) {
+      ordersTo = ordersUpTo;
+    }
+    await stateRef.set({ visitsTo, ordersTo, at: new Date(nowMs).toISOString() }, { merge: true });
+    return out;
+  }
+
+  /** A client's points for the client card and their booking page: balance, to the next reward, newest rows. */
+  async function pointsOf(email, s, withRows = false) {
+    const who = String(email || "").trim().toLowerCase();
+    const snap = await loyaltyDoc(who).get();
+    const acc = snap.exists ? snap.data() : { points: 0, earned: 0, rewards: 0 };
+    const out = { points: acc.points || 0, earned: acc.earned || 0, rewards: acc.rewards || 0, toNext: pointsToNext(s, acc.points || 0), rewardPoints: s.rewardPoints, rewardMinor: s.rewardMinor };
+    if (!withRows) return out;
+    const rows = await loyaltyDoc(who).collection("entries").orderBy("at", "desc").limit(20).get();
+    return { ...out, rows: rows.docs.map((d) => { const r = d.data(); return { id: d.id, kind: r.kind, points: r.points, at: r.at, note: r.note || r.service || "", code: r.code || "" }; }) };
   }
 
   /**
@@ -4554,7 +5170,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepLoyalty, sweepMinimum, sweepTeamCalendars, sweepOtherCalendars, bookingChanged: (id, before, after) => hooks.bookingChanged(id, before, after, shopName()), sweepBookingHooks: () => hooks.sweepDeliveries(), featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
@@ -4685,6 +5301,7 @@ const EMAIL_LABELS = Object.freeze({
     addGoogle: "Add to Google Calendar", addApple: "Add to Apple Calendar",
     addTip: "Add a tip", pay: (amount) => `Pay ${amount}`, seeOrChange: "See or change your booking", yesThere: "Yes, I'll be there",
     leaveReview: "Leave a review", bookAgain: "Book again",
+    bookNext: "Book your next visit", bookATime: "Book a time", noMoreEmails: "Don't want emails like this?", unsubscribe: "Unsubscribe",
     beforeVisit: "Before your visit:", fillIn: (titles) => `please fill in ${titles.join(" and ")} on your booking page. It takes a minute.`,
     answerBy: (when) => `They'll answer by ${when} at the latest.`,
     tipIncluded: (amount) => `That includes your ${amount} tip.`,
@@ -4706,6 +5323,7 @@ const EMAIL_LABELS = Object.freeze({
     addGoogle: "Ajouter à Google Agenda", addApple: "Ajouter au calendrier Apple",
     addTip: "Laisser un pourboire", pay: (amount) => `Payer ${amount}`, seeOrChange: "Voir ou modifier votre réservation", yesThere: "Oui, je serai là",
     leaveReview: "Laisser un avis", bookAgain: "Réserver de nouveau",
+    bookNext: "Réserver votre prochaine visite", bookATime: "Réserver une heure", noMoreEmails: "Vous ne voulez plus recevoir ces courriels?", unsubscribe: "Se désabonner",
     beforeVisit: "Avant votre visite :", fillIn: (titles) => `veuillez remplir ${titles.join(" et ")} sur votre page de réservation. Ça prend une minute.`,
     answerBy: (when) => `On vous répondra au plus tard le ${when}.`,
     tipIncluded: (amount) => `Cela comprend votre pourboire de ${amount}.`,

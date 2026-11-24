@@ -16,12 +16,12 @@ const read = (store: Storage | undefined, key: string) => { try { return store?.
 const write = (store: Storage | undefined, key: string, value: string) => { try { store?.setItem(key, value); } catch { /* storage blocked */ } };
 
 /**
- * The pop-up section group (Studio › Page layout › Pop-up). It waits until the shopper has answered
+ * The pop-up section group (Studio › Page › Pop-up). It waits until the shopper has answered
  * the cookie banner (so the two never stack), then for Style › Pop-up › Delay, and shows as often as
  * Style › Pop-up › How often allows. Style › Pop-up › When it opens can instead wait until the shopper
  * is about to leave (the mouse heads for the tabs; phones have no mouse, so they use the delay) or has
  * scrolled part way down the page. In the Studio preview it only opens when Studio asks
- * (Page layout › Pop-overs › Pop-up, or while its sections are being edited).
+ * (Page › Pop-overs › Pop-up, or while its sections are being edited).
  */
 export function PopupSections({ design, books = [] }: { design: any; books?: any[] }) {
   const sections = groupSections(design, "overlaySections");

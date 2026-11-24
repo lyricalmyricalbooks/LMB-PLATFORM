@@ -6,7 +6,8 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import toast from "react-hot-toast";
-import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, Plus, Search } from "lucide-react";
+import { readLastDraft, whenWords, type LastDraft } from "./lastDraft";
 import { Dialog, SecondaryButton } from "./riso/components";
 import { PRODUCT_TYPES, TYPE_GROUPS, namesAType, searchOwnTypes, searchTypes, sellsGroups, typeById, typeGroup, typeStart, type OwnType, type ProductType, type TypeGroupId } from "../../shared/productTypes";
 import { addOwnType, useOwnTypes } from "./ownTypes";
@@ -28,7 +29,7 @@ function ownEntries(own: readonly OwnType[]): Entry[] {
   return own.flatMap((o) => { const type = typeById(o.base); return type ? [{ type, own: o }] : []; });
 }
 
-export function TypePicker({ open, onClose, onPick, groups, current, currentName, title = "Add a product", allowBlank = true, appearance }: {
+export function TypePicker({ open, onClose, onPick, groups, current, currentName, title = "Add a product", allowBlank = true, appearance, lastDraft, onContinue }: {
   open: boolean;
   onClose: () => void;
   /** The picked type (null for "Start blank"), and the shop's own type when one was picked or just named. */
@@ -43,6 +44,9 @@ export function TypePicker({ open, onClose, onPick, groups, current, currentName
   allowBlank?: boolean;
   /** Set when mounted outside the admin shell, so the window carries the admin's colours. */
   appearance?: "light" | "dark";
+  /** Round 3, change 8: the new product that saved itself as a draft, offered as "Continue where you left off". */
+  lastDraft?: LastDraft | null;
+  onContinue?: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [browse, setBrowse] = useState<TypeGroupId | null>(null);
@@ -119,6 +123,14 @@ export function TypePicker({ open, onClose, onPick, groups, current, currentName
       description="Say what it is in your own words. The page then asks only what that kind of product needs."
       footer={allowBlank ? <SecondaryButton onClick={() => onPick(null)}>Start blank</SecondaryButton> : undefined}>
       <div className="rp-tp">
+        {lastDraft && onContinue && !searching && !naming && !browse && (
+          <button type="button" className="rp-tp-resume" onClick={() => onContinue(lastDraft.id)}>
+            <History size={18} aria-hidden />
+            <span><span className="rp-tp-name">Continue where you left off</span>
+              <span className="rp-tp-group">{lastDraft.title || "Your unnamed draft"} · saved {whenWords(lastDraft.at)}</span></span>
+            <ChevronRight size={16} aria-hidden />
+          </button>
+        )}
         <label htmlFor={inputId} className="rp-tp-label">{naming ? "Name your type" : "What is it?"}</label>
         <div className="rp-search rp-tp-search">
           <Search size={18} className="rp-search-icon" aria-hidden />
@@ -184,12 +196,16 @@ export function TypePicker({ open, onClose, onPick, groups, current, currentName
 }
 
 /** Books › Add product: the picker for a new product, handing back what it starts with (null = blank). */
-export function AddProductPicker({ sells, title, appearance, onClose, onStart }: {
+export function AddProductPicker({ sells, title, appearance, onClose, onStart, onContinue }: {
   sells: string | null; title: string; appearance?: "light" | "dark";
   onClose: () => void; onStart: (start: Record<string, any> | null) => void;
+  /** Opens the draft offered under "Continue where you left off". */
+  onContinue?: (id: string) => void;
 }) {
   const fallback = useMemo(() => sellsGroups(sells), [sells]);
   const groups = useProductGroups(fallback);
+  const [lastDraft] = useState(() => readLastDraft());
   return <TypePicker open appearance={appearance} groups={groups} title={title} onClose={onClose}
+    lastDraft={lastDraft} onContinue={onContinue}
     onPick={(type, own) => onStart(type ? typeStart(type, own) : null)} />;
 }

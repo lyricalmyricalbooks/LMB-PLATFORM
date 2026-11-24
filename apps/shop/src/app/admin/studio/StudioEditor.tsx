@@ -37,7 +37,7 @@ import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
+import { addSavedTheme, duplicateSavedTheme, keptDesignName, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, sampleSectionsLeft, starterSampleBooks, wordedSettings } from "./presetContent";
@@ -45,7 +45,8 @@ import { applyStarter, starterForShop } from "./starterDesign";
 import { useCatalogWords, useShopSells, useShopWords } from "../shopWords";
 import { starterPhotos } from "./starterPhotos";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { STARTER_SITES, builtLooks, libraryLook, ownBooks, pressNameOf } from "../lookGallery";
+import { STARTER_SITES, builtLooks, libraryLook, newStarters, offeredStarters, ownBooks, pressNameOf } from "../lookGallery";
+import { usePlatformStarters } from "../platformStarters";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -78,7 +79,7 @@ import { writeDesignValue } from "../../features/site/designModel";
 import { StudioPageOverrides, fieldPageOverride, shown as shownValue } from "./StudioPageOverrides";
 import { fineTuneConflict } from "./fineTuneConflicts";
 import { Group as PanelGroup, Panel, Separator, useDefaultLayout, type LayoutStorage } from "react-resizable-panels";
-import { StudioRail } from "./StudioRail";
+import { StudioRail, WORKSPACES, WorkspaceSwitch, railHome, workspaceLabel } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
 import { HealthFindings, StudioHealth } from "./StudioHealth";
@@ -108,7 +109,7 @@ import { runsOnColophon } from "../../../lib/shopProfile";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
-import { designParts } from "./sectionDesigns";
+import { currentDesignId, designParts, designsToTry, withDesign } from "./sectionDesigns";
 import { StudioAiContext, type StudioAiValue } from "./StudioAiRewrite";
 import { StudioBlockPicker } from "./StudioBlockPicker";
 import { StudioBrandKit } from "./StudioBrandKit";
@@ -162,7 +163,7 @@ function conflictLabel(path: string, templates: { id: string; label: string }[])
   const name = (key: string) => key === "copy" ? "Text & labels" : key === "sections" ? "sections" : SETTING_LABELS.get(key) || key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return page ? [page, ...rest.map(name)].join(" › ") : [name(top), ...rest].join(" › ");
 }
-/** Pseudo-category id for the "What I've changed" list (Theme settings and Text & labels). */
+/** Pseudo-category id for the "What I've changed" list (Style and Text & labels). */
 const CHANGED_CATEGORY = "__changed";
 
 // ── tiny shared UI bits ────────────────────────────────────────────────────
@@ -394,6 +395,7 @@ export function reportDeadStudioLink(target: string, panel: string) {
 // Sizes are strings: react-resizable-panels v4 reads bare numbers as pixels.
 // Panels keep v2's clipped overflow; each panel's own content scrolls.
 const PANEL_STYLE = { overflow: "hidden" } as const;
+const railLabel = (tab: string) => WORKSPACES.some(t => t.id === tab) ? workspaceLabel(tab as LeftTab) : "the list";
 // Blocked storage (private windows, previews) must never stop Studio from opening.
 const PANEL_STORAGE: LayoutStorage = {
   getItem: (key) => { try { return window.localStorage.getItem(key); } catch { return null; } },
@@ -451,7 +453,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Read by the preview message handler, which is not re-created on every page switch.
   const templateIdRef = useRef(templateId); templateIdRef.current = templateId;
   const [showGlobal, setShowGlobal] = useState(remembered.showGlobal === true);
-  // Which shared section group Page layout edits while `showGlobal` (under the header, above the footer, pop-up).
+  // Which shared section group Page edits while `showGlobal` (under the header, above the footer, pop-up).
   const [globalGroup, setGlobalGroup] = useState<SectionGroupKey>(isGroupSurface(remembered.globalGroup || "") ? remembered.globalGroup as SectionGroupKey : "globalSections");
   // A phone opens on the phone preview: a 1200px page drawn 390px wide can't be read or tapped. A remembered or linked
   // device still wins.
@@ -463,7 +465,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const canvasWidth = device === "desktop" ? desktopWidth : parseInt(DEVICE_W[device], 10);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches);
   // Panel widths are remembered per browser (react-resizable-panels v4 format; "v1" was v2's).
-  const panelLayout = useDefaultLayout({ id: "studio-panels-v2", storage: PANEL_STORAGE, onlySaveAfterUserInteractions: true });
+  const panelLayout = useDefaultLayout({ id: "studio-panels-v3", storage: PANEL_STORAGE, onlySaveAfterUserInteractions: true });
   useEffect(() => {
     const media = window.matchMedia?.("(max-width: 767px)");
     if (!media) return;
@@ -514,7 +516,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [versions, setVersions] = useState<ThemeVersion[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPreview, setHistoryPreview] = useState<ThemeVersion | null>(null);
-  // Studio › Themes › Preview: a whole theme shown in the canvas without touching the draft.
+  // Studio › Designs › Preview: a whole theme shown in the canvas without touching the draft.
   const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any; books?: any[] } | null>(null);
   // The last theme switch's report (Themes › What carried over), kept until dismissed or another look replaces it.
   const [switchReport, setSwitchReport] = useState<ThemeSwitchReport | null>(null);
@@ -577,6 +579,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const mediaLib = useMediaLibrary();
   const [copyFilter, setCopyFilter] = useState("");
   const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
+  // Which whole-website starters the control room offers, in its order, with New tags (control-room/starterSites.js).
+  const starterChoice = usePlatformStarters(!beforeShop);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const postPreview = (message: any) => { try { iframeRef.current?.contentWindow?.postMessage(message, window.location.origin); } catch { /* preview not ready */ } };
   const designRef = useRef(design);
@@ -726,6 +730,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // A named one-off action (a block move) gets its own undo step; typing merges into one.
   const patchSelected = (patch: Record<string, any>, meta?: { label: string }) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
     meta ? { label: meta.label } : { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
+  // Try another design (starters rethink, step 6): the section flips to another design of its kind, words kept.
+  const selectedDesigns = useMemo(() => selected ? designsToTry(selected, SECTION_REGISTRY as any[]) : [], [selected?.id, selected?.type]);
+  const changeDesign = (id: string) => {
+    if (!selected) return;
+    const label = selectedDesigns.find(d => d.id === id)?.label || "another design";
+    setList((l) => l.map(s => s.id === selected.id ? withDesign(s, id, SECTION_REGISTRY as any[], getBlocksKey) as Section : s), { label: `Change design to ${label}` });
+    setBlockId(null);
+    say("ok", `Now showing “${label}”. Your words and photos came along.`, undoAction());
+  };
   const saveSharedBlock = (id: string, name: string) => {
     if (!selected) return;
     const key = getBlocksKey(selected.type), blocks = selected.settings[key] || selected.settings.blocks || [];
@@ -854,12 +867,40 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
   const themesBusyRef = useRef(false);
-  const persistThemes = async (next: SavedTheme[], okText: string) => {
-    if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return; }
+  const persistThemes = async (next: SavedTheme[], okText: string | null): Promise<boolean> => {
+    if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return false; }
     themesBusyRef.current = true;
-    try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
-    catch (err: any) { say("err", friendlyError(err, "save your themes")); }
+    try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); if (okText) say("ok", okText); return true; }
+    catch (err: any) { say("err", friendlyError(err, "save your themes")); return false; }
     finally { themesBusyRef.current = false; }
+  };
+  /**
+   * Themes › Try this starter (starters rethink, step 5): the design as it is now is kept in My themes first, then the
+   * whole starter (its layouts, sample photos and starter pages) goes into the draft. Nothing the press made is lost:
+   * Undo, or Customize on the kept theme, brings it back, and the shop doesn't change until Publish.
+   */
+  const tryStarter = async (theme: any) => {
+    setThemePreview(null);
+    const keptName = keptDesignName(savedThemes, theme.name);
+    const problem = savedThemeLimitProblem(savedThemes, keptName);
+    if (problem) { say("err", `${problem} Studio keeps your current design there before trying a starter.`); return; }
+    if (!(await persistThemes(addSavedTheme(savedThemes, keptName, designRef.current), null))) return;
+    change((d) => applyStarter(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Try “${theme.name}”` });
+    setSwitchReport(null);
+    setTemplateId("heroPage"); setShowGlobal(false);
+    let added = 0;
+    try {
+      for (const page of presetPagesToAdd(theme, pages)) {
+        const created = await adminApi.createPage(page);
+        setPages((prev) => [...prev, created]);
+        added++;
+      }
+    } catch (err: any) {
+      say("err", `“${theme.name}” is in your draft, but ${friendlyError(err, "add its starter pages").replace(/^./, (c) => c.toLowerCase())}`);
+      return;
+    }
+    const pagesNote = added ? ` ${added} draft page${added === 1 ? "" : "s"} added under Pages.` : "";
+    say("ok", `Trying “${theme.name}” in your draft. Your design before it is saved in My themes as “${keptName}”.${pagesNote} Your shop doesn't change until you Publish.`, undoAction());
   };
   /** Saving or renaming onto another theme's name replaces that theme: ask first. */
   const confirmThemeName = async (name: string, exceptId?: string) => {
@@ -1020,7 +1061,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   const pickerList = useMemo(() => pickerOptions({ templates, books, collections: previewCollections }), [templates, books, previewCollections]);
   const pickerCurrent = currentOption(pickerList, { templateId: template.id, showGlobal, productSlug, collectionSlug });
-  // Choosing a page keeps the current workspace (Theme settings stays open on the new page).
+  // Choosing a page keeps the current workspace (Style stays open on the new page).
   const pickPage = (o: PickerOption) => {
     setSelectedId(null); setBlockId(null);
     if (o.global) { setShowGlobal(true); return; }
@@ -1209,7 +1250,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
   // Open the settings behind a click-to-edit target (from the preview or the page structure).
-  /** `keepElement`: called from the open part's own inspector ("Open in Theme settings"), so that part stays open. */
+  /** `keepElement`: called from the open part's own inspector ("Open in Style"), so on phones that part stays open. */
   const openTarget = (target: string, label = "", keepElement = false) => {
     const [kind, rest = ""] = target.split(":");
     const tab: LeftTab | null = kind === "style" ? "style" : kind === "copy" ? "text" : kind === "menus" ? "menus" : kind === "pages" ? "pages" : null;
@@ -1217,7 +1258,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setMobilePanel("outline");
     setSelectedId(null); setBlockId(null);
     // A part opened earlier (in the inspector) is not what the owner asked for now: close it so the path and Back stay true.
-    if (selectedElement && !keepElement) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
+    // On computers settings share the left panel with the part's own, so the part closes there too.
+    if (selectedElement && (!keepElement || !narrow)) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
     if (tab === "style") { setStyleSearch(""); setStyleCategory(EXTRA_STYLE_CATEGORIES[rest] ? rest : null); }
     setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: label || (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
     if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
@@ -1368,7 +1410,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const openStructureItem = (item: StructureItem) =>
     openElement({ key: item.key, label: item.label, target: item.target, region: item.region || undefined }, true);
   const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("preview"); };
-  // "Open in Theme settings" from the element inspector: the region's own controls, else its style category.
+  // "Open in Style" from the element inspector: the region's own controls, else its style category.
   const openElementInTheme = (el: ElementRef) => {
     const region = el.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === el.region);
     if (region) { openRegion(region.id, region.label); return; }
@@ -1398,7 +1440,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       return label ? { ...rest, label } : rest;
     }), { label: label ? `Rename section to ${label}` : "Clear section name" });
   };
-  // Theme settings › "Show on page": open the page where a category's part appears, then select that
+  // Style › "Show on page": open the page where a category's part appears, then select that
   // part in the inspector once the preview has reported its structure (opening a pop-over if needed).
   // Scans keep arriving while the page loads, so it waits up to 8s; if the part never shows (switched
   // off, or it needs content first) the category's own settings open instead of a dead end.
@@ -1435,7 +1477,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [structure]); // eslint-disable-line react-hooks/exhaustive-deps
   // Editing the Pop-up group opens the pop-up in the preview (and closes it again on leaving).
   const editingPopup = showGlobal && globalGroup === "overlaySections";
-  // Opening a Theme settings category for a pop-over (Cart drawer, Pop-up window) opens it in the preview too,
+  // Opening a Style category for a pop-over (Cart drawer, Pop-up window) opens it in the preview too,
   // so its controls change something the owner can see; leaving the category closes it again.
   const categoryOverlay = leftTab === "style" && styleCategory ? CATEGORY_PAGES[styleCategory]?.overlay : undefined;
   useEffect(() => {
@@ -1654,11 +1696,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // One keyboard listener for the whole editor; the latest handlers are read through a ref, so it
   // is registered once. The preview forwards its key presses here too (KEY_COMMAND).
   // `forPanel`: a command that names the panel's section itself (Find › current selection), not a keyboard shortcut.
-  // Clicking the tab you are already on keeps what you selected; changing tabs clears it and remembers each tab's scroll.
+  // A rail button that holds two workspaces (Style: Every setting · Basics; Pages: Pages · Menus) opens the one used last.
+  const lastInRail = useRef<Partial<Record<LeftTab, LeftTab>>>({});
+  useEffect(() => { lastInRail.current[railHome(leftTab)] = leftTab; }, [leftTab]);
+  const selectRailButton = (id: LeftTab) => {
+    if (railHome(leftTab) === id) selectRail(leftTab);
+    else selectRail(lastInRail.current[id] || id);
+  };
+  // Clicking the tab you are already on goes back to its list; changing tabs clears the selection and remembers each tab's scroll.
   const selectRail = (id: LeftTab) => {
     setMobilePanel("outline");
-    // Clicking the tab already open keeps the selection; on Theme settings it still leaves an element's focus card.
-    if (id === leftTab) { setStyleFocus(null); return; }
+    // Clicking the tab already open goes back to its list: settings sit in the left panel in place of the list.
+    if (id === leftTab) {
+      setStyleFocus(null); setSelectedId(null); setBlockId(null);
+      if (selectedElement) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
+      return;
+    }
     restoreScrollFor.current = id;
     setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null);
   };
@@ -1785,7 +1838,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const openBlockPickerRef = useRef(openBlockPicker); openBlockPickerRef.current = openBlockPicker;
   const pickerOwner = blockPicker ? findSectionOwner(design, blockPicker) : null;
   useEffect(() => { if (blockPicker && !pickerOwner) setBlockPicker(null); }, [blockPicker, pickerOwner]);
-  // The picker belongs to one section on Page layout: leaving either closes it (and takes its try-on block off the page).
+  // The picker belongs to one section on Page: leaving either closes it (and takes its try-on block off the page).
   useEffect(() => { if (blockPicker && (leftTab !== "sections" || selectedId !== blockPicker)) setBlockPicker(null); }, [leftTab, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
   const insertBlockInto = (sectionId: string, block: any, afterId: string | null, label: string) => {
     const owner = findSectionOwner(designRef.current, sectionId); if (!owner) return;
@@ -1918,7 +1971,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const made = createAlternate(designRef.current, base, name, from);
     change(() => made.design, { label: `Create template “${name.trim()}”` });
     setShowGlobal(false); setTemplateId(altSurface(base, made.id)); setSelectedId(null); setBlockId(null);
-    say("ok", `Template “${name.trim()}” created from ${from === base ? "the default" : "that template"}. ${base === "productPage" ? "Pick it for books in Books › edit › Categories & tags." : "Pick it for categories in Navigation › Shop categories."}`);
+    say("ok", `Template “${name.trim()}” created from ${from === base ? "the default" : "that template"}. ${base === "productPage" ? "Pick it for books in Books › edit › Categories & tags." : "Pick it for categories in Menus › Shop categories."}`);
   };
   const renameTemplateAsk = async (base: AltBase, id: string, current: string) => {
     const name = await askText({ title: "Rename template", label: "Name", defaultValue: current, confirmLabel: "Rename" });
@@ -2193,7 +2246,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     }
     if (t.type === "book") { setSelectedId(null); setBlockId(null); setShowGlobal(false); setProductSlug(t.slug); setTemplateId("productPage"); setLeftTab("sections"); return; }
     if (t.type === "tab") {
-      // "Browse Theme settings / Text & labels" means the browse home, not the last category used.
+      // "Browse Style / Text & labels" means the browse home, not the last category used.
       setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null);
       setStyleCategory(null); setStyleSearch(""); setTextCategory(""); setCopyFilter("");
       return;
@@ -2240,11 +2293,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["essentials", "Essentials"], ["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"], ["media", "Media"], ["themes", "Themes"]];
+  const sidebarTabs: [LeftTab, string][] = WORKSPACES.map(w => [w.id, w.label]);
+  // Add section pictures in the shop's own look: its page colours, accent, heading font and sample photos.
+  const thumbLook = useMemo(() => adding === null ? undefined : {
+    bg: design.backgroundColor, fg: design.textColor, accent: design.primaryColor || design.accentColor, font: design.headingFont,
+    photos: starterPhotos(shopSells).photos.map(ph => ph.url),
+  }, [adding === null, design.backgroundColor, design.textColor, design.primaryColor, design.accentColor, design.headingFont, shopSells]);
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
-  // Theme settings home: task headings over the same categories, with "changed" counts.
-  // "N changed" badges walk every Theme settings field: only while Theme settings is open (Phase 4).
+  // Style home: task headings over the same categories, with "changed" counts.
+  // "N changed" badges walk every Style field: only while Style is open (Phase 4).
   const changed = useMemo(() => leftTab === "style" ? changedCounts(STYLE_GROUPS, design, defaults) : { total: 0, byGroup: {} as Record<string, number> },
     [leftTab, design, defaults]);
   const themeHome: HomeHeading[] = THEME_HEADINGS.map(h => ({ ...h, categories: h.groups.map(id => {
@@ -2256,9 +2314,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     return { id: name, title: name, blurb: TEXT_BLURBS[name] || "", changed: group ? changedCopyCount(group.fields, design) : 0 };
   }) }));
   const textChangedTotal = useMemo(() => leftTab === "text" ? COPY_SCHEMA.reduce((n, g) => n + changedCopyCount(g.fields, design), 0) : 0, [leftTab, design]);
-  const panelTitle = sidebarTabs.find(([id]) => id === leftTab)?.[1];
 
-  // Media › Where it's used: section names as Page layout shows them; a click opens that section.
+  // Media › Where it's used: section names as Page shows them; a click opens that section.
   const mediaNames = useMemo(() => ({ surface: surfaceLabel, section: (s: any) => s.label || sectionTitle(s).label }), [templates]);
   const openMediaPlace = (place: UsagePlace) => {
     if (!place.templateId || !place.sectionId) return;
@@ -2268,9 +2325,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sidebarPanel = (
         <div className="studio-sidebar" aria-label="Editor panel" role="region">
           <div className="studio-panel-context">
-            <strong>{panelTitle}</strong>
+            <strong>{workspaceLabel(railHome(leftTab))}</strong>
+            <WorkspaceSwitch active={leftTab} onSelect={selectRail} />
             <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
-            <small>{leftTab === "essentials" ? "The first things to set. Everything else is under All settings." : leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
+            <small>{leftTab === "essentials" ? "The first things to set. Every setting holds the rest." : leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef} onScroll={e => { tabScroll.current[leftTab] = e.currentTarget.scrollTop; }}>
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
@@ -2296,10 +2354,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   }}>{step.open.label}</button>}
                 </section>
               ))}
-              <p className="studio-essentials-more">Everything else is under <b>All settings</b>: every section, colour, font, word, menu and page.</p>
+              <p className="studio-essentials-more">The rest of the look is under <b>Every setting</b> above, and each page's sections are under <b>Page</b>.</p>
             </div>}
             {leftTab === "sections" && adding !== null && (
-              <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}
+              <StudioSectionLibrary registry={SECTION_REGISTRY} design={design} look={thumbLook}
                 surface={showGlobal ? globalGroup : template.id}
                 surfaceLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label}
                 at={adding} total={sections.length}
@@ -2410,10 +2468,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               return (
                 <div data-studio-panel={`style:${styleCategory}`}>
                   <CategoryHeader title={isChangedView ? "What I've changed" : extra?.title || group?.title || styleCategory}
-                    blurb={isChangedView ? undefined : blurbFor(group, styleCategory)} backLabel="All theme settings"
+                    blurb={isChangedView ? undefined : blurbFor(group, styleCategory)} backLabel="All style settings"
                     onBack={() => setStyleCategory(null)} extra={<p className="studio-scope-note">{scopeNote}</p>} />
                   {styleCategory === "themeLook" && <div className="px-4 pb-4 space-y-4">
-                    <button type="button" className={`${btn} w-full justify-center`} onClick={() => setLeftTab("themes")}>Open Themes (thumbnails, preview, share links)</button>
+                    <button type="button" className={`${btn} w-full justify-center`} onClick={() => setLeftTab("themes")}>Open Designs (thumbnails, preview, share links)</button>
                     <p className="studio-hint">Current look: {design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every colour, font and print detail; you can still change each one afterwards.</p>
 
                 <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
@@ -2444,7 +2502,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </div>
                 <div className="pt-2 border-t border-neutral-200 space-y-2">
                   <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Theme library</p>
-                  {builtLooks().map((t: any) => (
+                  {builtLooks(starterChoice).map((t: any) => (
                     <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
                       className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
                       <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
@@ -2531,9 +2589,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       <p className="text-xs text-neutral-500 mt-0.5">{picked.length} settings for this element{styleScope === "page" ? "" : " · all pages"}</p>
                     </div>
                     <button type="button" className={btn} onClick={() => setStyleFocus(null)}>{(() => {
-                      // Back to the category the owner came from (its element list), else the Theme settings home.
+                      // Back to the category the owner came from (its element list), else the Style home.
                       const from = styleCategory && (EXTRA_STYLE_CATEGORIES[styleCategory]?.title || STYLE_GROUPS.find(g => g.id === styleCategory)?.title);
-                      return from ? `Back to ${from}` : "Back to theme settings";
+                      return from ? `Back to ${from}` : "Back to style settings";
                     })()}</button>
                   </div>
                   <div className="px-4 pb-4 space-y-4">
@@ -2650,7 +2708,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={builtLooks() as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
+                presets={builtLooks(starterChoice) as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
                 templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
                 previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(starterPreview(entry)); if (entry && onPhone) setDevice(onPhone); }}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
@@ -2659,6 +2717,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onDownload={exportTheme} onSchedule={t => setSchedule({ themeId: t.id })}
                 onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
+                starterIds={offeredStarters(starterChoice)} newStarterIds={newStarters(starterChoice)} onTryStarter={preset => { void tryStarter(preset); }}
                 switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
                 onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
                 ownEdits={ownEditsList} updatedTheme={updatedTheme(design)} onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}
@@ -2757,13 +2816,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
             onMoveSection={moveSelectedSection} sectionRoom={(() => { const i = sections.findIndex(x => x.id === selected?.id); return { up: i > 0, down: i >= 0 && i < sections.length - 1 }; })()}
             onReplayMotion={() => { setMode("edit"); postPreview({ type: "HIGHLIGHT_SECTION", instanceId: selected.id, blockId: null, scroll: true }); setTimeout(() => postPreview({ type: "MOTION_REPLAY", sectionId: selected.id }), 450); }}
-            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("preview"); }} />
+            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("preview"); }}
+            backLabel={narrow ? undefined : leftTab === "sections" ? `${showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Back to ${railLabel(leftTab)}`}
+            onAddBelow={narrow ? undefined : () => { const i = sections.findIndex(x => x.id === selected.id); setLeftTab("sections"); setAdding(i < 0 ? sections.length : i + 1); }}
+            designs={selectedDesigns} designId={selected ? currentDesignId(selected) : undefined} onDesign={changeDesign} />
   );
 
   const inspectorEmpty = (
           <div className="studio-inspector-empty" role="note">
             <strong>Nothing selected</strong>
-            <span>Click any part of the preview, or pick it under Page layout, to edit its words, style and layout here.</span>
+            <span>Click any part of the preview, or pick it in Page, to edit its words, style and layout here.</span>
           </div>
   );
 
@@ -2877,20 +2939,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <MediaPickerContext.Provider value={mediaLib.pickerApi}>
       <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...inertWhen(busy === "discard")}>
-        <StudioRail active={leftTab} onSelect={selectRail} />
+        <StudioRail active={leftTab} onSelect={selectRailButton} />
         {narrow ? <>
           {sidebarPanel}
           {canvasPanel}
           {selected ? inspectorPanel : elementPanel || <aside className="studio-inspector" aria-label="Content settings">{inspectorEmpty}</aside>}
         </> : (
           <PanelGroup orientation="horizontal" className="studio-panels" defaultLayout={panelLayout.defaultLayout} onLayoutChanged={panelLayout.onLayoutChanged}>
-            <Panel id="studio-left" defaultSize="24%" minSize="18%" maxSize="45%" style={PANEL_STYLE}>{sidebarPanel}</Panel>
-            <Separator className="studio-resize-handle" aria-label="Resize the settings panel" />
-            <Panel id="studio-canvas" minSize="30%" style={PANEL_STYLE}>{canvasPanel}</Panel>
-            <Separator className="studio-resize-handle" aria-label="Resize the inspector" />
-            <Panel id="studio-inspector" defaultSize="22%" minSize="16%" maxSize="45%" style={PANEL_STYLE}>
-              {selected ? inspectorPanel : elementPanel || inspectorEmpty}
+            {/* Settings open in the left panel, in place of the list (starters rethink, step 6): no empty third
+                column, so the preview gets the room. A picker the list is showing (Add section, Add block) stays. */}
+            <Panel id="studio-left" defaultSize="28%" minSize="20%" maxSize="45%" style={PANEL_STYLE}>
+              {(selected || elementPanel) && adding === null && !blockPicker ? (selected ? inspectorPanel : elementPanel) : sidebarPanel}
             </Panel>
+            <Separator className="studio-resize-handle" aria-label="Resize the settings panel" />
+            <Panel id="studio-canvas" minSize="40%" style={PANEL_STYLE}>{canvasPanel}</Panel>
           </PanelGroup>
         )}
       </div>
@@ -2953,7 +3015,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           })()}
           {confirmAction === "publish" && (() => {
             const left = sampleSectionsLeft(design);
-            return left > 0 && <p className="text-sm studio-dialog-warn" role="status" data-publish-samples>{left === 1 ? "1 section still shows" : `${left} sections still show`} the starter's sample words and pictures. Shoppers will see {left === 1 ? "it" : "them"} as they are. In Page layout, each one is marked Sample until you change it.</p>;
+            return left > 0 && <p className="text-sm studio-dialog-warn" role="status" data-publish-samples>{left === 1 ? "1 section still shows" : `${left} sections still show`} the starter's sample words and pictures. Shoppers will see {left === 1 ? "it" : "them"} as they are. In Page, each one is marked Sample until you change it.</p>;
           })()}
           {liveCheckFailed && <p className="text-sm font-bold studio-dialog-warn" role="status" data-publish-live-check-failed>Couldn't check the live shop just now. The list above compares with the last version Studio saw, so it may miss changes made elsewhere.</p>}
           {confirmAction === "publish" && !publishHealth && <p className="studio-health-publish" data-publish-health-pending>

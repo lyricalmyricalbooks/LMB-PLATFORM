@@ -104,7 +104,7 @@ describe("one header & footer: every Studio hook survives the merge", () => {
   });
 });
 
-describe("header and footer colour schemes (Theme settings › Colour schemes)", () => {
+describe("header and footer colour schemes (Style › Colour schemes)", () => {
   const noir = { id: "noir", name: "Noir", v: 2, background: "#000000", surface: "#111111", text: "#ffffff", muted: "#999999", accent: "#ff0000", onAccent: "#000000", border: "#333333", buttonBg: "#ffffff", buttonText: "#000000", link: "#ffffff" };
   const headerOf = (html: string) => html.slice(html.indexOf("<header"), html.indexOf(">", html.indexOf("<header")) + 1);
   it("paints the header and footer from the scheme instead of their own colours while one is picked", () => {

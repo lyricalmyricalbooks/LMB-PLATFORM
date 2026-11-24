@@ -1,4 +1,4 @@
-// Studio control audit: does each Theme settings control actually change the preview?
+// Studio control audit: does each Style control actually change the preview?
 // Opens the Studio fixture with the published design (`?live=1`), then for every STYLE_GROUPS
 // control (and every per-section Style/Layout field on the home page's sections) sends the
 // preview the same snapshot Studio would send after the change and compares what the shopper
@@ -233,7 +233,7 @@ const REGION_SAMPLE = /(?:Padding|Background|Color|Size|LineHeight|LetterSpacing
 const todo = fields.filter(f => (!only.length || only.includes(f.group))
   && (!f.key.startsWith("regions.") || (process.env.AUDIT_REGIONS && !/Mobile|Tablet/.test(f.key) && REGION_SAMPLE.test(f.key))))
   .filter((_, i) => inShard(i));
-console.log(`Auditing ${todo.length} Theme settings controls and ${sectionFields.length} section fields`);
+console.log(`Auditing ${todo.length} Style controls and ${sectionFields.length} section fields`);
 const t0 = Date.now();
 for (const [i, f] of todo.entries()) {
   const where = pageFor(f);

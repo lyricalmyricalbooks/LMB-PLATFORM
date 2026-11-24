@@ -21,7 +21,7 @@ const sectionKeys = SECTION_TYPES.flatMap(type => sectionStyleFields([]).filter(
   .map(f => `section:${type}:${f.key}@${deviceOf(f.key)}`));
 
 describe("Studio control baseline", () => {
-  it("lists every Theme settings control", () => {
+  it("lists every Style control", () => {
     expect(themeKeys.filter(k => !(k in baseline))).toEqual([]);
   });
 

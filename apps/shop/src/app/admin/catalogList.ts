@@ -170,7 +170,9 @@ export function duplicateBookData(data: any, nowISO = new Date().toISOString()):
   delete copy._lastDoc;
   for (const key of ["isbn", "isbn13", "sku", "barcode", "slug", "digitalFileUrl", "digitalFilePath", "digitalFileName"]) copy[key] = "";
   copy.digitalFiles = [];
-  copy.title = `${data?.title || "Untitled"} (Copy)`;
+  // Adding products round 3, Make a copy: everything but the photos and stock, so the copy is a new product to finish.
+  copy.photos = [];
+  copy.title = `${data?.title || "Untitled"} (copy)`;
   copy.stockLevel = 0;
   copy.isFeatured = false;
   copy.featured = false;

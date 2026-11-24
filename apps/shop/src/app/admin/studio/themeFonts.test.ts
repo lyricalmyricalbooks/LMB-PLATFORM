@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FONT_CHOICES } from "../../features/site/fonts";
 import { THEME_LIBRARY } from "./themeLibrary";
 
-// A look's font that the pickers don't list showed as "Default (not set)" in Essentials and Theme settings after Use
+// A look's font that the pickers don't list showed as "Default (not set)" in Essentials and Style after Use
 // this look (Marquee's Big Shoulders Display, 13 November 2026), and was loaded in two weights only, so its heavy
 // titles were drawn fake-bold. Every look's heading and body fonts must be picker fonts, in a weight Google serves.
 const fonts = new Map(FONT_CHOICES.map(f => [f.name, f.weights]));

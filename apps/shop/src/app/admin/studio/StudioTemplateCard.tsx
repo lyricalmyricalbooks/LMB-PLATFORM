@@ -1,4 +1,4 @@
-// Page layout › Book page / Collection page template (Studio 2.8): which layout is being edited (the default or an
+// Page › Book page / Collection page template (Studio 2.8): which layout is being edited (the default or an
 // alternate), who uses it, and Create / Rename / Delete. Alternates: features/site/templateAlternates.ts.
 import { useShopWords } from "../shopWords";
 import { Copy, Pencil, Trash2 } from "lucide-react";
@@ -37,7 +37,7 @@ export function StudioTemplateCard(p: Props) {
   const noun = base === "productPage" ? w("book") : "category";
   const assignHint = base === "productPage"
     ? w("Choose a book's template in Books › edit › Categories & tags › Book page template.")
-    : "Choose a category's template in Navigation › Shop categories › Edit › Collection page template.";
+    : "Choose a category's template in Menus › Shop categories › Edit › Collection page template.";
 
   return (
     <div className="studio-template-card" data-studio-panel="template">

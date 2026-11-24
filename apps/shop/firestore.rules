@@ -83,7 +83,7 @@ service cloud.firestore {
       match /platform/{docId} {
         // platform/approvals (product types plan, 18 November 2026; src/shared/typeApproval.ts): the control room's
         // answers on product types that need a check (alcohol, supplements, CBD). Admin-only, written by no browser.
-        allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages' || docId == 'features' || docId == 'approvals') && isAdmin());
+        allow read: if docId == 'status' || ((docId == 'plan' || docId == 'messages' || docId == 'features' || docId == 'approvals' || docId == 'starters') && isAdmin());
         allow write: if false;
       }
 

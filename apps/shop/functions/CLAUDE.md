@@ -61,6 +61,11 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
 ### Deploy
 - Rules, indexes and Functions deploy with or before the frontend; platform services (payments, email) before shops that need them. Local tests never prove live payments, webhooks, email or carrier purchases.
 
+### Bookings add-ons (keep in touch, loyalty, texts, calendars, hooks)
+- Marketing mail and promo texts skip opted-out clients and carry an unsubscribe/STOP path; loyalty reward emails are owed mail and still go. Each send is claimed first in a transaction (`clientMail/<sha256(email)>`, `promoTexts/{id}`) so a sweep never sends twice.
+- Outgoing booking hooks: https on port 443 only, the name is resolved and private/loopback/link-local addresses refused, redirects never followed, 10 s timeout, signed `x-booking-signature`; payloads never carry keys, card details or history (`bookingHooks.js`).
+- Other-calendar links are server only (`bookingCalendars/main`) and never returned to the page; only allow-listed hosts (`cleanFeedUrl`), redirects re-checked by hand, 3 MB cap.
+
 ## Feature notes
 
 Details of each feature live in [`docs/agent-notes/functions.md`](../docs/agent-notes/functions.md) (read the section before changing that feature; Grep its heading). Sections:

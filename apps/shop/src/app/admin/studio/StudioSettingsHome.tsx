@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, ChevronDown, ChevronRight, Eye, X } from "lucide-react";
 import type { ShopMapBlock } from "./settingsMap";
 
-// Presentation-only pieces for Studio's friendlier Theme settings / Text & labels homes.
+// Presentation-only pieces for Studio's friendlier Style / Text & labels homes.
 // They never edit the design themselves; StudioEditor passes the existing editors in as children.
 
 export type HomeCategory = { id: string; title: string; blurb: string; changed?: number; onPage?: boolean };
@@ -47,7 +47,7 @@ export function ShopMap({ blocks }: { blocks: ShopMapBlock[] }) {
 /** Category cards under task headings. Advanced headings stay folded until asked for. */
 export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, changedNoun = "setting", onShowOnPage, map }: {
   headings: HomeHeading[]; onOpen: (id: string) => void;
-  /** The shop drawing shown above the headings (Theme settings only). */
+  /** The shop drawing shown above the headings (Style only). */
   map?: ShopMapBlock[];
   changedTotal?: number; onOpenChanged?: () => void; changedNoun?: string;
   /** "Show on page": open the page where this category's part appears and select it. */
@@ -155,9 +155,9 @@ export function StudioTips({ forceOpen = 0 }: { forceOpen?: number }) {
       <strong>How Studio works</strong>
       <ol>
         <li><b>Click anything in the preview</b> to open its settings. Double-click text to type over it.</li>
-        <li><b>Theme settings</b> change the look of every page; <b>Page layout</b> adds and arranges sections.</li>
+        <li><b>Style</b> changes the look of every page; <b>Page</b> adds and arranges sections.</li>
         <li><b>Save draft</b> keeps your work private. <b>Publish</b> puts it live. <b>Find</b>, at the top, searches every setting.</li>
-        <li>Not sure where to start? <b>Essentials</b>, the first workspace, has the first things to set; <b>Theme actions › Open the Workbench › Setup</b> has a checklist.</li>
+        <li>Not sure where to start? <b>Style › Basics</b> has the first things to set; <b>Theme actions › Open the Workbench › Setup</b> has a checklist.</li>
       </ol>
       <button type="button" className="studio-reset" onClick={dismiss}>Got it, hide these tips</button>
     </aside>
@@ -167,7 +167,7 @@ export function StudioTips({ forceOpen = 0 }: { forceOpen?: number }) {
 const HINT_KEY = "studio-click-hint-dismissed";
 const readHintHidden = () => { try { return window.localStorage.getItem(HINT_KEY) === "1"; } catch { return false; } };
 
-/** One line at the top of Page layout: the preview itself is the quickest way to find a setting. */
+/** One line at the top of Page: the preview itself is the quickest way to find a setting. */
 export function PreviewClickHint() {
   const [hidden, setHidden] = useState(readHintHidden);
   if (hidden) return null;

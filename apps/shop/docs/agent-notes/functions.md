@@ -484,7 +484,6 @@ label purchases and recent failed/bounced/complained email attempts, with links 
 Provider acceptance is distinct from inbox delivery. Local tests and builds do not verify deployment or live
 Stripe/PayPal payments, wallet eligibility, webhook delivery, email, refunds or carrier purchases.
 
-
 ## Cart estimates, returns and catalog review (7 October 2026)
 
 The cart offers country/postal-code shipping previews from current server catalog prices,
@@ -1086,7 +1085,6 @@ with the claim `support: { by, reason, until }` (`until` in seconds, at most an 
   then on even if a tab stays open.
 - **Tests:** `scripts/firestore-rules-emulator.mjs` covers support, an expired visit and a Google pass claiming support.
 
-
 ## Swap for another size (plan 10.22)
 
 - `manageReturn` with `action: "exchange"` and `swaps: [{ index, toVariantId, quantity }]` swaps an inspected return for another version of the same product. The rules are in `exchanges.js` (`planExchange`, pure): the order is paid with no refund request, the return is inspected, one swap per line, up to the copies that came back, the new version has the same price and enough stock, never a box set. The resellable copies go back and the new version comes off in one write per product (stock is never written twice from one snapshot).
@@ -1570,7 +1568,6 @@ reminder and second-reminder emails, `textReminder` sends the short text (servic
 platform bills the texts at cost (LMB-PLATFORM `services/texts`). Tests: bookings.test.js › text-message reminders,
 textSender.test.js.
 
-
 ## Events and tickets (beta, 17 November 2026)
 
 `functions/events.js` (`eventActions`, plan `tasks/todo/2026-11-17-events-tickets-e1.md`). On only while both switches
@@ -1723,7 +1720,6 @@ gives it to an email with no held or confirmed booking, at `bookingStart` and `b
 the booking keeps `intro: true` with `listPriceMinor` the usual price. Not with a pack. The claim is `bookingIntros/<sha256 of email>`
 (`claimIntro`; a failed booking gives it back with `releaseIntro`); privacy export lists it and erase deletes it.
 
-
 **Repeat-booking fixes (17 November 2026, review of #889):** `zonedTime` (shared `bookingTimes.ts`) puts a wall time the
 clocks skip in spring after the jump (2:30 is 3:30), so `runStarts`, classes and free times never land an hour early; a
 time that happens twice in autumn is the first one. `cancelLater` passes `still: untouched` to `freeTime`, which checks
@@ -1861,4 +1857,57 @@ on bookings they take (same `takes` check); the front desk gets `visitNote`. Op 
 day, photos kept), so a second save changes it and an empty note deletes it unless it has photos; it adds a history
 line. Op `desk` adds `visitNote` and `lastVisit` {day, note} (latest note from an earlier day) to each booking
 (`deskNotes`: one equality query per client, at most 40 clients, no index).
+
+**Keep in touch (Beta, 24 November 2026, plan 4 step 5.4).** Settings `welcomeEmail`, `birthdayEmail`, `missYouWeeks`
+(`MISS_YOU_WEEKS`, 0 = off; Bookings › Hours & rules › Keep in touch). `bookingSweep` calls `sweepKeepInTouch` (at most 50 of
+each): **welcome** for a visit that ended `WELCOME_AFTER_HOURS` to `KEEP_IN_TOUCH_WINDOW_DAYS` ago when the client has no earlier
+visit that happened (`visitHappened`); **birthday** from 9:00 shop time, `customer.birthday == md` for each `birthdaysOn(today)`
+(Feb 29 birthdays on Feb 28 outside leap years), once a year; **we miss you** for a visit that ended N weeks ago (7-day window)
+with nothing booked since and no `rebookSentAt`. The birthday ("MM-DD", `cleanBirthday`, never a year) is kept on the booking
+only while `birthdayEmail` is on, and `bookingInfo.birthday` shows the form's month/day picker then. Each send is claimed first
+in `clientMail/<sha256(email)>` (`welcomeAt`, `birthdayYear`, `missYouFor`) inside a transaction; it is marketing mail, so
+`optedOut` clients are skipped and an unsubscribe line is added. Tests: bookings.test.js › keep in touch emails.
+**Loyalty points (Beta, 24 November 2026, plan 4 step 5.5).** Rules in `shared/loyalty.ts` (`cleanLoyalty`, `visitPoints`,
+`orderPoints`, `rewardsDue`). `bookingSweep` calls `sweepLoyalty`: visits that ended 24 h ago or more (`LOYALTY_VISIT_WAIT_HOURS`,
+so a next-morning no-show never earns; `visitHappened`; a pack visit earns only the per-visit bonus) and orders paid an hour
+ago or more (`paymentStatus` "paid", never test/sandbox/practice, refunds taken off), each at most 200 a sweep. Only what is
+new is read: `loyaltyState/main` keeps `visitsTo` / `ordersTo`, starting `LOYALTY_WINDOW_DAYS` back. `earnPoints` writes, in
+one transaction, `loyalty/<sha256(email)>` (`points`, `earned`, `spent`, `rewards`) and an entry under `entries/` keyed
+`visit_<id>` / `order_<id>` / `adjust_<random>` (a key already there earns nothing), and for each reward due (at most 3) a
+`discounts/{id}` code `THANKS-XXXXXX` (fixed money off, `usageLimit` 1, `onePerCustomer`, `allowedCustomerEmails` the
+client, `forBookings`, `expiryDate` `rewardDays` on, `loyaltyReward: true`) with a `reward_<discountId>` entry; the reward
+email (`tellReward`, kind `loyaltyReward`) follows. Rewards are owed mail, so they go to unsubscribed clients too. Admin ops
+`points` (front desk too) and `pointsAdjust` (owner, `cleanAdjust`); `bookingView` adds `points` while on. No rule change:
+only the server reads these records. Tests: bookings.test.js › loyalty points; `shared/loyalty.test.ts`.
+**Promo texts (Beta, 24 November 2026, plan 4 step 5.6).** Rules in `shared/promoTexts.ts`. `cleanCustomer` reads
+`promoOk` (needs a phone); `bookingStart` keeps it only while `settings.promoTexts`; `bookingInfo` says `promoTexts: true`
+when that switch is on and texts are open. `promoAudience` reads bookings with `customer.promoOk == true` (≤ 3,000), one per
+phone (`phoneKey`), for all, the last `RECENT_DAYS`, or one service, at most `MAX_PROMO_TEXTS`. `sendPromo` refuses when off,
+closed, outside 9 to 8 on the shop's clock, bad words or nobody, then claims `promoTexts/{id}` in a transaction that refuses
+within `PROMO_GAP_HOURS` of the last one; sends ten at a time (kind `booking-promo`, key `promo-<id>-<phone>`), and a STOP
+answer sets `promoOk` and `textOk` false on all that person's bookings. Ops `promoAudience`, `promoSend` (409 too_soon or
+nobody), `promoHistory` (owner only). `promoTexts` is server-only (no rule). Tests: "promo texts (plan 4, 5.6)".
+
+**Other calendars (Beta, 24 November 2026, plan 4 step 5.7).** Reading in `shared/calendarFeeds.ts`: `cleanFeedUrl` (https
+only, webcal read as https, no user or port, hosts on `feedHostAllowed`'s list: Outlook, iCloud, Google, Proton, Fastmail,
+Yahoo, Zoho) and `busyFromIcs` (TZID with Windows names, all-day on the shop's days, transparent, cancelled and Outlook
+"free" skipped, RRULE daily/weekly/monthly/yearly with INTERVAL, COUNT, UNTIL, EXDATE and moved repeats, overlaps joined,
+at most `MAX_FEED_SPANS`). `readFeed` follows up to 3 redirects by hand, checking each host again, with a 10 s timeout and
+a 3 MB cap (`fetchFeed` dependency for tests). The links and busy spans live in `bookingCalendars/main` (server only;
+`feedsView` never returns a link). `sweepOtherCalendars` runs in `bookingSweep` every 15 minutes (`force` from op
+`otherCalendars`): a calendar that fails keeps its last busy times; its items are `{ start, end, g: true, p? }` under
+`ical~<feedId>~n` in `bookingDays`, so `busyFrom` treats them as away (they block, but never count to the daily cap); a
+person who stops taking bookings is left out. Days whose items changed are rewritten in transactions that keep the rest.
+
+**Send bookings to other apps (Beta, 24 November 2026, plan 4 step 5.8).** `bookingHooks.js`. Trigger `bookingHooksOut`
+(`bookings/{bookingId}` written) asks `hookEvent(before, after)`: into confirmed is `booking.created`, out of it (or
+deleted) `booking.cancelled`, a new start, end or person `booking.moved`; anything else sends nothing. `hookBody` keeps the
+useful facts (times, service, person, place, customer, price, paid, note, answers; `was` for a move), never keys, card or
+history. Each hook (`bookingHooks/main`, server only, at most `MAX_HOOKS`) is posted to with header `x-booking-signature`
+`t=<seconds>,v1=<HMAC-SHA256 of "t.body">` from its `whsec_` secret. Only https names on port 443 (`hookUrlProblem`); the
+name is looked up first and any private, loopback or link-local address refused (`privateAddress`), redirects never
+followed, 10 s timeout. A failure goes to `bookingHookQueue/{id}`; `bookingSweep` calls `sweepBookingHooks` and tries
+again after `RETRY_MINUTES` (5, 30, 120, 360, 1080), then drops it. `PAUSE_AFTER` failures in a row switch the hook off
+(`paused`). Owner op `bookingHooks` (not in `DESK_OPS`): list, add, switch, test (a `booking.test` sample), remove (its
+waiting deliveries go too). Tests in `bookingHooks.test.js`.
 

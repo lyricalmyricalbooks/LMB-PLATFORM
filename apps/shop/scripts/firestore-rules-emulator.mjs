@@ -643,6 +643,19 @@ await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clien
   await check("another shop's owner can't read this shop's bookings", assertFails(getDoc(doc(ownerThereInS1, "bookings/b1"))));
 }
 
+// Starter websites (control-room/starterSites.js): platform/starters is admin-read and platform-written, per shop.
+{
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(folder(ctx.firestore()), "platform/starters"), { order: ["aurel-editorial"], hidden: [], fresh: [], known: ["aurel-editorial"] }));
+  const owner = signedIn("o1", { email: "owner@example.com", email_verified: true });
+  const reader = signedIn("u1", { email: "reader@example.com", email_verified: true });
+  const ownerThereInS1 = signedIn("o9", { email: "owner2@example.com", email_verified: true }, { tenant: "tenant-s2" });
+  await check("owner reads platform/starters", assertSucceeds(getDoc(doc(owner, "platform/starters"))));
+  await check("anon can't read platform/starters", assertFails(getDoc(doc(anon, "platform/starters"))));
+  await check("a customer can't read platform/starters", assertFails(getDoc(doc(reader, "platform/starters"))));
+  await check("another shop's owner can't read this shop's platform/starters", assertFails(getDoc(doc(ownerThereInS1, "platform/starters"))));
+  await check("owner can't change which starters show", assertFails(setDoc(doc(owner, "platform/starters"), { hidden: [] })));
+}
+
 // Product types that need a check (src/shared/typeApproval.ts): a wine stays a draft until platform/approvals says yes
 // for wine in this shop; another shop's yes never counts here. The owner may ask (approvalRequests) but never answer.
 {

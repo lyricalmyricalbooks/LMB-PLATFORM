@@ -40,7 +40,7 @@ export function fieldPageOverride(design: any, surface: string, key: string): { 
 }
 
 /**
- * Theme settings › "This page differs from all pages": the values this page sets for itself,
+ * Style › "This page differs from all pages": the values this page sets for itself,
  * which win over the all-pages value Studio shows elsewhere. Each can go back to the all-pages
  * value or become the new all-pages value.
  */

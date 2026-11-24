@@ -238,6 +238,40 @@
 .rp .bkg-waitlist .rp-badge { justify-self: start; margin-top: 4px; }
 @media (pointer: coarse) { .rp .bkg-waiting { min-height: var(--rp-touch); } }
 
+/* Coming up (plan 4, 5.1): the next 30, 60 or 90 days above the past figures. */
+.rp .bkg-figs-stack { display: grid; gap: 12px; }
+.rp .bkg-ahead { display: grid; gap: 16px; }
+.rp .bkg-ahead-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.rp .bkg-ahead-head .bkg-figs-title { display: flex; align-items: center; gap: 8px; }
+.rp .bkg-ahead-head .bkg-figs-lead { margin: 0; color: var(--rp-text-muted); }
+.rp .bkg-ahead-nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.rp .bkg-ahead-num { display: grid; gap: 4px; align-content: start; padding: 14px 16px; border-radius: 16px; background: var(--rp-surface-sunken, var(--rp-bg)); min-width: 0; }
+.rp .bkg-ahead-num span { font: 500 12px/1.3 var(--rp-font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--rp-text-muted); }
+.rp .bkg-ahead-num strong { font: 600 clamp(20px, 2.4vw, 28px)/1.1 var(--rp-font-body); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rp .bkg-ahead-num small { font-size: 13px; color: var(--rp-text-muted); }
+.rp .bkg-ahead-lead { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .bkg-ahead-lead span, .rp .bkg-ahead-lead small { color: var(--rp-on-tile); }
+.rp .bkg-ahead-busiest { margin: 0; font-size: 14px; }
+.rp .bkg-ahead-weeks { margin-top: 0; }
+.rp .bkg-ahead-weeks .bkg-months-bar { height: 96px; }
+.rp .bkg-ahead-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .rp .bkg-ahead-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp .bkg-ahead-weeks { gap: 3px; }
+  .rp .bkg-ahead-weeks .bkg-months-name { font-size: 9px; letter-spacing: 0; }
+  .rp .bkg-ahead-weeks strong { font-size: 13px; }
+}
+/* How your team did (plan 4, 5.2): the same head and numbers as Coming up, then a table. */
+.rp .bkg-perf { display: grid; gap: 16px; }
+/* No-shows (plan 4, 5.3): the who-missed table beside the weekday bars. */
+.rp .bkg-noshow-lead { background: var(--rp-tile-apricot); color: var(--rp-on-tile); }
+.rp .bkg-noshow-lead span, .rp .bkg-noshow-lead small { color: var(--rp-on-tile); }
+.rp .bkg-noshow-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); gap: 20px; align-items: start; }
+.rp .bkg-noshow-sub { margin: 0; font: 600 15px/1.3 var(--rp-font-body); }
+.rp .bkg-noshow-days .bkg-bars { margin-top: 10px; }
+.rp .bkg-noshow-who { display: grid; gap: 2px; min-width: 0; }
+.rp .bkg-noshow-who small { color: var(--rp-text-muted); font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .rp .bkg-noshow-body { grid-template-columns: minmax(0, 1fr); } }
 /* Figures: four number tiles, the months as columns, weekdays and services as bars */
 .rp .bkg-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .rp .bkg-figs-months { grid-column: span 4; }
@@ -813,3 +847,43 @@
 /* A figure with its rule under it, wrapping inside the cell (plan 4, 4.4: steps make the rule long). */
 .rp .bkg-pay-cell { display: inline-grid; justify-items: end; gap: 2px; min-width: 0; max-width: 100%; }
 .rp .bkg-pay-cell .bkg-pay-pct { white-space: normal; text-align: right; overflow-wrap: break-word; }
+
+/* Loyalty points (plan 4, 5.5) */
+.rp .bkg-loyalty-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; margin-bottom: 16px; }
+.rp .bkg-loyalty-summary { margin: 4px 0 20px; padding: 12px 16px; border-radius: 14px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font: 500 14px/1.5 var(--rp-font-body); }
+.rp .bkg-loyalty-sub { margin: 8px 0 6px; font: 600 15px/1.3 var(--rp-font-body); color: var(--rp-text); }
+.rp .bkg-loyalty-weeks { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; }
+.rp .bkg-loyalty-week { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 12px; align-items: end; padding: 12px; border-radius: 14px; background: var(--rp-surface-2); }
+.rp .bkg-loyalty-week > :last-child { justify-self: end; }
+
+/* Promo texts (plan 4, 5.6) */
+.rp .bkg-promo-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; border-top: 1px solid var(--rp-border); }
+.rp .bkg-promo-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--rp-border); font-size: 14px; }
+.rp .bkg-promo-row:last-child { border-bottom: 0; }
+.rp .bkg-promo-text { min-width: 0; overflow-wrap: anywhere; }
+.rp .bkg-promo-text small, .rp .bkg-promo-sent small { display: block; margin-top: 2px; font-size: 12px; color: var(--rp-text-muted); }
+.rp .bkg-promo-sent { text-align: right; white-space: nowrap; font: 600 14px/1.2 var(--rp-font-mono); font-variant-numeric: tabular-nums; }
+.rp .bkg-promo-preview { padding: 12px 14px; border-radius: 14px; background: var(--rp-surface-2); }
+.rp .bkg-promo-preview-label { margin: 0 0 6px; font: 500 12px/1.3 var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp .bkg-promo-bubble { margin: 0; max-width: 34ch; padding: 10px 14px; border-radius: 18px 18px 18px 4px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font: 400 14px/1.45 var(--rp-font-body); overflow-wrap: anywhere; }
+/* Other calendars (plan 4, 5.7) */
+.rp .bkg-ocal-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; border-top: 1px solid var(--rp-border); }
+.rp .bkg-ocal-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--rp-border); font-size: 14px; }
+.rp .bkg-ocal-row:last-child { border-bottom: 0; }
+.rp .bkg-ocal-name { min-width: 0; overflow-wrap: anywhere; }
+.rp .bkg-ocal-name small { display: block; margin-top: 2px; font-size: 12px; color: var(--rp-text-muted); }
+.rp .bkg-ocal-name .bkg-ocal-problem { color: var(--rp-danger); font-weight: 600; }
+.rp .bkg-ocal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.rp .bkg-ocal-how { padding: 10px 14px; border-radius: 14px; background: var(--rp-surface-2); font-size: 14px; }
+.rp .bkg-ocal-how summary { cursor: pointer; font-weight: 600; }
+.rp .bkg-ocal-how dl { margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.rp .bkg-ocal-how dt { font: 500 12px/1.3 var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp .bkg-ocal-how dd { margin: 2px 0 0; line-height: 1.45; }
+/* Send bookings to other apps (plan 4, 5.8) */
+.rp .bkg-hook-row { display: grid; gap: 8px; padding: 12px 2px; border-bottom: 1px solid var(--rp-border); font-size: 14px; }
+.rp .bkg-hook-row:last-child { border-bottom: 0; }
+.rp .bkg-hook-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rp .bkg-hook-url { display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; font-family: var(--rp-font-mono); font-weight: 500; }
+.rp .bkg-hook-actions { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-left: -8px; }
+.rp .bkg-hook-events { display: grid; gap: 10px; }
+.rp .bkg-hook-events-label { margin: 0; font-weight: 600; font-size: 14px; }

@@ -5,6 +5,10 @@
 import { serviceFromText } from "./bookFromMessage";
 import { BookingMessagesTile } from "./BookingMessagesTile";
 import { AwayReplyTile } from "./AwayReplyTile";
+import { LoyaltyTile } from "./LoyaltyTile";
+import { PromoTextsTile } from "./PromoTextsTile";
+import { OtherCalendarsTile } from "./OtherCalendarsTile";
+import { BookingHooksTile } from "./BookingHooksTile";
 import { PastVisitsDialog } from "./PastVisitsDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, CalendarOff, CheckCircle2, CircleHelp, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
@@ -19,8 +23,8 @@ import { ShiftsPanel } from "./ShiftsPanel";
 import { RotaPanel } from "./RotaPanel";
 import type { ShiftRow } from "./shifts";
 import { hoursText } from "../../shared/timeClock";
-import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
+import { answerWithin, requestsWaiting, noShowReport, noShowRows, type NoShowClient, teamPerformance, performanceRows, spanDays, PERFORMANCE_SPANS, SPAN_NAMES, type PerformanceSpan, type PerformanceLine, futureFigures, futureList, futureRows, FUTURE_WINDOWS, type FutureDays, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState, MISS_YOU_WEEKS } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -204,7 +208,7 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
         <TeamPanel settings={setup.settings} services={setup.services} onSaved={reloadSetup} />
       </TabPanel>
       <TabPanel tabId="figures" active={tab === "figures"}>
-        {tab === "figures" && <FiguresPanel />}
+        {tab === "figures" && <FiguresPanel staff={setup.settings.staff} />}
       </TabPanel>
       {setup.settings.staff.length > 0 && (
         <TabPanel tabId="rota" active={tab === "rota"}>
@@ -217,7 +221,7 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
         </TabPanel>
       )}
       <TabPanel tabId="hours" active={tab === "hours"}>
-        <HoursPanel settings={setup.settings} services={setup.services} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
+        <HoursPanel settings={setup.settings} services={setup.services} shopName={shopName} saved={setup.saved} onSaved={reloadSetup} active={tab === "hours"} />
       </TabPanel>
 
       {open && <BookingDrawer booking={open} services={setup.services} settings={setup.settings} onClose={() => setOpen(null)} />}
@@ -1008,7 +1012,216 @@ function ClosePackDialog({ pack: p, onClose, onClosed }: { pack: PackRow; onClos
 const FIGURE_MONTHS = 6;
 
 /** The last six months at a glance: bookings and money month by month, the busiest days, the most booked services. */
-function FiguresPanel() {
+/** Figures: what is coming up (plan 4, 5.1) above the last six months. */
+function FiguresPanel({ staff }: { staff: StaffMember[] }) {
+  return <div className="bkg-figs-stack"><ComingUp />{staff.some((p) => p.active) && <TeamPerformancePanel staff={staff} />}<NoShowsPanel /><PastFigures /></div>;
+}
+
+/**
+ * No-shows (plan 4, 5.3, Beta): for this month, last month or the last three months, how many booked visits nobody came
+ * to, what they cost and what was kept, the weekdays they fall on, and who misses (repeat clients first).
+ */
+function NoShowsPanel() {
+  const [span, setSpan] = useState<PerformanceSpan>("quarter");
+  const [rows, setRows] = useState<Booking[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [now] = useState(() => Date.now());
+  const day = today();
+  const widest = spanDays("quarter", day);
+  useEffect(() => {
+    let stale = false;
+    setRows(null); setError("");
+    readBookingsBetween(new Date(Date.parse(`${widest.from}T00:00:00Z`) - 86_400_000).toISOString(), new Date(now + 86_400_000).toISOString())
+      .then((r) => { if (!stale) setRows(r); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load your no-shows."); });
+    return () => { stale = true; };
+  }, [attempt, now, widest.from]);
+  const { from, to } = spanDays(span, day);
+  const report = useMemo(() => (rows ? noShowReport(rows, ZONE, from, to, now) : null), [rows, from, to, now]);
+  const money = (minor: number) => moneyText(minor, SHOP_CURRENCY);
+  const topDay = Math.max(1, ...(report?.weekdays.map((w) => w.count) || [1]));
+  const columns = [
+    { key: "name", header: "Client", lead: true, render: (c: NoShowClient) => <span className="bkg-noshow-who"><strong>{c.name || c.email}</strong>{c.email && c.name ? <small>{c.email}</small> : null}</span> },
+    { key: "count", header: "No-shows", numeric: true, render: (c: NoShowClient) => (c.count >= 2 ? <StatusBadge tone="danger" glyph={false}>{c.count}</StatusBadge> : c.count) },
+    { key: "last", header: "Last one", render: (c: NoShowClient) => dayText(c.lastDay, "long") },
+    { key: "kept", header: "Kept", numeric: true, render: (c: NoShowClient) => (c.keptMinor ? money(c.keptMinor) : "—") },
+  ];
+  return (
+    <section className="bkg-tile bkg-perf" aria-labelledby="bkg-noshows">
+      <div className="bkg-ahead-head">
+        <div>
+          <h2 id="bkg-noshows" className="bkg-figs-title">No-shows <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+          <p className="bkg-figs-lead">Booked visits nobody came to, what they cost you and who misses most.</p>
+        </div>
+        <Tabs<PerformanceSpan> label="Which stretch" idPrefix="bkg-noshows-" value={span} onChange={setSpan} tabs={PERFORMANCE_SPANS.map((id) => ({ id, label: SPAN_NAMES[id] }))} />
+      </div>
+      {error ? <ErrorState title="Couldn't load your no-shows" description={error} onRetry={() => setAttempt((n) => n + 1)} />
+        : !report ? <LoadingState label="Counting no-shows…" />
+        : !report.count ? <EmptyState inline title={report.due ? "No no-shows. Lovely." : "No visits to count yet"} description={report.due ? `All ${report.due} booked ${report.due === 1 ? "visit" : "visits"} in this stretch happened.` : "Once clients come in, anyone who misses a booking shows here."} />
+        : (<>
+          <div className="bkg-ahead-nums">
+            <div className="bkg-ahead-num bkg-noshow-lead"><span>No-shows</span><strong>{report.count}</strong><small>{report.percent}% of {report.due} booked {report.due === 1 ? "visit" : "visits"}</small></div>
+            <div className="bkg-ahead-num"><span>Not paid for</span><strong>{money(report.lostMinor)}</strong><small>the price of missed visits</small></div>
+            <div className="bkg-ahead-num"><span>Kept anyway</span><strong>{money(report.keptMinor)}</strong><small>deposits, payments, fees</small></div>
+            <div className="bkg-ahead-num"><span>Repeat clients</span><strong>{report.repeat}</strong><small>missed two or more</small></div>
+          </div>
+          <div className="bkg-noshow-body">
+            <DataTable caption={`Who missed: ${SPAN_NAMES[span].toLowerCase()}`} columns={columns} rows={report.clients.slice(0, 50)} rowKey={(c) => `${c.email}|${c.name}`} stackOnPhone />
+            <div className="bkg-noshow-days">
+              <h3 className="bkg-noshow-sub">Which days</h3>
+              <ul className="bkg-bars">
+                {report.weekdays.map((w) => (
+                  <li key={w.day}><span>{w.day.slice(0, 3)}</span><span className="bkg-bars-track" aria-hidden>{w.count > 0 && <i style={{ width: `${Math.round((w.count / topDay) * 100)}%` }} />}</span><strong>{w.count}</strong></li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="bkg-ahead-foot">
+            <span className="rp-hint">To cut no-shows, ask for a deposit or a card on file in a service, and keep reminders on.</span>
+            <SecondaryButton size="sm" icon={<FileSpreadsheet size={15} aria-hidden />} onClick={() => saveFile(`no-shows-${span}-${day}.csv`, `\uFEFF${toCsv(noShowRows(report))}`, "text/csv;charset=utf-8")}>Spreadsheet</SecondaryButton>
+          </div>
+        </>)}
+    </section>
+  );
+}
+
+/**
+ * Team performance (plan 4, 5.2, Beta): for this month, last month or the last three months, each person's visits, what
+ * they took, the average visit, hours booked, clients, how many visits were followed by another booking, and no-shows.
+ */
+function TeamPerformancePanel({ staff }: { staff: StaffMember[] }) {
+  const [span, setSpan] = useState<PerformanceSpan>("month");
+  const [rows, setRows] = useState<Booking[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [now] = useState(() => Date.now());
+  const day = today();
+  // The last three months back, and six months ahead so a visit's later booking counts as rebooked.
+  const widest = spanDays("quarter", day);
+  useEffect(() => {
+    let stale = false;
+    setRows(null); setError("");
+    readBookingsBetween(new Date(Date.parse(`${widest.from}T00:00:00Z`) - 86_400_000).toISOString(), new Date(now + 184 * 86_400_000).toISOString())
+      .then((r) => { if (!stale) setRows(r); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load your team's figures."); });
+    return () => { stale = true; };
+  }, [attempt, now, widest.from]);
+  const { from, to } = spanDays(span, day);
+  const perf = useMemo(() => (rows ? teamPerformance(rows, staff, ZONE, from, to, now) : null), [rows, staff, from, to, now]);
+  const money = (minor: number) => moneyText(minor, SHOP_CURRENCY);
+  const pct = (n: number | null) => (n === null ? "—" : `${n}%`);
+  const shown = perf?.people.filter((l) => l.visits || l.noShows) || [];
+  const best = shown.filter((l) => l.id && l.visits >= 3).sort((a, b) => (b.rebookPercent || 0) - (a.rebookPercent || 0))[0];
+  const columns = [
+    { key: "name", header: "Person", lead: true, render: (l: PerformanceLine) => <span className={l.id ? undefined : "bkg-pay-nobody"}>{l.name}</span> },
+    { key: "visits", header: "Visits", numeric: true, render: (l: PerformanceLine) => l.visits },
+    { key: "taken", header: "Taken before tax", numeric: true, render: (l: PerformanceLine) => money(l.takenMinor) },
+    { key: "avg", header: "Per visit", numeric: true, render: (l: PerformanceLine) => (l.visits ? money(l.perVisitMinor) : "—") },
+    { key: "hours", header: "Hours booked", numeric: true, render: (l: PerformanceLine) => hoursText(l.minutes) },
+    { key: "clients", header: "Clients", numeric: true, render: (l: PerformanceLine) => l.clients },
+    { key: "rebooked", header: "Booked again", numeric: true, render: (l: PerformanceLine) => pct(l.rebookPercent) },
+    { key: "noshows", header: "No-shows", numeric: true, render: (l: PerformanceLine) => (l.noShows ? `${l.noShows} · ${pct(l.noShowPercent)}` : "0") },
+  ];
+  return (
+    <section className="bkg-tile bkg-perf" aria-labelledby="bkg-perf">
+      <div className="bkg-ahead-head">
+        <div>
+          <h2 id="bkg-perf" className="bkg-figs-title">How your team did <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+          <p className="bkg-figs-lead">Visits that happened, what each person took, and how many clients booked again.</p>
+        </div>
+        <Tabs<PerformanceSpan> label="Which stretch" idPrefix="bkg-perf-" value={span} onChange={setSpan} tabs={PERFORMANCE_SPANS.map((id) => ({ id, label: SPAN_NAMES[id] }))} />
+      </div>
+      {error ? <ErrorState title="Couldn't load your team's figures" description={error} onRetry={() => setAttempt((n) => n + 1)} />
+        : !perf ? <LoadingState label="Adding up your team's visits…" />
+        : !shown.length ? <EmptyState inline title={`No visits ${span === "month" ? "yet this month" : SPAN_NAMES[span].toLowerCase()}`} description="Once clients come in, each person's visits, takings and rebookings show here." />
+        : (<>
+          <div className="bkg-ahead-nums">
+            <div className="bkg-ahead-num bkg-ahead-lead"><span>Visits</span><strong>{perf.total.visits}</strong><small>{perf.total.clients} {perf.total.clients === 1 ? "client" : "clients"}</small></div>
+            <div className="bkg-ahead-num"><span>Taken</span><strong>{money(perf.total.takenMinor)}</strong><small>{money(perf.total.perVisitMinor)} a visit</small></div>
+            <div className="bkg-ahead-num"><span>Booked again</span><strong>{pct(perf.total.rebookPercent)}</strong><small>{best ? `${best.name} leads at ${pct(best.rebookPercent)}` : "of visits so far"}</small></div>
+            <div className="bkg-ahead-num"><span>No-shows</span><strong>{perf.total.noShows}</strong><small>{perf.total.noShows ? `${pct(perf.total.noShowPercent)} of bookings due` : "none"}</small></div>
+          </div>
+          <DataTable caption={`How your team did: ${SPAN_NAMES[span].toLowerCase()}`} columns={columns} rows={shown} rowKey={(l) => l.id || "nobody"} stackOnPhone />
+          <div className="bkg-ahead-foot">
+            <span className="rp-hint">Booked again counts a visit when that client has another booking after it, with anyone.</span>
+            <SecondaryButton size="sm" icon={<FileSpreadsheet size={15} aria-hidden />} onClick={() => saveFile(`team-${span}-${day}.csv`, `\uFEFF${toCsv(performanceRows({ ...perf, people: shown }))}`, "text/csv;charset=utf-8")}>Spreadsheet</SecondaryButton>
+          </div>
+        </>)}
+    </section>
+  );
+}
+
+/**
+ * Coming up (plan 4, 5.1, Beta): the next 30, 60 or 90 days. Bookings still to come, what they are worth, what is already
+ * paid and what is left to take at the visits, the fullest day, the next 13 weeks, and the list as a spreadsheet.
+ */
+function ComingUp() {
+  const [rows, setRows] = useState<Booking[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [days, setDays] = useState<FutureDays>(30);
+  const [now] = useState(() => Date.now());
+  useEffect(() => {
+    let stale = false;
+    setRows(null); setError("");
+    readBookingsBetween(new Date(now - 86_400_000).toISOString(), new Date(now + 92 * 86_400_000).toISOString())
+      .then((r) => { if (!stale) setRows(r); })
+      .catch((e) => { if (!stale) setError(e?.message || "Couldn't load what's coming up."); });
+    return () => { stale = true; };
+  }, [attempt, now]);
+  const day = today();
+  const figures = useMemo(() => (rows ? futureFigures(rows, ZONE, day, now) : null), [rows, day, now]);
+  const head = (
+    <div className="bkg-ahead-head">
+      <div>
+        <h2 id="bkg-ahead" className="bkg-figs-title">Coming up <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+        <p className="bkg-figs-lead">Bookings still to come and the money they bring in.</p>
+      </div>
+      <Tabs<string> label="How far ahead" idPrefix="bkg-ahead-" value={String(days)} onChange={(v) => setDays(Number(v) as FutureDays)}
+        tabs={FUTURE_WINDOWS.map((d) => ({ id: String(d), label: `${d} days` }))} />
+    </div>
+  );
+  if (error) return <section className="bkg-tile bkg-ahead" aria-labelledby="bkg-ahead">{head}<ErrorState title="Couldn't load what's coming up" description={error} onRetry={() => setAttempt((n) => n + 1)} /></section>;
+  if (!figures) return <section className="bkg-tile bkg-ahead" aria-labelledby="bkg-ahead">{head}<LoadingState label="Looking ahead…" /></section>;
+  const w = figures.windows.find((x) => x.days === days) || figures.windows[0];
+  const weeks = figures.weeks.slice(0, Math.ceil(days / 7) + 1);
+  const topWeek = Math.max(1, ...weeks.map((x) => x.count));
+  const save = () => saveFile(`coming-up-${days}-days-${day}.csv`, `\uFEFF${toCsv(futureRows(futureList(rows || [], ZONE, day, now, days), ZONE))}`, "text/csv;charset=utf-8");
+  return (
+    <section className="bkg-tile bkg-ahead" aria-labelledby="bkg-ahead">
+      {head}
+      {w.count === 0 && w.waiting === 0 ? (
+        <EmptyState inline title={`Nothing booked in the next ${days} days`} description="Share your booking page, or look further ahead." />
+      ) : (<>
+        <div className="bkg-ahead-nums">
+          <div className="bkg-ahead-num bkg-ahead-lead"><span>Booked</span><strong>{w.count}</strong><small>{w.waiting ? `and ${w.waiting} ${w.waiting === 1 ? "request" : "requests"} to answer` : w.count === 1 ? "visit" : "visits"}</small></div>
+          <div className="bkg-ahead-num"><span>Worth</span><strong>{moneyText(w.valueMinor, SHOP_CURRENCY)}</strong><small>before tips</small></div>
+          <div className="bkg-ahead-num"><span>Already paid</span><strong>{moneyText(w.paidMinor, SHOP_CURRENCY)}</strong><small>cards, deposits, gift cards</small></div>
+          <div className="bkg-ahead-num"><span>Still to take</span><strong>{moneyText(w.dueMinor, SHOP_CURRENCY)}</strong><small>at the visits</small></div>
+        </div>
+        {w.busiest && <p className="bkg-ahead-busiest">Fullest day: <strong>{dayText(w.busiest.day, "long")}</strong>, {w.busiest.count} {w.busiest.count === 1 ? "booking" : "bookings"}.</p>}
+        <ol className="bkg-months bkg-ahead-weeks" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
+          {weeks.map((x) => (
+            <li key={x.monday} aria-label={`Week of ${dayText(x.monday, "long")}: ${x.count} ${x.count === 1 ? "booking" : "bookings"}, ${moneyText(x.valueMinor, SHOP_CURRENCY)}`}>
+              <strong aria-hidden>{x.count}</strong>
+              <span className="bkg-months-bar" aria-hidden>{x.count > 0 && <i style={{ height: `${Math.round((x.count / topWeek) * 100)}%` }} />}</span>
+              <span className="bkg-months-name" aria-hidden>{weekLabel(x.monday)}</span>
+            </li>
+          ))}
+        </ol>
+        <div className="bkg-ahead-foot">
+          <span className="rp-hint">Weeks start on Monday. A request counts once you accept it.</span>
+          <SecondaryButton size="sm" icon={<FileSpreadsheet size={15} aria-hidden />} onClick={save}>Spreadsheet</SecondaryButton>
+        </div>
+      </>)}
+    </section>
+  );
+}
+/** "Nov 30" for a week's column. */
+const weekLabel = (monday: string) => new Date(`${monday}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: "UTC", month: "short", day: "numeric" });
+
+function PastFigures() {
   const [figures, setFigures] = useState<BookingFigures | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -1769,6 +1982,27 @@ function ThanksTile({ form, onChange }: { form: BookingSettings; onChange: (patc
             value={text} onChange={(e) => setText(e.target.value)} error={problem || undefined}
             onBlur={() => { if (!problem) onChange({ reviewUrl: reviewLink(text) }); }} />
         )}
+      </div>
+    </section>
+  );
+}
+
+/** Keep in touch (plan 4, 5.4, Beta): welcome, birthday and "we miss you" emails, each its own switch. */
+function KeepInTouchTile({ form, onChange }: { form: BookingSettings; onChange: (patch: Partial<BookingSettings>) => void }) {
+  const weeks = form.missYouWeeks || 0;
+  return (
+    <section className="bkg-tile" data-keep-tile>
+      <h2 className="bkg-tile-title">Keep in touch <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></h2>
+      <div className="bkg-form">
+        <Toggle label="Welcome new clients" checked={form.welcomeEmail === true} onChange={(v) => onChange({ welcomeEmail: v })} />
+        <p className="bkg-cal-text">{form.welcomeEmail ? "The day after a client's first visit, they get a short welcome with a button to book again." : "First-time clients get no welcome email."}</p>
+        <Toggle label="Wish clients a happy birthday" checked={form.birthdayEmail === true} onChange={(v) => onChange({ birthdayEmail: v })} />
+        <p className="bkg-cal-text">{form.birthdayEmail ? "Your booking page asks for a birthday (month and day, optional). On the day, after 9 a.m., they get a birthday email." : "Your booking page doesn't ask for a birthday."}</p>
+        <SelectField label="Send “we miss you”" hint="Only to clients with nothing booked since their last visit." value={String(weeks)} onChange={(e) => onChange({ missYouWeeks: Number(e.target.value) })}>
+          <option value="0">Never</option>
+          {MISS_YOU_WEEKS.map((w) => <option key={w} value={w}>{w} weeks after their last visit</option>)}
+        </SelectField>
+        <p className="bkg-cal-text">Each one has an unsubscribe link, and nobody who unsubscribed gets them. Change the words under Emails and texts to clients.</p>
       </div>
     </section>
   );
@@ -2784,7 +3018,7 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
 
 const ORDERED_DAYS = [1, 2, 3, 4, 5, 6, 0];
 
-function HoursPanel({ settings, services, saved, onSaved, active }: { settings: BookingSettings; services: BookingService[]; saved: boolean; onSaved: () => void; active: boolean }) {
+function HoursPanel({ settings, services, shopName, saved, onSaved, active }: { settings: BookingSettings; services: BookingService[]; shopName: string; saved: boolean; onSaved: () => void; active: boolean }) {
   const [form, setForm] = useState<BookingSettings>(settings);
   const [saving, setSaving] = useState(false);
   // The on/off switch lives at the top of the page and saves by itself, so flipping it never throws away hours being edited.
@@ -2856,8 +3090,11 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
         </section>
         <AwayReplyTile form={form} zone={ZONE} onChange={(patch) => setForm({ ...form, ...patch })} />
         <TextsTile on={form.textReminders === true} reminders={form.reminderHours > 0 || form.secondReminderHours > 0} replies={form.textReplies === true} onChange={(textReminders) => setForm({ ...form, textReminders })} onReplies={(textReplies) => setForm({ ...form, textReplies })} />
+        <PromoTextsTile on={form.promoTexts === true} services={services} shop={shopName} onChange={(promoTexts) => setForm({ ...form, promoTexts })} />
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+        <KeepInTouchTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+        <LoyaltyTile form={form} zone={ZONE} onChange={(patch) => setForm({ ...form, ...patch })} />
         <FormsTile forms={form.intakeForms || []} services={services} onChange={(intakeForms) => setForm({ ...form, intakeForms })} />
         <BookingMessagesTile messages={form.messages} onChange={(messages) => setForm({ ...form, messages })} />
         <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
@@ -2871,6 +3108,8 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
           <SpecialHoursEditor list={form.specialHours} onChange={(specialHours) => setForm({ ...form, specialHours })} />
         </section>
         <CalendarTile google={form.googleCalendar} onGoogle={(on) => setForm({ ...form, googleCalendar: on })} />
+        <OtherCalendarsTile staff={settings.staff} />
+        <BookingHooksTile />
       </div>
       {active && <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={() => setForm(saved ? settings : DEFAULT_BOOKING_SETTINGS)} message={saved ? undefined : "Save your hours to start taking bookings."} />}
     </div>

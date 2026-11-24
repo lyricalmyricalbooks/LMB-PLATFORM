@@ -5083,6 +5083,15 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
   if (result.status === "failed") console.warn(`inventory link: order ${event.params.orderId} not delivered yet (${result.error}); the sweep retries it.`);
 });
 
+// Send bookings to other apps (Bookings plan 4, 5.8): a new, moved or cancelled booking is posted to the owner's
+// addresses (bookingHooks.js). Never throws: a failed delivery waits in the queue for bookingSweep.
+exports.bookingHooksOut = onDocumentWritten({ document: "bookings/{bookingId}", timeoutSeconds: 60 }, async event => {
+  const before = event.data?.before?.exists ? event.data.before.data() : null;
+  const after = event.data?.after?.exists ? event.data.after.data() : null;
+  const out = await bookingDesk.bookingChanged(event.params.bookingId, before, after).catch(err => { console.warn("bookingHooksOut:", err?.message || err); return {}; });
+  if (out.queued) console.warn(`bookingHooksOut: booking ${event.params.bookingId} not delivered to ${out.queued} app(s) yet; the sweep tries again.`);
+});
+
 // Changes an installed outside app asked for (platform plan 26.3b, appRequests.js): the platform writes the request,
 // this applies it with the shop's own checks and writes the answer back on the same document.
 exports.onAppRequest = onDocumentCreated({ document: "appRequests/{requestId}", timeoutSeconds: 60 }, async event => {
@@ -5130,9 +5139,21 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   if (thanks.thanked) console.log(`bookingSweep: ${thanks.thanked} thank-you emails sent`);
   const rebook = await bookingDesk.sweepRebook();
   if (rebook.reminded) console.log(`bookingSweep: ${rebook.reminded} rebook reminders sent`);
+  // Keep in touch (plan 4, 5.4): welcome, birthday and "we miss you" emails.
+  const kept = await bookingDesk.sweepKeepInTouch().catch(err => { console.warn("bookingSweep: keep in touch failed:", err?.message || err); return {}; });
+  if (kept.welcomed || kept.birthdays || kept.missed) console.log(`bookingSweep: ${kept.welcomed} welcome, ${kept.birthdays} birthday, ${kept.missed} we-miss-you emails sent`);
+  // Loyalty points (plan 4, 5.5): visits and paid orders earn once each; rewards go out as one-use codes.
+  const points = await bookingDesk.sweepLoyalty().catch(err => { console.warn("bookingSweep: loyalty points failed:", err?.message || err); return {}; });
+  if (points.visits || points.orders || points.rewards) console.log(`bookingSweep: points for ${points.visits} visits and ${points.orders} orders, ${points.rewards} rewards sent`);
   // Each team member's own Google Calendar: their busy times close those times for them (at most every 15 minutes).
   const team = await bookingDesk.sweepTeamCalendars().catch(err => { console.warn("bookingSweep: team calendars failed:", err?.message || err); return {}; });
   if (team.days) console.log(`bookingSweep: team busy times changed on ${team.days} days`);
+  // Outlook, Apple and other calendars (plan 4, 5.7): their busy times close those times (at most every 15 minutes).
+  const feeds = await bookingDesk.sweepOtherCalendars().catch(err => { console.warn("bookingSweep: other calendars failed:", err?.message || err); return {}; });
+  if (feeds.days) console.log(`bookingSweep: other calendars' busy times changed on ${feeds.days} days`);
+  // Send bookings to other apps (plan 4, 5.8): deliveries that failed go again.
+  const hookOut = await bookingDesk.sweepBookingHooks().catch(err => { console.warn("bookingSweep: other apps failed:", err?.message || err); return {}; });
+  if (hookOut.sent || hookOut.dropped) console.log(`bookingSweep: ${hookOut.sent || 0} bookings sent to other apps, ${hookOut.dropped || 0} given up`);
   // Classes with a minimum number to run: decided once, cancelled and refunded when too few signed up.
   const minimum = await bookingDesk.sweepMinimum();
   if (minimum.cancelled || minimum.ran) console.log(`bookingSweep: ${minimum.ran} class times run, ${minimum.cancelled} cancelled for too few people`);

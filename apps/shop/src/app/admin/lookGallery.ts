@@ -7,7 +7,7 @@ import { THEME_LIBRARY } from "./studio/themeLibrary";
 import { TEMPLATE_STYLE_IDS } from "../features/site/templateStyles";
 import { themedDesign } from "./studio/themeLook";
 import type { Sells } from "./sells";
-import { SAMPLE_SETS, sampleSetFor, samplePhotoUrl, samplePrice } from "./starterSamples";
+import { SAMPLE_SETS, sampleSetFor, samplePhotoUrl, samplePrice, type SampleSetId } from "./starterSamples";
 
 /** The sign-up answers to "What do you sell?" (signup/form.js, plans 6.2 and 10.1; sells.ts SELLS). */
 export type Publishes = Sells;
@@ -50,9 +50,26 @@ const PICKER_LOOKS = ["press-atlas", "press-folio", "press-rows", "press-arch", 
  */
 export const STARTER_SITES = ["juniper-slow-season", "juniper-catalogue", "aurel-editorial"];
 export const isBuiltLook = (t: any) => STARTER_SITES.includes(t.id) || PICKER_LOOKS.includes(t.id) && (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
-export const builtLooks = () => {
+/**
+ * The control room's choice of starters (`platform/starters`, control-room/starterSites.js): their order, which are
+ * hidden, which carry a New tag, and every starter the platform owner has seen (one added since stays hidden until
+ * they turn it on). Null (never saved, or not readable) shows every starter in STARTER_SITES order.
+ */
+export type StarterChoice = { order?: unknown; hidden?: unknown; fresh?: unknown; known?: unknown } | null | undefined;
+const idsOf = (v: unknown) => (Array.isArray(v) ? v.filter((id): id is string => typeof id === "string") : []);
+/** The starters a shop is offered, in the order the control room chose. */
+export function offeredStarters(choice?: StarterChoice): string[] {
+  if (!choice) return [...STARTER_SITES];
+  const known = idsOf(choice.known), hidden = idsOf(choice.hidden), order = idsOf(choice.order);
+  const shown = (id: string) => known.includes(id) && !hidden.includes(id);
+  return [...order.filter(id => STARTER_SITES.includes(id)), ...STARTER_SITES.filter(id => !order.includes(id))].filter((id, i, all) => shown(id) && all.indexOf(id) === i);
+}
+/** The starters the control room marked New (only ones still offered). */
+export const newStarters = (choice?: StarterChoice): string[] => (choice ? idsOf(choice.fresh).filter(id => offeredStarters(choice).includes(id)) : []);
+export const builtLooks = (choice?: StarterChoice) => {
   const all = (THEME_LIBRARY as unknown as LibraryTheme[]).filter(isBuiltLook);
-  return [...all.filter(t => !STARTER_SITES.includes(t.id)), ...all.filter(t => STARTER_SITES.includes(t.id))];
+  const starters = offeredStarters(choice).map(id => all.find(t => t.id === id)).filter((t): t is LibraryTheme => !!t);
+  return [...all.filter(t => !STARTER_SITES.includes(t.id)), ...starters];
 };
 /** Any look in the library by id, including the older variants that are no longer offered. */
 export const libraryLook = (id: string) => (THEME_LIBRARY as unknown as LibraryTheme[]).find(t => t.id === id);
@@ -207,10 +224,10 @@ export type PreviewProduct = { title: string; photo: string; maker?: string; pri
 /**
  * Sample products for the try-on when the shop has none yet: the sample set that suits what it sells (the sign-up
  * answer), with its own photos, neutral "Example …" names and example prices (`starterSamples.ts`). A services shop sees
- * its example services as the cards.
+ * its example services as the cards. `setId` shows another set instead (the try-on's "Show with" picker).
  */
-export function sampleProducts(publishes?: string | null): PreviewProduct[] {
-  const set = SAMPLE_SETS[sampleSetFor(publishes)];
+export function sampleProducts(publishes?: string | null, setId?: SampleSetId | null): PreviewProduct[] {
+  const set = SAMPLE_SETS[setId && SAMPLE_SETS[setId] ? setId : sampleSetFor(publishes)];
   const items = set.products.length
     ? set.products.map((p) => ({ title: p.title, photo: p.photo, price: p.price }))
     : set.services.map((s) => ({ title: s.name, photo: s.photo, price: s.price }));

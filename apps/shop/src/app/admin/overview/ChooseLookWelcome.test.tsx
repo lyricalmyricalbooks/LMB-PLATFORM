@@ -94,6 +94,32 @@ describe("Choose your look as a theme store", () => {
     expect(dialog()!.textContent).toContain("Example clothbound book");
   });
 
+  it("Show with swaps the sample set the look is shown with, the shop's own set first", async () => {
+    await mount({ publishes: "clothing" });
+    await click(button(`Try on ${builtLooks()[0].name}`));
+    const group = () => dialog()!.querySelector("[data-show-with]") as HTMLElement;
+    const labels = [...group().querySelectorAll("button")].map(b => b.textContent?.trim());
+    expect(labels).toEqual(["Clothing", "Home goods", "Books and prints"]);
+    expect(button("Clothing", group()).getAttribute("aria-pressed")).toBe("true");
+    expect(dialog()!.textContent).toContain("Example wool sweater");
+    await click(button("Home goods", group()));
+    expect(button("Home goods", group()).getAttribute("aria-pressed")).toBe("true");
+    expect(dialog()!.textContent).not.toContain("Example wool sweater");
+    expect(dialog()!.innerHTML).toContain("/samples/home/");
+  });
+
+  it("Show with stays out of the way while the press looks at its own products, and for services", async () => {
+    await mount({ publishes: "clothing", books: [{ title: "Wool Hat", photo: "https://cdn.example/h.jpg" }] });
+    await click(button(`Try on ${builtLooks()[0].name}`));
+    expect(dialog()!.querySelector("[data-show-with]")).toBeNull();
+    await click(button("Samples", dialog()!));
+    expect(dialog()!.querySelector("[data-show-with]")).not.toBeNull();
+    act(() => root?.unmount()); root = null; document.body.innerHTML = "";
+    await mount({ publishes: "hair" });
+    await click(button(`Try on ${builtLooks()[0].name}`));
+    expect(dialog()!.querySelector("[data-show-with]")).toBeNull();
+  });
+
   it("a shop that doesn't sell books sees samples and words for what it sells", async () => {
     await mount({ publishes: "clothing" });
     expect(document.body.textContent).toContain("Example wool sweater");

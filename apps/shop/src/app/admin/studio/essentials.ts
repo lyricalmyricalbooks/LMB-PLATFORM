@@ -1,6 +1,6 @@
 // Studio › Essentials (plan 1.27): the few settings a new press changes first, on one short panel that Studio opens
-// in. Every one is the same control as in Theme settings or Text & labels (same key, same save), so nothing here is
-// a second way to store a value. Everything else stays under "All settings": the other workspaces in the rail.
+// in. Every one is the same control as in Style or Text & labels (same key, same save), so nothing here is
+// a second way to store a value. Everything else stays under Style › Every setting and the other workspaces.
 import { COPY_SCHEMA } from "../../features/site/storeCopy";
 import { STYLE_GROUPS, type StyleField, type StyleGroup } from "./styleSchema";
 
@@ -10,7 +10,7 @@ export type EssentialStep = {
   hint: string;
   /** Text & labels keys (words). */
   copy?: string[];
-  /** Theme settings keys. */
+  /** Style keys. */
   style?: string[];
   /** A button that opens a whole workspace for this step. */
   open?: { tab: "sections" | "themes" | "pages"; label: string };
@@ -28,7 +28,7 @@ export const ESSENTIALS: EssentialStep[] = [
   { id: "pages", title: "About and policy pages", hint: "About, shipping, returns and contact.", open: { tab: "pages", label: "Open pages" } },
 ];
 
-/** The Theme settings field (and its group) behind a key, or null when the key has no control. */
+/** The Style field (and its group) behind a key, or null when the key has no control. */
 export function essentialStyleField(key: string): { group: StyleGroup; field: StyleField } | null {
   for (const group of STYLE_GROUPS) {
     const field = group.fields.find((f) => f.key === key);

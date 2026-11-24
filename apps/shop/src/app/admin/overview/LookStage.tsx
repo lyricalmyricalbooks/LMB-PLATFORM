@@ -6,7 +6,7 @@ import { useShopWords } from "../shopWords";
 // The try-on (Choose your look): a whole shop page drawn in a look's own colours, type, picture shape, buttons and
 // template layout, at a real desktop or phone width and scaled to fit. Drawn from the theme itself, so every look in
 // the library has one by construction, in setup mode too (no shop exists yet there, so the real storefront can't be
-// shown). Studio › Themes › Preview shows a look on the press's real shop once it is open.
+// shown). Studio › Designs › Preview shows a look on the press's real shop once it is open.
 
 export type StageDevice = "desktop" | "phone";
 export type StagePage = "home" | "product" | "bag";

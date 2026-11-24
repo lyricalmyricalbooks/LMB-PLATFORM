@@ -44,7 +44,7 @@ function selectValue(options: { value: string }[], value: any): string {
 const UNSET_SWATCH = "linear-gradient(to top right, #fff calc(50% - 1px), #e8402a calc(50% - 1px), #e8402a calc(50% + 1px), #fff calc(50% + 1px))";
 
 /**
- * Colour box shared by section, block, Theme settings and colour-scheme fields. An empty value means
+ * Colour box shared by section, block, Style and colour-scheme fields. An empty value means
  * "not set" (the section or theme default applies), so it must not look like black: the swatch shows
  * the "none" tile and the text box says so.
  */

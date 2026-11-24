@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Monitor, Smartphone } from "lucide-react";
 import {
-  feelLabel, lookFeel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts,
-  type LibraryTheme, type LookFilter, type PreviewProduct,
+  feelLabel, lookFeel, filterLooks, builtLooks, libraryLook, suggestedThemes, LOOK_FILTERS, lookPreview, pressNameOf, sampleProducts, newStarters,
+  type LibraryTheme, type LookFilter, type PreviewProduct, type StarterChoice,
 } from "../lookGallery";
 import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
 import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, Tabs } from "../riso/components";
 import { sellsBooks } from "../sells";
+import { sampleSetsFor, type SampleSetId } from "../starterSamples";
 import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage } from "./LookStage";
 
 /**
@@ -18,7 +19,7 @@ import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage }
  * `settings` is settings/website as the Overview read it: undefined while it loads, null when it couldn't be read.
  * `onDone` gets what to record once the look is in the draft; the parent saves it (and puts the welcome away).
  */
-export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen, settled = false }: {
+export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onRetrySettings, apply, intro: introWords, keep, chosen, settled = false, starters }: {
   publishes?: string | null;
   /** The press's own books (ownBooks), shown with their covers, titles and prices in each look's preview (plan 17.8). */
   books?: { title: string; photo: string; price?: string }[];
@@ -37,8 +38,11 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   chosen?: { theme: string } | null;
   /** The chosen look is already saved (setup mode's Design page): show it as "Your look", with no Use button on it. */
   settled?: boolean;
+  /** The control room's starter choice (platformStarters.ts): which whole-website starters show, their order and New tags. */
+  starters?: StarterChoice;
 }) {
-  const others = useMemo(() => builtLooks(), []);
+  const others = useMemo(() => builtLooks(starters), [starters]);
+  const fresh = useMemo(() => newStarters(starters), [starters]);
   // One general list. The sign-up answer only decides which look "Skip for now" uses.
   const first = useMemo(() => suggestedThemes(publishes)[0], [publishes]);
   const [busy, setBusy] = useState("");
@@ -57,7 +61,11 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const picked = useMemo(() => (chosen && !browsing ? libraryLook(chosen.theme) ?? null : null), [chosen, browsing]);
   const press = pressNameOf(settings);
   const bookShop = sellsBooks(publishes);
-  const samples = useMemo(() => sampleProducts(publishes), [publishes]);
+  // "Show with": the sample sets that suit this kind of shop, its own first (any look can be tried with any of them).
+  const sets = useMemo(() => sampleSetsFor(publishes), [publishes]);
+  const [setChoice, setSet] = useState<SampleSetId | null>(null);
+  const sampleSet = setChoice && sets.some(s => s.id === setChoice) ? setChoice : sets[0]?.id ?? null;
+  const samples = useMemo(() => sampleProducts(publishes, sampleSet), [publishes, sampleSet]);
   // The press's own products show their own prices; one without a price borrows a sample price so the cards read as a shop.
   const products: PreviewProduct[] = own && books.length ? books.map((b, i) => ({ ...b, price: b.price || samples[i % samples.length].price })) : samples;
   const shown = useMemo(() => filterLooks(others, filter), [others, filter]);
@@ -102,7 +110,10 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   // The feel as a small coloured pill, in the Colophon tile colours.
   const FEEL_TILE = { quiet: "var(--rp-info-tint)", warm: "var(--rp-success-tint)", bold: "var(--rp-warning-tint)", dark: "var(--rp-surface-inset)" } as const;
   const badges = (theme: LibraryTheme) => (
-    <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, background: FEEL_TILE[lookFeel(theme)], color: "var(--rp-text)" }}>{feelLabel(theme)}</span>
+    <span style={{ display: "flex", gap: 6 }}>
+      {fresh.includes(theme.id) && <span data-new-starter style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999, background: "var(--rp-text)", color: "var(--rp-surface)" }}>New</span>}
+      <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, background: FEEL_TILE[lookFeel(theme)], color: "var(--rp-text)" }}>{feelLabel(theme)}</span>
+    </span>
   );
   const dots = (colours: string[], size: number, label: string) => (
     <span aria-label={label} role="img" style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
@@ -151,7 +162,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
     if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
   };
-  const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-primary-tint)", color: "var(--rp-text)", borderColor: "var(--rp-primary)" } : undefined });
+  // A chosen option is a black pill, like every other on/off choice in the admin (the old tint all but vanished in the cream look).
+  const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-text)", color: "var(--rp-surface)", borderColor: "var(--rp-text)" } : undefined });
 
   return (
     <SectionCard title={picked ? (settled ? `Your look: ${picked.name}` : `Welcome to ${press}. Here's the look you chose`) : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
@@ -207,13 +219,25 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                   <SecondaryButton size="sm" {...toggle(page === "product")} onClick={() => setPage("product")}>Product page</SecondaryButton>
                   <SecondaryButton size="sm" {...toggle(page === "bag")} onClick={() => setPage("bag")}>Bag</SecondaryButton>
                 </span>
-                {books.length > 0 && (
-                  <span role="group" aria-label="Products shown" style={{ display: "flex", gap: 8 }}>
-                    <SecondaryButton size="sm" {...toggle(own)} onClick={() => setOwn(true)}>Your products</SecondaryButton>
-                    <SecondaryButton size="sm" {...toggle(!own)} onClick={() => setOwn(false)}>Samples</SecondaryButton>
-                  </span>
-                )}
               </div>
+              {(books.length > 0 || (!own && sets.length > 1)) && (
+                <div data-try-on-products style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 24px" }}>
+                  {books.length > 0 && (
+                    <span role="group" aria-label="Products shown" style={{ display: "flex", gap: 8 }}>
+                      <SecondaryButton size="sm" {...toggle(own)} onClick={() => setOwn(true)}>Your products</SecondaryButton>
+                      <SecondaryButton size="sm" {...toggle(!own)} onClick={() => setOwn(false)}>Samples</SecondaryButton>
+                    </span>
+                  )}
+                  {!own && sets.length > 1 && (
+                    <span role="group" aria-label="Show with" data-show-with style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                      <span className="rp-hint" style={{ margin: 0 }}>Show with</span>
+                      {sets.map(set => (
+                        <SecondaryButton key={set.id} size="sm" {...toggle(sampleSet === set.id)} onClick={() => setSet(set.id)}>{set.label}</SecondaryButton>
+                      ))}
+                    </span>
+                  )}
+                </div>
+              )}
               <div style={{ display: "grid", gap: 20, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", alignItems: "start" }}>
                 <div data-try-on-stage={device} style={{ gridColumn: "1 / -1", background: "var(--rp-surface-2)", padding: device === "phone" ? "24px 12px" : 12, display: "flex", justifyContent: "center", minWidth: 0 }}>
                   <div style={device === "phone"

@@ -6,7 +6,8 @@ import { createRequire } from "module";
 
 const realRequire = createRequire(import.meta.url);
 const { bookingActions, busyFrom } = realRequire("./bookings");
-const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings, cleanRates } = realRequire("./shared/bookingTimes");
+const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings, cleanRates, cleanBirthday, birthdaysOn } = realRequire("./shared/bookingTimes");
+const { cleanLoyalty, rewardsDue } = realRequire("./shared/loyalty");
 
 const ZONE = "America/Toronto";
 const at = (day, hhmm) => new Date(zonedTime(day, hhmm, ZONE)).toISOString();
@@ -20,24 +21,29 @@ function fakeDb() {
     async get() { return snapOf(c, id); },
     async set(data, opts) { store.set(key(c, id), opts?.merge ? { ...(store.get(key(c, id)) || {}), ...structuredClone(data) } : structuredClone(data)); },
     async delete() { store.delete(key(c, id)); },
+    collection: (n) => coll(`${c}/${id}/${n}`),
   });
-  const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`)).map((k) => snapOf(c, k.slice(c.length + 1)));
-  const query = (c, filters = [], n = 1000, by = "") => ({
-    where: (f, op, v) => query(c, [...filters, [f, v, op]], n, by),
-    limit: (m) => query(c, filters, m, by),
-    orderBy: (f) => query(c, filters, n, f),
+  // Only the collection's own documents, never those of a sub-collection under them.
+  const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`) && !k.slice(c.length + 1).includes("/")).map((k) => snapOf(c, k.slice(c.length + 1)));
+  const query = (c, filters = [], n = 1000, by = "", desc = false) => ({
+    where: (f, op, v) => query(c, [...filters, [f, v, op]], n, by, desc),
+    limit: (m) => query(c, filters, m, by, desc),
+    orderBy: (f, dir) => query(c, filters, n, f, dir === "desc"),
+    select: () => query(c, filters, n, by, desc),
     async get() {
-      const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = f.split(".").reduce((o, k) => o?.[k], d.data()); return op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
-      if (by) hits.sort((a, b) => String(a.data()[by]).localeCompare(String(b.data()[by])));
+      const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = f.split(".").reduce((o, k) => o?.[k], d.data()); return op === "in" ? v.includes(x) : op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
+      if (by) hits.sort((a, b) => String(a.data()[by]).localeCompare(String(b.data()[by])) * (desc ? -1 : 1));
       const docs = hits.slice(0, n);
       return { docs, empty: docs.length === 0 };
     },
   });
+  let made = 0;
+  const coll = (c) => ({ doc: (id) => ref(c, id ?? `auto${String(++made).padStart(4, "0")}`), ...query(c) });
   // Transactions run one after another, which is what Firestore's retries amount to for these tests.
   let queue = Promise.resolve();
   return {
     store,
-    collection: (c) => ({ doc: (id) => ref(c, id), ...query(c) }),
+    collection: (c) => coll(c),
     runTransaction(fn) {
       const run = queue.then(() => fn({ get: (r) => r.get(), set: (r, d, o) => r.set(d, o), delete: (r) => r.delete() }));
       queue = run.catch(() => {});
@@ -54,7 +60,7 @@ function res() {
   return out;
 }
 
-function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null, shopTax = null, texts = null } = {}) {
+function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null, shopTax = null, texts = null, fetchFeed = undefined } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -132,7 +138,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   let n = 0;
   const optOuts = new Set();
   const desk = bookingActions({
-    db, calendar, findDiscount, shopTax, texts,
+    db, calendar, findDiscount, shopTax, texts, ...(fetchFeed ? { fetchFeed } : {}),
     identify: async (req) => req.who || null,
     optedOut: async (e) => optOuts.has(e),
     unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
@@ -755,6 +761,72 @@ describe("text-message reminders", () => {
       expect(t2.db.store.get(`bookings/${near}`).status).toBe("confirmed");
       expect(d.sent.at(-1).body).toMatch(/too close to cancel by text/);
     });
+  });
+});
+
+describe("promo texts (plan 4, 5.6)", () => {
+  const textDoor = ({ answer = null } = {}) => {
+    const sent = [];
+    return { sent, status: async () => ({ available: true, price: "1.6¢" }), send: async (m) => { sent.push(m); return answer ? answer(m) : { ok: true, id: `SM${sent.length}`, parts: 1 }; } };
+  };
+  const turnOn = (t, on = true) => t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, textReminders: true, promoTexts: on });
+  const book = (t, start, who) => t.pub({ action: "bookingStart", serviceId: "visit", start, ...who });
+  const ADA = { name: "Ada", email: "ada@example.com", phone: "416 555 0199", promoOk: true };
+
+  test("a client's yes is kept only while the owner's switch is on, and the form offers it then", async () => {
+    const t = setup({ texts: textDoor() });
+    await t.seed();
+    await turnOn(t, false);
+    expect((await t.pub({ action: "bookingInfo" })).body.promoTexts).toBeUndefined();
+    const off = await book(t, at("2026-11-18", "10:00"), ADA);
+    expect(t.db.store.get(`bookings/${off.body.id}`).customer.promoOk).toBeUndefined();
+    await turnOn(t);
+    expect((await t.pub({ action: "bookingInfo" })).body.promoTexts).toBe(true);
+    const on = await book(t, at("2026-11-19", "14:00"), ADA);
+    expect(on.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${on.body.id}`).customer.promoOk).toBe(true);
+    const noPhone = await book(t, at("2026-11-20", "14:00"), { name: "Bo", email: "bo@example.com", promoOk: true });
+    expect(t.db.store.get(`bookings/${noPhone.body.id}`).customer.promoOk).toBeUndefined();
+  });
+
+  test("one text per person, by day only, at most one promo a day, and STOP takes them off", async () => {
+    const door = textDoor({ answer: (m) => (m.to.includes("0100") ? { ok: false, retryable: false, optedOut: true } : { ok: true, id: "SM1", parts: 1 }) });
+    const t = setup({ texts: door, now: "2026-11-17T12:00:00Z" });
+    await t.seed();
+    await turnOn(t);
+    await book(t, at("2026-11-18", "10:00"), ADA);
+    await book(t, at("2026-11-19", "10:00"), { ...ADA, phone: "+1 (416) 555-0199" });
+    const bo = await book(t, at("2026-11-18", "13:00"), { name: "Bo", email: "bo@example.com", phone: "416 555 0100", promoOk: true });
+    await book(t, at("2026-11-18", "15:00"), { name: "Cy", email: "cy@example.com", phone: "416 555 0111" });
+    const aud = (await t.adm({ op: "promoAudience", group: "all" })).body;
+    expect(aud).toMatchObject({ available: true, count: 2, open: false });
+    const night = await t.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." });
+    expect(night.statusCode).toBe(400);
+    t.clock.now = new Date(Date.parse(at("2026-11-17", "14:00")));
+    expect((await t.adm({ op: "promoSend", group: "all", text: "Hi" })).statusCode).toBe(400);
+    const r = await t.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." });
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toMatchObject({ sent: 1, stopped: 1 });
+    expect(door.sent).toHaveLength(2);
+    expect(door.sent[0].body).toBe("Moth Press: Openings this Friday afternoon. Reply STOP to stop texts.");
+    expect(door.sent.every((m) => m.kind === "booking-promo")).toBe(true);
+    expect(t.db.store.get(`bookings/${bo.body.id}`).customer.promoOk).toBe(false);
+    const again = await t.adm({ op: "promoSend", group: "all", text: "One more thing for you today." });
+    expect(again.statusCode).toBe(409);
+    const hist = (await t.adm({ op: "promoHistory" })).body.promos;
+    expect(hist).toHaveLength(1);
+    expect(hist[0]).toMatchObject({ status: "sent", sent: 1, stopped: 1 });
+  });
+
+  test("nothing goes while the switch is off or texts aren't open", async () => {
+    const t = setup({ texts: textDoor(), now: "2026-11-17T19:00:00Z" });
+    await t.seed();
+    await turnOn(t, false);
+    expect((await t.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." })).statusCode).toBe(400);
+    const closed = setup({ texts: { status: async () => ({ available: false }), send: async () => ({ ok: true }) }, now: "2026-11-17T19:00:00Z" });
+    await closed.seed();
+    await turnOn(closed);
+    expect((await closed.adm({ op: "promoSend", group: "all", text: "Openings this Friday afternoon." })).statusCode).toBe(400);
   });
 });
 
@@ -2530,6 +2602,66 @@ describe("staff and rooms", () => {
     expect(await t.desk.sweepStaffDays()).toEqual({ sent: 0 });
     expect(t.db.store.get("bookingSettings/staffSummary")).toBeUndefined();
   });
+
+  describe("Outlook, Apple and other calendars (plan 4, 5.7)", () => {
+    const icsAt = (...spans) => ["BEGIN:VCALENDAR", ...spans.flatMap(([s, e], i) => ["BEGIN:VEVENT", `UID:e${i}`, `DTSTART:${s.replace(/[-:]/g, "").replace(/\.\d+/, "")}`, `DTEND:${e.replace(/[-:]/g, "").replace(/\.\d+/, "")}`, "END:VEVENT"]), "END:VCALENDAR"].join("\r\n");
+    const utc = (day, time) => new Date(Date.parse(at(day, time))).toISOString().replace(".000", "");
+    const OUTLOOK = "https://outlook.office365.com/owa/calendar/abc/def/calendar.ics";
+    const APPLE = "webcal://p42-caldav.icloud.com/published/2/xyz";
+
+    test("a shop calendar closes the time for everyone, a person's only for them, and the link is never shown", async () => {
+      const feeds = { [OUTLOOK]: icsAt([utc("2026-11-18", "10:00"), utc("2026-11-18", "11:00")]), "https://p42-caldav.icloud.com/published/2/xyz": icsAt([utc("2026-11-18", "13:00"), utc("2026-11-18", "14:00")]) };
+      const asked = [];
+      const fetchFeed = async (url) => { asked.push(url); return feeds[url] ? { ok: true, text: feeds[url] } : { ok: false, status: 404 }; };
+      const t = setup({ fetchFeed, now: "2026-11-17T12:00:00Z" });
+      await team(t, { staff: [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }] });
+      const shop = await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK, name: "My Outlook" });
+      expect(shop.statusCode).toBe(200);
+      const ana = await t.adm({ op: "otherCalendars", step: "add", url: APPLE, who: "ana" });
+      expect(ana.body.feeds).toEqual([
+        expect.objectContaining({ kind: "outlook", name: "My Outlook", who: "", ok: true, count: 1 }),
+        expect.objectContaining({ kind: "apple", who: "ana", ok: true, count: 1 }),
+      ]);
+      expect(JSON.stringify(ana.body)).not.toContain("office365");
+      expect(JSON.stringify(ana.body)).not.toContain("icloud");
+      const times = async (staffId) => (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-18", days: 1, ...(staffId ? { staffId } : {}) })).body.days["2026-11-18"];
+      expect(await times("ben")).not.toContain(at("2026-11-18", "10:00"));
+      expect(await times("ana")).not.toContain(at("2026-11-18", "13:00"));
+      expect(await times("ben")).toContain(at("2026-11-18", "13:00"));
+      // A booking on the same day keeps its item when the busy times change; removing a calendar opens its times.
+      const kept = await book(t, at("2026-11-18", "15:00"), { staffId: "ben" });
+      expect(kept.statusCode).toBe(200);
+      const items = Object.keys(t.db.store.get("bookingDays/2026-11-18").items);
+      expect(items.filter((k) => k.startsWith("ical~"))).toHaveLength(2);
+      await t.adm({ op: "otherCalendars", step: "remove", id: shop.body.added });
+      expect(await times("ben")).toContain(at("2026-11-18", "10:00"));
+      expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items).some((k) => k.startsWith(kept.body.id))).toBe(true);
+      // Read again only every 15 minutes.
+      const before = asked.length;
+      expect(await t.desk.sweepOtherCalendars()).toEqual({ days: 0 });
+      expect(asked).toHaveLength(before);
+    });
+
+    test("a wrong link is refused at once, and a calendar that stops answering keeps its times", async () => {
+      let answer = { ok: true, text: icsAt([utc("2026-11-18", "10:00"), utc("2026-11-18", "11:00")]) };
+      const t = setup({ fetchFeed: async () => answer, now: "2026-11-17T12:00:00Z" });
+      await t.seed();
+      expect((await t.adm({ op: "otherCalendars", step: "add", url: "https://evil.example/cal.ics" })).statusCode).toBe(400);
+      answer = { ok: true, text: "<html>Sign in</html>" };
+      const notCal = await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK });
+      expect(notCal.statusCode).toBe(400);
+      expect(notCal.body.error).toMatch(/can't be read/);
+      answer = { ok: true, text: icsAt([utc("2026-11-18", "10:00"), utc("2026-11-18", "11:00")]) };
+      expect((await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK })).statusCode).toBe(200);
+      expect((await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK })).statusCode).toBe(400);
+      answer = { ok: false, status: 500 };
+      t.clock.now = new Date(Date.parse("2026-11-17T12:20:00Z"));
+      expect(await t.desk.sweepOtherCalendars()).toEqual({ days: 0 });
+      const list = (await t.adm({ op: "otherCalendars", step: "list" })).body.feeds;
+      expect(list[0]).toMatchObject({ ok: false, problem: expect.stringMatching(/didn't answer/) });
+      expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items).some((k) => k.startsWith("ical~"))).toBe(true);
+    });
+  });
 });
 
 describe("sales tax on a service", () => {
@@ -2769,6 +2901,208 @@ describe("rebook reminders", () => {
     weeksAfter(old, "2026-11-18", 6, 20);
     expect(await old.desk.sweepRebook()).toEqual({ reminded: 0 });
     expect(rebooks(again).length + rebooks(out).length + rebooks(missed).length + rebooks(off).length + rebooks(old).length).toBe(0);
+  });
+});
+
+describe("keep in touch emails (plan 4, 5.4)", () => {
+  const seedKeep = async (t, extra = {}) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ welcomeEmail: true, birthdayEmail: true, missYouWeeks: 8, ...extra }, { merge: true });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const book = (t, day, extra = {}) => t.pub({ action: "bookingStart", serviceId: "cut", start: at(day, "15:00"), ...CUSTOMER, ...extra });
+  const hoursAfter = (t, day, hours) => { t.clock.now = new Date(Date.parse(at(day, "15:30")) + hours * 3_600_000); };
+  const kinds = (t) => t.emails.map((e) => e.subject);
+
+  test("a welcome the day after the first visit, once; never after a later visit", async () => {
+    const t = setup();
+    await seedKeep(t, { birthdayEmail: false, missYouWeeks: 0 });
+    await book(t, "2026-11-18");
+    hoursAfter(t, "2026-11-18", 10);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(0);
+    hoursAfter(t, "2026-11-18", 21);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(1);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(0);
+    const welcome = t.emails.find((e) => e.subject === "Welcome to Moth Press");
+    expect(welcome.to).toBe(CUSTOMER.email);
+    expect(welcome.html).toContain("Hi Ada, thank you for your first visit");
+    expect(welcome.html).toContain("/book?service=cut");
+    expect(welcome.html).toContain("unsubscribe=1");
+    // A second visit later gets no welcome.
+    await book(t, "2026-11-25");
+    hoursAfter(t, "2026-11-25", 21);
+    expect((await t.desk.sweepKeepInTouch()).welcomed).toBe(0);
+    // Nor does a missed first visit.
+    const missed = setup();
+    await seedKeep(missed, { birthdayEmail: false, missYouWeeks: 0 });
+    await book(missed, "2026-11-18");
+    await missed.db.collection("bookings").doc("booking001").set({ noShow: true }, { merge: true });
+    hoursAfter(missed, "2026-11-18", 21);
+    expect((await missed.desk.sweepKeepInTouch()).welcomed).toBe(0);
+  });
+
+  test("the form keeps a birthday only while birthdays are on; the email goes on the day, once a year, from 9 a.m.", async () => {
+    const off = setup();
+    await seedKeep(off, { birthdayEmail: false });
+    expect((await off.pub({ action: "bookingInfo" })).body.birthday).toBeUndefined();
+    await book(off, "2026-11-18", { birthday: "12-03" });
+    expect(off.db.store.get("bookings/booking001").customer.birthday).toBeUndefined();
+
+    const t = setup();
+    await seedKeep(t, { welcomeEmail: false, missYouWeeks: 0 });
+    expect((await t.pub({ action: "bookingInfo" })).body.birthday).toBe(true);
+    await book(t, "2026-11-18", { birthday: { month: 12, day: 3 } });
+    expect(t.db.store.get("bookings/booking001").customer.birthday).toBe("12-03");
+    t.clock.now = new Date(at("2026-12-03", "07:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(0);
+    t.clock.now = new Date(at("2026-12-03", "10:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(1);
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(0);
+    expect(kinds(t)).toContain("Happy birthday from Moth Press");
+    t.clock.now = new Date(at("2027-12-03", "10:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(1);
+    // Unsubscribed: nothing.
+    t.optOuts.add(CUSTOMER.email);
+    t.clock.now = new Date(at("2028-12-03", "10:00"));
+    expect((await t.desk.sweepKeepInTouch()).birthdays).toBe(0);
+  });
+
+  test("we miss you after the set weeks with nothing booked since, in French for a French booking", async () => {
+    const t = setup();
+    await seedKeep(t, { welcomeEmail: false, birthdayEmail: false });
+    await book(t, "2026-11-18", { locale: "fr-CA" });
+    hoursAfter(t, "2026-11-18", 7 * 24 * 7);
+    expect((await t.desk.sweepKeepInTouch()).missed).toBe(0);
+    hoursAfter(t, "2026-11-18", 8 * 7 * 24 + 24);
+    expect((await t.desk.sweepKeepInTouch()).missed).toBe(1);
+    expect((await t.desk.sweepKeepInTouch()).missed).toBe(0);
+    const email = t.emails.find((e) => /manquez/.test(e.subject));
+    expect(email.subject).toBe("Vous nous manquez chez Moth Press");
+    expect(email.html).toContain("18 novembre 2026");
+    expect(email.html).toContain("Se désabonner");
+
+    const back = setup();
+    await seedKeep(back, { welcomeEmail: false, birthdayEmail: false });
+    await book(back, "2026-11-18");
+    await book(back, "2026-12-30");
+    hoursAfter(back, "2026-11-18", 8 * 7 * 24 + 24);
+    expect((await back.desk.sweepKeepInTouch()).missed).toBe(0);
+  });
+
+  test("birthdays are month and day only", () => {
+    expect(cleanBirthday("2-29")).toBe("02-29");
+    expect(cleanBirthday({ month: 4, day: 31 })).toBe("");
+    expect(cleanBirthday("1990-05-01")).toBe("");
+    expect(birthdaysOn("2027-02-28")).toEqual(["02-28", "02-29"]);
+    expect(birthdaysOn("2028-02-28")).toEqual(["02-28"]);
+    expect(cleanBookingSettings({ missYouWeeks: 5 }).missYouWeeks).toBeUndefined();
+    expect(cleanBookingSettings({ missYouWeeks: 8, welcomeEmail: true }).missYouWeeks).toBe(8);
+  });
+});
+
+describe("loyalty points (plan 4, 5.5)", () => {
+  const LOYAL = { on: true, perDollar: 1, perVisit: 5, onOrders: true, rewardPoints: 100, rewardMinor: 1000, rewardDays: 90, bonusWeeks: [] };
+  const seedPoints = async (t, loyalty = {}) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ loyalty: { ...LOYAL, ...loyalty } }, { merge: true });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const book = (t, day, extra = {}) => t.pub({ action: "bookingStart", serviceId: "cut", start: at(day, "15:00"), ...CUSTOMER, ...extra });
+  const after = (t, day, hours) => { t.clock.now = new Date(Date.parse(at(day, "15:30")) + hours * 3_600_000); };
+  const account = (t) => [...t.db.store.entries()].find(([k]) => /^loyalty\/[a-f0-9]{64}$/.test(k))?.[1];
+  const rewards = (t) => [...t.db.store.entries()].filter(([k, v]) => k.startsWith("discounts/") && v.loyaltyReward).map(([, v]) => v);
+
+  test("a visit earns a day after it ends, once; a no-show never earns", async () => {
+    const t = setup();
+    await seedPoints(t);
+    await book(t, "2026-11-18");
+    after(t, "2026-11-18", 5);
+    expect((await t.desk.sweepLoyalty()).visits).toBe(0);
+    after(t, "2026-11-18", 25);
+    expect(await t.desk.sweepLoyalty()).toEqual({ visits: 1, orders: 0, rewards: 0 });
+    expect(account(t)).toMatchObject({ email: CUSTOMER.email, points: 65, earned: 65 });
+    // The mark moved on, and the entry key keeps it once even if read again.
+    expect((await t.desk.sweepLoyalty()).visits).toBe(0);
+    t.db.store.delete("loyaltyState/main");
+    expect((await t.desk.sweepLoyalty()).visits).toBe(0);
+    expect(account(t).points).toBe(65);
+
+    const missed = setup();
+    await seedPoints(missed);
+    await book(missed, "2026-11-18");
+    await missed.db.collection("bookings").doc("booking001").set({ noShow: true }, { merge: true });
+    after(missed, "2026-11-18", 25);
+    expect((await missed.desk.sweepLoyalty()).visits).toBe(0);
+  });
+
+  test("points become a one-use code for that client only, emailed with the code", async () => {
+    const t = setup();
+    await seedPoints(t);
+    await book(t, "2026-11-18");
+    await book(t, "2026-11-19");
+    after(t, "2026-11-19", 25);
+    expect(await t.desk.sweepLoyalty()).toEqual({ visits: 2, orders: 0, rewards: 1 });
+    expect(account(t)).toMatchObject({ points: 30, earned: 130, spent: 100, rewards: 1 });
+    const [code] = rewards(t);
+    expect(code).toMatchObject({ type: "fixed", value: 10, usageLimit: 1, onePerCustomer: true, forBookings: true, allowedCustomerEmails: CUSTOMER.email, isActive: true, method: "code" });
+    expect(code.code).toMatch(/^THANKS-[A-Z2-9]{6}$/);
+    expect(code.expiryDate).toBe("2027-02-18");
+    const mail = t.emails.find((e) => /earned/.test(e.subject));
+    expect(mail.to).toBe(CUSTOMER.email);
+    expect(mail.subject).toBe("You've earned $10.00 off at Moth Press");
+    expect(mail.html).toContain(code.code);
+  });
+
+  test("bonus weeks multiply, and paid shop orders earn unless they are tests, refunded or switched off", async () => {
+    const t = setup();
+    await seedPoints(t, { perVisit: 0, rewardPoints: 10000, bonusWeeks: [{ from: "2026-11-16", to: "2026-11-22", times: 3 }] });
+    await book(t, "2026-11-18");
+    const orders = t.db.collection("orders");
+    await orders.doc("o1").set({ paymentStatus: "paid", paidAt: "2026-11-24T15:00:00.000Z", total: 25.5, customer: { email: "Ada@Example.com" } });
+    await orders.doc("o2").set({ paymentStatus: "paid", paidAt: "2026-11-24T16:00:00.000Z", total: 40, isTest: true, customer: { email: CUSTOMER.email } });
+    await orders.doc("o3").set({ paymentStatus: "refunded", paidAt: "2026-11-24T16:10:00.000Z", total: 40, customer: { email: CUSTOMER.email } });
+    await orders.doc("o4").set({ paymentStatus: "paid", paidAt: "2026-11-24T16:20:00.000Z", total: 30, refundedAmountMinor: 1000, customer: { email: CUSTOMER.email } });
+    t.clock.now = new Date("2026-11-24T20:00:00Z");
+    expect(await t.desk.sweepLoyalty()).toEqual({ visits: 1, orders: 2, rewards: 0 });
+    // 60 × 3 for the visit in the bonus week, then 25 and 20 for the orders.
+    expect(account(t).points).toBe(180 + 25 + 20);
+
+    const off = setup();
+    await seedPoints(off, { onOrders: false });
+    await off.db.collection("orders").doc("o1").set({ paymentStatus: "paid", paidAt: "2026-11-24T15:00:00.000Z", total: 25, customer: { email: CUSTOMER.email } });
+    off.clock.now = new Date("2026-11-24T20:00:00Z");
+    expect((await off.desk.sweepLoyalty()).orders).toBe(0);
+  });
+
+  test("the client card shows points; the owner adds or takes them, the front desk only looks", async () => {
+    const t = setup();
+    await seedPoints(t);
+    expect((await t.adm({ op: "points", email: "ADA@example.com" })).body).toMatchObject({ on: true, points: 0, toNext: 100, rows: [] });
+    expect((await t.adm({ op: "pointsAdjust", email: CUSTOMER.email, points: 0 })).statusCode).toBe(400);
+    const added = (await t.adm({ op: "pointsAdjust", email: CUSTOMER.email, points: 120, note: "Welcome gift" })).body;
+    expect(added).toMatchObject({ points: 20, rewardsSent: 1 });
+    expect(added.rows.map((r) => r.kind).sort()).toEqual(["adjust", "reward"]);
+    expect((await t.adm({ op: "pointsAdjust", email: CUSTOMER.email, points: -50 })).body.points).toBe(0);
+    const FRONT = { role: "frontDesk", email: "desk@example.com" };
+    expect((await t.dsk(FRONT, { op: "points", email: CUSTOMER.email })).statusCode).toBe(200);
+    expect((await t.dsk(FRONT, { op: "pointsAdjust", email: CUSTOMER.email, points: 10 })).statusCode).toBe(403);
+  });
+
+  test("the booking page shows the client's points while points are on", async () => {
+    const t = setup();
+    await seedPoints(t);
+    const r = await book(t, "2026-11-18");
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.points).toEqual({ points: 0, toNext: 100, rewardMinor: 1000 });
+    await t.db.collection("bookingSettings").doc("main").set({ loyalty: { ...LOYAL, on: false } }, { merge: true });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.points).toBeUndefined();
+  });
+
+  test("the rules keep every setting inside its limits", () => {
+    const s = cleanLoyalty({ on: true, perDollar: 99, rewardPoints: 5, rewardDays: 7, bonusWeeks: [{ from: "2026-02-30", to: "2026-03-01" }, { from: "2026-03-01", to: "2026-03-07", times: 9 }] });
+    expect(s).toMatchObject({ perDollar: 1, rewardPoints: 100, rewardDays: 180, bonusWeeks: [{ from: "2026-03-01", to: "2026-03-07", times: 2 }] });
+    expect(rewardsDue(s, 450)).toEqual({ rewards: 3, left: 150 });
+    expect(cleanBookingSettings({}).loyalty).toBeUndefined();
+    expect(cleanBookingSettings({ loyalty: { on: false, perDollar: 3 } }).loyalty).toMatchObject({ on: false, perDollar: 3 });
   });
 });
 

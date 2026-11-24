@@ -102,7 +102,7 @@ describe("where used", () => {
       { label: "Home › Summer banner", templateId: "heroPage", sectionId: "s2" },
       { label: "Every page › RichTextSection", templateId: "__global", sectionId: "g1" },
     ]);
-    expect(describeUsage(design, ["logoUrl"], names).label).toBe("Theme settings › logo url");
+    expect(describeUsage(design, ["logoUrl"], names).label).toBe("Style › logo url");
     expect(usagePaths(collectStrings(design), item({ id: "other" }))).toEqual([]);
   });
 
@@ -148,7 +148,7 @@ describe("saved copies of the design", () => {
 
 describe("uploadIntoField", () => {
   const lib = (status: any) => ({ status, choose: async () => null, upload: async () => item() });
-  it("puts Theme settings uploads (no onPatch) in the library and writes only the URL", async () => {
+  it("puts Style uploads (no onPatch) in the library and writes only the URL", async () => {
     const onChange = vi.fn(), uploadFile = vi.fn();
     await uploadIntoField(lib("ready"), new File(["x"], "logo.png"), { fieldKey: "logoUrl", onChange, uploadFile });
     expect(onChange).toHaveBeenCalledWith(mainUrl(item()));

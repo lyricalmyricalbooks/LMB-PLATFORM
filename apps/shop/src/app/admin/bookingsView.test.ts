@@ -504,3 +504,135 @@ describe("where bookings came from (plan 4, 2.7)", () => {
     expect(bookingPosterHtml({ shop: "", heading: " ", what: "", qr: "x", link: "https://a.example/" })).toContain("<h1>Book online</h1>");
   });
 });
+
+describe("coming up: the next 30, 60 and 90 days (plan 4, 5.1)", () => {
+  const Z = "America/Toronto";
+  const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00-05:00`).toISOString();
+  const bk = (id: string, start: string, extra: Partial<Booking> = {}): Booking => ({
+    id, serviceId: "s", serviceName: "Cut", minutes: 60, start, end: new Date(Date.parse(start) + 3_600_000).toISOString(),
+    customer: { name: id, email: `${id}@example.com` }, status: "confirmed", payment: "atShop", priceMinor: 5000, currency: "CAD", paid: false, ...extra,
+  });
+  const now = Date.parse(at("2026-11-23", "12:00"));
+  const rows = [
+    bk("past-today", at("2026-11-23", "09:00")),
+    bk("later-today", at("2026-11-23", "15:00")),
+    bk("card", at("2026-11-30", "10:00"), { payment: "card", paid: true, priceMinor: 8000 }),
+    bk("same-day", at("2026-11-30", "13:00")),
+    bk("asked", at("2026-12-01", "10:00"), { status: "requested" }),
+    bk("gone", at("2026-12-02", "10:00"), { status: "cancelled" }),
+    bk("held", at("2026-12-02", "11:00"), { status: "held" }),
+    bk("day-45", at("2027-01-07", "10:00"), { payment: "deposit", depositMinor: 2000, depositPaid: true }),
+    bk("day-80", at("2027-02-11", "10:00")),
+    bk("too-far", at("2027-03-01", "10:00")),
+  ];
+
+  it("counts booked visits still to come, keeps requests apart and splits paid from still to take", async () => {
+    const { futureFigures } = await import("./bookingsView");
+    const f = futureFigures(rows, Z, "2026-11-23", now);
+    expect(f.windows.map((w) => [w.days, w.count, w.waiting, w.valueMinor, w.paidMinor, w.dueMinor])).toEqual([
+      [30, 3, 1, 18000, 8000, 10000],
+      [60, 4, 1, 23000, 10000, 13000],
+      [90, 5, 1, 28000, 10000, 18000],
+    ]);
+    expect(f.windows[0].busiest).toEqual({ day: "2026-11-30", count: 2 });
+    expect(f.weeks).toHaveLength(13);
+    expect(f.weeks[0]).toEqual({ monday: "2026-11-23", count: 1, valueMinor: 5000 });
+    expect(f.weeks[1]).toEqual({ monday: "2026-11-30", count: 2, valueMinor: 13000 });
+  });
+
+  it("nothing booked gives zeros and no busiest day; the spreadsheet lists each visit with what is left", async () => {
+    const { futureFigures, futureList, futureRows } = await import("./bookingsView");
+    expect(futureFigures([], Z, "2026-11-23", now).windows[2]).toMatchObject({ count: 0, waiting: 0, valueMinor: 0, busiest: null });
+    const sheet = futureRows(futureList(rows, Z, "2026-11-23", now, 30), Z);
+    expect(sheet[0]).toEqual(["Day", "Time", "Client", "Email", "Phone", "Service", "With", "Status", "Price", "Paid", "To pay"]);
+    expect(sheet.slice(1).map((r) => [r[0], r[2], r[7], r[8], r[9], r[10]])).toEqual([
+      ["2026-11-23", "later-today", "Booked", "50.00", "0.00", "50.00"],
+      ["2026-11-30", "card", "Booked", "80.00", "80.00", "0.00"],
+      ["2026-11-30", "same-day", "Booked", "50.00", "0.00", "50.00"],
+      ["2026-12-01", "asked", "Waiting for your answer", "50.00", "0.00", "0.00"],
+    ]);
+  });
+});
+
+describe("team performance (plan 4, 5.2)", () => {
+  const Z = "America/Toronto";
+  const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00-05:00`).toISOString();
+  const bk = (id: string, start: string, staffId: string, email: string, extra: Partial<Booking> = {}): Booking => ({
+    id, serviceId: "s", serviceName: "Cut", minutes: 60, start, end: new Date(Date.parse(start) + 3_600_000).toISOString(),
+    customer: { name: email, email }, status: "confirmed", payment: "atShop", priceMinor: 6000, currency: "CAD", paid: true, staffId, staffName: staffId === "ana" ? "Ana" : "Ben", ...extra,
+  });
+  const staff = [{ id: "ana", name: "Ana", active: true }, { id: "ben", name: "Ben", active: true }, { id: "cy", name: "Cy", active: false }];
+  const now = Date.parse(at("2026-11-23", "12:00"));
+
+  it("counts visits, takings, hours, clients, rebooking and no-shows for each person, busiest first", async () => {
+    const { teamPerformance } = await import("./bookingsView");
+    const rows = [
+      bk("a1", at("2026-11-03", "10:00"), "ana", "ada@example.com"),
+      bk("a2", at("2026-11-10", "10:00"), "ana", "ada@example.com"),
+      bk("a3", at("2026-11-12", "10:00"), "ana", "bo@example.com"),
+      bk("a-miss", at("2026-11-14", "10:00"), "ana", "cy@example.com", { noShow: true, paid: false }),
+      bk("b1", at("2026-11-05", "10:00"), "ben", "dee@example.com"),
+      bk("b-gone", at("2026-11-06", "10:00"), "ben", "dee@example.com", { status: "cancelled" }),
+      bk("later", at("2026-11-30", "10:00"), "ben", "bo@example.com"),
+      bk("october", at("2026-10-20", "10:00"), "ana", "ada@example.com"),
+    ];
+    const perf = teamPerformance(rows, staff, Z, "2026-11-01", "2026-11-24", now);
+    expect(perf.people.map((l) => [l.name, l.visits, l.takenMinor, l.perVisitMinor, l.minutes, l.clients, l.rebooked, l.rebookPercent, l.noShows, l.noShowPercent])).toEqual([
+      ["Ana", 3, 18000, 6000, 180, 2, 2, 67, 1, 25],
+      ["Ben", 1, 6000, 6000, 60, 1, 0, 0, 0, 0],
+    ]);
+    expect(perf.total).toMatchObject({ visits: 4, takenMinor: 24000, clients: 3, rebooked: 2, rebookPercent: 50, noShows: 1, noShowPercent: 20 });
+  });
+
+  it("splits a visit with several services between the people who did each part", async () => {
+    const { teamPerformance, performanceRows } = await import("./bookingsView");
+    const start = at("2026-11-10", "10:00");
+    const two = bk("two", start, "ana", "ada@example.com", { priceMinor: 9000, minutes: 90,
+      parts: [{ serviceId: "t", serviceName: "Tone", minutes: 30, gapAfter: 0, priceMinor: 3000, staffId: "ben", staffName: "Ben", roomId: "", roomName: "", start: at("2026-11-10", "11:00"), end: at("2026-11-10", "11:30") }] });
+    const perf = teamPerformance([two], staff, Z, "2026-11-01", "2026-11-24", now);
+    expect(perf.people.map((l) => [l.name, l.visits, l.takenMinor, l.minutes])).toEqual([["Ana", 1, 6000, 60], ["Ben", 1, 3000, 30]]);
+    expect(perf.total).toMatchObject({ visits: 2, clients: 1 });
+    expect(performanceRows(perf)[0][0]).toBe("Person");
+    expect(performanceRows(perf).at(-1)).toEqual(["Everyone", "2", "90.00", "45.00", "1.50", "1", "0", "0", "0"]);
+  });
+
+  it("names the stretches: this month so far, last month, the last three months", async () => {
+    const { spanDays } = await import("./bookingsView");
+    expect(spanDays("month", "2026-11-23")).toEqual({ from: "2026-11-01", to: "2026-11-24" });
+    expect(spanDays("last", "2026-11-23")).toEqual({ from: "2026-10-01", to: "2026-11-01" });
+    expect(spanDays("quarter", "2026-01-15")).toEqual({ from: "2025-11-01", to: "2026-01-16" });
+  });
+});
+
+describe("the no-show report (plan 4, 5.3)", () => {
+  const Z = "America/Toronto";
+  const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00-05:00`).toISOString();
+  const bk = (id: string, start: string, email: string, extra: Partial<Booking> = {}): Booking => ({
+    id, serviceId: "s", serviceName: "Cut", minutes: 60, start, end: new Date(Date.parse(start) + 3_600_000).toISOString(),
+    customer: { name: email.split("@")[0], email, phone: "416-555-0100" }, status: "confirmed", payment: "atShop", priceMinor: 6000, currency: "CAD", paid: false, ...extra,
+  });
+  it("counts missed visits, what they cost and what was kept, with repeat clients first", async () => {
+    const { noShowReport, noShowRows } = await import("./bookingsView");
+    const rows = [
+      bk("ok", at("2026-11-02", "10:00"), "ann@example.com", { paid: true }),
+      bk("m1", at("2026-11-03", "10:00"), "max@example.com", { noShow: true }),
+      bk("m2", at("2026-11-10", "10:00"), "Max@Example.com", { noShow: true, fee: { amountMinor: 2500, at: "2026-11-10T20:00:00Z" } }),
+      bk("d1", at("2026-11-06", "10:00"), "dee@example.com", { noShow: true, payment: "deposit", depositMinor: 2000, depositPaid: true }),
+      bk("gone", at("2026-11-07", "10:00"), "zed@example.com", { status: "cancelled", noShow: true }),
+      bk("future", at("2026-11-30", "10:00"), "max@example.com", { noShow: true }),
+      bk("october", at("2026-10-20", "10:00"), "max@example.com", { noShow: true }),
+    ];
+    const r = noShowReport(rows, Z, "2026-11-01", "2026-11-24", Date.parse(at("2026-11-23", "12:00")));
+    expect([r.due, r.count, r.percent, r.repeat]).toEqual([4, 3, 75, 1]);
+    expect(r.keptMinor).toBe(2500 + 2000);
+    expect(r.lostMinor).toBe(6000 + 3500 + 4000);
+    expect(r.clients.map((c) => [c.name, c.count, c.lastDay, c.keptMinor])).toEqual([["Max", 2, "2026-11-10", 2500], ["dee", 1, "2026-11-06", 2000]]);
+    expect(r.weekdays.map((w) => w.count)).toEqual([0, 2, 0, 0, 1, 0, 0]);
+    expect(r.weekdays[0].day).toBe("Monday");
+    expect(noShowRows(r)[1]).toEqual(["Max", "max@example.com", "416-555-0100", "2", "2026-11-10", "25.00"]);
+  });
+  it("an empty stretch has no rate", async () => {
+    const { noShowReport } = await import("./bookingsView");
+    expect(noShowReport([], Z, "2026-11-01", "2026-11-24", Date.now())).toMatchObject({ due: 0, count: 0, percent: null, clients: [] });
+  });
+});

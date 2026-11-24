@@ -138,7 +138,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     {loading ? <p role="status">Loading full catalog…</p> : error && !editor && !deleting && <SecondaryButton onClick={load}>Retry catalog</SecondaryButton>}
     <TextField label="Find categories" value={search} onChange={e => setSearch(e.target.value)} />
     <SecondaryButton onClick={() => open({ id: `cat-${crypto.randomUUID()}`, name: "", description: "", imageUrl: "", showInNav: true, parentId: null })}>Add category</SecondaryButton>
-    {refLimit > 0 && <p className="studio-hint" data-reference-limit={refLimit}>Your shop header (Reference layout) shows the first {refLimit === 1 ? "category" : `${refLimit} categories`} in this order. To show more, go to Theme settings › Shop page masthead & covers › Max categories in the nav.</p>}
+    {refLimit > 0 && <p className="studio-hint" data-reference-limit={refLimit}>Your shop header (Reference layout) shows the first {refLimit === 1 ? "category" : `${refLimit} categories`} in this order. To show more, go to Style › Shop page masthead & covers › Max categories in the nav.</p>}
     {cats.length === 0 && <p>No categories yet. Add one to organize the shop.</p>}
     {cats.filter(c => `${c.name} ${c.description || ""}`.toLowerCase().includes(search.toLowerCase())).map(c => <article key={c.id} className="studio-category-row">
       <div><strong>{c.name}</strong><p>{loading ? "Loading counts…" : !loaded ? "Counts unavailable" : w(`${books.filter(b => directlyAssigned(b, c)).length} directly assigned books`)} · {menuState(c)}</p>
@@ -165,7 +165,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
         </SelectField>
         {childCategories(editor, cats).length > 0 && <p>Move this category’s children elsewhere before making it a subcategory.</p>}
         <SelectField label="Collection page template" value={editor.templateId || ""} disabled={busy}
-          hint="Which layout this category's collection page uses. Make more in Page layout › Collection page template › New template from this one."
+          hint="Which layout this category's collection page uses. Make more in Page › Collection page template › New template from this one."
           onChange={e => { const { templateId: _old, ...rest } = editor; setEditor(e.target.value ? { ...rest, templateId: e.target.value } : rest); }}>
           <option value="">Default collection page</option>
           {alternatesFor(design, "collectionPage").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

@@ -22,7 +22,7 @@ const click = (el: HTMLElement, label: string) => act(async () => byLabel(el, la
 const pick = (select: HTMLSelectElement, value: string) => act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
 afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; });
 
-describe("Page layout › Buy box blocks", () => {
+describe("Page › Buy box blocks", () => {
   it("moves and hides built-in blocks on the default book page, keeping Add to bag always shown", async () => {
     const el = await mount({});
     await click(el, "Move Price, sale end & stock up");

@@ -70,3 +70,18 @@
   .rp .cf-row { grid-template-columns: auto minmax(0, 1fr); padding: 10px 12px; }
   .rp .cf-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* Loyalty points on the client card (plan 4, 5.5) */
+.rp .cp-balance { padding: 16px 18px; border-radius: 18px; background: var(--rp-tile-mint); color: var(--rp-on-tile); }
+.rp .cp-number { margin: 0 0 10px; font: 400 15px/1.2 var(--rp-font-body); }
+.rp .cp-number strong { font: 600 30px/1 var(--rp-font-body); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-right: 4px; }
+.rp .cp-meter { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--rp-on-tile) 14%, transparent); overflow: hidden; }
+.rp .cp-meter span { display: block; height: 100%; border-radius: inherit; background: var(--rp-on-tile); }
+.rp .cp-foot { margin: 10px 0 0; font-size: 13px; line-height: 1.45; opacity: 0.82; }
+.rp .cp-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.rp .cp-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--rp-border); font-size: 14px; }
+.rp .cp-row:last-child { border-bottom: 0; }
+.rp .cp-row-what { min-width: 0; overflow-wrap: anywhere; }
+.rp .cp-row-what small { display: block; margin-top: 2px; font-size: 12px; color: var(--rp-text-muted); }
+.rp .cp-row-points { font: 600 14px/1.2 var(--rp-font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp .cp-row-points[data-minus] { color: var(--rp-text-muted); }

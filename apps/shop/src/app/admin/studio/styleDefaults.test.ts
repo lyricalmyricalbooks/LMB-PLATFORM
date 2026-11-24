@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { STYLE_GROUPS } from "./styleSchema";
 import { defaultSettings } from "../defaultSettings";
 
-// A Theme settings control with no value shows `defaultValue` (else the first option / Off / the lowest
+// A Style control with no value shows `defaultValue` (else the first option / Off / the lowest
 // number). When that differs from what the storefront draws for the same unset key, Studio shows the
 // wrong state: a switch reads Off while the part is drawn, and the first click "does nothing". These
 // checks compare each control with the storefront's own fallback (`d.key ?? true`, `!== false`,
@@ -26,7 +26,7 @@ const fields = STYLE_GROUPS.flatMap((g) => g.fields.map((f) => ({ group: g.id, .
 const esc = (k: string) => k.replace(/[$]/g, "\\$");
 const found = (re: RegExp) => [...source.matchAll(re)].map((m) => m[1]);
 
-describe("Theme settings controls show what the storefront draws when nothing is set", () => {
+describe("Style controls show what the storefront draws when nothing is set", () => {
   it("switches that default to on in the storefront start on", () => {
     const wrong = fields.filter((f) => f.kind === "toggle"
       && found(new RegExp(`\\.${esc(f.key)}\\s*(\\?\\? true|!== false)`, "g")).length

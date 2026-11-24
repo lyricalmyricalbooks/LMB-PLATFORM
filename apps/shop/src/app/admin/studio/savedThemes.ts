@@ -36,6 +36,19 @@ export function savedThemeLimitProblem(list: SavedTheme[] | undefined, name: str
     ? `You have the maximum of ${MAX_SAVED_THEMES} themes. Delete one in My themes first.` : null;
 }
 
+/**
+ * "Try this starter" keeps the design as it was in My themes before the starter goes into the draft. The name says
+ * what it was kept for; a second try of the same starter adds the date so it never replaces the first copy.
+ */
+export function keptDesignName(list: SavedTheme[] | undefined, starterName: string, now = new Date()): string {
+  const base = `Before ${starterName.trim() || "the starter"}`.slice(0, 44);
+  if (!themeNamed(list, base)) return base;
+  const day = now.toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+  const time = now.toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" });
+  for (const name of [`${base}, ${day}`, `${base}, ${day} ${time}`]) if (!themeNamed(list, name)) return name;
+  return `${base}, ${now.getTime().toString(36)}`;
+}
+
 export const removeSavedTheme = (list: SavedTheme[] | undefined, id: string) => (list || []).filter((t) => t.id !== id);
 
 const clone = (v: any) => JSON.parse(JSON.stringify(v ?? {}));

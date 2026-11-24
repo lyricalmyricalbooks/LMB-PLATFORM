@@ -88,6 +88,7 @@ import { bookingsBetaRoutes, createBookingsBeta } from "../control-room/bookings
 import { createProductApproval, productApprovalRoutes } from "../control-room/productApproval.js";
 import { createWaysBeta, waysBetaRoutes } from "../control-room/waysBeta.js";
 import { createShopLooks, shopLooksRoutes } from "../control-room/shopLooks.js";
+import { createStarterSites, starterSitesRoutes } from "../control-room/starterSites.js";
 import { createShopEmails, shopEmailsRoutes } from "../control-room/shopEmails.js";
 import { appUseRoutes, createAppUse } from "../control-room/appUse.js";
 import { createShopSocial, shopSocialRoutes } from "../control-room/shopSocial.js";
@@ -300,6 +301,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
   const bookingsBeta = createBookingsBeta({ admins, registry, auditLog, shopData, activity, now: clock.date });
   const productApproval = createProductApproval({ admins, registry, auditLog, shopData, activity, now: clock.date });
   const shopLooks = createShopLooks({ admins, registry, shopData, now: clock.date });
+  const starterSites = createStarterSites({ admins, settingsStore: platformState, registry, auditLog, shopData, activity, now: clock.date });
   const shopEmails = createShopEmails({ admins, registry, emailLog: email.emailLog, now: clock.date });
   const appUse = createAppUse({ admins, installs: appInstallStores.installs, outbox: appAlertStores.outbox, now: clock.date });
   const shopApps = createShopApps({ admins, registry, installs: appInstallStores.installs, outbox: appAlertStores.outbox, shopData: { ...shopData, list: (...args) => listDocs(...args) }, now: clock.date });
@@ -367,6 +369,7 @@ export function platformWorld({ start, clock = fakeClock(start), env = {}, invit
     ...productApprovalRoutes(productApproval),
     ...waysBetaRoutes(createWaysBeta({ admins, registry, auditLog, shopData, activity, now: clock.date })),
     ...shopLooksRoutes(shopLooks),
+    ...starterSitesRoutes(starterSites),
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),

@@ -1,5 +1,4 @@
 import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { StockistsCard } from "./StockistsCard";
@@ -27,6 +26,7 @@ import { SHOP_CURRENCY } from "./moneySign";
 import "./clientCard.css";
 import { ClientFormFacts } from "./clientForm";
 import { ClientVisits } from "./ClientVisits.tsx";
+import { ClientPoints } from "./ClientPoints.tsx";
 import { ClientFiles } from "./ClientFiles.tsx";
 import { emailHash } from "./emailHash";
 import { dayOf } from "../../shared/bookingTimes";
@@ -271,8 +271,8 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     <div className="rp-stack">
       {/* Bringing customers over and exporting them are page actions, so they sit by the title, not among the filters. */}
       <PageActions>
-        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
-        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>{w("Bring customers over")}</SecondaryButton>
+        <SecondaryButton onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
+        <SecondaryButton onClick={() => setMoveOpen(true)}>{w("Bring customers over")}</SecondaryButton>
       </PageActions>
       <div className="rp-kpi-grid">
         <MetricCard label="Customers" value={stats.total} footer="With at least one paid order" />
@@ -404,6 +404,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
         <div className="rp-stack">
           {hasCard && <ClientCardView card={card} phone={phone} email={c.email} again={card.again && onBookAgain ? () => onBookAgain({ ...card.again!, name: c.name, email: c.email, phone }) : undefined}
             bookFirst={!card.again && onBookAgain ? () => onBookAgain({ serviceId: "", staffId: "", name: c.name, email: c.email, phone }) : undefined} />}
+          {hasCard && services && <ClientPoints email={c.key} />}
           {hasCard && services && <ClientVisits email={c.key} />}
           {hasCard && services && <ClientFiles email={c.key} />}
           {(!services || c.orderCount > 0 || !hasCard || c.segment === "moved") && <p className="rp-hint" style={{ margin: 0 }}>

@@ -49,9 +49,9 @@ export type SearchEntry = {
   id: string;
   kind: SearchKind;
   title: string;
-  /** Where it lives, in the words used on screen: "Theme settings › Product page". */
+  /** Where it lives, in the words used on screen: "Style › Product page". */
   where: string;
-  /** The click path shown under the title ("Theme settings › Header, menu & footer › Header & announcement bar › Announcement bar"); falls back to `where`. */
+  /** The click path shown under the title ("Style › Header, menu & footer › Header & announcement bar › Announcement bar"); falls back to `where`. */
   trail?: string;
   /** Extra words that should find this entry but aren't shown. */
   keywords: string;
@@ -216,13 +216,13 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
 ];
 
 const TABS: { tab: StudioTab; title: string; keywords: string }[] = [
-  { tab: "sections", title: "Page layout", keywords: "page structure sections blocks homepage outline header footer announcement pop-ups pop-overs shared global" },
-  { tab: "style", title: "Theme settings", keywords: "style colors fonts spacing look design theme" },
+  { tab: "sections", title: "Page", keywords: "page structure sections blocks homepage outline header footer announcement pop-ups pop-overs shared global" },
+  { tab: "style", title: "Style", keywords: "style colors fonts spacing look design theme" },
   { tab: "text", title: "Text & labels", keywords: "words wording copy messages" },
-  { tab: "menus", title: "Navigation", keywords: "menus navigation header footer categories links" },
+  { tab: "menus", title: "Menus", keywords: "menus navigation header footer categories links" },
   { tab: "pages", title: "Pages", keywords: "about journal custom page content" },
   { tab: "media", title: "Media", keywords: "media library images pictures photos uploads files alt text description srcset replace delete unused" },
-  { tab: "themes", title: "Themes", keywords: "my themes saved themes presets theme library looks share preview link private download import duplicate publish" },
+  { tab: "themes", title: "Designs", keywords: "my themes saved themes presets theme library looks share preview link private download import duplicate publish" },
 ];
 
 const MENU_PANELS: { panel: string; title: string; keywords: string }[] = [
@@ -233,7 +233,7 @@ const MENU_PANELS: { panel: string; title: string; keywords: string }[] = [
 
 // Plain-English "where do I…?" answers that are not a single setting. They open the right workspace and say what to click.
 const HOW_TO: { id: string; title: string; where: string; keywords: string; target: SearchTarget }[] = [
-  { id: "howto:section-tools", title: "Delete, move or duplicate a section", where: "Page layout › click a section › Move up · Move down · Duplicate · Delete", keywords: "delete remove trash move reorder up down duplicate copy clone section sections rearrange order on the page", target: { type: "tab", tab: "sections" } },
+  { id: "howto:section-tools", title: "Delete, move or duplicate a section", where: "Page › click a section › Move up · Move down · Duplicate · Delete", keywords: "delete remove trash move reorder up down duplicate copy clone section sections rearrange order on the page", target: { type: "tab", tab: "sections" } },
   { id: "howto:new-page", title: "Add a new page (About, Journal…)", where: "Pages › New page", keywords: "new page create page add page custom page about contact journal policy blank page write a page", target: { type: "tab", tab: "pages" } },
   { id: "howto:site-name", title: "Change the shop's name and what Google shows", where: "Text & labels › Site & sharing", keywords: "site name shop name store name seo google title description search results meta browser tab", target: { type: "copy", group: "Site & sharing" } },
 ];
@@ -291,11 +291,11 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
 
   for (const a of ACTIONS) out.push(staticEntry(`action:${a.id}`, "action", a.title, "Studio", a.keywords, { type: "action", id: a.id }, keysFor(ACTION_KEYS[a.id])));
   for (const t of TABS) out.push(staticEntry(`tab:${t.tab}`, "area", t.title, "Studio", t.keywords, { type: "tab", tab: t.tab }, keysFor(`go:${t.tab}` as ShortcutAction), { bias: 1 }));
-  for (const m of MENU_PANELS) out.push(staticEntry(m.panel, "menu", m.title, "Navigation", m.keywords, { type: "menus", panel: m.panel }, undefined, { trail: `Navigation › ${m.title}`, bias: 3 }));
+  for (const m of MENU_PANELS) out.push(staticEntry(m.panel, "menu", m.title, "Menus", m.keywords, { type: "menus", panel: m.panel }, undefined, { trail: `Menus › ${m.title}`, bias: 3 }));
   for (const h of HOW_TO) out.push(staticEntry(h.id, "area", h.title, h.where.split(" › ")[0], h.keywords, h.target, undefined, { trail: h.where, bias: 2 }));
 
   for (const t of input.templates) {
-    out.push(staticEntry(`template:${t.id}`, "page", t.label, "Pages you can design", `edit sections ${t.pageSlug || ""}`, { type: "template", id: t.id }, undefined, { trail: `Page layout › ${t.label}` }));
+    out.push(staticEntry(`template:${t.id}`, "page", t.label, "Pages you can design", `edit sections ${t.pageSlug || ""}`, { type: "template", id: t.id }, undefined, { trail: `Page › ${t.label}` }));
   }
   const seenSlug = new Set<string>();
   for (const p of input.pages) {
@@ -327,17 +327,17 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
 
   for (const g of input.styleGroups) {
     const heading = THEME_HEADINGS.find(h => h.groups.includes(g.id))?.title || "";
-    const base = ["Theme settings", heading].filter(Boolean).join(" › ");
+    const base = ["Style", heading].filter(Boolean).join(" › ");
     const subs = STYLE_SUBSECTIONS[g.id];
     const subOf = (key: string) => subs ? (subs.find(s => s.keys.includes(key))?.title ?? MORE_SETTINGS) : "";
-    out.push(staticEntry(`style-group:${g.id}`, "style", g.title, "Theme settings", `${STYLE_GROUP_WORDS[g.id] || ""} all settings group`, { type: "style", groupId: g.id }, undefined, { trail: base, bias: 5, detail: normalizeSearchText(g.hint || "") }));
+    out.push(staticEntry(`style-group:${g.id}`, "style", g.title, "Style", `${STYLE_GROUP_WORDS[g.id] || ""} all settings group`, { type: "style", groupId: g.id }, undefined, { trail: base, bias: 5, detail: normalizeSearchText(g.hint || "") }));
     for (const f of g.fields) {
       // An element setting exists once per screen size; index it once (the desktop field) and let
       // "tablet"/"phone" match it — the element's controls follow the previewed size anyway.
       const region = f.key.startsWith("regions.");
       if (region && regionFieldDevice(f.key) !== "desktop") continue;
       const sub = subOf(f.key);
-      out.push(staticEntry(`style:${g.id}:${f.key}`, "style", f.label, `Theme settings › ${g.title}`,
+      out.push(staticEntry(`style:${g.id}:${f.key}`, "style", f.label, `Style › ${g.title}`,
         `${f.key} ${g.title}${sub && sub !== MORE_SETTINGS ? ` ${sub}` : ""}${region ? " tablet phone mobile" : ""}`, { type: "style", groupId: g.id, key: f.key }, undefined,
         { trail: [base, g.title, sub].filter(Boolean).join(" › "), ...(region ? { bias: -5 } : {}) }));
     }
@@ -677,7 +677,7 @@ export function contextCommands(ctx: {
   }
   if (ctx.element) {
     const where = `Selected part › ${ctx.element.label}`;
-    if (ctx.element.hasTheme) cmd("element-theme", `Open ${ctx.element.label} in Theme settings`, where, "all style settings category");
+    if (ctx.element.hasTheme) cmd("element-theme", `Open ${ctx.element.label} in Style`, where, "all style settings category");
     cmd("element-close", `Close ${ctx.element.label}`, where, "deselect done", "deselect");
   }
   return out;

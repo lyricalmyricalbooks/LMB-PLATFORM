@@ -2,7 +2,7 @@
 // Full storefront templates (plan 10.9 to 10.12): a template is a theme with its own `themeStyle` and its own
 // scoped stylesheet, so its header, book cards, buttons, book page, bag and footer are drawn as one design system,
 // not as a recolour of another look. The stylesheet only exists while the design's `themeStyle` names the template.
-// The look is picked in the theme picker; Theme settings › Print style & template details › Print style switches it.
+// The look is picked in the theme picker; Style › Print style & template details › Print style switches it.
 //
 //   marquee: a loud ruled masthead, a bare cover wall, round stickers and hard offset shadows on buttons.
 //   shelf:   a colour-block hero, a white shelf of books that overlaps it, pill buttons and soft rounded covers.
@@ -79,7 +79,7 @@ const corner = (d: Design) => (RADIUS_SCALES[d.radiusScale] ? `${RADIUS_SCALES[d
 export type TemplateKnob = {
   /** The CSS variable a template reads (`var(--tpl-…, <the template's own look>)`). */
   cssVar: string;
-  /** The Studio › Theme settings keys behind it (each one is a Style control; the coverage test checks). */
+  /** The Studio › Style keys behind it (each one is a Style control; the coverage test checks). */
   keys: string[];
   /** The variable's value from the design, or undefined to keep the template's own look. */
   value: (d: Design) => string | undefined;

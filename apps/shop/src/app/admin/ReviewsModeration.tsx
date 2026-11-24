@@ -187,6 +187,7 @@ function Queue() {
         <div className="rp-tile">
           <span className="rp-tile-label">Hidden</span>
           <span className="rp-tile-value">{counts.rejected}{capped ? "+" : ""}</span>
+          <span className="rp-tile-sub">Not on your website</span>
         </div>
       </div>
       <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}

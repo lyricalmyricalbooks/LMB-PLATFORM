@@ -24,7 +24,7 @@ export type StyleGroup = { id: string; title: string; hint?: string; fields: Sty
 
 /** "No scheme": the part keeps the theme's own colours. */
 export const NO_SCHEME = { value: "", label: "Theme colours (no scheme)" };
-/** A colour-scheme select (Theme settings › Colour schemes) with the design's current schemes as choices. */
+/** A colour-scheme select (Style › Colour schemes) with the design's current schemes as choices. */
 export function schemeFieldOptions(field: StyleField, schemes: { id: string; name: string }[]): StyleField {
   if (!field.key.startsWith("elementSchemes.") || field.kind !== "select") return field;
   return { ...field, options: [NO_SCHEME, ...schemes.map((s) => ({ value: s.id, label: s.name || s.id }))] };
@@ -354,7 +354,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
   {
     id: "popup",
     title: "Pop-up window",
-    hint: "The Pop-up section group (Page layout › Shared sections › Pop-up). It never covers the cookie banner: it waits until the shopper has answered it.",
+    hint: "The Pop-up section group (Page › Shared sections › Pop-up). It never covers the cookie banner: it waits until the shopper has answered it.",
     fields: [
       { key: "popupTrigger", label: "When it opens", kind: "select", defaultValue: "delay", options: [
         { value: "delay", label: "After the delay below" },
