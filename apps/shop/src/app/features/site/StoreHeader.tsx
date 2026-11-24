@@ -638,6 +638,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const navBar = barOf(primaryNav, navRef);
   // Style › Header layout › links on both sides of a centred logo: the first half sits left, the rest right (computers).
   const around = aroundLogo(sf, logoPosition, minimal, navBelow, primaryNav);
+  // Style › Navigation › "Links in the middle": a left logo, the links centred between it and the icons (Slow Season).
+  const linksMiddle = sf?.navCentred === true && logoPosition === "left" && !minimal;
   const logo = (
     <Link to="/" state={HOME_LINK_STATE} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
       <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
@@ -735,16 +737,17 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <div style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
           </div>
         ) : (
-          <div ref={headerRowRef} className={`fm-hdr-row mx-auto px-6 py-4 items-center gap-4 ${around ? "grid grid-cols-[1fr_auto_1fr] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : logoPosition === "center" ? "grid grid-cols-[1fr_auto_1fr]" : "flex flex-nowrap justify-between"}`} style={{ maxWidth }}>
+          <div ref={headerRowRef} className={`fm-hdr-row mx-auto px-6 py-4 items-center gap-4 ${around ? "grid grid-cols-[1fr_auto_1fr] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : logoPosition === "center" || linksMiddle ? "grid grid-cols-[1fr_auto_1fr]" : "flex flex-nowrap justify-between"}`} style={{ maxWidth }}>
             <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
               {minimal && <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} everywhere />}
               {logoPosition === "left" && logo}
-              {around ? barOf(around.left, navRef) : !navBelow && !minimal && navBar}
+              {around ? barOf(around.left, navRef) : !navBelow && !minimal && !linksMiddle && navBar}
             </div>
+            {linksMiddle && <div className="flex min-w-0 justify-center">{!navBelow && navBar}</div>}
             {logoPosition === "center" && <div className={`${around ? "" : "flex-1 "}flex justify-center`}>{logo}</div>}
             <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
               {logoPosition === "right" && logo}
-              {around && <div className="mr-auto pl-6 md:pl-10">{barOf(around.right, navRightRef)}</div>}
+              {around && <div className="mr-auto hidden md:block md:pl-10">{barOf(around.right, navRightRef)}</div>}
               {sf?.menus?.header?.length > 0 && (
                 <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={sf.menus.header} design={sf} /></div>
               )}

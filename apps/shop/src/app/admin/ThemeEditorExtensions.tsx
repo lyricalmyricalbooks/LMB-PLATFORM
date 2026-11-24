@@ -1925,6 +1925,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   MarqueeSection: [
     { key: "text", label: "Text", kind: "text" },
     { key: "separator", label: "Separator", kind: "text" },
+    { key: "still", label: "Hold still (spread the lines across one row)", kind: "toggle", defaultValue: false },
     { key: "speed", label: "Scroll duration", kind: "range", min: 5, max: 120, step: 1, suffix: "s" },
     { key: "fontSize", label: "Font size", kind: "range", min: 10, max: 120, step: 1, suffix: "px" },
     { key: "bold", label: "Bold", kind: "toggle", defaultValue: true },

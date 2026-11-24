@@ -883,3 +883,12 @@ in StudioEditor first saves the current draft to My themes as `keptDesignName(li
 date added when taken), refuses when My themes is full, then applies `applyStarter` as one undoable change, adds the
 starter's missing pages as drafts and opens Home. It never asks first: nothing is lost (the kept theme, Undo, and the
 shop stays as it was until Publish). `persistThemes` returns whether it saved; pass `null` to stay quiet.
+
+## Starters checked against their Figma designs (24 November 2026, next starters plan phase 1)
+- Each starter's Figma Make source was run locally and screenshotted beside the Studio preview at 1200px and 390px
+  (shots in the project files, `starters-rethink/shots/figma-match/`). To repeat: read the Make files with the Figma
+  tools (nodeId `0:1`), serve `App.tsx` + `index.css` (drop `@import "tailwindcss"`) with the shop's Vite, compare.
+- New controls: Style › Navigation links › **Links in the middle (logo on the left)** (`navCentred`, StoreHeader puts the
+  bar in a middle grid column) and the scrolling-text section's **Hold still** (`still`: the text splits at the separator
+  into one evenly spread row, `.fm-ticker-still`, section design "Still line of short notes").
+- Template logo rules use `!important` because LogoMark sets the wordmark's size and spacing inline.

@@ -1080,6 +1080,27 @@ export function MarqueeSection({ settings }: any) {
   const color = settings.color || undefined;
 
   const phrase = Array.from({ length: 4 }).map(() => text).join(`  ${separator}  `);
+  const wordStyle = {
+    fontSize,
+    color,
+    ...(settings.fontWeight != null ? { fontWeight: settings.fontWeight } : {}),
+    ...(settings.letterSpacing != null ? { letterSpacing: `${settings.letterSpacing}em` } : {}),
+  };
+
+  // "Hold still": the lines split at the separator and spread evenly across one quiet row, each led by the separator
+  // in the accent colour (the Aurel ticker). Wraps on a phone instead of moving.
+  if (settings.still) {
+    const lines = String(text).split(separator).map((line) => line.trim()).filter(Boolean);
+    return (
+      <section className="fm-ticker-still" style={{ background, ...bgStyle(settings) }}>
+        <ul className={`${bold ? "font-black" : "font-medium"} ${uppercase ? "uppercase" : ""}`} style={wordStyle}>
+          {lines.map((line, i) => (
+            <li key={i}><span aria-hidden="true" className="fm-ticker-mark">{separator}</span>{line}</li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 
   return (
     <section className="overflow-hidden py-8" style={{ background, ...bgStyle(settings) }}>

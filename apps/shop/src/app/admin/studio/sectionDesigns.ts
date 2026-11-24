@@ -83,6 +83,7 @@ const EXTRA: Extra[] = [
   { type: "TestimonialsSection", key: "dark", label: "Quotes on dark", description: "Reviews on a dark band.", settings: { colorSchemeId: "scheme-inverse" } },
   { type: "StatsCounterSection", key: "colour", label: "Numbers on colour", description: "Your numbers on a band of your bright colour.", settings: { colorSchemeId: "scheme-accent" } },
   { type: "MarqueeSection", key: "ticker", label: "Dark ticker", description: "A slim dark strip of small moving words.", settings: { colorSchemeId: "scheme-inverse", fontSize: 14, speed: 30, uppercase: true } },
+  { type: "MarqueeSection", key: "still", label: "Still line of short notes", description: "Three short notes spread across one quiet row.", settings: { still: true, separator: "\u2726", fontSize: 10, bold: false, uppercase: true, letterSpacing: 0.12 } },
   { type: "MarqueeSection", key: "big", label: "Big moving words", description: "Large words gliding across the page.", settings: { fontSize: 72, speed: 40 } },
   { type: "PromoStripSection", key: "slim", label: "Slim strip", description: "A very small line, centred.", settings: { size: "xs", align: "center" } },
   { type: "CountdownSection", key: "colour", label: "Countdown on colour", description: "The timer on a band of your bright colour.", settings: { colorSchemeId: "scheme-accent", align: "center" } },

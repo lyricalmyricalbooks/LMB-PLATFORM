@@ -70,6 +70,10 @@
 
 /* Split opening (SplitOpeningSection, the Aurel starter's front): a big serif headline beside one edge-to-edge photo.
    Colours and fonts come from the theme tokens; sizes from the section's own fields (--fm-split-*). */
+/* Still ticker (MarqueeSection "Hold still", 24 November 2026): one quiet row of short lines, each led by the accent mark. */
+.fm-ticker-still { border-top: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); }
+.fm-ticker-still ul { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; gap: 12px 32px; min-height: 58px; margin: 0; padding: 14px 4vw; list-style: none; }
+.fm-ticker-still .fm-ticker-mark { color: var(--accent); margin-right: 28px; }
 .fm-split { display: grid; grid-template-columns: 46% 54%; min-height: max(610px, calc(100vh - 245px)); }
 .fm-split.fm-split-flip { grid-template-columns: 54% 46%; }
 .fm-split.fm-split-flip .fm-split-copy { order: 2; }
@@ -110,8 +114,8 @@
 .fm-po-caption { position: absolute; z-index: 2; left: 6vw; right: 6vw; bottom: 24px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 .fm-po-cue { position: absolute; z-index: 3; right: 3vw; bottom: 58px; width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; opacity: .8; }
 .fm-bi-in { display: grid; grid-template-columns: 1fr 3fr; padding: 120px 6vw 105px; }
-.fm-bi-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 8vw; align-items: end; }
-.fm-bi-title { font-family: var(--heading-font); font-weight: var(--rp-heading-weight, 600); font-size: clamp(74px, 10vw, 150px); line-height: .8; letter-spacing: -.075em; text-transform: uppercase; }
+.fm-bi-row { display: grid; grid-template-columns: 1.6fr minmax(14rem, 1fr); gap: 8vw; align-items: end; }
+.fm-bi-title { font-family: var(--heading-font); font-weight: var(--rp-heading-weight, 600); font-size: clamp(74px, 10vw, 150px); line-height: .8; letter-spacing: -.075em; text-transform: uppercase; overflow-wrap: break-word; }
 .fm-bi-body { max-width: 430px; padding-bottom: 8px; font-size: 16px; line-height: 1.65; }
 .fm-duo { display: grid; grid-template-columns: 1.3fr .7fr; min-height: 710px; }
 .fm-duo-a, .fm-duo-b { position: relative; overflow: hidden; padding: 42px; }
