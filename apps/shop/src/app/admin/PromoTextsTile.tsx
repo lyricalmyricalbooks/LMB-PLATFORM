@@ -62,7 +62,7 @@ function SendDialog({ services, shop, onClose, onSent }: { services: BookingServ
             {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </SelectField>
         )}
-        <TextArea label="Your message" rows={3} maxLength={MAX_PROMO} placeholder="Openings this Friday afternoon. Book online any time." value={text} onChange={(e) => setText(e.target.value)}
+        <TextArea label="Your message" rows={3} maxLength={MAX_PROMO} placeholder="Openings this Friday afternoon. Grab one online any time." value={text} onChange={(e) => setText(e.target.value)}
           hint={`${text.trim().length} of ${MAX_PROMO} letters`} error={text.trim() && "problem" in words ? words.problem : undefined} />
         {body && (
           <div className="bkg-promo-preview" data-promo-preview>
