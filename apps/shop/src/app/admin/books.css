@@ -219,3 +219,19 @@
 .be-approval-reason span { font-weight: 600; }
 .be-approval-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .be-approval textarea { background: var(--rp-surface) !important; }
+
+/* Adding products, round 3: a box's label sits above its text tools; Other prices folds under the price. */
+.book-editor-riso .be-field-label { margin: 0 0 6px; font: 600 13px/1.3 var(--rp-font-body); color: var(--rp-text); }
+.book-editor-riso .be-other-prices { margin-top: 16px; border-top: 1px solid var(--rp-divider); padding-top: 12px; }
+.book-editor-riso .be-other-prices > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 36px; }
+.book-editor-riso .be-other-prices > summary::-webkit-details-marker { display: none; }
+.book-editor-riso .be-other-prices > summary::after { content: "Open"; margin-left: auto; font: 600 13px var(--rp-font-body); color: var(--rp-text); text-decoration: underline; text-underline-offset: 3px; }
+.book-editor-riso .be-other-prices[open] > summary::after { content: "Close"; }
+.book-editor-riso .be-other-prices > summary:focus-visible { outline: 3px solid var(--rp-primary); outline-offset: 2px; }
+.book-editor-riso .be-other-title { font: 600 14px var(--rp-font-body); color: var(--rp-text); }
+.book-editor-riso .be-other-sum { color: var(--rp-text-muted); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.book-editor-riso .be-other-prices[open] > .be-grid, .book-editor-riso .be-other-prices[open] > .be-toggles { margin-top: 12px; }
+/* Round 3, change 2: with no photos yet, the add tile spans the card as one short drop zone. */
+.book-editor-riso .be-photos > .be-photo-add.be-wide { grid-column: 1 / -1; min-height: 96px; flex-direction: row; gap: 10px; }
+.book-editor-riso .be-other-prices:not([open]) { padding-bottom: 0; }
+.book-editor-riso .be-other-prices + .be-stats { margin-top: 4px; }

@@ -126,7 +126,8 @@ export function SummaryRail({ tone = "white", title, value, sub, rows, note }: {
   );
 }
 
-export type FormStatus = { tone: "good" | "warn"; text: string };
+/** `short`: the words on a phone, where the bar also holds two or three buttons. */
+export type FormStatus = { tone: "good" | "warn"; text: string; short?: string };
 /**
  * The status bar's words, in the kit's order: missing required fields first, then a create form's "Ready to …",
  * then "Unsaved changes", then "All saved".
@@ -158,9 +159,11 @@ function scrollParentOf(el: HTMLElement): HTMLElement | null {
   return (document.scrollingElement as HTMLElement | null) || null;
 }
 
-export function StatusBar({ status, primaryLabel, onPrimary, busy, blocked, onBlocked, cancelLabel, onCancel }: {
+export function StatusBar({ status, primaryLabel, onPrimary, busy, blocked, onBlocked, cancelLabel, onCancel, secondary }: {
   status: FormStatus; primaryLabel: string; onPrimary: () => void; busy?: boolean; blocked?: boolean; onBlocked?: () => void;
   cancelLabel?: string; onCancel?: () => void;
+  /** A second button before the main one ("Save draft" next to "Publish"). Dimmed while `blocked`; pressing it then calls `onBlocked`. */
+  secondary?: { label: string; onClick: () => void; blocked?: boolean; onBlocked?: () => void };
 }) {
   const bar = useRef<HTMLDivElement>(null);
   // The bar floats over the bottom of the page, so a field you move into (Tab, a tap, a "go to" link) could sit behind
@@ -180,9 +183,11 @@ export function StatusBar({ status, primaryLabel, onPrimary, busy, blocked, onBl
   }, []);
   return (
     <div ref={bar} className="rp-fk-status" role="region" aria-label="Form status">
-      <span className="rp-fk-status-text" role="status"><span className="rp-fk-dot" data-tone={status.tone} aria-hidden />{status.text}</span>
+      <span className="rp-fk-status-text" role="status"><span className="rp-fk-dot" data-tone={status.tone} aria-hidden />{status.short ? <><span className="rp-fk-long">{status.text}</span><span className="rp-fk-short" aria-hidden>{status.short}</span></> : status.text}</span>
       <span className="rp-fk-status-actions">
-        {onCancel && <button type="button" className="rp-fk-cancel" onClick={onCancel} disabled={busy}>{cancelLabel || "Cancel"}</button>}
+        {onCancel && <button type="button" className={`rp-fk-cancel${secondary ? " rp-fk-cancel-extra" : ""}`} onClick={onCancel} disabled={busy}>{cancelLabel || "Cancel"}</button>}
+        {secondary && <button type="button" className="rp-fk-cancel rp-fk-secondary" aria-disabled={secondary.blocked || busy || undefined}
+          onClick={() => { if (busy) return; if (secondary.blocked) { secondary.onBlocked?.(); return; } secondary.onClick(); }}>{secondary.label}</button>}
         <button type="button" className="rp-fk-primary" aria-disabled={blocked || busy || undefined}
           onClick={() => { if (busy) return; if (blocked) { onBlocked?.(); return; } onPrimary(); }}>
           {busy ? "Saving…" : primaryLabel}
