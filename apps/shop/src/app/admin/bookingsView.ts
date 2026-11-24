@@ -1,5 +1,6 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
+import { forgotten, hourlyOf, shiftMinutes, type Shift } from "../../shared/timeClock";
 import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, bookingChannel, CHANNEL_NAMES, type BookingChannel, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
@@ -592,16 +593,23 @@ export function hourLabel(min: number): string {
  * commission on that at their own share, and their tips. Worked out to show, never paid from here. A booking with no
  * person goes on an "Not given to anyone" line; a person removed since keeps their name from the booking.
  */
-export type PayLine = { id: string; name: string; visits: number; takenMinor: number; percent: number; commissionMinor: number; tipsMinor: number };
-export type TeamPay = { month: string; people: PayLine[]; takenMinor: number; commissionMinor: number; tipsMinor: number };
+export type PayLine = {
+  id: string; name: string; visits: number; takenMinor: number; percent: number; commissionMinor: number; tipsMinor: number;
+  /** Clock in and out (plan 4, 4.2): minutes on the clock this month, their hourly rate and what that comes to. */
+  minutes: number; hourlyMinor: number; wagesMinor: number;
+};
+export type TeamPay = { month: string; people: PayLine[]; takenMinor: number; commissionMinor: number; tipsMinor: number; minutes: number; wagesMinor: number };
 
-export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[], zone: string, month: string, now = Date.now()): TeamPay {
+/** A pay line for someone on the clock with no Team & rooms entry (a front desk): keyed by their email. */
+export const CLOCK_ONLY = "clock:";
+
+export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[], zone: string, month: string, now = Date.now(), shifts: readonly Shift[] = []): TeamPay {
   const lines = new Map<string, PayLine>();
-  const line = (id: string, name: string, percent: number) => {
-    if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, percent, commissionMinor: 0, tipsMinor: 0 });
+  const line = (id: string, name: string, percent: number, hourlyMinor = 0) => {
+    if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, percent, commissionMinor: 0, tipsMinor: 0, minutes: 0, hourlyMinor, wagesMinor: 0 });
     return lines.get(id)!;
   };
-  for (const p of staff) line(p.id, p.name, commissionOf(p.commissionPercent));
+  for (const p of staff) line(p.id, p.name, commissionOf(p.commissionPercent), hourlyOf(p.hourlyMinor));
   for (const b of rows) {
     if (b.status === "held" || b.status === "requested" || dayOf(Date.parse(b.start), zone).slice(0, 7) !== month) continue;
     const kept = moneyKept(b);
@@ -621,21 +629,34 @@ export function teamPay(rows: readonly Booking[], staff: readonly StaffMember[],
       if (!counted.has(id) && b.status === "confirmed" && !b.noShow && Date.parse(b.start) <= now) { l.visits += 1; counted.add(id); }
     });
   }
+  // Hours on the clock: on the person's own line when their entry has their sign-in email, else a line of their own.
+  for (const s of shifts) {
+    // A clock-out left open too long counts nothing until the owner adds the finish time (Hours worked flags it).
+    if (s.day.slice(0, 7) !== month || forgotten(s, now)) continue;
+    const p = staff.find((x) => (s.staffId && x.id === s.staffId) || (x.email && x.email.toLowerCase() === s.email));
+    const l = p ? line(p.id, p.name, commissionOf(p.commissionPercent), hourlyOf(p.hourlyMinor)) : line(`${CLOCK_ONLY}${s.email}`, s.name || s.email, 0);
+    l.minutes += shiftMinutes(s, now);
+  }
   const people = [...lines.values()]
-    .filter((l) => l.visits || l.takenMinor || l.tipsMinor || staff.some((p) => p.id === l.id && p.active))
-    .map((l) => ({ ...l, commissionMinor: l.id ? Math.round((l.takenMinor * l.percent) / 100) : 0 }))
-    .sort((a, b) => Number(!a.id) - Number(!b.id) || b.takenMinor - a.takenMinor || a.name.localeCompare(b.name));
-  const sum = (k: "takenMinor" | "commissionMinor" | "tipsMinor") => people.reduce((n, l) => n + l[k], 0);
-  return { month, people, takenMinor: sum("takenMinor"), commissionMinor: sum("commissionMinor"), tipsMinor: sum("tipsMinor") };
+    .filter((l) => l.visits || l.takenMinor || l.tipsMinor || l.minutes || staff.some((p) => p.id === l.id && p.active))
+    .map((l) => ({ ...l, commissionMinor: l.id && !l.id.startsWith(CLOCK_ONLY) ? Math.round((l.takenMinor * l.percent) / 100) : 0, wagesMinor: Math.round((l.minutes * l.hourlyMinor) / 60) }))
+    .sort((a, b) => Number(!a.id) - Number(!b.id) || b.takenMinor - a.takenMinor || b.minutes - a.minutes || a.name.localeCompare(b.name));
+  const sum = (k: "takenMinor" | "commissionMinor" | "tipsMinor" | "minutes" | "wagesMinor") => people.reduce((n, l) => n + l[k], 0);
+  return { month, people, takenMinor: sum("takenMinor"), commissionMinor: sum("commissionMinor"), tipsMinor: sum("tipsMinor"), minutes: sum("minutes"), wagesMinor: sum("wagesMinor") };
 }
 
 /** The pay report as spreadsheet rows (amounts as plain numbers in the shop's currency). */
 export function teamPayRows(pay: TeamPay): string[][] {
   const money = (minor: number) => (minor / 100).toFixed(2);
+  const hours = (minutes: number) => (minutes / 60).toFixed(2);
+  // Hours columns only once someone is on the clock or has an hourly rate, so a shop without them keeps its old sheet.
+  const clock = pay.people.some((l) => l.minutes || l.hourlyMinor);
+  const extra = (l: { minutes: number; hourlyMinor?: number; wagesMinor: number }, total = false) => clock ? [hours(l.minutes), total ? "" : l.hourlyMinor ? money(l.hourlyMinor) : "", money(l.wagesMinor)] : [];
+  const all = (l: { commissionMinor: number; tipsMinor: number; wagesMinor: number }) => money(l.commissionMinor + l.tipsMinor + (clock ? l.wagesMinor : 0));
   return [
-    ["Person", "Visits", "Taken before tax", "Commission %", "Commission", "Tips", "Commission and tips"],
-    ...pay.people.map((l) => [l.name, String(l.visits), money(l.takenMinor), l.id ? String(l.percent) : "", money(l.commissionMinor), money(l.tipsMinor), money(l.commissionMinor + l.tipsMinor)]),
-    ["Total", String(pay.people.reduce((n, l) => n + l.visits, 0)), money(pay.takenMinor), "", money(pay.commissionMinor), money(pay.tipsMinor), money(pay.commissionMinor + pay.tipsMinor)],
+    ["Person", "Visits", "Taken before tax", "Commission %", "Commission", "Tips", ...(clock ? ["Hours", "Hourly rate", "Hourly pay", "Total pay"] : ["Commission and tips"])],
+    ...pay.people.map((l) => [l.name, String(l.visits), money(l.takenMinor), l.id && !l.id.startsWith(CLOCK_ONLY) ? String(l.percent) : "", money(l.commissionMinor), money(l.tipsMinor), ...extra(l), all(l)]),
+    ["Total", String(pay.people.reduce((n, l) => n + l.visits, 0)), money(pay.takenMinor), "", money(pay.commissionMinor), money(pay.tipsMinor), ...extra(pay, true), all(pay)],
   ];
 }
 

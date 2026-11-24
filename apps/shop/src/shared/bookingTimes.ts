@@ -8,6 +8,7 @@
 // (`places` above 1): then several people share one start, up to its places.
 
 import { cleanMessages, type BookingMessages } from "./bookingMessages";
+import { hourlyOf } from "./timeClock";
 
 /**
  * When the customer pays: nothing ("free"), all of it by card when booking ("full"), part of it by card when booking and
@@ -236,6 +237,8 @@ export type StaffMember = {
   rates?: PersonRate[];
   /** Their share of what their visits take, 0.5 to 100 (Services plan 2, team pay). Shown on the pay report, never paid out. */
   commissionPercent?: number;
+  /** What they earn an hour on the clock, in cents (plan 4, 4.2). Team pay multiplies their hours by it. Left out for none. */
+  hourlyMinor?: number;
   /** Their photo (an https link) and a few words about them for the booking page (plan 4, 2.4). Left out when empty. */
   photo?: string;
   bio?: string;
@@ -1363,6 +1366,7 @@ export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BO
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
       rates: cleanRates(p.rates),
       ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
+      ...(hourlyOf(p.hourlyMinor) ? { hourlyMinor: hourlyOf(p.hourlyMinor) } : {}),
       ...(servicePhoto(p.photo) ? { photo: servicePhoto(p.photo) } : {}),
       ...(personBio(p.bio) ? { bio: personBio(p.bio) } : {}),
     });

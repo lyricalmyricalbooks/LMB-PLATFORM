@@ -4,7 +4,7 @@
 // (teamDeskApi.ts › functions/bookings.js handleDesk), which holds each role to what it may do (DESK_OPS).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, LogOut, Phone, RefreshCw } from "lucide-react";
+import { CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Coffee, LogIn, LogOut, Phone, RefreshCw, Timer } from "lucide-react";
 import {
   ActionMenu, Dialog, EmptyState, ErrorState, GhostButton, PageHeader, PrimaryButton, SecondaryButton, SelectField, StatusBadge, TextArea, TextField, useConfirm,
 } from "./riso/components";
@@ -13,7 +13,8 @@ import { addDays, dayOf, visitName } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import type { Booking } from "./bookingsApi";
 import { dayText, listTag, timeText } from "./bookingsView";
-import { teamDeskData, type DeskAnswer } from "./teamDeskApi";
+import { teamDeskData, type DeskAnswer, type DeskClock } from "./teamDeskApi";
+import { hoursText, type ClockStep } from "../../shared/timeClock";
 import "./bookings.css";
 
 const ZONE = shopTimeZone();
@@ -41,6 +42,36 @@ export function deskCounts(rows: readonly Booking[], nowMs: number): { booked: n
   }
   return { booked: rows.length, here, toCome };
 }
+
+/**
+ * Clock in and out (plan 4, 4.2, Beta): where the person stands and the one or two buttons that move them on. Their
+ * hours go to the owner's Team pay; a mistake is fixed there by the owner.
+ */
+function ClockCard({ clock, busy, onStep }: { clock: DeskClock; busy: boolean; onStep: (step: ClockStep) => void }) {
+  const at = (iso: string) => timeText(iso, ZONE);
+  return (
+    <section className="tdesk-clock" data-state={clock.state} aria-label="Time clock">
+      <span className="tdesk-clock-icon" aria-hidden>{clock.state === "break" ? <Coffee size={20} /> : <Timer size={20} />}</span>
+      <div className="tdesk-clock-words">
+        <strong>{clock.state === "off" ? "You're not clocked in" : clock.state === "break" ? `On a break since ${at(clock.since)}` : `On the clock since ${at(clock.shiftIn)}`}</strong>
+        <span>{clock.state === "off" ? "Clock in when you start, so your hours reach the owner." : `${hoursText(clock.minutes)} worked so far`} <StatusBadge tone="info" glyph={false}>Beta</StatusBadge></span>
+      </div>
+      <div className="tdesk-clock-acts">
+        {clock.state === "off" && <PrimaryButton icon={<LogIn size={16} aria-hidden />} busy={busy} onClick={() => onStep("in")}>Clock in</PrimaryButton>}
+        {clock.state === "working" && <>
+          <SecondaryButton icon={<Coffee size={16} aria-hidden />} disabled={busy} onClick={() => onStep("break")}>Start a break</SecondaryButton>
+          <PrimaryButton icon={<LogOut size={16} aria-hidden />} busy={busy} onClick={() => onStep("out")}>Clock out</PrimaryButton>
+        </>}
+        {clock.state === "break" && <>
+          <PrimaryButton icon={<Timer size={16} aria-hidden />} busy={busy} onClick={() => onStep("back")}>End break</PrimaryButton>
+          <SecondaryButton icon={<LogOut size={16} aria-hidden />} disabled={busy} onClick={() => onStep("out")}>Clock out</SecondaryButton>
+        </>}
+      </div>
+    </section>
+  );
+}
+
+const STEP_DONE: Record<ClockStep, string> = { in: "You're clocked in", break: "Enjoy your break", back: "Welcome back", out: "You're clocked out" };
 
 export function TeamDesk({ email, role, appearance }: { email: string; role: "frontDesk" | "provider"; appearance: "light" | "dark" }) {
   const today = dayOf(Date.now(), ZONE);
@@ -76,6 +107,18 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
       toast.error(e?.message || "That didn't go through. Try again.");
     } finally { setBusy(""); }
   };
+  const clockStepNow = async (step: ClockStep) => {
+    if (step === "out" && answer?.clock && !await ask({ title: "Clock out?", message: `You've worked ${hoursText(answer.clock.minutes)} on this shift. If you clock out by mistake, ask the owner to fix it.`, confirmLabel: "Clock out" })) return;
+    setBusy("clock");
+    try {
+      const r = await teamDeskData.act("clock", { step });
+      setAnswer((a) => (a ? { ...a, clock: r.clock } : a));
+      toast.success(STEP_DONE[step]);
+    } catch (e: any) {
+      toast.error(e?.message || "That didn't go through. Try again.");
+      void load(day);
+    } finally { setBusy(""); }
+  };
   const cancel = async (b: Booking) => {
     if (!await ask({ title: `Cancel ${b.customer.name}'s booking?`, message: "They get an email saying it's cancelled. Anything they paid by card goes back to them.", confirmLabel: "Cancel booking" })) return;
     await act(b.id, "cancel", { id: b.id, refund: true }, "Booking cancelled");
@@ -93,6 +136,7 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
             <SecondaryButton icon={<LogOut size={16} aria-hidden />} onClick={() => { void adminApi.logout(); }}>Log out</SecondaryButton>
           </>}
         />
+        {answer?.clock && <ClockCard clock={answer.clock} busy={busy === "clock"} onStep={(step) => void clockStepNow(step)} />}
         <div className="tdesk-bar">
           <GhostButton icon={<ChevronLeft size={18} aria-hidden />} aria-label="Day before" onClick={() => setDay(addDays(day, -1))} />
           <h2 className="tdesk-day" aria-live="polite">{dayName(day, today)}{day !== today && <small>{dayText(day, "long")}</small>}</h2>

@@ -76,6 +76,7 @@ const {
   answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine, cleanZone, zonesDiffer,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
 const { emailWords, textWords, fillMessage, messageLanguage } = require("./shared/bookingMessages");
 const { shopLanguage } = require("./emailFrench");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -414,6 +415,9 @@ function bookingActions({
     return { ...card, form: { id: form.id, title: form.title, text: form.text, questions: form.questions, ...(ranOut ? { renew: true } : {}) }, formsLeft: state.waiting.length };
   }
   const packs = () => db.collection("bookingPacks");
+  // Clock in and out (plan 4, 4.2): timeClock/{id} { email, name, staffId?, day, in, out | null, breaks[], open, by,
+  // updatedAt }. Written only here; `open` is true while the person is on the clock (at most one each).
+  const shifts = () => db.collection("timeClock");
 
   // On when the platform turned Bookings on for the shop, or when the shop sells Classes (a way to sell, both of its
   // switches on): classes run on this same engine, so they bring its hours, team, rooms and Book a time page with them.
@@ -2977,6 +2981,43 @@ function bookingActions({
         const googleCalendar = next.googleCalendar && !settings.googleCalendar ? await fillCalendar() : undefined;
         return res.status(200).json({ ok: true, settings: next, ...(googleCalendar ? { googleCalendar } : {}) });
       }
+      // Hours worked (plan 4, 4.2): the owner sees, adds, fixes and removes shifts. Never from the desk.
+      if (op === "shifts") {
+        const from = String(req.body?.from || ""), to = String(req.body?.to || "");
+        if (!isDay(from) || !isDay(to) || to < from) return fail(res, 400, "Pick the days.");
+        const snap = await shifts().where("day", ">=", from).where("day", "<=", to).limit(2000).get();
+        const open = await shifts().where("open", "==", true).limit(200).get();
+        const seen = new Set();
+        const list = [...snap.docs, ...open.docs].filter((d) => !seen.has(d.id) && seen.add(d.id)).map((d) => shiftView(d.id, d.data()));
+        return res.status(200).json({ shifts: list.sort((a, b) => a.in.localeCompare(b.in)) });
+      }
+      if (op === "saveShift") {
+        const made = cleanShift({ ...(req.body?.shift || {}), by: "owner" });
+        if ("error" in made) return fail(res, 400, made.error);
+        const id = req.body?.shift?.id ? String(req.body.shift.id) : `s${crypto.randomBytes(8).toString("hex")}`;
+        if (!ID.test(id)) return fail(res, 400, "Unknown shift.");
+        const shift = made.shift;
+        const saved = await db.runTransaction(async (t) => {
+          const ref = shifts().doc(id);
+          const was = await t.get(ref);
+          if (req.body?.shift?.id && !was.exists) return { error: "This shift was removed. Refresh and try again." };
+          // One open shift a person: a second one left open would make the desk's Clock out ambiguous.
+          if (!shift.out) {
+            const other = await t.get(shifts().where("email", "==", shift.email).where("open", "==", true).limit(2));
+            if (other.docs.some((d) => d.id !== id)) return { error: `${shift.name} is already on the clock. Add a finish time to this one.` };
+          }
+          t.set(ref, { ...shift, open: !shift.out, updatedAt: now().toISOString(), updatedBy: by });
+          return { ok: true };
+        });
+        if (saved.error) return fail(res, 409, saved.error);
+        return res.status(200).json({ ok: true, shift: shiftView(id, { ...shift, open: !shift.out }) });
+      }
+      if (op === "removeShift") {
+        const id = String(req.body?.id || "");
+        if (!ID.test(id)) return fail(res, 400, "Unknown shift.");
+        await shifts().doc(id).delete();
+        return res.status(200).json({ ok: true });
+      }
       if (op === "addBlock" || op === "removeBlock") {
         // Block time on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly meeting. Clients can't book it; the
         // owner still can. Read and written in one go, so two tabs adding blocks never lose one.
@@ -4189,6 +4230,22 @@ function bookingActions({
     return { id, ...rest, card: card ? { brand: card.brand || "", last4: card.last4 || "" } : null };
   };
 
+  /** A name for someone on the desk with no Team & rooms entry: the part of their email before the @. */
+  const nameFromEmail = (email) => String(email).split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 80);
+  /** The person's open shift, or null. */
+  async function openShiftOf(email) {
+    if (!email) return null;
+    const snap = await shifts().where("email", "==", email).where("open", "==", true).limit(1).get();
+    return snap.docs[0] ? { id: snap.docs[0].id, ...snap.docs[0].data() } : null;
+  }
+  /** Where the desk's person stands, with the minutes worked so far on this shift. */
+  const clockView = (open) => ({ ...clockState(open), minutes: open ? shiftMinutes(open, now().getTime()) : 0 });
+  /** A shift as the owner's Team pay sees it, with its minutes and whether it was left open too long. */
+  const shiftView = (id, x) => ({
+    id, email: x.email, name: x.name, staffId: x.staffId || "", day: x.day, in: x.in, out: x.out || null, breaks: x.breaks || [], by: x.by || "self",
+    minutes: shiftMinutes(x, now().getTime()), forgotten: !x.out && now().getTime() - Date.parse(x.in) > MAX_SHIFT_HOURS * 3_600_000,
+  });
+
   async function handleDesk(req, res) {
     const who = requireBookingsTeam ? await requireBookingsTeam(req, res) : (fail(res, 403, "Admin access required"), null);
     if (!who) return;
@@ -4200,6 +4257,28 @@ function bookingActions({
       const settings = await readSettings();
       const email = String(who.email || "").trim().toLowerCase();
       const me = (settings.staff || []).find((p) => email && String(p.email || "").trim().toLowerCase() === email) || null;
+      // Clock in and out (plan 4, 4.2): anyone on the team desk clocks themselves; the owner and staff use Team pay.
+      if (op === "clock") {
+        if (role === "admin") return fail(res, 403, "Add your hours under Bookings › Team pay.", "desk_only");
+        const step = String(req.body?.step || "");
+        if (!["in", "break", "back", "out"].includes(step)) return fail(res, 400, "Unknown step.");
+        if (!email) return fail(res, 403, "Sign in again to clock in.");
+        const nowIso = now().toISOString();
+        const who = { email, name: me?.name || nameFromEmail(email), staffId: me?.id || "", day: dayOf(now().getTime(), zone()) };
+        const done = await db.runTransaction(async (t) => {
+          const snap = await t.get(shifts().where("email", "==", email).where("open", "==", true).limit(1));
+          const doc = snap.docs[0] || null;
+          const open = doc ? { id: doc.id, ...doc.data() } : null;
+          const next = clockStep(open, step, nowIso, who);
+          if ("error" in next) return next;
+          const id = doc ? doc.id : `s${crypto.randomBytes(8).toString("hex")}`;
+          const { id: _drop, ...shift } = next.shift;
+          t.set(shifts().doc(id), { ...shift, open: !shift.out, updatedAt: nowIso, updatedBy: by });
+          return { shift: { id, ...shift } };
+        });
+        if (done.error) return fail(res, 409, done.error, done.code);
+        return res.status(200).json({ ok: true, clock: clockView(done.shift.out ? null : done.shift) });
+      }
       if (op === "desk") {
         const day = isDay(String(req.body?.day || "")) ? req.body.day : dayOf(now().getTime(), zone());
         const days = Math.min(7, Math.max(1, Math.round(Number(req.body?.days) || 1)));
@@ -4217,6 +4296,7 @@ function bookingActions({
           staff: (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name })),
           services: role === "provider" ? [] : svc.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, minutes: x.minutes, places: x.places || 1 })),
           bookings: list,
+          clock: role === "admin" ? null : clockView(await openShiftOf(email)),
         });
       }
       if (role === "admin") return runAdmin(req, res, by);

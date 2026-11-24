@@ -5,6 +5,9 @@ import { auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { Booking } from "./bookingsApi";
 
+/** Where the signed-in person stands on the time clock (plan 4, 4.2), with minutes worked on this shift. */
+export type DeskClock = { state: "off" | "working" | "break"; since: string; shiftIn: string; minutes: number };
+
 export type DeskAnswer = {
   role: "admin" | "frontDesk" | "provider";
   day: string; days: number; zone: string;
@@ -12,6 +15,8 @@ export type DeskAnswer = {
   staff: Array<{ id: string; name: string }>;
   services: Array<{ id: string; name: string; minutes: number; places: number }>;
   bookings: Booking[];
+  /** Null for the owner and staff, who keep hours under Bookings › Team pay. */
+  clock?: DeskClock | null;
 };
 
 async function callDesk(op: string, body: Record<string, unknown> = {}): Promise<any> {

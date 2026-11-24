@@ -93,6 +93,7 @@ export const ARTICLES = Object.freeze([
       "To answer messages while you're closed, open Hours & rules and turn on Away reply. People who write through your contact form then hear back at once, with the time you open again.",
       "To take your past visits away as a spreadsheet, open the calendar's List, choose Past and press Spreadsheet. Pick the days, and keep only the no-shows if you like.",
       "Someone who only answers the door or does the visits can have the Front desk or Service provider role under Settings › Team. They sign in and see just the day's bookings.",
+      "People on the Front desk or Service provider role clock in and out, with breaks, when they sign in. Their hours show under Team pay, times their hourly rate if they have one.",
     ],
   },
   {

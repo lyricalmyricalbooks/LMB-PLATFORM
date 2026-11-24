@@ -4295,3 +4295,68 @@ describe("the team desk: front desk and service providers (plan 4, 4.1)", () => 
     expect((await t.dsk(stranger, { op: "checkIn", id: anaId })).body.code).toBe("not_on_team");
   });
 });
+
+describe("clock in and out (plan 4, 4.2)", () => {
+  const FRONT = { role: "frontDesk", email: "sam.desk@example.com" };
+  const ANA = { role: "provider", email: "ana@example.com" };
+  const setupClock = async () => {
+    const t = setup({ now: "2026-11-17T14:00:00Z" });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, staff: [{ id: "ana", name: "Ana", email: "ana@example.com", hourlyMinor: 2000 }] });
+    const step = (who, s, iso) => { t.clock.now = new Date(iso); return t.dsk(who, { op: "clock", step: s }); };
+    return { t, step };
+  };
+  const shiftsIn = (t) => [...t.db.store.entries()].filter(([k]) => k.startsWith("timeClock/")).map(([, v]) => v);
+
+  test("a provider clocks in, takes a break and clocks out; the shift counts the time without the break", async () => {
+    const { t, step } = await setupClock();
+    expect((await step(ANA, "in", "2026-11-17T14:00:00Z")).body.clock).toMatchObject({ state: "working", shiftIn: "2026-11-17T14:00:00.000Z" });
+    expect((await step(ANA, "in", "2026-11-17T14:05:00Z")).body.code).toBe("already_in");
+    expect((await step(ANA, "break", "2026-11-17T17:00:00Z")).body.clock.state).toBe("break");
+    const desk = await t.dsk(ANA, { op: "desk", day: "2026-11-17" });
+    expect(desk.body.clock).toMatchObject({ state: "break", minutes: 180 });
+    expect((await step(ANA, "back", "2026-11-17T17:30:00Z")).body.clock.state).toBe("working");
+    expect((await step(ANA, "out", "2026-11-17T22:00:00Z")).body.clock.state).toBe("off");
+    const [s] = shiftsIn(t);
+    expect(s).toMatchObject({ email: "ana@example.com", name: "Ana", staffId: "ana", day: "2026-11-17", open: false, out: "2026-11-17T22:00:00.000Z", by: "self" });
+    expect(s.breaks).toEqual([{ start: "2026-11-17T17:00:00.000Z", end: "2026-11-17T17:30:00.000Z" }]);
+    expect((await step(ANA, "out", "2026-11-17T22:01:00Z")).body.code).toBe("not_in");
+  });
+
+  test("a front desk with no Team & rooms entry clocks in under a name from their email; clocking out ends a break", async () => {
+    const { t, step } = await setupClock();
+    await step(FRONT, "in", "2026-11-17T14:00:00Z");
+    await step(FRONT, "break", "2026-11-17T15:00:00Z");
+    await step(FRONT, "out", "2026-11-17T15:20:00Z");
+    const [s] = shiftsIn(t);
+    expect(s).toMatchObject({ name: "Sam Desk", open: false });
+    expect(s.breaks[0].end).toBe("2026-11-17T15:20:00.000Z");
+  });
+
+  test("the owner sees shifts, fixes a forgotten clock-out and can't leave two open for one person", async () => {
+    const { t, step } = await setupClock();
+    await step(ANA, "in", "2026-11-17T14:00:00Z");
+    t.clock.now = new Date("2026-11-18T09:00:00Z");
+    const list = await t.adm({ op: "shifts", from: "2026-11-01", to: "2026-11-30" });
+    expect(list.body.shifts).toHaveLength(1);
+    expect(list.body.shifts[0].forgotten).toBe(true);
+    const id = list.body.shifts[0].id;
+    const open2 = await t.adm({ op: "saveShift", shift: { email: "ana@example.com", name: "Ana", day: "2026-11-18", in: "2026-11-18T13:00:00Z" } });
+    expect(open2.statusCode).toBe(409);
+    const fixed = await t.adm({ op: "saveShift", shift: { ...list.body.shifts[0], out: "2026-11-17T22:00:00Z" } });
+    expect(fixed.statusCode).toBe(200);
+    expect(fixed.body.shift).toMatchObject({ minutes: 480, forgotten: false });
+    expect(t.db.store.get(`timeClock/${id}`)).toMatchObject({ open: false, by: "owner" });
+    expect((await t.adm({ op: "saveShift", shift: { email: "ana@example.com", day: "2026-11-18", in: "2026-11-18T13:00:00Z", out: "2026-11-18T12:00:00Z" } })).statusCode).toBe(400);
+    expect((await t.adm({ op: "removeShift", id })).statusCode).toBe(200);
+    expect(shiftsIn(t)).toHaveLength(0);
+  });
+
+  test("the desk can't see or change other people's hours, and the owner's own sign-in uses Team pay", async () => {
+    const { t } = await setupClock();
+    for (const body of [{ op: "shifts", from: "2026-11-01", to: "2026-11-30" }, { op: "saveShift", shift: {} }, { op: "removeShift", id: "s123456" }]) {
+      expect((await t.dsk(FRONT, body)).body.code).toBe("desk_only");
+    }
+    expect((await t.dsk({ role: "admin", email: "owner@example.com" }, { op: "clock", step: "in" })).body.code).toBe("desk_only");
+  });
+});
