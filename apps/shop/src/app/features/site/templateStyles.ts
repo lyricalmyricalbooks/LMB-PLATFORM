@@ -612,6 +612,7 @@ ${S} [class*="showcase-grid-"] > * > .fm-card{counter-increment:slow;}
 ${S} [class*="showcase-grid-"] > * > .fm-card > div:first-child::after{content:counter(slow, decimal-leading-zero);position:absolute;left:18px;top:16px;font-size:10px;letter-spacing:.08em;color:rgb(var(--fg-rgb));z-index:2;}
 ${S} [data-studio-label="Product grid"] > .fm-card{counter-increment:slow;}
 ${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame::after{content:counter(slow, decimal-leading-zero);position:absolute;left:18px;top:16px;font-family:var(--heading-font);font-size:10px;font-weight:600;color:rgb(var(--fg-rgb));z-index:2;}
+${S} .fm-footer-brand > p:first-of-type,${S} .fm-footer-brand > p:first-of-type span{color:inherit !important;}
 ${S} .fm-footer-brand > p:first-of-type span{font-size:clamp(60px, 11vw, 170px);line-height:1;letter-spacing:-.06em;text-transform:uppercase;}
 `,
 });

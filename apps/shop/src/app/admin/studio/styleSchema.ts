@@ -311,6 +311,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "headerStyle", label: "Header see-through amount (only while Header background colour is empty: full = nearly solid)", kind: "select", options: opts("minimal", "centered", "full") },
       { key: "showSecondaryNavigation", label: "Show publisher navigation row", kind: "toggle", defaultValue: true },
       { key: "logoPosition", label: "Logo alignment", kind: "select", options: opts("left", "center", "right") },
+      { key: "navAroundLogo", label: "With the logo centred, put the menu links on both sides of it (computers only)", kind: "toggle", defaultValue: false },
       { key: "logoHeight", label: "Logo height", kind: "range", min: 12, max: 120, step: 1, suffix: "px" },
       { key: "stickyHeader", label: "Stick header to top", kind: "toggle" },
       { key: "stickyHeaderHideOnScroll", label: "Hide the header while shoppers scroll down; it slides back as soon as they scroll up (needs Stick header to top)", kind: "toggle", defaultValue: false },
