@@ -42,6 +42,10 @@ if (new URLSearchParams(location.search).has("membership")) fixture.settings.mem
 if (new URLSearchParams(location.search).has("rentals")) fixture.settings.rentalsLive = true;
 // Version history starts with the published design kept once (Studio › Theme actions › Version history).
 fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 Oct 2026", createdAt: "2026-10-08T15:00:00.000Z", design: JSON.parse(JSON.stringify(fixture.settings.design)) }];
+// `?sells=` is also the shop's own answer, so the preview reads it as the storefront does (admin/sells.ts withShopStartFor:
+// a shop that sells no books shows no books menu).
+const sellsAnswer = new URLSearchParams(location.search).get("sells");
+if (sellsAnswer) fixture.settings.sells = sellsAnswer;
 installFakeStudioApi(adminApi as any, fixture);
 (window as any).__studioFixture = fixture;
 // AI writing (3.0 phase 8): browser checks set `__studioFixture.aiAnswer(body) → { status, data }`; without it the

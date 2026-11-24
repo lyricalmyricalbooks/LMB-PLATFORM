@@ -735,7 +735,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <div style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
           </div>
         ) : (
-          <div ref={headerRowRef} className={`fm-hdr-row mx-auto px-6 py-4 items-center gap-4 ${around ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : "flex flex-nowrap justify-between"}`} style={{ maxWidth }}>
+          <div ref={headerRowRef} className={`fm-hdr-row mx-auto px-6 py-4 items-center gap-4 ${around ? "grid grid-cols-[1fr_auto_1fr] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : logoPosition === "center" ? "grid grid-cols-[1fr_auto_1fr]" : "flex flex-nowrap justify-between"}`} style={{ maxWidth }}>
             <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
               {minimal && <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} everywhere />}
               {logoPosition === "left" && logo}
