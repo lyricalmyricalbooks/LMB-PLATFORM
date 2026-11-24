@@ -1,7 +1,7 @@
 // Bookings (beta): the admin page's pure rules (bookingsView.test.ts). Days and times are the shop's own
 // (src/shared/shopTimeZone.ts), whatever the owner's computer is set to.
 import { forgotten, hourlyOf, shiftMinutes, type Shift } from "../../shared/timeClock";
-import { cleanCommissionSteps, commissionFor, type CommissionStep } from "../../shared/bookingTimes";
+import { cleanCommissionSteps, commissionFor, visitName, type CommissionStep } from "../../shared/bookingTimes";
 import { addDays, blockOn, hoursOnDay, personHoursOn, balanceDue, cardAsk, cardTaken, commissionOf, dayOf, moneyKept, moneyTaken, processingStretch, taxIn, tipTaken, weekdayOf, zonedTime, bookingChannel, CHANNEL_NAMES, type BookingChannel, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type TimeBlock } from "../../shared/bookingTimes";
 import type { Booking, PackRow, Waiting } from "./bookingsApi";
 import { shopMoney } from "../../shared/shopCurrency";
@@ -814,4 +814,68 @@ export function answerWithin(b: Pick<Booking, "answerBy" | "start">, nowMs: numb
   if (minutes < 60) return `Answer within ${minutes} minute${minutes === 1 ? "" : "s"}`;
   const hours = Math.round(minutes / 60);
   return `Answer within ${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
+/** Coming up (plan 4, 5.1): how far ahead the owner can look. */
+export const FUTURE_WINDOWS = [30, 60, 90] as const;
+export type FutureDays = (typeof FUTURE_WINDOWS)[number];
+export type FutureWindow = {
+  days: FutureDays;
+  /** Confirmed bookings still to come in the window, and requests waiting for the owner's answer. */
+  count: number; waiting: number;
+  /** What the confirmed ones are worth, what is already paid (card, deposit, gift card, pack) and what is left to take. */
+  valueMinor: number; paidMinor: number; dueMinor: number;
+  /** The fullest day in the window, or null when nothing is booked. */
+  busiest: { day: string; count: number } | null;
+};
+export type FutureFigures = { windows: FutureWindow[]; weeks: { monday: string; count: number; valueMinor: number }[] };
+
+/** The bookings to come in the next `days` shop days from `today` (today counts): confirmed or waiting, start not passed. */
+export function futureList(rows: readonly Booking[], zone: string, today: string, nowMs: number, days: number): Booking[] {
+  const end = addDays(today, days);
+  return rows
+    .filter((b) => (b.status === "confirmed" || b.status === "requested") && Date.parse(b.start) >= nowMs)
+    .filter((b) => { const d = dayOf(Date.parse(b.start), zone); return d >= today && d < end; })
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/**
+ * The next 30, 60 and 90 days at a glance (plan 4, 5.1): bookings, what they are worth, what is paid and what is still to
+ * take, the fullest day, and the next 13 weeks week by week. A request counts as waiting, never as booked money.
+ */
+export function futureFigures(rows: readonly Booking[], zone: string, today: string, nowMs: number): FutureFigures {
+  const all = futureList(rows, zone, today, nowMs, 90);
+  const windows = FUTURE_WINDOWS.map((days): FutureWindow => {
+    const end = addDays(today, days);
+    const inside = all.filter((b) => dayOf(Date.parse(b.start), zone) < end);
+    const booked = inside.filter((b) => b.status === "confirmed");
+    const perDay = new Map<string, number>();
+    for (const b of booked) { const d = dayOf(Date.parse(b.start), zone); perDay.set(d, (perDay.get(d) || 0) + 1); }
+    let busiest: FutureWindow["busiest"] = null;
+    for (const [day, count] of [...perDay].sort((a, b) => a[0].localeCompare(b[0]))) if (!busiest || count > busiest.count) busiest = { day, count };
+    const valueMinor = booked.reduce((n, b) => n + (b.priceMinor || 0), 0);
+    const dueMinor = booked.reduce((n, b) => n + balanceDue(b), 0);
+    return { days, count: booked.length, waiting: inside.length - booked.length, valueMinor, paidMinor: valueMinor - dueMinor, dueMinor, busiest };
+  });
+  const first = weekStartOf(today);
+  const weeks = Array.from({ length: 13 }, (_, i) => ({ monday: addDays(first, i * 7), count: 0, valueMinor: 0 }));
+  for (const b of all) {
+    if (b.status !== "confirmed") continue;
+    const w = weeks.find((x) => x.monday === weekStartOf(dayOf(Date.parse(b.start), zone)));
+    if (w) { w.count++; w.valueMinor += b.priceMinor || 0; }
+  }
+  return { windows, weeks };
+}
+
+/** The coming-up list as spreadsheet rows, a header first: one row per booking, money in the shop's units. */
+export function futureRows(list: readonly Booking[], zone: string): string[][] {
+  const money = (minor: number) => (minor / 100).toFixed(2);
+  return [
+    ["Day", "Time", "Client", "Email", "Phone", "Service", "With", "Status", "Price", "Paid", "To pay"],
+    ...list.map((b) => {
+      const due = b.status === "confirmed" ? balanceDue(b) : 0;
+      return [dayOf(Date.parse(b.start), zone), timeText(b.start, zone), b.customer.name, b.customer.email, b.customer.phone || "", visitName(b), b.staffName || "",
+        b.status === "requested" ? "Waiting for your answer" : "Booked", money(b.priceMinor || 0), money(b.status === "confirmed" ? (b.priceMinor || 0) - due : 0), money(due)];
+    }),
+  ];
 }
