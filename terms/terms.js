@@ -5,7 +5,7 @@
 // words they agreed to. Words here are customer-facing: plain words, never a rival's name.
 
 /** The id of these words. Sign-up stores it with the date the press ticked the box. */
-export const TERMS_VERSION = "2026-11-12.2";
+export const TERMS_VERSION = "2026-11-24";
 
 /** These are the final words Julian chose (12 November 2026): no draft notice on the page. */
 export const DRAFT = false;
@@ -56,6 +56,7 @@ export const CHANGE_NOTICE_DAYS = 30;
 export const HELPERS = Object.freeze([
   "Google Cloud and Google Workspace: keep each shop online, store its information, handle sign-in, run the writing helper and send your shop's emails and ours. Work from Canada (Montréal), with some services, including email, in the United States.",
   "Stripe: takes card payments for your shop and for your Colophon plan. Works from the United States and Canada.",
+  "Twilio: sends booking reminders by text, only for shops and clients who turn them on. It sees the mobile number and the message. Works from the United States.",
   "Shippo and Canada Post: shipping rates and labels, only when you turn them on. Works from the United States and Canada.",
 ]);
 
@@ -76,6 +77,10 @@ export const CHANGES = Object.freeze({
     "The running cost is worked out in Canadian dollars. For a press billed in US dollars, we convert it at that day's exchange rate, with nothing added.",
     "The tax on your bill follows where your press is: its province in Canada, or its state in the United States. You can download every bill from Settings, under Billing.",
     "These terms are no longer a draft.",
+    "The terms now cover bookings, classes, events, memberships, rentals, donations and digital downloads, and say who sets the rules for each: your press.",
+    "Text reminders: they go only to clients who ask for them, a reply of STOP ends them, and each text is billed at cost. Twilio, which sends them, joins our list of helper companies.",
+    "Payments go straight into your own Stripe or Square account, and Colophon never holds your money. Tax on your bill is worked out by Stripe Tax.",
+    "Sample content in a new shop is yours to change or remove, and anything you bring over from another system must be yours to bring.",
     "The terms no longer name a fixed number of free trial days. Your trial lasts the number of days the sign-up page showed the day you signed up.",
   ]),
   fr: Object.freeze([
@@ -89,6 +94,10 @@ export const CHANGES = Object.freeze({
     "Le coût de fonctionnement est calculé en dollars canadiens. Pour une maison facturée en dollars américains, nous le convertissons au taux de change du jour, sans rien ajouter.",
     "La taxe sur votre facture suit l'endroit où se trouve votre maison : sa province au Canada, ou son État aux États-Unis. Vous pouvez télécharger chaque facture depuis Réglages, sous Facturation.",
     "Ces conditions ne sont plus un brouillon.",
+    "Les conditions couvrent maintenant les réservations, cours, événements, abonnements, locations, dons et téléchargements numériques, et disent qui en fixe les règles : votre maison.",
+    "Rappels par texto : ils ne vont qu'aux clients qui les demandent, une réponse STOP les arrête, et chaque texto est facturé au prix coûtant. Twilio, qui les envoie, s'ajoute à notre liste d'entreprises.",
+    "Les paiements vont directement dans votre compte Stripe ou Square, et Colophon ne détient jamais votre argent. La taxe sur votre facture est calculée par Stripe Tax.",
+    "Le contenu d'exemple d'une nouvelle boutique est à vous de modifier ou de retirer, et ce que vous apportez d'un autre système doit être à vous.",
     "Les conditions ne nomment plus un nombre fixe de jours d'essai gratuit. Votre essai dure le nombre de jours affiché sur la page d'inscription le jour de votre inscription.",
   ]),
 });
@@ -104,10 +113,15 @@ export const SECTIONS = Object.freeze([
     title: "Terms of service",
     paragraphs: [
       `These terms are between your press and ${OPERATOR_NAME}, the company that runs Colophon, at ${OPERATOR_ADDRESS}. The person who ticks the box at sign-up agrees for the press, and confirms they may.`,
-      "Colophon gives your press one plan with everything in it: a website and a stockroom. It is made for businesses in Canada and the United States, not for people buying for themselves.",
+      "Colophon gives your press one plan with everything in it: a website, a stockroom, bookings and every way to sell. It is made for businesses in Canada and the United States, not for people buying for themselves.",
       "Your shop is your own business. Your press is the seller to your shoppers, sets its own prices and policies, and follows the shopping, privacy and tax laws of the places it sells to.",
       "You are responsible for what you sell and for the words and pictures you put in your shop. Don't use Colophon to sell anything that is against the law where you or your buyers are.",
-      "Your books, words and pictures stay yours. You let us copy and show them only to run your shop, and that ends when your shop is deleted.",
+      "A new shop starts with sample words, photos and products, to show how it can look. Change or remove them before you open: whatever stays in your shop is yours to answer for.",
+      "Payments from your shoppers go straight into your press's own Stripe or Square account. Colophon never holds your money, and that company's own terms cover your account with it.",
+      "Some ways to sell have their own rules: memberships and other repeat charges, bookings, classes and events, rentals and deposits, gifts and donations, and digital downloads. Your press sets those terms, shows them before a buyer pays, and follows the laws that apply.",
+      "When you bring customers, orders or a newsletter list over from somewhere else, you confirm you may, and that the people on the list agreed to hear from you.",
+      "If your shop sends booking reminders by text, it sends them only to clients who asked for them, and a client can stop them at any time by replying STOP.",
+      "Your products, words and pictures stay yours. You let us copy and show them only to run your shop, and that ends when your shop is deleted.",
       "Keep your sign-in safe, and tell us at once if you think someone else has used it.",
       "We may close a shop that sells something unlawful, takes payments by fraud, sends unwanted email or puts other shops at risk. We tell you why, in writing, and how to ask us to look again.",
       "We work hard to keep every shop open, and our status page shows how the service is doing. We can't promise it will never stop for a while.",
@@ -122,7 +136,8 @@ export const SECTIONS = Object.freeze([
     paragraphs: [
       "Your plan starts with a free trial, and we never ask for a card to start it. It lasts the number of days shown on the sign-up page the day you sign up. If the trial ends with no card, your shop pauses and nothing is charged.",
       "Once you add a card, your plan renews every month until you cancel. Each month we charge that card the plan's fee plus what your shop cost to run the month before (storage, web traffic, background jobs and emails), at what it costs us, with nothing added. We work it out from our cloud provider's record of each shop's use, and check it against that provider's bill before we charge. Trial months cost nothing. Your billing page shows the cost so far, and we email you when a month looks set to pass the amount you choose there ($25 unless you change it).",
-      "A press in the United States pays in US dollars, and a press in Canada pays in Canadian dollars. The running cost is worked out in Canadian dollars, and for a press paying in US dollars we convert it at that day's exchange rate, with nothing added. Prices are shown before tax. We add the sales tax of the place your press is in, its province or its state, and your bill shows it. You can download every bill from Settings, under Billing.",
+      "If your shop sends texts, what each text costs us goes on your next bill as its own line, at cost, with nothing added.",
+      "A press in the United States pays in US dollars, and a press in Canada pays in Canadian dollars. The running cost is worked out in Canadian dollars, and for a press paying in US dollars we convert it at that day's exchange rate, with nothing added. Prices are shown before tax. We add the sales tax of the place your press is in, its province or its state, worked out by Stripe Tax from your press's address, and your bill shows it. You can download every bill from Settings, under Billing.",
       "A press that already pays a share of its website's sales instead of a monthly price keeps paying that way until it switches. It isn't offered to new presses.",
       "The founding offer gives the first presses a lower platform fee for as long as they keep their plan. It doesn't lower the running cost. If a founding press cancels before its first payment, its place goes to the next press.",
       `If we raise a price or change how it is worked out, we email you at least ${CHANGE_NOTICE_DAYS} days before your first payment at the new price. You can cancel before then and pay nothing more.`,
@@ -141,6 +156,7 @@ export const SECTIONS = Object.freeze([
       `${OPERATOR_NAME} is responsible for what we keep about you. Our privacy officer answers for it, at ${PRIVACY_CONTACT}.`,
       "We keep your name, your email address, your press's name, your plan, your answers when you signed up, and any shop design you make before your shop exists. We use them to run your shop, bill your plan and write to you about your account.",
       "Card numbers are held by our payment company. We see only the card's brand, its last four numbers and when it runs out.",
+      "If you connect Google Calendar, we use that access only to put your bookings in your calendar. You can disconnect it at any time from your settings.",
       "We also keep a record of sign-ins, new devices and what our team does in your shop, to keep accounts safe.",
       "We use your details because we need them to give you the service you signed up for, because the law makes us keep some records, and to protect Colophon from fraud.",
       "We email you about your account, your plan and your shop. Anything else, such as news about Colophon, only if you ask for it, and each of those emails has a way to stop them.",
@@ -148,7 +164,7 @@ export const SECTIONS = Object.freeze([
       "Every shop runs on one shared Colophon system, stored in Canada. Each shop's information sits behind its own wall that no other press can get through. To work out each shop's running cost, we count its use (pages served, files stored, jobs and emails) from our cloud provider's records, and nothing more. Some of the companies listed below work in the United States, where its laws may let officials see it.",
       `Each backup is kept for ${BACKUP_KEEP_DAYS} days, then deleted. If your shop is deleted, its backups are kept ${BACKUP_KEEP_DAYS} days more and then they are gone too.`,
       "Records of what happened in your shop are deleted after two years. Invoices and tax records are kept at least six years, as tax law asks.",
-      "You can ask us for a copy of what we hold about you, or ask us to correct it or delete it. Write to us from your account page, and we answer within 30 days.",
+      "You can ask us for a copy of what we hold about you, or ask us to correct it or delete it. Write to us from your account page, and we answer within 30 days. These rights are yours wherever you live, in Canada or the United States.",
       `For any privacy question, write to our privacy contact at ${PRIVACY_CONTACT}. If we can't put it right, you can complain to the privacy commissioner where you live.`,
     ],
   },
@@ -156,7 +172,7 @@ export const SECTIONS = Object.freeze([
     id: "data",
     title: "Your data and your shoppers' data",
     paragraphs: [
-      "Your books, orders, customers and newsletter list belong to your press. We look after them for you and use them only to run your shop. You can download all of it at any time from Settings, under Download your shop.",
+      "Your products, services, orders, bookings, customers and newsletter list belong to your press. We look after them for you and use them only to run your shop. You can download all of it at any time from Settings, under Download your shop.",
       "When a shopper buys from you, your press decides what is kept about them. We keep it on your behalf and follow your instructions, given through your settings and your requests.",
       "If a law ever makes us do something else with it, we tell you first, unless that law forbids it.",
       "Everyone on our team who can see your data has promised to keep it private. Our team looks inside your shop only when you ask for help, and only for as long as it takes. Every look is recorded.",
@@ -190,7 +206,7 @@ export const SECTIONS = Object.freeze([
     title: "If Colophon ever closes",
     paragraphs: [
       `We will tell you at least ${SHUTDOWN_NOTICE_DAYS} days before Colophon stops, by email and on your account page. Your shop keeps working during those ${SHUTDOWN_NOTICE_DAYS} days.`,
-      "You can download your whole shop at any time from Settings, with its books, orders, customers, pictures and settings, and during those days too.",
+      "You can download your whole shop at any time from Settings, with its products, orders, bookings, customers, pictures and settings, and during those days too.",
       "Your shop's data is kept apart from every other press's. If you want to keep it running, we make a full copy of your shop's data and files and hand that copy over to your press, with its books, orders, customers and settings, at no charge.",
       `The same holds if you leave us: during the ${DOWNLOAD_DAYS} days after your shop closes, you keep your files and you can ask for your own copy.`,
     ],
