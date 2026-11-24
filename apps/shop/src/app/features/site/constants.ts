@@ -1,5 +1,6 @@
 import type { SiteSettings } from "./types";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "./risoNoir";
+import { STARTING_BOOK_MENUS } from "../../../shared/shopSells";
 
 // Stock cover shown for a book with no photo — replaceable in Studio › Style › Product cards & grid.
 export const DEFAULT_IMAGE =
@@ -10,9 +11,9 @@ export const DEFAULT_IMAGE =
 /** The made-up account the starting design used to carry; a shop still showing it is read as having none. */
 export const PLACEHOLDER_INSTAGRAM = "https://www.instagram.com/yourpress";
 
-export const CATEGORIES = ["PUBLICATIONS", "ZINES", "IMPRINT", "OUT OF PRINT"] as const;
+export const CATEGORIES = STARTING_BOOK_MENUS[0];
 /** The starting menu before 14 November 2026: still recognised as untouched (admin/sells.ts). */
-export const LEGACY_CATEGORIES = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"] as const;
+export const LEGACY_CATEGORIES = STARTING_BOOK_MENUS[1];
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   // First paint (before Firestore answers) already wears the Riso Noir tokens.

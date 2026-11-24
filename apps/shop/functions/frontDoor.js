@@ -37,6 +37,8 @@ const TYPES = {
 };
 const ADDRESS_TTL_MS = 60 * 1000;
 const SHELL_TTL_MS = 5 * 60 * 1000;
+/** The app's own script a page loads ("index-abc123.js"), or null when it names none. */
+const appScript = (html) => /<script[^>]+src="[^"]*\/assets\/(index-[\w-]+\.js)"/.exec(String(html ?? ""))?.[1] ?? null;
 
 /** The address the visitor typed, lower case, without a port; "" when it isn't a plain host name. */
 function hostOf(req) {
@@ -194,12 +196,28 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
   }
 
   /** The app's blank page, read from the shared site and kept five minutes. */
-  async function blankPage() {
-    if (shell && now() - shell.at < SHELL_TTL_MS) return shell.html;
+  async function blankPage(fresh = false) {
+    if (!fresh && shell && now() - shell.at < SHELL_TTL_MS) return shell.html;
     const response = await fetch(shellUrl());
     if (!response.ok) throw new Error(`The app's blank page answered ${response.status}.`);
     shell = { at: now(), html: await response.text() };
     return shell.html;
+  }
+
+  // A drawn page loads the app it was drawn with. When a shop's pages couldn't be drawn again for the app now online
+  // (the drawing failed in a release), that app's files are gone and the page would show with no styling at all, so
+  // the blank page of today's app answers instead until the shop's pages are drawn again. A shell that can't be read
+  // never hides a drawn page.
+  async function sameApp(body) {
+    const drawn = appScript(body);
+    if (!drawn) return true;
+    try {
+      if (appScript(await blankPage()) === drawn) return true;
+      const current = appScript(await blankPage(true));
+      return !current || current === drawn;
+    } catch {
+      return true;
+    }
   }
 
   return async function answer(req, res) {
@@ -283,7 +301,7 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
       }
     }
     const body = snapshot ? await siteFile(shop.id, snapshot) : null;
-    if (body) return send(200, TYPES[".html"], body);
+    if (body && (await sameApp(body))) return send(200, TYPES[".html"], body);
     // Not drawn yet: a product added since the last publish run (blank page, 200), or one that isn't there (404).
     const check = snapshot && snapshot !== "index.html" && routeCheck && !ownerView ? await routeCheck(shop, pathname) : { state: "unknown" };
     if (check.state === "missing" && check.to) {
@@ -295,4 +313,4 @@ function frontDoor({ rootDb, bucket, loadShop, shellUrl, routeCheck = null, cale
   };
 }
 
-module.exports = { shopShell, siteOf, defaultRobots, TEMPLATE_NAME, BOOKING_CALENDAR_PATH, CALENDAR_PATH, frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };
+module.exports = { appScript, shopShell, siteOf, defaultRobots, TEMPLATE_NAME, BOOKING_CALENDAR_PATH, CALENDAR_PATH, frontDoor, hostOf, snapshotFile, safeSlug, profileScript, SITE_FILES, TYPES, ADDRESS_TTL_MS, VERIFICATION_FILE };

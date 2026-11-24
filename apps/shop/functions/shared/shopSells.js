@@ -8,9 +8,10 @@
 // instead of "your book" and "reading". The admin's Settings › Notifications shows the same defaults, and every word
 // stays editable there.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PRODUCT_BASES = exports.GOODS_EMAILS = exports.SELLS = void 0;
+exports.PRODUCT_BASES = exports.GOODS_EMAILS = exports.STARTING_BOOK_MENUS = exports.SELLS = void 0;
 exports.sellsBooks = sellsBooks;
 exports.sellsServices = sellsServices;
+exports.unusedBookMenu = unusedBookMenu;
 exports.shopKind = shopKind;
 exports.goodsWords = goodsWords;
 exports.servicesWords = servicesWords;
@@ -35,6 +36,19 @@ const SERVICE_ANSWERS = new Set(["hair", "wellness", "lessons", "fitness", "stud
 /** True for a shop that sells services (appointments, classes, sessions) rather than products. */
 function sellsServices(answer) {
     return typeof answer === "string" && SERVICE_ANSWERS.has(answer);
+}
+/**
+ * A books shop's starting menu (features/site/constants.ts CATEGORIES), and the one it had before 14 November 2026
+ * (LEGACY_CATEGORIES). A shop that doesn't sell books and still has one of them untouched shows no categories: the
+ * storefront (admin/sells.ts withShopStartFor) and the published pages (scripts/sitemapData.mjs) must agree, or the
+ * page drawing waits for a collection page the shop never shows.
+ */
+exports.STARTING_BOOK_MENUS = [["PUBLICATIONS", "ZINES", "IMPRINT", "OUT OF PRINT"], ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"]];
+/** True when `categories` is a books shop's untouched starting menu and the shop doesn't sell books. */
+function unusedBookMenu(categories, answer) {
+    if (!answer || sellsBooks(answer) || !Array.isArray(categories))
+        return false;
+    return exports.STARTING_BOOK_MENUS.some((menu) => categories.length === menu.length && categories.every((name, i) => name === menu[i]));
 }
 function shopKind(answer) {
     return sellsBooks(answer) ? "books" : sellsServices(answer) ? "services" : "products";

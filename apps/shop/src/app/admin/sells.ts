@@ -11,10 +11,10 @@
 
 import type { ProductKind } from "../../shared/productOptions";
 import { DEFAULT_COPY } from "../features/site/storeCopy";
-import { CATEGORIES, LEGACY_CATEGORIES, PLACEHOLDER_INSTAGRAM } from "../features/site/constants";
+import { PLACEHOLDER_INSTAGRAM } from "../features/site/constants";
 import { DEFAULT_SHOP_NAME, shopName } from "../../shared/shopIdentity";
 import { DEFAULT_ANNOUNCEMENT, DEFAULT_HERO_SUBTITLE, DEFAULT_SHOP_DESCRIPTION, LEGACY_ANNOUNCEMENT, LEGACY_HERO_SUBTITLE, LEGACY_SHOP_DESCRIPTION } from "./defaultSettings";
-import { sellsBooks, sellsServices, wordsFor, type Sells } from "../../shared/shopSells";
+import { sellsBooks, sellsServices, unusedBookMenu, wordsFor, type Sells } from "../../shared/shopSells";
 
 // The answers and the books-shop rule live in src/shared/shopSells.ts, which the server's emails use too.
 export { SELLS, sellsBooks } from "../../shared/shopSells";
@@ -177,7 +177,6 @@ const typedName = (value: unknown): string => {
   const name = typeof value === "string" ? value.trim() : "";
   return name && name !== DEFAULT_SHOP_NAME ? name : "";
 };
-const sameList = (a: unknown, b: readonly string[]) => Array.isArray(a) && a.length === b.length && a.every((x, i) => x === b[i]);
 
 /**
  * The settings shoppers read, before the owner has changed the starting words (12 November 2026).
@@ -217,7 +216,7 @@ export function withShopStartFor<T extends Record<string, any>>(settings: T, sig
   }
   if (out.info?.description === LEGACY_SHOP_DESCRIPTION) out.info = { ...out.info, description: DEFAULT_SHOP_DESCRIPTION };
   if (goods) {
-    if (sameList(design.categories, CATEGORIES) || sameList(design.categories, LEGACY_CATEGORIES)) design = { ...design, categories: [] };
+    if (unusedBookMenu(design.categories, sells)) design = { ...design, categories: [] };
     if (isBookDescription(out.info?.description) || (services && out.info?.description === WRITTEN.siteDefaultDescription.replace("{name}", shopName(design)))) {
       out.info = { ...out.info, description: (services ? SERVICES_WRITTEN : WRITTEN).siteDefaultDescription.replace("{name}", shopName(design)) };
     }
