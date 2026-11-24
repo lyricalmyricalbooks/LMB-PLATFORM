@@ -853,3 +853,16 @@ italic `accentWord`, edge-to-edge photo, caption, round + link, underlined link;
 `PhotoOpeningSection`, `BigIntroSection`, `FeatureDuoSection` and `StoryOrbitSection` (CSS `.fm-po*`, `.fm-bi*`, `.fm-duo*`,
 `.fm-orbit*`; a two-line title is typed with a new line; `accentFont` loads a Google font for the quote/accent word).
 Showcase grids get the template's 01, 02… numbers through `[class*="showcase-grid-"]`. Plan: https://claude.ai/artifact/PKepfF8oXL3jZ5Ewo7S4Wv.
+
+### Starters and Studio rethink, step 2: starters arrive with samples (24 November 2026)
+`applyStarter` / `applyPresetSections` take an optional `StarterPhotos` (`studio/starterPhotos.ts` `starterPhotos(sells)`):
+the shop's sample photos (`samplePhotosFor`: band photos, then item photos) and each section type's main picture field
+(`mainPictureKeys`, the `imageUrl` image field of `getSectionFields`). `samplePhotoFiller` fills empty ones in turn, plus empty
+`imageUrl` items in a section's lists, and an empty matching alt; a photo the starter brings is kept. Choose your look,
+design-before-the-store, Themes › Use layout and the starter preview pass it. Example products come from the same set and
+are never sold (`features/site/comingSoon.ts` `notForSale`, server `purchaseProblem`). Publish says how many sections still
+carry `sample: true` (`sampleSectionsLeft`).
+**Service shops (same day):** `starterForShop(theme, sells)` (starterDesign.ts) gives a services shop its version of any
+starter: the first product row becomes the price list (`ServiceMenuSection`), the second the Book a time cards
+(`BookTimeSection`), other product rows (`PRODUCT_SECTIONS`) go, and opening hours go before the sign-up band. The same four
+callers pass it. Booking sections are never re-worded (`SERVICES_WORDED` in presetContent.ts: "Book" is their verb).

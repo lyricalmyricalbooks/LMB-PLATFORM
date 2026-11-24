@@ -41,8 +41,9 @@ import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, r
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, sampleSectionsLeft, starterSampleBooks, wordedSettings } from "./presetContent";
-import { applyStarter } from "./starterDesign";
-import { useCatalogWords, useShopWords } from "../shopWords";
+import { applyStarter, starterForShop } from "./starterDesign";
+import { useCatalogWords, useShopSells, useShopWords } from "../shopWords";
+import { starterPhotos } from "./starterPhotos";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { STARTER_SITES, builtLooks, libraryLook, ownBooks, pressNameOf } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
@@ -418,6 +419,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const defaults = useMemo(() => adminApi.getDefaultSettings().design, []);
   // The shop's words (code plan 12.18): layouts and the brand kit's starter Home come in this shop's words.
   const shopWords = useShopWords();
+  const shopSells = useShopSells();
   // The lists of settings in this shop's words ("Book cards" is "Product cards" in a shop that doesn't sell books).
   const cw = useCatalogWords();
   const STYLE_GROUPS = cw(BOOK_STYLE_GROUPS), COPY_SCHEMA = cw(BOOK_COPY_SCHEMA);
@@ -809,7 +811,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     });
     if (!ok) return;
     const sectionTemplates = Object.keys(presetSections(theme));
-    if (sectionTemplates.length) change((d) => applyPresetSections(d, theme, getSectionMeta, shopWords), { label: `Use “${theme.name}” layout` });
+    if (sectionTemplates.length) change((d) => applyPresetSections(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Use “${theme.name}” layout` });
     let added = 0;
     try {
       // Each page saves straight away as a draft, like Pages › New page; a page whose address is taken is skipped, so
@@ -1079,7 +1081,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const theme: any = id && STARTER_SITES.includes(id) ? libraryLook(id) : null;
     if (!entry || !theme) return entry;
     const samples = starterSampleBooks(theme);
-    return { ...entry, design: applyStarter(designRef.current, theme, getSectionMeta, shopWords), books: samples.length ? samples : undefined };
+    return { ...entry, design: applyStarter(designRef.current, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), books: samples.length ? samples : undefined };
   };
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
