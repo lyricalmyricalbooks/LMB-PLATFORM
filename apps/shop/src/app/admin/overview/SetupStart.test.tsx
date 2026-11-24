@@ -58,13 +58,17 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     expect(text()).toContain("Welcome to Moth Press. Choose your look");
     expect(text()).not.toContain("Set up your shop");
     expect(text()).not.toContain("Suggested for you");
-    expect(document.querySelectorAll("ul[aria-label='Looks'] > li")).toHaveLength(13);
+    // The guided start first: three questions and a shortlist of the starters, in the press's name.
+    expect(document.querySelectorAll("ul[aria-label='Your shortlist'] > li")).toHaveLength(3);
     expect(document.body.innerHTML).toContain("Moth Press in this look");
+    await act(async () => { button("See every look")!.click(); });
+    expect(document.querySelectorAll("ul[aria-label='Looks'] > li")).toHaveLength(13);
   });
 
   it("choosing applies the look to the draft once, records it, and then shows the guide", async () => {
     api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "books", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
     await mount({});
+    await act(async () => { button("See every look")!.click(); });
     await act(async () => { button("Use this look")!.click(); });
     await settleChoice();
     expect(store.saveDraft).toHaveBeenCalledTimes(1);
@@ -83,6 +87,21 @@ describe("Choose your look, then Set up your shop (plans 6.3, 6.9)", () => {
     await mount({});
     expect(document.querySelector("[role=radiogroup][aria-label='Admin look']")).toBeNull();
     expect(text()).not.toContain("Your admin");
+  });
+
+  it("the guided start's shortlist puts the starter in the draft in the style that fits the feel", async () => {
+    api.getFirstWeek.mockResolvedValue({ sellingToday: "starting", publishes: "clothing", plan: "shop", details: { at: "then" }, bring: { at: "then", skipped: true }, shipping: { at: "then", skipped: true }, finalCheck: { at: "then", opened: false } });
+    await mount({});
+    await act(async () => { (document.querySelector("[data-guided-feel='bold']") as HTMLButtonElement).click(); });
+    const names = [...document.querySelectorAll("ul[aria-label='Your shortlist'] > li > div > div > strong")].map(n => n.textContent);
+    expect(names).toEqual(["Slow Season Night", "Catalogue", "Aurel Night"]);
+    const aurel = [...document.querySelectorAll("[data-look-card='aurel-editorial'] button")].find((b) => b.textContent?.trim() === "Use this look") as HTMLButtonElement;
+    await act(async () => { aurel.click(); });
+    await settleChoice();
+    const [, draft] = store.saveDraft.mock.calls[0] as any[];
+    expect(draft.themeLibraryPreset).toBe("aurel-editorial");
+    expect(draft.themeBase).toMatchObject({ id: "aurel-editorial", style: "night", name: "Aurel Night" });
+    expect(draft.backgroundColor).toBe("#121722");
   });
 
   it("Skip takes the first suggestion and says so", async () => {

@@ -28,6 +28,11 @@ const { CartProvider } = await import("../../CartContext");
 const { SECTION_REGISTRY } = await import("../ThemeEditorExtensions");
 const { THEME_LIBRARY } = await import("./themeLibrary");
 const { STYLED_LOOKS } = await import("./starterStyles");
+// The guided start's shortlists (guidedStart.ts): every starter in a light and a dark style, wearing a few logos' colours.
+const { shortlist } = await import("../guidedStart");
+const SAMPLE_LOGOS: Record<string, string[]> = { red: ["#ffffff", "#d62828"], green: ["#1b4332", "#f8f9fa"], yellow: ["#ffd60a", "#000000"], violet: ["#7b2cbf", "#e0aaff"] };
+const GUIDED_LOOKS = Object.entries(SAMPLE_LOGOS).flatMap(([logo, colours]) => (["calm", "bold"] as const).flatMap((feel) =>
+  shortlist({ feel, colours }).map((e) => ({ ...e.theme, name: `${e.name} with a ${logo} logo`, checkId: `${e.theme.id}/${e.styleId}/${logo}` }))));
 const { presetSections } = await import("./presetContent");
 const { defaultSettings } = await import("../defaultSettings");
 const { BUILT_IN_BLOCKS, CUSTOM_BLOCKS } = await import("../../features/site/productBlocks");
@@ -42,7 +47,7 @@ const BOOKS = [
 ];
 
 const BASE = defaultSettings().design;
-const THEMES: any[] = [{ id: "starting-look", name: "The starting look" }, ...(THEME_LIBRARY as any[]), ...STYLED_LOOKS];
+const THEMES: any[] = [{ id: "starting-look", name: "The starting look" }, ...(THEME_LIBRARY as any[]), ...STYLED_LOOKS, ...GUIDED_LOOKS];
 const designFor = (theme: any) => (theme.id === "starting-look" ? BASE : themedDesign(theme, BASE));
 
 function renderSections(sections: any[], design: any): HTMLElement {

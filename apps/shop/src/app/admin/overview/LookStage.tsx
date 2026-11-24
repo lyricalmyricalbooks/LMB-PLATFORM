@@ -312,7 +312,7 @@ function Hero({ look, press, heading, phone, lead }: { look: LookPreview; press:
   );
 }
 
-function Header({ look, press, phone }: { look: LookPreview; press: string; phone: boolean }) {
+function Header({ look, press, phone, logo }: { look: LookPreview; press: string; phone: boolean; logo?: string }) {
   return (
     <>
       {look.announcement && (
@@ -321,7 +321,9 @@ function Header({ look, press, phone }: { look: LookPreview; press: string; phon
         </div>
       )}
       <div style={{ background: look.headerBg, color: look.headerText, borderBottom: `${look.style === "marquee" ? 3 : 1}px solid ${look.border}`, padding: phone ? "14px 16px" : "18px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-        <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 20 : 26, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: look.uppercase ? "uppercase" : "none" }} data-go="home">{press}</span>
+        {logo
+          ? <img src={logo} alt={press} data-go="home" style={{ display: "block", height: phone ? 28 : 36, width: "auto", maxWidth: phone ? 140 : 220, objectFit: "contain" }} />
+          : <span style={{ fontFamily: look.headingFont, fontWeight: look.headingWeight, fontSize: phone ? 20 : 26, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: look.uppercase ? "uppercase" : "none" }} data-go="home">{press}</span>}
         {phone
           ? <span style={{ display: "flex", gap: 14, fontSize: 14, fontWeight: 700 }}><span data-go="bag">Bag (1)</span><span style={{ fontSize: 18, lineHeight: 1 }}>☰</span></span>
           : <span style={{ display: "flex", gap: 28, fontSize: 15 }}><span>Shop</span><span>About</span><span>Contact</span><span style={{ fontWeight: 700 }} data-go="bag">Bag (1)</span></span>}
@@ -410,8 +412,10 @@ function BagPage({ look, products, phone, press }: { look: LookPreview; products
  * The page itself, drawn at the device's width. `products` are the press's own (title and photo) or made-up ones;
  * the first eight show.
  */
-export function LookStage({ look, press, device, page = "home", products, books = true, productIndex = 0, onNavigate }: {
+export function LookStage({ look, press, device, page = "home", products, books = true, productIndex = 0, onNavigate, logo }: {
   look: LookPreview; press: string; device: StageDevice; page?: StagePage; products: PreviewProduct[];
+  /** The owner's logo (a local picture from the guided start), drawn in the header in place of the shop name. */
+  logo?: string;
   /** Which product the product page shows. */
   productIndex?: number;
   /** Makes the stage clickable (the full-size view): the bag, the shop name, a product or its buy button go to that page. */
@@ -434,7 +438,7 @@ export function LookStage({ look, press, device, page = "home", products, books 
         if (go.startsWith("product:")) onNavigate("product", Number(go.slice(8)) || 0); else onNavigate(go as StagePage);
       } : undefined}>
       {onNavigate && <style>{"[data-look-stage][data-live] [data-go]{cursor:pointer}"}</style>}
-      <Header look={look} press={press} phone={phone} />
+      <Header look={look} press={press} phone={phone} logo={logo} />
       <div style={{ padding: `${phone ? 20 : 32}px ${pad}px ${phone ? 32 : 56}px`, display: "grid", gap: phone ? 20 : 28 }}>
         {page === "bag"
           ? <BagPage look={look} products={list.length ? [list[productIndex] || list[0], ...list.filter((_, i) => i !== productIndex)] : []} phone={phone} press={press} />
