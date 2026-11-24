@@ -585,7 +585,7 @@ export const AUREL_CSS = lookCss({
 ${S} .fm-announce{font-size:9px;font-weight:400 !important;letter-spacing:.1em;padding-top:.45rem !important;padding-bottom:.45rem !important;}
 ${S} header[data-section="navigation"] .fm-logo{font-family:var(--heading-font);font-weight:500 !important;letter-spacing:.22em !important;text-transform:uppercase;}
 @media (max-width:767px){${S} header[data-section="navigation"] .fm-logo{letter-spacing:.12em !important;}}
-${S} header[data-section="navigation"] .fm-hdr-cart{background:transparent !important;color:inherit !important;box-shadow:none !important;padding-left:0;padding-right:0;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+${S} header[data-section="navigation"] .fm-hdr-cart{background:transparent !important;color:inherit !important;box-shadow:none;padding-left:0;padding-right:0;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
 ${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
 ${S} .fm-card .fm-photo-frame img{filter:none;}
 ${S} :is([data-studio-label="Product grid"],[class*="showcase-grid-"]){counter-reset:aurel;}
@@ -628,7 +628,7 @@ export const CATALOGUE_CSS = lookCss({
   extra: `
 ${S} ::selection{background:var(--accent-2);color:rgb(var(--fg-rgb));}
 ${S} header[data-section="navigation"] .fm-logo{font-family:var(--body-font) !important;font-size:17px !important;font-weight:600 !important;letter-spacing:.2em !important;text-transform:uppercase;}
-${S} header[data-section="navigation"] .fm-hdr-cart{background:transparent !important;color:inherit !important;box-shadow:none !important;padding-left:0;padding-right:0;font-size:13px;}
+${S} header[data-section="navigation"] .fm-hdr-cart{background:transparent !important;color:inherit !important;box-shadow:none;padding-left:0;padding-right:0;font-size:13px;}
 ${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:13px;letter-spacing:0;text-transform:none;}
 ${S} .fm-split{padding:6vw 3.2vw 3.2vw;gap:4.5vw;grid-template-columns:.86fr 1.14fr;min-height:calc(100svh - 76px);}
 ${S} .fm-split.fm-split-flip{grid-template-columns:1.14fr .86fr;}

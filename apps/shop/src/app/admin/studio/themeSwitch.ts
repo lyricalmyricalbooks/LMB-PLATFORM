@@ -7,6 +7,7 @@
 import { isSurfaceKey, writeDesignValue } from "../../features/site/designModel";
 import { readStyle, STYLE_GROUPS, type StyleField } from "./styleSchema";
 import { THEME_LIBRARY } from "./themeLibrary";
+import { styledName, withStyle } from "./starterStyles";
 import { themedDesign, themeLookKeys } from "./themeLook";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 
@@ -60,7 +61,8 @@ const pageName = (surface: string) => PAGE_NAMES[surface] || (surface.startsWith
 // design for a key the look doesn't set), so they can be listed, reset one by one, kept through a switch, and carried
 // onto a newer version of the same theme when a release changes it. The storefront ignores `themeBase`.
 
-export type ThemeBase = { id: string; name: string; look: Record<string, any>; sig: string };
+/** `style`: the starter style it was applied in (starterStyles), when not the starter's own. */
+export type ThemeBase = { id: string; name: string; look: Record<string, any>; sig: string; style?: string };
 
 const hash = (s: string) => {
   let h = 5381;
@@ -74,7 +76,8 @@ export const lookSignature = (theme: any) =>
 /** What Use this look stores beside the design: `look` is exactly what it wrote. */
 export function themeBaseFor(theme: any, look: Record<string, any>): ThemeBase {
   const { themeLibraryPreset: _id, ...keys } = look;
-  return { id: theme.id, name: theme.name, look: keys, sig: lookSignature(theme) };
+  const base: ThemeBase = { id: theme.id, name: styledName(theme), look: keys, sig: lookSignature(theme) };
+  return theme.styleId ? { ...base, style: theme.styleId } : base;
 }
 
 /** The look the design's own edits are measured against: its stored base, else the ready-made look out of the box. */
@@ -155,7 +158,9 @@ export function resetToLook(design: any, items: SwitchItem[]): any {
 export function updatedTheme(design: any): any {
   const base: ThemeBase | undefined = design?.themeBase;
   if (!base || base.id !== design?.themeLibraryPreset) return null;
-  const theme: any = THEME_LIBRARY.find((t: any) => t.id === base.id);
+  const found: any = THEME_LIBRARY.find((t: any) => t.id === base.id);
+  // Measured in the style it was applied in, so a style's own colours never read as an update.
+  const theme = found && withStyle(found, base.style);
   return theme && lookSignature(theme) !== base.sig ? theme : null;
 }
 

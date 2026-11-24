@@ -115,3 +115,28 @@ test("a starter the shop added after the last save waits hidden; ids the shop no
   assert.equal(cleanRecord(null), null);
   assert.deepEqual(recordFrom(choice(), "a", "t").known, ALL);
 });
+
+test("each starter's styles are the shop's own, in the shop's order, with the names the shop shows", () => {
+  const styles = readFileSync(new URL("../apps/shop/src/app/admin/studio/starterStyles.ts", import.meta.url), "utf8");
+  for (const { id, styles: list } of STARTERS) {
+    const block = styles.slice(styles.indexOf(`"${id}": [`));
+    const shop = [...block.slice(0, block.indexOf("\n  ],")).matchAll(/\{ id: "([^"]+)", name: "([^"]+)"/g)].map((m) => ({ id: m[1], name: m[2] }));
+    assert.deepEqual(list, shop, id);
+  }
+});
+
+test("a style can be hidden from shops, never a starter's own; shops get the list with the rest", async () => {
+  const w = await world();
+  const starters = choice({ "aurel-editorial": { hiddenStyles: ["sand", "cobalt", "made-up"] }, "juniper-catalogue": { hiddenStyles: ["night"] } });
+  const saved = await w.ask(ADMIN, "/api/control/starters/save", { starters });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.deepEqual((await w.shopData.get("moth-press", STARTERS_DOC)).hiddenStyles, ["juniper-catalogue/night", "aurel-editorial/sand"]);
+  const aurel = saved.body.starters.find((s) => s.id === "aurel-editorial");
+  assert.deepEqual(aurel.styles.map((s) => [s.id, s.shown, s.own]), [["cobalt", true, true], ["sand", false, false], ["night", true, false]]);
+  // Showing the style again is a change; saving the same again is not.
+  assert.equal((await w.ask(ADMIN, "/api/control/starters/save", { starters })).body.changed, false);
+  const back = await w.ask(ADMIN, "/api/control/starters/save", { starters: choice() });
+  assert.equal(back.body.changed, true);
+  assert.deepEqual((await w.shopData.get("moth-press", STARTERS_DOC)).hiddenStyles, []);
+  assert.ok(starterRows(null).every((s) => s.styles.every((x) => x.shown)));
+});

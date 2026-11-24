@@ -3597,12 +3597,13 @@ async function loadStarters() {
     ]);
     // What the page holds until Save: the order, and for each starter whether it shows and is marked New.
     let rows = starters.map((s) => ({ ...s, shown: s.state === "shown" }));
-    const first = JSON.stringify(rows.map((r) => [r.id, r.shown, r.fresh]));
+    const snapshot = () => JSON.stringify(rows.map((r) => [r.id, r.shown, r.fresh, (r.styles || []).map((x) => x.shown)]));
+    const first = snapshot();
     const wearing = (id) => worn?.find((w) => w.id === id)?.count ?? 0;
     const note = el("p", { className: "rp-hint", role: "status" });
     const save = button("Save for every shop", "primary");
     const draw = () => {
-      const changed = JSON.stringify(rows.map((r) => [r.id, r.shown, r.fresh])) !== first;
+      const changed = snapshot() !== first;
       save.disabled = !changed || !rows.some((r) => r.shown);
       const move = (i, by) => { const next = [...rows]; [next[i], next[i + by]] = [next[i + by], next[i]]; rows = next; draw(); };
       fill(slot,
@@ -3619,6 +3620,13 @@ async function loadStarters() {
               (r.shown !== (r.state === "shown") || r.fresh !== starters.find((s) => s.id === r.id).fresh) ? meta("not saved yet") : null) },
             { header: "Show to shops", render: (r) => el("label", { className: "rp-check" },
               el("input", { type: "checkbox", checked: r.shown, ariaLabel: `Show ${r.name} to shops`, onchange: (e) => { rows[r.i] = { ...rows[r.i], shown: e.target.checked }; draw(); } }), "Show") },
+            // Each starter's named styles: its own always shows; the others can be hidden from shops.
+            { header: "Styles", render: (r) => el("div", { className: "cr-actions" }, ...(r.styles || []).map((x, j) => x.own
+              ? el("span", { className: "rp-hint", textContent: `${x.name} (its own)` })
+              : el("label", { className: "rp-check" },
+                el("input", { type: "checkbox", checked: x.shown, ariaLabel: `Show ${r.name} ${x.name} to shops`, onchange: (e) => {
+                  rows[r.i] = { ...rows[r.i], styles: rows[r.i].styles.map((y, k) => (k === j ? { ...y, shown: e.target.checked } : y)) }; draw();
+                } }), x.name))) },
             { header: "New tag", render: (r) => el("label", { className: "rp-check" },
               el("input", { type: "checkbox", checked: r.fresh, ariaLabel: `Mark ${r.name} New`, onchange: (e) => { rows[r.i] = { ...rows[r.i], fresh: e.target.checked }; draw(); } }), "Mark New") },
             { header: "Live shops", render: (r) => el("span", { className: "rp-mono", textContent: worn ? String(wearing(r.id)) : "?" }) },
@@ -3634,7 +3642,7 @@ async function loadStarters() {
       save.disabled = true;
       note.textContent = "Saving…";
       try {
-        const result = await api("POST", "/control/starters/save", { starters: rows.map((r) => ({ id: r.id, shown: r.shown, fresh: r.fresh })) });
+        const result = await api("POST", "/control/starters/save", { starters: rows.map((r) => ({ id: r.id, shown: r.shown, fresh: r.fresh, hiddenStyles: (r.styles || []).filter((x) => !x.own && !x.shown).map((x) => x.id) })) });
         await loadStarters();
         $("#setup-starters").append(el("p", { className: "rp-hint", role: "status", textContent: `Saved. ${plural(result.shops, "live shop")} ${result.shops === 1 ? "has" : "have"} it now${result.failed.length ? `; couldn't reach ${result.failed.map((f) => f.pressName).join(", ")} (tried again tonight)` : ""}. New shops get it when they're made.` }));
       } catch (failure) {

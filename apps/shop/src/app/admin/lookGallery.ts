@@ -4,6 +4,7 @@
 
 import type { FirstWeekDoc } from "./firstWeek";
 import { THEME_LIBRARY } from "./studio/themeLibrary";
+import { stylesFor, type StarterStyle } from "./studio/starterStyles";
 import { TEMPLATE_STYLE_IDS } from "../features/site/templateStyles";
 import { themedDesign } from "./studio/themeLook";
 import type { Sells } from "./sells";
@@ -55,7 +56,7 @@ export const isBuiltLook = (t: any) => STARTER_SITES.includes(t.id) || PICKER_LO
  * hidden, which carry a New tag, and every starter the platform owner has seen (one added since stays hidden until
  * they turn it on). Null (never saved, or not readable) shows every starter in STARTER_SITES order.
  */
-export type StarterChoice = { order?: unknown; hidden?: unknown; fresh?: unknown; known?: unknown } | null | undefined;
+export type StarterChoice = { order?: unknown; hidden?: unknown; fresh?: unknown; known?: unknown; hiddenStyles?: unknown } | null | undefined;
 const idsOf = (v: unknown) => (Array.isArray(v) ? v.filter((id): id is string => typeof id === "string") : []);
 /** The starters a shop is offered, in the order the control room chose. */
 export function offeredStarters(choice?: StarterChoice): string[] {
@@ -66,6 +67,14 @@ export function offeredStarters(choice?: StarterChoice): string[] {
 }
 /** The starters the control room marked New (only ones still offered). */
 export const newStarters = (choice?: StarterChoice): string[] => (choice ? idsOf(choice.fresh).filter(id => offeredStarters(choice).includes(id)) : []);
+/**
+ * A starter's named styles a shop is offered (studio/starterStyles.ts), its own first. The control room hides a style by
+ * `starter/style` id in `hiddenStyles`; the starter's own style always shows.
+ */
+export function offeredStyles(id: string, choice?: StarterChoice): StarterStyle[] {
+  const hidden = choice ? idsOf(choice.hiddenStyles) : [];
+  return stylesFor(id).filter((s, i) => i === 0 || !hidden.includes(`${id}/${s.id}`));
+}
 export const builtLooks = (choice?: StarterChoice) => {
   const all = (THEME_LIBRARY as unknown as LibraryTheme[]).filter(isBuiltLook);
   const starters = offeredStarters(choice).map(id => all.find(t => t.id === id)).filter((t): t is LibraryTheme => !!t);

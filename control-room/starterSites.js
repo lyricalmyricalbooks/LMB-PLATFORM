@@ -4,7 +4,7 @@
 // the shop shows, and starterSites.test.js keeps the two in step.
 //
 // The choice is one platform record (`starters` in the platform's small records):
-//   { order: [id], hidden: [id], fresh: [id], known: [id], updatedAt, by }
+//   { order: [id], hidden: [id], fresh: [id], known: [id], hiddenStyles: ["starter/style"], updatedAt, by }
 // `known` is every starter the owner has seen on this page: a starter added to the shop later is not in it, so shops
 // keep it hidden until the owner turns it on here. With no record at all (never saved), shops show every starter in the
 // shop's own order.
@@ -13,6 +13,9 @@
 // (like platform/messages). Saving writes every shop at once; `sweep()` (run with the press messages job) writes it
 // again for shops made since. The shop's Choose your look and Studio › Designs read it (apps/shop
 // src/app/admin/platformStarters.ts); a shop that can't read it shows every starter.
+//
+// Styles (next starters plan phase 2): every starter comes in three named styles (apps/shop studio/starterStyles.ts);
+// `hiddenStyles` hides one from shops by `starter/style` id. The starter's own (first) style can't be hidden.
 //
 // Clients passed in:
 //   settingsStore  the platform's small records: get(name); set(name, value)
@@ -26,10 +29,13 @@ import { PLANS } from "../setup/steps.js";
 
 /** The shop's starters, in the shop's own order (lookGallery.ts STARTER_SITES), with the names it shows. */
 export const STARTERS = Object.freeze([
-  { id: "juniper-slow-season", name: "Slow Season" },
-  { id: "juniper-catalogue", name: "Catalogue" },
-  { id: "aurel-editorial", name: "Aurel" },
+  { id: "juniper-slow-season", name: "Slow Season", styles: [{ id: "terracotta", name: "Terracotta" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
+  { id: "juniper-catalogue", name: "Catalogue", styles: [{ id: "acid", name: "Acid" }, { id: "blueprint", name: "Blueprint" }, { id: "night", name: "Night" }] },
+  { id: "aurel-editorial", name: "Aurel", styles: [{ id: "cobalt", name: "Cobalt" }, { id: "sand", name: "Sand" }, { id: "night", name: "Night" }] },
 ]);
+/** Every style that can be hidden (all but each starter's own), as `starter/style`. */
+const HIDEABLE_STYLES = STARTERS.flatMap((s) => s.styles.slice(1).map((x) => `${s.id}/${x.id}`));
+const styleList = (value) => [...new Set((Array.isArray(value) ? value : []).filter((id) => HIDEABLE_STYLES.includes(id)))];
 export const STARTERS_RECORD = "starters";
 export const STARTERS_DOC = "platform/starters";
 const IDS = STARTERS.map((s) => s.id);
@@ -47,6 +53,7 @@ export function cleanRecord(record) {
     hidden: idList(record.hidden).filter((id) => known.includes(id)),
     fresh: idList(record.fresh).filter((id) => known.includes(id)),
     known,
+    hiddenStyles: styleList(record.hiddenStyles),
     updatedAt: record.updatedAt ?? null,
     by: record.by ?? null,
   };
@@ -58,24 +65,30 @@ export function cleanRecord(record) {
  */
 export function starterRows(record) {
   const saved = cleanRecord(record);
-  if (!saved) return STARTERS.map((s) => ({ ...s, state: "shown", fresh: false }));
+  const stylesOf = (starter) => starter.styles.map((x, i) => ({ ...x, own: i === 0, shown: i === 0 || !saved?.hiddenStyles.includes(`${starter.id}/${x.id}`) }));
+  if (!saved) return STARTERS.map((s) => ({ ...s, styles: stylesOf(s), state: "shown", fresh: false }));
   const ordered = [...saved.order, ...IDS.filter((id) => !saved.order.includes(id))];
-  return ordered.map((id) => ({
-    ...STARTERS.find((s) => s.id === id),
-    state: !saved.known.includes(id) ? "waiting" : saved.hidden.includes(id) ? "hidden" : "shown",
-    fresh: saved.fresh.includes(id),
-  }));
+  return ordered.map((id) => {
+    const starter = STARTERS.find((s) => s.id === id);
+    return {
+      ...starter,
+      styles: stylesOf(starter),
+      state: !saved.known.includes(id) ? "waiting" : saved.hidden.includes(id) ? "hidden" : "shown",
+      fresh: saved.fresh.includes(id),
+    };
+  });
 }
 
 /** The document a shop reads: the order, what is hidden or new, and which starters the owner has seen. */
 export function shopDocOf(record) {
   const saved = cleanRecord(record);
   if (!saved) return null;
-  return { order: saved.order, hidden: saved.hidden, fresh: saved.fresh, known: saved.known, updatedAt: saved.updatedAt };
+  return { order: saved.order, hidden: saved.hidden, fresh: saved.fresh, known: saved.known, hiddenStyles: saved.hiddenStyles, updatedAt: saved.updatedAt };
 }
 
 /**
- * A choice from the page made into a record: `starters` is the list in the order chosen, each { id, shown, fresh }.
+ * A choice from the page made into a record: `starters` is the list in the order chosen, each { id, shown, fresh,
+ * hiddenStyles: [styleId] } (hiddenStyles optional; a starter's own style is never hidden).
  * Every starter must be in it once, and at least one must stay shown, so a new shop always has a starter to pick.
  */
 export function recordFrom(starters, by, at) {
@@ -88,6 +101,7 @@ export function recordFrom(starters, by, at) {
     hidden: starters.filter((s) => s.shown !== true).map((s) => s.id),
     fresh: starters.filter((s) => s.fresh === true).map((s) => s.id),
     known: ids,
+    hiddenStyles: styleList(starters.flatMap((s) => (Array.isArray(s.hiddenStyles) ? s.hiddenStyles : []).map((style) => `${s.id}/${style}`))),
     updatedAt: at,
     by,
   };
@@ -137,10 +151,10 @@ export function createStarterSites({ admins, settingsStore, registry, auditLog, 
       const stamp = at();
       const record = recordFrom(starters, by, stamp);
       const before = cleanRecord(await settingsStore.get(STARTERS_RECORD));
-      const changed = !before || ["order", "hidden", "fresh", "known"].some((k) => JSON.stringify(before[k]) !== JSON.stringify(record[k]));
+      const changed = !before || ["order", "hidden", "fresh", "known", "hiddenStyles"].some((k) => JSON.stringify(before[k]) !== JSON.stringify(record[k]));
       if (changed) {
         await settingsStore.set(STARTERS_RECORD, record);
-        if (activity) await activity.record(activityEntry({ at: stamp, by, what: "starters-set", shopId: null, detail: { order: record.order, hidden: record.hidden, fresh: record.fresh } }));
+        if (activity) await activity.record(activityEntry({ at: stamp, by, what: "starters-set", shopId: null, detail: { order: record.order, hidden: record.hidden, fresh: record.fresh, hiddenStyles: record.hiddenStyles } }));
       }
       const saved = changed ? record : before;
       const { shops, failed } = await publishAll(shopDocOf(saved));
@@ -157,7 +171,7 @@ export function createStarterSites({ admins, settingsStore, registry, auditLog, 
 }
 
 //   GET  /api/control/starters       the starters as shops see them
-//   POST /api/control/starters/save  { starters: [{ id, shown, fresh }] } in the order shops should see them
+//   POST /api/control/starters/save  { starters: [{ id, shown, fresh, hiddenStyles }] } in the order shops should see them
 export function starterSitesRoutes(desk) {
   const body = (request) => (request.body && typeof request.body === "object" ? request.body : {});
   return {

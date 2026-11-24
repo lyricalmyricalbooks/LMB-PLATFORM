@@ -1460,6 +1460,26 @@ await check("Try this starter keeps the design as it was in My themes, then puts
   await panel.locator("[data-theme-card]", { hasText: "Before " }).first().waitFor({ timeout: 5000 });
 });
 
+await check("a starter's styles: picking a swatch redraws the card, Try puts that style in the draft, and a hidden style isn't offered", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const card = page.locator("[data-studio-panel='themes'] [data-theme-card='preset:aurel-editorial']");
+  await card.scrollIntoViewIfNeeded();
+  const styles = card.locator("[data-starter-style]");
+  const ids = await styles.evaluateAll(els => els.map(e => e.getAttribute("data-starter-style")));
+  if (ids.join() !== "aurel-editorial/cobalt,aurel-editorial/night") throw new Error(`the hidden Sand style is still offered (${ids.join()})`);
+  await card.locator("[data-starter-style='aurel-editorial/night']").click();
+  if (await card.locator("[data-starter-style='aurel-editorial/night']").getAttribute("aria-checked") !== "true") throw new Error("the picked style isn't marked");
+  await card.getByText("Aurel Night", { exact: true }).waitFor({ timeout: 3000 });
+  await card.getByRole("button", { name: "Try this starter" }).click();
+  await expectText(page, "Trying “Aurel Night” in your draft");
+  await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
+  const f = page.frames().find(fr => fr !== page.mainFrame() && fr.url().includes("preview=true"));
+  await page.waitForTimeout(1500);
+  const bg = await f.evaluate(() => getComputedStyle(document.querySelector("[data-fm-store]") || document.body).backgroundColor);
+  if (bg !== "rgb(18, 23, 34)") throw new Error(`the preview isn't in the Night colours (${bg})`);
+  if (!(await card.getByText("Current").count())) throw new Error("the card doesn't show Aurel Night as current");
+}, "?hiddenStyles=aurel-editorial/sand#designer?tab=themes");
+
 // Every starter on every kind of shop (next starters plan, phase 1): a starter listed in lookGallery.ts STARTER_SITES is
 // tried as a bookshop, a clothing shop and a salon, at desktop and phone. Its look must load, nothing may scroll
 // sideways, the shop name must stay clear of the header's buttons, and a shop that sells no books must not show the
