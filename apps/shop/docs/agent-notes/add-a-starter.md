@@ -42,6 +42,11 @@ about 2 to 3 days per starter. Existing shops are never changed by a new starter
 - Tests: `starterDesign.test.ts`, `themeCheck.test.ts`, `themeReadability.test.tsx`, `templateCoverage.test.ts`,
   `themeFonts.test.ts`, `neutralStarters.test.ts`, `sectionDesigns.test.ts`, `starterSamples.test.ts`, and root
   `control-room/starterSites.test.js`.
+- Every starter on every shop type: `scripts/studio-e2e.mjs` reads `STARTER_SITES` and tries each one in Studio as a
+  bookshop, a clothing shop and a salon (`?sells=`), at desktop and phone. It fails when the look is unstyled, the page
+  scrolls sideways, a header button covers the shop name, or a non-book shop shows the books menu. A new starter is
+  checked by it with no edit; it must pass before Show. Run one starter with
+  `STUDIO_ONLY="starter <id>" pnpm run test:studio`.
 - Screenshots, desktop and phone, next to the design file, all from the real product:
   - the Studio fixture (`/studio-fixture.html#designer?tab=themes` › Whole websites › Try this starter)
   - the storefront

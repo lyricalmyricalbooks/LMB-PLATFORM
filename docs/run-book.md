@@ -25,7 +25,8 @@ Google, not one press. Post a status note (see "Tell presses about a problem" be
 ### pages
 
 **What it means:** the shop's home page, `/admin`, `/shop-profile.js` or the stockroom page didn't answer, or answered
-with an error or an empty page. Shoppers may be seeing an error instead of the shop.
+with an error or an empty page, or a page's look files (its script and styles) are missing. Shoppers may be seeing an
+error, or plain unstyled text, instead of the shop.
 
 **What to do:**
 
@@ -35,6 +36,9 @@ with an error or an empty page. Shoppers may be seeing an error instead of the s
 3. If no release went out, use **Check now** in the control room. The self-checks find a missing or wrong profile
    file and redeploy the pages by themselves. Anything they can't fix goes to the repair queue with what went wrong.
 4. If every shop is down at once, check Firebase's own status page. Post a status note while you wait.
+5. If the detail says "its look file … is missing", the shop's drawn pages are older than the app online: they didn't
+   draw again on the last update. The update run's log says why for that shop ("Shop <id>: …"). Fix that, then send
+   the update again.
 
 ### checkout
 

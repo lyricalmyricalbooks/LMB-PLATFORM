@@ -6,6 +6,7 @@ import { catalogStateInUrlOn, catalogUrlSearch, readCatalogUrl } from "../featur
 import { inEditorPreview } from "../lib/trackingGuard";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
 import { CATEGORIES, placeholderImage } from "../features/site/constants";
+import { withShopStartFor } from "../admin/sells";
 import { shopSocialLinks } from "../features/site/socialAccounts";
 import { subscribePreview } from "../features/site/previewTab";
 import { aspectRatioValue } from "../features/site/imageAspect";
@@ -225,7 +226,10 @@ function Newsletter({ design }: { design?: any }) {
 // ──────────────────────────────
 // Hook for real-time theme sync
 // ──────────────────────────────
-function useThemePreview(initialDesign: any) {
+// Studio's draft arrives as the raw design, so it gets the same start-of-shop treatment the storefront gives the saved
+// one (admin/sells.ts withShopStartFor): a clothing shop's preview shows no books menu, exactly as its live site.
+function useThemePreview(settings: any) {
+  const initialDesign = settings?.design || {};
   const [designOverride, setDesignOverride] = useState<any>(null);
   const isPreview = window.location.search.includes("preview=true");
 
@@ -238,7 +242,10 @@ function useThemePreview(initialDesign: any) {
     return stopPreview;
   }, [isPreview]);
 
-  return designOverride || initialDesign;
+  return useMemo(
+    () => (designOverride ? withShopStartFor({ ...(settings || {}), design: designOverride }).design : initialDesign),
+    [designOverride, settings, initialDesign],
+  );
 }
 
 // ──────────────────────────────
@@ -401,7 +408,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   }, [isCatalogPreview, setShowCatalog]);
   
   // Real-time preview override
-  const activeDesign = useThemePreview(settings?.design || {});
+  const activeDesign = useThemePreview(settings);
   
   const legacyDesign = activeDesign;
   const heroDesign = resolveMainDesign(legacyDesign, false, false);
