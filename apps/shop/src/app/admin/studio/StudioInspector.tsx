@@ -1,12 +1,12 @@
 import { StudioSpacingControls } from "./StudioSpacingControls";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Plus, Shuffle, Trash2, X } from "lucide-react";
 import { uploadStudioImage } from "./mediaUpload";
 import { ConnectableField } from "./StudioConnect";
 import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor } from "../ThemeEditorExtensions";
 import { SECTION_TABS, sectionStyleFields, type SectionTab } from "./sectionStyleSchema";
 import { StudioSectionStyle } from "./StudioSectionStyle";
-import { IconButton, useFocusTrap, usePrompt } from "../riso/components";
+import { IconButton, SecondaryButton, useFocusTrap, usePrompt } from "../riso/components";
 import { findBlock, freshBlockIds, insertBlockAfter, mapBlock, removeBlock, resolveSharedBlocks, type Section, type SharedBlock } from "./studioModel";
 import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
@@ -14,13 +14,19 @@ import { autoFitSection, resetPhoneLayout } from "./autoMobile";
 import { layerOrder, setBlockGrid, shiftLayer } from "./gridPlacement";
 import { blockMoveRoom, HIDE_DEVICES, moveBlockBy, tabAfterSelection, withDeviceHidden, type InspectorTab } from "./inspectorState";
 
-export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, onMoveSection, sectionRoom, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock }: {
+export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, onMoveSection, sectionRoom, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock, backLabel, onAddBelow, designs, designId, onDesign }: {
   section: Section; blockId: string | null; colorSchemes: any[];
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
   onPatchShared: (sharedId: string, patch: Record<string, any>) => void;
   onPatch: (patch: Record<string, any>, meta?: { label: string }) => void; onSelectBlock: (id: string | null) => void;
   onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
+  /** Settings open in the left panel (starters rethink, step 6): a Back link to the list they replaced. */
+  backLabel?: string;
+  /** Opens Add section just below this section (the list it replaced is not on screen). */
+  onAddBelow?: () => void;
+  /** Try another design: the designs of this section's kind, the one it is now, and the switch (one undoable change). */
+  designs?: { id: string; label: string }[]; designId?: string; onDesign?: (id: string) => void;
   onNotice?: (text: string) => void;
   /** Move the section one place up/down on its page, and whether there is room to (Move up / Move down buttons). */
   onMoveSection?: (direction: -1 | 1) => void; sectionRoom?: { up: boolean; down: boolean };
@@ -95,6 +101,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   const title = block ? blockLabel(block, Math.max(0, blocks.findIndex((b: any) => b.id === blockId)), meta?.blockLabel) : meta?.label || "Section";
   return <aside ref={ref} className="studio-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined} aria-label="Content settings" tabIndex={-1}>
     {promptNode}
+    {backLabel && <button type="button" className="studio-structure-switch" data-studio-settings-back onClick={onClose}><ArrowLeft size={14} aria-hidden="true" /> {backLabel}</button>}
     <header className="studio-inspector-head">
       <div><small>{block ? `${meta?.label || "Section"} / Block` : "SECTION"}</small><h2>{title}</h2></div>
       <IconButton label="Close settings" onClick={onClose}><X size={17} /></IconButton>
@@ -114,6 +121,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
           <IconButton label="Move down" disabled={!room.down} onClick={() => move(1)}><ChevronDown size={15} /></IconButton>
         </>;
       })()}
+      {!block && onAddBelow && <IconButton label="Add section below" onClick={onAddBelow}><Plus size={15} /></IconButton>}
       <IconButton label={block ? "Duplicate block" : "Duplicate section"} onClick={block && placement ? () => {
         // Copy the stored placement (a linked block stays linked) and put it right after the original, in the same group.
         const copy = freshBlockIds(placement);
@@ -132,6 +140,22 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     <div className="studio-inspector-body">
       {(tab === "content" || tab === "style") && <input className="studio-search" aria-label={`Search ${tab} settings`} placeholder="Find a setting…" value={search} onChange={e => setSearch(e.target.value)} />}
       {tab === "content" && <>
+        {!block && !search && onDesign && designs && designs.length > 1 && (() => {
+          const at = Math.max(0, designs.findIndex(d => d.id === designId));
+          return <div className="studio-control-card studio-design-switch" data-studio-design-switch>
+            <strong>Design</strong>
+            <span className="studio-hint">Change how this section looks. Your words, photos and links stay.</span>
+            <div className="studio-inline-actions">
+              <select className="rp-input" aria-label="Section design" value={designs[at].id} onChange={e => onDesign(e.target.value)}>
+                {designs.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+              </select>
+              <SecondaryButton size="sm" onClick={() => onDesign(designs[(at + 1) % designs.length].id)}>
+                <Shuffle size={14} aria-hidden="true" /> Try another design
+              </SecondaryButton>
+            </div>
+            <small>{at + 1} of {designs.length}</small>
+          </div>;
+        })()}
         {(onAddBlock || onCopyBlock || onPasteBlock) && meta?.blockType && !search && <div className="studio-control-card" data-studio-panel="block-clipboard">
           <strong>{block ? "This block" : meta?.blockLabel ? `${meta.blockLabel}s` : "Blocks"}</strong>
           <div className="studio-inline-actions">

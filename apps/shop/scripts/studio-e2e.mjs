@@ -86,6 +86,13 @@ const calls = page => page.evaluate(() => window.__studioFixture.calls);
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 const desktop = { width: 1440, height: 900 };
 
+// Settings open in the left panel in place of the list; this goes back to the list when they are showing.
+const showList = async (page) => {
+  const back = page.locator("[data-studio-settings-back], .studio-element-inspector > .studio-structure-switch");
+  if (await back.first().isVisible().catch(() => false)) await back.first().click();
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
+};
+
 await check("Studio opens in Essentials: name, logo, colours and fonts first, everything else under All settings", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const panel = page.locator('[data-studio-panel="essentials"]');
@@ -225,7 +232,8 @@ await check("clicking a section in the preview opens its settings", desktop, asy
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await page.getByRole("button", { name: "Close settings" }).click();
-  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+  // Closing settings brings the list back into the left panel.
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
   await expectText(page, "Preview connected", 30000);
   // Studio sends its click-to-edit maps shortly after the preview connects.
   await page.waitForTimeout(1500);
@@ -305,7 +313,8 @@ await check("Back closes a page part opened by clicking the preview", desktop, a
   if (!/^Page layout › Home › \S/.test(await crumbs())) throw new Error(`the path does not name the clicked part: ${await crumbs()}`);
   await page.waitForTimeout(900);
   await page.locator("[data-studio-back]").click();
-  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+  // Closing settings brings the list back into the left panel.
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
   if ((await crumbs()) !== "Page layout › Home") throw new Error(`Back left the path at: ${await crumbs()}`);
 });
 
@@ -376,7 +385,8 @@ await check("a page part opens in the inspector with its words, and an edit show
   await page.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
   if ((await fields.nth(edited.i).inputValue()) !== edited.value) throw new Error("Undo did not restore the word");
   await page.keyboard.press("Escape");
-  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+  // Closing settings brings the list back into the left panel.
+  await page.locator(".studio-sidebar .studio-panel-context").first().waitFor({ timeout: 5000 });
 });
 
 await check("a section's Style, Layout and Visibility tabs save its look", desktop, async page => {
@@ -429,6 +439,7 @@ await check("right-click a section to move it to another page, and Undo brings i
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Home · 1 section");
+  await showList(page);
   await page.locator(".studio-outline .studio-tree-row").first().click({ button: "right" });
   await page.getByRole("button", { name: "Move to another page…" }).click();
   const dialog = page.getByRole("dialog", { name: /Move section to another page/ });
@@ -445,6 +456,7 @@ await check("pick several sections and hide them together", desktop, async page 
     await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   }
   await expectText(page, "Home · 2 sections");
+  await showList(page);
   const labels = page.locator(".studio-outline .studio-tree-row > .studio-tree-label");
   await labels.nth(0).click({ modifiers: [mod] });
   await labels.nth(1).click({ modifiers: [mod] });
@@ -974,6 +986,7 @@ await check("a Promo strip goes under the header on every page with Add it there
   const item = page.locator("[data-library-type=PromoStripSection]");
   await item.getByText("Best under the header (every page)").waitFor({ timeout: 5000 });
   await item.getByRole("button", { name: "Add it there instead" }).click();
+  await showList(page);
   await page.locator(".studio-structure summary", { hasText: "Every page · Under the header" }).waitFor({ timeout: 5000 });
   const frame = page.frameLocator("iframe").first();
   await frame.getByText("New releases every month").first().waitFor({ timeout: 10000 });
@@ -1147,9 +1160,10 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   await dialog.locator("[data-health-id]").first().waitFor({ timeout: 5000 });
   await dialog.locator('[data-health-id^="noname:"]').first().getByRole("button", { name: "Edit this part" }).click();
   await page.locator("[data-studio-element-inspector], [data-studio-panel='section-inspector'], .studio-inspector [role=tab]").first().waitFor({ timeout: 5000 });
-  if (await page.getByText("Nothing selected").isVisible()) throw new Error("Edit this part opened nothing");
+  if (await page.locator(".studio-sidebar .studio-panel-context").isVisible()) throw new Error("Edit this part opened nothing");
   // Publish says how the page checks out.
   await page.keyboard.press("Escape");
+  await showList(page);
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await page.getByRole("button", { name: "Publish", exact: true }).click();
@@ -1841,6 +1855,7 @@ await check("Escape cancels a spacing drag even when Studio had the keyboard foc
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   await expectText(page, "Preview connected", 30000);
   await page.waitForTimeout(1500);
+  await showList(page);
   await page.locator(".studio-outline .studio-tree-label").first().click();
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[data-studio-overlay][role=toolbar] button").filter({ hasText: /^Spacing$/ }).first().click({ timeout: 10000 });
@@ -1865,6 +1880,7 @@ await check("Escape cancels a spacing drag even when Studio had the keyboard foc
 await check("a sticky add-to-bag bar off a book page is marked as showing only on book pages", desktop, async page => {
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Sticky add-to-bag bar/ }).first().click();
+  await showList(page);
   await page.locator(".studio-outline").getByText("Shows only on book pages").first().waitFor({ timeout: 5000 });
 });
 
@@ -1875,6 +1891,7 @@ await check("adding a section to a custom page makes its text a movable Page con
   await page.locator("[data-studio-panel=page-content]").waitFor({ timeout: 10000 });
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await showList(page);
   const rows = page.locator(".studio-outline");
   await rows.getByText("2. Page content").waitFor({ timeout: 5000 });
   await rows.getByText("1. Newsletter").waitFor({ timeout: 5000 });
@@ -1894,18 +1911,22 @@ await check("mode button names what it does, and the inspector keeps its tab and
     await page.getByRole("button", { name: /^Newsletter/ }).first().click();
   }
   const labels = page.locator(".studio-outline .studio-tree-label");
+  await showList(page);
   await labels.first().click();
   await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).click();
-  await labels.nth(1).click();
+  // Pick the other section in the preview while the settings stay open.
+  await page.frameLocator("iframe").first().locator("[data-fm-section]").nth(1).click({ timeout: 10000 });
+  await page.locator(".studio-inspector-actions").getByRole("button", { name: "Move down" }).and(page.locator("[disabled]")).waitFor({ timeout: 5000 });
   const selected = await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).getAttribute("aria-selected");
   if (selected !== "true") throw new Error("the inspector went back to Content when another section of the same kind was selected");
   const actions = page.locator(".studio-inspector-actions");
   if (!(await actions.getByRole("button", { name: "Move down" }).isDisabled())) throw new Error("Move down is enabled on the last section");
   await actions.getByRole("button", { name: "Move up" }).click();
-  await page.locator('.studio-outline .studio-tree-label[aria-current="true"]').getByText(/^1\./).waitFor({ timeout: 5000 });
-  // Clicking the rail tab you are on keeps the selection.
+  await page.waitForFunction(() => document.querySelector('.studio-inspector-actions button[aria-label="Move up"]')?.disabled === true, null, { timeout: 5000 });
+  // Clicking the rail tab you are on goes back to its list.
   await page.getByRole("button", { name: "Page layout" }).first().click();
-  if (!(await page.locator(".studio-inspector-actions").count())) throw new Error("clicking the active rail tab closed the inspector");
+  await page.locator(".studio-outline .studio-tree-label").first().waitFor({ timeout: 5000 });
+  if (await page.locator(".studio-inspector-actions").count()) throw new Error("clicking the active rail tab left the settings open");
 });
 
 await check("View website opens the shop in a new tab with the draft and says whether it is saved", desktop, async page => {

@@ -125,3 +125,75 @@ export function designGroups(designs: SectionDesign[], query: string, only?: Sec
 }
 
 export const kindLabel = (kind: SectionKind) => SECTION_KINDS.find(k => k.id === kind)?.label || "";
+
+// ── Try another design (starters rethink, step 6) ──
+// Like Squarespace's layout switcher: a section flips to another design of its kind and keeps the owner's words,
+// photos, links and chosen products. Different section types name the same thing differently (one says title, another
+// headline), so each piece of content has a role and the names that hold it.
+const ROLES: Record<string, string[]> = {
+  eyebrow: ["eyebrow", "kicker"],
+  title: ["title", "headline", "sectionTitle"],
+  body: ["body", "subtitle", "subheadline", "description", "content", "tagline"],
+  buttonText: ["ctaText", "buttonLabel", "buttonText", "linkText"],
+  buttonLink: ["ctaUrl", "ctaLink", "buttonUrl", "linkUrl"],
+  image: ["imageUrl", "image", "posterUrl"],
+  imageAlt: ["imageAlt"],
+  video: ["videoUrl"],
+};
+/** Content kept under its own name when the new design has a setting of the same name. */
+const SAME_NAME = ["mobileImageUrl", "secondaryCtaText", "secondaryCtaUrl", "accentWord", "address", "quote", "quoteSource",
+  "productSource", "manualSlugs", "productCategory", "productSort", "productSlug", "collectionSlug"];
+
+type Meta = { type: string; label: string; description: string; defaults?: Record<string, any>; blockType?: string; bestIn?: { group?: string } };
+type AnySection = { id: string; type: string; settings: Record<string, any>; [k: string]: any };
+
+const filled = (v: unknown) => v !== undefined && v !== null && !(typeof v === "string" && !v.trim()) && !(Array.isArray(v) && !v.length);
+
+/** The design a section is now: the extra design whose settings it still has, else its type's plain design. */
+export function currentDesignId(section: AnySection): string {
+  const match = EXTRA.filter(e => e.type === section.type && Object.entries(e.settings).every(([k, v]) => JSON.stringify(section.settings?.[k]) === JSON.stringify(v)));
+  return match.length ? `${section.type}~${match[match.length - 1].key}` : section.type;
+}
+
+/** Designs a section can switch to: the same kind, shown in the same place (never a pop-up for a page band). */
+export function designsToTry(section: AnySection, registry: Meta[]): SectionDesign[] {
+  const meta = registry.find(m => m.type === section.type);
+  const kind = kindOf(section.type);
+  if (!meta || kind === "build" || section.type === "PageContentSection") return [];
+  const group = meta.bestIn?.group || "";
+  const okType = new Set(registry.filter(m => (m.bestIn?.group || "") === group && m.type !== "PageContentSection").map(m => m.type));
+  return sectionDesigns(registry).filter(d => d.kind === kind && okType.has(d.type));
+}
+
+/**
+ * The section as another design. The same type keeps everything and takes the design's own settings; another type
+ * starts from its defaults and takes over the owner's content by role. Values still equal to the old type's defaults
+ * are placeholders, so the new design shows its own. Blocks stay when both types use the same kind of block.
+ */
+export function withDesign(section: AnySection, designId: string, registry: Meta[], blocksKey: (type: string) => string = () => "items"): AnySection {
+  const { type, settings } = designParts(designId);
+  const { sample: _sample, ...rest } = section as AnySection & { sample?: boolean };
+  if (type === section.type) {
+    const plainReset = Object.fromEntries(EXTRA.filter(e => e.type === type).flatMap(e => Object.keys(e.settings))
+      .map(k => [k, registry.find(m => m.type === type)?.defaults?.[k]]));
+    return { ...rest, settings: { ...section.settings, ...plainReset, ...settings } };
+  }
+  const from = registry.find(m => m.type === section.type);
+  const to = registry.find(m => m.type === type);
+  const toDefaults = to?.defaults || {};
+  const own = (key: string) => {
+    const v = section.settings?.[key];
+    return filled(v) && JSON.stringify(v) !== JSON.stringify(from?.defaults?.[key]) ? v : undefined;
+  };
+  const next: Record<string, any> = { ...JSON.parse(JSON.stringify(toDefaults)), ...settings };
+  for (const names of Object.values(ROLES)) {
+    const value = names.map(own).find(v => v !== undefined);
+    const target = names.find(n => n in toDefaults);
+    if (value !== undefined && target) next[target] = value;
+  }
+  for (const key of SAME_NAME) { const v = own(key); if (v !== undefined && key in toDefaults) next[key] = v; }
+  const oldBlocks = section.settings?.[blocksKey(section.type)];
+  if (from?.blockType && from.blockType === to?.blockType && Array.isArray(oldBlocks)) next[blocksKey(type)] = oldBlocks;
+  const { label: _label, ...base } = rest;
+  return { ...base, type, settings: next };
+}
