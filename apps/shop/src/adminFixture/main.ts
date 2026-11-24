@@ -28,6 +28,8 @@ import { waysData } from "../app/admin/waysApi";
 import { typeApprovalData } from "../app/admin/typeApprovalApi";
 import { clientVisitsData } from "../app/admin/clientVisitsApi";
 import { clientFilesData } from "../app/admin/clientFilesApi";
+import { messagesData } from "../app/admin/messagesApi";
+import type { ContactMessage } from "../app/admin/Messages";
 import { clientFileFolder, type ClientFile } from "../app/admin/clientFiles";
 import { emailHash } from "../app/admin/emailHash";
 import { clientPhotoFolder, photoFileName, type ClientVisit } from "../app/admin/clientVisits";
@@ -846,6 +848,22 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   clientFilesData.upload = async (client, file) => { const path = `${clientFileFolder(client)}/file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${(/\.([a-z0-9]+)$/i.exec(file.name)?.[1] || "bin").toLowerCase()}`; blobs.set(path, file); return path; };
   clientFilesData.blob = async (path) => { const b = blobs.get(path); if (!b) throw new Error("missing"); return b; };
   clientFilesData.removeFiles = async (paths) => { for (const p of paths) blobs.delete(p); };
+}
+
+// ── Messages: three sample messages in memory. Mia asks for a studio consultation, so with Bookings on her message offers
+// Book a time with that service picked (plan 4, 3.6).
+{
+  const ago = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+  let kept: ContactMessage[] = [
+    { id: "msg-1", name: "Mia Example", email: "mia@example.com", phone: "416 555 0142", subject: "Studio consultation next week?", message: "Hi! Could I book a studio consultation one evening next week? I'm free after 5 most days.\n\nThanks, Mia", status: "new", createdAt: ago(2) },
+    { id: "msg-2", name: "Ola Example", email: "ola@example.com", subject: "Gift card question", message: "Do your gift cards work on the website too?", status: "read", createdAt: ago(26) },
+    { id: "msg-3", name: "Sam Example", email: "sam@example.com", subject: "Thank you", message: "Loved the workshop, thank you.", status: "replied", replies: [{ at: ago(40).toISOString(), body: "So glad you came!" }], createdAt: ago(48) },
+  ];
+  messagesData.counts = async () => ({ all: kept.length, unread: kept.filter((m) => m.status === "new" || m.status === "emailed").length, archived: kept.filter((m) => m.status === "archived").length });
+  messagesData.page = async () => ({ messages: kept, cursor: null, more: false });
+  messagesData.setStatus = async (id, status) => { kept = kept.map((m) => (m.id === id ? { ...m, status } : m)); };
+  messagesData.erase = async (id) => { kept = kept.filter((m) => m.id !== id); };
+  messagesData.ordersFor = async () => ({ docs: [], full: false });
 }
 
 // ── Bookkeeping › Transactions › Bank feed (beta, a paid add-on): `?bank=soon|off|connect|signin|empty` (default: one

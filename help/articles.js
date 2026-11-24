@@ -89,6 +89,7 @@ export const ARTICLES = Object.freeze([
       "To know who is coming, open Hours & rules and turn on Ask clients to confirm. The reminder email then has a Yes, I'll be there button. Your calendar marks each booking Confirmed or Not confirmed.",
       "With text reminders on, turn on Let clients answer by text. Clients reply Y to confirm, C to cancel or M to move, and your calendar follows within a few minutes.",
       "To change what booking emails and texts say, open Hours & rules and find Emails and texts to clients. Write in English and French, and use {client} or {when} to fill in details.",
+      "When a client asks for a time in Messages, open their message and press Make a booking. Their name, email, phone and the service they named are filled in for you.",
     ],
   },
   {

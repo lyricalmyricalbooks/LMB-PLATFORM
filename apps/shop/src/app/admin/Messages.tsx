@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  collection, deleteDoc, doc, getCountFromServer, getDocs, limit, orderBy, query, startAfter, updateDoc, where,
-  type QueryDocumentSnapshot,
-} from "firebase/firestore";
-import { Archive, ArchiveRestore, Link2, Mail, MailOpen, Send, Trash2 } from "lucide-react";
-import { auth, db } from "../../lib/firebase";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Archive, ArchiveRestore, CalendarPlus, Link2, Mail, MailOpen, Send, Trash2 } from "lucide-react";
+import { auth } from "../../lib/firebase";
+import { messagesData, type MessagesCursor } from "./messagesApi";
 import { functionFetch } from "../lib/functionsBase";
 import { plainError } from "./plainError";
 import { adminApi } from "./api";
 import { PaymentLinkDialog } from "./PaymentLinkDialog";
 import { quoteRequestOf, type QuoteRequest } from "./paymentLinks";
+import { useBookingsOn } from "./bookingsApi";
+import type { BookAgain } from "./Bookings";
+import { canBookFrom, noteFromMessage } from "./bookFromMessage";
 import {
   Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PrimaryButton,
   PageActions, SearchField, SecondaryButton, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
 } from "./riso/components";
+
+// Book from a message (plan 4, 3.6): the New booking window, read only when used.
+const BookAgainDialog = lazy(() => import("./Bookings").then((m) => ({ default: m.BookAgainDialog })));
 
 // Messages sent from the storefront Contact Form section (collection `contactMessages`).
 export type ContactMessage = {
@@ -71,7 +74,7 @@ type OrderSummary = { count: number; latestId: string | null; more: boolean };
 function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) => void; onOpenCustomers?: (email: string) => void }) {
   const toast = useRisoToast();
   const [messages, setMessages] = useState<ContactMessage[]>([]);
-  const [cursor, setCursor] = useState<QueryDocumentSnapshot | null>(null);
+  const [cursor, setCursor] = useState<MessagesCursor | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [totals, setTotals] = useState<{ all: number; unread: number; archived: number } | null>(null);
@@ -87,25 +90,21 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
   const [orders, setOrders] = useState<Record<string, OrderSummary | "loading" | "error">>({});
   // A bulk-price request being turned into a payment link (code plan 21.4).
   const [linkFrom, setLinkFrom] = useState<QuoteRequest | null>(null);
+  // Book from a message (plan 4, 3.6): the client being booked in, and the message it came from.
+  const [bookFrom, setBookFrom] = useState<{ id: string; again: BookAgain } | null>(null);
+  const bookingsOn = useBookingsOn(true);
 
   const loadTotals = async () => {
-    const col = collection(db, "contactMessages");
-    try {
-      const [all, unread, archived] = await Promise.all([
-        getCountFromServer(col), getCountFromServer(query(col, where("status", "in", ["new", "emailed"]))),
-        getCountFromServer(query(col, where("status", "==", "archived"))),
-      ]);
-      setTotals({ all: all.data().count, unread: unread.data().count, archived: archived.data().count });
-    } catch { setTotals(null); }
+    try { setTotals(await messagesData.counts()); } catch { setTotals(null); }
   };
 
   async function load() {
     setLoading(true); setError(false); setSelected(new Set());
     try {
-      const snap = await getDocs(query(collection(db, "contactMessages"), orderBy("createdAt", "desc"), limit(PAGE)));
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-      setCursor(snap.docs[snap.docs.length - 1] || null);
-      setHasMore(snap.docs.length === PAGE);
+      const page = await messagesData.page(PAGE, null);
+      setMessages(page.messages);
+      setCursor(page.cursor);
+      setHasMore(page.more);
     } catch { setError(true); } finally { setLoading(false); }
     loadTotals();
   }
@@ -115,10 +114,10 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const snap = await getDocs(query(collection(db, "contactMessages"), orderBy("createdAt", "desc"), startAfter(cursor), limit(PAGE)));
-      setMessages((cur) => [...cur, ...snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))]);
-      setCursor(snap.docs[snap.docs.length - 1] || cursor);
-      setHasMore(snap.docs.length === PAGE);
+      const page = await messagesData.page(PAGE, cursor);
+      setMessages((cur) => [...cur, ...page.messages]);
+      setCursor(page.cursor || cursor);
+      setHasMore(page.more);
     } catch { toast("Could not load more messages.", { tone: "err" }); } finally { setLoadingMore(false); }
   };
 
@@ -126,7 +125,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
     const next = (m: ContactMessage) => (typeof status === "function" ? status(m) : status);
     const ids = new Map(list.map((m) => [m.id, next(m)]));
     setMessages((all) => all.map((x) => (ids.has(x.id) ? { ...x, status: ids.get(x.id) } : x)));
-    const results = await Promise.allSettled(list.map((m) => updateDoc(doc(db, "contactMessages", m.id), { status: next(m) })));
+    const results = await Promise.allSettled(list.map((m) => messagesData.setStatus(m.id, next(m))));
     const failed = results.filter((r) => r.status === "rejected").length;
     if (failed) { toast(`Could not update ${failed} message${failed === 1 ? "" : "s"}.`, { tone: "err" }); load(); }
     else loadTotals();
@@ -148,10 +147,10 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
     if (!key || orders[key]) return;
     setOrders((o) => ({ ...o, [key]: "loading" }));
     try {
-      const snap = await getDocs(query(collection(db, "orders"), where("customer.email", "==", key), limit(50)));
-      const docs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })).filter((o) => o.isTest !== true);
+      const found = await messagesData.ordersFor(key);
+      const docs = found.docs.filter((o) => o.isTest !== true);
       const latest = docs.sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0))[0];
-      setOrders((o) => ({ ...o, [key]: { count: docs.length, latestId: latest?.id || null, more: snap.docs.length === 50 } }));
+      setOrders((o) => ({ ...o, [key]: { count: docs.length, latestId: latest?.id || null, more: found.full } }));
     } catch { setOrders((o) => ({ ...o, [key]: "error" })); }
   };
 
@@ -182,7 +181,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
     if (!deleting) return;
     const list = deleting;
     setDeleting(null);
-    const results = await Promise.allSettled(list.map((m) => deleteDoc(doc(db, "contactMessages", m.id))));
+    const results = await Promise.allSettled(list.map((m) => messagesData.erase(m.id)));
     const failed = results.filter((r) => r.status === "rejected").length;
     toast(failed ? `Could not delete ${failed} message${failed === 1 ? "" : "s"}.` : list.length === 1 ? "Message deleted" : `${list.length} messages deleted`, { tone: failed ? "err" : undefined });
     load();
@@ -309,6 +308,14 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                             <PrimaryButton icon={<Send size={16} aria-hidden />} disabled={sending === m.id || !(drafts[m.id] || "").trim()} onClick={() => sendReply(m)}>
                               {sending === m.id ? "Sending…" : "Send reply"}
                             </PrimaryButton>
+                            {bookingsOn && canBookFrom(m) && (
+                              <SecondaryButton icon={<CalendarPlus size={16} aria-hidden />} onClick={() => setBookFrom({ id: m.id, again: {
+                                serviceId: "", staffId: "", name: m.name || "", email: m.email, phone: m.phone || "",
+                                note: noteFromMessage(m), title: `Book ${(m.name || "").trim().split(/\s+/)[0] || "them"} in`, serviceHint: `${m.subject || ""}\n${m.message || ""}`,
+                              } })}>
+                                Make a booking
+                              </SecondaryButton>
+                            )}
                             {quoteRequestOf(m) && (
                               <SecondaryButton icon={<Link2 size={16} aria-hidden />} onClick={() => setLinkFrom(quoteRequestOf(m))}>
                                 Make a payment link
@@ -333,6 +340,15 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
             </>
           )}
       </div>
+
+      {bookFrom && (
+        <Suspense fallback={null}>
+          <BookAgainDialog initial={bookFrom.again} onClose={() => setBookFrom(null)} onBooked={() => {
+            const from = messages.find((x) => x.id === bookFrom.id);
+            if (from && isUnread(from)) void setStatuses([from], "read");
+          }} />
+        </Suspense>
+      )}
 
       <PaymentLinkDialog
         open={!!linkFrom}

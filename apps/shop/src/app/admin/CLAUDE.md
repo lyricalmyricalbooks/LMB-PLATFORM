@@ -1479,3 +1479,10 @@ shared `bookingMessages.ts` (`MESSAGE_LIST`, `DEFAULT_MESSAGES`, `cleanMessages`
 language with `messageLanguage(booking.locale, shopLanguage())` (the booking page sends `document.documentElement.lang`), and
 fills `{client}` (first name), `{service}`, `{when}`, `{shop}`, `{amount}`, `{with}`. The details, buttons and refund or fee
 lines are added after the owner's words, so editing can never remove a link. A new booking email kind needs an entry in both.
+
+**Book from a message (23 November 2026, Bookings plan 4 step 3.6, `tasks/todo/2026-11-23-bookings-book-from-message.md`).**
+An open message in Messages has **Make a booking** while Bookings is on (`useBookingsOn`) and the message has a real address
+(`canBookFrom`). It opens `BookAgainDialog` (lazy) with `BookAgain`'s optional `note` (`noteFromMessage`), `title` and
+`serviceHint` (subject and message); the dialog picks `serviceFromText`'s match once the services are read. A booking marks
+the message read. Messages' Firestore calls live in `messagesApi.ts` (`messagesData`), which the fixture swaps for three
+sample messages (`admin-fixture.html?page=messages`: Mia asks for a studio consultation).
