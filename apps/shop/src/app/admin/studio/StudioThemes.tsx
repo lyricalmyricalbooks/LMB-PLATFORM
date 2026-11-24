@@ -190,6 +190,8 @@ type Props = {
   onApplyPreset: (preset: any) => void;
   /** Whole-website starters: their card leads with Try this starter (your design is kept in My themes first). */
   starterIds?: readonly string[];
+  /** Starters the control room marked New (platform/starters). */
+  newStarterIds?: readonly string[];
   onTryStarter?: (preset: any) => void;
   /** The last switch to a ready-made look (themeSwitch.ts), or null. */
   switchReport?: ThemeSwitchReport | null;
@@ -356,6 +358,7 @@ export function StudioThemes(p: Props) {
                 {thumb(`preset:${preset.id}`, preset.name, look)}
                 <div>
                   <strong>{preset.name}</strong> {p.currentPresetId === preset.id && <StatusBadge tone="success">Current</StatusBadge>}
+                  {p.currentPresetId !== preset.id && p.newStarterIds?.includes(preset.id) && <span data-new-starter><StatusBadge tone="info">New</StatusBadge></span>}
                   {preset.mood && <small>{w(preset.mood)}</small>}
                   {hasPresetContent(preset) && <small data-preset-content>Comes with: {presetContentLabel(preset)}</small>}
                   <div className="studio-theme-actions">

@@ -45,7 +45,8 @@ import { applyStarter, starterForShop } from "./starterDesign";
 import { useCatalogWords, useShopSells, useShopWords } from "../shopWords";
 import { starterPhotos } from "./starterPhotos";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { STARTER_SITES, builtLooks, libraryLook, ownBooks, pressNameOf } from "../lookGallery";
+import { STARTER_SITES, builtLooks, libraryLook, newStarters, offeredStarters, ownBooks, pressNameOf } from "../lookGallery";
+import { usePlatformStarters } from "../platformStarters";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -578,6 +579,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const mediaLib = useMediaLibrary();
   const [copyFilter, setCopyFilter] = useState("");
   const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
+  // Which whole-website starters the control room offers, in its order, with New tags (control-room/starterSites.js).
+  const starterChoice = usePlatformStarters(!beforeShop);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const postPreview = (message: any) => { try { iframeRef.current?.contentWindow?.postMessage(message, window.location.origin); } catch { /* preview not ready */ } };
   const designRef = useRef(design);
@@ -2499,7 +2502,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </div>
                 <div className="pt-2 border-t border-neutral-200 space-y-2">
                   <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Theme library</p>
-                  {builtLooks().map((t: any) => (
+                  {builtLooks(starterChoice).map((t: any) => (
                     <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
                       className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
                       <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
@@ -2705,7 +2708,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "themes" && (
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
-                presets={builtLooks() as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
+                presets={builtLooks(starterChoice) as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
                 templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
                 previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(starterPreview(entry)); if (entry && onPhone) setDevice(onPhone); }}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
@@ -2714,7 +2717,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onDownload={exportTheme} onSchedule={t => setSchedule({ themeId: t.id })}
                 onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
-                starterIds={STARTER_SITES} onTryStarter={preset => { void tryStarter(preset); }}
+                starterIds={offeredStarters(starterChoice)} newStarterIds={newStarters(starterChoice)} onTryStarter={preset => { void tryStarter(preset); }}
                 switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
                 onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
                 ownEdits={ownEditsList} updatedTheme={updatedTheme(design)} onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}

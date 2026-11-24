@@ -3511,6 +3511,7 @@ function setupStatusCell(press) {
 }
 
 async function loadSetup() {
+  loadStarters();
   try {
     const { counts, looks, presses } = await api("GET", "/control/presses");
     setBadge("setting-up", counts.stuck);
@@ -3582,6 +3583,71 @@ async function loadSetup() {
   }
 }
 $("#setup-refresh").addEventListener("click", loadSetup);
+
+// ── Starter websites (control-room/starterSites.js): which whole-website starters shops are offered in Choose your look
+// and Studio › Designs, in what order, and which carry a New tag. Nothing reaches shops until Save. ──
+const STARTER_STATE = { shown: ["success", "showing"], hidden: ["neutral", "hidden"], waiting: ["warning", "new, waiting for you"] };
+async function loadStarters() {
+  const slot = $("#setup-starters");
+  slot.replaceChildren(el("p", { className: "rp-hint", textContent: "Reading the starters…" }));
+  try {
+    const [{ starters, saved, updatedAt, by }, worn] = await Promise.all([
+      api("GET", "/control/starters"),
+      api("GET", "/control/live-looks").then((r) => r.looks).catch(() => null),
+    ]);
+    // What the page holds until Save: the order, and for each starter whether it shows and is marked New.
+    let rows = starters.map((s) => ({ ...s, shown: s.state === "shown" }));
+    const first = JSON.stringify(rows.map((r) => [r.id, r.shown, r.fresh]));
+    const wearing = (id) => worn?.find((w) => w.id === id)?.count ?? 0;
+    const note = el("p", { className: "rp-hint", role: "status" });
+    const save = button("Save for every shop", "primary");
+    const draw = () => {
+      const changed = JSON.stringify(rows.map((r) => [r.id, r.shown, r.fresh])) !== first;
+      save.disabled = !changed || !rows.some((r) => r.shown);
+      const move = (i, by) => { const next = [...rows]; [next[i], next[i + by]] = [next[i + by], next[i]]; rows = next; draw(); };
+      fill(slot,
+        el("p", { className: "rp-hint", textContent: saved
+          ? `Shops see the starters showing below, in this order. Last saved ${dateOnly(updatedAt)}${by ? ` by ${by}` : ""}. A starter added to the shops later waits here, hidden, until you show it.`
+          : "Every starter shows to shops, in this order, until you save a choice here." }),
+        table({
+          caption: "Starter websites",
+          rows: rows.map((r, i) => ({ ...r, i })),
+          columns: [
+            { header: "Starter", lead: true, render: (r) => el("div", {}, el("p", { className: "cr-title", textContent: `${r.i + 1}. ${r.name}` }), meta(r.state === "waiting" ? "added since you last saved" : null)) },
+            // What shops will see once saved; a row changed since the last save says so.
+            { header: "Shops see", render: (r) => el("div", {}, pill(...STARTER_STATE[r.shown ? "shown" : r.state === "waiting" ? "waiting" : "hidden"]),
+              (r.shown !== (r.state === "shown") || r.fresh !== starters.find((s) => s.id === r.id).fresh) ? meta("not saved yet") : null) },
+            { header: "Show to shops", render: (r) => el("label", { className: "rp-check" },
+              el("input", { type: "checkbox", checked: r.shown, ariaLabel: `Show ${r.name} to shops`, onchange: (e) => { rows[r.i] = { ...rows[r.i], shown: e.target.checked }; draw(); } }), "Show") },
+            { header: "New tag", render: (r) => el("label", { className: "rp-check" },
+              el("input", { type: "checkbox", checked: r.fresh, ariaLabel: `Mark ${r.name} New`, onchange: (e) => { rows[r.i] = { ...rows[r.i], fresh: e.target.checked }; draw(); } }), "Mark New") },
+            { header: "Live shops", render: (r) => el("span", { className: "rp-mono", textContent: worn ? String(wearing(r.id)) : "?" }) },
+            { header: "Order", end: true, render: (r) => el("div", { className: "cr-actions" },
+              button("Up", "ghost", { disabled: r.i === 0, ariaLabel: `Move ${r.name} up`, onclick: () => move(r.i, -1) }),
+              button("Down", "ghost", { disabled: r.i === rows.length - 1, ariaLabel: `Move ${r.name} down`, onclick: () => move(r.i, 1) })) },
+          ],
+        }),
+        el("div", { className: "cr-actions" }, save, rows.some((r) => r.shown) ? null : el("span", { className: "rp-hint", textContent: "Keep at least one showing." })),
+        note);
+    };
+    save.addEventListener("click", async () => {
+      save.disabled = true;
+      note.textContent = "Saving…";
+      try {
+        const result = await api("POST", "/control/starters/save", { starters: rows.map((r) => ({ id: r.id, shown: r.shown, fresh: r.fresh })) });
+        await loadStarters();
+        $("#setup-starters").append(el("p", { className: "rp-hint", role: "status", textContent: `Saved. ${plural(result.shops, "live shop")} ${result.shops === 1 ? "has" : "have"} it now${result.failed.length ? `; couldn't reach ${result.failed.map((f) => f.pressName).join(", ")} (tried again tonight)` : ""}. New shops get it when they're made.` }));
+      } catch (failure) {
+        save.disabled = false;
+        note.textContent = failure.message;
+      }
+    });
+    draw();
+  } catch (failure) {
+    slot.replaceChildren(emptyState("Couldn't read the starters.", failure.message));
+  }
+}
+
 
 // ── Sign-in safety (plan 22.6-22.11): who on the shop's team has two-step on, and their backup codes left. ──
 const SAFETY = {

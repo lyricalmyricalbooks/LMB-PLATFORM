@@ -36,3 +36,18 @@ Dated notes for the starters and Studio rethink (plan approved 24 November 2026)
   photo side, dark/bright band from `colorSchemeId`) and the shop's `ThumbLook` (page colours, accent, heading font,
   `starterPhotos(sells)` photos), passed by StudioEditor as `thumbLook` only while Add section is open. Without a look it
   draws the old plain lines. The heading font is loaded into Studio's page once. Tests: `sectionThumbs.test.tsx`.
+
+## Step 6, part 3: the control room picks the starters (24 November 2026)
+
+- **Control room › Shops › Setting up › Starter websites** (`control-room/starterSites.js`, UI `loadStarters` in
+  `control-room/app.js`): show or hide each starter, mark it New, set the order, and see how many live shops wear it
+  (from `/control/live-looks`). Save writes the platform record `starters` { order, hidden, fresh, known } and the
+  admin-only `platform/starters` document into every live shop with a website; the press messages job (`server/jobs.js`)
+  sweeps it again nightly for shops made since. Nothing saved = every starter shows. A starter added to the shop after
+  the last save is not in `known`, so it stays hidden until the owner shows it.
+- **Shop side:** pure `offeredStarters` / `newStarters` / `builtLooks(choice)` in `lookGallery.ts`; the watcher is
+  `platformStarters.ts` (`usePlatformStarters`, never in setup mode or `beforeShop`; a read that can't start shows
+  every starter). Choose your look (`starters` prop from SetupStart) and Studio › Designs (`newStarterIds`) show a New
+  tag (`data-new-starter`). Fixtures: `?starters=aurel-editorial*,juniper-slow-season` (order, `*` = New, the rest hidden).
+- **Adding a starter now also means** adding it to `STARTERS` in `control-room/starterSites.js` (starterSites.test.js
+  fails otherwise), then showing it in the control room once it's ready.

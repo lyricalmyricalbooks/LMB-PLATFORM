@@ -133,6 +133,7 @@ import { createNotSelling, notSellingRoutes } from "../control-room/notSelling.j
 import { deliveryReader } from "../control-room/delivery.js";
 import { createJobs } from "../services/jobs/index.js";
 import { createPressMessages, messageRoutes } from "../control-room/messages.js";
+import { createStarterSites, starterSitesRoutes } from "../control-room/starterSites.js";
 import { costRoutes, createCostsDesk } from "../control-room/costs.js";
 import { createCostReader } from "../services/costs/costs.js";
 import { createDataExports, exportRoutes } from "../services/export/export.js";
@@ -418,6 +419,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
   const bookingsBeta = createBookingsBeta({ admins, registry, auditLog, shopData, activity, texts, now });
   const productApproval = createProductApproval({ admins, registry, auditLog, shopData, activity, now });
   const shopLooks = createShopLooks({ admins, registry, shopData, now });
+  const starterSites = createStarterSites({ admins, settingsStore: platformState, registry, auditLog, shopData, activity, now });
   const shopEmails = createShopEmails({ admins, registry, emailLog: sentLog, now });
   const appUse = createAppUse({ admins, installs: appInstallStore, outbox: appAlertOutbox, now });
   const shopApps = createShopApps({ admins, registry, installs: appInstallStore, outbox: appAlertOutbox, shopData, now });
@@ -472,7 +474,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     "dropped-apps": () => billing.closeDroppedApps(),
     "every-app": () => billing.giveEveryApp(),
     "terms-notice": () => termsNotice.sweep(),
-    "press-messages": () => pressMessages.sweep(),
+    "press-messages": async () => ({ messages: await pressMessages.sweep(), starters: await starterSites.sweep() }),
     "setup-clock": () => setupClock.sweep(),
     "drift-watch": () => driftWatch.sweep(),
     "chitchats-tracking": () => chitchats.sweep(),
@@ -518,6 +520,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
     ...productApprovalRoutes(productApproval),
     ...waysBetaRoutes(createWaysBeta({ admins, registry, auditLog, shopData, activity, now })),
     ...shopLooksRoutes(shopLooks),
+    ...starterSitesRoutes(starterSites),
     ...shopEmailsRoutes(shopEmails),
     ...appUseRoutes(appUse),
     ...shopSocialRoutes(shopSocial),
@@ -604,7 +607,7 @@ export function hostedWorld({ env = process.env, fetch = globalThis.fetch, token
 
   return {
     projectId, settings, live, platform, registry, auditLog, shopData, stockroomData, email, billing, paymentWay, payments, signup, frontDoor, shopMaker, accounts, room, controls,
-    appAlerts, chitchats, mailchimp, accounting, social, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
+    appAlerts, chitchats, mailchimp, accounting, social, backup, support, recovery, business, timeline, jobs, jobRuns, jobsPage, notes, pressMessages, starterSites, costsDesk, dataExports, trialTips, checkups, closing, setupClock, driftWatch,
     routes, door, shopBilling, handle, parts, termsNotice, googleLink,
   };
 }
