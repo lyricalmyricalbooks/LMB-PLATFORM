@@ -159,7 +159,7 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 // Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
 const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-const { OWNER_ONLY_MESSAGE, adminRole, booksReader, removeExpiredMembers, stampTeamSignIn, supportOf, syncMemberRole } = require("./roles");
+const { OWNER_ONLY_MESSAGE, adminRole, booksReader, deskRole, removeExpiredMembers, stampTeamSignIn, supportOf, syncMemberRole } = require("./roles");
 const { inviteKey, teamChange, teamInviteEmail } = require("./teamInvite");
 const fairHelperPay = require("./fairHelperPay");
 const { shopConfig, functionLink } = require("./shopConfig");
@@ -264,6 +264,28 @@ async function requireBooksReader(req, res) {
       return null;
     }
     return decoded;
+  } catch (err) {
+    res.status(401).json({ error: "Invalid Authorization token" });
+    return null;
+  }
+}
+
+// The team desk (plan 4, 4.1): the owner and staff, or the Team's front desk and service providers. Answers the role
+// ("admin" for the owner, staff and an edit support visit) and the email, or null after a refusal.
+async function requireBookingsTeam(req, res) {
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({ error: "Missing Authorization token" });
+    return null;
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    const role = adminRole(decoded) ? "admin" : deskRole(decoded);
+    if (!role) {
+      res.status(403).json({ error: "Admin access required" });
+      return null;
+    }
+    return { role, email: decoded.email || "" };
   } catch (err) {
     res.status(401).json({ error: "Invalid Authorization token" });
     return null;
@@ -2039,7 +2061,7 @@ const bookingDesk = require("./bookings").bookingActions({
   // Text-message reminders through the platform (PLATFORM_TEXTS_URL), billed to the shop at cost; none without the door.
   texts: shopConfig.platformTextsUrl ? require("./textSender").createTextSender({ url: shopConfig.platformTextsUrl, shopId: platformShopId, serviceKey: platformServiceKey }) : null,
   calendar: require("./googleConnect").googleCalendarSync({ url: shopConfig.platformGoogleUrl, shopId: platformShopId, serviceKey: platformServiceKey }),
-  db, requireAdmin, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
+  db, requireAdmin, requireBookingsTeam, payments, shopTestMode: () => shopTestMode(), hitLimit, LIMITS, siteLink, shopName: () => shopConfig.senderName,
   zone: () => shopTimeZone(), currency: () => shopCurrency(), sendEmail: message => sendEmail(message), claimEmailSend, ownerEmail: () => ADMIN_TO(),
   escapeHtml, risoLayout, risoButton,
   // My bookings in the customer account (plan 4, 2.10): the signed-in customer's verified email, as memberships ask.
@@ -2357,6 +2379,7 @@ const CHECKOUT_FUNCTION_ACTIONS = {
   paymentLink: handlePaymentLink,
   invoicePay: handleInvoicePay,
   bookingsAdmin: (req, res) => bookingDesk.handleAdmin(req, res),
+  bookingsDesk: (req, res) => bookingDesk.handleDesk(req, res),
   eventsAdmin: (req, res) => eventDesk.handleAdmin(req, res),
   rentalsAdmin: (req, res) => rentalDesk.handleAdmin(req, res),
   givingAdmin: (req, res) => givingDesk.handleAdmin(req, res),

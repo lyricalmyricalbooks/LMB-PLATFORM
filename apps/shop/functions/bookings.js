@@ -76,6 +76,7 @@ const {
   answerBy, approvalAllowed, bookingChannel, cleanVisitAddress, inArea, addressLine, cleanZone, zonesDiffer,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
 const { emailWords, textWords, fillMessage, messageLanguage } = require("./shared/bookingMessages");
 const { shopLanguage } = require("./emailFrench");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -84,6 +85,15 @@ const { findCountry, regionCode } = require("./shared/shippingZones");
 const { giftCardId, last4, giftCardProblem, availableMinor, withHistory, GIFT_CARD_MESSAGES } = require("./giftCards");
 
 const HOLD_MINUTES = 10;
+/**
+ * What each team desk role may do (plan 4, 4.1): a front desk books, moves, cancels and checks people in for everyone,
+ * never services, settings, reports, packs, readers' set-up or the missed-visit fee; a service provider checks their own
+ * clients in and marks their own no-shows.
+ */
+const DESK_OPS = Object.freeze({
+  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm"]),
+  provider: Object.freeze(["checkIn", "noShow"]),
+});
 /** How long a pack's card page stays open. An unpaid pack is forgotten once it closes. */
 const PACK_PAGE_MINUTES = 60;
 /** A pack's code: 12 letters and digits with nothing that reads two ways, as "ABCD-EFGH-JKLM". */
@@ -342,7 +352,7 @@ function publicBooking(id, booking, settings, nowMs) {
 }
 
 function bookingActions({
-  db, requireAdmin, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", zone, currency,
+  db, requireAdmin, requireBookingsTeam = null, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", zone, currency,
   // My bookings in the customer account (plan 4, 2.10): (req) → { email } for a signed-in customer with a verified
   // email, else null. None: the account shows no bookings.
   identify = async () => null,
@@ -405,6 +415,9 @@ function bookingActions({
     return { ...card, form: { id: form.id, title: form.title, text: form.text, questions: form.questions, ...(ranOut ? { renew: true } : {}) }, formsLeft: state.waiting.length };
   }
   const packs = () => db.collection("bookingPacks");
+  // Clock in and out (plan 4, 4.2): timeClock/{id} { email, name, staffId?, day, in, out | null, breaks[], open, by,
+  // updatedAt }. Written only here; `open` is true while the person is on the clock (at most one each).
+  const shifts = () => db.collection("timeClock");
 
   // On when the platform turned Bookings on for the shop, or when the shop sells Classes (a way to sell, both of its
   // switches on): classes run on this same engine, so they bring its hours, team, rooms and Book a time page with them.
@@ -2829,8 +2842,12 @@ function bookingActions({
   async function handleAdmin(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
+    return runAdmin(req, res, adminUser.email || "admin");
+  }
+
+  /** One owner action, `by` the person signed in (the owner, staff, or a front desk or service provider through handleDesk). */
+  async function runAdmin(req, res, by) {
     const op = req.body?.op;
-    const by = adminUser.email || "admin";
     try {
       // The owner flipped a Ways to sell switch (Settings › General): the website's links follow. Answered whether the
       // engine is on or not, so switching Classes off takes its link down too.
@@ -2963,6 +2980,43 @@ function bookingActions({
         // Just switched on: the coming bookings go in too, and the owner learns whether Google is linked.
         const googleCalendar = next.googleCalendar && !settings.googleCalendar ? await fillCalendar() : undefined;
         return res.status(200).json({ ok: true, settings: next, ...(googleCalendar ? { googleCalendar } : {}) });
+      }
+      // Hours worked (plan 4, 4.2): the owner sees, adds, fixes and removes shifts. Never from the desk.
+      if (op === "shifts") {
+        const from = String(req.body?.from || ""), to = String(req.body?.to || "");
+        if (!isDay(from) || !isDay(to) || to < from) return fail(res, 400, "Pick the days.");
+        const snap = await shifts().where("day", ">=", from).where("day", "<=", to).limit(2000).get();
+        const open = await shifts().where("open", "==", true).limit(200).get();
+        const seen = new Set();
+        const list = [...snap.docs, ...open.docs].filter((d) => !seen.has(d.id) && seen.add(d.id)).map((d) => shiftView(d.id, d.data()));
+        return res.status(200).json({ shifts: list.sort((a, b) => a.in.localeCompare(b.in)) });
+      }
+      if (op === "saveShift") {
+        const made = cleanShift({ ...(req.body?.shift || {}), by: "owner" });
+        if ("error" in made) return fail(res, 400, made.error);
+        const id = req.body?.shift?.id ? String(req.body.shift.id) : `s${crypto.randomBytes(8).toString("hex")}`;
+        if (!ID.test(id)) return fail(res, 400, "Unknown shift.");
+        const shift = made.shift;
+        const saved = await db.runTransaction(async (t) => {
+          const ref = shifts().doc(id);
+          const was = await t.get(ref);
+          if (req.body?.shift?.id && !was.exists) return { error: "This shift was removed. Refresh and try again." };
+          // One open shift a person: a second one left open would make the desk's Clock out ambiguous.
+          if (!shift.out) {
+            const other = await t.get(shifts().where("email", "==", shift.email).where("open", "==", true).limit(2));
+            if (other.docs.some((d) => d.id !== id)) return { error: `${shift.name} is already on the clock. Add a finish time to this one.` };
+          }
+          t.set(ref, { ...shift, open: !shift.out, updatedAt: now().toISOString(), updatedBy: by });
+          return { ok: true };
+        });
+        if (saved.error) return fail(res, 409, saved.error);
+        return res.status(200).json({ ok: true, shift: shiftView(id, { ...shift, open: !shift.out }) });
+      }
+      if (op === "removeShift") {
+        const id = String(req.body?.id || "");
+        if (!ID.test(id)) return fail(res, 400, "Unknown shift.");
+        await shifts().doc(id).delete();
+        return res.status(200).json({ ok: true });
       }
       if (op === "addBlock" || op === "removeBlock") {
         // Block time on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly meeting. Clients can't book it; the
@@ -4162,7 +4216,110 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
+  // ── The team desk (plan 4, 4.1, Beta) ───────────────────────────────────────────────────────────────────────────
+  // Team roles "frontDesk" and "provider" (functions/roles.js deskRole) open the team desk instead of the admin
+  // (admin/TeamDesk.tsx). They read nothing from the database themselves: every read and action comes through here.
+  // A front desk sees every calendar and books for everyone, with no reports or settings (DESK_OPS); a service provider
+  // sees only their own bookings (the staff member whose email is their sign-in) and checks their own clients in.
+
+  /** The bookings one desk may see: a provider's are the ones they take (the visit's lead or one of its parts). */
+  const takes = (b, staffId) => !!staffId && (b.staffId === staffId || (b.parts || []).some((p) => p.staffId === staffId) || (b.course?.staff || []).includes(staffId));
+  /** A booking as the desk sees it: no link keys, saved card, pay key or check-in code hashes. */
+  const deskBooking = (id, b) => {
+    const { manageKeyHash, reminderKeyHash, reminder2KeyHash, payKey, card, pendingKey, offerKeyHash, restPages, ...rest } = b || {};
+    return { id, ...rest, card: card ? { brand: card.brand || "", last4: card.last4 || "" } : null };
+  };
+
+  /** A name for someone on the desk with no Team & rooms entry: the part of their email before the @. */
+  const nameFromEmail = (email) => String(email).split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 80);
+  /** The person's open shift, or null. */
+  async function openShiftOf(email) {
+    if (!email) return null;
+    const snap = await shifts().where("email", "==", email).where("open", "==", true).limit(1).get();
+    return snap.docs[0] ? { id: snap.docs[0].id, ...snap.docs[0].data() } : null;
+  }
+  /** Where the desk's person stands, with the minutes worked so far on this shift. */
+  const clockView = (open) => ({ ...clockState(open), minutes: open ? shiftMinutes(open, now().getTime()) : 0 });
+  /** A shift as the owner's Team pay sees it, with its minutes and whether it was left open too long. */
+  const shiftView = (id, x) => ({
+    id, email: x.email, name: x.name, staffId: x.staffId || "", day: x.day, in: x.in, out: x.out || null, breaks: x.breaks || [], by: x.by || "self",
+    minutes: shiftMinutes(x, now().getTime()), forgotten: !x.out && now().getTime() - Date.parse(x.in) > MAX_SHIFT_HOURS * 3_600_000,
+  });
+
+  async function handleDesk(req, res) {
+    const who = requireBookingsTeam ? await requireBookingsTeam(req, res) : (fail(res, 403, "Admin access required"), null);
+    if (!who) return;
+    const role = who.role; // "admin" | "frontDesk" | "provider"
+    const op = String(req.body?.op || "");
+    const by = who.email || role;
+    try {
+      if (!(await featureOn())) return fail(res, 403, "Bookings aren't turned on for this shop.", "off");
+      const settings = await readSettings();
+      const email = String(who.email || "").trim().toLowerCase();
+      const me = (settings.staff || []).find((p) => email && String(p.email || "").trim().toLowerCase() === email) || null;
+      // Clock in and out (plan 4, 4.2): anyone on the team desk clocks themselves; the owner and staff use Team pay.
+      if (op === "clock") {
+        if (role === "admin") return fail(res, 403, "Add your hours under Bookings › Team pay.", "desk_only");
+        const step = String(req.body?.step || "");
+        if (!["in", "break", "back", "out"].includes(step)) return fail(res, 400, "Unknown step.");
+        if (!email) return fail(res, 403, "Sign in again to clock in.");
+        const nowIso = now().toISOString();
+        const who = { email, name: me?.name || nameFromEmail(email), staffId: me?.id || "", day: dayOf(now().getTime(), zone()) };
+        const done = await db.runTransaction(async (t) => {
+          const snap = await t.get(shifts().where("email", "==", email).where("open", "==", true).limit(1));
+          const doc = snap.docs[0] || null;
+          const open = doc ? { id: doc.id, ...doc.data() } : null;
+          const next = clockStep(open, step, nowIso, who);
+          if ("error" in next) return next;
+          const id = doc ? doc.id : `s${crypto.randomBytes(8).toString("hex")}`;
+          const { id: _drop, ...shift } = next.shift;
+          t.set(shifts().doc(id), { ...shift, open: !shift.out, updatedAt: nowIso, updatedBy: by });
+          return { shift: { id, ...shift } };
+        });
+        if (done.error) return fail(res, 409, done.error, done.code);
+        return res.status(200).json({ ok: true, clock: clockView(done.shift.out ? null : done.shift) });
+      }
+      if (op === "desk") {
+        const day = isDay(String(req.body?.day || "")) ? req.body.day : dayOf(now().getTime(), zone());
+        const days = Math.min(7, Math.max(1, Math.round(Number(req.body?.days) || 1)));
+        const from = new Date(zonedTime(day, "00:00", zone())).toISOString();
+        const to = new Date(zonedTime(addDays(day, days), "00:00", zone())).toISOString();
+        const snap = await bookings().where("start", ">=", from).where("start", "<", to).orderBy("start").limit(500).get();
+        const list = snap.docs
+          .map((d) => ({ id: d.id, b: d.data() }))
+          .filter(({ b }) => b.status !== "held" && (role !== "provider" || takes(b, me?.id)))
+          .map(({ id, b }) => deskBooking(id, b));
+        const svc = await services().limit(MAX_SERVICES + 1).get();
+        return res.status(200).json({
+          role, day, days, zone: zone(),
+          me: me ? { id: me.id, name: me.name } : null,
+          staff: (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name })),
+          services: role === "provider" ? [] : svc.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, minutes: x.minutes, places: x.places || 1 })),
+          bookings: list,
+          clock: role === "admin" ? null : clockView(await openShiftOf(email)),
+        });
+      }
+      if (role === "admin") return runAdmin(req, res, by);
+      if (role === "frontDesk") {
+        if (!DESK_OPS.frontDesk.includes(op)) return fail(res, 403, "Ask the owner to do this.", "desk_only");
+        return runAdmin(req, res, by);
+      }
+      // A service provider: only their own bookings, and only checking in or marking a no-show.
+      if (!DESK_OPS.provider.includes(op)) return fail(res, 403, "Ask the owner or the front desk to do this.", "desk_only");
+      if (!me) return fail(res, 403, "Ask the owner to add your email to your entry on the Team & rooms tab.", "not_on_team");
+      if (req.body?.code) return fail(res, 400, "Open the booking from your list to check them in.", "no_code");
+      const id = String(req.body?.id || "");
+      if (!ID.test(id)) return fail(res, 400, "Unknown booking.");
+      const snap = await bookings().doc(id).get();
+      if (!snap.exists || !takes(snap.data(), me.id)) return fail(res, 404, "This booking isn't one of yours.", "not_yours");
+      return runAdmin(req, res, by);
+    } catch (err) {
+      console.error("bookingsDesk failed:", op, err?.message || err);
+      return fail(res, 502, "That didn't go through just now. Please try again.");
+    }
+  }
+
+  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
@@ -4326,4 +4483,4 @@ const REMINDER_SKIP_HOURS = 6;
 
 const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingMine", "bookingOpen", "bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingConfirm", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
-module.exports = { PickupTimeProblem, engineOn, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
+module.exports = { PickupTimeProblem, engineOn, DESK_OPS, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };

@@ -137,6 +137,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
     optedOut: async (e) => optOuts.has(e),
     unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
     requireAdmin: async (_req, r) => (admin ? { email: "owner@example.com" } : (r.status(401).json({ error: "no" }), null)),
+    requireBookingsTeam: async (req, r) => req.team || (r.status(403).json({ error: "Admin access required" }), null),
     payments: { provider, standaloneCheckout: async () => card, refund: async (args) => { if (refunds.failNext > 0) { refunds.failNext -= 1; throw new Error("card declined"); } refunds.push(args); return { refundId: `re_${refunds.length}`, amountMinor: args.amountMinor }; } },
     shopTestMode: async () => true,
     hitLimit: async () => true,
@@ -162,7 +163,8 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   };
   const pub = async (body) => { const r = res(); await desk.handlePublic({ body }, r); return r; };
   const adm = async (body) => { const r = res(); await desk.handleAdmin({ body }, r); return r; };
-  return { db, desk, clock, emails, opened, closed, refunds, sessions, charges, terminal, optOuts, seed, pub, adm };
+  const dsk = async (team, body) => { const r = res(); await desk.handleDesk({ body, team }, r); return r; };
+  return { db, desk, clock, emails, opened, closed, refunds, sessions, charges, terminal, optOuts, seed, pub, adm, dsk };
 }
 
 const CUSTOMER = { name: "Ada Reader", email: "ada@example.com" };
@@ -4221,5 +4223,140 @@ describe("the shop's own words in every message (plan 4, 3.5)", () => {
     const settings = t.db.store.get("bookingSettings/main");
     await t.adm({ op: "saveSettings", settings: { ...settings, messages: { de: { booked: { subject: "Hallo" } }, en: { nope: { subject: "x" }, booked: { subject: "  " } } } } });
     expect(t.db.store.get("bookingSettings/main")).not.toHaveProperty("messages");
+  });
+});
+
+describe("the team desk: front desk and service providers (plan 4, 4.1)", () => {
+  const FRONT = { role: "frontDesk", email: "desk@example.com" };
+  const ANA = { role: "provider", email: "Ana@Example.com" };
+  const BEN = { role: "provider", email: "ben@example.com" };
+  const setupTeam = async () => {
+    const t = setup({ now: "2026-11-17T12:00:00Z" });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({
+      ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0,
+      staff: [{ id: "ana", name: "Ana", email: "ana@example.com" }, { id: "ben", name: "Ben", email: "ben@example.com" }],
+    });
+    const a = await t.adm({ op: "create", serviceId: "visit", staffId: "ana", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    const b = await t.adm({ op: "create", serviceId: "visit", staffId: "ben", start: at("2026-11-18", "13:00"), name: "Bo Client", email: "bo@example.com" });
+    return { t, anaId: a.body.id, benId: b.body.id };
+  };
+
+  test("nobody without a team role gets in", async () => {
+    const { t } = await setupTeam();
+    expect((await t.dsk(null, { op: "desk", day: "2026-11-18" })).statusCode).toBe(403);
+  });
+
+  test("the front desk sees every calendar, with no link keys or card details, and books for anyone", async () => {
+    const { t } = await setupTeam();
+    const r = await t.dsk(FRONT, { op: "desk", day: "2026-11-18" });
+    expect(r.statusCode).toBe(200);
+    expect(r.body.role).toBe("frontDesk");
+    expect(r.body.bookings.map((b) => b.customer.name)).toEqual(["Ada Reader", "Bo Client"]);
+    expect(r.body.services.map((s) => s.id).sort()).toEqual(["review", "visit"]);
+    for (const b of r.body.bookings) for (const k of ["manageKeyHash", "reminderKeyHash", "payKey"]) expect(b).not.toHaveProperty(k);
+    const made = await t.dsk(FRONT, { op: "create", serviceId: "visit", staffId: "ben", start: at("2026-11-18", "15:00"), name: "Cy", email: "cy@example.com" });
+    expect(made.statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${made.body.id}`).history[0].by).toBe("desk@example.com");
+  });
+
+  test("the front desk never changes services, settings, packs or charges a fee", async () => {
+    const { t, anaId } = await setupTeam();
+    for (const body of [{ op: "saveSettings", settings: {} }, { op: "saveService", service: { name: "X" } }, { op: "setLive", live: false }, { op: "packs" }, { op: "chargeFee", id: anaId }, { op: "importServices", rows: [] }]) {
+      const r = await t.dsk(FRONT, body);
+      expect(r.statusCode).toBe(403);
+      expect(r.body.code).toBe("desk_only");
+    }
+  });
+
+  test("a service provider sees only their own bookings and checks only their own clients in", async () => {
+    const { t, anaId, benId } = await setupTeam();
+    const r = await t.dsk(ANA, { op: "desk", day: "2026-11-18" });
+    expect(r.body.me).toEqual({ id: "ana", name: "Ana" });
+    expect(r.body.bookings.map((b) => b.id)).toEqual([anaId]);
+    expect(r.body.services).toEqual([]);
+    t.clock.now = new Date(at("2026-11-18", "09:55"));
+    expect((await t.dsk(ANA, { op: "checkIn", id: anaId })).statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${anaId}`).checkedInAt).toBeTruthy();
+    const theirs = await t.dsk(ANA, { op: "noShow", id: benId });
+    expect(theirs.statusCode).toBe(404);
+    expect(t.db.store.get(`bookings/${benId}`).noShow).toBeFalsy();
+    expect((await t.dsk(ANA, { op: "create", serviceId: "visit", start: at("2026-11-18", "16:00"), ...CUSTOMER })).statusCode).toBe(403);
+    expect((await t.dsk(ANA, { op: "checkIn", code: "K7QM-2XPA" })).statusCode).toBe(400);
+    expect((await t.dsk(BEN, { op: "noShow", id: benId })).statusCode).toBe(200);
+  });
+
+  test("a provider whose email isn't on the team sees nothing and is told why", async () => {
+    const { t, anaId } = await setupTeam();
+    const stranger = { role: "provider", email: "new@example.com" };
+    const r = await t.dsk(stranger, { op: "desk", day: "2026-11-18" });
+    expect(r.body.me).toBeNull();
+    expect(r.body.bookings).toEqual([]);
+    expect((await t.dsk(stranger, { op: "checkIn", id: anaId })).body.code).toBe("not_on_team");
+  });
+});
+
+describe("clock in and out (plan 4, 4.2)", () => {
+  const FRONT = { role: "frontDesk", email: "sam.desk@example.com" };
+  const ANA = { role: "provider", email: "ana@example.com" };
+  const setupClock = async () => {
+    const t = setup({ now: "2026-11-17T14:00:00Z" });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, staff: [{ id: "ana", name: "Ana", email: "ana@example.com", hourlyMinor: 2000 }] });
+    const step = (who, s, iso) => { t.clock.now = new Date(iso); return t.dsk(who, { op: "clock", step: s }); };
+    return { t, step };
+  };
+  const shiftsIn = (t) => [...t.db.store.entries()].filter(([k]) => k.startsWith("timeClock/")).map(([, v]) => v);
+
+  test("a provider clocks in, takes a break and clocks out; the shift counts the time without the break", async () => {
+    const { t, step } = await setupClock();
+    expect((await step(ANA, "in", "2026-11-17T14:00:00Z")).body.clock).toMatchObject({ state: "working", shiftIn: "2026-11-17T14:00:00.000Z" });
+    expect((await step(ANA, "in", "2026-11-17T14:05:00Z")).body.code).toBe("already_in");
+    expect((await step(ANA, "break", "2026-11-17T17:00:00Z")).body.clock.state).toBe("break");
+    const desk = await t.dsk(ANA, { op: "desk", day: "2026-11-17" });
+    expect(desk.body.clock).toMatchObject({ state: "break", minutes: 180 });
+    expect((await step(ANA, "back", "2026-11-17T17:30:00Z")).body.clock.state).toBe("working");
+    expect((await step(ANA, "out", "2026-11-17T22:00:00Z")).body.clock.state).toBe("off");
+    const [s] = shiftsIn(t);
+    expect(s).toMatchObject({ email: "ana@example.com", name: "Ana", staffId: "ana", day: "2026-11-17", open: false, out: "2026-11-17T22:00:00.000Z", by: "self" });
+    expect(s.breaks).toEqual([{ start: "2026-11-17T17:00:00.000Z", end: "2026-11-17T17:30:00.000Z" }]);
+    expect((await step(ANA, "out", "2026-11-17T22:01:00Z")).body.code).toBe("not_in");
+  });
+
+  test("a front desk with no Team & rooms entry clocks in under a name from their email; clocking out ends a break", async () => {
+    const { t, step } = await setupClock();
+    await step(FRONT, "in", "2026-11-17T14:00:00Z");
+    await step(FRONT, "break", "2026-11-17T15:00:00Z");
+    await step(FRONT, "out", "2026-11-17T15:20:00Z");
+    const [s] = shiftsIn(t);
+    expect(s).toMatchObject({ name: "Sam Desk", open: false });
+    expect(s.breaks[0].end).toBe("2026-11-17T15:20:00.000Z");
+  });
+
+  test("the owner sees shifts, fixes a forgotten clock-out and can't leave two open for one person", async () => {
+    const { t, step } = await setupClock();
+    await step(ANA, "in", "2026-11-17T14:00:00Z");
+    t.clock.now = new Date("2026-11-18T09:00:00Z");
+    const list = await t.adm({ op: "shifts", from: "2026-11-01", to: "2026-11-30" });
+    expect(list.body.shifts).toHaveLength(1);
+    expect(list.body.shifts[0].forgotten).toBe(true);
+    const id = list.body.shifts[0].id;
+    const open2 = await t.adm({ op: "saveShift", shift: { email: "ana@example.com", name: "Ana", day: "2026-11-18", in: "2026-11-18T13:00:00Z" } });
+    expect(open2.statusCode).toBe(409);
+    const fixed = await t.adm({ op: "saveShift", shift: { ...list.body.shifts[0], out: "2026-11-17T22:00:00Z" } });
+    expect(fixed.statusCode).toBe(200);
+    expect(fixed.body.shift).toMatchObject({ minutes: 480, forgotten: false });
+    expect(t.db.store.get(`timeClock/${id}`)).toMatchObject({ open: false, by: "owner" });
+    expect((await t.adm({ op: "saveShift", shift: { email: "ana@example.com", day: "2026-11-18", in: "2026-11-18T13:00:00Z", out: "2026-11-18T12:00:00Z" } })).statusCode).toBe(400);
+    expect((await t.adm({ op: "removeShift", id })).statusCode).toBe(200);
+    expect(shiftsIn(t)).toHaveLength(0);
+  });
+
+  test("the desk can't see or change other people's hours, and the owner's own sign-in uses Team pay", async () => {
+    const { t } = await setupClock();
+    for (const body of [{ op: "shifts", from: "2026-11-01", to: "2026-11-30" }, { op: "saveShift", shift: {} }, { op: "removeShift", id: "s123456" }]) {
+      expect((await t.dsk(FRONT, body)).body.code).toBe("desk_only");
+    }
+    expect((await t.dsk({ role: "admin", email: "owner@example.com" }, { op: "clock", step: "in" })).body.code).toBe("desk_only");
   });
 });

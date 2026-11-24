@@ -73,7 +73,7 @@ import { db, firestore, auth, googleProvider } from "../../lib/firebase";
 import { BackupCodeError, backupCall, cleanBackupCode, finishTwoStep, firebaseTwoStep, twoStepNeeded, type TwoStepNeeded } from "./adminTwoStep";
 import { functionFetch } from "../lib/functionsBase";
 import { combinedAdmin } from "./combined";
-import { currentAdminRole, ensureShopOwnerKnown, isBookkeeperPass, isFairHelperPass, refreshAdminRole } from "./adminAccess";
+import { currentAdminRole, deskRoleOf, ensureShopOwnerKnown, isBookkeeperPass, isFairHelperPass, refreshAdminRole, type DeskRole } from "./adminAccess";
 import { startSupportVisit, supportOf } from "./supportSession";
 import { publicApi } from "../lib/publicApi";
 import { defaultSettings } from "./defaultSettings";
@@ -151,6 +151,13 @@ export const adminApi = {
     if (!user) return null;
     if (!combinedAdmin()) return null;
     return isFairHelperPass(user.emailVerified, user.email, (await user.getIdTokenResult()).claims) ? { email: user.email! } : null;
+  },
+  /** The signed-in front desk or service provider ({ email, role }), else null: they get the team desk, not the admin. */
+  teamDeskSignIn: async (): Promise<{ email: string; role: DeskRole } | null> => {
+    const user = auth.currentUser;
+    if (!user) return null;
+    const role = deskRoleOf(user.emailVerified, user.email, (await user.getIdTokenResult()).claims);
+    return role ? { email: user.email!, role } : null;
   },
   /** Learns the owner's address for a restored session, so the owner's own orders stay out of the figures. */
   learnShopOwner: () => ensureShopOwnerKnown(auth.currentUser, refreshMyRole),

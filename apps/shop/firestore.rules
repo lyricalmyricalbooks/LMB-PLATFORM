@@ -221,12 +221,13 @@ service cloud.firestore {
       // functions/roles.js copies the role onto that person's sign-in pass. "author" is for the stockroom only: it is not
       // an admin role here (isAdmin above names owner and staff), so an author on the Team never opens the shop's admin.
       // "bookkeeper" opens only the admin's read-only Bookkeeping page (isBookkeeper above). "fairHelper" is for the
-      // stockroom's Fair till only and opens nothing here.
+      // stockroom's Fair till only and opens nothing here. "frontDesk" and "provider" (Bookings plan 4, 4.1) open the
+      // team desk, which reads and acts only through the server (functions/bookings.js handleDesk): no rule lets them in.
       // The account holder's own entry (written at sign-up) is never removed or changed here: the shop always keeps its owner.
       // lastSignInAt / joinedAt are the server's (functions/roles.js stampTeamSignIn): the owner can't set or change them.
       // inviteRequestedAt is "Send invite again" (functions/index.js syncMemberRole emails a new invite when it changes).
       function memberFieldsOk() {
-        return request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper"]
+        return request.resource.data.role in ["owner", "staff", "author", "bookkeeper", "fairHelper", "frontDesk", "provider"]
           // "For today only" (functions/roles.js removeExpiredMembers): a fair helper's entry may end at a set time.
           && (!("until" in request.resource.data)
               || (request.resource.data.until is timestamp && request.resource.data.role == "fairHelper"))

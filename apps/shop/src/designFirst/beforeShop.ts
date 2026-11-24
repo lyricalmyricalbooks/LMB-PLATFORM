@@ -7,6 +7,7 @@ import { applyStarter } from "../app/admin/studio/starterDesign";
 import { getSectionMeta } from "../app/admin/ThemeEditorExtensions";
 import { wordsFor } from "../shared/shopSells";
 import { libraryLook, sampleProducts } from "../app/admin/lookGallery";
+import { starterSampleBooks } from "../app/admin/studio/presetContent";
 import { withStarterWords } from "../app/admin/sells";
 import { ThemeConflictError, type ThemeBackend } from "../app/admin/themeStore";
 import type { SetupDoor, SetupPress } from "../setupMode/door";
@@ -41,7 +42,10 @@ const slugOf = (title: string) => title.toLowerCase().normalize("NFKD").replace(
 const priceOf = (text = "") => Number(String(text).replace(/[^0-9.]/g, "")) || 20;
 
 /** Sample products in the press's own kind (the sign-up answer), as the shop's pages read books. Never saved anywhere. */
-export function sampleShopBooks(sells?: string | null): any[] {
+export function sampleShopBooks(sells?: string | null, look?: string | null): any[] {
+  // A whole-website starter brings its own sample shop, photos included.
+  const own = look ? starterSampleBooks(libraryLook(look)) : [];
+  if (own.length) return own;
   return sampleProducts(sells).map((p, i) => ({
     id: `sample-${i + 1}`, slug: slugOf(p.title), title: p.title, authorName: p.maker || "", author: p.maker || "",
     retailPrice: priceOf(p.price), stockLevel: i === 5 ? 0 : 8, status: "published",

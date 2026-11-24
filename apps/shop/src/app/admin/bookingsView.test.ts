@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, bookButtonScript, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine, requestsWaiting, answerWithin, bookedThrough, bookingPosterHtml } from "./bookingsView";
+import type { Shift } from "../../shared/timeClock";
+import { expandParts, visitShares, bookingFigures, lastMonths, monthText, moneyShort, byDay, classCount, daySlots, waitingByDay, waitingText, nextUp, paymentText, weekDays, weekFigures, weekStartOf, weekText, whenFromNow, teamDay, hourLabel, NOBODY, CLOCK_ONLY, teamPay, teamPayRows, bookingShareLink, bookButtonHtml, bookButtonScript, weekGrid, tappedTime, draggedTo, draggable, blockedBands, blockWhen, blockHours, processingBand, processingText, specialHoursLine, requestsWaiting, answerWithin, bookedThrough, bookingPosterHtml } from "./bookingsView";
 import { DEFAULT_BOOKING_SETTINGS, type StaffMember } from "../../shared/bookingTimes";
 import type { Booking } from "./bookingsApi";
 
@@ -218,6 +219,22 @@ describe("team pay", () => {
     const later = paid({ staffId: "ana", start: "2026-11-20T15:00:00.000Z", end: "2026-11-20T16:00:00.000Z" });
     expect(teamPay([later], [person({})], ZONE, "2026-11", Date.parse("2026-11-17T12:00:00.000Z")).people[0].visits).toBe(0);
     expect(teamPay([later], [person({})], ZONE, "2026-11", Date.parse("2026-11-20T15:00:00.000Z")).people[0].visits).toBe(1);
+  });
+
+  it("adds hours on the clock at each person's hourly rate, a front desk on a line of their own, and skips a forgotten clock-out (plan 4, 4.2)", () => {
+    const shift = (over: Partial<Shift>): Shift => ({ email: "ana@example.com", name: "Ana", day: "2026-11-10", in: "2026-11-10T14:00:00.000Z", out: "2026-11-10T22:00:00.000Z", breaks: [{ start: "2026-11-10T17:00:00.000Z", end: "2026-11-10T17:30:00.000Z" }], ...over });
+    const pay = teamPay([], [person({ email: "Ana@example.com", hourlyMinor: 2000 })], ZONE, "2026-11", AFTER, [
+      shift({}),
+      shift({ email: "sam@example.com", name: "Sam", breaks: [] }),
+      shift({ day: "2026-10-31", in: "2026-10-31T14:00:00.000Z", out: "2026-10-31T16:00:00.000Z", breaks: [] }), // last month
+      shift({ day: "2026-11-11", in: "2026-11-11T14:00:00.000Z", out: null, breaks: [] }), // forgotten
+    ]);
+    const ana = pay.people.find((l) => l.id === "ana")!;
+    expect(ana).toMatchObject({ minutes: 450, hourlyMinor: 2000, wagesMinor: 15_000 });
+    expect(pay.people.find((l) => l.id === `${CLOCK_ONLY}sam@example.com`)).toMatchObject({ name: "Sam", minutes: 480, wagesMinor: 0, commissionMinor: 0 });
+    expect(pay).toMatchObject({ minutes: 930, wagesMinor: 15_000 });
+    expect(teamPayRows(pay)[0]).toEqual(["Person", "Visits", "Taken before tax", "Commission %", "Commission", "Tips", "Hours", "Hourly rate", "Hourly pay", "Total pay"]);
+    expect(teamPayRows(pay).find((r) => r[0] === "Ana")!.slice(6)).toEqual(["7.50", "20.00", "150.00", "150.00"]);
   });
 
   it("writes a spreadsheet with a total row", () => {

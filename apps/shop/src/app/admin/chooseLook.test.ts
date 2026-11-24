@@ -16,10 +16,10 @@ describe("Choose your look (plan 6.3)", () => {
       expect(typeof theme.name === "string" && typeof theme.mood === "string", theme.id).toBe(true);
     }
   });
-  it("the picker lists the 10 chosen looks and the 2 starter websites once; each sign-up answer's default is one of them", () => {
+  it("the picker lists the 10 chosen looks and the 3 starter websites once; each sign-up answer's default is one of them", () => {
     const ids = builtLooks().map(t => t.id);
-    expect(ids).toHaveLength(12);
-    expect(new Set(ids).size).toBe(12);
+    expect(ids).toHaveLength(13);
+    expect(new Set(ids).size).toBe(13);
     for (const answer of ["books", "zines", "comics", "prints", "mix", "mixed", "clothing", "shoes", "jewelry", "music", "other", null, "unknown"]) {
       const suggested = suggestedThemes(answer);
       expect(suggested.length, String(answer)).toBe(3);
@@ -111,7 +111,7 @@ describe("browsing the looks (theme store)", () => {
     for (const t of all) expect(feels).toContain(lookFeel(t));
     expect(filterLooks(all, "all")).toHaveLength(all.length);
     expect(LOOK_FILTERS.map(f => f.id)).toEqual(["all", "websites", "quiet", "bold", "warm", "dark"]);
-    expect(ids("websites")).toEqual(["juniper-slow-season", "juniper-catalogue"]);
+    expect(ids("websites")).toEqual(["juniper-slow-season", "juniper-catalogue", "aurel-editorial"]);
   });
   it("every look gives the try-on what it draws", () => {
     for (const theme of THEME_LIBRARY as any[]) {

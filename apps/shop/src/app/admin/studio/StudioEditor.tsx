@@ -40,10 +40,11 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
-import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, wordedSettings } from "./presetContent";
+import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, starterSampleBooks, wordedSettings } from "./presetContent";
+import { applyStarter } from "./starterDesign";
 import { useCatalogWords, useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { builtLooks, ownBooks, pressNameOf } from "../lookGallery";
+import { STARTER_SITES, builtLooks, libraryLook, ownBooks, pressNameOf } from "../lookGallery";
 import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
@@ -512,7 +513,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPreview, setHistoryPreview] = useState<ThemeVersion | null>(null);
   // Studio › Themes › Preview: a whole theme shown in the canvas without touching the draft.
-  const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any } | null>(null);
+  const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any; books?: any[] } | null>(null);
   // The last theme switch's report (Themes › What carried over), kept until dismissed or another look replaces it.
   const [switchReport, setSwitchReport] = useState<ThemeSwitchReport | null>(null);
   // Theme actions › Schedule publishing (3.5); a saved theme can be pre-selected from Themes.
@@ -1071,6 +1072,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const tabSeenRef = useRef(false);
   const draftStatusRef = useRef<"unsaved" | "draft" | "live">("live");
   draftStatusRef.current = dirtyDraft ? "unsaved" : unpublished ? "draft" : "live";
+  // A whole-website starter previews as its own finished sample shop: its layouts on every page and its sample
+  // products with their photos, never the press's real products (Julian, 23 November 2026). Nothing is saved.
+  const starterPreview = (entry: { id: string; label: string; design: any } | null) => {
+    const id = entry?.id.startsWith("preset:") ? entry.id.slice(7) : "";
+    const theme: any = id && STARTER_SITES.includes(id) ? libraryLook(id) : null;
+    if (!entry || !theme) return entry;
+    const samples = starterSampleBooks(theme);
+    return { ...entry, design: applyStarter(designRef.current, theme, getSectionMeta, shopWords), books: samples.length ? samples : undefined };
+  };
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
     const current = designRef.current;
@@ -1081,7 +1091,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta, shopWords)
       : current);
     let state: ReturnType<typeof buildPreviewState>;
-    try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books); }
+    try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), previewDesign === themePreview?.design && themePreview?.books ? themePreview.books : books); }
     catch (err) { console.warn("[Studio] preview snapshot could not be built", err); return; }
     try {
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
@@ -2640,7 +2650,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
                 presets={builtLooks() as any[]} currentPresetId={design.themeLibraryPreset} products={themeProducts} pressName={pressNameOf(settings)}
                 templateDetails={templateDetailsLine(design)} onResetTemplateDetails={resetTemplateDetails}
-                previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(entry); if (entry && onPhone) setDevice(onPhone); }}
+                previewingId={themePreview?.id || null} onPreview={(entry, onPhone) => { setThemePreview(starterPreview(entry)); if (entry && onPhone) setDevice(onPhone); }}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
                 onRename={renameTheme} onDuplicate={duplicateTheme}

@@ -1829,3 +1829,16 @@ sweep runs inside `bookingSweep`. Rate limit bucket `rental`. Not yet: privacy e
 **Rentals R2: deposits, fees and pay links (18 November 2026).** An item's `depositMinor` (≤ `MAX_DEPOSIT_MINOR`) keeps the card at checkout (`cardHold`, Stripe only; Square shops use pay links). Admin ops `chargeFee` (≤ `feeRoom`, `feeCharging` claim, key `rental-fee-<id>-<n>`, 402 on decline) and `payLink` (23-hour card page, key `rental-extra-<id>-<n>`, ≤ 3 open); `refreshExtras` moves paid links into `extrasPaid` once each. Late fee suggestion: `lateFeeFor` in `shared/rentalRules.ts` (grace 15 min / 60 min). Never charged without the owner's tap.
 **Rentals R3: units (18 November 2026).** Admin op `unitState` {itemId, unit, state ok|repair|gone, why writtenOff|sold, cancelStuck}: in one transaction it sets the item's `repair`/`gone` (+ `goneWhy`) and moves each not-yet-started span on that unit to another free unit (`freeUnit`, which skips `unitOff`). Spans that can't move answer 409 `stuck` with the rentals and change nothing; with `cancelStuck` they are cancelled through `cancelPaid` (refund first) or freed (holds). A gone unit never comes back. `saveItem` keeps the stored `repair`/`gone`, so an older form can't undo them. The control room's Ways to sell line reads `rentalsUse` (LMB-PLATFORM control-room/waysBeta.js).
 **Privacy and rentals (18 November 2026):** export lists `rentals` (by `customer.email`) without keys, card ids or pay pages (card brand and last four kept). Erase is refused (409 `rental_open`) while one is held, paid or out; then a card-paid rental keeps its name and email, any other loses them, and all lose the kept card and links. Tests: `privacyBookings.test.js`.
+
+**Team desk (23 November 2026, Bookings plan 4 step 4.1).** Roles `frontDesk`/`provider` (`roles.js` `DESK_ROLES`,
+`deskRole`; never the owner or support). Action `bookingsDesk` → `bookings.js` `handleDesk`, gated by
+`requireBookingsTeam` (index.js; an admin passes through to `runAdmin`). Op `desk` {day} returns the trimmed day
+(`deskBooking`: no key hashes, `payKey`/`pendingKey`, card only brand + last4; holds dropped). `DESK_OPS` lists what
+each role may run (403 `desk_only`); a provider needs a staff row with their email (`not_on_team`), can't use a code
+(`no_code`) and only touches bookings they take (404 `not_yours`).
+
+**Clock in and out (23 November 2026, Bookings plan 4 step 4.2).** `timeClock/{id}` (server only, no rule needed):
+`{ email, name, staffId?, day, in, out|null, breaks[], open, by, updatedAt, updatedBy }`, rules in `shared/timeClock.js`.
+Desk op `clock` {step in|break|back|out} for frontDesk/provider (an admin gets `desk_only`), in a transaction that finds
+the one `open` shift by email (equality filters only, no index). Owner ops `shifts` {from,to} (plus every open shift),
+`saveShift` (409 when a second open shift for one person), `removeShift`; all three are refused from the desk.

@@ -10,11 +10,21 @@ export const ADMIN_ROLES: readonly AdminRole[] = ["owner", "staff"];
 // Every role the Team can give. "author" is for the stockroom only and never opens this admin (adminRoleOf ignores it).
 // "bookkeeper" opens only the read-only Bookkeeping page (BookkeeperDesk.tsx, plan 7.17), never the admin itself.
 // "fairHelper" rings up sales at the stockroom's Fair till only (docs/combined-admin.md › Fair helpers plan).
-export type TeamRole = AdminRole | "author" | "bookkeeper" | "fairHelper";
-export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author", "bookkeeper", "fairHelper"];
+// "frontDesk" and "provider" (plan 4, 4.1) open the team desk (TeamDesk.tsx) instead of the admin: a front desk books for
+// everyone, a service provider sees only their own bookings. functions/roles.js deskRole is the server's copy.
+export type DeskRole = "frontDesk" | "provider";
+export const DESK_ROLES: readonly DeskRole[] = ["frontDesk", "provider"];
+export type TeamRole = AdminRole | "author" | "bookkeeper" | "fairHelper" | DeskRole;
+export const TEAM_ROLES: readonly TeamRole[] = ["owner", "staff", "author", "bookkeeper", "fairHelper", "frontDesk", "provider"];
 /** Who may sign in here: the admin roles, the bookkeeper (the Bookkeeping page instead of the admin) or a fair
  *  helper (the Fair till instead of the admin, FairHelperDesk.tsx). */
-export type SignInRole = AdminRole | "bookkeeper" | "fairHelper";
+export type SignInRole = AdminRole | "bookkeeper" | "fairHelper" | DeskRole;
+
+/** The team desk role on a verified pass (front desk or service provider), else null. Never a support visit. */
+export function deskRoleOf(emailVerified: boolean, email: string | null | undefined, claims: Record<string, unknown> = {}): DeskRole | null {
+  if (!emailVerified || !email || supportOf(claims) || isShopOwner(email)) return null;
+  return DESK_ROLES.includes(claims.role as DeskRole) ? (claims.role as DeskRole) : null;
+}
 
 /** True for a verified pass carrying the Team's bookkeeper role (functions/roles.js booksReader). */
 export function isBookkeeperPass(emailVerified: boolean, claims: Record<string, unknown> = {}): boolean {
@@ -28,7 +38,7 @@ export function isFairHelperPass(emailVerified: boolean, email: string | null | 
 
 export function signInRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): SignInRole | null {
   return adminRoleOf(email, emailVerified, claims)
-    ?? (isBookkeeperPass(emailVerified, claims) ? "bookkeeper" : isFairHelperPass(emailVerified, email, claims) ? "fairHelper" : null);
+    ?? (isBookkeeperPass(emailVerified, claims) ? "bookkeeper" : isFairHelperPass(emailVerified, email, claims) ? "fairHelper" : deskRoleOf(emailVerified, email, claims));
 }
 
 export function adminRoleOf(email: string | null | undefined, emailVerified: boolean, claims: Record<string, unknown> = {}): AdminRole | null {

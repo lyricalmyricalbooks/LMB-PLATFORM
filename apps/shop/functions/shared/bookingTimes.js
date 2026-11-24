@@ -106,6 +106,7 @@ exports.pickupTimeProblem = pickupTimeProblem;
 exports.cleanCheckInCode = cleanCheckInCode;
 exports.checkInCodeFrom = checkInCodeFrom;
 const bookingMessages_1 = require("./bookingMessages");
+const timeClock_1 = require("./timeClock");
 /** How long a request waits for the owner's answer before its time is let go (plan 4, 2.5). */
 exports.APPROVAL_HOURS = 48;
 /** When a request made at `createdMs` for a visit at `startMs` must be answered by: APPROVAL_HOURS later, or the start. */
@@ -1172,6 +1173,7 @@ function cleanStaff(raw, shopHours = exports.DEFAULT_BOOKING_SETTINGS.hours) {
             email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
             rates: cleanRates(p.rates),
             ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
+            ...((0, timeClock_1.hourlyOf)(p.hourlyMinor) ? { hourlyMinor: (0, timeClock_1.hourlyOf)(p.hourlyMinor) } : {}),
             ...((0, exports.servicePhoto)(p.photo) ? { photo: (0, exports.servicePhoto)(p.photo) } : {}),
             ...((0, exports.personBio)(p.bio) ? { bio: (0, exports.personBio)(p.bio) } : {}),
         });

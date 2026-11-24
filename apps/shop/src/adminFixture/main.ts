@@ -22,6 +22,8 @@ import { copiesIO, readManifest, snapshotOf } from "../app/admin/stockroom/stock
 import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/admin/stockroom/receiptInboxApi";
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
 import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
+import { teamDeskData, type DeskClock } from "../app/admin/teamDeskApi";
+import { cleanShift, clockState, clockStep, forgotten, shiftMinutes, type ClockStep, type Shift } from "../shared/timeClock";
 import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type BookingService, type BookingSettings } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
 import { waysData } from "../app/admin/waysApi";
@@ -525,7 +527,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     ...(CLASSES ? [service("wheel", "Four-week wheel course", 120, 18000, 5, { places: 6, location: "Studio", courseDates: COURSE_DAYS.map((d) => `${d}T10:00`) })] : []),
   ];
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
-  const TEAM = new URLSearchParams(window.location.search).get("team") === "1";
+  const TEAM = new URLSearchParams(window.location.search).get("team") === "1" || new URLSearchParams(window.location.search).has("desk");
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on", textReminders: mode === "on", textReplies: mode === "on",
     // Emails and texts to clients (plan 4, 3.5): the owner changed the confirmation's words.
     ...(mode === "on" ? { awayReply: true, awayWords: "Thanks for writing! We're at the print fair this weekend and back at the studio soon." } : {}),
@@ -544,7 +546,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       rooms: [{ id: "printroom", name: "Print room", units: 2 }, { id: "chair1", name: "Chair by the window" }],
       staff: [
         { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "ana@example.com", commissionPercent: 40, photo: samplePhoto("#f4d9c6", "#c25d3b"), bio: "Ten years at the press. Ask her about paper." },
-        { id: "ben", name: "Ben Example", active: true, serviceIds: ["riso", "workshop"], ownHours: true, hours: [[], [{ start: "12:00", end: "18:00" }], [{ start: "12:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }], [], []], daysOff: [], email: "" },
+        { id: "ben", name: "Ben Example", active: true, hourlyMinor: 2250, serviceIds: ["riso", "workshop"], ownHours: true, hours: [[], [{ start: "12:00", end: "18:00" }], [{ start: "12:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }], [], []], daysOff: [], email: "" },
         { id: "cy", name: "Cy Example", active: false, serviceIds: ["review"], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
       ],
       // Blocked time (plan 4, 1.3): a weekly team lunch, and one afternoon Ana is out.
@@ -676,6 +678,14 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     return () => void watchers.delete(send);
   };
   bookingsData.range = async (from, to) => [...rows, ...history].filter((b) => b.start >= from && b.start < to);
+  // Shifts on the clock (plan 4, 4.2): Ben's month so far, Sam on the front desk, and one clock-out Ana forgot.
+  const shiftAt = (days: number, hour: number, minute = 0) => at(-days, hour, minute);
+  let shiftRows: (Shift & { id: string })[] = TEAM ? [
+    ...[1, 2, 4, 7, 8].map((d, i) => ({ id: `sb${i}`, email: "ben@example.com", name: "Ben Example", staffId: "ben", day: dayOf(Date.parse(shiftAt(d, 12)), shopTimeZone()), in: shiftAt(d, 10, 2), out: shiftAt(d, 18, 5), breaks: [{ start: shiftAt(d, 13), end: shiftAt(d, 13, 30) }], by: "self" as const })),
+    ...[1, 3].map((d, i) => ({ id: `ss${i}`, email: "sam@example.com", name: "Sam Example", day: dayOf(Date.parse(shiftAt(d, 12)), shopTimeZone()), in: shiftAt(d, 9), out: shiftAt(d, 13), breaks: [], by: "self" as const })),
+    { id: "sa0", email: "ana@example.com", name: "Ana Example", staffId: "ana", day: dayOf(Date.parse(shiftAt(2, 12)), shopTimeZone()), in: shiftAt(2, 9, 55), out: null, breaks: [], by: "self" as const },
+  ] : [];
+  const shiftOut = (x: Shift & { id: string }) => ({ ...x, minutes: shiftMinutes(x, Date.now()), forgotten: forgotten(x, Date.now()) });
   bookingsData.admin = async (op, body) => {
     const id = String(body.id ?? "");
     if (op === "saveService") { const s = body.service as BookingService; services = [...services.filter((x) => x.id !== s.id), { ...s, id: s.id || `svc-${services.length + 1}` }]; }
@@ -691,6 +701,16 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "removeBlock") { settings = { ...settings, blocks: (settings.blocks || []).filter((b) => b.id !== id) }; return { ok: true, blocks: settings.blocks }; }
     if (op === "accept") rows = rows.map((b) => (b.id === id ? { ...b, status: "confirmed", answerBy: null } : b));
     if (op === "decline") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", declined: true, answerBy: null } : b));
+    // Hours worked (plan 4, 4.2): this month's shifts, with one forgotten clock-out.
+    if (op === "shifts") return { shifts: shiftRows.filter((x) => (x.day >= String(body.from) && x.day <= String(body.to)) || !x.out).map(shiftOut) };
+    if (op === "saveShift") {
+      const made = cleanShift({ ...(body.shift as object), by: "owner" });
+      if ("error" in made) throw new Error(made.error);
+      const sid = String((body.shift as { id?: string }).id || `s${Date.now().toString(36)}`);
+      shiftRows = [...shiftRows.filter((x) => x.id !== sid), { ...made.shift, id: sid }];
+      return { ok: true };
+    }
+    if (op === "removeShift") { shiftRows = shiftRows.filter((x) => x.id !== id); return { ok: true }; }
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", ...(b.pack && body.packBack !== false ? { pack: { ...b.pack, returned: true } } : {}) } : b));
     if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
     if (op === "packs") return { packs: packRows };
@@ -789,6 +809,34 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     }
     changed();
     return { ok: true };
+  };
+  // The team desk (?desk=frontDesk|provider, plan 4, 4.1): the same sample day, trimmed the way the server's
+  // handleDesk trims it. Sam is the front desk; as a provider the page signs in as Ben and sees only his bookings.
+  const deskRole = new URLSearchParams(window.location.search).get("desk") === "provider" ? "provider" : "frontDesk";
+  teamDeskData.day = async (day) => {
+    const staff = (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name }));
+    const me = deskRole === "provider" ? { id: "ben", name: "Ben Example" } : null;
+    const zone = shopTimeZone();
+    const bookings = rows.filter((b) => dayOf(Date.parse(b.start), zone) === day && b.status !== "held")
+      .filter((b) => !me || b.staffId === me.id)
+      .sort((a, b) => a.start.localeCompare(b.start));
+    return { role: deskRole, day, days: 60, zone, me, staff,
+      services: deskRole === "provider" ? [] : services.filter((s) => s.active !== false).map((s) => ({ id: s.id, name: s.name, minutes: s.minutes, places: s.places || 1 })),
+      bookings };
+  };
+  // The desk person's own clock: Sam is on a break, Ben is working.
+  let deskShift: Shift | null = deskRole === "provider"
+    ? { email: "ben@example.com", name: "Ben Example", staffId: "ben", day: dayOf(Date.now(), shopTimeZone()), in: new Date(Date.now() - 200 * 60_000).toISOString(), out: null, breaks: [] }
+    : { email: "sam@example.com", name: "Sam Example", day: dayOf(Date.now(), shopTimeZone()), in: new Date(Date.now() - 140 * 60_000).toISOString(), out: null, breaks: [{ start: new Date(Date.now() - 12 * 60_000).toISOString(), end: null }] };
+  const deskClock = () => ({ ...clockState(deskShift), minutes: deskShift ? shiftMinutes(deskShift, Date.now()) : 0 }) as DeskClock;
+  const deskDay = teamDeskData.day;
+  teamDeskData.day = async (day) => ({ ...(await deskDay(day)), clock: deskClock() });
+  teamDeskData.act = async (op, body) => {
+    if (op !== "clock") return bookingsData.admin(op as never, body);
+    const next = clockStep(deskShift, body.step as ClockStep, new Date().toISOString(), { email: "sam@example.com", name: "Sam Example", day: dayOf(Date.now(), shopTimeZone()) });
+    if ("error" in next) throw new Error(next.error);
+    deskShift = next.shift.out ? null : next.shift;
+    return { ok: true, clock: deskClock() };
   };
 }
 
@@ -1880,6 +1928,18 @@ if (new URLSearchParams(location.search).get("accountant") === "1") {
   const { BookkeeperDesk } = await import("../app/admin/BookkeeperDesk");
   await import("../styles/index.css");
   createRoot(document.getElementById("root")!).render(createElement(BookkeeperDesk, { email: "ben.example@example.com", appearance: "light" }));
+  helperShown = true;
+}
+
+// The team desk (?desk=frontDesk or ?desk=provider): what a Team member with the Front desk or Service provider role
+// sees instead of the admin (plan 4, 4.1). The sample day comes from the Bookings block above.
+if (new URLSearchParams(location.search).has("desk")) {
+  const role = new URLSearchParams(location.search).get("desk") === "provider" ? "provider" : "frontDesk";
+  const { createElement } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const { TeamDesk } = await import("../app/admin/TeamDesk");
+  await import("../styles/index.css");
+  createRoot(document.getElementById("root")!).render(createElement(TeamDesk, { email: role === "provider" ? "ben@example.com" : "sam@example.com", role, appearance: "light" }));
   helperShown = true;
 }
 
