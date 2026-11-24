@@ -658,6 +658,10 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     id: id.repeat(40).slice(0, 40), last4: name.slice(0, 2).toUpperCase() + "7Q", serviceId: "riso", serviceName: "Risograph printing session", name, email: `${name.split(" ")[0].toLowerCase()}@example.com`,
     visits: 5, left, status: "active", priceMinor: 18000, currency: "CAD", expiresOn: dayAhead(300), paidAt: at(-20, 10), refundMinor: 0, uses: [], ...extra,
   });
+  // Send bookings to other apps (plan 4, 5.8): one address that works.
+  let fixtureHooks: Array<Record<string, unknown>> = [
+    { id: "h1", url: "https://hooks.example.com/catch/48213/abcdef", secret: "whsec_sample-key-for-the-fixture", events: ["booking.created", "booking.moved", "booking.cancelled"], on: true, paused: false, lastAt: "2026-11-24T13:20:00.000Z", lastStatus: 200, problem: "" },
+  ];
   // Other calendars (plan 4, 5.7): one Outlook calendar for the whole shop and one Apple calendar that stopped answering.
   let fixtureFeeds: Array<Record<string, unknown>> = [
     { id: "f1", kind: "outlook", name: "Work calendar", who: "", ok: true, problem: "", readAt: "2026-11-24T14:45:00.000Z", count: 12, addedAt: "2026-11-20T15:00:00.000Z" },
@@ -789,6 +793,14 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "promoAudience") return { available: !textsSoon, price: "1.6¢", count: body.group === "recent" ? 9 : body.group === "service" ? 4 : 14, open: true, lastAt: fixturePromos[0]?.at || null, nextAt: null };
     if (op === "promoSend") { fixturePromos.unshift({ id: `p${fixturePromos.length + 1}`, text: String(body.text || ""), group: String(body.group || "all"), serviceId: String(body.serviceId || ""), at: new Date().toISOString(), status: "sent", people: 14, sent: 13, failed: 0, stopped: 1 }); return { sent: 13, failed: 0, stopped: 1 }; }
     if (op === "promoHistory") return { promos: fixturePromos };
+    if (op === "bookingHooks") {
+      const id = String(body.id || "");
+      if (body.step === "add") fixtureHooks = [...fixtureHooks, { id: `h${fixtureHooks.length + 1}`, url: String(body.url || ""), secret: "whsec_sample", events: body.events || [], on: true, paused: false, lastAt: null, lastStatus: null, problem: "" }];
+      if (body.step === "remove") fixtureHooks = fixtureHooks.filter((h) => h.id !== id);
+      if (body.step === "switch") fixtureHooks = fixtureHooks.map((h) => (h.id === id ? { ...h, on: body.on === true } : h));
+      if (body.step === "test") fixtureHooks = fixtureHooks.map((h) => (h.id === id ? { ...h, lastAt: new Date().toISOString(), lastStatus: 200, problem: "" } : h));
+      return { hooks: fixtureHooks, ok: true, problem: "" };
+    }
     if (op === "otherCalendars") {
       if (body.step === "add") {
         const url = String(body.url || "");

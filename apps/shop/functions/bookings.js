@@ -77,6 +77,7 @@ const {
   cleanBirthday, birthdaysOn, visitHappened, WELCOME_AFTER_HOURS, KEEP_IN_TOUCH_WINDOW_DAYS,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { hooksFor } = require("./bookingHooks");
 const { cleanFeedUrl, feedHostAllowed, busyFromIcs, looksLikeCalendar, MAX_FEEDS, FEED_DAYS } = require("./shared/calendarFeeds");
 const { cleanPromo, cleanGroup, promoBody, promoHours, phoneKey, RECENT_DAYS, MAX_PROMO_TEXTS, PROMO_GAP_HOURS, PROMO_FROM_HOUR, PROMO_UNTIL_HOUR } = require("./shared/promoTexts");
 const { cleanLoyalty, loyaltyEarns, visitPoints, orderPoints, rewardsDue, pointsToNext, rewardCode, cleanAdjust, LOYALTY_WINDOW_DAYS } = require("./shared/loyalty");
@@ -414,6 +415,8 @@ function bookingActions({
   findDiscount = null,
   // Outlook, Apple and other calendars (plan 4, 5.7): (url) → { ok, text } | { ok: false, status }; tests pass a fake.
   fetchFeed = readFeed,
+  // Send bookings to other apps (plan 4, 5.8): the post and the name lookup; tests pass fakes. None: the real ones.
+  fetchHook = undefined, lookupHost = undefined,
   // Sales tax on services (index.js): async () → (amountMinor) → { taxMinor, taxLines } at the shop's rate for where it
   // is (Settings › Taxes matched to Settings › General › Location), or null when the shop collects none. None: no tax.
   shopTax = null,
@@ -3017,6 +3020,11 @@ function bookingActions({
         }
         return fail(res, 400, "Unknown step.");
       }
+      if (op === "bookingHooks") {
+        // Send bookings to other apps (plan 4, 5.8): owner only, since the secrets sign what goes out.
+        const out = await hooks.ownerStep(req.body, { shop: shopName() });
+        return out.problem ? fail(res, out.status, out.problem) : res.status(out.status).json(out.json);
+      }
       if (op === "teamCalendar") {
         // A person's own Google Calendar (Services plan 2, B6). step "status": who is linked (and busy times read again
         // when a minute has passed); "link": a one-use link for them, emailed when `send` and they have an email;
@@ -4155,6 +4163,8 @@ function bookingActions({
   // `bookingCalendars/main` (server only, no rule): `feeds` [{ id, url, kind, name, who, addedAt, readAt, ok, problem,
   // count }] and `spans` { feedId: [{ s, e }] }, what was last written into the day records. Rules: shared/calendarFeeds.ts.
   const calendarsDoc = () => db.collection("bookingCalendars").doc("main");
+  // Send bookings to other apps (plan 4, 5.8; bookingHooks.js).
+  const hooks = hooksFor({ db, now, fetchImpl: fetchHook, lookup: lookupHost });
 
   /** A calendar's problem in plain words, from what reading it gave. */
   function feedProblem(got) {
@@ -5160,7 +5170,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepLoyalty, sweepMinimum, sweepTeamCalendars, sweepOtherCalendars, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepLoyalty, sweepMinimum, sweepTeamCalendars, sweepOtherCalendars, bookingChanged: (id, before, after) => hooks.bookingChanged(id, before, after, shopName()), sweepBookingHooks: () => hooks.sweepDeliveries(), featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
