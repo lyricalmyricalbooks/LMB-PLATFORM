@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { firestoreClient } from "./firestore.js";
-import { inventoryLinkClient, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "./shop.js";
+import { inventoryLinkClient, pageAssets, registryFiles, shopDataClient, siteCheckClient, stockroomClient } from "./shop.js";
 import { firestoreAccounts, firestoreBreaches, firestoreDevices, firestoreRecoveries, firestoreRepairs, firestoreSentLog, firestoreSupport } from "./stores.js";
 import { scriptedFetch, token } from "./fake-fetch.js";
 
@@ -112,6 +112,16 @@ test("the site check reports the status, an empty page and no answer", async () 
   assert.deepEqual(await check.get("https://x.example"), { status: 200, problems: ["the page is empty"] });
   assert.deepEqual(await check.get("https://x.example"), { status: 500, problems: [] });
   assert.deepEqual(await check.get("https://x.example"), { status: 0, problems: ["no answer (ECONNREFUSED)"] });
+});
+
+test("the site check fetches the page's look files and reports one that is gone", async () => {
+  const page = '<html><script type="module" crossorigin src="/assets/index-AbC123.js"></script><link rel="stylesheet" crossorigin href="/assets/index-Xy9.css"></html>';
+  assert.deepEqual(pageAssets(page, "https://x.example/"), ["https://x.example/assets/index-AbC123.js", "https://x.example/assets/index-Xy9.css"]);
+  const files = { "https://x.example/": [200, "text/html", page], "https://x.example/assets/index-AbC123.js": [200, "text/javascript", "x"], "https://x.example/assets/index-Xy9.css": [200, "text/html", "<html>"] };
+  const fetch = async (url) => { const [status, type, text] = files[url]; return { status, headers: new Map([["content-type", type]]), text: async () => text }; };
+  assert.deepEqual(await siteCheckClient({ fetch }).get("https://x.example/"), { status: 200, problems: ["its look file /assets/index-Xy9.css is missing (200, a page instead)"] });
+  files["https://x.example/assets/index-Xy9.css"] = [200, "text/css", "a{}"];
+  assert.deepEqual(await siteCheckClient({ fetch }).get("https://x.example/"), { status: 200, problems: [] });
 });
 
 test("the email sent log and the payment account record keep their fakes' shape", async () => {

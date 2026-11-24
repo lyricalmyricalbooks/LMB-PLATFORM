@@ -115,7 +115,18 @@ export function inventoryLinkClient({ fetch, functionsBase, idToken, functionUrl
   };
 }
 
-/** A page answers: its status, and problems such as a page that says it is broken. */
+/**
+ * The app's own script and look files a page names (`/assets/…js` and `/assets/…css`), at most four, as full addresses.
+ * A page whose files are gone shows as plain unstyled text (24 November 2026: a shop's old drawn pages named files an
+ * update had removed), so the site check fetches them too.
+ */
+export function pageAssets(html, pageUrl) {
+  const found = new Set();
+  for (const m of String(html ?? "").matchAll(/<(?:script|link)\b[^>]*?\b(?:src|href)="([^"]*\/assets\/[^"]+\.(?:js|css))"/g)) found.add(m[1]);
+  return [...found].slice(0, 4).map((path) => new URL(path, pageUrl).href);
+}
+
+/** A page answers: its status, and problems such as a page that says it is broken or whose look files are missing. */
 export function siteCheckClient({ fetch }) {
   return {
     async get(url) {
@@ -124,6 +135,14 @@ export function siteCheckClient({ fetch }) {
         const text = await response.text();
         const problems = [];
         if (response.status === 200 && !text.trim()) problems.push("the page is empty");
+        if (response.status === 200) {
+          for (const asset of pageAssets(text, url)) {
+            // Hosting answers a missing file with the app's page (200, text/html), so the type matters as much as the status.
+            const file = await fetch(asset, { method: "GET", redirect: "follow" });
+            const type = String(file.headers?.get?.("content-type") ?? "");
+            if (file.status !== 200 || /text\/html/i.test(type)) problems.push(`its look file ${new URL(asset).pathname} is missing (${file.status}${/text\/html/i.test(type) ? ", a page instead" : ""})`);
+          }
+        }
         return { status: response.status, problems };
       } catch (error) {
         return { status: 0, problems: [`no answer (${error.message})`] };
