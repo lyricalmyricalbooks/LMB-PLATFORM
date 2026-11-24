@@ -1,6 +1,6 @@
 # LMB Platform
 
-The platform behind the press shop and stockroom subscription. It creates and runs one Firebase copy per press.
+The platform behind Colophon, the shop and stockroom subscription. Every shop lives in one shared Firebase project, each in its own folder (`docs/shared-system.md`).
 
 The shop and the stockroom used by the platform are copies in `apps/`:
 

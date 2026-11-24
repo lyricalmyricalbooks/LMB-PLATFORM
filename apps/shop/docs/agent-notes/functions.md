@@ -1848,3 +1848,9 @@ the one `open` shift by email (equality filters only, no index). Owner ops `shif
 ## Live carrier choices (moved from the root guide)
 
 Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.
+
+**Shifts and time off (23 November 2026, Bookings plan 4 step 4.3).** `rota/{id}` and `timeOff/{id}` (server only),
+rules in `shared/teamRota.js`. `rotaPeople` = Team & rooms entries with an email plus `members` with role frontDesk or
+provider. `answerTimeOff` runs in one transaction with the settings: approved whole days join the person's `daysOff`,
+part of a day becomes a `Time off` block (`applied`), someone not on Team & rooms changes nothing. `clashesFor` counts
+their confirmed or waiting bookings then. Emails: `tellOwnerTimeOff` (new ask), `tellTimeOff` (the answer).

@@ -137,7 +137,7 @@ async function rangeFromShop(fromIso: string, toIso: string): Promise<Booking[]>
 }
 export const readBookingsBetween = (fromIso: string, toIso: string) => bookingsData.range(fromIso, toIso);
 
-export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "addBlock" | "removeBlock" | "times" | "create" | "cancel" | "accept" | "decline" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus" | "runCheck" | "clientForm" | "teamCalendar" | "importServices" | "shifts" | "saveShift" | "removeShift";
+export type AdminOp = "hint" | "saveService" | "deleteService" | "saveSettings" | "setLive" | "addBlock" | "removeBlock" | "times" | "create" | "cancel" | "accept" | "decline" | "move" | "noShow" | "paidAtShop" | "chargeFee" | "payLink" | "calendarFeed" | "waitlist" | "removeWaiting" | "packs" | "packClose" | "walkIn" | "readers" | "readerAdd" | "readerRemove" | "readerCharge" | "readerCheck" | "readerCancel" | "readerTest" | "checkIn" | "textStatus" | "runCheck" | "clientForm" | "teamCalendar" | "importServices" | "shifts" | "saveShift" | "removeShift" | "rota" | "saveRota" | "removeRota" | "copyRota" | "timeOff" | "answerTimeOff";
 
 /** A card reader that connects over the internet (Take a payment). */
 export type CardReader = { id: string; label: string; online: boolean | null; device?: string };
