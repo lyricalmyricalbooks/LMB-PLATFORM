@@ -169,6 +169,20 @@ export function sampleSetsFor(sells?: string | null): SampleSet[] {
   return [first, ...fits.filter((id) => id !== first)].map((id) => SAMPLE_SETS[id]);
 }
 
+/**
+ * The photos a starter fills its empty picture spots with, in order: the four band photos (opening, story, about,
+ * banner), then the set's product or service photos. Starter sections take them in turn (presetContent.ts).
+ */
+export function samplePhotosFor(sells?: string | null, base?: string): { url: string; alt: string }[] {
+  const set = SAMPLE_SETS[sampleSetFor(sells)];
+  const roles: SamplePhotoRole[] = ["opening", "story", "about", "banner"];
+  const items = [...set.products, ...set.services];
+  return [
+    ...roles.map((role) => ({ url: samplePhotoUrl(set.id, set.photos[role].photo, base), alt: set.photos[role].alt })),
+    ...items.map((item) => ({ url: samplePhotoUrl(set.id, item.photo, base), alt: item.alt })),
+  ];
+}
+
 /** Display price for a preview card, in the shop's currency (example prices only). */
 export function samplePrice(amount: number, currency = "CAD"): string {
   const prefix = currency === "USD" ? "US$" : currency === "CAD" ? "CA$" : `${currency} `;

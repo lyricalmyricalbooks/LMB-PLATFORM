@@ -8,7 +8,7 @@
 // Studio (designFirst/beforeShop.ts). The shop is new, so there is nothing of the owner's to replace. A later switch in
 // Studio › Themes still changes only the look, then offers the layouts as a separate, undoable step (StudioEditor
 // `applyLibraryTheme`), because by then the sections are the owner's own work.
-import { applyPresetSections, presetPagesToAdd, presetSections, presetStarterPages } from "./presetContent";
+import { applyPresetSections, presetPagesToAdd, presetSections, presetStarterPages, type StarterPhotos } from "./presetContent";
 import { applyLook } from "./themeSwitch";
 
 /** Section metadata lookup (ThemeEditorExtensions `getSectionMeta`), passed in so this file stays pure. */
@@ -19,8 +19,8 @@ export type SectionMetaLookup = (type: string) => any;
  * words (`w`, shared/shopSells `wordsFor`). Pages without a section list in the starter keep theirs. Pure: the same
  * design and starter always give the same result, so applying a starter twice is the same as once.
  */
-export function applyStarter(design: any, theme: any, meta: SectionMetaLookup, w: (text: string) => string = (t) => t): any {
-  return applyPresetSections(applyLook(design || {}, theme), theme, meta, w);
+export function applyStarter(design: any, theme: any, meta: SectionMetaLookup, w: (text: string) => string = (t) => t, samples?: StarterPhotos): any {
+  return applyPresetSections(applyLook(design || {}, theme), theme, meta, w, samples);
 }
 
 /** What a starter sets up, for the picker card and the control room: page names and starter page titles. */

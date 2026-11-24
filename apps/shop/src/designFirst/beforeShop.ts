@@ -7,6 +7,7 @@ import { applyStarter } from "../app/admin/studio/starterDesign";
 import { getSectionMeta } from "../app/admin/ThemeEditorExtensions";
 import { wordsFor } from "../shared/shopSells";
 import { libraryLook, sampleProducts } from "../app/admin/lookGallery";
+import { starterPhotos } from "../app/admin/studio/starterPhotos";
 import { starterSampleBooks } from "../app/admin/studio/presetContent";
 import { withStarterWords } from "../app/admin/sells";
 import { ThemeConflictError, type ThemeBackend } from "../app/admin/themeStore";
@@ -30,7 +31,7 @@ export function startingDesign(press: Pick<SetupPress, "design" | "look" | "pres
   if (press.design && typeof press.design === "object") return clone(press.design);
   const theme = press.look ? libraryLook(press.look) : null;
   const words = wordsFor(press.sells || null);
-  const design = withStarterWords(theme ? applyStarter(clone(base), theme, getSectionMeta, words) : clone(base), press.sells || null);
+  const design = withStarterWords(theme ? applyStarter(clone(base), theme, getSectionMeta, words, starterPhotos(press.sells || null)) : clone(base), press.sells || null);
   const name = (press.pressName || "").trim();
   return name && !design.copy?.siteName ? { ...design, copy: { ...(design.copy || {}), siteName: name } } : design;
 }
