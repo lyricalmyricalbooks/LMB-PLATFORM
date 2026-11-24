@@ -25,10 +25,23 @@ const FOOT = "<!--colophon-foot-->";
 const pillButton = ([label, url]) =>
   `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 8px 6px 0;display:inline-table;border-collapse:separate"><tr><td bgcolor="${BENTO.ink}" style="background:${BENTO.ink};border-radius:999px"><a href="${escapeHtml(safeLink(url))}" style="display:inline-block;padding:13px 24px;border-radius:999px;background:${BENTO.ink};color:#ffffff;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;text-decoration:none">${escapeHtml(label)}</a></td></tr></table>`;
 
-/** Builds the three parts from paragraphs of plain text and [label, url] buttons. */
-export function layout({ subject, greeting, paragraphs, buttons = [], footer }) {
+/** A sign-off's "reply to this email" sentence, in English or French. */
+const ASKS_FOR_REPLY = /reply to this email|répondez à ce courriel/i;
+
+/**
+ * Builds the three parts from paragraphs of plain text and [label, url] buttons. `code` (a sign-in code already said in
+ * the words) is shown again large in the HTML, so it can be read and copied at a glance. When the words already ask for
+ * a reply, the footer keeps only its first sentence, so the email doesn't say "reply to this email" twice.
+ */
+export function layout({ subject, greeting, paragraphs, buttons = [], footer, code }) {
+  if (footer && ASKS_FOR_REPLY.test(footer) && paragraphs.some((p) => ASKS_FOR_REPLY.test(p))) {
+    footer = footer.slice(0, footer.indexOf(". ") + 1) || footer;
+  }
   const text = [greeting, ...paragraphs, ...buttons.map(([label, url]) => `${label}: ${safeLink(url)}`), footer].filter(Boolean).join("\n\n");
   const para = (p) => `<p style="margin:0 0 14px;font-family:${FONT};font-size:16px;line-height:1.55;color:${BENTO.ink}">${escapeHtml(p)}</p>`;
+  const codeBox = code
+    ? `<div style="margin:6px 0 20px;padding:18px 20px;border-radius:16px;background:${BENTO.page};font-family:${MONO};font-size:32px;line-height:1.2;font-weight:500;letter-spacing:0.18em;color:${BENTO.ink};text-align:center">${escapeHtml(code)}</div>`
+    : "";
   const html = [
     `<div style="background:${BENTO.page};margin:0;padding:0">`,
     // What the inbox shows beside the subject: the first line of the words, never the greeting.
@@ -40,7 +53,7 @@ export function layout({ subject, greeting, paragraphs, buttons = [], footer }) 
     `<tr><td style="height:10px;line-height:10px;font-size:0">&nbsp;</td></tr>`,
     `<tr><td bgcolor="${BENTO.tile}" style="background:${BENTO.tile};border-radius:24px;padding:28px 28px 22px">`,
     greeting ? para(greeting) : "",
-    ...paragraphs.map(para),
+    ...paragraphs.map((p, i) => (i === 0 ? para(p) + codeBox : para(p))),
     buttons.length ? `<div style="padding:10px 0 8px">${buttons.map(pillButton).join("")}</div>` : "",
     footer ? `<p style="margin:16px 0 0;padding-top:14px;border-top:1px solid ${BENTO.line};font-family:${FONT};font-size:13px;line-height:1.5;color:${BENTO.muted}">${escapeHtml(footer)}</p>` : "",
     `</td></tr>`,
@@ -131,6 +144,7 @@ export const TEMPLATES = {
       greeting: "Hello,",
       paragraphs: [`Your code to sign in to ${settings.platformName} is ${code}. Type it on the page you came from. It works once, for 10 minutes.`, "If you didn't ask for it, you can ignore this email. Nobody can sign in without the code."],
       footer: signOff(settings),
+      code,
     });
   },
 
