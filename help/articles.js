@@ -91,6 +91,7 @@ export const ARTICLES = Object.freeze([
       "To change what booking emails and texts say, open Hours & rules and find Emails and texts to clients. Write in English and French, and use {client} or {when} to fill in details.",
       "When a client asks for a time in Messages, open their message and press Make a booking. Their name, email, phone and the service they named are filled in for you.",
       "To answer messages while you're closed, open Hours & rules and turn on Away reply. People who write through your contact form then hear back at once, with the time you open again.",
+      "To take your past visits away as a spreadsheet, open the calendar's List, choose Past and press Spreadsheet. Pick the days, and keep only the no-shows if you like.",
     ],
   },
   {
