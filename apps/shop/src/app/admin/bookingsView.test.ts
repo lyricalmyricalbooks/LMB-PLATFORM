@@ -603,3 +603,36 @@ describe("team performance (plan 4, 5.2)", () => {
     expect(spanDays("quarter", "2026-01-15")).toEqual({ from: "2025-11-01", to: "2026-01-16" });
   });
 });
+
+describe("the no-show report (plan 4, 5.3)", () => {
+  const Z = "America/Toronto";
+  const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00-05:00`).toISOString();
+  const bk = (id: string, start: string, email: string, extra: Partial<Booking> = {}): Booking => ({
+    id, serviceId: "s", serviceName: "Cut", minutes: 60, start, end: new Date(Date.parse(start) + 3_600_000).toISOString(),
+    customer: { name: email.split("@")[0], email, phone: "416-555-0100" }, status: "confirmed", payment: "atShop", priceMinor: 6000, currency: "CAD", paid: false, ...extra,
+  });
+  it("counts missed visits, what they cost and what was kept, with repeat clients first", async () => {
+    const { noShowReport, noShowRows } = await import("./bookingsView");
+    const rows = [
+      bk("ok", at("2026-11-02", "10:00"), "ann@example.com", { paid: true }),
+      bk("m1", at("2026-11-03", "10:00"), "max@example.com", { noShow: true }),
+      bk("m2", at("2026-11-10", "10:00"), "Max@Example.com", { noShow: true, fee: { amountMinor: 2500, at: "2026-11-10T20:00:00Z" } }),
+      bk("d1", at("2026-11-06", "10:00"), "dee@example.com", { noShow: true, payment: "deposit", depositMinor: 2000, depositPaid: true }),
+      bk("gone", at("2026-11-07", "10:00"), "zed@example.com", { status: "cancelled", noShow: true }),
+      bk("future", at("2026-11-30", "10:00"), "max@example.com", { noShow: true }),
+      bk("october", at("2026-10-20", "10:00"), "max@example.com", { noShow: true }),
+    ];
+    const r = noShowReport(rows, Z, "2026-11-01", "2026-11-24", Date.parse(at("2026-11-23", "12:00")));
+    expect([r.due, r.count, r.percent, r.repeat]).toEqual([4, 3, 75, 1]);
+    expect(r.keptMinor).toBe(2500 + 2000);
+    expect(r.lostMinor).toBe(6000 + 3500 + 4000);
+    expect(r.clients.map((c) => [c.name, c.count, c.lastDay, c.keptMinor])).toEqual([["Max", 2, "2026-11-10", 2500], ["dee", 1, "2026-11-06", 2000]]);
+    expect(r.weekdays.map((w) => w.count)).toEqual([0, 2, 0, 0, 1, 0, 0]);
+    expect(r.weekdays[0].day).toBe("Monday");
+    expect(noShowRows(r)[1]).toEqual(["Max", "max@example.com", "416-555-0100", "2", "2026-11-10", "25.00"]);
+  });
+  it("an empty stretch has no rate", async () => {
+    const { noShowReport } = await import("./bookingsView");
+    expect(noShowReport([], Z, "2026-11-01", "2026-11-24", Date.now())).toMatchObject({ due: 0, count: 0, percent: null, clients: [] });
+  });
+});
