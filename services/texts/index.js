@@ -19,6 +19,22 @@
 // Limits: Canadian and US mobile numbers only (+1), at most MAX_BODY characters (three parts), DAILY_LIMIT texts per
 // shop a day, nothing for a paused or closed shop. One text per key: a send already in the log is not sent again.
 // Off until TEXTS=on with the Twilio keys (Julian's steps: server/README.md, "Text reminders").
+//
+// Replies by text (Bookings plan 4, 3.4, 23 November 2026). A client answers a reminder with Y (they'll be there), C
+// (cancel) or M (move). The platform has one number for every shop, so a send that wants answers passes `replyRef` (the
+// shop's own booking id) and the platform keeps, per number, which shop and booking texted it last:
+//
+//   textRoutes/{hmac(number)}   { shopId, ref, at }        never the number itself, only a keyed hash of it
+//   textReplies/{id}            { shopId, ref, word, at }  "yes" | "cancel" | "move"; gone once the shop takes it
+//
+// Twilio posts each text that comes in to POST /api/texts/inbound (server/world.js answers it before the doors, as XML), signed with the auth token (checked here). A reply
+// within REPLY_DAYS of the shop's last text is kept for that shop; any other word, or an old one, is dropped. Words
+// Twilio keeps for itself (STOP, CANCEL, HELP…) never reach us as replies. The shop's booking sweep takes its replies
+// every few minutes through the shop door:
+//
+//   texts.replies                       { replies: [{ id, ref, word, at }] }
+//   texts.repliesTaken { ids }          { ok: true }
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { serviceKeyMatches } from "../email/http.js";
 import { SignupError } from "../../signup/signup.js";
 import { partPriceText, readTextConfig, textCents } from "./config.js";
@@ -28,6 +44,23 @@ export { TEXTS_SETTING, TEXTS_SECRETS } from "./config.js";
 
 export const DAILY_LIMIT = 500;
 export const MAX_BODY = 459;
+export const REPLY_DAYS = 7;
+const REF = /^[A-Za-z0-9_-]{4,80}$/;
+
+/** What a client's reply asks for: "yes", "cancel", "move" or "" for anything else. Pure. */
+export function replyWord(text) {
+  const word = String(text ?? "").trim().toLowerCase().replace(/[.!\s]+$/u, "");
+  if (["y", "yes", "oui"].includes(word)) return "yes";
+  if (["c", "annuler"].includes(word)) return "cancel";
+  if (["m", "move", "déplacer", "deplacer"].includes(word)) return "move";
+  return "";
+}
+
+/** Twilio's request signature: base64 HMAC-SHA1 of the address and the sorted form fields, keyed by the auth token. */
+export function twilioSignature(token, url, form) {
+  const text = url + Object.keys(form).sort().map((key) => key + form[key]).join("");
+  return createHmac("sha1", token).update(text, "utf8").digest("base64");
+}
 const KIND = /^[a-z][a-z0-9-]{1,40}$/;
 const KEY = /^[A-Za-z0-9_.:-]{6,200}$/;
 
@@ -62,7 +95,7 @@ const header = (headers, name) => {
   return typeof found?.[1] === "string" ? found[1] : "";
 };
 
-export function createTexts({ env = process.env, fetch = globalThis.fetch, registry, log, twilio = null, dailyLimit = DAILY_LIMIT, now = () => new Date() } = {}) {
+export function createTexts({ env = process.env, fetch = globalThis.fetch, registry, log, replies = null, inboundUrl = "", twilio = null, dailyLimit = DAILY_LIMIT, now = () => new Date() } = {}) {
   if (!registry?.getShop || !registry?.listShops) throw new Error("Text reminders need the shop registry");
   if (!log?.get || !log?.put || !log?.countSince || !log?.listMonth) throw new Error("Text reminders need the sent log");
   const config = readTextConfig(env);
@@ -71,7 +104,10 @@ export function createTexts({ env = process.env, fetch = globalThis.fetch, regis
   const currencyOf = (row) => (String(row?.billing?.currency ?? "").toUpperCase() === "USD" ? "USD" : "CAD");
   /** Paused or closed (services/billing ACCESS), or given up on: no texts. */
   const stopped = (row) => row?.status === "abandoned" || ["paused", "closed"].includes(row?.billing?.access);
-  const status = (row) => ({ available, price: available ? partPriceText(config.partMicros[currencyOf(row)]) : "" });
+  // Replies need the stores and the address Twilio posts to; without them shops' reminders don't ask for answers.
+  const repliesOn = available && Boolean(replies && /^https:\/\//.test(inboundUrl));
+  const numberKey = (to) => createHmac("sha256", `${config.sid}:${config.token}`).update(to).digest("hex").slice(0, 40);
+  const status = (row) => ({ available, price: available ? partPriceText(config.partMicros[currencyOf(row)]) : "", replies: repliesOn && !stopped(row) });
 
   async function send(shopId, row, args) {
     if (!available) return { ok: false, retryable: false, message: "Text reminders aren't open yet." };
@@ -96,6 +132,9 @@ export function createTexts({ env = process.env, fetch = globalThis.fetch, regis
       const sent = await client.send({ to, body });
       const parts = sent.parts || textParts(body);
       await log.put(key, { ...entry, status: "sent", id: sent.id, parts, micros: parts * config.partMicros[currency] });
+      if (repliesOn && REF.test(String(args.replyRef ?? ""))) {
+        await replies.routePut(numberKey(to), { shopId, ref: args.replyRef, at: at.toISOString() }).catch(() => {});
+      }
       return { ok: true, id: sent.id, parts };
     } catch (error) {
       // A text that may have gone is logged as sent-unsure, so it is never sent twice and never billed.
@@ -116,13 +155,52 @@ export function createTexts({ env = process.env, fetch = globalThis.fetch, regis
     return out;
   }
 
+  /** A text that came in (Twilio's webhook): kept for the shop that texted the number last, when it's an answer. */
+  async function inbound(request = {}) {
+    const empty = { status: 200, xml: "<Response></Response>" };
+    if (!repliesOn) return { status: 404, body: { ok: false, message: "Not here." } };
+    const form = Object.fromEntries(new URLSearchParams(String(request.rawBody ?? "")));
+    const given = header(request.headers, "x-twilio-signature");
+    const want = twilioSignature(config.token, inboundUrl, form);
+    if (!given || given.length !== want.length || !timingSafeEqual(Buffer.from(given), Buffer.from(want))) {
+      return { status: 403, body: { ok: false, message: "Not signed." } };
+    }
+    if (form.AccountSid !== config.sid) return { status: 403, body: { ok: false, message: "Not signed." } };
+    const word = replyWord(form.Body);
+    const from = phoneE164(form.From);
+    if (!word || !from) return empty;
+    const route = await replies.routeGet(numberKey(from));
+    const at = now();
+    if (!route?.shopId || !REF.test(String(route.ref ?? "")) || at.getTime() - Date.parse(route.at) > REPLY_DAYS * 86_400_000) return empty;
+    const row = await registry.getShop(route.shopId);
+    if (!row || stopped(row)) return empty;
+    const id = String(form.MessageSid ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 64) || `r${at.getTime()}`;
+    await replies.inboxPut(id, { shopId: route.shopId, ref: route.ref, word, at: at.toISOString() });
+    return empty;
+  }
+
   const OPS = {
     "texts.status": async (_shopId, _args, row) => status(row),
     "texts.send": async (shopId, args, row) => send(shopId, row, args),
+    "texts.replies": async (shopId) => ({
+      replies: repliesOn ? (await replies.inboxList(shopId)).slice(0, 50).map(({ id, ref, word, at }) => ({ id, ref, word, at })) : [],
+    }),
+    "texts.repliesTaken": async (shopId, args) => {
+      if (!repliesOn) return { ok: true };
+      const ids = Array.isArray(args.ids) ? args.ids.filter((id) => typeof id === "string").slice(0, 50) : [];
+      for (const id of ids) {
+        const kept = await replies.inboxGet(id);
+        // A shop only ever takes its own replies.
+        if (kept?.shopId === shopId) await replies.inboxRemove(id);
+      }
+      return { ok: true };
+    },
   };
 
   return {
     available,
+    repliesOn,
+    inbound,
     monthTexts,
     cents: (currency, parts) => textCents(config, currency, parts),
     /** For the control room: a shop's texts this month and what they cost so far. */

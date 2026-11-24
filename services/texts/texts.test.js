@@ -50,14 +50,14 @@ test("parts: 160 plain characters in one, longer texts in 153s, accents and emoj
 
 test("off: shops see it as not open and nothing is sent", async () => {
   const { call, send, twilio } = await build({ env: {} });
-  assert.deepEqual(await call("fern-comb", "texts.status"), { available: false, price: "" });
+  assert.deepEqual(await call("fern-comb", "texts.status"), { available: false, price: "", replies: false });
   assert.deepEqual(await send(), { ok: false, retryable: false, message: "Text reminders aren't open yet." });
   assert.equal(twilio.sent.length, 0);
 });
 
 test("a shop's text goes through Twilio from the platform's number, once per key, logged without its words", async () => {
   const { call, send, twilio, log, texts } = await build();
-  assert.deepEqual(await call("fern-comb", "texts.status"), { available: true, price: "1.6¢" });
+  assert.deepEqual(await call("fern-comb", "texts.status"), { available: true, price: "1.6¢", replies: false });
   const first = await send();
   assert.deepEqual([first.ok, first.parts], [true, 1]);
   assert.equal(twilio.sent.length, 1);
@@ -129,4 +129,56 @@ test("the job bills last month's texts", async () => {
   assert.deepEqual(calls[0].texts, { "fern-comb": { texts: 1, parts: 2 } });
   assert.equal(calls[0].cents("CAD", 2), 3);
   assert.match(run.summary, /2026-11: 1 text from 1 shop; billed 1/);
+});
+
+test("replies: Y, C and M come back to the shop and booking that texted the number last", async () => {
+  const { fakeTextReplies } = await import("./fakes.js");
+  const { twilioSignature, replyWord, REPLY_DAYS } = await import("./index.js");
+  const registry = fakeRegistry();
+  await registry.createShop("fern-comb", { shopId: "fern-comb", status: "live", serviceKeyHash: hashServiceKey(KEY["fern-comb"]), billing: { access: "open", currency: "CAD" } });
+  await registry.createShop("jo-studio", { shopId: "jo-studio", status: "live", serviceKeyHash: hashServiceKey(KEY["jo-studio"]), billing: { access: "open", currency: "USD" } });
+  const replies = fakeTextReplies();
+  const clock = { at: "2026-11-17T16:00:00Z" };
+  const url = "https://platform.example/api/texts/inbound";
+  const texts = createTexts({ env: ENV, fetch: fakeTwilioFetch().fetch, registry, log: fakeTextLog(), replies, inboundUrl: url, now: () => new Date(clock.at) });
+  const call = (shop, op, args = {}) => texts.shopCall({ headers: { "X-Shop-Id": shop, Authorization: `Bearer ${KEY[shop]}` }, body: { op, args } });
+  const incoming = (form, signature = twilioSignature("twilio-test-token", url, form)) =>
+    texts.inbound({ headers: { "X-Twilio-Signature": signature }, rawBody: new URLSearchParams(form).toString() });
+  const text = (Body, extra = {}) => ({ AccountSid: SID, From: "+14165550199", To: "+18885550123", Body, MessageSid: `SM${Math.random().toString(16).slice(2)}`, ...extra });
+
+  assert.deepEqual(["Y", " yes! ", "Oui", "c", "M.", "cancel", "STOP", "thanks", ""].map(replyWord), ["yes", "yes", "yes", "cancel", "move", "", "", "", ""]);
+  assert.equal((await call("fern-comb", "texts.status")).replies, true);
+
+  await call("fern-comb", "texts.send", { to: "416-555-0199", body: "Reminder", idempotencyKey: "bk1-reminder", replyRef: "bk-1001" });
+  assert.equal(JSON.stringify([...replies.routes]).includes("4165550199"), false, "the route never keeps the number");
+  await call("jo-studio", "texts.send", { to: "+1 212 555 0100", body: "Reminder", idempotencyKey: "jo-reminder", replyRef: "jo-1001" });
+
+  assert.equal((await incoming(text("Y"), "bad-signature")).status, 403, "a post Twilio didn't sign is refused");
+  assert.equal((await incoming(text("Y", { AccountSid: `AC${"2".repeat(32)}` }))).status, 403, "another Twilio account is refused");
+  const answer = await incoming(text("Y"));
+  assert.deepEqual(answer, { status: 200, xml: "<Response></Response>" });
+  await incoming(text("hello, running late"));
+  await incoming(text("M", { From: "+14165550100" }), undefined);
+  const fern = (await call("fern-comb", "texts.replies")).replies;
+  assert.deepEqual(fern.map((r) => [r.ref, r.word]), [["bk-1001", "yes"]], "only answers from a number the shop texted");
+  assert.deepEqual((await call("jo-studio", "texts.replies")).replies, [], "another shop never sees them");
+
+  await call("jo-studio", "texts.repliesTaken", { ids: [fern[0].id] });
+  assert.equal((await call("fern-comb", "texts.replies")).replies.length, 1, "a shop can't take another shop's reply");
+  await call("fern-comb", "texts.repliesTaken", { ids: [fern[0].id] });
+  assert.deepEqual((await call("fern-comb", "texts.replies")).replies, []);
+
+  clock.at = new Date(Date.parse("2026-11-17T16:00:00Z") + (REPLY_DAYS + 1) * 86_400_000).toISOString();
+  await incoming(text("C"));
+  assert.deepEqual((await call("fern-comb", "texts.replies")).replies, [], "an answer long after the text is dropped");
+});
+
+test("replies stay off without the stores or the address", async () => {
+  const registry = fakeRegistry();
+  await registry.createShop("fern-comb", { shopId: "fern-comb", status: "live", serviceKeyHash: hashServiceKey(KEY["fern-comb"]), billing: { access: "open" } });
+  const texts = createTexts({ env: ENV, fetch: fakeTwilioFetch().fetch, registry, log: fakeTextLog() });
+  const call = (op, args = {}) => texts.shopCall({ headers: { "X-Shop-Id": "fern-comb", Authorization: `Bearer ${KEY["fern-comb"]}` }, body: { op, args } });
+  assert.equal((await call("texts.status")).replies, false);
+  assert.deepEqual(await call("texts.replies"), { replies: [] });
+  assert.equal((await texts.inbound({ headers: {}, rawBody: "" })).status, 404);
 });

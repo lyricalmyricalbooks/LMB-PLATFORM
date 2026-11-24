@@ -53,6 +53,21 @@ export function firestoreTextLog(firestore) {
   };
 }
 
+/** Replies by text (services/texts): textRoutes/<hash of a number> and textReplies/<Twilio's message id>. */
+export function firestoreTextReplies(firestore) {
+  return {
+    routeGet: (key) => firestore.get(`textRoutes/${key}`),
+    routePut: (key, value) => firestore.set(`textRoutes/${key}`, value),
+    inboxPut: (id, value) => firestore.set(`textReplies/${id}`, value),
+    inboxGet: (id) => firestore.get(`textReplies/${id}`),
+    async inboxList(shopId) {
+      const rows = await firestore.query("textReplies", { where: [["shopId", "==", shopId]], limit: 200 });
+      return rows.map((row) => ({ id: row.path.split("/").pop(), ...row.data })).sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    },
+    inboxRemove: (id) => firestore.remove(`textReplies/${id}`),
+  };
+}
+
 /** paymentAccounts/<shopId>: { provider, accountId, mode, createdAt }. */
 export function firestoreAccounts(firestore) {
   return {

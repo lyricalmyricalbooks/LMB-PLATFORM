@@ -2,8 +2,11 @@
 // asks the platform's texts door (LMB-PLATFORM services/texts, PLATFORM_TEXTS_URL) to send each text, proving who it is
 // with its service key, like email. The platform bills the shop for its texts at cost on its monthly bill.
 //
-//   status()                                -> { available, price }   price: one text part, "1.6¢"; cached a few minutes
-//   send({ to, body, kind, idempotencyKey }) -> { ok, id?, parts?, alreadySent?, retryable?, optedOut?, message? }
+//   status()                                -> { available, price, replies }   price: one text part, "1.6¢"; cached a few minutes;
+//                                              replies: clients can answer reminders with Y, C or M (plan 4, 3.4)
+//   send({ to, body, kind, idempotencyKey, replyRef? }) -> { ok, id?, parts?, alreadySent?, retryable?, optedOut?, message? }
+//   replies()                               -> [{ id, ref, word, at }]   answers waiting (word: yes, cancel, move); [] on any trouble
+//   repliesTaken(ids)                       -> takes them off the platform's list once handled
 //
 // A shop without the door (or one the platform hasn't opened texts to) answers `available: false`, and the admin's
 // switch says "Opening soon". `send` never throws: a text is a nice extra next to the reminder email, never in its way.
@@ -35,16 +38,21 @@ function createTextSender({ url, shopId, serviceKey, fetch = globalThis.fetch, n
 
   return {
     async status() {
-      if (!open) return { available: false, price: "" };
+      if (!open) return { available: false, price: "", replies: false };
       const id = idNow();
       const kept = cached.get(id);
       if (kept && now() - kept.at < STATUS_MS) return kept.value;
       const answer = await call("status");
-      const value = { available: answer?.available === true, price: typeof answer?.price === "string" ? answer.price : "" };
+      const value = { available: answer?.available === true, price: typeof answer?.price === "string" ? answer.price : "", replies: answer?.available === true && answer?.replies === true };
       cached.set(id, { at: now(), value });
       return value;
     },
     send: (message) => call("send", message),
+    async replies() {
+      const answer = await call("replies");
+      return Array.isArray(answer?.replies) ? answer.replies.filter((r) => r && typeof r.id === "string" && typeof r.ref === "string" && ["yes", "cancel", "move"].includes(r.word)) : [];
+    },
+    repliesTaken: (ids) => call("repliesTaken", { ids }),
   };
 }
 

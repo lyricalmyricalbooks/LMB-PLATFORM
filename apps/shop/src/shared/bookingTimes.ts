@@ -314,6 +314,8 @@ export type BookingSettings = {
    * ticked "Text me reminders" and gave a mobile number. Sent through the platform, billed to the shop at cost.
    */
   textReminders?: boolean;
+  /** Clients answer a reminder text with Y, C or M (plan 4, 3.4). Needs textReminders and the platform's replies. */
+  textReplies?: boolean;
   /**
    * Confirm requests (plan 4, 3.3): the reminder email asks the client to tap "Yes, I'll be there", and the calendar shows
    * who has and who hasn't yet. Needs the reminder email on.
@@ -569,6 +571,7 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   reviewUrl: "",
   siteReviews: false,
   textReminders: false,
+  textReplies: false,
   askToConfirm: false,
   staff: [],
   rooms: [],
@@ -1086,6 +1089,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     reviewUrl: reviewLink(s.reviewUrl),
     siteReviews: s.siteReviews === true,
     textReminders: s.textReminders === true,
+    textReplies: s.textReplies === true,
     askToConfirm: s.askToConfirm === true,
     ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
     ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),

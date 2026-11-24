@@ -21,7 +21,7 @@ describe("text sender", () => {
     const clock = { at: 0 };
     let shop = "fern-comb";
     const sender = createTextSender({ url: "https://platform.example/api/texts", shopId: () => shop, serviceKey: () => "k".repeat(40), fetch: d.fetch, now: () => clock.at });
-    expect(await sender.status()).toEqual({ available: true, price: "1.6¢" });
+    expect(await sender.status()).toEqual({ available: true, price: "1.6¢", replies: false });
     await sender.status();
     expect(d.calls).toHaveLength(1);
     expect(d.calls[0].url).toBe("https://platform.example/api/texts/shop");
@@ -40,18 +40,35 @@ describe("text sender", () => {
 
   test("no door, no key, a refusal or a dropped line never throws", async () => {
     const none = createTextSender({ url: "", shopId: "s", serviceKey: () => "k".repeat(40) });
-    expect(await none.status()).toEqual({ available: false, price: "" });
+    expect(await none.status()).toEqual({ available: false, price: "", replies: false });
     expect((await none.send({})).ok).toBe(false);
     const noKey = createTextSender({ url: "https://platform.example/api/texts", shopId: "s", serviceKey: () => "", fetch: async () => { throw new Error("no"); } });
     expect((await noKey.send({})).ok).toBe(false);
     const refused = createTextSender({ url: "https://platform.example/api/texts", shopId: "s", serviceKey: () => "k".repeat(40), fetch: door(() => ({ status: 401, body: { error: { message: "This shop can't send texts through the platform." } } })).fetch });
     expect(await refused.send({})).toEqual({ ok: false, retryable: false, message: "This shop can't send texts through the platform." });
     const dropped = createTextSender({ url: "https://platform.example/api/texts", shopId: "s", serviceKey: () => "k".repeat(40), fetch: async () => { throw new Error("socket hang up"); } });
-    expect(await dropped.status()).toEqual({ available: false, price: "" });
+    expect(await dropped.status()).toEqual({ available: false, price: "", replies: false });
   });
 
   test("the shop's settings read the door's address, https only", () => {
     expect(readShopConfig({ GCLOUD_PROJECT: "lmb-test-shop", PLATFORM_TEXTS_URL: "https://platform.example/api/texts/" }).platformTextsUrl).toBe("https://platform.example/api/texts");
     expect(readShopConfig({ GCLOUD_PROJECT: "lmb-test-shop", PLATFORM_TEXTS_URL: "http://plain.example" }).platformTextsUrl).toBe("");
+  });
+});
+
+describe("answers by text (plan 4, 3.4)", () => {
+  test("replies come from the door, odd ones are dropped, taken ones are passed back, trouble gives none", async () => {
+    const d = door((b) => {
+      if (b.op === "texts.status") return { body: { available: true, price: "1.6¢", replies: true } };
+      if (b.op === "texts.replies") return { body: { replies: [{ id: "SM1", ref: "bk-1001", word: "yes", at: "x" }, { id: "SM2", ref: "bk-1001", word: "maybe" }, { ref: "bk-1" }] } };
+      return { body: { ok: true } };
+    });
+    const sender = createTextSender({ url: "https://platform.example/api/texts", shopId: "fern-comb", serviceKey: "k".repeat(40), fetch: d.fetch });
+    expect((await sender.status()).replies).toBe(true);
+    expect(await sender.replies()).toEqual([{ id: "SM1", ref: "bk-1001", word: "yes", at: "x" }]);
+    await sender.repliesTaken(["SM1"]);
+    expect(d.calls.at(-1).body).toEqual({ op: "texts.repliesTaken", args: { ids: ["SM1"] } });
+    const broken = createTextSender({ url: "https://platform.example/api/texts", shopId: "fern-comb", serviceKey: "k".repeat(40), fetch: async () => { throw new Error("down"); } });
+    expect(await broken.replies()).toEqual([]);
   });
 });

@@ -212,6 +212,9 @@ Julian, once:
    (Twilio console › Account info).
 3. **Switch it on.** Add `TWILIO_FROM: "+1…"` (the number) and `TEXTS: "on"` to the repository variable
    `SERVER_SETTINGS`; the next deploy carries it and the Launch page shows "Text-message reminders" ready.
+4. **Let clients answer (Y, C, M).** In Twilio's console, open the number › Messaging › "A message comes in": Webhook,
+   `https://<platform address>/api/texts/inbound`, HTTP POST. Replies are checked against Twilio's signature, so
+   nothing else is needed. Shops then see Calendar › Hours & rules › **Let clients answer by text**.
 
 Prices are settings, in millionths of a dollar per text part: `TEXT_PART_MICROS_CAD` (16000) and
 `TEXT_PART_MICROS_USD` (11600). Change them if Twilio's price changes.
