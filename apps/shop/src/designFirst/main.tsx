@@ -55,7 +55,7 @@ async function start() {
   const name = press.pressName || "";
   const fixture = createStudioFixture({
     settings: { ...DEFAULT_SETTINGS, ...(name ? { info: { ...(DEFAULT_SETTINGS as any).info, name } } : {}), design, draftDesign: design },
-    books: sampleShopBooks(press.sells), pages: [], media: [],
+    books: sampleShopBooks(press.sells, press.look), pages: [], media: [],
   });
   installFakeStudioApi(adminApi as any, fixture);
   withoutStore(adminApi as any);

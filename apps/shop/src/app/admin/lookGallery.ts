@@ -47,7 +47,7 @@ const PICKER_LOOKS = ["press-atlas", "press-folio", "press-rows", "press-arch", 
  * Starter websites (plan "Editable starter websites", step 4): whole sites made only of Studio sections, on the Standard
  * style, which gets the templates' shared readable floor (templateStyles.ts `themeStyleCss`). Listed after the ten built looks until the gallery (step 5) groups them.
  */
-export const STARTER_SITES = ["juniper-slow-season", "juniper-catalogue"];
+export const STARTER_SITES = ["juniper-slow-season", "juniper-catalogue", "aurel-editorial"];
 export const isBuiltLook = (t: any) => STARTER_SITES.includes(t.id) || PICKER_LOOKS.includes(t.id) && (TEMPLATE_STYLE_IDS as readonly string[]).includes(String(t.global?.themeStyle || ""));
 export const builtLooks = () => {
   const all = (THEME_LIBRARY as unknown as LibraryTheme[]).filter(isBuiltLook);

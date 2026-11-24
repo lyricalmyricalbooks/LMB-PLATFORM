@@ -824,3 +824,11 @@ Studio fixture. Existing shops are untouched.
 Themes; Preview / Try on is the try-before-use. Sections a starter adds carry `sample: true` (`applyPresetSections`);
 `patchSectionSettings` and `patchBlockField` drop it, and `StudioOutline` shows a **Sample** badge until then. The 10 saved
 designs limit is `MAX_SAVED_THEMES`. Not done: sample photos (no licensed photo set in the repo yet).
+
+### Aurel and starter sample shops (24 November 2026)
+`aurel-editorial` (palette `aurel`, from Julian's Figma Make "Design Five E-commerce Concepts" › Aurel) is the third
+starter. A starter may carry `content.sampleProducts` (title, maker, price, photo under `public/starters/<id>/`);
+`starterSampleBooks` (presetContent.ts) turns them into book-shaped samples. Studio › Themes previews a starter through
+`starterPreview` (StudioEditor): look + layouts (`applyStarter`) and its sample products in place of the shop's, never
+saved. Design-before-the-store uses them too (`sampleShopBooks(sells, look)`). Photos are made for each starter (Julian's
+choice, 23 November 2026); keep each under ~150 KB.
