@@ -139,12 +139,17 @@ describe("browsing the looks (theme store)", () => {
     const riso = (THEME_LIBRARY as any[]).find(t => t.id === "press-riso");
     expect(lookPreview(riso, { templateOutlineWidth: 4 }).outline).toBe(lookPreview(riso).outline);
   });
-  it("samples are worded for what the press sells", async () => {
+  it("samples come from the sample set that suits what the shop sells, with real photos", async () => {
     const { sampleProducts } = await import("./lookGallery");
-    expect(sampleProducts("books")[0].title).toBe("Salt Hours");
-    expect(sampleProducts(null)[0].title).toBe("Salt Hours");
-    expect(sampleProducts("clothing")[0].title).toBe("Heavy Tee");
-    expect(sampleProducts("jewelry")[0].title).toBe("Moon Hoops");
+    expect(sampleProducts("books")[0].title).toBe("Example clothbound book");
+    expect(sampleProducts(null)[0].title).toBe("Example clothbound book");
+    expect(sampleProducts("clothing")[0].title).toBe("Example wool sweater");
+    expect(sampleProducts("other")[0].title).toBe("Example stoneware mug");
+    expect(sampleProducts("hair")[0].title).toBe("Example one-to-one session");
     for (const s of ["books", "prints", "clothing", "shoes", "jewelry", "music", "other"]) expect(sampleProducts(s).length, s).toBeGreaterThanOrEqual(8);
+    for (const p of sampleProducts("clothing")) {
+      expect(p.photo).toMatch(/\/samples\/clothing\/[a-z-]+\.webp$/);
+      expect(p.maker).toBe("Sample");
+    }
   });
 });
