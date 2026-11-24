@@ -109,8 +109,8 @@ export function StockList({ records, onPick, initialQuery = "" }: { records: Sto
     <div className="rp-stock">
       <div className="rp-stock-metrics">
         <MetricCard label="On hand" value={count(totals.onHand)} footer={`${count(totals.items)} ${totals.items === 1 ? w("book") : w("books")}`} />
-        <MetricCard label="Sold" value={count(totals.sold)} />
-        <MetricCard label="Out at stores" value={count(totals.atStores)} />
+        <MetricCard label="Sold" value={count(totals.sold)} footer="All time" />
+        <MetricCard label="Out at stores" value={count(totals.atStores)} footer="Left with stores to sell" />
         <MetricCard label="Need restocking" value={count(totals.needAttention)} tone={totals.needAttention ? "warn" : undefined} footer="Sold out or running low" />
         <MetricCard label="Revenue" value={<RevenueLine totals={totals} />} />
       </div>

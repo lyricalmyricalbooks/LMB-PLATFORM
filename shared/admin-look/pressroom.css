@@ -528,6 +528,8 @@ div.rp-listcard-main { cursor: default; }
 
 /* Stack helpers */
 .rp-stack { display: flex; flex-direction: column; gap: var(--rp-space-5); }
+/* In a stack the gap already spaces the filter row from its table; its own margin doubled it (daily polish, 24 Nov 2026). */
+:is(.rp-stack, .rp-stock) > .rp-filter-bar { margin-bottom: 0; }
 .rp-grid-metrics { display: grid; gap: var(--rp-space-4); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 
 /* ── Login ─────────────────────────────────────────────────────────────── */
@@ -2586,9 +2588,11 @@ div.rp-listcard-main { cursor: default; }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings:not([data-settings-page="shipping"]) :is(.rp-card, .rp-fk-card) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
 /* The same filled pill on every other page's cards: on a white card the plain secondary button had no fill and no edge,
    so "Try again", "Log expense" and the like read as stray text (daily polish, 18 November 2026). */
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-btn-secondary { border: 0; background: var(--rp-input-bg); color: var(--rp-text); box-shadow: none; }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
-:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card):not(.rp-settings *) .rp-card .rp-btn-secondary { background: var(--rp-surface); }
+/* The list cards (Backups, QR codes, Online store) and the receipts-by-email card are white cards too: their "Open",
+   "Choose" and "Check and add" were loose words (daily polish, 24 November 2026). On a cream receipt card the pill is white. */
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card, .rp-cardbox, .rp-er):not(.rp-settings *) .rp-btn-secondary { border: 0; background: var(--rp-input-bg); color: var(--rp-text); box-shadow: none; }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card, .rp-cardbox, .rp-er):not(.rp-settings *) .rp-btn-secondary:hover:not(:disabled) { background: var(--rp-text); color: var(--rp-canvas); }
+:root[data-admin-look="colophon"] .rp:not(.studio-editor) :is(.rp-card, .rp-fk-card, .rp-cardbox, .rp-er):not(.rp-settings *) :is(.rp-card, .rp-er-item) .rp-btn-secondary { background: var(--rp-surface); }
 :root[data-admin-look="colophon"] .rp:not(.studio-editor) .rp-settings .rp-fk-control:has(> span > .rp-select + .rp-btn) { background: transparent; box-shadow: none; }
 /* A short word beside a menu label ("Beta"): small mono capitals in a thin outline, on the rail's own colours. */
 .rp-nav-tag { margin-left: 8px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 999px; font: 500 9px/1.2 var(--rp-font-mono); letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.72; }
