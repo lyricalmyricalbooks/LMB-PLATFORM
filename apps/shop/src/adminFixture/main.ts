@@ -1577,13 +1577,14 @@ if (new URLSearchParams(location.search).get("guide")) {
 }
 
 // ?start=details|bring|look|shipping|final (Get started screenshots): a new private shop part way through the run.
+// `&sold=clothing` (or any sign-up answer) makes it a shop that sells that instead of books.
 const startAt = new URLSearchParams(location.search).get("start");
 if (startAt) {
   const at = "2026-11-01T10:00:00.000Z";
   const order = ["details", "bring", "look", "shipping", "final"];
   const upTo = Math.max(0, order.indexOf(startAt));
   const marks: Record<string, any> = { details: { at }, bring: { at, skipped: true }, look: { at, theme: "riso" }, shipping: { at, skipped: true } };
-  const week: any = { plan: "both", sellingToday: "starting", publishes: "books" };
+  const week: any = { plan: "both", sellingToday: "starting", publishes: new URLSearchParams(location.search).get("sold") || "books" };
   order.slice(0, upTo).forEach((step) => { week[step === "look" ? "welcome" : step] = marks[step]; });
   const api = adminApi as any;
   api.getFirstWeek = async () => JSON.parse(JSON.stringify(week));
