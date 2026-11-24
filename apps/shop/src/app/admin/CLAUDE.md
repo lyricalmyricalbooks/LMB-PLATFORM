@@ -1259,6 +1259,12 @@ is left to pay (`payAtVisit`: QR code or emailed pay link when `restPayable`, Pa
 row's badge and actions wrap under the name. Fixture: `admin-fixture.html?desk=provider` (sets the admin look like
 Dashboard; notes kept in memory, the first booking has a note from last time).
 
+**Coming up (Beta, 23 November 2026, plan 4 step 5.1):** Figures opens with `ComingUp` (then the old panel, now
+`PastFigures`). It reads bookings from a day back to 92 days ahead and `futureFigures` (bookingsView) gives 30/60/90-day
+windows: confirmed bookings whose start hasn't passed (requests counted apart as `waiting`, never as money), worth
+(`priceMinor`), paid (worth less `balanceDue`), still to take, the fullest day and 13 weeks from this Monday.
+`futureRows` makes the spreadsheet (`coming-up-<days>-days-<day>.csv`).
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while
@@ -1528,3 +1534,20 @@ Tab **Shifts & time off** (id `rota`, with Team pay while there is a team): `Rot
 (`answerTimeOff`, then reloads the setup because days off or blocks changed), plans the week (`rotaGrid`, `saveRota`,
 `removeRota`, `copyRota`). On the team desk, `DeskPlans.tsx` shows the person's shifts and asks (`askTimeOff`,
 `withdrawTimeOff`). Planned shifts never change booking times; approved time off does (days off or a block).
+
+## Adding products, round 3 (24 November 2026, plan https://claude.ai/artifact/MEmMDYot4WY3S1c8cRDRaL)
+
+- **Order of a new product's page:** type → photos (`media`) → name and maker → Price (one box; cost, wholesale and
+  reference USD/EUR fold under `.be-other-prices`) → Sale row → Stock (`data-be-section="stock-level"`) → Description →
+  About the maker row → type facts → the rest. The price must stay inside the first desktop screen (1440×900); check
+  with a script that reads the "Price (CAD)" label's top in `.rp-workspace`.
+- **Words that follow the type** live in `productPageWords.ts` (description hint per type group, photo hint, the
+  Other prices summary, the save bar's words). Its test fails if a non-book group mentions books.
+- **Save bar:** a draft (new, or saved as `draft`) gets `StatusBar` with `secondary` = Save draft (needs a name) and
+  Publish (needs every Ready to publish item; when blocked it calls `goTo` on the first missing one). A live or archived
+  product gets one Save. `handleSave(e, reviewed, close, status)` saves with that status; `pendingStatus` carries it
+  through the publish review. Status chips sit in the folded Visibility row. `FormStatus.short` is the phone wording.
+- **Autosave:** only for a product made in this editor (`!bookProp`) while it's a draft with a name: 4 seconds after a
+  change, `autosaveDraft` saves it as a draft without toasts. The first autosave creates it and holds `loading`, so
+  Publish can't create a second copy meanwhile. `lastDraft.ts` remembers it on this device for "Continue where you left
+  off" in `TypePicker` (14 days; forgotten once published, deleted or no longer a draft).

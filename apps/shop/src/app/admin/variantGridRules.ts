@@ -54,3 +54,25 @@ export function parseFill(field: "price" | "stock", raw: string): number | null 
   if (field === "stock") return Number.isInteger(n) && n <= 1_000_000 ? n : null;
   return Math.round(n * 100) / 100;
 }
+
+/** The option that holds sizes ("Size", "Ring size", "Shoe size"), or null when the product has none. */
+export function sizeOptionOf(options: { name: string; values: string[] }[]): { name: string; values: string[] } | null {
+  return options.find((o) => /size/i.test(o.name) && o.values.length > 1) || null;
+}
+
+/**
+ * Adding products round 3, "a price bump for bigger sizes": every combination gets `base`, and those whose size is
+ * `from` or bigger (later in the size list) get `base + extra`. Running it again gives the same prices, never stacked.
+ * Rows whose size isn't on the list keep their price.
+ */
+export function bumpBySize(variants: GridVariant[], size: { name: string; values: string[] }, from: string, base: number, extra: number): GridVariant[] {
+  const start = size.values.indexOf(from);
+  if (start < 0 || !okPrice(base) || !okPrice(extra)) return variants;
+  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  return (variants || []).map((v) => {
+    if (!v?.id) return v;
+    const at = size.values.findIndex((s) => norm(s) === norm(v.options?.[size.name]));
+    if (at < 0) return v;
+    return { ...v, price: Math.round((base + (at >= start ? extra : 0)) * 100) / 100 };
+  });
+}

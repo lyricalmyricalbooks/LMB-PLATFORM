@@ -1,10 +1,11 @@
 // Development-only entry for admin-fixture.html: the real admin (signed in through the dev-only ?debug=true door) with
 // sample orders and books. Every other admin call answers with nothing, as an offline shop would, so the check sees
 // each screen's real empty and error states too. Nothing here reaches Firestore.
+import { duplicateBookData } from "../app/admin/catalogList";
 import { adminApi } from "../app/admin/api";
 import { teamApi } from "../app/admin/teamApi";
 import { rememberShopOwner } from "../app/lib/ownerDevice";
-import { A11Y_BOOKS } from "../a11yFixture/books";
+import { A11Y_BOOKS, A11Y_GOODS } from "../a11yFixture/books";
 import { inventoryLinkApi } from "../app/admin/inventoryLinkApi";
 import { addressKey } from "../app/admin/fulfillment";
 import { googleConnectApi, readGoogleStatus } from "../app/admin/googleConnect";
@@ -1461,7 +1462,23 @@ inventoryLinkApi.catalog = async () => ({ books: [
   (adminApi as any).saveOwnTypes = async (own: any[]) => { ownTypes = own.map((t) => ({ ...t })); };
   // A new product saves into memory too (Saved · Add another), unless a mode below keeps its own shelf.
   let made = 0;
-  (adminApi as any).createBook = async (book: any) => ({ ...book, id: `new-${++made}` });
+  const kept = new Map<string, any>();
+  (adminApi as any).createBook = async (book: any) => { const saved = { ...book, id: `new-${++made}` }; kept.set(saved.id, saved); return saved; };
+  (adminApi as any).updateBook = async (id: string, patch: any) => { if (kept.has(id)) kept.set(id, { ...kept.get(id), ...patch }); return {}; };
+  // Make a copy (adding products round 3): the same rule as the real one, kept in memory.
+  (adminApi as any).duplicateBook = async (id: string) => {
+    const from = kept.get(id) || A11Y_BOOKS.find((b: any) => b.id === id);
+    if (!from) throw new Error("Original book not found");
+    const saved = { ...duplicateBookData(from), id: `copy-${++made}` };
+    kept.set(saved.id, saved);
+    return saved;
+  };
+  (adminApi as any).getBook = async (id: string) => kept.get(id) || A11Y_BOOKS.find((b: any) => b.id === id) || null;
+  // `?books=goods`: the books plus a general shop's tees and candles (no weights), to see Needs attention on the list.
+  // Products made here (Add several, Make a copy) join the list after the sample ones.
+  const listed = (adminApi as any).getAllBooks;
+  const goods = new URLSearchParams(location.search).get("books") === "goods";
+  (adminApi as any).getAllBooks = async () => [...(goods ? [...A11Y_BOOKS, ...A11Y_GOODS] : await listed()), ...kept.values()];
 }
 
 // Settings › Team: the fixture signs in as the owner, with three people on the Team.

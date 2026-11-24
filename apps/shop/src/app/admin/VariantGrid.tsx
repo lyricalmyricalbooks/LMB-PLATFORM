@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { DataTable, MetricCard, SectionCard, type Column } from "./riso/components";
 import { productOptions, variantPicks } from "../../shared/productOptions";
-import { fillEvery, gridStock, gridSummary, parseFill, type GridVariant } from "./variantGridRules";
+import { bumpBySize, fillEvery, gridStock, gridSummary, parseFill, sizeOptionOf, type GridVariant } from "./variantGridRules";
 import { useShopWords } from "./shopWords";
 import { MONEY_SIGN } from "./moneySign";
 
@@ -30,6 +30,17 @@ export function VariantGrid({ form, lowLine, onChange, onReplace, stockLocked, s
   const priceLine = sum.minPrice === null ? "—" : money(sum.minPrice);
   const priceFoot = sum.minPrice === null || sum.maxPrice === sum.minPrice ? undefined : `up to ${money(sum.maxPrice!)}`;
   const anyUnlocked = variants.some((v) => !stockLocked(v.id));
+  // Adding products round 3: "a price bump for bigger sizes", from the price typed above or the product's own price.
+  const size = sizeOptionOf(options);
+  const [bump, setBump] = useState({ extra: "", from: "" });
+  const bumpFrom = bump.from || (size ? size.values[Math.min(2, size.values.length - 1)] : "");
+  const bumpBase = parseFill("price", fill.price) ?? (Number(form.retailPrice) > 0 ? Number(form.retailPrice) : sum.minPrice);
+  const bumpExtra = parseFill("price", bump.extra);
+  const applyBump = () => {
+    if (!size || bumpBase === null || bumpExtra === null) return;
+    onReplace(bumpBySize(variants, size, bumpFrom, bumpBase, bumpExtra));
+    setBump((b) => ({ ...b, extra: "" }));
+  };
 
   const columns: Column<GridVariant>[] = [
     ...options.map((o, i): Column<GridVariant> => ({
@@ -81,6 +92,23 @@ export function VariantGrid({ form, lowLine, onChange, onReplace, stockLocked, s
         </label>
         <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={!anyUnlocked || parseFill("stock", fill.stock) === null} onClick={() => apply("stock")}>Set stock</button>
       </div>
+      {size && (
+        <div className="be-vg-fill" role="group" aria-label="Bigger sizes cost more">
+          <label className="be-vg-fill-field">
+            <span className="be-label-xs">Extra for bigger sizes</span>
+            <input className="rp-input rp-mono be-vg-num" type="number" min={0} step="0.01" inputMode="decimal" placeholder="e.g. 5"
+              value={bump.extra} onChange={(e) => setBump({ ...bump, extra: e.target.value })} />
+          </label>
+          <label className="be-vg-fill-field">
+            <span className="be-label-xs">Starting at</span>
+            <select className="rp-input be-vg-select" aria-label={`Extra starting at this ${size.name.toLowerCase()}`} value={bumpFrom} onChange={(e) => setBump({ ...bump, from: e.target.value })}>
+              {size.values.slice(1).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={bumpBase === null || bumpExtra === null} onClick={applyBump}>Set prices</button>
+          <p className="be-vg-fill-note">{bumpBase === null ? "Set a price for every row first." : bumpExtra === null ? `Sizes below ${bumpFrom} stay at ${money(bumpBase)}; ${bumpFrom} and up get the extra.` : `Sizes below ${bumpFrom} ${money(bumpBase)}, ${bumpFrom} and up ${money(bumpBase + bumpExtra)}.`}</p>
+        </div>
+      )}
       <DataTable columns={columns} rows={variants} rowKey={(v) => v.id} caption={w("Every combination of this book's options")} stackOnPhone />
     </SectionCard>
   );
