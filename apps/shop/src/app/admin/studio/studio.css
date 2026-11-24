@@ -286,8 +286,9 @@
 .studio-structure-group > .studio-outline { margin: 0; padding-top: 0; }
 .studio-structure-sub { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--rp-text-subtle); margin: 10px 0 4px; }
 .studio-structure-builtin { border-left: 2px solid var(--rp-divider); padding-left: 6px; }
-.studio-structure-switch { display: block; width: calc(100% - 24px); text-align: left; font-size: 12px; padding: 10px; margin-bottom: 8px; border: 1px dashed var(--rp-border); color: var(--rp-primary-text); }
+.studio-structure-switch { display: flex; align-items: center; gap: 6px; width: calc(100% - 24px); text-align: left; font-size: 12px; padding: 10px; margin-bottom: 8px; border: 1px dashed var(--rp-border); color: var(--rp-primary-text); }
 .studio-structure-switch:hover, .studio-structure-switch:focus-visible { background: var(--rp-primary-tint); }
+.studio-structure-switch[data-studio-settings-back] { width: 100%; margin: 0; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--rp-border); font-size: 13px; font-weight: 600; }
 .studio-structure-open { font-size: 11px; padding: 6px 8px; min-height: 32px; border: 1px solid var(--rp-border); white-space: nowrap; }
 .studio-structure-lock { display: inline-flex; width: 28px; justify-content: center; color: var(--rp-text-subtle); }
 

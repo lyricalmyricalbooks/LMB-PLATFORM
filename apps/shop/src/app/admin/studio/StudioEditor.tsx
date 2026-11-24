@@ -78,7 +78,7 @@ import { writeDesignValue } from "../../features/site/designModel";
 import { StudioPageOverrides, fieldPageOverride, shown as shownValue } from "./StudioPageOverrides";
 import { fineTuneConflict } from "./fineTuneConflicts";
 import { Group as PanelGroup, Panel, Separator, useDefaultLayout, type LayoutStorage } from "react-resizable-panels";
-import { StudioRail } from "./StudioRail";
+import { RAIL_TABS, StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
 import { HealthFindings, StudioHealth } from "./StudioHealth";
@@ -108,7 +108,7 @@ import { runsOnColophon } from "../../../lib/shopProfile";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
-import { designParts } from "./sectionDesigns";
+import { currentDesignId, designParts, designsToTry, withDesign } from "./sectionDesigns";
 import { StudioAiContext, type StudioAiValue } from "./StudioAiRewrite";
 import { StudioBlockPicker } from "./StudioBlockPicker";
 import { StudioBrandKit } from "./StudioBrandKit";
@@ -394,6 +394,7 @@ export function reportDeadStudioLink(target: string, panel: string) {
 // Sizes are strings: react-resizable-panels v4 reads bare numbers as pixels.
 // Panels keep v2's clipped overflow; each panel's own content scrolls.
 const PANEL_STYLE = { overflow: "hidden" } as const;
+const railLabel = (tab: string) => RAIL_TABS.find(t => t.id === tab)?.label || "the list";
 // Blocked storage (private windows, previews) must never stop Studio from opening.
 const PANEL_STORAGE: LayoutStorage = {
   getItem: (key) => { try { return window.localStorage.getItem(key); } catch { return null; } },
@@ -463,7 +464,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const canvasWidth = device === "desktop" ? desktopWidth : parseInt(DEVICE_W[device], 10);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches);
   // Panel widths are remembered per browser (react-resizable-panels v4 format; "v1" was v2's).
-  const panelLayout = useDefaultLayout({ id: "studio-panels-v2", storage: PANEL_STORAGE, onlySaveAfterUserInteractions: true });
+  const panelLayout = useDefaultLayout({ id: "studio-panels-v3", storage: PANEL_STORAGE, onlySaveAfterUserInteractions: true });
   useEffect(() => {
     const media = window.matchMedia?.("(max-width: 767px)");
     if (!media) return;
@@ -726,6 +727,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // A named one-off action (a block move) gets its own undo step; typing merges into one.
   const patchSelected = (patch: Record<string, any>, meta?: { label: string }) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
     meta ? { label: meta.label } : { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
+  // Try another design (starters rethink, step 6): the section flips to another design of its kind, words kept.
+  const selectedDesigns = useMemo(() => selected ? designsToTry(selected, SECTION_REGISTRY as any[]) : [], [selected?.id, selected?.type]);
+  const changeDesign = (id: string) => {
+    if (!selected) return;
+    const label = selectedDesigns.find(d => d.id === id)?.label || "another design";
+    setList((l) => l.map(s => s.id === selected.id ? withDesign(s, id, SECTION_REGISTRY as any[], getBlocksKey) as Section : s), { label: `Change design to ${label}` });
+    setBlockId(null);
+    say("ok", `Now showing “${label}”. Your words and photos came along.`, undoAction());
+  };
   const saveSharedBlock = (id: string, name: string) => {
     if (!selected) return;
     const key = getBlocksKey(selected.type), blocks = selected.settings[key] || selected.settings.blocks || [];
@@ -1237,7 +1247,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
   // Open the settings behind a click-to-edit target (from the preview or the page structure).
-  /** `keepElement`: called from the open part's own inspector ("Open in Theme settings"), so that part stays open. */
+  /** `keepElement`: called from the open part's own inspector ("Open in Theme settings"), so on phones that part stays open. */
   const openTarget = (target: string, label = "", keepElement = false) => {
     const [kind, rest = ""] = target.split(":");
     const tab: LeftTab | null = kind === "style" ? "style" : kind === "copy" ? "text" : kind === "menus" ? "menus" : kind === "pages" ? "pages" : null;
@@ -1245,7 +1255,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setMobilePanel("outline");
     setSelectedId(null); setBlockId(null);
     // A part opened earlier (in the inspector) is not what the owner asked for now: close it so the path and Back stay true.
-    if (selectedElement && !keepElement) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
+    // On computers settings share the left panel with the part's own, so the part closes there too.
+    if (selectedElement && (!keepElement || !narrow)) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
     if (tab === "style") { setStyleSearch(""); setStyleCategory(EXTRA_STYLE_CATEGORIES[rest] ? rest : null); }
     setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: label || (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
     if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
@@ -1685,8 +1696,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Clicking the tab you are already on keeps what you selected; changing tabs clears it and remembers each tab's scroll.
   const selectRail = (id: LeftTab) => {
     setMobilePanel("outline");
-    // Clicking the tab already open keeps the selection; on Theme settings it still leaves an element's focus card.
-    if (id === leftTab) { setStyleFocus(null); return; }
+    // Clicking the tab already open goes back to its list: settings sit in the left panel in place of the list.
+    if (id === leftTab) {
+      setStyleFocus(null); setSelectedId(null); setBlockId(null);
+      if (selectedElement) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
+      return;
+    }
     restoreScrollFor.current = id;
     setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null);
   };
@@ -2786,7 +2801,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
             onMoveSection={moveSelectedSection} sectionRoom={(() => { const i = sections.findIndex(x => x.id === selected?.id); return { up: i > 0, down: i >= 0 && i < sections.length - 1 }; })()}
             onReplayMotion={() => { setMode("edit"); postPreview({ type: "HIGHLIGHT_SECTION", instanceId: selected.id, blockId: null, scroll: true }); setTimeout(() => postPreview({ type: "MOTION_REPLAY", sectionId: selected.id }), 450); }}
-            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("preview"); }} />
+            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("preview"); }}
+            backLabel={narrow ? undefined : leftTab === "sections" ? `${showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Back to ${railLabel(leftTab)}`}
+            onAddBelow={narrow ? undefined : () => { const i = sections.findIndex(x => x.id === selected.id); setLeftTab("sections"); setAdding(i < 0 ? sections.length : i + 1); }}
+            designs={selectedDesigns} designId={selected ? currentDesignId(selected) : undefined} onDesign={changeDesign} />
   );
 
   const inspectorEmpty = (
@@ -2913,13 +2931,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           {selected ? inspectorPanel : elementPanel || <aside className="studio-inspector" aria-label="Content settings">{inspectorEmpty}</aside>}
         </> : (
           <PanelGroup orientation="horizontal" className="studio-panels" defaultLayout={panelLayout.defaultLayout} onLayoutChanged={panelLayout.onLayoutChanged}>
-            <Panel id="studio-left" defaultSize="24%" minSize="18%" maxSize="45%" style={PANEL_STYLE}>{sidebarPanel}</Panel>
-            <Separator className="studio-resize-handle" aria-label="Resize the settings panel" />
-            <Panel id="studio-canvas" minSize="30%" style={PANEL_STYLE}>{canvasPanel}</Panel>
-            <Separator className="studio-resize-handle" aria-label="Resize the inspector" />
-            <Panel id="studio-inspector" defaultSize="22%" minSize="16%" maxSize="45%" style={PANEL_STYLE}>
-              {selected ? inspectorPanel : elementPanel || inspectorEmpty}
+            {/* Settings open in the left panel, in place of the list (starters rethink, step 6): no empty third
+                column, so the preview gets the room. A picker the list is showing (Add section, Add block) stays. */}
+            <Panel id="studio-left" defaultSize="28%" minSize="20%" maxSize="45%" style={PANEL_STYLE}>
+              {(selected || elementPanel) && adding === null && !blockPicker ? (selected ? inspectorPanel : elementPanel) : sidebarPanel}
             </Panel>
+            <Separator className="studio-resize-handle" aria-label="Resize the settings panel" />
+            <Panel id="studio-canvas" minSize="40%" style={PANEL_STYLE}>{canvasPanel}</Panel>
           </PanelGroup>
         )}
       </div>

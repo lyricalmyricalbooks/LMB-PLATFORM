@@ -45,6 +45,8 @@ const click = async (el: Element | undefined) => {
   if (!el) throw new Error("element not found");
   await act(async () => { (el as HTMLElement).click(); await new Promise(r => setTimeout(r, 0)); });
 };
+/** Settings open in the left panel in place of the list (step 6): go back to the list to read it. */
+const backToList = async () => { const back = document.body.querySelector("[data-studio-settings-back]") || undefined; if (back) await click(back); };
 const key = async (k: string, extra: KeyboardEventInit = {}) => {
   await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: k, ctrlKey: true, bubbles: true, ...extra })); await new Promise(r => setTimeout(r, 0)); });
 };
@@ -96,16 +98,36 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await mount();
     await click(buttons("Add section")[0]);
     await click(buttons(/^Newsletter/)[0]);
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     await key("z");
     expect(host.textContent).toMatch(/Home · 0 sections/);
     await key("z", { shiftKey: true });
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     await click(buttons("Save draft")[0]);
     const save = fixture.calls.find(c => c.method === "saveDesign");
     expect(save?.args[1]).toEqual({ publish: false });
     expect(homeSections(save?.args[0].design)).toEqual(["NewsletterSection"]);
     expect(homeSections(fixture.settings.design)).toEqual([]);
+  });
+
+  it("settings open in the left panel, and Try another design swaps the design keeping the words, undoably", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    expect(document.body.querySelector("[data-studio-settings-back]")?.textContent).toMatch(/Home · 1 section/);
+    expect(document.body.querySelector("[data-studio-design-switch]")).not.toBeNull();
+    await click(buttons(/Try another design/)[0]);
+    expect(host.textContent).toMatch(/Your words and photos came along/);
+    await click(buttons("Save draft")[0]);
+    const saved = fixture.calls.filter(c => c.method === "saveDesign").pop();
+    const [section] = saved?.args[0].design.heroPage.sections || [];
+    expect(section.type).toBe("NewsletterSection");
+    expect(section.settings.align).toBe("left");
+    await key("z");
+    await backToList();
+    expect(host.textContent).toMatch(/Home · 1 section/);
   });
 
   it("the status pill says what each state means for the shop, and the Publish list counts its changes", async () => {
@@ -155,6 +177,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
   it("live sync: a save in another tab comes straight in when nothing is unsaved here", async () => {
     await mount();
     await act(async () => { fixture.remoteSave!({ ...JSON.parse(JSON.stringify(fixture.settings.draftDesign)), heroPage: { sections: [{ id: "remote1", type: "NewsletterSection", settings: {} }] } }); await new Promise(r => setTimeout(r, 0)); });
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
     // Their saved draft is now this tab's saved draft (compared after normalising), so nothing reads as unsaved.
@@ -175,6 +198,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(banner.textContent).toMatch(/published in another tab or device/);
     await click(buttons("Bring in their changes")[0]);
     expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     await click(buttons("Save draft")[0]);
     const save = fixture.calls.find(c => c.method === "saveDesign");
@@ -333,6 +357,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await click(buttons("Save draft")[0]);
     await click(buttons("Use the other version")[0]);
     expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     // Their version is now the saved one; a further edit saves on top of it without another conflict.
     await click(buttons("Add section")[0]);
@@ -354,6 +379,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
     expect(host.textContent).toMatch(/nothing was published/i);
     expect(homeSections(fixture.settings.design)).toEqual([]);
+    await backToList();
     expect(host.textContent).toMatch(/Home · 1 section/);
     // Reviewed → Publish again goes out with both sets of changes.
     await click(buttons("Publish")[0]);
