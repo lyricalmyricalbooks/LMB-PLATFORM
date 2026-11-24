@@ -25,6 +25,11 @@ describe("surface logo design resolution", () => {
     });
   });
 
+  it("carries the site name, so a wordmark drawn from the storefront's settings reads the shop's name", () => {
+    const design = { copy: { siteName: "Moth & Linen" }, wordmarkStyle: "two-part", storefront: {} };
+    expect(resolveLogoDesign(design.storefront, [undefined, design]).copy).toEqual({ siteName: "Moth & Linen" });
+  });
+
   it("leaves logo text absent so LogoMark falls back to the site name", () => {
     const heroLogo = resolveLogoDesign(undefined, [{}]);
     const catalogLogo = resolveLogoDesign(undefined, [undefined, {}]);

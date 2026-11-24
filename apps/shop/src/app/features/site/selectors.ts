@@ -7,6 +7,9 @@ const LOGO_DESIGN_FIELDS = [
   "logoUrl", "logoText", "logoColor", "logoHoverColor", "logoTint", "logoHeight",
   // Two-part wordmark support (LogoMark renders these when wordmarkStyle is "two-part")
   "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSize", "wordmarkWeight", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "headingFont", "wordmarkFont",
+  // The site name (Text & labels › Site & sharing) a text logo and the wordmark's two words are read from: without it a
+  // logo drawn from the storefront's own settings fell back to the template name.
+  "copy",
 ] as const;
 
 function firstConfiguredValue(field: (typeof LOGO_DESIGN_FIELDS)[number], designs: any[]) {

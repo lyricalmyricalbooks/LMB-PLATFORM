@@ -1603,3 +1603,17 @@ with copy) and Remove (asks first). All through op `bookingHooks` (steps list, a
 - Only on a first welcome: not when a look was chosen in setup (`chosen`) or one is already in place (`keep`).
   `guidedStart={false}` opens straight on the gallery (the older tests use it).
 - The readability checks run every starter in a light and a dark style with four sample logos (`themeReadability.test.tsx`).
+
+## Live demo shops (24 November 2026, next starters plan phase 3)
+- Every starter is a sample shop at the platform site's `/demo/?starter=<id>&style=<style>&sells=<clothing|home|books|studio>`
+  (`demo.html`, `src/demoShop/`, built by `vite.demo.config.ts` inside `pnpm run build:setup`, copied by `site/build.js`
+  with a `/demo/**` rewrite). The front page links to each starter ("See one live", `waitlist/index.html`).
+- `demoDesign` applies the starter exactly as Choose your look does (`applyStarter` in the style, sample photos, the
+  starter's sample products) and maps each demo kind to a sign-up answer (`DEMO_SELLS`), so the shop's words and menu
+  follow it. Starter pictures are moved under the demo's folder (`underBase`).
+- The page runs the real storefront through the preview snapshot with `__studioPreviewOnly`: `useSiteData` then reads no
+  database and no catalog file (the snapshot is the whole shop). No draft status is set, so no "live shop" banner. The
+  choice is kept for the tab (`DEMO_KEY`), so links and reloads stay in the same starter. A black pill ("A sample shop
+  in Aurel Sand", Start yours → /join/) is drawn outside the shop.
+- Found while building it: a logo drawn from the storefront's own settings fell back to "Your Press" because
+  `resolveLogoDesign` dropped `copy`; it now carries the site name (`features/site/selectors.ts`).

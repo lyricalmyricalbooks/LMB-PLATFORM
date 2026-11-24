@@ -74,6 +74,10 @@ function loadSiteData() {
  * reads as always. Both give the same books, settings and pages (features/site/storefrontDataFile.ts).
  */
 async function readSiteData(): Promise<[any[], any, any]> {
+  // A preview that is the whole shop (the live demo shops, src/demoShop): its snapshot is all there is, so no database
+  // or catalog file is read.
+  const only = previewSnapshot();
+  if (only && (window as any).__studioPreviewOnly === true) return [only.books || [], { ...DEFAULT_SETTINGS, ...(only.settings || {}) }, only.pages || []];
   const file = await currentStorefrontData(fetchStorefrontDataFile, publicApi.getCatalogVersion);
   if (file) return [newestFirst(file.books as any[]), publicApi.publicSettingsFrom(file.settings), publicApi.sortPages(file.pages)];
   return Promise.all([
