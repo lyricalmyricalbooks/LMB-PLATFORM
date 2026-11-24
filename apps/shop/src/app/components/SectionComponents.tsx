@@ -18,6 +18,7 @@ import { cardPrice, groupServices, lengthText, moneyText as bookingMoney, people
 import { bookWithHref, directionsUrl, hoursRows, menuServices, personWords, teamRows } from "../features/site/serviceSections";
 import { faqAnchors, faqJsonLd, filterFaq, groupFaq, safeJson, type FaqItem } from "../features/site/faqHelp";
 import { submitContactMessage } from "../features/site/contactMessages";
+import { googleFontHref } from "../features/site/fonts";
 import { useSectionCopy, useSectionDesign, useSectionPage, useShopName } from "./sectionCopy";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { slugify } from "../features/site/storeMenu";
@@ -933,6 +934,110 @@ export function SplitOpeningSection({ settings, enableAnimations }: any) {
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
           </a>
         )}
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// SLOW SEASON STARTER SECTIONS (24 November 2026, the owner's Figma "Slow Season" design). Colours come from the
+// section's colour scheme or its colour fields, fonts from the theme; CSS `.fm-po*`, `.fm-bi*`, `.fm-duo*`, `.fm-orbit*`.
+// ──────────────────────────────
+
+const ArrowIcon = ({ down = false }: { down?: boolean }) => (
+  <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" style={down ? { transform: "rotate(90deg)" } : undefined}><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.7" /></svg>
+);
+/** A line break wherever the owner typed one, so two-line headlines stay as designed. */
+/** The section's own accent font (italic quote, story word), loaded on demand; empty = the heading font. */
+function accentFontVars(s: any): { link: any; style: Record<string, string> } {
+  const f = typeof s.accentFont === "string" ? s.accentFont.replace(/['"\\;{}<>]/g, "").trim() : "";
+  if (!f) return { link: null, style: {} };
+  return { link: <link rel="stylesheet" href={googleFontHref(f)} />, style: { "--accent-font": `'${f}', var(--heading-font, serif)` } };
+}
+const lines = (text: string) => String(text).split("\n").flatMap((l, i) => (i ? [<br key={i} />, l] : [l]));
+
+export function PhotoOpeningSection({ settings, enableAnimations }: any) {
+  const shade = settings.shadeOpacity ?? 0.65;
+  return (
+    <section className="fm-po" style={{ ...bgStyle(settings), ...(settings.textColor ? { color: settings.textColor } : {}) }}>
+      {settings.imageUrl && <div className="fm-po-img"><StyledImage src={settings.imageUrl} settings={settings} fieldKey="imageUrl" loading="eager" decoding="async" fetchPriority="high" sizes="100vw" alt={settings.imageAlt || ""} /></div>}
+      <div className="fm-po-shade" style={{ opacity: shade }} />
+      <div className="fm-po-copy" data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.eyebrow && <p className="fm-po-eyebrow" data-theme-field="eyebrow">{settings.eyebrow}</p>}
+          <h1 className="fm-po-title" style={hStyle(settings)} data-theme-field="title">{lines(settings.title ?? fb("PhotoOpeningSection.title"))}</h1>
+          {settings.body && <p className="fm-po-body" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
+          {settings.ctaText && <a href={siteHref(settings.ctaUrl)} className="fm-po-link"><span data-theme-field="ctaText">{settings.ctaText}</span><ArrowIcon /></a>}
+        </AnimationContainer>
+      </div>
+      {(settings.captionLeft || settings.captionRight) && (
+        <div className="fm-po-caption"><span data-theme-field="captionLeft">{settings.captionLeft}</span><span data-theme-field="captionRight">{settings.captionRight}</span></div>
+      )}
+      {settings.showScrollCue !== false && <a className="fm-po-cue" href={siteHref(settings.scrollUrl) || "#main"} aria-label={settings.scrollLabel || "Scroll down"}><ArrowIcon down /></a>}
+    </section>
+  );
+}
+
+export function BigIntroSection({ settings, enableAnimations }: any) {
+  return (
+    <section className="fm-bi" style={bgStyle(settings)}>
+      <div className="fm-bi-in" data-studio-spacing="" style={spacingStyle(settings)}>
+        <p className="fm-kicker" data-theme-field="eyebrow">{settings.eyebrow}</p>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="fm-bi-row">
+            <h2 className="fm-bi-title" style={hStyle(settings)} data-theme-field="title">{lines(settings.title ?? fb("BigIntroSection.title"))}</h2>
+            {settings.body && <p className="fm-bi-body" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
+          </div>
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+export function FeatureDuoSection({ settings, enableAnimations }: any) {
+  const af = accentFontVars(settings);
+  return (
+    <section className="fm-duo" style={{ ...bgStyle(settings), ...af.style }}>
+      {af.link}
+      <article className="fm-duo-a" style={settings.leftBgColor ? { backgroundColor: settings.leftBgColor } : undefined}>
+        {settings.number && <div className="fm-duo-num" data-theme-field="number">{settings.number}</div>}
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="fm-duo-photo">
+            {settings.imageUrl ? <StyledImage src={settings.imageUrl} settings={settings} fieldKey="imageUrl" loading="lazy" decoding="async" sizes="(min-width: 900px) 40vw, 80vw" alt={settings.imageAlt || ""} /> : null}
+          </div>
+        </AnimationContainer>
+        <div className="fm-duo-detail">
+          <p data-theme-field="detail">{settings.detail}</p>
+          {settings.buttonText && <a href={siteHref(settings.buttonUrl)} className="fm-duo-btn custom-btn"><span data-theme-field="buttonText">{settings.buttonText}</span></a>}
+        </div>
+      </article>
+      <article className="fm-duo-b" style={settings.rightBgColor ? { backgroundColor: settings.rightBgColor } : undefined}>
+        <p className="fm-kicker" data-theme-field="kicker">{settings.kicker}</p>
+        <blockquote className="fm-duo-quote" style={hStyle(settings)} data-theme-field="quote">{settings.quote ?? fb("FeatureDuoSection.quote")}</blockquote>
+        {settings.sideImageUrl && <div className="fm-duo-small"><StyledImage src={settings.sideImageUrl} settings={settings} fieldKey="sideImageUrl" loading="lazy" decoding="async" sizes="30vw" alt="" /></div>}
+      </article>
+    </section>
+  );
+}
+
+export function StoryOrbitSection({ settings, enableAnimations }: any) {
+  const name = useShopName();
+  const letter = (settings.letter || String(name || "").trim().charAt(0) || "A").slice(0, 2);
+  const af = accentFontVars(settings);
+  return (
+    <section className="fm-orbit" style={{ ...bgStyle(settings), ...af.style }}>
+      {af.link}
+      <div className="fm-orbit-ring" aria-hidden="true"><span style={settings.accentColor ? { color: settings.accentColor } : undefined}>{letter}</span></div>
+      <div className="fm-orbit-copy" data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <p className="fm-kicker" data-theme-field="eyebrow">{settings.eyebrow}</p>
+          <h2 className="fm-orbit-title" style={hStyle(settings)}>
+            <span data-theme-field="title">{lines(settings.title ?? fb("StoryOrbitSection.title"))}</span>
+            {settings.accentWord && <> <em data-theme-field="accentWord">{settings.accentWord}</em></>}
+          </h2>
+          {settings.body && <p className="fm-orbit-body" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
+          {settings.ctaText && <a href={siteHref(settings.ctaUrl)} className="fm-orbit-link"><span data-theme-field="ctaText">{settings.ctaText}</span><ArrowIcon /></a>}
+        </AnimationContainer>
       </div>
     </section>
   );

@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { THEME_LIBRARY } from "./themeLibrary";
 
-const NEUTRAL = ["aurel-editorial"];
+const NEUTRAL = ["aurel-editorial", "juniper-slow-season"];
 const BRANDS = /\b(aurel|juniper)\b/i;
 
 describe.each(NEUTRAL.map((id) => [id]))("starter %s is neutral", (id) => {

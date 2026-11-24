@@ -47,6 +47,7 @@ export const TEMPLATE_STYLES = [
   { id: "cutout", label: "Cutout (paper collage, tilted blocks)" },
   { id: "reel", label: "Reel (cinematic, condensed titles)" },
   { id: "aurel", label: "Aurel (editorial, centred wordmark, numbered photos)" },
+  { id: "slowseason", label: "Slow Season (huge capitals, numbered photos, big footer name)" },
 ] as const;
 export const TEMPLATE_STYLE_IDS = TEMPLATE_STYLES.map((t) => t.id);
 export type TemplateStyleId = (typeof TEMPLATE_STYLES)[number]["id"];
@@ -584,7 +585,9 @@ ${S} .fm-announce{font-size:9px;letter-spacing:.12em;padding-top:.45rem !importa
 ${S} header[data-section="navigation"] .fm-logo{font-family:var(--heading-font);font-weight:500;letter-spacing:.22em;text-transform:uppercase;}
 ${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
 ${S} .fm-card .fm-photo-frame img{filter:none;}
-${S} [data-studio-label="Product grid"]{counter-reset:aurel;}
+${S} :is([data-studio-label="Product grid"],[class*="showcase-grid-"]){counter-reset:aurel;}
+${S} [class*="showcase-grid-"] > * > .fm-card{counter-increment:aurel;}
+${S} [class*="showcase-grid-"] > * > .fm-card > div:first-child::after{content:counter(aurel, decimal-leading-zero);position:absolute;left:14px;bottom:12px;font-size:10px;letter-spacing:.08em;color:rgb(var(--fg-rgb));z-index:2;}
 ${S} [data-studio-label="Product grid"] > .fm-card{counter-increment:aurel;}
 ${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame::after{content:counter(aurel, decimal-leading-zero);position:absolute;left:14px;bottom:12px;font-size:10px;letter-spacing:.08em;color:rgb(var(--fg-rgb));z-index:2;}
 @media (min-width:1024px){${S} [data-studio-label="Product grid"] > .fm-card:first-child{grid-column:span 2;grid-row:span 2;}}
@@ -592,11 +595,31 @@ ${S} .fm-card-meta{font-size:.72rem;letter-spacing:.08em;text-transform:uppercas
 `,
 });
 
+/** Slow Season (24 November 2026, the owner's Figma "Slow Season" design): a tight heavy wordmark, small links, numbered
+ * product photos on a soft tile, a big footer name. */
+export const SLOWSEASON_CSS = lookCss({
+  hWeight: "600", hCase: "uppercase", hLine: ".82", hSpace: "-.06em", navLine: HAIR_U,
+  titleCss: "font-weight:600;font-size:1rem;letter-spacing:-.02em;", priceCss: "font-size:.85rem;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.12em;font-size:.7rem;font-weight:500;", corner: "0px", footLine: HAIR_U,
+  extra: `
+${S} .fm-announce{font-size:10px;letter-spacing:.13em;}
+${S} header[data-section="navigation"] .fm-logo{font-family:var(--heading-font);font-weight:700;letter-spacing:-.06em;text-transform:uppercase;}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:13px;letter-spacing:0;text-transform:none;}
+${S} .fm-card .fm-photo-frame{background:var(--surface);}
+${S} :is([data-studio-label="Product grid"],[class*="showcase-grid-"]){counter-reset:slow;}
+${S} [class*="showcase-grid-"] > * > .fm-card{counter-increment:slow;}
+${S} [class*="showcase-grid-"] > * > .fm-card > div:first-child::after{content:counter(slow, decimal-leading-zero);position:absolute;left:18px;top:16px;font-size:10px;letter-spacing:.08em;color:rgb(var(--fg-rgb));z-index:2;}
+${S} [data-studio-label="Product grid"] > .fm-card{counter-increment:slow;}
+${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame::after{content:counter(slow, decimal-leading-zero);position:absolute;left:18px;top:16px;font-family:var(--heading-font);font-size:10px;font-weight:600;color:rgb(var(--fg-rgb));z-index:2;}
+${S} .fm-footer-brand span{font-size:clamp(60px, 11vw, 170px);line-height:1;letter-spacing:-.06em;text-transform:uppercase;}
+`,
+});
+
 /** Each template's own stylesheet, by id. A template missing here fails the coverage test. */
 export const TEMPLATE_CSS: Record<TemplateStyleId, string> = {
   marquee: MARQUEE_CSS, shelf: SHELF_CSS, atlas: ATLAS_CSS, mosaic: MOSAIC_CSS, arch: ARCH_CSS, market: MARKET_CSS, index: INDEX_CSS,
   folio: FOLIO_CSS, lantern: LANTERN_CSS, gutter: GUTTER_CSS, signal: SIGNAL_CSS, kiln: KILN_CSS, almanac: ALMANAC_CSS, console: CONSOLE_CSS,
-  picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS, aurel: AUREL_CSS,
+  picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS, aurel: AUREL_CSS, slowseason: SLOWSEASON_CSS,
 };
 
 /** Which template a design draws, or "" for any other look. */
