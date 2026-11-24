@@ -8,6 +8,7 @@ import type { WelcomeDone } from "../firstWeek";
 import { friendlyError } from "../studio/friendlyError";
 import { Dialog, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, Tabs } from "../riso/components";
 import { sellsBooks } from "../sells";
+import { sampleSetsFor, type SampleSetId } from "../starterSamples";
 import { LookStage, ScaledStage, STAGE_WIDTH, type StageDevice, type StagePage } from "./LookStage";
 
 /**
@@ -57,7 +58,11 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
   const picked = useMemo(() => (chosen && !browsing ? libraryLook(chosen.theme) ?? null : null), [chosen, browsing]);
   const press = pressNameOf(settings);
   const bookShop = sellsBooks(publishes);
-  const samples = useMemo(() => sampleProducts(publishes), [publishes]);
+  // "Show with": the sample sets that suit this kind of shop, its own first (any look can be tried with any of them).
+  const sets = useMemo(() => sampleSetsFor(publishes), [publishes]);
+  const [setChoice, setSet] = useState<SampleSetId | null>(null);
+  const sampleSet = setChoice && sets.some(s => s.id === setChoice) ? setChoice : sets[0]?.id ?? null;
+  const samples = useMemo(() => sampleProducts(publishes, sampleSet), [publishes, sampleSet]);
   // The press's own products show their own prices; one without a price borrows a sample price so the cards read as a shop.
   const products: PreviewProduct[] = own && books.length ? books.map((b, i) => ({ ...b, price: b.price || samples[i % samples.length].price })) : samples;
   const shown = useMemo(() => filterLooks(others, filter), [others, filter]);
@@ -151,7 +156,8 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
     if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
     if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
   };
-  const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-primary-tint)", color: "var(--rp-text)", borderColor: "var(--rp-primary)" } : undefined });
+  // A chosen option is a black pill, like every other on/off choice in the admin (the old tint all but vanished in the cream look).
+  const toggle = (on: boolean) => ({ "aria-pressed": on, style: on ? { background: "var(--rp-text)", color: "var(--rp-surface)", borderColor: "var(--rp-text)" } : undefined });
 
   return (
     <SectionCard title={picked ? (settled ? `Your look: ${picked.name}` : `Welcome to ${press}. Here's the look you chose`) : `Welcome to ${press}. Choose your look`} description={intro} collapsible={false}
@@ -207,13 +213,25 @@ export function ChooseLookWelcome({ publishes, books = [], settings, onDone, onR
                   <SecondaryButton size="sm" {...toggle(page === "product")} onClick={() => setPage("product")}>Product page</SecondaryButton>
                   <SecondaryButton size="sm" {...toggle(page === "bag")} onClick={() => setPage("bag")}>Bag</SecondaryButton>
                 </span>
-                {books.length > 0 && (
-                  <span role="group" aria-label="Products shown" style={{ display: "flex", gap: 8 }}>
-                    <SecondaryButton size="sm" {...toggle(own)} onClick={() => setOwn(true)}>Your products</SecondaryButton>
-                    <SecondaryButton size="sm" {...toggle(!own)} onClick={() => setOwn(false)}>Samples</SecondaryButton>
-                  </span>
-                )}
               </div>
+              {(books.length > 0 || (!own && sets.length > 1)) && (
+                <div data-try-on-products style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 24px" }}>
+                  {books.length > 0 && (
+                    <span role="group" aria-label="Products shown" style={{ display: "flex", gap: 8 }}>
+                      <SecondaryButton size="sm" {...toggle(own)} onClick={() => setOwn(true)}>Your products</SecondaryButton>
+                      <SecondaryButton size="sm" {...toggle(!own)} onClick={() => setOwn(false)}>Samples</SecondaryButton>
+                    </span>
+                  )}
+                  {!own && sets.length > 1 && (
+                    <span role="group" aria-label="Show with" data-show-with style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                      <span className="rp-hint" style={{ margin: 0 }}>Show with</span>
+                      {sets.map(set => (
+                        <SecondaryButton key={set.id} size="sm" {...toggle(sampleSet === set.id)} onClick={() => setSet(set.id)}>{set.label}</SecondaryButton>
+                      ))}
+                    </span>
+                  )}
+                </div>
+              )}
               <div style={{ display: "grid", gap: 20, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", alignItems: "start" }}>
                 <div data-try-on-stage={device} style={{ gridColumn: "1 / -1", background: "var(--rp-surface-2)", padding: device === "phone" ? "24px 12px" : 12, display: "flex", justifyContent: "center", minWidth: 0 }}>
                   <div style={device === "phone"

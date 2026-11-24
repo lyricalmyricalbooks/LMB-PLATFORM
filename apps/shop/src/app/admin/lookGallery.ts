@@ -7,7 +7,7 @@ import { THEME_LIBRARY } from "./studio/themeLibrary";
 import { TEMPLATE_STYLE_IDS } from "../features/site/templateStyles";
 import { themedDesign } from "./studio/themeLook";
 import type { Sells } from "./sells";
-import { SAMPLE_SETS, sampleSetFor, samplePhotoUrl, samplePrice } from "./starterSamples";
+import { SAMPLE_SETS, sampleSetFor, samplePhotoUrl, samplePrice, type SampleSetId } from "./starterSamples";
 
 /** The sign-up answers to "What do you sell?" (signup/form.js, plans 6.2 and 10.1; sells.ts SELLS). */
 export type Publishes = Sells;
@@ -207,10 +207,10 @@ export type PreviewProduct = { title: string; photo: string; maker?: string; pri
 /**
  * Sample products for the try-on when the shop has none yet: the sample set that suits what it sells (the sign-up
  * answer), with its own photos, neutral "Example …" names and example prices (`starterSamples.ts`). A services shop sees
- * its example services as the cards.
+ * its example services as the cards. `setId` shows another set instead (the try-on's "Show with" picker).
  */
-export function sampleProducts(publishes?: string | null): PreviewProduct[] {
-  const set = SAMPLE_SETS[sampleSetFor(publishes)];
+export function sampleProducts(publishes?: string | null, setId?: SampleSetId | null): PreviewProduct[] {
+  const set = SAMPLE_SETS[setId && SAMPLE_SETS[setId] ? setId : sampleSetFor(publishes)];
   const items = set.products.length
     ? set.products.map((p) => ({ title: p.title, photo: p.photo, price: p.price }))
     : set.services.map((s) => ({ title: s.name, photo: s.photo, price: s.price }));
