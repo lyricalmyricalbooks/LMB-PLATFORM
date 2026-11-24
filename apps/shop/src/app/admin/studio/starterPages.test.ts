@@ -47,3 +47,14 @@ describe("starters shape every page", () => {
     expect(themeProblems(bad)).toHaveLength(2);
   });
 });
+
+describe("starter sections are samples until the owner edits them", () => {
+  it("marks them, and any edit clears the mark", async () => {
+    const { patchSectionSettings, patchBlockField } = await import("./studioModel");
+    const d = applyPresetSections({}, starter, getSectionMeta);
+    const list = d.cartPage.sections;
+    expect(list.every((s: any) => s.sample === true)).toBe(true);
+    expect(patchSectionSettings(list, list[0].id, { align: "left" })[0].sample).toBeUndefined();
+    expect(patchBlockField(list, list[0].id, "none", "text", "x")[0].sample).toBeUndefined();
+  });
+});

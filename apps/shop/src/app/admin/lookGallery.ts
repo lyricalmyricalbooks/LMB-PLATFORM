@@ -186,11 +186,13 @@ const WARM = new Set(["press-shelf", "press-kiln", "press-picnic", "press-arch"]
 export const lookFeel = (theme: LibraryTheme): LookFeel => (isDarkLook(theme) ? "dark" : BOLD.has(theme.id) ? "bold" : WARM.has(theme.id) ? "warm" : "quiet");
 export const feelLabel = (theme: LibraryTheme) => LOOK_FEELS.find(f => f.id === lookFeel(theme))!.label;
 
-export type LookFilter = "all" | LookFeel;
-export const LOOK_FILTERS: { id: LookFilter; label: string }[] = [{ id: "all", label: "All looks" }, ...LOOK_FEELS];
+export type LookFilter = "all" | "websites" | LookFeel;
+/** "Whole websites" keeps the starter websites (pages, sections and words, not only a look). */
+export const LOOK_FILTERS: { id: LookFilter; label: string }[] = [{ id: "all", label: "All looks" }, { id: "websites", label: "Whole websites" }, ...LOOK_FEELS];
 
 /** The looks a filter keeps, in the library's order. */
 export function filterLooks(themes: LibraryTheme[], filter: LookFilter): LibraryTheme[] {
+  if (filter === "websites") return themes.filter(t => STARTER_SITES.includes(t.id));
   return filter === "all" ? themes : themes.filter(t => lookFeel(t) === filter);
 }
 

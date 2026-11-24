@@ -9,7 +9,11 @@ import { designEqual } from "../../features/site/designEqual";
 export { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock };
 
 /** `label` is the owner's own name for a section in Studio; shoppers never see it. */
-export type Section = { id: string; type: string; label?: string; visible?: boolean; settings: Record<string, any> };
+/** `sample`: words and pictures a starter website put there (Studio shows a Sample badge until the owner edits it). */
+export type Section = { id: string; type: string; label?: string; visible?: boolean; sample?: boolean; settings: Record<string, any> };
+
+/** The section once the owner has changed it: no longer the starter's sample. */
+const edited = ({ sample: _sample, ...s }: Section): Section => s;
 
 /** Where a list of sections lives inside `design`. */
 /** A page's own sections, or a section group shown on every page (`group` defaults to the footer group). */
@@ -209,7 +213,7 @@ export const patchSectionSettings = (list: Section[], id: string, patch: Record<
     if (s.id !== id) return s;
     const settings = { ...(s.settings || {}), ...patch };
     for (const k of Object.keys(patch)) if (patch[k] === undefined) delete settings[k];
-    return { ...s, settings };
+    return { ...edited(s), settings };
   });
 
 /** Sets one field of one block inside a section (used by inline preview edits). */
@@ -223,7 +227,7 @@ export function patchBlockField(list: Section[], sectionId: string, blockId: str
         settings[k] = mapBlock(arr, blockId, (b) => ({ ...b, [key]: value }));
       }
     }
-    return { ...s, settings };
+    return { ...edited(s), settings };
   });
 }
 
