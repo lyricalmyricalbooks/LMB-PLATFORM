@@ -2,6 +2,9 @@ import { bookInCategory, normalizeCategories } from '../src/app/features/site/ca
 import { safeSlug } from './routeSafety.mjs';
 import { effectivePublishedSettings, releaseArrived } from './publicStorefrontData.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
+import { createRequire } from 'node:module';
+// The server's copy of src/shared/shopSells.ts: the storefront hides a books shop's untouched menu in other shops.
+const { unusedBookMenu } = createRequire(import.meta.url)('../functions/shared/shopSells.js');
 const escapeXml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]);
 const absoluteUrl = (value, base) => {
   if (typeof value !== 'string' || !value.trim() || value.startsWith('data:')) return '';
@@ -37,7 +40,10 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   // Collection pages resolve Studio category names, not a separate Firestore collection.
   const design = effectivePublishedSettings(settings, nowISO).design || {};
   const categorySource = design.categories ?? design.storefront?.categories ?? design.heroPage?.categories ?? [];
-  const categories = normalizeCategories(Array.isArray(categorySource) ? categorySource : []);
+  // A shop that doesn't sell books shows no collections for the books shop's starting menu (admin/sells.ts
+  // withShopStartFor), so none are listed or drawn: the drawing would wait for a page that never comes.
+  const shown = Array.isArray(categorySource) && !unusedBookMenu(categorySource, settings?.sells) ? categorySource : [];
+  const categories = normalizeCategories(shown);
   for (const category of categories) {
     if (category?.showInNav === false) continue;
     if (!includeEmptyCollections && !live.some(book => book.status === 'published' && bookInCategory(book, category, categories))) continue;

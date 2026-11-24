@@ -94,3 +94,13 @@ it("uses reviewed publication status to exclude drafts from product routes", () 
   expect(result.xml).not.toContain("antigravity-test");
   expect(result.xml).toContain("altrove-copy");
 });
+
+it('a shop that does not sell books lists no collections for the books shop starting menu, as its storefront shows none', () => {
+  const menu = ['PUBLICATIONS', 'EPHEMERA', 'IMPRINT', 'OUT OF PRINT'];
+  const goods = sitemapArtifacts('https://example.com', [], [], [], { sells: 'clothing', design: { categories: menu } }, { includeEmptyCollections: true });
+  expect(goods.xml).not.toContain('/collections/');
+  const books = sitemapArtifacts('https://example.com', [], [], [], { sells: 'books', design: { categories: menu } }, { includeEmptyCollections: true });
+  expect(books.xml).toContain('/collections/publications');
+  const ownMenu = sitemapArtifacts('https://example.com', [], [], [], { sells: 'clothing', design: { categories: ['Shirts'] } }, { includeEmptyCollections: true });
+  expect(ownMenu.xml).toContain('/collections/shirts');
+});

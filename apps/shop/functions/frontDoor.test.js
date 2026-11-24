@@ -299,3 +299,27 @@ describe("page size", () => {
     expect(small.body).toBe("<html>A book</html>");
   });
 });
+
+describe("a drawn page from an app that is no longer online", () => {
+  const app = name => `<html><head><script type="module" crossorigin src="/assets/${name}"></script></head><body>page</body></html>`;
+  const files = { ...FILES, "shops/press-a/site/index.html": app("index-OLD123.js"), "shops/press-b/site/index.html": app("index-NEW456.js") };
+  it("answers today's blank page instead, so the shop never shows without its styling", async () => {
+    const { ask } = door({ files, shell: app("index-NEW456.js") });
+    const old = await ask("press-a.example", "/");
+    expect(old.status).toBe(200);
+    expect(old.body).not.toContain("index-OLD123.js");
+    expect(old.body).toContain("index-NEW456.js");
+    expect((await ask("www.press-b.example", "/")).body).toContain("<body>page</body>");
+  });
+  it("reads the blank page again before deciding, so a cached one from before an update never hides a newer page", async () => {
+    const { ask, reads } = door({ files, shell: app("index-NEW456.js") });
+    await ask("www.press-b.example", "/");
+    const before = reads.shell;
+    await ask("press-a.example", "/");
+    expect(reads.shell).toBe(before + 1);
+  });
+  it("keeps a drawn page when the blank page names no app", async () => {
+    const { ask } = door({ files });
+    expect((await ask("press-a.example", "/")).body).toContain("index-OLD123.js");
+  });
+});

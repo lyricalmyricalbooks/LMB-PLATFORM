@@ -28,6 +28,20 @@ export function sellsServices(answer?: string | null): boolean {
   return typeof answer === "string" && SERVICE_ANSWERS.has(answer);
 }
 
+/**
+ * A books shop's starting menu (features/site/constants.ts CATEGORIES), and the one it had before 14 November 2026
+ * (LEGACY_CATEGORIES). A shop that doesn't sell books and still has one of them untouched shows no categories: the
+ * storefront (admin/sells.ts withShopStartFor) and the published pages (scripts/sitemapData.mjs) must agree, or the
+ * page drawing waits for a collection page the shop never shows.
+ */
+export const STARTING_BOOK_MENUS = [["PUBLICATIONS", "ZINES", "IMPRINT", "OUT OF PRINT"], ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"]] as const;
+
+/** True when `categories` is a books shop's untouched starting menu and the shop doesn't sell books. */
+export function unusedBookMenu(categories: unknown, answer?: string | null): boolean {
+  if (!answer || sellsBooks(answer) || !Array.isArray(categories)) return false;
+  return STARTING_BOOK_MENUS.some((menu) => categories.length === menu.length && categories.every((name, i) => name === menu[i]));
+}
+
 /** The three kinds of shop: a skipped or unknown answer is a books shop. */
 export type ShopKind = "books" | "products" | "services";
 export function shopKind(answer?: string | null): ShopKind {
