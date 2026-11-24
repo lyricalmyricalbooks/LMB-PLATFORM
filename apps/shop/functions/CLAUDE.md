@@ -1540,6 +1540,17 @@ within `PROMO_GAP_HOURS` of the last one; sends ten at a time (kind `booking-pro
 answer sets `promoOk` and `textOk` false on all that person's bookings. Ops `promoAudience`, `promoSend` (409 too_soon or
 nobody), `promoHistory` (owner only). `promoTexts` is server-only (no rule). Tests: "promo texts (plan 4, 5.6)".
 
+**Other calendars (Beta, 24 November 2026, plan 4 step 5.7).** Reading in `shared/calendarFeeds.ts`: `cleanFeedUrl` (https
+only, webcal read as https, no user or port, hosts on `feedHostAllowed`'s list: Outlook, iCloud, Google, Proton, Fastmail,
+Yahoo, Zoho) and `busyFromIcs` (TZID with Windows names, all-day on the shop's days, transparent, cancelled and Outlook
+"free" skipped, RRULE daily/weekly/monthly/yearly with INTERVAL, COUNT, UNTIL, EXDATE and moved repeats, overlaps joined,
+at most `MAX_FEED_SPANS`). `readFeed` follows up to 3 redirects by hand, checking each host again, with a 10 s timeout and
+a 3 MB cap (`fetchFeed` dependency for tests). The links and busy spans live in `bookingCalendars/main` (server only;
+`feedsView` never returns a link). `sweepOtherCalendars` runs in `bookingSweep` every 15 minutes (`force` from op
+`otherCalendars`): a calendar that fails keeps its last busy times; its items are `{ start, end, g: true, p? }` under
+`ical~<feedId>~n` in `bookingDays`, so `busyFrom` treats them as away (they block, but never count to the daily cap); a
+person who stops taking bookings is left out. Days whose items changed are rewritten in transactions that keep the rest.
+
 **Standing appointments (17 November 2026, Services plan 2 B1, `tasks/todo/2026-11-17-standing-appointments.md`).** A
 one-to-one service may set `repeats` (`cleanService`: never a class or course; Bookings › Services › edit › **Clients can book a
 standing appointment**). Clients can book a run only when `runsOnline` (shared: repeats, free or paid at the visit, no card on

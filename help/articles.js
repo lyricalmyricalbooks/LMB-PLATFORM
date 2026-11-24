@@ -105,6 +105,7 @@ export const ARTICLES = Object.freeze([
       "Bookings › Hours & rules › Keep in touch sends a welcome after a first visit, a birthday note and a \"we miss you\" email. Clients who unsubscribed get none.",
       "Bookings › Hours & rules › Loyalty points gives clients points for visits and orders. At the level you set, they get a money-off code by email.",
       "Bookings › Hours & rules › Promo texts sends one text to clients who ticked \"Text me offers\". It goes out in the daytime, at most once a day.",
+      "Bookings › Hours & rules › Other calendars takes a link to an Outlook, Apple or other calendar. Clients can't book the times it shows busy.",
     ],
   },
   {
