@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { TEMPLATES, TEMPLATE_DETAIL_NAMES, createShopLooks, lookOf, lookTally, shopLooksRoutes } from "./shopLooks.js";
+import { TEMPLATES, TEMPLATE_DETAIL_NAMES, createShopLooks, lookOf, lookTally, sampleSections, shopLooksRoutes } from "./shopLooks.js";
 import { controlRoomAdmins } from "./controlRoom.js";
 import { fakeShopData } from "../accounts/fakes.js";
 import { fakeRegistry } from "../setup/fakes.js";
@@ -50,7 +50,7 @@ test("only platform admins see a shop's look, or the looks across presses", asyn
 test("a shop's look: what shoppers see, a different look in the draft, and the welcome's pick", async () => {
   const w = await world();
   assert.deepEqual((await w.desk.forShop(ADMIN, { shopId: "moth" })).look, {
-    live: { id: "marquee", name: "Marquee" }, template: "marquee", templateDetails: [], publishedAt: "2026-11-01T10:00:00Z", draft: { id: "atlas", name: "Atlas" },
+    live: { id: "marquee", name: "Marquee" }, template: "marquee", templateDetails: [], publishedAt: "2026-11-01T10:00:00Z", samples: 0, draft: { id: "atlas", name: "Atlas" },
     welcome: { theme: "marquee", at: "2026-10-30T09:00:00Z", skipped: false, adminLook: "paper" }, waiting: false,
   });
   const newt = (await w.desk.forShop(ADMIN, { shopId: "newt" })).look;
@@ -58,7 +58,7 @@ test("a shop's look: what shoppers see, a different look in the draft, and the w
   assert.equal(newt.welcome.skipped, true);
   assert.match((await w.desk.forShop(ADMIN, { shopId: "stock" })).words, /no website/);
   assert.equal((await w.desk.forShop(ADMIN, { shopId: "new-press" })).look, null);
-  assert.deepEqual(lookOf(null, null, null), { live: null, template: null, templateDetails: [], publishedAt: null, draft: null, welcome: null, waiting: false });
+  assert.deepEqual(lookOf(null, null, null), { live: null, template: null, templateDetails: [], publishedAt: null, samples: 0, draft: null, welcome: null, waiting: false });
   assert.equal(lookOf({ design: marquee }, { draft: marquee }, null).draft, null, "the same look in the draft isn't news");
 });
 
@@ -108,4 +108,16 @@ test("the template details match the shop's Reset template details, and the reco
   assert.deepEqual({ ...TEMPLATE_DETAIL_NAMES }, shop);
   assert.deepEqual(lookOf({ design: { themeStyle: "shelf", templateCardTilt: 2, templateFrameWidth: 0, templateRuleWidth: "" } }, null, null).templateDetails, ["photo frames", "card tilt"]);
   assert.deepEqual(lookOf({ design: {} }, null, null).templateDetails, []);
+});
+
+test("counts the starter website's sample sections still on the published website", () => {
+  const design = {
+    heroPage: { sections: [{ id: "a", sample: true }, { id: "b" }] },
+    globalSections: [{ id: "c", sample: true }],
+    productPage: { sections: [] },
+    themeBase: { id: "juniper-slow-season", name: "Slow Season" },
+  };
+  assert.equal(sampleSections(design), 2);
+  assert.equal(sampleSections(null), 0);
+  assert.equal(lookOf({ design }, null, null).samples, 2);
 });

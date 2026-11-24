@@ -25,6 +25,20 @@ export const TEMPLATE_DETAIL_NAMES = Object.freeze({
 });
 const detailsOf = (design) => Object.keys(TEMPLATE_DETAIL_NAMES).filter((key) => design?.[key] != null && design[key] !== "").map((key) => TEMPLATE_DETAIL_NAMES[key]);
 
+/**
+ * Sections a starter website added that the press hasn't changed yet (`sample: true`, apps/shop studio/presetContent.ts),
+ * across every page and every-page group of the published design.
+ */
+export function sampleSections(design) {
+  let n = 0;
+  const count = (list) => { if (Array.isArray(list)) for (const s of list) if (s && s.sample === true) n += 1; };
+  for (const value of Object.values(design || {})) {
+    if (Array.isArray(value)) count(value);
+    else if (value && typeof value === "object") count(value.sections);
+  }
+  return n;
+}
+
 const base = (design) => (design?.themeBase?.id ? { id: String(design.themeBase.id), name: String(design.themeBase.name ?? design.themeBase.id) } : null);
 
 /**
@@ -42,6 +56,8 @@ export function lookOf(settings, workspace, start) {
     // The template details the press changed in Studio (Reset template details clears them), as the shop names them.
     templateDetails: detailsOf(settings?.design),
     publishedAt: settings?.designPublishedAt ?? null,
+    // Starter website sections shoppers still see with the starter's own sample words and pictures.
+    samples: sampleSections(settings?.design),
     draft: draft && draft.id !== live?.id ? draft : null,
     welcome,
     waiting: Boolean(welcome && !live),
@@ -102,6 +118,7 @@ export function createShopLooks({ admins, registry, shopData, now = () => new Da
         }
       });
       return { looks: lookTally(looks), templates: templateTally(looks), shops: looks.length, waiting: looks.filter((l) => l.waiting).length,
+        withSamples: looks.filter((l) => l.samples > 0).length,
         // Choose your look on the admin's first visit: picked one, or pressed Skip (which takes the first suggestion).
         welcome: { picked: looks.filter((l) => l.welcome && !l.welcome.skipped).length, skipped: looks.filter((l) => l.welcome?.skipped).length }, unread };
     },
