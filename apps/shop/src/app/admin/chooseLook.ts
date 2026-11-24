@@ -25,12 +25,19 @@ export * from "./lookGallery";
  * draft again and tries once more, so nothing that tab saved is lost. Applying the same look twice gives the same draft.
  * A shop that doesn't sell books also gets its starter words (sells.ts, plan 10.1) under any words the owner wrote.
  */
-export async function applyChosenLook(theme: LibraryTheme, settings: any, publishes?: string | null): Promise<void> {
+export async function applyChosenLook(theme: LibraryTheme, settings: any, publishes?: string | null, extra: { logo?: File | null } = {}): Promise<void> {
   const w = wordsFor(publishes);
+  // The guided start's logo goes up first and into the header (brandKit's `logoUrl`). Best effort: a failed upload keeps
+  // the shop name in the header, and the logo can be added in Studio › Style › Header.
+  let logoUrl = "";
+  if (extra.logo) {
+    try { logoUrl = await (await import("./studio/mediaUpload")).uploadStudioImage(extra.logo); } catch { logoUrl = ""; }
+  }
   for (let attempt = 0; ; attempt++) {
     const ws = await openWorkspace(settings);
     try {
-      await saveDraft(ws, withStarterWords(applyStarter(ws.draft || {}, starterForShop(theme, publishes), getSectionMeta, w, starterPhotos(publishes)), publishes), ws.rev);
+      const next = withStarterWords(applyStarter(ws.draft || {}, starterForShop(theme, publishes), getSectionMeta, w, starterPhotos(publishes)), publishes);
+      await saveDraft(ws, logoUrl ? { ...next, logoUrl } : next, ws.rev);
       break;
     } catch (error) {
       if (!(error instanceof ThemeConflictError) || attempt >= 1) throw error;

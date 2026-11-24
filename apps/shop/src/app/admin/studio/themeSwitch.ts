@@ -76,7 +76,7 @@ export const lookSignature = (theme: any) =>
 /** What Use this look stores beside the design: `look` is exactly what it wrote. */
 export function themeBaseFor(theme: any, look: Record<string, any>): ThemeBase {
   const { themeLibraryPreset: _id, ...keys } = look;
-  const base: ThemeBase = { id: theme.id, name: styledName(theme), look: keys, sig: lookSignature(theme) };
+  const base: ThemeBase = { id: theme.id, name: styledName(theme), look: keys, sig: theme.baseSig || lookSignature(theme) };
   return theme.styleId ? { ...base, style: theme.styleId } : base;
 }
 

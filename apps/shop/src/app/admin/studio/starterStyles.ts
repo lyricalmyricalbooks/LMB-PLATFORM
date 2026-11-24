@@ -8,11 +8,15 @@
 // style from shops (`platform/starters`, `hiddenStyles`).
 import { THEME_LIBRARY } from "./themeLibrary";
 
+export type StyleFeel = "calm" | "bold" | "classic";
+
 export type StarterStyle = {
   id: string;
   name: string;
   /** Background, text and accent, for the swatch. */
   swatches: [string, string, string];
+  /** The feels this style answers in the guided start (guidedStart.ts): calm, bold or classic. */
+  feels: StyleFeel[];
   global?: Record<string, any>;
   /** Section type → settings laid over every section of that type in the starter. */
   sections?: Record<string, Record<string, any>>;
@@ -36,13 +40,13 @@ const palette = (p: {
 
 export const STARTER_STYLES: Record<string, StarterStyle[]> = {
   "aurel-editorial": [
-    { id: "cobalt", name: "Cobalt", swatches: ["#f2eee6", "#0f1826", "#183dce"] },
-    { id: "sand", name: "Sand", swatches: ["#efe7da", "#2a2119", "#9a4f24"],
+    { id: "cobalt", name: "Cobalt", swatches: ["#f2eee6", "#0f1826", "#183dce"], feels: ["classic"] },
+    { id: "sand", name: "Sand", swatches: ["#efe7da", "#2a2119", "#9a4f24"], feels: ["calm"],
       global: { ...palette({ bg: "#efe7da", text: "#2a2119", accent: "#9a4f24", second: "#e3d6c3", surface: "#e3d6c3", muted: "#5f5348",
         border: "#cdbfa9", button: "#2a2119", buttonText: "#efe7da", hover: "#9a4f24", hoverText: "#ffffff", footer: "#2a2119",
         footerText: "#efe7da", announce: "#9a4f24", announceText: "#ffffff" }),
         navLinkActiveColor: "#9a4f24", headingFont: "Playfair Display", bodyFont: "DM Sans", headingWeight: 500 } },
-    { id: "night", name: "Night", swatches: ["#121722", "#ece6da", "#8fa8ff"],
+    { id: "night", name: "Night", swatches: ["#121722", "#ece6da", "#8fa8ff"], feels: ["bold"],
       global: { ...palette({ bg: "#121722", text: "#ece6da", accent: "#8fa8ff", second: "#1c2331", surface: "#1c2331", muted: "#a9b0bd",
         border: "#2c3445", button: "#ece6da", buttonText: "#121722", hover: "#8fa8ff", hoverText: "#121722", footer: "#0b0f17",
         footerText: "#ece6da", announce: "#8fa8ff", announceText: "#121722" , overlay: "#000000" }),
@@ -50,8 +54,8 @@ export const STARTER_STYLES: Record<string, StarterStyle[]> = {
       sections: { NewsletterSection: { colorSchemeId: "scheme-default" } } },
   ],
   "juniper-slow-season": [
-    { id: "terracotta", name: "Terracotta", swatches: ["#f9f7f0", "#151613", "#bd5238"] },
-    { id: "sage", name: "Sage", swatches: ["#f7f6ef", "#1a1d17", "#4f6b4a"],
+    { id: "terracotta", name: "Terracotta", swatches: ["#f9f7f0", "#151613", "#bd5238"], feels: ["classic"] },
+    { id: "sage", name: "Sage", swatches: ["#f7f6ef", "#1a1d17", "#4f6b4a"], feels: ["calm"],
       global: { ...palette({ bg: "#f7f6ef", text: "#1a1d17", accent: "#4f6b4a", second: "#e9ecdf", surface: "#e3e6d6", muted: "#545a4e",
         border: "#d3d6c8", button: "#1a1d17", buttonText: "#f7f6ef", hover: "#4f6b4a", hoverText: "#ffffff", footer: "#1a1d17",
         footerText: "#f7f6ef", announce: "#1a1d17", announceText: "#f7f6ef" }),
@@ -62,7 +66,7 @@ export const STARTER_STYLES: Record<string, StarterStyle[]> = {
         StoryOrbitSection: { bgColor: "#2b2f26", accentColor: "#e9d8a6" },
         NewsletterSection: { bgColor: "#f1e7c6" },
       } },
-    { id: "night", name: "Night", swatches: ["#15140f", "#efe9dc", "#e07a52"],
+    { id: "night", name: "Night", swatches: ["#15140f", "#efe9dc", "#e07a52"], feels: ["bold"],
       global: { ...palette({ bg: "#15140f", text: "#efe9dc", accent: "#e07a52", second: "#23211b", surface: "#23211b", muted: "#b3ac9d",
         border: "#3a372f", button: "#efe9dc", buttonText: "#15140f", hover: "#e07a52", hoverText: "#15140f", footer: "#0d0c09",
         footerText: "#efe9dc", announce: "#e07a52", announceText: "#15140f" , overlay: "#000000" }) },
@@ -74,13 +78,13 @@ export const STARTER_STYLES: Record<string, StarterStyle[]> = {
       } },
   ],
   "juniper-catalogue": [
-    { id: "acid", name: "Acid", swatches: ["#f2f0e8", "#161815", "#d8ff43"] },
-    { id: "blueprint", name: "Blueprint", swatches: ["#eef1f6", "#10182b", "#2a4fd6"],
+    { id: "acid", name: "Acid", swatches: ["#f2f0e8", "#161815", "#d8ff43"], feels: ["bold"] },
+    { id: "blueprint", name: "Blueprint", swatches: ["#eef1f6", "#10182b", "#2a4fd6"], feels: ["classic", "calm"],
       global: { ...palette({ bg: "#eef1f6", text: "#10182b", accent: "#2a4fd6", second: "#9fe3ff", surface: "#dde3ee", muted: "#4d566a",
         border: "#b3bccc", button: "#10182b", buttonText: "#eef1f6", hover: "#9fe3ff", hoverText: "#10182b", footer: "#10182b",
         footerText: "#eef1f6", footerHeading: "#9fe3ff", checkout: "#10182b" }),
         navLinkActiveColor: "#10182b", headingFont: "Libre Baskerville" } },
-    { id: "night", name: "Night", swatches: ["#121411", "#ecebe3", "#d8ff43"],
+    { id: "night", name: "Night", swatches: ["#121411", "#ecebe3", "#d8ff43"], feels: ["bold"],
       global: { ...palette({ bg: "#121411", text: "#ecebe3", accent: "#ff7a4d", second: "#d8ff43", surface: "#1d201b", muted: "#a4a49a",
         border: "#34372f", button: "#ecebe3", buttonText: "#121411", hover: "#d8ff43", hoverText: "#121411", footer: "#0b0c0a",
         footerText: "#ecebe3", footerHeading: "#d8ff43", checkout: "#ecebe3" , overlay: "#000000" }),

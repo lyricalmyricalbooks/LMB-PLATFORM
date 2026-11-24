@@ -1589,3 +1589,17 @@ with copy) and Remove (asks first). All through op `bookingHooks` (steps list, a
   change, `autosaveDraft` saves it as a draft without toasts. The first autosave creates it and holds `loading`, so
   Publish can't create a second copy meanwhile. `lastDraft.ts` remembers it on this device for "Continue where you left
   off" in `TypePicker` (14 days; forgotten once published, deleted or no longer a draft).
+
+## Guided start (24 November 2026, next starters plan phase 3)
+- Choose your look opens on three questions (`overview/GuidedStart.tsx`): what you sell (the press's own products or a
+  sample set), the feel (calm, bold, classic) and an optional logo. The shortlist below (`guidedStart.ts` `shortlist`)
+  is every starter the control room offers, each in the style whose `feels` match (studio/starterStyles.ts), drawn with
+  Choose your look's own cards. See every look opens the gallery; Back to your shortlist returns.
+- The logo is read in the browser (`studio/logoColours.ts`); its main colour becomes the style's accent
+  (`withLogoColours`: readable 3:1 on the style's page, swapped only where the style used its accent), so the style's
+  page and bands stay. `baseSig` keeps the unbranded fingerprint, so a starter update is never confused with the logo.
+- Using a shortlisted starter in the shop's admin uploads the logo (`uploadStudioImage`) and puts it in the header
+  (`logoUrl`), best effort. Setup mode (no shop yet) keeps colours only.
+- Only on a first welcome: not when a look was chosen in setup (`chosen`) or one is already in place (`keep`).
+  `guidedStart={false}` opens straight on the gallery (the older tests use it).
+- The readability checks run every starter in a light and a dark style with four sample logos (`themeReadability.test.tsx`).

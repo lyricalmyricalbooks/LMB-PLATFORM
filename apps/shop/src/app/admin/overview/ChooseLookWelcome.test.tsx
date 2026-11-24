@@ -15,7 +15,7 @@ const mount = async (props: Record<string, unknown> = {}) => {
   const apply = vi.fn(async () => {});
   const host = document.createElement("div"); document.body.append(host);
   root = createRoot(host);
-  act(() => root!.render(h(ChooseLookWelcome, { publishes: "books", settings: { info: { name: "Moth Press" } }, onDone, apply, ...props })));
+  act(() => root!.render(h(ChooseLookWelcome, { publishes: "books", settings: { info: { name: "Moth Press" } }, onDone, apply, guidedStart: false, ...props })));
   await flush();
   return { onDone, apply };
 };
