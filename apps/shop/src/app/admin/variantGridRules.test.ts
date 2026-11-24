@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillEvery, gridStock, gridSummary, parseFill } from "./variantGridRules";
+import { bumpBySize, fillEvery, gridStock, gridSummary, parseFill, sizeOptionOf } from "./variantGridRules";
 import { variantsForOptions, type ProductOption } from "../../shared/productOptions";
 import { buildInventory } from "./inventoryInsights";
 import { goodsWords } from "./sells";
@@ -58,5 +58,23 @@ describe("Every combination grid", () => {
     expect(goodsWords("Remove 1 edition?")).toBe("Remove 1 variant?");
     expect(goodsWords("every combination becomes an edition below")).toBe("every combination becomes a variant below");
     expect(goodsWords("Edition image")).toBe("Variant image");
+  });
+});
+
+describe("a price bump for bigger sizes", () => {
+  const size = { name: "Size", values: ["S", "M", "L", "XL"] };
+  const rows = ["S", "M", "L", "XL"].flatMap((s) => ["Red", "Blue"].map((c) => ({ id: `${s}-${c}`, price: 1, options: { Size: s, Colour: c } })));
+  it("finds the size option, if there is one", () => {
+    expect(sizeOptionOf([{ name: "Colour", values: ["Red", "Blue"] }, size])).toBe(size);
+    expect(sizeOptionOf([{ name: "Colour", values: ["Red", "Blue"] }])).toBeNull();
+  });
+  it("adds the extra from the chosen size up, and never stacks", () => {
+    const once = bumpBySize(rows, size, "L", 30, 5);
+    expect(once.map((v) => v.price)).toEqual([30, 30, 30, 30, 35, 35, 35, 35]);
+    expect(bumpBySize(once, size, "L", 30, 5)).toEqual(once);
+  });
+  it("leaves rows alone when the size or amounts are wrong", () => {
+    expect(bumpBySize(rows, size, "XXL", 30, 5)).toBe(rows);
+    expect(bumpBySize(rows, size, "L", -1, 5)).toBe(rows);
   });
 });
