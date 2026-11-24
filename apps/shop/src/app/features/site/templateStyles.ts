@@ -48,6 +48,7 @@ export const TEMPLATE_STYLES = [
   { id: "reel", label: "Reel (cinematic, condensed titles)" },
   { id: "aurel", label: "Aurel (editorial, centred wordmark, numbered photos)" },
   { id: "slowseason", label: "Slow Season (huge capitals, numbered photos, big footer name)" },
+  { id: "catalogue", label: "Catalogue (numbered collection, acid tags, staggered grid)" },
 ] as const;
 export const TEMPLATE_STYLE_IDS = TEMPLATE_STYLES.map((t) => t.id);
 export type TemplateStyleId = (typeof TEMPLATE_STYLES)[number]["id"];
@@ -611,7 +612,50 @@ ${S} [class*="showcase-grid-"] > * > .fm-card{counter-increment:slow;}
 ${S} [class*="showcase-grid-"] > * > .fm-card > div:first-child::after{content:counter(slow, decimal-leading-zero);position:absolute;left:18px;top:16px;font-size:10px;letter-spacing:.08em;color:rgb(var(--fg-rgb));z-index:2;}
 ${S} [data-studio-label="Product grid"] > .fm-card{counter-increment:slow;}
 ${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame::after{content:counter(slow, decimal-leading-zero);position:absolute;left:18px;top:16px;font-family:var(--heading-font);font-size:10px;font-weight:600;color:rgb(var(--fg-rgb));z-index:2;}
-${S} .fm-footer-brand span{font-size:clamp(60px, 11vw, 170px);line-height:1;letter-spacing:-.06em;text-transform:uppercase;}
+${S} .fm-footer-brand > p:first-of-type span{font-size:clamp(60px, 11vw, 170px);line-height:1;letter-spacing:-.06em;text-transform:uppercase;}
+`,
+});
+
+/** Catalogue (24 November 2026, the owner's Figma "Catalogue" design): a split opening inside a paper margin, an ink button
+ * with an acid arrow, an acid caption tag, each product numbered "No. 001" on a paper tag, a staggered grid with ink rules. */
+export const CATALOGUE_CSS = lookCss({
+  hWeight: "400", hLine: ".83", hSpace: "-.06em", navLine: HAIR_N,
+  titleCss: "font-weight:500;font-size:clamp(18px,1.8vw,26px);letter-spacing:-.01em;", priceCss: `font-family:var(--body-font);font-size:.72rem;`,
+  btnRadius: "0px", btnCase: "none", btnCss: "font-size:.75rem;font-weight:600;", corner: "0px", footLine: HAIR_N,
+  extra: `
+${S} ::selection{background:var(--accent-2);color:rgb(var(--fg-rgb));}
+${S} header[data-section="navigation"] .fm-logo{font-family:var(--body-font);font-size:17px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:13px;letter-spacing:0;text-transform:none;}
+${S} .fm-split{padding:6vw 3.2vw 3.2vw;gap:4.5vw;grid-template-columns:.86fr 1.14fr;min-height:calc(100svh - 76px);}
+${S} .fm-split.fm-split-flip{grid-template-columns:1.14fr .86fr;}
+${S} .fm-split-copy{padding:0;}
+${S} .fm-split-eyebrow{font-family:var(--body-font);font-size:11px;letter-spacing:.15em;}
+${S} .fm-split-title{margin:24px 0 0;font-size:var(--fm-split-title, clamp(64px, 7.2vw, 116px));}
+${S} .fm-split-accent{font-style:italic;}
+${S} .fm-split-body{font-family:var(--heading-font);font-size:21px;line-height:1.4;color:rgb(var(--fg-rgb));}
+${S} .fm-split-link{width:auto;gap:48px;padding:14px 17px;border:0;background:var(--btn-bg, rgb(var(--fg-rgb)));color:var(--btn-text, var(--bg-color));font-size:12px;letter-spacing:0;text-transform:none;}
+${S} .fm-split-link svg{color:var(--accent-2);}
+${S} .fm-split-link:hover{color:var(--btn-text, var(--bg-color));gap:60px;}
+${S} .fm-split-photo{min-height:580px;}
+${S} .fm-split-caption{left:auto;right:18px;bottom:18px;padding:10px 12px;background:var(--accent-2);color:rgb(var(--fg-rgb));font-family:var(--body-font);letter-spacing:0;text-transform:none;}
+${S} .fm-split-plus{display:none;}
+${S} section:has(> .animate-marquee){padding-top:13px;padding-bottom:13px;font-family:var(--body-font);}
+${S} :is([data-studio-label="Product grid"],[class*="showcase-grid-"]){counter-reset:cat;}
+${S} [class*="showcase-grid-"] > * > .fm-card{counter-increment:cat;}
+${S} [data-studio-label="Product grid"] > .fm-card{counter-increment:cat;}
+${S} [class*="showcase-grid-"] > * > .fm-card > div:first-child::before,${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame::before{content:counter(cat, decimal-leading-zero);position:absolute;left:12px;top:12px;z-index:2;padding:7px 9px;background:var(--bg-color);color:rgb(var(--fg-rgb));font-family:var(--body-font);font-size:9px;}
+${S} .fm-card .fm-photo-frame{background:var(--surface);}
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} .fm-card-meta{font-size:11px;}
+${S} .fm-card h3,${S} .fm-card [class*="title"]{font-family:var(--heading-font);}
+@media (min-width:1024px){
+${S} [class*="showcase-grid-"] > :nth-child(3n+2){margin-top:4vw;}
+${S} [class*="showcase-grid-"] > :nth-child(3n){margin-top:8vw;}
+${S} [data-studio-label="Product grid"] > .fm-card:nth-child(3n+2){margin-top:4vw;}
+${S} [data-studio-label="Product grid"] > .fm-card:nth-child(3n){margin-top:8vw;}
+}
+@media (max-width:767px){${S} .fm-split,${S} .fm-split.fm-split-flip{padding:38px 20px 20px;gap:42px;grid-template-columns:1fr;}${S} .fm-split-photo{height:430px;min-height:0;}}
+${S} .fm-footer-brand > p:first-of-type span{color:var(--accent-2);font-family:var(--heading-font);font-size:clamp(38px,5vw,74px);letter-spacing:-.04em;}
 `,
 });
 
@@ -619,7 +663,7 @@ ${S} .fm-footer-brand span{font-size:clamp(60px, 11vw, 170px);line-height:1;lett
 export const TEMPLATE_CSS: Record<TemplateStyleId, string> = {
   marquee: MARQUEE_CSS, shelf: SHELF_CSS, atlas: ATLAS_CSS, mosaic: MOSAIC_CSS, arch: ARCH_CSS, market: MARKET_CSS, index: INDEX_CSS,
   folio: FOLIO_CSS, lantern: LANTERN_CSS, gutter: GUTTER_CSS, signal: SIGNAL_CSS, kiln: KILN_CSS, almanac: ALMANAC_CSS, console: CONSOLE_CSS,
-  picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS, aurel: AUREL_CSS, slowseason: SLOWSEASON_CSS,
+  picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS, aurel: AUREL_CSS, slowseason: SLOWSEASON_CSS, catalogue: CATALOGUE_CSS,
 };
 
 /** Which template a design draws, or "" for any other look. */
