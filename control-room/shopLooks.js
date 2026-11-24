@@ -39,7 +39,9 @@ export function sampleSections(design) {
   return n;
 }
 
-const base = (design) => (design?.themeBase?.id ? { id: String(design.themeBase.id), name: String(design.themeBase.name ?? design.themeBase.id) } : null);
+// `version`: the starter's version the shop started from (apps/shop studio/starterVersions.ts); a look applied before
+// versions were recorded is version 1.
+const base = (design) => (design?.themeBase?.id ? { id: String(design.themeBase.id), name: String(design.themeBase.name ?? design.themeBase.id), version: Number(design.themeBase.version) || 1 } : null);
 
 /**
  * The look shoppers see, the draft's when it differs, and the welcome's pick. `waiting` is true when the welcome picked a
@@ -64,13 +66,18 @@ export function lookOf(settings, workspace, start) {
   };
 }
 
-/** How many live shops wear each look ("" = their own design, not from a ready-made look), most worn first. */
+/**
+ * How many live shops wear each look ("" = their own design, not from a ready-made look), most worn first, with how
+ * many are on each version of it (`versions`: { "1": 3, "2": 1 }).
+ */
 export function lookTally(looks) {
   const counts = new Map();
   for (const look of looks) {
     const key = look.live?.id ?? "";
-    const row = counts.get(key) ?? { id: key, name: look.live?.name ?? "", count: 0 };
+    const row = counts.get(key) ?? { id: key, name: look.live?.name ?? "", count: 0, versions: {} };
     row.count += 1;
+    // How many are on each of the starter's versions (Setting up › Starter websites says how many are on the newest).
+    if (look.live) row.versions[look.live.version] = (row.versions[look.live.version] ?? 0) + 1;
     counts.set(key, row);
   }
   return [...counts.values()].sort((a, b) => (a.id === "") - (b.id === "") || b.count - a.count || a.id.localeCompare(b.id));

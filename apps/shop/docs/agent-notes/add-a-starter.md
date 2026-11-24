@@ -52,6 +52,15 @@ Aurel Night). Shops see them as swatches on the starter's card in Studio › The
 - The theme checks run every style (`STYLED_LOOKS`, id `starter/style`); fix the colour, never loosen a check.
 - Screenshot each style in Studio (pick the swatch, then Try this starter) at desktop and phone.
 
+
+## 4c. Give it a version (a few minutes)
+- Add the starter to `STARTER_VERSIONS` in `admin/studio/starterVersions.ts`: release 1 with today's date and one plain
+  sentence, and `looks` (run `npx vitest run src/app/admin/studio/starterVersions.test.ts`: it prints the signatures).
+  Add the same `version: 1` to its line in `control-room/starterSites.js` STARTERS.
+- **Changing a starter later** (any colour, font or style key, in any style) fails that test until you add the next
+  release with a note an owner understands and copy the new signatures. Every shop on the starter is then told "A new
+  version of … is ready" in Studio, can preview it, and keeps its own changes when it updates. Bump the control room's
+  `version` too. Change a starter on purpose only.
 ## 5. Check
 - Tests: `starterDesign.test.ts`, `themeCheck.test.ts`, `themeReadability.test.tsx`, `templateCoverage.test.ts`,
   `themeFonts.test.ts`, `starterStyles.test.ts`, `neutralStarters.test.ts`, `sectionDesigns.test.ts`, `starterSamples.test.ts`, and root

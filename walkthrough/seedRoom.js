@@ -181,6 +181,8 @@ export async function seedRoom(world) {
   // Its website wears Marquee, picked in Choose your look, with Atlas being tried in Studio's draft.
   await world.shopData.set("kestrel", "settings/website", { ...(world.doc("kestrel", "settings/website") ?? {}), design: { themeStyle: "marquee", themeBase: { id: "marquee", name: "Marquee", look: {}, sig: "seed" } }, designPublishedAt: daysAgo(30) });
   await world.shopData.set("kestrel", "themes/workspace", { draft: { themeBase: { id: "atlas", name: "Atlas", look: {}, sig: "seed" } }, rev: 4 });
+  // Lantern Zines wears the Aurel starter in its Sand style, on its first version (Setting up › Starter websites counts it).
+  await world.shopData.set("lantern-zines", "settings/website", { ...(world.doc("lantern-zines", "settings/website") ?? {}), design: { themeStyle: "aurel", themeBase: { id: "aurel-editorial", name: "Aurel Sand", style: "sand", version: 1, look: {}, sig: "seed" } }, designPublishedAt: daysAgo(10) });
   await world.shopData.set("kestrel", "settings/notifications", { shopAlerts: { dailyOrderDigest: true, lowStock: true } });
   await world.shopData.set("kestrel", "systemStatus/lowStockAlerts", { items: { birdsong: "low", "wren-songs": "low", "old-zine": "out" } });
   await world.shopData.set("kestrel", "orders/seed-parts", { paymentStatus: "paid", createdAt: daysAgo(8), total: 52, partShipments: [{ at: daysAgo(7) }, { at: daysAgo(3) }] });

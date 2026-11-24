@@ -554,6 +554,9 @@
 .studio-own-edits { background: var(--rp-surface-sunken); border-width: 1px; border-color: var(--rp-border); }
 .studio-own-edits h3 { margin: 0; }
 .studio-own-update { display: grid; gap: 6px; justify-items: start; padding: 8px; border: 2px solid var(--rp-border-strong); background: var(--rp-warning-tint); }
+.studio-update-notes { margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; line-height: 1.45; }
+ul.studio-update-notes { padding-left: 18px; }
+.studio-update-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .studio-switch-kept > button { margin-top: 6px; }
 .studio-switch-kept summary { cursor: pointer; font-size: 12px; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
 .studio-theme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }

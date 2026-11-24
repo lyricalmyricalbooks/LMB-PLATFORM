@@ -16,6 +16,8 @@
 //
 // Styles (next starters plan phase 2): every starter comes in three named styles (apps/shop studio/starterStyles.ts);
 // `hiddenStyles` hides one from shops by `starter/style` id. The starter's own (first) style can't be hidden.
+// Versions (next starters plan phase 4): `version` is each starter's newest release (apps/shop studio/starterVersions.ts,
+// kept in step by starterSites.test.js), so the page can say how many live shops are on it.
 //
 // Clients passed in:
 //   settingsStore  the platform's small records: get(name); set(name, value)
@@ -29,9 +31,9 @@ import { PLANS } from "../setup/steps.js";
 
 /** The shop's starters, in the shop's own order (lookGallery.ts STARTER_SITES), with the names it shows. */
 export const STARTERS = Object.freeze([
-  { id: "juniper-slow-season", name: "Slow Season", styles: [{ id: "terracotta", name: "Terracotta" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
-  { id: "juniper-catalogue", name: "Catalogue", styles: [{ id: "acid", name: "Acid" }, { id: "blueprint", name: "Blueprint" }, { id: "night", name: "Night" }] },
-  { id: "aurel-editorial", name: "Aurel", styles: [{ id: "cobalt", name: "Cobalt" }, { id: "sand", name: "Sand" }, { id: "night", name: "Night" }] },
+  { id: "juniper-slow-season", name: "Slow Season", version: 1, styles: [{ id: "terracotta", name: "Terracotta" }, { id: "sage", name: "Sage" }, { id: "night", name: "Night" }] },
+  { id: "juniper-catalogue", name: "Catalogue", version: 1, styles: [{ id: "acid", name: "Acid" }, { id: "blueprint", name: "Blueprint" }, { id: "night", name: "Night" }] },
+  { id: "aurel-editorial", name: "Aurel", version: 1, styles: [{ id: "cobalt", name: "Cobalt" }, { id: "sand", name: "Sand" }, { id: "night", name: "Night" }] },
 ]);
 /** Every style that can be hidden (all but each starter's own), as `starter/style`. */
 const HIDEABLE_STYLES = STARTERS.flatMap((s) => s.styles.slice(1).map((x) => `${s.id}/${x.id}`));

@@ -9,6 +9,7 @@ import { readStyle, STYLE_GROUPS, type StyleField } from "./styleSchema";
 import { THEME_LIBRARY } from "./themeLibrary";
 import { styledName, withStyle } from "./starterStyles";
 import { themedDesign, themeLookKeys } from "./themeLook";
+import { releasesSince, starterVersion, type StarterRelease } from "./starterVersions";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 
 export type SwitchItem = {
@@ -61,8 +62,11 @@ const pageName = (surface: string) => PAGE_NAMES[surface] || (surface.startsWith
 // design for a key the look doesn't set), so they can be listed, reset one by one, kept through a switch, and carried
 // onto a newer version of the same theme when a release changes it. The storefront ignores `themeBase`.
 
-/** `style`: the starter style it was applied in (starterStyles), when not the starter's own. */
-export type ThemeBase = { id: string; name: string; look: Record<string, any>; sig: string; style?: string };
+/**
+ * `style`: the starter style it was applied in (starterStyles), when not the starter's own. `version`: the starter's
+ * version it was applied at (starterVersions.ts); a base without one started before versions were recorded (version 1).
+ */
+export type ThemeBase = { id: string; name: string; look: Record<string, any>; sig: string; style?: string; version?: number };
 
 const hash = (s: string) => {
   let h = 5381;
@@ -77,7 +81,8 @@ export const lookSignature = (theme: any) =>
 export function themeBaseFor(theme: any, look: Record<string, any>): ThemeBase {
   const { themeLibraryPreset: _id, ...keys } = look;
   const base: ThemeBase = { id: theme.id, name: styledName(theme), look: keys, sig: theme.baseSig || lookSignature(theme) };
-  return theme.styleId ? { ...base, style: theme.styleId } : base;
+  const version = starterVersion(theme.id);
+  return { ...base, ...(theme.styleId ? { style: theme.styleId } : {}), ...(version ? { version } : {}) };
 }
 
 /** The look the design's own edits are measured against: its stored base, else the ready-made look out of the box. */
@@ -162,6 +167,18 @@ export function updatedTheme(design: any): any {
   // Measured in the style it was applied in, so a style's own colours never read as an update.
   const theme = found && withStyle(found, base.style);
   return theme && lookSignature(theme) !== base.sig ? theme : null;
+}
+
+/**
+ * The update a release brought to the design's starter, for Studio's "A new version of … is ready": the newer look (in
+ * the shop's style), its name, the version the shop is on and the newest, and what changed since, newest first.
+ */
+export type StarterUpdate = { theme: any; name: string; from: number; to: number; releases: StarterRelease[] };
+export function starterUpdate(design: any): StarterUpdate | null {
+  const theme = updatedTheme(design);
+  if (!theme) return null;
+  const from = Number(design.themeBase.version) || 1;
+  return { theme, name: styledName(theme), from, to: starterVersion(theme.id) || from, releases: releasesSince(theme.id, from) };
 }
 
 /** Apply `theme` and store it as the design's base (Use this look). */

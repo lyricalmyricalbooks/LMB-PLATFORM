@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { inheritedValue, isSurfaceKey, surfaceChain, writeDesignValue } from "./designModel";
 import { resolveProductDesign } from "./surfaceDesign";
 import {
-  alternatesFor, bookTemplateSurface, categoryTemplateSurface, createAlternate, deleteAlternate, parseAltSurface,
+  alternatesFor, bookTemplateSurface, categoryTemplateSurface, collectionProductTemplate, createAlternate, deleteAlternate, parseAltSurface,
   renameAlternate, sectionsSurface,
 } from "./templateAlternates";
 
@@ -46,6 +46,25 @@ describe("alternate templates", () => {
     expect(bookTemplateSurface(design, {}, "poetry")).toBe("productPage~poetry");
     expect(categoryTemplateSurface(design, { templateId: "poetry" })).toBe("collectionPage");
     expect(categoryTemplateSurface(design, "Zines")).toBe("collectionPage");
+  });
+  it("gives a collection's products its product page layout, with the book's own choice first", () => {
+    let { design } = createAlternate(base(), "productPage", "Poetry");
+    design = createAlternate(design, "productPage", "Prints").design;
+    design = { ...design, categories: [
+      { id: "zines", name: "Zines" },
+      { id: "poetry", name: "Poetry", productTemplateId: "poetry" },
+      { id: "prints", name: "Prints", productTemplateId: "prints" },
+      { id: "gone", name: "Gone", productTemplateId: "deleted" },
+    ] };
+    expect(collectionProductTemplate(design, { categories: ["Poetry", "Prints"] })).toBe("poetry");
+    expect(bookTemplateSurface(design, { categories: ["Poetry"] })).toBe("productPage~poetry");
+    expect(bookTemplateSurface(design, { categories: ["Zines"] })).toBe("productPage");
+    expect(bookTemplateSurface(design, { categories: ["Gone"] })).toBe("productPage");
+    expect(bookTemplateSurface(design, { categories: ["Poetry"], templateId: "prints" })).toBe("productPage~prints");
+    expect(bookTemplateSurface(design, { categories: ["Poetry"], templateId: "deleted" })).toBe("productPage~poetry");
+    // Studio's preview of the default page stays the default page.
+    expect(bookTemplateSurface(design, { categories: ["Poetry"] }, "default")).toBe("productPage");
+    expect(collectionProductTemplate(design, null)).toBeNull();
   });
   it("shows the default's sections when an alternate has none of its own", () => {
     const design = { ...base(), alternateTemplates: { productPage: [{ id: "x", name: "X" }] }, "productPage~x": { accentColor: "#fff" } };

@@ -56,16 +56,17 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     const next = index < 0 ? [...cats, { ...editor, name: editor.name.trim() }] : renameCategory(cats, index, editor.name)
       .map(c => {
         if (c.id !== editor.id) return c;
-        const { templateId: _old, ...rest } = c;
+        const { templateId: _old, productTemplateId: _oldProduct, ...rest } = c;
         // No template = the key is left out (never saved as undefined).
-        return { ...rest, description: editor.description, imageUrl: editor.imageUrl, showInNav: editor.showInNav, parentId: editor.parentId, ...(editor.templateId ? { templateId: editor.templateId } : {}) };
+        return { ...rest, description: editor.description, imageUrl: editor.imageUrl, showInNav: editor.showInNav, parentId: editor.parentId,
+          ...(editor.templateId ? { templateId: editor.templateId } : {}), ...(editor.productTemplateId ? { productTemplateId: editor.productTemplateId } : {}) };
       });
     onChange(next); setEditor(null); setError(""); setNotice("Category details updated in your working design. Publish to update the shop.");
   };
   // Only existing saved-to-the-working-design categories can receive assignments.
   const current = editor && cats.find(c => c.id === editor.id);
   const liveCurrent = current && live.find(c => c.id === current.id);
-  const dirtyDetails = editor && (!current || ["name", "description", "imageUrl", "showInNav", "parentId", "templateId"].some(k => (editor[k] ?? "") !== (current[k] ?? "")));
+  const dirtyDetails = editor && (!current || ["name", "description", "imageUrl", "showInNav", "parentId", "templateId", "productTemplateId"].some(k => (editor[k] ?? "") !== (current[k] ?? "")));
   const filteredBooks = books.filter(b => (!bookSearch || `${b.title || ""} ${b.sku || ""} ${b.isbn || ""}`.toLowerCase().includes(bookSearch.toLowerCase()))
     && (membership === "all" || directlyAssigned(b, current) === (membership === "assigned")))
     .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
@@ -169,6 +170,12 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
           onChange={e => { const { templateId: _old, ...rest } = editor; setEditor(e.target.value ? { ...rest, templateId: e.target.value } : rest); }}>
           <option value="">Default collection page</option>
           {alternatesFor(design, "collectionPage").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </SelectField>
+        <SelectField label={w("Product page layout")} value={editor.productTemplateId || ""} disabled={busy} data-category-product-layout
+          hint={w("Every product here uses it, unless the product picks its own. Make more in Page › Book page template.")}
+          onChange={e => { const { productTemplateId: _old, ...rest } = editor; setEditor(e.target.value ? { ...rest, productTemplateId: e.target.value } : rest); }}>
+          <option value="">{w("Default book page")}</option>
+          {alternatesFor(design, "productPage").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </SelectField>
         {current && <>
           <h3>{w("Book assignments")}</h3>

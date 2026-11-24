@@ -125,6 +125,15 @@ test("each starter's styles are the shop's own, in the shop's order, with the na
   }
 });
 
+test("each starter's newest version is the shop's (studio/starterVersions.ts)", () => {
+  const versions = readFileSync(new URL("../apps/shop/src/app/admin/studio/starterVersions.ts", import.meta.url), "utf8");
+  for (const { id, version } of STARTERS) {
+    const block = versions.slice(versions.indexOf(`"${id}": {`));
+    const numbers = [...block.slice(0, block.indexOf("looks:")).matchAll(/version: (\d+)/g)].map((m) => Number(m[1]));
+    assert.equal(version, Math.max(...numbers), id);
+  }
+});
+
 test("a style can be hidden from shops, never a starter's own; shops get the list with the rest", async () => {
   const w = await world();
   const starters = choice({ "aurel-editorial": { hiddenStyles: ["sand", "cobalt", "made-up"] }, "juniper-catalogue": { hiddenStyles: ["night"] } });
