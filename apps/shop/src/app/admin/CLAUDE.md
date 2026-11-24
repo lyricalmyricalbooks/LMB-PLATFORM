@@ -1486,3 +1486,11 @@ An open message in Messages has **Make a booking** while Bookings is on (`useBoo
 `serviceHint` (subject and message); the dialog picks `serviceFromText`'s match once the services are read. A booking marks
 the message read. Messages' Firestore calls live in `messagesApi.ts` (`messagesData`), which the fixture swaps for three
 sample messages (`admin-fixture.html?page=messages`: Mia asks for a studio consultation).
+
+**Away reply (23 November 2026, Bookings plan 4 step 3.7, `tasks/todo/2026-11-23-bookings-away-reply.md`).**
+Hours & rules › **Away reply** (`AwayReplyTile.tsx`, Beta) saves `awayReply` and `awayWords` (≤ `MAX_AWAY_WORDS`). The shared
+`awayNow(settings, now, zone)` says whether the shop is closed (hours, days off, holiday hours) and when it next opens
+(three weeks ahead at most). `functions/awayReply.js` answers a contact-form message with it in place of "Message received"
+(`shopEmails.js` `onContactMessage`, same `visitorReply` budget, sent even when Message received is off) while the booking
+engine is on (`bookings.engineOn`). Owner words and the time are template values, so they are escaped; the visitor's text
+is never echoed. Tests: `functions/awayReply.test.js`, `src/shared/bookingAway.test.ts`.

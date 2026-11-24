@@ -4888,7 +4888,7 @@ const shopMail = shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail: lateSendEmail, sendQueuedEmail,
-  sendWeeklySummary, sendFairDaySummary, siteLink,
+  sendWeeklySummary, sendFairDaySummary, siteLink, zone: () => shopTimeZone(),
 });
 
 exports.onContactMessage = shopMail.onContactMessage;

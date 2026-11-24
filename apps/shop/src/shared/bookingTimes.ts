@@ -325,6 +325,13 @@ export type BookingSettings = {
    * who has and who hasn't yet. Needs the reminder email on.
    */
   askToConfirm?: boolean;
+  /**
+   * Away reply (plan 4, 3.7): a message sent through the website's contact form while the shop is closed (outside its
+   * hours, a day off or holiday hours) is answered with `awayWords` and the time the shop opens again.
+   */
+  awayReply?: boolean;
+  /** The owner's away words, at most MAX_AWAY_WORDS characters; empty or left out: the standard words. */
+  awayWords?: string;
   /** The most bookings clients can make online on one day (plan 4, 1.8); 0 or left out: no limit. The owner can add more. */
   dailyCap?: number;
   /**
@@ -577,6 +584,7 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   textReminders: false,
   textReplies: false,
   askToConfirm: false,
+  awayReply: false,
   staff: [],
   rooms: [],
 };
@@ -1095,12 +1103,50 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     textReminders: s.textReminders === true,
     textReplies: s.textReplies === true,
     askToConfirm: s.askToConfirm === true,
+    awayReply: s.awayReply === true,
+    ...(() => { const words = awayText(s.awayWords); return words ? { awayWords: words } : {}; })(),
     ...(() => { const messages = cleanMessages(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
     ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
     ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
     ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),
     ...((DAILY_CAPS as readonly number[]).includes(Number(s.dailyCap)) && Number(s.dailyCap) > 0 ? { dailyCap: Number(s.dailyCap) } : {}),
   };
+}
+
+// ── Away reply (plan 4, 3.7) ─────────────────────────────────────────────────────────────────────────────────────
+
+export const MAX_AWAY_WORDS = 600;
+/** The owner's away words, cleaned: plain text, line breaks kept (at most two in a row), at most MAX_AWAY_WORDS characters. */
+export function awayText(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_AWAY_WORDS).trim();
+}
+/** How far ahead the away reply looks for the next opening; past that it just says the shop is away. */
+export const AWAY_LOOKAHEAD_DAYS = 21;
+
+/**
+ * Is the shop closed at `nowMs`? null while it is open (inside a window of its hours on a day that isn't a day off),
+ * else `{ backAt }`: the moment it next opens within AWAY_LOOKAHEAD_DAYS, or null when it doesn't open in that time.
+ */
+export function awayNow(
+  settings: Pick<BookingSettings, "hours" | "specialHours" | "daysOff">,
+  nowMs: number,
+  zone: string,
+): { backAt: number | null } | null {
+  const today = dayOf(nowMs, zone);
+  for (let n = 0; n <= AWAY_LOOKAHEAD_DAYS; n++) {
+    const day = addDays(today, n);
+    if ((settings.daysOff || []).includes(day)) continue;
+    const windows = [...hoursOnDay(settings, day)].sort((a, b) => a.start.localeCompare(b.start));
+    for (const w of windows) {
+      const start = zonedTime(day, w.start, zone);
+      const end = zonedTime(day, w.end, zone);
+      if (end <= nowMs) continue;
+      if (start <= nowMs) return null;
+      return { backAt: start };
+    }
+  }
+  return { backAt: null };
 }
 
 /**

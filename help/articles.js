@@ -90,6 +90,7 @@ export const ARTICLES = Object.freeze([
       "With text reminders on, turn on Let clients answer by text. Clients reply Y to confirm, C to cancel or M to move, and your calendar follows within a few minutes.",
       "To change what booking emails and texts say, open Hours & rules and find Emails and texts to clients. Write in English and French, and use {client} or {when} to fill in details.",
       "When a client asks for a time in Messages, open their message and press Make a booking. Their name, email, phone and the service they named are filled in for you.",
+      "To answer messages while you're closed, open Hours & rules and turn on Away reply. People who write through your contact form then hear back at once, with the time you open again.",
     ],
   },
   {

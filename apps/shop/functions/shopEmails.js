@@ -8,11 +8,13 @@ const { withPlatformKey } = require("./platformKey");
 const { sellsBooks } = require("./shared/shopSells");
 const { shopCountry, shopSign } = require("./shopMoney");
 const { DEFAULT_NOTIFICATIONS_FR, sayer, shopLanguage } = require("./emailFrench");
+const { awayReplyNow, awayTemplate } = require("./awayReply");
+const { shopTimeZone } = require("./shared/shopTimeZone");
 function shopEmails({
   onBrowserRequest, onDocumentCreated, admin, db, mailer, applyCors, requireAdmin, ADMIN_TO,
   DEFAULT_NOTIFICATIONS, RESEND_API_KEY, claimEmailSend, cleanRecipients, compileEmailTemplate,
   loadNotificationSettings, logEmailAttempt, publicOutboxEntry, sendEmail, sendQueuedEmail,
-  sendWeeklySummary, sendFairDaySummary, siteLink,
+  sendWeeklySummary, sendFairDaySummary, siteLink, zone = shopTimeZone, now = () => Date.now(),
 }) {
   // Studio › Style › Customer accounts. On unless the published design turns it off.
   async function customerAccountsEnabled() {
@@ -71,9 +73,17 @@ function shopEmails({
         console.error("Contact message email failed", err);
       }
 
-      // Confirmation to the visitor (Settings › Notifications › Contact form › Message received).
+      // Confirmation to the visitor (Settings › Notifications › Contact form › Message received), or, while the shop is
+      // closed and Bookings › Hours & rules › Away reply is on, the away reply in its place (plan 4, 3.7; awayReply.js).
       const notificationSettings = await loadNotificationSettings();
-      if (notificationSettings.contact_reply?.enabled === false) return;
+      const language = await shopLanguage(db);
+      const away = senderOk
+        ? await awayReplyNow({ db, engineOn: require("./bookings").engineOn, zone: zone(), nowMs: now(), language }).catch((err) => {
+          console.warn("Away reply check failed", err);
+          return null;
+        })
+        : null;
+      if (!away && notificationSettings.contact_reply?.enabled === false) return;
       // Anyone can type any address into the form, so this email must not be a relay: at most
       // one per address per day, and none of the visitor's own text (subject/message) is echoed
       // back; only the name, escaped and shortened. Older saved templates that still use
@@ -81,12 +91,17 @@ function shopEmails({
       if (!senderOk || !(await claimEmailSend(db, "visitorReply", m.email))) return;
       // compileEmailTemplate escapes and keeps "$" literal itself.
       const safe = (v) => String(v == null ? "" : v);
-      const compiled = compileEmailTemplate("contact_reply", notificationSettings, {
-        customer_name: safe(m.name || "there").replace(/\s+/g, " ").trim().slice(0, 60) || "there",
+      const there = language === "fr" && away ? "à vous" : "there";
+      const values = {
+        customer_name: safe(m.name || there).replace(/\s+/g, " ").trim().slice(0, 60) || there,
         email: safe(m.email),
         subject: "",
         message: "",
-      }, undefined, { language: await shopLanguage(db) });
+      };
+      // The away words are already in the shop's language, so the compiler gets them as they are ("en" = no swap).
+      const compiled = away
+        ? compileEmailTemplate("contact_reply", { ...notificationSettings, contact_reply: awayTemplate(language, !!away.back) }, { ...values, away_words: away.words, back: away.back }, undefined, { language: "en" })
+        : compileEmailTemplate("contact_reply", notificationSettings, values, undefined, { language });
       try {
         await sendEmail({
           to: m.email,
