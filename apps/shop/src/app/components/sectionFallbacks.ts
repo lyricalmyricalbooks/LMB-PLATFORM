@@ -22,6 +22,7 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "FAQSection.searchPlaceholder": "Search questions",
   "FAQSection.noMatchText": "No questions match. Try another word.",
   "FAQSection.contactText": "Still need help? Contact us",
+  "SplitOpeningSection.title": "Objects of",
   "ImageWithTextSection.title": "About the collection",
   "ImageWithTextSection.body": "Pair text with an image to give focus to your chosen product or collection.",
   "MarqueeSection.text": "Free shipping over $100 · New arrivals weekly · Independent & original",

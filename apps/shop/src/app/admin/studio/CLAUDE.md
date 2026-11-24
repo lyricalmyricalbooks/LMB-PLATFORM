@@ -824,3 +824,18 @@ Studio fixture. Existing shops are untouched.
 Themes; Preview / Try on is the try-before-use. Sections a starter adds carry `sample: true` (`applyPresetSections`);
 `patchSectionSettings` and `patchBlockField` drop it, and `StudioOutline` shows a **Sample** badge until then. The 10 saved
 designs limit is `MAX_SAVED_THEMES`. Not done: sample photos (no licensed photo set in the repo yet).
+
+### Aurel and starter sample shops (24 November 2026)
+`aurel-editorial` (palette `aurel`, from Julian's Figma Make "Design Five E-commerce Concepts" › Aurel) is the third
+starter. A starter may carry `content.sampleProducts` (title, maker, price, photo under `public/starters/<id>/`);
+`starterSampleBooks` (presetContent.ts) turns them into book-shaped samples. Studio › Themes previews a starter through
+`starterPreview` (StudioEditor): look + layouts (`applyStarter`) and its sample products in place of the shop's, never
+saved. Design-before-the-store uses them too (`sampleShopBooks(sells, look)`). Photos are made for each starter (Julian's
+choice, 23 November 2026); keep each under ~150 KB.
+**Starters match their Figma design and stay neutral (24 November 2026).** A starter is a template style plus its own
+sections, never only generic sections: Aurel is `themeStyle: "aurel"` (`AUREL_CSS`, lookCss in templateStyles.ts: thin
+banner, centred spaced wordmark, untinted numbered photos, wide first product) and `SplitOpeningSection` (big headline +
+italic `accentWord`, edge-to-edge photo, caption, round + link, underlined link; CSS `.fm-split*` in styles/index.css, sizes
+`titleSizePx`/`titleSizePxMobile`). Words describe the spot ("Your headline,"), products are "Example product N" by
+"Sample", and the wordmark is the shop's own name; `neutralStarters.test.ts` checks every starter in its NEUTRAL list
+(add Slow Season and Catalogue once rewritten). Plan: https://claude.ai/artifact/PKepfF8oXL3jZ5Ewo7S4Wv.

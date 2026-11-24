@@ -20,7 +20,26 @@ export type PresetContent = {
   starterPages?: string[];
   /** The book page's buy box, top to bottom (Page layout › Buy box blocks); built-in and custom block types only. */
   productBlocks?: { type: string; hidden?: boolean; settings?: Record<string, any> }[];
+  /** A starter's own sample shop: products with their own photos, shown whenever the starter is previewed. */
+  sampleProducts?: { title: string; maker?: string; price: number; photo: string }[];
 };
+
+const sampleSlug = (title: string) => title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+/**
+ * A starter's sample products as the shop's pages read books, so previewing a starter shows its own finished sample
+ * shop instead of the press's real products. Never saved anywhere. Empty for a look without samples.
+ */
+export function starterSampleBooks(preset: any): any[] {
+  const list: NonNullable<PresetContent["sampleProducts"]> = preset?.content?.sampleProducts || [];
+  return list.map((p, i) => ({
+    id: `starter-sample-${i + 1}`, slug: sampleSlug(p.title), title: p.title, authorName: p.maker || "", author: p.maker || "",
+    retailPrice: p.price, stockLevel: 8, status: "published", isFeatured: i < 4, featured: i < 4,
+    categories: [p.maker || "Featured"], photos: [{ id: `s${i + 1}`, url: p.photo, alt: p.title }],
+    description: "<p>A sample product. Your own products take its place once you add them.</p>",
+    createdAt: new Date(Date.UTC(2026, 10, 20 - i)).toISOString(), sample: true,
+  }));
+}
 
 /** The page templates a preset may hold sections for, with the name the owner sees. */
 export const PRESET_SECTION_TEMPLATES: Record<string, string> = {

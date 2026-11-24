@@ -131,6 +131,17 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "aurel-editorial",
+    name: "Aurel",
+    description: "An editorial front: a big serif headline beside one edge-to-edge photo, a quiet ticker, then the collection.",
+    sections: [
+      { type: "SplitOpeningSection", settings: { eyebrow: "New season", title: "Your headline,", accentWord: "in style.", body: "Say what makes your shop special.", ctaText: "Explore the collection", ctaUrl: "/collections/all", captionNumber: "01" } },
+      { type: "MarqueeSection", settings: { text: "Your first message  \u2726  A second short line" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Shop the collection" } },
+      { type: "NewsletterSection", settings: { title: "Join our letter", description: "Tell shoppers what you send and how often." } },
+    ],
+  },
+  {
     id: "press-folio",
     name: "Folio",
     description: "A literary front page: one featured book beside its description, then the list and a letter from the press.",
