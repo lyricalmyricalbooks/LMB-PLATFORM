@@ -213,7 +213,7 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
       )}
       {setup.settings.staff.length > 0 && (
         <TabPanel tabId="pay" active={tab === "pay"}>
-          {tab === "pay" && <PayPanel staff={setup.settings.staff} onEditTeam={() => setTab("team")} />}
+          {tab === "pay" && <PayPanel staff={setup.settings.staff} services={setup.services} onEditTeam={() => setTab("team")} />}
         </TabPanel>
       )}
       <TabPanel tabId="hours" active={tab === "hours"}>
@@ -1233,7 +1233,7 @@ const PAY_MONTHS = 6;
  * Team pay (Beta, Services plan 2 extras): one month's visits, takings before tax, commission and tips for each person,
  * to pay them by. Nothing is paid from here; the spreadsheet is for the owner's own payroll.
  */
-function PayPanel({ staff, onEditTeam }: { staff: StaffMember[]; onEditTeam: () => void }) {
+function PayPanel({ staff, services, onEditTeam }: { staff: StaffMember[]; services: BookingService[]; onEditTeam: () => void }) {
   const months = useMemo(() => lastMonths(today(), PAY_MONTHS).reverse(), []);
   const [month, setMonth] = useState(months[0]);
   const [rows, setRows] = useState<Booking[] | null>(null);
@@ -1260,7 +1260,9 @@ function PayPanel({ staff, onEditTeam }: { staff: StaffMember[]; onEditTeam: () 
       .catch(() => { if (!stale) setShifts([]); });
     return () => { stale = true; };
   }, [month, shiftsAt, attempt]);
-  const pay = useMemo(() => (rows ? teamPay(rows, staff, ZONE, month, Date.now(), shifts) : null), [rows, staff, month, shifts]);
+  const pay = useMemo(() => (rows ? teamPay(rows, staff, ZONE, month, Date.now(), shifts, services) : null), [rows, staff, month, shifts, services]);
+  // Product used (plan 4, 4.5): a column only once a service has a cost.
+  const used = !!pay && pay.costMinor > 0;
   const clocked = !!pay?.people.some((l) => l.minutes || l.hourlyMinor);
   const noPercent = staff.filter((p) => p.active && !p.commissionPercent && !p.hourlyMinor).length;
   const money = (minor: number) => moneyText(minor, SHOP_CURRENCY);
@@ -1268,9 +1270,10 @@ function PayPanel({ staff, onEditTeam }: { staff: StaffMember[]; onEditTeam: () 
     { key: "name", header: "Person", lead: true, render: (l: PayLine) => <span className={l.id ? undefined : "bkg-pay-nobody"}>{l.name}</span> },
     { key: "visits", header: "Visits", numeric: true, render: (l: PayLine) => l.visits },
     { key: "taken", header: "Taken before tax", numeric: true, render: (l: PayLine) => money(l.takenMinor) },
+    ...(used ? [{ key: "used", header: "Product used", numeric: true, render: (l: PayLine) => (l.costMinor ? `−${money(l.costMinor)}` : "") }] : []),
     { key: "percent", header: "Commission", numeric: true, render: (l: PayLine) => (l.id && !l.id.startsWith(CLOCK_ONLY) ? (l.percent ? <span className="bkg-pay-cell">{money(l.commissionMinor)}<span className="bkg-pay-pct">at {l.percent}%{l.steps.map((x) => `, then ${x.percent}% over ${money(x.overMinor)}`).join("")}</span></span> : <span className="bkg-pay-pct">No share set</span>) : "") },
     { key: "tips", header: "Tips", numeric: true, render: (l: PayLine) => money(l.tipsMinor) },
-    ...(clocked ? [{ key: "hours", header: "Hours", numeric: true, render: (l: PayLine) => (l.id ? <>{hoursText(l.minutes)}{l.hourlyMinor ? <span className="bkg-pay-pct"> at {money(l.hourlyMinor)}/h</span> : null}</> : "") }] : []),
+    ...(clocked ? [{ key: "hours", header: "Hours", numeric: true, render: (l: PayLine) => (l.id ? <span className="bkg-pay-cell">{hoursText(l.minutes)}{l.hourlyMinor ? <span className="bkg-pay-pct">at {money(l.hourlyMinor)}/h</span> : null}</span> : "") }] : []),
     { key: "total", header: "To pay them", numeric: true, render: (l: PayLine) => (l.id ? <strong>{money(l.commissionMinor + l.tipsMinor + l.wagesMinor)}</strong> : "") },
   ];
   return (
@@ -1300,7 +1303,7 @@ function PayPanel({ staff, onEditTeam }: { staff: StaffMember[]; onEditTeam: () 
         : (<>
           <div className="bkg-pay-tiles">
             <div className="bkg-tile bkg-figure"><p className="bkg-kicker">Taken before tax</p><p className="bkg-big bkg-big-money">{money(pay.takenMinor)}</p><p className="bkg-sub">after refunds</p></div>
-            <div className="bkg-tile bkg-figure"><p className="bkg-kicker">Commission</p><p className="bkg-big bkg-big-money">{money(pay.commissionMinor)}</p><p className="bkg-sub">at each person's share</p></div>
+            <div className="bkg-tile bkg-figure"><p className="bkg-kicker">Commission</p><p className="bkg-big bkg-big-money">{money(pay.commissionMinor)}</p><p className="bkg-sub">{used ? `after ${money(pay.costMinor)} of product used` : "at each person's share"}</p></div>
             <div className="bkg-tile bkg-tile-mint bkg-figure"><p className="bkg-kicker">Tips</p><p className="bkg-big bkg-big-money">{money(pay.tipsMinor)}</p><p className="bkg-sub">all goes to the person</p></div>
             {clocked && <div className="bkg-tile bkg-figure"><p className="bkg-kicker">Hours on the clock</p><p className="bkg-big">{hoursText(pay.minutes)}</p><p className="bkg-sub">{pay.wagesMinor ? `${money(pay.wagesMinor)} at hourly rates` : "breaks taken off"}</p></div>}
           </div>
@@ -2379,6 +2382,8 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
     depositUnit: (service.depositPercent ? "percent" : "amount") as "amount" | "percent",
     deposit: service.depositPercent ? String(service.depositPercent) : service.depositMinor ? (service.depositMinor / 100).toFixed(2) : "",
     lateFee: service.lateFeeMinor ? (service.lateFeeMinor / 100).toFixed(2) : "",
+    // Product used per visit (plan 4, 4.5), as typed.
+    cost: service.costMinor ? (service.costMinor / 100).toFixed(2) : "",
     // A pack of visits: on with the number of visits, its price and how long it lasts (0 = no end).
     pack: (service.packVisits || 0) >= 2,
     packCount: String(service.packVisits || 5),
@@ -2419,7 +2424,7 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
   const save = async () => {
     setSaving(true); setProblem("");
     try {
-      const { pay, depositUnit, deposit, lateFee, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, lengthRows: sizes, areasText, ...rest } = form;
+      const { pay, depositUnit, deposit, lateFee, cost, costMinor: _cost, price: _price, pack, packCount, packPrice, packLasts, intro, extraRows: rows, lengthRows: sizes, areasText, ...rest } = form;
       // Lengths only for one-to-one services; the rows that have minutes, with the first one's time and price as the service's.
       const lengths = rest.places > 1 || (rest.courseDates || []).length ? [] : sizes.filter((x) => Number(x.minutes) > 0).map((x) => ({
         id: x.id, name: x.name.trim(), minutes: Math.round(Number(x.minutes)), priceMinor: Math.round(Number(x.price || 0) * 100),
@@ -2448,6 +2453,7 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
         // Time before is one person's set-up or travel: a class or course never sends it.
         gapBefore: rest.places <= 1 && !(rest.courseDates || []).length ? rest.gapBefore || 0 : 0,
         chargeTax: priceMinor > 0 && !!rest.chargeTax,
+        costMinor: priceMinor > 0 ? Math.round(Number(cost || 0) * 100) : 0,
         packVisits: sellPack ? Number(packCount) || 0 : 0,
         packPriceMinor: sellPack ? Math.round(Number(packPrice || 0) * 100) : 0,
         packDays: sellPack ? Number(packLasts) || 0 : 0,
@@ -2589,6 +2595,12 @@ export function ServiceDialog({ service, rooms, groups = [], onClose, onSaved }:
               ? "Your shop's sales tax rate is added on top of the price. Customers see it before they pay, and it shows in the Tax centre."
               : "The price is all they pay. Turn this on to add your sales tax on top."}</p>
           </div>
+        )}
+        {Number(form.price) > 0 && (
+          <TextField label={`Product used per visit (${SHOP_CURRENCY}, optional)`} inputMode="decimal" placeholder="0.00" value={form.cost}
+            hint="Like colour or wax. Team pay takes it off before working out commission. Clients never see it."
+            error={Number(form.cost) > Number(form.price) ? "It can't cost more than the price." : undefined}
+            onChange={(e) => set("cost", e.target.value.replace(/[^\d.]/g, ""))} />
         )}
         {!form.atClient && <TextField label="Where (optional)" placeholder="The studio, 12 Ink Lane" value={form.location} onChange={(e) => set("location", e.target.value)} />}
         {(rooms.length > 0 || form.roomId) && (

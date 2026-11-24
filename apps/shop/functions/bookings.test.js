@@ -2305,6 +2305,11 @@ describe("staff and rooms", () => {
     // Pay never reaches the public page (plan 4, 4.4).
     await team(t, { staff: [{ id: "ana", name: "Ana", commissionPercent: 40, commissionSteps: [{ overMinor: 300_000, percent: 50 }], hourlyMinor: 2_000 }] });
     expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([{ id: "ana", name: "Ana", serviceIds: [] }]);
+    // Nor does what a service's product costs (plan 4, 4.5).
+    const [first] = [...t.db.store.keys()].filter((k) => k.startsWith("bookingServices/"));
+    expect(first).toBeTruthy();
+    t.db.store.set(first, { ...t.db.store.get(first), costMinor: 900 });
+    expect((await t.pub({ action: "bookingInfo" })).body.services.some((x) => "costMinor" in x)).toBe(false);
   });
 
   test("booking with anyone free assigns someone, and two bookings at once go to two people", async () => {

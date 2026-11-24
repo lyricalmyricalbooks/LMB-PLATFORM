@@ -217,6 +217,27 @@ describe("team pay", () => {
     expect(teamPayRows(teamPay(rows, [person({ commissionPercent: 40, commissionSteps: steps })], ZONE, "2026-11", AFTER))[1][3]).toBe("40, then 50 over 150.00");
   });
 
+  it("takes product used off before commission, only for visits that happened (plan 4, 4.5)", () => {
+    const services = [{ id: "s", costMinor: 1_500 }];
+    const rows = [paid({ id: "1", staffId: "ana" }), paid({ id: "2", staffId: "ana", noShow: true }), paid({ id: "3", staffId: "ana", status: "cancelled", refund: { amountMinor: 11_300 } } as Partial<Booking>)];
+    const pay = teamPay(rows, [person({ commissionPercent: 40 })], ZONE, "2026-11", AFTER, [], services);
+    // $200 kept, $15 of product on the one visit: 40% of $185.
+    expect(pay.people[0]).toMatchObject({ takenMinor: 20_000, costMinor: 1_500, commissionMinor: 7_400 });
+    expect(pay.costMinor).toBe(1_500);
+    const sheet = teamPayRows(pay);
+    expect(sheet[0].slice(0, 5)).toEqual(["Person", "Visits", "Taken before tax", "Product used", "Commission %"]);
+    expect(sheet[1][3]).toBe("15.00");
+    // No cost on any service: the sheet keeps its old columns.
+    expect(teamPayRows(teamPay(rows, [person({ commissionPercent: 40 })], ZONE, "2026-11", AFTER))[0][3]).toBe("Commission %");
+  });
+
+  it("puts each service's product on whoever did that part of a visit", () => {
+    const visit = paid({ id: "1", staffId: "ana", serviceId: "cut", priceMinor: 11_300, parts: [{ serviceId: "colour", serviceName: "Colour", minutes: 60, gapAfter: 0, priceMinor: 0, staffId: "ben", staffName: "Ben", roomId: "", roomName: "", start: "", end: "" }], leadPriceMinor: 11_300 } as Partial<Booking>);
+    const pay = teamPay([visit], [person({}), person({ id: "ben", name: "Ben" })], ZONE, "2026-11", AFTER, [], [{ id: "cut", costMinor: 0 }, { id: "colour", costMinor: 2_000 }]);
+    expect(pay.people.find((l) => l.id === "ben")?.costMinor).toBe(2_000);
+    expect(pay.people.find((l) => l.id === "ana")?.costMinor).toBe(0);
+  });
+
   it("keeps the month by the shop's own day", () => {
     // 2 a.m. UTC on 1 December is still 30 November in Toronto.
     const late = paid({ staffId: "ana", start: "2026-12-01T02:00:00.000Z", end: "2026-12-01T03:00:00.000Z" });

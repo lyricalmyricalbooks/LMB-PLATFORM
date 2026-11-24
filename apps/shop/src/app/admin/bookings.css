@@ -785,4 +785,4 @@
 .rp .bkg-steps > .bkg-questions-hint, .rp .bkg-steps > .bkg-shift-error { justify-self: stretch; }
 /* A figure with its rule under it, wrapping inside the cell (plan 4, 4.4: steps make the rule long). */
 .rp .bkg-pay-cell { display: inline-grid; justify-items: end; gap: 2px; min-width: 0; max-width: 100%; }
-.rp .bkg-pay-cell .bkg-pay-pct { white-space: normal; text-align: right; overflow-wrap: anywhere; }
+.rp .bkg-pay-cell .bkg-pay-pct { white-space: normal; text-align: right; overflow-wrap: break-word; }
