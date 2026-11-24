@@ -37,7 +37,7 @@ export function cartDrawerFontNames(design: any): string[] {
 
 export function cartDrawerCss(design: any): string {
   const d = design || {};
-  // Theme settings › Colour schemes › Shopping bag: while the bag follows a scheme, the scheme's
+  // Style › Colour schemes › Shopping bag: while the bag follows a scheme, the scheme's
   // colours (set as tokens on .fm-bag by schemeCss) replace the bag's own colour controls.
   const schemed = Boolean(elementScheme(d, "cartDrawer"));
   const tint = (key: string, fallback: string) => (schemed ? fallback : color(d, key, fallback));

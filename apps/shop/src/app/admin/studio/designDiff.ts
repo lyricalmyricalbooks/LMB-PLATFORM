@@ -1,6 +1,6 @@
 // Version history 2.0 (Studio 3.1): what differs between two designs, in the owner's words, and how to take one
 // difference back. `diffDesigns(a, b)` lists how `b` differs from `a` — every item is labelled from Studio's own
-// schemas (Theme settings controls, Text & labels, the section registry, page templates) — and `restoreItem` copies
+// schemas (Style controls, Text & labels, the section registry, page templates) — and `restoreItem` copies
 // one item from a version into the draft (one undoable change in Studio). Pure: no React, no Firestore.
 import { isSurfaceKey } from "../../features/site/designModel";
 import { COPY_SCHEMA } from "../../features/site/storeCopy";
@@ -14,7 +14,7 @@ export type DiffChange = "changed" | "added" | "removed" | "moved";
 export type DiffRestore = { kind: "path"; path: string } | { kind: "section"; sectionId: string };
 export type DiffItem = {
   id: string;
-  /** Where it lives: "Theme settings · Colors", "Text & labels · Checkout", "Home page", "Navigation"… */
+  /** Where it lives: "Style · Colors", "Text & labels · Checkout", "Home page", "Navigation"… */
   area: string;
   label: string;
   change: DiffChange;
@@ -44,17 +44,17 @@ const NESTED_STYLE = new Set([...STYLE_INFO.keys()].filter(k => k.includes(".") 
 
 /** Structured data with its own Studio editor: one item each. */
 const STRUCTURAL: Record<string, { area: string; label: string }> = {
-  menus: { area: "Navigation", label: "Menus" },
-  categories: { area: "Navigation", label: "Shop categories" },
-  navOrder: { area: "Navigation", label: "Header bar order" },
-  secondaryNavKeys: { area: "Navigation", label: "Publisher navigation row" },
-  footerBadges: { area: "Navigation", label: "Footer badges" },
-  sectionPresets: { area: "Page layout", label: "Saved sections" },
-  sharedBlocks: { area: "Page layout", label: "Shared blocks" },
-  alternateTemplates: { area: "Page layout", label: "Book & collection templates" },
-  productInfoBlocks: { area: "Page layout", label: "Buy box blocks" },
-  colorSchemes: { area: "Theme settings · Colour schemes", label: "Colour schemes" },
-  announcements: { area: "Theme settings · Header & announcement bar", label: "Announcement messages" },
+  menus: { area: "Menus", label: "Menus" },
+  categories: { area: "Menus", label: "Shop categories" },
+  navOrder: { area: "Menus", label: "Header bar order" },
+  secondaryNavKeys: { area: "Menus", label: "Publisher navigation row" },
+  footerBadges: { area: "Menus", label: "Footer badges" },
+  sectionPresets: { area: "Page", label: "Saved sections" },
+  sharedBlocks: { area: "Page", label: "Shared blocks" },
+  alternateTemplates: { area: "Page", label: "Book & collection templates" },
+  productInfoBlocks: { area: "Page", label: "Buy box blocks" },
+  colorSchemes: { area: "Style · Colour schemes", label: "Colour schemes" },
+  announcements: { area: "Style · Header & announcement bar", label: "Announcement messages" },
 };
 /** Bookkeeping, not design. */
 const IGNORED = new Set(["publishedAt", "updatedAt", "savedAt", "rev"]);
@@ -95,9 +95,9 @@ function settingInfo(path: string): { area: string; label: string; color: boolea
     return { area: `Text & labels · ${c?.group || "Other words"}`, label: c ? `“${c.label}”` : humanise(path.slice(5)), color: false };
   }
   const s = STYLE_INFO.get(path);
-  if (s) return { area: `Theme settings · ${s.group}`, label: s.label, color: s.color };
-  if (path.startsWith("regions.")) return { area: "Theme settings · Fine-tune single elements", label: humanise(path.slice(8)), color: false };
-  return { area: "Theme settings · Other settings", label: humanise(path), color: false };
+  if (s) return { area: `Style · ${s.group}`, label: s.label, color: s.color };
+  if (path.startsWith("regions.")) return { area: "Style · Fine-tune single elements", label: humanise(path.slice(8)), color: false };
+  return { area: "Style · Other settings", label: humanise(path), color: false };
 }
 
 /** Every setting path that differs inside one settings object (the root, or a page surface). */
@@ -151,7 +151,7 @@ export function diffDesigns(a: any, b: any, ctx: DiffContext = {}): DiffItem[] {
   const isSurface = (key: string) => isSurfaceKey(key) || (key in STRUCTURAL ? false : !!(a?.[key]?.sections || b?.[key]?.sections));
   const skipRoot = (key: string) => isSurface(key) || SECTION_GROUP_KEYS.includes(key as any) || key in STRUCTURAL;
 
-  // Theme settings and Text & labels (all pages).
+  // Style and Text & labels (all pages).
   for (const path of settingPaths(a, b, skipRoot)) {
     const info = settingInfo(path);
     const va = getPath(a, path), vb = getPath(b, path);

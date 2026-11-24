@@ -19,7 +19,7 @@ export type ElementTabs = {
   style: PickedField[];
   layout: PickedField[];
   visibility: PickedField[];
-  /** Style categories the part belongs to, for "Open in Theme settings". */
+  /** Style categories the part belongs to, for "Open in Style". */
   styleGroups: string[];
   required: boolean;
 };
@@ -115,5 +115,5 @@ export function visibleTabs(tabs: ElementTabs): ElementTabId[] {
   return ELEMENT_TABS.map(t => t.id).filter(id => tabs[id].length > 0);
 }
 
-/** Style categories that belong to the whole site rather than one part of a page (Theme settings only). */
+/** Style categories that belong to the whole site rather than one part of a page (Style only). */
 export const GLOBAL_STYLE_GROUPS = ["tokens", "schemes", "buttons", "smallPrint", "effects", "riso", "code", "toasts"];

@@ -1,5 +1,5 @@
 // After a theme switch (Themes › Use this look): which of the press's own edits carried over and which the new look
-// replaced, so nothing changes silently (plan 2.12). Shown in Studio › Themes with Bring back for each replaced edit.
+// replaced, so nothing changes silently (plan 2.12). Shown in Studio › Designs with Bring back for each replaced edit.
 //
 // "Own edits" are style settings that differ both from the starting design and from the previous ready-made look as it
 // comes out of the box (the starting design names Riso Noir without matching it exactly, so neither counts as theirs). Words, sections, menus and pages are never

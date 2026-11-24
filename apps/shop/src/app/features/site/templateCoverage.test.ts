@@ -156,7 +156,7 @@ describe.each(TEMPLATE_STYLE_IDS.map((id) => [id]))("template %s is fully editab
 });
 
 describe("template knobs", () => {
-  it("are all Studio › Theme settings controls, each with a test value", () => {
+  it("are all Studio › Style controls, each with a test value", () => {
     for (const k of TEMPLATE_KNOBS) for (const key of k.keys) {
       expect(controls.has(key), `${key} (${k.cssVar}) has no Studio control`).toBe(true);
       expect(SAMPLE[key], `give ${key} a test value in SAMPLE`).not.toBeUndefined();

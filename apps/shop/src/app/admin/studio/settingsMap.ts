@@ -27,7 +27,7 @@ export type SettingsHeading = {
 const REGION_IDS = REGION_GROUPS.map((g) => g.id);
 
 /**
- * Theme settings home, in the order a shopper meets the shop: the top of every page, the shop and
+ * Style home, in the order a shopper meets the shop: the top of every page, the shop and
  * book pages, the bag and checkout, custom pages, the bottom of every page, pop-ups — then the
  * whole-site look (colours, fonts, buttons: one change restyles everything) and the advanced tools.
  * Each part is also editable by clicking it in the preview.
@@ -55,7 +55,7 @@ export const THEME_HEADINGS: SettingsHeading[] = [
 ];
 
 /**
- * The little shop drawing at the top of Theme settings: each block names a heading above and jumps
+ * The little shop drawing at the top of Style: each block names a heading above and jumps
  * to it. `shape` only decides how the block is drawn. Pure data so the test can check every
  * block points at a real heading.
  */

@@ -47,7 +47,7 @@ export function CookieConsent() {
   // The admin is the owner's own workspace (and on phones the banner would cover its bottom bar): no banner there.
   const onAdmin = /^\/admin(?:\/|$)/.test(useLocation().pathname);
 
-  // Studio preview: Studio opens the banner on request (Page layout › Pop-overs › Cookie banner) even when
+  // Studio preview: Studio opens the banner on request (Page › Pop-overs › Cookie banner) even when
   // this browser has already answered it, and an answer given in the preview is never saved.
   const inPreview = typeof window !== "undefined" && window.location.search.includes("preview=true");
   useStudioOverlay("cookie", open => { if (inPreview) setDecided(!open); });

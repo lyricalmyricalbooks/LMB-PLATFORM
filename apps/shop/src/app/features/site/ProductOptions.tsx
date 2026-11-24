@@ -1,6 +1,6 @@
 // Buy-card extras on the product page (BookDetail.tsx): paid add-ons (signed copy, inscription,
 // gift wrap), a box set's contents and a gift card's recipient form. Words are Studio › Text &
-// labels › Product page; each block is a region (Theme settings › Fine-tune single elements ›
+// labels › Product page; each block is a region (Style › Fine-tune single elements ›
 // Product details · content layout) with its own show/hide switch and click-to-edit outline.
 import { Link } from "react-router";
 import { getCopy } from "./storeCopy";

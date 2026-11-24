@@ -1,6 +1,6 @@
 import { shopTimeZone } from "../../../shared/shopTimeZone";
 // Section groups (Studio 2.2): stacks of sections that appear on every page, edited in Studio ›
-// Page layout like a page's own sections. Each group is a root design key so nothing older moves:
+// Page like a page's own sections. Each group is a root design key so nothing older moves:
 // `globalSections` (above the footer) is the group shops already have.
 //
 // Also the announcement-bar messages and the pop-up rules, kept pure so the storefront, Studio and

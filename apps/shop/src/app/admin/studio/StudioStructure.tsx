@@ -41,7 +41,7 @@ type Props = {
 export function StudioStructure(p: Props) {
   const w = useShopWords();
   const s = p.structure;
-  // "Style" / "Words": jump straight to the Theme settings category or Text & labels group behind a part.
+  // "Style" / "Words": jump straight to the Style category or Text & labels group behind a part.
   const actions = (name: string, target: string, inline = false): ReactNode => {
     const label = w(name);
     const parts = target.split("|");

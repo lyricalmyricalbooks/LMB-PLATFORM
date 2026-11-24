@@ -1,4 +1,4 @@
-// Theme settings › Design scales (3.0 phase 2): a live picture of the scales above their controls, like
+// Style › Design scales (3.0 phase 2): a live picture of the scales above their controls, like
 // Stripe's branding preview — the heading sizes (desktop and phone), the spacing steps and the corner set.
 import { RADIUS_SCALES, SPACE_STEPS, spaceUnits, typeSteps } from "../../features/site/designTokens";
 

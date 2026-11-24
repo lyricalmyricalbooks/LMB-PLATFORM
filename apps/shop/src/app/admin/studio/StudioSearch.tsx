@@ -50,7 +50,7 @@ export function StudioSearch({ open, onClose, index, context = [], onPick }: {
     else if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); pick(results[active]); }
   };
 
-  const browse: [string, string][] = [["tab:style", "Browse Theme settings"], ["tab:text", "Browse Text & labels"], ["tab:sections", "Browse Page layout"]];
+  const browse: [string, string][] = [["tab:style", "Browse Style"], ["tab:text", "Browse Text & labels"], ["tab:sections", "Browse Page"]];
   let n = -1;
   return (
     <Dialog open={open} onClose={onClose} title="Find anything" description="Type what you want in your own words — “logo size”, “button colour”, “footer words”, “publish”. Spelling doesn't have to be perfect. Start with > for commands only.">

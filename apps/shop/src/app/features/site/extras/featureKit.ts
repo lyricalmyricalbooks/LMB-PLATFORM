@@ -1,7 +1,7 @@
 // A storefront extra (a line, button or box a Studio switch turns on) lives in one folder,
 // `features/site/extras/<name>/`: its component, its tests and a `feature.ts` whose default export says what
 // it adds to the shared lists — Style controls (STYLE_GROUPS), words (COPY_SCHEMA), click-to-edit regions
-// (REGION_GROUPS) and the Theme settings sub-section its controls sit in (STYLE_SUBSECTIONS). The lists
+// (REGION_GROUPS) and the Style sub-section its controls sit in (STYLE_SUBSECTIONS). The lists
 // collect every folder through `extras/registry.ts`, so a new extra edits none of them by hand.
 // Pure data and helpers only: feature.ts files are read by shopper code (storeCopy) and must not import components.
 

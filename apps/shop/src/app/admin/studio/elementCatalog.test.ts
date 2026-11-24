@@ -45,7 +45,7 @@ describe("element inspector catalog", () => {
     const tabs = elementTabs({ key: "t:buy", label: "Buy card", target: "style:pdp" }, "desktop", {});
     const keys = [...tabs.style, ...tabs.layout, ...tabs.visibility].map(p => p.field.key);
     expect(keys.length).toBeGreaterThan(0);
-    // The buy card can also follow a colour scheme (Theme settings › Colour schemes).
+    // The buy card can also follow a colour scheme (Style › Colour schemes).
     expect(keys).toContain("elementSchemes.buyCard");
     expect(keys.every(k => /^(elementSchemes\.buyCard$|pdpCard|pdpRuledRows|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showPdpWishlist|showBackInStock|showComingSoonSignup)/.test(k))).toBe(true);
     expect(tabs.visibility.every(p => /^(show|hide)[A-Z]/.test(p.field.key))).toBe(true);

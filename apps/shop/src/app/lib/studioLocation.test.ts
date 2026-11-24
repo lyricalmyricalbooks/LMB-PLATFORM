@@ -24,7 +24,7 @@ describe("Studio links", () => {
     expect(locationForPath("/ShopTrial/", base)).toEqual({ templateId: "heroPage" });
   });
 
-  it("sends links to the retired Shared layout tab to Page layout", () => {
+  it("sends links to the retired Shared layout tab to Page", () => {
     expect(parseStudioLocation("#designer?tab=shared")?.leftTab).toBe("sections");
   });
 

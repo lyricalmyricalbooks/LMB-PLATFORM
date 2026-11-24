@@ -91,7 +91,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
             <button type="button" disabled={logoBusy} onClick={() => setStep(i)}>{i + 1}. {s}</button>
           </li>)}
         </ol>
-        <p className="studio-hint">{step >= 1 ? "The preview shows your choices. Nothing changes in your draft until you apply them." : "Five quick steps for your logo, colours, type and Home page. You can change everything afterwards in Theme settings."}</p>
+        <p className="studio-hint">{step >= 1 ? "The preview shows your choices. Nothing changes in your draft until you apply them." : "Five quick steps for your logo, colours, type and Home page. You can change everything afterwards in Style."}</p>
       </div>
       <div className="studio-library-body" data-brand-step={STEPS[step]}>
         {step === 0 && <section className="studio-library-group">

@@ -1,4 +1,4 @@
-// Studio › Theme settings › Colour schemes: add, rename, duplicate, reorder and delete schemes,
+// Studio › Style › Colour schemes: add, rename, duplicate, reorder and delete schemes,
 // pick each role's colour, see a live swatch and the three WCAG contrast checks.
 // Every edit is one named, undoable draft change (`change`); deleting a scheme in use asks first.
 import { useState } from "react";

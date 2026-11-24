@@ -1,4 +1,4 @@
-// Theme settings › Header & announcement bar › Announcement messages: several messages for the bar,
+// Style › Header & announcement bar › Announcement messages: several messages for the bar,
 // each with an optional link and show-from / show-until days (features/site/sectionGroups.ts reads
 // them). With no messages the bar keeps using the single Announcement text above.
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";

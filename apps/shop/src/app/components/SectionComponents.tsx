@@ -454,7 +454,7 @@ const BANNER_POSITIONS: Record<string, string> = {
   "bottom-right": "items-end justify-end",
 };
 
-/** A product with no photo shows the shop's stand-in picture (Studio › Theme settings, `placeholderImageUrl`), as
+/** A product with no photo shows the shop's stand-in picture (Studio › Style, `placeholderImageUrl`), as
  *  the shop grid and the product page do, never an empty box. */
 function NoPhoto({ title }: { title?: string }) {
   return <img src={placeholderImage(useSectionDesign())} alt={title || ""} loading="lazy" decoding="async" className="w-full h-full object-cover" />;

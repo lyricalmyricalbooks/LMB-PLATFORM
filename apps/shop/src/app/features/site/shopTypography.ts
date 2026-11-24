@@ -1,4 +1,4 @@
-// Studio › Theme settings › Typography › Line height and Letter spacing, on every storefront page.
+// Studio › Style › Typography › Line height and Letter spacing, on every storefront page.
 // Most shop text carries a Tailwind size or tracking class (text-sm, tracking-widest…) that sets its
 // own line height / letter spacing, so a value set only on the page root reached almost nothing.
 // These rules move Tailwind's own scale with the control instead: at the default (1.6, Normal)

@@ -36,7 +36,7 @@ const SCHEME_VARS = ["--bg-color", "--text-color", "--border-color", "--link-col
 
 export function headerInheritance(el: Element, schemeColours = false): CSSProperties {
   const style: Record<string, string> = {};
-  // While the header follows a colour scheme (Theme settings › Colour schemes › Header), the panel takes its colours too.
+  // While the header follows a colour scheme (Style › Colour schemes › Header), the panel takes its colours too.
   if (schemeColours) for (const name of SCHEME_VARS) { const v = resolved(el, name); if (v) style[name] = v; }
   const fit = resolved(el, "--nav-fit");
   if (fit) style["--nav-fit"] = fit;

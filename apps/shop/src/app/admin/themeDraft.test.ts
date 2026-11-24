@@ -45,7 +45,7 @@ describe("theme draft / publish separation", () => {
     expect("draftDesign" in payload).toBe(false);
   });
 
-  it("non-theme settings saves do not create a design or draft", async () => {
+  it("non-style settings saves do not create a design or draft", async () => {
     await adminApi.updateSettings({ info: { name: "Your Press" } });
     const payload = lastWrite();
     expect("design" in payload).toBe(false);

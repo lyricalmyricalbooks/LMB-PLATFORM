@@ -22,15 +22,15 @@ const base = () => ({
 });
 
 describe("diffDesigns — readable labels", () => {
-  it("labels a Theme settings control, a Text & labels word, a region and menus", () => {
+  it("labels a Style control, a Text & labels word, a region and menus", () => {
     const b = { ...base(), backgroundColor: "#ffffff", copy: { cartTitle: "Your bag" }, regions: { catalogSearchPadding: 12 }, menus: { header: [] } };
     const items = diffDesigns(base(), b, ctx);
     const bg = items.find(i => i.id === "path:backgroundColor")!;
-    expect(bg).toMatchObject({ area: "Theme settings · Colours", label: "Page background", before: "#000000", after: "#ffffff", color: true });
+    expect(bg).toMatchObject({ area: "Style · Colours", label: "Page background", before: "#000000", after: "#ffffff", color: true });
     expect(items.find(i => i.id === "path:copy.cartTitle")).toMatchObject({ area: "Text & labels · Cart", label: "“Cart heading”", before: "Shopping Bag", after: "Your bag" });
     const region = items.find(i => i.id === "path:regions.catalogSearchPadding")!;
     expect(region.label).toMatch(/Catalog search field · Padding/);
-    expect(items.find(i => i.id === "path:menus")).toMatchObject({ area: "Navigation", label: "Menus" });
+    expect(items.find(i => i.id === "path:menus")).toMatchObject({ area: "Menus", label: "Menus" });
   });
 
   it("names page-only overrides by their page", () => {
@@ -107,7 +107,7 @@ describe("summaries", () => {
   it("groups by area and caps the publish summary", () => {
     const b: any = base(); b.backgroundColor = "#fff"; b.heroPage.sections = [];
     const items = diffDesigns(base(), b, ctx);
-    expect(groupByArea(items).map(g => g.area)).toEqual(["Theme settings · Colours", "Home page"]);
-    expect(summariseDiff(items, 2)).toEqual(["Theme settings · Colours · Page background changed", "Home page · Newsletter “Join” removed", "…and 2 more"]);
+    expect(groupByArea(items).map(g => g.area)).toEqual(["Style · Colours", "Home page"]);
+    expect(summariseDiff(items, 2)).toEqual(["Style · Colours · Page background changed", "Home page · Newsletter “Join” removed", "…and 2 more"]);
   });
 });

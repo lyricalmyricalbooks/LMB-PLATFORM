@@ -28,7 +28,7 @@ const button = (text: string, scope: ParentNode = document.body) =>
 const click = (b: HTMLElement) => act(async () => { b.click(); await new Promise(r => setTimeout(r, 0)); });
 afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; });
 
-describe("Studio › Themes", () => {
+describe("Studio › Designs", () => {
   it("shows the live theme, the draft, My themes and ready-made looks with thumbnails", async () => {
     const props = setup();
     await mount(props);

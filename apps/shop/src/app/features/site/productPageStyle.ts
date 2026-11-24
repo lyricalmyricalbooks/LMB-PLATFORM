@@ -211,7 +211,7 @@ export function productPageCss(design: any): string {
   const outlineW = has(d.pdpCardBorderWidth) ? `${num(d, "pdpCardBorderWidth", 2, 0, 6)}px` : "var(--rp-outline-w, 2px)";
   const photoW = has(d.pdpPhotoBorderWidth) ? `${num(d, "pdpPhotoBorderWidth", 2, 0, 6)}px` : "var(--rp-outline-w, 2px)";
   const outline = "var(--rp-outline, rgb(var(--fg-rgb)))";
-  // Theme settings › Colour schemes › Product page buy card: while the buy card follows a scheme, the
+  // Style › Colour schemes › Product page buy card: while the buy card follows a scheme, the
   // scheme's colours (tokens on .fm-pdp-card, from schemeCss) replace the card's own colour controls.
   const schemed = Boolean(elementScheme(d, "buyCard"));
   const cardTint = (key: string, fallback: string) => (schemed ? fallback : color(d, key, fallback));

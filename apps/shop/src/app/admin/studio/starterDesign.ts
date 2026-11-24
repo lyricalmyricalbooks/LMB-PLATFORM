@@ -6,7 +6,7 @@
 //
 // Where it applies whole: the first pick of a new shop (Choose your look, chooseLook.ts) and the design-before-store
 // Studio (designFirst/beforeShop.ts). The shop is new, so there is nothing of the owner's to replace. A later switch in
-// Studio › Themes still changes only the look, then offers the layouts as a separate, undoable step (StudioEditor
+// Studio › Designs still changes only the look, then offers the layouts as a separate, undoable step (StudioEditor
 // `applyLibraryTheme`), because by then the sections are the owner's own work.
 import { applyPresetSections, presetPagesToAdd, presetSections, presetStarterPages, type StarterPhotos } from "./presetContent";
 import { applyLook } from "./themeSwitch";

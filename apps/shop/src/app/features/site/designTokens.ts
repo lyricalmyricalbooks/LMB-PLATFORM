@@ -1,5 +1,5 @@
 // Design scales (Studio 3.0 phase 2): shared values the whole shop draws from, set once in
-// Studio › Theme settings › Design scales. Like Stripe's Appearance API the layers are: a theme preset,
+// Studio › Style › Design scales. Like Stripe's Appearance API the layers are: a theme preset,
 // then these shared values, then each section's own settings (which always win). Every scale is off
 // until the owner turns it on, so an unset design renders exactly as before.
 //

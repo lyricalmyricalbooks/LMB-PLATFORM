@@ -8,7 +8,7 @@ export const COLLECTION_INTRO_KEYS: Record<string, string> = {
 };
 
 /**
- * The short paragraph under a collection page's heading: the category's own description (Studio › Navigation ›
+ * The short paragraph under a collection page's heading: the category's own description (Studio › Menus ›
  * Shop categories › Edit), else its Text & labels intro. Blank when neither is set.
  */
 export function collectionIntro(design: any, slug: string | undefined, category: any): string {
