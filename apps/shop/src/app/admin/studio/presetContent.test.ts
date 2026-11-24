@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { PAGE_STARTERS } from "./pageStarters";
 import {
-  PRESET_SECTION_TEMPLATES, applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, presetStarterPages, wordedSettings,
+  PRESET_SECTION_TEMPLATES, applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, presetStarterPages, sampleSectionsLeft, wordedSettings,
 } from "./presetContent";
 import { getSections } from "./studioModel";
 import { THEME_LIBRARY } from "./themeLibrary";
@@ -85,5 +85,20 @@ describe("layouts in the shop's words (code plan 12.18)", () => {
       const words = JSON.stringify(getSections(goods, home).map(s => Object.fromEntries(Object.entries(s.settings).filter(([k]) => !/url|href|link|image|src|slug|handle|collection|icon|video|Id$/i.test(k)))));
       expect(words, tpl.id).not.toMatch(/\bnew books\b/i);
     }
+  });
+});
+
+describe("sample sections left before Publish", () => {
+  it("counts sections still marked sample, anywhere in the draft, once each", () => {
+    const shared = { id: "s3", type: "TextSection", settings: {}, sample: true };
+    const design = {
+      heroPage: { sections: [{ id: "s1", type: "HeroSection", settings: { title: "Your headline" }, sample: true }, { id: "s2", type: "TextSection", settings: {} }] },
+      globalSections: { header: [shared] },
+      again: shared,
+      books: [{ id: "b1", sample: true, title: "Sample book" }],
+    };
+    expect(sampleSectionsLeft(design)).toBe(2);
+    expect(sampleSectionsLeft({})).toBe(0);
+    expect(sampleSectionsLeft(null)).toBe(0);
   });
 });
