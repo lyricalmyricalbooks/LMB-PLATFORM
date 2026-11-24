@@ -131,6 +131,18 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "slow-season",
+    name: "Slow Season",
+    description: "A full-photo opening in huge capitals, a big introduction, a feature with a quote, the collection and a dark story band.",
+    sections: [
+      { type: "PhotoOpeningSection", settings: { eyebrow: "New season", title: "Your big\nheadline.", body: "Say what makes your shop special.", ctaText: "Explore the collection", ctaUrl: "/collections/all" } },
+      { type: "BigIntroSection", settings: { eyebrow: "Look 01", title: "Your\ncollection", body: "Introduce this season in a few lines." } },
+      { type: "FeatureDuoSection", settings: { number: "01", detail: "A short detail about this product", buttonText: "Shop now", kicker: "What we believe", quote: "A short line that sums up your shop." } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Shop the collection" } },
+      { type: "StoryOrbitSection", settings: { eyebrow: "Our approach", title: "Your story,\ntold", accentWord: "well.", body: "Share who you are and why you started.", ctaText: "Read our story" } },
+    ],
+  },
+  {
     id: "aurel-editorial",
     name: "Aurel",
     description: "An editorial front: a big serif headline beside one edge-to-edge photo, a quiet ticker, then the collection.",
