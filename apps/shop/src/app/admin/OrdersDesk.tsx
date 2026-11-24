@@ -619,7 +619,9 @@ const DESK_CSS = `
 .od-phone-bar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;gap:8px;padding:12px 20px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--rp-text);background:var(--rp-canvas)}
 .od-phone-bar .rp-btn{min-height:48px}
 .od-phone-bar .rp-btn-primary{flex:1}
-.od-grid-foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-top:1px solid var(--rp-border);padding-top:14px}
+.od-grid-foot{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;border-top:1px solid var(--rp-border);padding-top:14px}
+/* The page count and Show more sit left; Bring past orders over and the test switch sit together on the right. */
+.od-grid-foot>.od-link,.od-grid-foot>:last-child:not(.od-link ~ *){margin-left:auto}
 .od-pills{display:flex;flex-wrap:wrap;gap:8px}
 .od-pill{min-height:36px;padding:0 18px;border:0;border-radius:999px;background:var(--rp-surface);color:var(--rp-text);font:600 var(--rp-text-sm)/1 var(--rp-font-body);cursor:pointer}
 .od-pill[aria-pressed="true"]{background:var(--rp-text);color:var(--rp-canvas)}

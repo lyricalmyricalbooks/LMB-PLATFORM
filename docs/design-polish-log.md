@@ -93,3 +93,27 @@ Reports, Backups.
 - All sales: "Best channel" has no line under it (its share of sales would fit).
 - Backups and Receipts: row actions ("Open", "Choose", "Check and add") are still plain text, unlike "Mark paid".
 - Quotes, Bills and Repeating draw their table inside a padded card; Parcels and All sales run the rows to the card's edge.
+
+## 24 November 2026 (desktop only)
+
+**Screens reviewed** (shop admin fixture, desktop 1440, phone glanced at): Backups, QR codes, Bookkeeping › Receipts and
+Bills to pay, Orders, Customers, Reviews, Analytics, Online store, Stock and sales, Count, Inventory, Settings › Your
+shop and Emails.
+
+**Fixed** (one PR)
+- Backups, QR codes, Online store and Receipts by email: "Open", "Choose", "Download", "Print", "Check now" and
+  "Check and add" were plain words; they are the cream pill buttons every other card uses (white on a cream receipt).
+- Customers, Reviews, Stock and sales and every page that stacks a search row over its table: the search row sat twice
+  as far from its table as anything else on the page.
+- Orders: the footer scattered "3 of 3", "Bring past orders over" and the test switch across the width; the link and
+  switch now sit together on the right.
+- Reviews: the Hidden tile has a line under its number ("Not on your website") like its neighbours.
+- Stock and sales: Sold ("All time") and Out at stores ("Left with stores to sell") have their line too.
+- Customers: Export CSV and Bring customers over drop their icons, matching Orders next door and the v4 mockup.
+
+**Noticed, left for later**
+- Receipts by email: three receipt cards leave an empty fourth column on a wide screen.
+- Online store: "Unpublished changes" shows a lone dash as its number when Studio has nothing waiting.
+- Settings › Emails: the loading box has a dashed edge, so it reads like a drop zone.
+- Customers: the table card's title still repeats "Customers"; Backups' card title repeats "Backups" too, but the
+  mockup draws it that way.

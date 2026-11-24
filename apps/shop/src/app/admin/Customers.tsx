@@ -1,5 +1,4 @@
 import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Download, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { StockistsCard } from "./StockistsCard";
@@ -272,8 +271,8 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     <div className="rp-stack">
       {/* Bringing customers over and exporting them are page actions, so they sit by the title, not among the filters. */}
       <PageActions>
-        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
-        <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setMoveOpen(true)}>{w("Bring customers over")}</SecondaryButton>
+        <SecondaryButton onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
+        <SecondaryButton onClick={() => setMoveOpen(true)}>{w("Bring customers over")}</SecondaryButton>
       </PageActions>
       <div className="rp-kpi-grid">
         <MetricCard label="Customers" value={stats.total} footer="With at least one paid order" />
