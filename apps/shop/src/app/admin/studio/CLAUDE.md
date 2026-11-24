@@ -863,3 +863,7 @@ the shop's sample photos (`samplePhotosFor`: band photos, then item photos) and 
 design-before-the-store, Themes › Use layout and the starter preview pass it. Example products come from the same set and
 are never sold (`features/site/comingSoon.ts` `notForSale`, server `purchaseProblem`). Publish says how many sections still
 carry `sample: true` (`sampleSectionsLeft`).
+**Service shops (same day):** `starterForShop(theme, sells)` (starterDesign.ts) gives a services shop its version of any
+starter: the first product row becomes the price list (`ServiceMenuSection`), the second the Book a time cards
+(`BookTimeSection`), other product rows (`PRODUCT_SECTIONS`) go, and opening hours go before the sign-up band. The same four
+callers pass it. Booking sections are never re-worded (`SERVICES_WORDED` in presetContent.ts: "Book" is their verb).

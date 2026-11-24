@@ -108,6 +108,9 @@ export function wordedSettings(settings: Record<string, any>, w: (text: string) 
   return word("", settings);
 }
 
+/** Sections whose words are already a services shop's (Book a time, price list, team, hours, reviews). */
+const SERVICES_WORDED = new Set(["BookTimeSection", "ServiceMenuSection", "BookingTeamSection", "BookCallSection", "BookingHoursSection", "ClientReviewsSection"]);
+
 /** A sample photo for a starter's empty picture spots (starterSamples.ts `samplePhotosFor`). */
 export type SamplePhoto = { url: string; alt: string };
 /** The sample photos and, per section type, the picture fields they may fill (`starterPhotos.ts`). */
@@ -150,7 +153,11 @@ export function applyPresetSections(design: any, preset: PresetLike, meta: (type
   const fill = samplePhotoFiller(samples);
   for (const [id, specs] of Object.entries(presetSections(preset))) {
     // Marked as the starter's sample until the owner edits it (Studio's Sample badge).
-    const sections = specs.map(s => ({ ...makeSection(s.type, fill(s.type, wordedSettings({ ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) }, w))), sample: true }));
+    // Booking sections are written in services words already ("Book" is the verb there), so they are never re-worded.
+    const sections = specs.map(s => {
+      const settings = { ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) };
+      return { ...makeSection(s.type, fill(s.type, SERVICES_WORDED.has(s.type) ? settings : wordedSettings(settings, w))), sample: true };
+    });
     next = setSections(next, targetOf(id), sections);
   }
   const blocks = preset?.content?.productBlocks;

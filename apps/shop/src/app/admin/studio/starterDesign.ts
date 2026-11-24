@@ -10,6 +10,7 @@
 // `applyLibraryTheme`), because by then the sections are the owner's own work.
 import { applyPresetSections, presetPagesToAdd, presetSections, presetStarterPages, type StarterPhotos } from "./presetContent";
 import { applyLook } from "./themeSwitch";
+import { shopKind } from "../../../shared/shopSells";
 
 /** Section metadata lookup (ThemeEditorExtensions `getSectionMeta`), passed in so this file stays pure. */
 export type SectionMetaLookup = (type: string) => any;
@@ -33,3 +34,38 @@ export function starterContents(theme: any): { pages: string[]; starterPages: st
 
 /** The starter pages to add to a shop that has `pages`, as drafts (an address already in use is skipped). */
 export const starterPagesToAdd = presetPagesToAdd;
+
+/** Sections that show products: a services shop's version of a starter replaces them (`starterForShop`). */
+export const PRODUCT_SECTIONS = new Set([
+  "CollectionListSection", "FeaturedProductSection", "ProductGridHeaderSection", "ProductCoverCarouselSection",
+  "ProductShowcaseGridSection", "StaffNotesTableSection", "FeaturedCollectionSection", "BookSpotlightSection",
+  "EphemeraRowSection", "StickyAddToBagSection",
+]);
+
+/**
+ * The starter as a shop that sells `sells` gets it (24 November 2026, rethink "service shops"): one design serves every
+ * kind of shop. A services shop's version swaps the first product row for the price list (ServiceMenuSection), the
+ * second for the Book a time cards (BookTimeSection), drops any other product row and adds opening hours before the
+ * sign-up band (or at the end). Every other part of the design is kept. Product and books shops get the starter as is.
+ */
+export function starterForShop<T>(theme: T, sells?: string | null): T {
+  if (!theme || shopKind(sells) !== "services") return theme;
+  const sections: Record<string, unknown[]> = {};
+  for (const [id, list] of Object.entries(presetSections(theme as any))) {
+    let swapped = 0;
+    const next: any[] = [];
+    for (const section of list) {
+      if (!PRODUCT_SECTIONS.has(section.type)) { next.push(section); continue; }
+      if (swapped === 0) next.push({ type: "ServiceMenuSection" });
+      else if (swapped === 1) next.push({ type: "BookTimeSection" });
+      swapped++;
+    }
+    if (swapped && !next.some((s) => s.type === "BookingHoursSection")) {
+      const signUp = next.findIndex((s) => s.type === "NewsletterSection");
+      next.splice(signUp < 0 ? next.length : signUp, 0, { type: "BookingHoursSection" });
+    }
+    sections[id] = next;
+  }
+  const t = theme as any;
+  return { ...t, content: { ...(t.content || {}), sections } } as T;
+}

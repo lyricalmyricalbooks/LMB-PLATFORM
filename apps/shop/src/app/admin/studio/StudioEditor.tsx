@@ -41,7 +41,7 @@ import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, r
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, sampleSectionsLeft, starterSampleBooks, wordedSettings } from "./presetContent";
-import { applyStarter } from "./starterDesign";
+import { applyStarter, starterForShop } from "./starterDesign";
 import { useCatalogWords, useShopSells, useShopWords } from "../shopWords";
 import { starterPhotos } from "./starterPhotos";
 import { applyThemeKeysToSurfaces } from "../themeScope";
@@ -811,7 +811,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     });
     if (!ok) return;
     const sectionTemplates = Object.keys(presetSections(theme));
-    if (sectionTemplates.length) change((d) => applyPresetSections(d, theme, getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Use “${theme.name}” layout` });
+    if (sectionTemplates.length) change((d) => applyPresetSections(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Use “${theme.name}” layout` });
     let added = 0;
     try {
       // Each page saves straight away as a draft, like Pages › New page; a page whose address is taken is skipped, so
@@ -1081,7 +1081,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const theme: any = id && STARTER_SITES.includes(id) ? libraryLook(id) : null;
     if (!entry || !theme) return entry;
     const samples = starterSampleBooks(theme);
-    return { ...entry, design: applyStarter(designRef.current, theme, getSectionMeta, shopWords, starterPhotos(shopSells)), books: samples.length ? samples : undefined };
+    return { ...entry, design: applyStarter(designRef.current, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), books: samples.length ? samples : undefined };
   };
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
