@@ -385,7 +385,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Classes & waiting list", match: /^bookTime(ClassSize|ClassMinimum|PlacesLeft|LastPlace|Full|DayFull|Wait)/ },
     { title: "First-visit price", match: /^bookTime(IntroPrice|IntroNote|PayIntro)/ },
     { title: "Visits at your place", match: /^bookTime(Address|Street|City|Postcode|NeedAddress|OutsideArea|AtYourPlace)/ },
-    { title: "Your details & booking", match: /^bookTime(Name|Email|Phone|Note|Need|Optional|TextOk|Book$|Pay$|Booking|PayNote|CancelRule|Taken|Error)/ },
+    { title: "Your details & booking", match: /^bookTime(Name|Email|Phone|Note|Need|Optional|TextOk|Birthday|Book$|Pay$|Booking|PayNote|CancelRule|Taken|Error)/ },
     { title: "Deposits & card on file", match: /^bookTime(Deposit|PayDeposit|Card|SaveCard|FeeCharged|PayRest|RestPaid)/ },
     { title: "Discounts, gift cards & tax", match: /^bookTime(Code|Discount|Gift|Tax|PlusTax)/ },
     { title: "Packs of visits", match: /^bookTimePack/ },

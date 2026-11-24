@@ -1276,6 +1276,11 @@ months back to tomorrow; `noShowReport` over a `spanDays` stretch: confirmed boo
 no-shows among them, `lostMinor` (price less `moneyKept`), `keptMinor`, clients grouped by lower-case email (repeat = 2+),
 weekdays Monday first. `noShowRows` is the spreadsheet.
 
+**Keep in touch (Beta, 24 November 2026, plan 4 step 5.4):** Hours & rules › `KeepInTouchTile` (after the thank-you tile):
+Welcome new clients, Wish clients a happy birthday (adds a month/day picker, region `bookingsBirthday`, to the booking form),
+Send "we miss you" (Never or `MISS_YOU_WEEKS`). Words are in Messages (welcome, birthday, missYou); sending is
+`functions/CLAUDE.md` › Keep in touch.
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while

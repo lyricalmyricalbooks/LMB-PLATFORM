@@ -71,6 +71,8 @@ export type BookingInfo = { on: boolean; zone?: string; currency?: string; cance
   giftCards?: boolean;
   /** The shop sends reminders by text, so the form offers "Text me reminders" next to the phone number. */
   texts?: boolean;
+  /** The shop sends birthday emails (plan 4, 5.4), so the form asks for a birthday (optional, month and day). */
+  birthday?: boolean;
   /** The people who take bookings (none when the shop lists nobody): who does which service (no services listed = all). */
   staff?: BookingPerson[];
   /** False when the shop books "anyone available" (plan 4, 2.4): the client never picks a person. */

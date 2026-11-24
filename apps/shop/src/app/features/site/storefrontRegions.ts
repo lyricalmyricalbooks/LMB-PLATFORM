@@ -90,6 +90,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "bookingsCode", label: "Discount code box" },
     { id: "bookingsGiftCard", label: "Gift card box" },
     { id: "bookingsTexts", label: "Text me reminders tick box" },
+    { id: "bookingsBirthday", label: "Birthday (month and day)" },
     { id: "bookingsPackCode", label: "Pack code box" },
     { id: "bookingsRepeat", label: "Standing appointment: how often and its dates" },
     { id: "bookingsExtras", label: "Add-ons and options to tick" },

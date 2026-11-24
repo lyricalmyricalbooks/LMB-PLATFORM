@@ -342,6 +342,12 @@ export type BookingSettings = {
   awayReply?: boolean;
   /** The owner's away words, at most MAX_AWAY_WORDS characters; empty or left out: the standard words. */
   awayWords?: string;
+  /** Keep in touch (plan 4, 5.4): a welcome email the day after a client's first visit. */
+  welcomeEmail?: boolean;
+  /** Keep in touch: the booking form asks for a birthday (optional) and the client gets an email on the day. */
+  birthdayEmail?: boolean;
+  /** Keep in touch: a "we miss you" email this many weeks after a client's last visit (MISS_YOU_WEEKS); 0 or left out: off. */
+  missYouWeeks?: number;
   /** The most bookings clients can make online on one day (plan 4, 1.8); 0 or left out: no limit. The owner can add more. */
   dailyCap?: number;
   /**
@@ -1118,6 +1124,9 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     textReplies: s.textReplies === true,
     askToConfirm: s.askToConfirm === true,
     awayReply: s.awayReply === true,
+    ...(s.welcomeEmail === true ? { welcomeEmail: true } : {}),
+    ...(s.birthdayEmail === true ? { birthdayEmail: true } : {}),
+    ...((MISS_YOU_WEEKS as readonly number[]).includes(Number(s.missYouWeeks)) ? { missYouWeeks: Number(s.missYouWeeks) } : {}),
     ...(() => { const words = awayText(s.awayWords); return words ? { awayWords: words } : {}; })(),
     ...(() => { const messages = cleanMessages(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
     ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
@@ -1252,6 +1261,49 @@ export function rebookDue(
   if (!Number.isFinite(start)) return false;
   const dueAt = start + weeks * 7 * 86_400_000;
   return dueAt <= nowMs && nowMs < dueAt + REBOOK_WINDOW_DAYS * 86_400_000;
+}
+
+// ── Keep in touch (plan 4, 5.4, Beta) ──────────────────────────────────────────────────────────────────────────────
+
+/** The "we miss you" choices, in weeks after the client's last visit. */
+export const MISS_YOU_WEEKS = [4, 6, 8, 12, 16, 26] as const;
+/** The welcome email goes this many hours after the first visit ended (the day after, give or take). */
+export const WELCOME_AFTER_HOURS = 20;
+/** A keep-in-touch email goes within this many days of falling due; older ones are left alone. */
+export const KEEP_IN_TOUCH_WINDOW_DAYS = 7;
+
+/** A birthday as "MM-DD" (no year is ever kept), or "" when it isn't a real day. Takes "MM-DD" or { month, day }. Pure. */
+export function cleanBirthday(value: unknown): string {
+  let month = 0;
+  let day = 0;
+  if (typeof value === "string") {
+    const m = /^(\d{1,2})-(\d{1,2})$/.exec(value.trim());
+    if (!m) return "";
+    month = Number(m[1]);
+    day = Number(m[2]);
+  } else if (value && typeof value === "object") {
+    month = Number((value as any).month);
+    day = Number((value as any).day);
+  } else return "";
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return "";
+  // Days in each month of a leap year, so 29 February is a birthday.
+  if (day > [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]) return "";
+  return `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** The "MM-DD" birthdays celebrated on a shop day ("YYYY-MM-DD"): 29 February counts on 28 February outside leap years. Pure. */
+export function birthdaysOn(day: string): string[] {
+  const md = day.slice(5);
+  const year = Number(day.slice(0, 4));
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  return md === "02-28" && !leap ? ["02-28", "02-29"] : [md];
+}
+
+/** A visit that happened: confirmed, not a no-show, ended by now. Pure. */
+export function visitHappened(b: { status?: string; noShow?: boolean; end?: string; start?: string }, nowMs: number): boolean {
+  if (b.status !== "confirmed" || b.noShow) return false;
+  const end = Date.parse(b.end || b.start || "");
+  return Number.isFinite(end) && end <= nowMs;
 }
 
 /** Can the client review this visit on their booking page? The shop takes reviews, the visit happened, none yet. */
