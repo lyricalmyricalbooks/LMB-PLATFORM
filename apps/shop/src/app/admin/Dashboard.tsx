@@ -1,3 +1,4 @@
+import { forgetLastDraft } from "./lastDraft";
 import "../../styles/adminCompat.css";
 import { jumpWhenShown } from "./settingsLayout";
 import { NEW_DISCOUNT_KEY, type SearchJob } from "./searchActions";
@@ -729,6 +730,17 @@ export function Dashboard() {
     setShowEditor(true);
   };
 
+  // Round 3, change 8: "Continue where you left off" opens the new product that saved itself as a draft.
+  const continueDraft = (id: string) => {
+    setPickingType(false);
+    adminApi.getBook(id)
+      .then((book: any) => {
+        if (!book || book.status !== "draft") forgetLastDraft(id);
+        if (book) handleEditBook(book); else setBookLinkProblem(w("That draft isn't in your shop any more. It may have been deleted."));
+      })
+      .catch(() => setBookLinkProblem(w("That draft couldn't be opened just now. Try again in a minute, or find it on this Books page.")));
+  };
+
   const appearance = adminTheme === "dark" ? "dark" : "light";
   const legacyProps = {
     className: `${adminTheme === "light" ? "admin-light" : ""} admin-reso`,
@@ -989,13 +1001,13 @@ export function Dashboard() {
     <ShopWordsContext.Provider value={w}>
     <ShopSellsContext.Provider value={sellsAnswer}>
     <ToastProvider>
-      <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title={w("Couldn't open that book")}
+      <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title={w("Couldn't open that book")} appearance={appearance}
         footer={<SecondaryButton data-autofocus onClick={() => setBookLinkProblem(null)}>Close</SecondaryButton>}>
         <p style={{ margin: 0 }}>{bookLinkProblem}</p>
       </Dialog>
       {pickingType && <Suspense fallback={null}>
         <AddProductPicker sells={sellsAnswer} appearance={appearance} title={w("Add a book")}
-          onClose={() => setPickingType(false)} onStart={startProduct} />
+          onClose={() => setPickingType(false)} onStart={startProduct} onContinue={continueDraft} />
       </Suspense>}
       <AppShell
         appearance={appearance}
