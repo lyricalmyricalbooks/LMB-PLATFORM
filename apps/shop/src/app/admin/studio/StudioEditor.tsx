@@ -48,7 +48,7 @@ import { starterPhotos } from "./starterPhotos";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { STARTER_SITES, builtLooks, libraryLook, newStarters, offeredStarters, offeredStyles, ownBooks, pressNameOf } from "../lookGallery";
 import { usePlatformStarters } from "../platformStarters";
-import { applyLook, bringBack, ownEdits, resetToLook, switchSummary, themeSwitchReport, updateLookKeepingEdits, updatedTheme, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
+import { applyLook, bringBack, ownEdits, resetToLook, starterUpdate, switchSummary, themeSwitchReport, updateLookKeepingEdits, type SwitchItem, type ThemeSwitchReport } from "./themeSwitch";
 import { importedThemeProblems } from "./themeCheck";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
 import { StudioOutline, blockLabel } from "./StudioOutline";
@@ -68,7 +68,7 @@ import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { friendlyError } from "./friendlyError";
 import { toastDuration } from "./toastTiming";
-import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
+import { ActionMenu, Dialog, GhostButton, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
@@ -148,6 +148,8 @@ const candidateSection = (designId: string) => {
 };
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
+/** The canvas preview of a newer version of the press's starter (Themes › Preview it). */
+const LOOK_UPDATE_PREVIEW = "look-update";
 
 const SETTING_LABELS = new Map<string, string>([
   ...BOOK_STYLE_GROUPS.flatMap(g => g.fields.map(f => [f.key, f.label] as [string, string])),
@@ -859,12 +861,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     change((d) => resetToLook(d, items), { label: items.length === 1 ? `Use the theme's ${items[0].label}` : `Use the theme's settings for ${items.length} changes` });
     say("ok", items.length === 1 ? `“${items[0].label}” is the theme's again.` : `${items.length} settings are the theme's again.`, undoAction());
   };
+  /** A release changed the press's starter (starterVersions.ts): the newer version, its notes and the version numbers. */
+  const lookUpdate = useMemo(() => starterUpdate(design), [design]);
+  const [lookUpdateSeen, setLookUpdateSeen] = useState(false);
+  /** Themes › Preview it: the newer version with every own edit on top, in the canvas only; the draft doesn't change. */
+  const previewLookUpdate = (on: boolean) => {
+    if (!on || !lookUpdate) { setThemePreview(null); return; }
+    setThemePreview({ id: LOOK_UPDATE_PREVIEW, label: lookUpdate.to > lookUpdate.from ? `${lookUpdate.name}, version ${lookUpdate.to}` : `${lookUpdate.name} (new version)`, design: updateLookKeepingEdits(designRef.current, defaults, lookUpdate.theme, surfaceIds) });
+  };
   /** Themes › Update look: a release changed the press's theme; take the new version and lay their edits back on. */
   const updateOwnLook = (theme: any) => {
     const kept = ownEdits(designRef.current, defaults).length;
-    change((d) => updateLookKeepingEdits(d, defaults, theme, surfaceIds), { label: `Update “${theme.name}” look` });
+    const name = styledName(theme);
+    setThemePreview(null);
+    change((d) => updateLookKeepingEdits(d, defaults, theme, surfaceIds), { label: `Update “${name}” look` });
     setSwitchReport(null);
-    say("ok", `“${theme.name}” updated in the draft${kept ? `; your ${kept} change${kept === 1 ? "" : "s"} stayed on top` : ""}. Publish to make it live.`, undoAction());
+    say("ok", `“${name}” updated in the draft${kept ? `; your ${kept} change${kept === 1 ? "" : "s"} stayed on top` : ""}. Publish to make it live.`, undoAction());
   };
   // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
   const themesBusyRef = useRef(false);
@@ -1973,7 +1985,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const made = createAlternate(designRef.current, base, name, from);
     change(() => made.design, { label: `Create template “${name.trim()}”` });
     setShowGlobal(false); setTemplateId(altSurface(base, made.id)); setSelectedId(null); setBlockId(null);
-    say("ok", `Template “${name.trim()}” created from ${from === base ? "the default" : "that template"}. ${base === "productPage" ? "Pick it for books in Books › edit › Categories & tags." : "Pick it for categories in Menus › Shop categories."}`);
+    say("ok", `Template “${name.trim()}” created from ${from === base ? "the default" : "that template"}. ${base === "productPage" ? "Pick it for books in Books › edit › Categories & tags, or for a whole category in Menus › Shop categories." : "Pick it for categories in Menus › Shop categories."}`);
   };
   const renameTemplateAsk = async (base: AltBase, id: string, current: string) => {
     const name = await askText({ title: "Rename template", label: "Name", defaultValue: current, confirmLabel: "Rename" });
@@ -2723,7 +2735,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 stylesOf={id => offeredStyles(id, starterChoice)} currentStyleId={design.themeBase?.style}
                 switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
                 onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
-                ownEdits={ownEditsList} updatedTheme={updatedTheme(design)} onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}
+                ownEdits={ownEditsList} lookUpdate={lookUpdate} previewingUpdate={themePreview?.id === LOOK_UPDATE_PREVIEW} onPreviewUpdate={previewLookUpdate}
+                onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}
                 links={{ create: (d, name, days) => adminApi.createPreviewLink(d, name, days), list: () => adminApi.listPreviewLinks(), revoke: token => adminApi.revokePreviewLink(token) }}
                 askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
             )}
@@ -2905,6 +2918,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
       {liveSyncPaused && <div className="studio-recovery" role="status" data-studio-live-sync-paused><span>Live updates from other tabs are paused. Reload Studio before publishing to be safe.</span></div>}
+      {/* A release changed the press's starter: said once wherever Studio opens, with the way to Themes (starterVersions.ts). */}
+      {lookUpdate && leftTab !== "themes" && !lookUpdateSeen && <div className="studio-recovery studio-incoming" role="status" data-studio-look-update>
+        <span>A new version of {lookUpdate.name} is ready. Your own changes stay on top.</span>
+        <SecondaryButton size="sm" onClick={() => { setLeftTab("themes"); setMobilePanel("outline"); setLookUpdateSeen(true); }}>See what's new</SecondaryButton>
+        <GhostButton size="sm" onClick={() => setLookUpdateSeen(true)}>Not now</GhostButton>
+      </div>}
       {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
         <span>Previewing “{themePreview.label}” in the canvas. Your draft hasn't changed.</span>
         <SecondaryButton size="sm" onClick={() => setThemePreview(null)}>Stop preview</SecondaryButton>

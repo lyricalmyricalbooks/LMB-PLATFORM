@@ -904,3 +904,28 @@ shop stays as it was until Publish). `persistThemes` returns whether it saved; p
 - The control room hides a style (`platform/starters` `hiddenStyles`, `starter/style` ids; `control-room/starterSites.js`
   mirrors the names, its test compares them). The starter's own style can't be hidden. Fixture: `?hiddenStyles=…`.
 - Theme checks run every style (`STYLED_LOOKS`, `checkId`; `THEME_META_KEYS` allows `styleId`, `styleName`, `checkId`).
+
+## Starter updates that keep owner edits (24 November 2026, next starters plan phase 4)
+- Each starter has numbered releases with a plain note and the signature of every style as the newest release ships it
+  (`studio/starterVersions.ts`). `starterVersions.test.ts` fails when a starter's look changes without a new release.
+- Use this look records `themeBase.version` (`themeBaseFor`); a base without one counts as version 1. `starterUpdate(design)`
+  gives the newer look in the shop's style, its styled name, the versions and the notes since (`releasesSince`).
+- Studio: a one-time message wherever Studio opens ("A new version of Aurel Sand is ready", See what's new / Not now,
+  `data-studio-look-update`), and in Designs the update box lists what changed, **Preview it** (the canvas only, through
+  `themePreview` id `look-update`; the draft doesn't change) and **Update** (`updateLookKeepingEdits`: the new look with every
+  own edit laid back on top, one undo, nothing live until Publish).
+- Studio fixture `?olderStarter=aurel-editorial/sand` starts a shop on an older Aurel Sand with its own button corners.
+- Control room: `shopLooks.js` reads `themeBase.version`, `lookTally` counts shops per version, and Setting up › Starter
+  websites says how many live shops are on the newest (`STARTERS[].version`, kept in step by `starterSites.test.js`).
+
+## Product page layouts for a whole category (24 November 2026, next starters plan phase 5)
+
+Alternate product page templates (Studio 2.8, `features/site/templateAlternates.ts`) could only be picked per book
+(`book.templateId`). A shop category can now give every product in it one: `category.productTemplateId`, set in Studio ›
+Menus › Shop categories › Edit › **Product page layout** (`data-category-product-layout`). `bookTemplateSurface` decides in
+this order: Studio's preview override (it alone decides, so "default" shows the default page), the book's own
+`templateId`, then `collectionProductTemplate` (the first category in menu order that the book is in, `bookInCategory`,
+with a layout), then `productPage`. A deleted layout at any step is passed over. The template card's "used by" list and
+the book editor's empty choice ("Same as its category") follow the same rule. Book-only blocks inside a layout stay
+bookshop-only because a layout is just the product page's own sections. Checks: `templateAlternates.test.ts`, e2e "a
+category gives every product in it a product page layout".

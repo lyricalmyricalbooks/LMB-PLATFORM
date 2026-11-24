@@ -19,7 +19,7 @@ export function BookTemplatePicker({ value, onChange }: { value?: string; onChan
       <SelectField label={w("Book page template")} value={value || ""} disabled={choices === null}
         onChange={e => onChange(e.target.value || undefined)}
         hint={choices === null ? "Loading templates…" : missing ? "The template this book used was deleted, so it shows the default layout." : choices.some(c => c.id === value && !c.published) ? "This template isn't published yet: the book shows the default layout until you publish from the Design studio." : undefined}>
-        <option value="">{w("Default book page")}</option>
+        <option value="">{w("Same as its category (or the default book page)")}</option>
         {(choices || []).map(c => <option key={c.id} value={c.id}>{c.name}{c.published ? "" : " (not published yet)"}</option>)}
         {missing && <option value={value}>Deleted template</option>}
       </SelectField>

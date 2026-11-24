@@ -1038,6 +1038,25 @@ await check("a new book page template gets its own sections and is listed in the
   if (design.productPage?.sections?.some(s => s.type === "PromoStripSection")) throw new Error("section leaked onto the default template");
 }, "#designer?t=productPage");
 
+await check("a category gives every product in it a product page layout", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const card = page.locator("[data-studio-panel=template]");
+  await card.getByRole("button", { name: "New template from this one" }).click();
+  await page.getByRole("dialog").getByLabel("Name (e.g. Poetry)").fill("Poetry");
+  await page.getByRole("dialog").getByRole("button", { name: "Create template" }).click();
+  await card.getByLabel("Book page template to edit").waitFor({ timeout: 5000 });
+  await openView(page, "Pages", "Menus");
+  await page.locator(".studio-category-row").first().getByRole("button", { name: /^Edit / }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator("[data-category-product-layout]").selectOption("poetry");
+  if (shots) await dialog.screenshot({ path: `${shots}/category-product-layout.png` });
+  await dialog.getByRole("button", { name: "Apply category details" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const design = (await calls(page)).find(c => c.method === "saveDesign").args[0].design;
+  if (!(design.categories || []).some(c => c && c.productTemplateId === "poetry")) throw new Error(`no category layout saved: ${JSON.stringify(design.categories)}`);
+}, "#designer?t=productPage");
+
 await check("the buy box follows Buy box blocks, and Add to bag still adds to the bag", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const panel = page.locator("[data-studio-panel=product-blocks]");
@@ -1479,6 +1498,26 @@ await check("a starter's styles: picking a swatch redraws the card, Try puts tha
   if (bg !== "rgb(18, 23, 34)") throw new Error(`the preview isn't in the Night colours (${bg})`);
   if (!(await card.getByText("Current").count())) throw new Error("the card doesn't show Aurel Night as current");
 }, "?hiddenStyles=aurel-editorial/sand#designer?tab=themes");
+
+// Starter updates that keep the owner's edits (next starters plan, phase 4): a shop on an older Aurel Sand (with its own
+// button corners) is told a new version is ready, can preview it without changing the draft, and Update keeps the corners.
+await check("a new version of the shop's starter: told once, previewed in the canvas only, and Update keeps the owner's change", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.locator("[data-studio-look-update]").waitFor({ timeout: 5000 });
+  await page.locator("[data-studio-look-update]").getByRole("button", { name: "See what's new" }).click();
+  const panel = page.locator("[data-look-update]");
+  await panel.waitFor({ timeout: 5000 });
+  if (!(await panel.textContent()).includes("A new version of Aurel Sand is ready")) throw new Error("the update doesn't name the starter in its style");
+  if (await page.locator("[data-studio-look-update]").count()) throw new Error("the message stayed up after opening Designs");
+  await panel.locator("[data-look-update-preview]").click();
+  await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 3000 });
+  if (await page.locator("[data-studio-status=\"unsaved\"]").count()) throw new Error("previewing the new version changed the draft");
+  await panel.locator("[data-look-update-preview]").click();
+  await panel.getByRole("button", { name: "Update Aurel Sand" }).click();
+  await expectText(page, "“Aurel Sand” updated in the draft; your 1 change stayed on top");
+  if (await page.locator("[data-look-update]").count()) throw new Error("the update is still offered after taking it");
+  // That the corners themselves stay is checked in starterVersions.test.ts.
+}, "?olderStarter=aurel-editorial/sand#designer");
 
 // Every starter on every kind of shop (next starters plan, phase 1): a starter listed in lookGallery.ts STARTER_SITES is
 // tried as a bookshop, a clothing shop and a salon, at desktop and phone. Its look must load, nothing may scroll

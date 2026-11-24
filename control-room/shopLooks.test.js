@@ -50,7 +50,7 @@ test("only platform admins see a shop's look, or the looks across presses", asyn
 test("a shop's look: what shoppers see, a different look in the draft, and the welcome's pick", async () => {
   const w = await world();
   assert.deepEqual((await w.desk.forShop(ADMIN, { shopId: "moth" })).look, {
-    live: { id: "marquee", name: "Marquee" }, template: "marquee", templateDetails: [], publishedAt: "2026-11-01T10:00:00Z", samples: 0, draft: { id: "atlas", name: "Atlas" },
+    live: { id: "marquee", name: "Marquee", version: 1 }, template: "marquee", templateDetails: [], publishedAt: "2026-11-01T10:00:00Z", samples: 0, draft: { id: "atlas", name: "Atlas", version: 1 },
     welcome: { theme: "marquee", at: "2026-10-30T09:00:00Z", skipped: false, adminLook: "paper" }, waiting: false,
   });
   const newt = (await w.desk.forShop(ADMIN, { shopId: "newt" })).look;
@@ -69,8 +69,13 @@ test("across presses: live websites only, counted per look, their own designs la
   assert.equal(shops, 3, "no test shop, no stockroom-only plan, nothing not live");
   assert.equal(waiting, 1);
   assert.deepEqual(unread, []);
-  assert.deepEqual(looks, [{ id: "marquee", name: "Marquee", count: 2 }, { id: "", name: "", count: 1 }]);
+  assert.deepEqual(looks, [{ id: "marquee", name: "Marquee", count: 2, versions: { 1: 2 } }, { id: "", name: "", count: 1, versions: {} }]);
   assert.deepEqual(lookTally([]), []);
+});
+
+test("starter versions: each live shop counted on the version it started from (none recorded is version 1)", () => {
+  const live = (version) => lookOf({ design: { themeBase: { id: "aurel-editorial", name: "Aurel Sand", ...(version ? { version } : {}) } } }, null, null);
+  assert.deepEqual(lookTally([live(2), live(2), live(undefined), live(1)]), [{ id: "aurel-editorial", name: "Aurel Sand", count: 4, versions: { 1: 2, 2: 2 } }]);
 });
 
 test("a shop that can't be read is named, not fatal", async () => {

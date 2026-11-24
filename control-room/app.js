@@ -3629,7 +3629,13 @@ async function loadStarters() {
                 } }), x.name))) },
             { header: "New tag", render: (r) => el("label", { className: "rp-check" },
               el("input", { type: "checkbox", checked: r.fresh, ariaLabel: `Mark ${r.name} New`, onchange: (e) => { rows[r.i] = { ...rows[r.i], fresh: e.target.checked }; draw(); } }), "Mark New") },
-            { header: "Live shops", render: (r) => el("span", { className: "rp-mono", textContent: worn ? String(wearing(r.id)) : "?" }) },
+            // How many live shops wear it, and how many are on its newest version (studio/starterVersions.ts).
+            { header: "Live shops", render: (r) => {
+              const count = wearing(r.id);
+              const newest = worn?.find((w) => w.id === r.id)?.versions?.[r.version] ?? 0;
+              return el("div", {}, el("span", { className: "rp-mono", textContent: worn ? String(count) : "?" }),
+                worn && count ? meta(newest === count ? `all on version ${r.version}` : `${newest} on version ${r.version}, ${count - newest} on an older one`) : null);
+            } },
             { header: "Order", end: true, render: (r) => el("div", { className: "cr-actions" },
               button("Up", "ghost", { disabled: r.i === 0, ariaLabel: `Move ${r.name} up`, onclick: () => move(r.i, -1) }),
               button("Down", "ghost", { disabled: r.i === rows.length - 1, ariaLabel: `Move ${r.name} down`, onclick: () => move(r.i, 1) })) },

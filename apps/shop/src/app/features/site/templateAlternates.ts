@@ -2,7 +2,10 @@
 // The list lives in the root-only `design.alternateTemplates` ({ productPage: [{ id, name }], collectionPage: [...] });
 // each one's sections and page-only styles live on its own surface `productPage~<id>` / `collectionPage~<id>`, which
 // layers over the default template (designModel.surfaceChain). A book picks one with `book.templateId`; a shop category
-// with `category.templateId`. A missing or deleted template id simply means the default. Pure and storefront-safe.
+// with `category.templateId`, and every book in a category with `category.productTemplateId` (a book's own choice wins).
+// A missing or deleted template id simply means the default. Pure and storefront-safe.
+
+import { bookInCategory, normalizeCategories } from "./categoryMembership.mjs";
 
 export type AltBase = "productPage" | "collectionPage";
 export type AlternateTemplate = { id: string; name: string };
@@ -24,10 +27,26 @@ export function alternatesFor(design: any, base: AltBase): AlternateTemplate[] {
   return Array.isArray(list) ? list.filter(t => t && ID_RE.test(String(t.id)) && typeof t.name === "string") : [];
 }
 
-/** The template surface a book page uses: its chosen alternate when that still exists, else "productPage". */
+/**
+ * The template surface a book page uses: the one Studio's preview asks for, else the book's own chosen alternate, else
+ * the product page layout of the first collection it sits in that has one (`category.productTemplateId`, Studio ›
+ * Categories), else "productPage". A deleted alternate at any step is passed over.
+ */
 export function bookTemplateSurface(design: any, book: any, override?: string | null): string {
-  const id = override || book?.templateId;
-  return id && alternatesFor(design, "productPage").some(t => t.id === id) ? altSurface("productPage", id) : "productPage";
+  const exists = (id: unknown) => typeof id === "string" && !!id && alternatesFor(design, "productPage").some(t => t.id === id);
+  // Studio's preview names the template it is showing ("default" or a deleted one means the default page).
+  if (override) return exists(override) ? altSurface("productPage", override) : "productPage";
+  if (exists(book?.templateId)) return altSurface("productPage", book.templateId);
+  const fromCollection = collectionProductTemplate(design, book);
+  return fromCollection && exists(fromCollection) ? altSurface("productPage", fromCollection) : "productPage";
+}
+
+/** The product page layout a book takes from its collections: the first one, in the menu's order, that sets one. */
+export function collectionProductTemplate(design: any, book: any): string | null {
+  if (!book) return null;
+  const all = normalizeCategories(Array.isArray(design?.categories) ? design.categories : []);
+  const cat = all.find((c: any) => c && typeof c === "object" && typeof c.productTemplateId === "string" && c.productTemplateId && bookInCategory(book, c, all));
+  return cat ? cat.productTemplateId : null;
 }
 
 /** The template surface a collection uses: its category's chosen alternate when that still exists. */

@@ -20,7 +20,7 @@ describe("Books › Book page template", () => {
   it("lists templates, marking unpublished ones, and saves the choice", async () => {
     const { el, onChange } = await mount(undefined);
     const select = el.querySelector("select")!;
-    expect([...select.options].map(o => o.textContent)).toEqual(["Default book page", "Poetry", "Photo books (not published yet)"]);
+    expect([...select.options].map(o => o.textContent)).toEqual(["Same as its category (or the default book page)", "Poetry", "Photo books (not published yet)"]);
     await act(async () => { select.value = "poetry"; select.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(onChange).toHaveBeenCalledWith("poetry");
     await act(async () => { select.value = ""; select.dispatchEvent(new Event("change", { bubbles: true })); });

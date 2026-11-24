@@ -46,6 +46,21 @@ if (new URLSearchParams(location.search).has("membership")) fixture.settings.mem
 if (new URLSearchParams(location.search).has("rentals")) fixture.settings.rentalsLive = true;
 // Version history starts with the published design kept once (Studio › Theme actions › Version history).
 fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 Oct 2026", createdAt: "2026-10-08T15:00:00.000Z", design: JSON.parse(JSON.stringify(fixture.settings.design)) }];
+// `?olderStarter=aurel-editorial/sand` shows Studio for a shop that started from an older version of that starter (and
+// changed its button corners), so Themes offers the new version (starterVersions.ts).
+{
+  const older = new URLSearchParams(location.search).get("olderStarter");
+  if (older) {
+    const [id, style] = older.split("/");
+    const { applyLook } = await import("../themeSwitch");
+    const { withStyle } = await import("../starterStyles");
+    const { libraryLook } = await import("../../lookGallery");
+    for (const key of ["design", "draftDesign"] as const) {
+      const applied = applyLook(fixture.settings[key] || fixture.settings.design, withStyle(libraryLook(id), style));
+      fixture.settings[key] = { ...applied, buttonRadius: 23, themeBase: { ...applied.themeBase, sig: "older", version: undefined } };
+    }
+  }
+}
 // `?sells=` is also the shop's own answer, so the preview reads it as the storefront does (admin/sells.ts withShopStartFor:
 // a shop that sells no books shows no books menu).
 const sellsAnswer = new URLSearchParams(location.search).get("sells");
