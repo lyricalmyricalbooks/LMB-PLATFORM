@@ -188,6 +188,9 @@ type Props = {
   onDelete: (t: SavedTheme) => void;
   onSchedule?: (t: SavedTheme) => void;
   onApplyPreset: (preset: any) => void;
+  /** Whole-website starters: their card leads with Try this starter (your design is kept in My themes first). */
+  starterIds?: readonly string[];
+  onTryStarter?: (preset: any) => void;
   /** The last switch to a ready-made look (themeSwitch.ts), or null. */
   switchReport?: ThemeSwitchReport | null;
   onBringBack?: (items: SwitchItem[]) => void;
@@ -336,7 +339,7 @@ export function StudioThemes(p: Props) {
 
       <section>
         <h3>Start from a ready-made look</h3>
-        <p className="studio-hint">A look sets colours, fonts and print details; your sections, words and menus stay. Some looks also come with a layout and starter pages: Studio offers those after the look, and you can skip them.</p>
+        <p className="studio-hint">A look sets colours, fonts and print details; your sections, words and menus stay. A starter is a whole website: Try this starter puts it in your draft and keeps your design as it is now in My themes, so you can switch back any time.</p>
         <div role="group" aria-label="Show looks that feel" style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 12px" }}>
           {LOOK_FILTERS.map(f => (
             <SecondaryButton key={f.id} size="sm" aria-pressed={feel === f.id} data-look-filter={f.id}
@@ -356,8 +359,14 @@ export function StudioThemes(p: Props) {
                   {preset.mood && <small>{w(preset.mood)}</small>}
                   {hasPresetContent(preset) && <small data-preset-content>Comes with: {presetContentLabel(preset)}</small>}
                   <div className="studio-theme-actions">
-                    <PrimaryButton size="sm" onClick={() => p.onApplyPreset(preset)}>Use this look</PrimaryButton>
-                    {previewButton(`preset:${preset.id}`, preset.name, look)}
+                    {p.onTryStarter && p.starterIds?.includes(preset.id) ? <>
+                      <PrimaryButton size="sm" data-try-starter={preset.id} onClick={() => p.onTryStarter!(preset)}>Try this starter</PrimaryButton>
+                      {previewButton(`preset:${preset.id}`, preset.name, look)}
+                      <SecondaryButton size="sm" onClick={() => p.onApplyPreset(preset)}>Use only its look</SecondaryButton>
+                    </> : <>
+                      <PrimaryButton size="sm" onClick={() => p.onApplyPreset(preset)}>Use this look</PrimaryButton>
+                      {previewButton(`preset:${preset.id}`, preset.name, look)}
+                    </>}
                   </div>
                 </div>
               </article>

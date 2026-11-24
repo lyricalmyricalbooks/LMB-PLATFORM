@@ -37,7 +37,7 @@ import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
+import { addSavedTheme, duplicateSavedTheme, keptDesignName, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, sampleSectionsLeft, starterSampleBooks, wordedSettings } from "./presetContent";
@@ -854,12 +854,40 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
   const themesBusyRef = useRef(false);
-  const persistThemes = async (next: SavedTheme[], okText: string) => {
-    if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return; }
+  const persistThemes = async (next: SavedTheme[], okText: string | null): Promise<boolean> => {
+    if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return false; }
     themesBusyRef.current = true;
-    try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
-    catch (err: any) { say("err", friendlyError(err, "save your themes")); }
+    try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); if (okText) say("ok", okText); return true; }
+    catch (err: any) { say("err", friendlyError(err, "save your themes")); return false; }
     finally { themesBusyRef.current = false; }
+  };
+  /**
+   * Themes › Try this starter (starters rethink, step 5): the design as it is now is kept in My themes first, then the
+   * whole starter (its layouts, sample photos and starter pages) goes into the draft. Nothing the press made is lost:
+   * Undo, or Customize on the kept theme, brings it back, and the shop doesn't change until Publish.
+   */
+  const tryStarter = async (theme: any) => {
+    setThemePreview(null);
+    const keptName = keptDesignName(savedThemes, theme.name);
+    const problem = savedThemeLimitProblem(savedThemes, keptName);
+    if (problem) { say("err", `${problem} Studio keeps your current design there before trying a starter.`); return; }
+    if (!(await persistThemes(addSavedTheme(savedThemes, keptName, designRef.current), null))) return;
+    change((d) => applyStarter(d, starterForShop(theme, shopSells), getSectionMeta, shopWords, starterPhotos(shopSells)), { label: `Try “${theme.name}”` });
+    setSwitchReport(null);
+    setTemplateId("heroPage"); setShowGlobal(false);
+    let added = 0;
+    try {
+      for (const page of presetPagesToAdd(theme, pages)) {
+        const created = await adminApi.createPage(page);
+        setPages((prev) => [...prev, created]);
+        added++;
+      }
+    } catch (err: any) {
+      say("err", `“${theme.name}” is in your draft, but ${friendlyError(err, "add its starter pages").replace(/^./, (c) => c.toLowerCase())}`);
+      return;
+    }
+    const pagesNote = added ? ` ${added} draft page${added === 1 ? "" : "s"} added under Pages.` : "";
+    say("ok", `Trying “${theme.name}” in your draft. Your design before it is saved in My themes as “${keptName}”.${pagesNote} Your shop doesn't change until you Publish.`, undoAction());
   };
   /** Saving or renaming onto another theme's name replaces that theme: ask first. */
   const confirmThemeName = async (name: string, exceptId?: string) => {
@@ -2659,6 +2687,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onDownload={exportTheme} onSchedule={t => setSchedule({ themeId: t.id })}
                 onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
+                starterIds={STARTER_SITES} onTryStarter={preset => { void tryStarter(preset); }}
                 switchReport={switchReport && design.themeLibraryPreset === switchReport.themeId ? switchReport : null}
                 onBringBack={bringBackEdits} onDismissSwitch={() => setSwitchReport(null)}
                 ownEdits={ownEditsList} updatedTheme={updatedTheme(design)} onResetEdits={resetOwnEdits} onUpdateLook={updateOwnLook}

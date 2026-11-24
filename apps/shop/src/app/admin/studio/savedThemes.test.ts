@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addSavedTheme, removeSavedTheme, renameSavedTheme, duplicateSavedTheme, serializeThemeFile, parseThemeFile, themeFileName, MAX_SAVED_THEMES, savedThemeLimitProblem, themeNamed } from "./savedThemes";
+import { addSavedTheme, removeSavedTheme, renameSavedTheme, duplicateSavedTheme, serializeThemeFile, parseThemeFile, themeFileName, MAX_SAVED_THEMES, savedThemeLimitProblem, themeNamed, keptDesignName } from "./savedThemes";
 
 describe("saved themes", () => {
   it("stores a detached, undefined-free copy", () => {
@@ -61,5 +61,25 @@ describe("saved themes", () => {
     expect(themeNamed(l, " spring ")?.id).toBe(spring.id);
     expect(themeNamed(l, "Spring", spring.id)).toBeUndefined();
     expect(themeNamed(l, "Winter")).toBeUndefined();
+  });
+});
+
+describe("keptDesignName", () => {
+  const at = new Date("2026-11-24T15:05:00");
+  it("names the kept design after the starter", () => {
+    expect(keptDesignName([], "Juniper", at)).toBe("Before Juniper");
+  });
+  it("never reuses a name already in My themes", () => {
+    let list = addSavedTheme([], "Before Juniper", {}, at);
+    const second = keptDesignName(list, "Juniper", at);
+    expect(second).not.toBe("Before Juniper");
+    expect(second.startsWith("Before Juniper, ")).toBe(true);
+    list = addSavedTheme(list, second, {}, at);
+    const third = keptDesignName(list, "Juniper", at);
+    expect([ "Before Juniper", second ]).not.toContain(third);
+    expect(themeNamed(list, third)).toBeUndefined();
+  });
+  it("stays within the theme name length", () => {
+    expect(keptDesignName([], "x".repeat(80), at).length).toBeLessThanOrEqual(60);
   });
 });

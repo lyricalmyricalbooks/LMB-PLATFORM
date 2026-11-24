@@ -873,3 +873,11 @@ Choose your look's try-on has a **Show with** row (`data-show-with`) under the s
 suits the shop (a bookshop and a services shop have one each). `lookGallery.sampleProducts(publishes, setId)` reads the
 chosen set. The try-on's on/off buttons are black pills (`toggle` in ChooseLookWelcome), like other chosen options in the
 admin. Fixture: `/admin-fixture.html?start=look&sold=clothing`.
+
+### Starters and Studio rethink, step 5: Try this starter (24 November 2026)
+Themes › a whole-website starter card (`STARTER_SITES`, passed as `starterIds`) leads with **Try this starter**
+(`data-try-starter`), then Preview and **Use only its look** (the old look-only path, `applyLibraryTheme`). `tryStarter`
+in StudioEditor first saves the current draft to My themes as `keptDesignName(list, starter)` ("Before Slow Season", a
+date added when taken), refuses when My themes is full, then applies `applyStarter` as one undoable change, adds the
+starter's missing pages as drafts and opens Home. It never asks first: nothing is lost (the kept theme, Undo, and the
+shop stays as it was until Publish). `persistThemes` returns whether it saved; pass `null` to stay quiet.

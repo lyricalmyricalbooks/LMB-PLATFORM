@@ -1421,6 +1421,20 @@ await check("a ready-made look offers its layout and starter pages after the loo
   await frame.locator("[data-section]").first().waitFor({ timeout: 10000 });
 });
 
+await check("Try this starter keeps the design as it was in My themes, then puts the whole starter in the draft", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  const panel = page.locator("[data-studio-panel='themes']");
+  const card = panel.locator("[data-theme-card='preset:juniper-slow-season']");
+  await card.getByRole("button", { name: "Try this starter" }).click();
+  await expectText(page, "Your design before it is saved in My themes");
+  const saved = (await calls(page)).filter(c => c.method === "saveThemes").pop();
+  if (!saved || !saved.args[0].some(t => /^Before /.test(t.name))) throw new Error("the design before the starter wasn't kept in My themes");
+  if (await page.getByRole("dialog").count()) throw new Error("Try this starter asked a question first");
+  await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
+  await panel.locator("[data-theme-card]", { hasText: "Before " }).first().waitFor({ timeout: 5000 });
+});
+
 await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   // An own edit in Essentials that Marquee replaces (the title font), then open Themes.
