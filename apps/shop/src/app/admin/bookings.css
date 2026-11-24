@@ -261,6 +261,8 @@
   .rp .bkg-ahead-weeks .bkg-months-name { font-size: 9px; letter-spacing: 0; }
   .rp .bkg-ahead-weeks strong { font-size: 13px; }
 }
+/* How your team did (plan 4, 5.2): the same head and numbers as Coming up, then a table. */
+.rp .bkg-perf { display: grid; gap: 16px; }
 /* Figures: four number tiles, the months as columns, weekdays and services as bars */
 .rp .bkg-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .rp .bkg-figs-months { grid-column: span 4; }

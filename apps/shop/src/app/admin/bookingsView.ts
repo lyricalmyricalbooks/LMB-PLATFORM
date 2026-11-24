@@ -879,3 +879,103 @@ export function futureRows(list: readonly Booking[], zone: string): string[][] {
     }),
   ];
 }
+
+/** Team performance (plan 4, 5.2): one person's figures over a stretch of days. */
+export type PerformanceLine = {
+  id: string; name: string;
+  /** Visits that happened (started, not a no-show), and what they took before tax, with the average per visit. */
+  visits: number; takenMinor: number; perVisitMinor: number;
+  /** Minutes of their own part of those visits. */
+  minutes: number;
+  /** Different clients they saw, and how many of their visits were followed by another booking from that client. */
+  clients: number; rebooked: number; rebookPercent: number | null;
+  /** Bookings with them the client didn't turn up for, and that as a share of those due to happen. */
+  noShows: number; noShowPercent: number | null;
+};
+export type TeamPerformance = { people: PerformanceLine[]; total: PerformanceLine };
+
+/** The three stretches Team performance offers: this month so far, last month, the last three months. */
+export const PERFORMANCE_SPANS = ["month", "last", "quarter"] as const;
+export type PerformanceSpan = (typeof PERFORMANCE_SPANS)[number];
+export const SPAN_NAMES: Record<PerformanceSpan, string> = { month: "This month", last: "Last month", quarter: "Last 3 months" };
+/** The days a stretch covers: `from` included, `to` left out, as YYYY-MM-DD shop days. */
+export function spanDays(span: PerformanceSpan, today: string): { from: string; to: string } {
+  const first = `${today.slice(0, 7)}-01`;
+  const monthBack = (day: string, n: number) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - n); return d.toISOString().slice(0, 10); };
+  if (span === "month") return { from: first, to: addDays(today, 1) };
+  if (span === "last") return { from: monthBack(first, 1), to: first };
+  return { from: monthBack(first, 2), to: addDays(today, 1) };
+}
+
+/**
+ * How each person did over `from`–`to` (plan 4, 5.2). Money and visits are shared the same way as Team pay (each part of
+ * a visit with several services goes to whoever did it). "Rebooked" counts a visit when the same client has a later
+ * booking (with anyone) that isn't cancelled, so `rows` should run some months past `to`.
+ */
+export function teamPerformance(rows: readonly Booking[], staff: readonly Pick<StaffMember, "id" | "name" | "active">[], zone: string, from: string, to: string, nowMs: number): TeamPerformance {
+  const lines = new Map<string, PerformanceLine & { emails: Set<string> }>();
+  const line = (id: string, name: string) => {
+    if (!lines.has(id)) lines.set(id, { id, name, visits: 0, takenMinor: 0, perVisitMinor: 0, minutes: 0, clients: 0, rebooked: 0, rebookPercent: null, noShows: 0, noShowPercent: null, emails: new Set() });
+    return lines.get(id)!;
+  };
+  for (const p of staff) if (p.active) line(p.id, p.name);
+  const email = (b: Booking) => String(b.customer?.email || "").trim().toLowerCase();
+  // Each client's later bookings, to tell whether a visit was followed by another one.
+  const starts = new Map<string, number[]>();
+  for (const b of rows) {
+    if (b.status === "cancelled" || b.status === "held" || !email(b)) continue;
+    const list = starts.get(email(b)) || [];
+    list.push(Date.parse(b.start));
+    starts.set(email(b), list);
+  }
+  for (const b of rows) {
+    if (b.status !== "confirmed") continue;
+    const day = dayOf(Date.parse(b.start), zone);
+    if (day < from || day >= to) continue;
+    const startMs = Date.parse(b.start);
+    if (startMs > nowMs) continue;
+    const kept = moneyKept(b);
+    const taken = kept - taxIn(b, kept);
+    const shares = visitShares(b);
+    const parts = b.parts || [];
+    const came = !b.noShow;
+    const again = (starts.get(email(b)) || []).some((t) => t > startMs);
+    const seen = new Set<string>();
+    shares.forEach((sh, i) => {
+      const id = sh.staffId || NOBODY;
+      const l = line(id, id ? sh.staffName || "Someone no longer listed" : "Not given to anyone");
+      const part = i === shares.length - 1 ? taken - shares.slice(0, -1).reduce((n, x) => n + Math.round(taken * x.share), 0) : Math.round(taken * sh.share);
+      l.takenMinor += part;
+      if (seen.has(id)) return;
+      seen.add(id);
+      if (!came) { l.noShows += 1; return; }
+      l.visits += 1;
+      l.minutes += i === 0 ? (parts.length ? Math.max(0, Math.round((Date.parse(parts[0].start) - startMs) / 60_000)) : b.minutes) : parts[i - 1]?.minutes || 0;
+      if (email(b)) l.emails.add(email(b));
+      if (again) l.rebooked += 1;
+    });
+  }
+  const finish = (l: PerformanceLine & { emails?: Set<string> }): PerformanceLine => {
+    const { emails, ...rest } = l;
+    return { ...rest, clients: emails ? emails.size : l.clients,
+      perVisitMinor: l.visits ? Math.round(l.takenMinor / l.visits) : 0,
+      rebookPercent: l.visits ? Math.round((l.rebooked / l.visits) * 100) : null,
+      noShowPercent: l.visits + l.noShows ? Math.round((l.noShows / (l.visits + l.noShows)) * 100) : null };
+  };
+  const all = [...lines.values()];
+  const people = all.filter((l) => l.visits || l.noShows || l.takenMinor || staff.some((p) => p.id === l.id && p.active))
+    .map(finish)
+    .sort((a, b) => (a.id === NOBODY ? 1 : 0) - (b.id === NOBODY ? 1 : 0) || b.takenMinor - a.takenMinor || a.name.localeCompare(b.name));
+  const everyone = new Set(all.flatMap((l) => [...l.emails]));
+  const sum = (k: "visits" | "takenMinor" | "minutes" | "rebooked" | "noShows") => people.reduce((n, l) => n + l[k], 0);
+  const total = finish({ id: "total", name: "Everyone", visits: sum("visits"), takenMinor: sum("takenMinor"), perVisitMinor: 0, minutes: sum("minutes"), clients: everyone.size, rebooked: sum("rebooked"), rebookPercent: null, noShows: sum("noShows"), noShowPercent: null });
+  return { people, total };
+}
+
+/** Team performance as spreadsheet rows: a header, each person, then everyone. */
+export function performanceRows(perf: TeamPerformance): string[][] {
+  const money = (minor: number) => (minor / 100).toFixed(2);
+  const pct = (n: number | null) => (n === null ? "" : String(n));
+  const row = (l: PerformanceLine) => [l.name, String(l.visits), money(l.takenMinor), money(l.perVisitMinor), (l.minutes / 60).toFixed(2), String(l.clients), pct(l.rebookPercent), String(l.noShows), pct(l.noShowPercent)];
+  return [["Person", "Visits", "Taken before tax", "Per visit", "Hours booked", "Clients", "Rebooked %", "No-shows", "No-show %"], ...perf.people.map(row), row(perf.total)];
+}
