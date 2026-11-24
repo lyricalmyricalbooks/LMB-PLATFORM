@@ -1427,6 +1427,8 @@ function ManageBooking({ id, manageKey, confirmAsked = false, c }: { id: string;
   const [tipPick, setTipPick] = useState<TipPick>({ kind: "none" });
   // A standing appointment: every visit of it, this one marked (sent with the booking by the server).
   const [runVisits, setRunVisits] = useState<RunVisit[]>([]);
+  // Loyalty points (plan 4, 5.5): the client's balance, sent with the booking while the shop gives points.
+  const [points, setPoints] = useState<{ points: number; toNext: number; rewardMinor: number } | null>(null);
   const polls = useRef(0);
   // The reminder's "Yes, I'll be there" button: confirmed once, as soon as the booking is shown.
   const confirmTried = useRef(false);
@@ -1436,6 +1438,7 @@ function ManageBooking({ id, manageKey, confirmAsked = false, c }: { id: string;
     return ask("bookingView", { id, key: manageKey }).then((answer) => {
       setBooking(answer.booking || null);
       setRunVisits(answer.runVisits || []);
+      setPoints(answer.points || null);
       setState(answer.booking ? "ready" : "missing");
     }).catch((err: any) => setState(err?.status === 404 ? "missing" : "failed"));
   };
@@ -1616,6 +1619,11 @@ function ManageBooking({ id, manageKey, confirmAsked = false, c }: { id: string;
         {!!booking.feeMinor && <p className="mt-2 text-sm leading-6 fm-muted" translate="no">{c("bookTimeFeeCharged", { fee: moneyText(booking.feeMinor, booking.currency) })}</p>}
         {booking.status === "confirmed" && (booking.checkedIn ? <p className="fm-book-checkin-done" role="status">{c("bookTimeCheckedIn")}</p>
           : booking.checkInCode ? <CheckInCode code={booking.checkInCode} c={c} /> : null)}
+        {points && booking.status !== "cancelled" && (
+          <p {...regionProps("bookingsPoints")} className="fm-book-points" translate="no">
+            {c("bookTimePoints", { points: String(points.points), more: String(points.toNext), amount: moneyText(points.rewardMinor, booking.currency) })}
+          </p>
+        )}
       </div>
 
       {runVisits.length > 1 && (

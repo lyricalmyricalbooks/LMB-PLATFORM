@@ -531,6 +531,8 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   // `?team=1`: a shop with two people and a print room (Team & rooms, the "With" pickers, names on the week's cards).
   const TEAM = new URLSearchParams(window.location.search).get("team") === "1" || new URLSearchParams(window.location.search).has("desk");
   let settings = { ...DEFAULT_BOOKING_SETTINGS, live: mode !== "new", tips: mode === "on", askToConfirm: mode === "on", textReminders: mode === "on", textReplies: mode === "on",
+    // Loyalty points (plan 4, 5.5): on in the full sample, with one double-points week.
+    ...(mode === "on" ? { loyalty: { on: true, perDollar: 1, perVisit: 5, onOrders: true, rewardPoints: 100, rewardMinor: 1000, rewardDays: 180, bonusWeeks: [{ from: "2026-12-14", to: "2026-12-20", times: 2 }] } } : {}),
     // Emails and texts to clients (plan 4, 3.5): the owner changed the confirmation's words.
     ...(mode === "on" ? { awayReply: true, awayWords: "Thanks for writing! We're at the print fair this weekend and back at the studio soon." } : {}),
     ...(mode === "on" ? { messages: { en: { booked: { subject: "You're in, {client}: {service}, {when}", lead: "We can't wait to see you. Come ten minutes early for a cup of tea." } } } } : {}),
@@ -646,6 +648,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     id: id.repeat(40).slice(0, 40), last4: name.slice(0, 2).toUpperCase() + "7Q", serviceId: "riso", serviceName: "Risograph printing session", name, email: `${name.split(" ")[0].toLowerCase()}@example.com`,
     visits: 5, left, status: "active", priceMinor: 18000, currency: "CAD", expiresOn: dayAhead(300), paidAt: at(-20, 10), refundMinor: 0, uses: [], ...extra,
   });
+  const fixturePoints: Record<string, number> = {};
   let packRows: PackRow[] = mode === "on" ? [
     pk("p", "Kai Example", 3), pk("q", "Lea Example", 1), pk("r", "Mo Example", 5, { paidAt: at(-1, 9) }), pk("s", "Ned Example", 2, { expiresOn: dayAhead(9) }),
     pk("t", "Oda Example", 0, { paidAt: at(-90, 9) }), pk("u", "Pat Example", 2, { status: "closed", refundMinor: 7200, paidAt: at(-60, 9) }),
@@ -754,6 +757,17 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
         ...(f.renewMonths ? { runsOut: "2027-11-10T15:00:00.000Z", ranOut: false } : {}) });
       const list = forms.filter((f) => f.on).map((f, i) => ({ id: f.id, title: f.title, on: true, signed: body.email === first && i === 0 ? signed(f) : null }));
       return { asks: list.length > 0, forms: list, form: list[0]?.signed || null };
+    }
+    // Loyalty points: the fixture's first client has some; `?loyalty=1` turns points on in the sample settings.
+    if (op === "points" || op === "pointsAdjust") {
+      const loyal = (settings as { loyalty?: { on?: boolean; rewardPoints?: number; rewardMinor?: number } }).loyalty;
+      const step = loyal?.rewardPoints || 100;
+      const first = body.email === rows[0]?.customer?.email;
+      fixturePoints[String(body.email)] ??= first ? 65 : 0;
+      if (op === "pointsAdjust") fixturePoints[String(body.email)] = Math.max(0, fixturePoints[String(body.email)] + Number(body.points || 0));
+      const points = fixturePoints[String(body.email)];
+      const sample = first ? [{ id: "visit_1", kind: "visit", points: 65, at: "2026-11-11T15:00:00.000Z", note: "Cut", code: "" }] : [];
+      return { on: loyal?.on === true, points: points % step, earned: points, rewards: Math.floor(points / step), toNext: step - (points % step), rewardPoints: step, rewardMinor: loyal?.rewardMinor || 1000, rows: sample, rewardsSent: 0 };
     }
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }

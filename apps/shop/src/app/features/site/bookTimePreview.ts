@@ -243,5 +243,6 @@ export function previewAnswer(action: string, body: Record<string, any> = {}, cu
     sample = { ...sample, status: "cancelled", canChange: false, refunded: sample.paid || !!sample.depositPaid };
     sampleRun = sampleRun.map((v) => (v.current || body.andLater === true ? { ...v, status: "cancelled" } : v));
   }
-  return { booking: sample, ...(sampleRun.length ? { runVisits: sampleRun } : {}) };
+  // A sample points balance, so Studio can style the loyalty points line.
+  return { booking: sample, ...(sampleRun.length ? { runVisits: sampleRun } : {}), points: { points: 65, toNext: 35, rewardMinor: 1000 } };
 }

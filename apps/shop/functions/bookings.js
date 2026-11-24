@@ -77,6 +77,7 @@ const {
   cleanBirthday, birthdaysOn, visitHappened, WELCOME_AFTER_HOURS, KEEP_IN_TOUCH_WINDOW_DAYS,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { cleanLoyalty, loyaltyEarns, visitPoints, orderPoints, rewardsDue, pointsToNext, rewardCode, cleanAdjust, LOYALTY_WINDOW_DAYS } = require("./shared/loyalty");
 const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
 const { cleanRotaShift, cleanTimeOff, daysBetween, timeOffWhen, MAX_ROTA_WEEK, MAX_NOTE } = require("./shared/teamRota");
 const { emailWords, textWords, fillMessage, messageLanguage } = require("./shared/bookingMessages");
@@ -93,7 +94,7 @@ const HOLD_MINUTES = 10;
  * clients in, marks their own no-shows and (My day, 4.6) takes payment and keeps a note on their own visits.
  */
 const DESK_OPS = Object.freeze({
-  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm", "visitNote"]),
+  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm", "visitNote", "points"]),
   provider: Object.freeze(["checkIn", "noShow", "paidAtShop", "payLink", "visitNote"]),
 });
 /** A visit note's longest length, as the client card's (src/app/admin/clientVisits.ts MAX_VISIT_NOTE, firestore.rules). */
@@ -2652,7 +2653,11 @@ function bookingActions({
         if (b.status === "held") b = await refreshHeld(id, b, (await standalone()).checkout);
         if (b.restOpen) b = await refreshRest(id, b, (await standalone()).checkout);
         if (Date.parse(b.end) > nowMs) b = await withCheckInCode(id, b);
-        return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings), ...(await runOf(id, b, key)) });
+        // Loyalty points (plan 4, 5.5): the client's balance and how far to the next reward, while points are on.
+        const loyal = cleanLoyalty(settings.loyalty);
+        const points = loyal.on && b.customer?.email ? await pointsOf(b.customer.email, loyal).catch(() => null) : null;
+        return res.status(200).json({ booking: await withForm(await withEarlier(publicBooking(id, b, settings, nowMs), b), b, settings), ...(await runOf(id, b, key)),
+          ...(points ? { points: { points: points.points, toNext: points.toNext, rewardMinor: points.rewardMinor } } : {}) });
       }
       if (action === "bookingForm") {
         // The form before the first visit, signed with the client's typed name and a tick.
@@ -3182,6 +3187,22 @@ function bookingActions({
         const staffId = keptPerson(settings, service.id, req.body?.staffId);
         const starts = runStarts(start, run, zone());
         return res.status(200).json({ visits: [{ start: new Date(start).toISOString(), free: true }, ...(await runPlan({ service, settings, starts: starts.slice(1), staffId, owner: true }))] });
+      }
+      if (op === "points" || op === "pointsAdjust") {
+        // A client's loyalty points (client card): the balance and newest rows; pointsAdjust adds or takes points by hand.
+        const email = String(req.body?.email || "").trim().toLowerCase();
+        if (!EMAIL.test(email)) return fail(res, 400, "Unknown client.");
+        const s = cleanLoyalty(settings.loyalty);
+        if (op === "pointsAdjust") {
+          if (!s.on) return fail(res, 400, "Turn on loyalty points first.");
+          const points = cleanAdjust(req.body?.points);
+          if (points === null) return fail(res, 400, "Type a whole number of points to add or take, not zero.");
+          const note = String(req.body?.note || "").trim().slice(0, 120);
+          const result = await earnPoints(email, `adjust_${crypto.randomBytes(8).toString("hex")}`, points, s, { kind: "adjust", note });
+          for (const r of result.codes) await tellReward(email, r.code, r.expiry, s, settings, null);
+          return res.status(200).json({ ...(await pointsOf(email, s, true)), on: s.on, rewardsSent: result.codes.length });
+        }
+        return res.status(200).json({ ...(await pointsOf(email, s, true)), on: s.on });
       }
       if (op === "clientForm") {
         // The form a client signed before their first visit (client card and booking drawer), and whether it is the
@@ -4308,6 +4329,183 @@ function bookingActions({
     }
   }
 
+  // ── Loyalty points (Bookings plan 4, step 5.5) ─────────────────────────────────────────────────────────────────
+  // `loyalty/<hash(email)>` holds a client's balance; `loyalty/<hash>/entries/<key>` one row per earning, reward or
+  // change, keyed so the same visit or order never earns twice (`visit_<id>`, `order_<id>`). At `rewardPoints` the
+  // points become a one-use discount code (`discounts/{id}`, only for that email, works on bookings and the shop),
+  // made in the same transaction and emailed after it. Rules: shared/loyalty.ts.
+  const MAX_LOYALTY = 200;
+  const LOYALTY_VISIT_WAIT_HOURS = 24;
+  const loyaltyDoc = (email) => db.collection("loyalty").doc(hash(email));
+
+  /** The discount record a reward makes: fixed money off, one use, only for this email, until `expiry` (a shop day). */
+  function rewardDiscount(code, email, s, nowIso, expiry) {
+    return {
+      code, type: "fixed", value: s.rewardMinor / 100, isActive: true, startDate: null, expiryDate: expiry,
+      minOrderAmount: null, minQuantity: null, maxDiscountAmount: null, usageLimit: 1, usageCount: 0, onePerCustomer: true,
+      forBookings: true, forTickets: false, appliesTo: "all", selectedCategories: [], selectedProducts: [],
+      allowedEmailDomains: "", allowedCustomerEmails: email, description: "Loyalty reward", buyQuantity: null, getQuantity: null,
+      getDiscountValue: null, tiers: null, method: "code", title: "", giftBookId: null, giftVariantId: null,
+      loyaltyReward: true, createdAt: nowIso, updatedAt: nowIso,
+    };
+  }
+
+  /**
+   * Adds `points` (negative takes) for one client under entry `key`, once, and pays out any rewards now due. Returns
+   * `{ added, balance, codes }` (`added` false when that key was already counted). The reward codes are made inside the
+   * transaction, so a reward is never paid twice and never lost.
+   */
+  async function earnPoints(email, key, points, s, row) {
+    const who = String(email || "").trim().toLowerCase();
+    const nowMs = now().getTime();
+    const nowIso = new Date(nowMs).toISOString();
+    const expiry = dayOf(nowMs + s.rewardDays * DAY, zone());
+    return db.runTransaction(async (tx) => {
+      const ref = loyaltyDoc(who);
+      const entry = ref.collection("entries").doc(key);
+      const [had, seen] = await Promise.all([tx.get(ref), tx.get(entry)]);
+      const before = had.exists ? had.data() : { email: who, points: 0, earned: 0, spent: 0, rewards: 0 };
+      if (seen.exists) return { added: false, balance: before.points || 0, codes: [] };
+      const balance = Math.max(0, (before.points || 0) + points);
+      const { rewards, left } = rewardsDue(s, balance);
+      const codes = [];
+      for (let i = 0; i < rewards; i += 1) {
+        let code = rewardCode(Math.random);
+        for (let tries = 0; tries < 3; tries += 1) {
+          const taken = await tx.get(db.collection("discounts").where("code", "==", code).limit(1));
+          if (taken.empty) break;
+          code = rewardCode(Math.random);
+        }
+        const discount = db.collection("discounts").doc();
+        tx.set(discount, rewardDiscount(code, who, s, nowIso, expiry));
+        tx.set(ref.collection("entries").doc(`reward_${discount.id}`), { kind: "reward", points: -s.rewardPoints, code, rewardMinor: s.rewardMinor, expiry, at: nowIso });
+        codes.push({ code, expiry });
+      }
+      tx.set(entry, { ...row, points, at: nowIso });
+      tx.set(ref, {
+        email: who, points: left,
+        earned: (before.earned || 0) + Math.max(0, points),
+        spent: (before.spent || 0) + rewards * s.rewardPoints + Math.max(0, -points),
+        rewards: (before.rewards || 0) + rewards, updatedAt: nowIso,
+      });
+      return { added: true, balance: left, codes };
+    });
+  }
+
+  /** "You've earned a reward" with the code, in the client's language and the owner's words. Never throws. */
+  async function tellReward(email, code, expiry, s, settings, b) {
+    try {
+      const brand = await emailBrand();
+      const lang = b ? await clientLanguage(b) : "en";
+      const shop = brand.shopName || shopName() || (lang === "fr" ? "la boutique" : "the shop");
+      const words = emailWords(settings?.messages, lang, "loyaltyReward");
+      const until = new Date(`${expiry}T12:00:00Z`).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+      const values = { client: String(b?.customer?.name || "").trim().split(/\s+/)[0] || "", amount: moneyWords(s.rewardMinor, currency(), lang), code, when: until, shop };
+      const fill = (template) => fillMessage(template, values);
+      const T = EMAIL_LABELS[lang];
+      const html = risoLayout(`
+        <h2 style="margin:0 0 12px;">${escapeHtml(fill(words.heading))}</h2>
+        <p style="margin:0 0 16px;">${escapeHtml(fill(words.lead)).replace(/\n/g, "<br>")}</p>
+        <p style="margin:0 0 16px;font-size:22px;letter-spacing:2px;"><strong>${escapeHtml(code)}</strong></p>
+        ${risoButton(escapeHtml(siteLink("/book")), T.bookATime, brand.accent, brand.theme)}
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to: email, subject: fill(words.subject), html });
+    } catch (err) {
+      console.error("bookings: reward email failed:", err?.message || err);
+    }
+  }
+
+  /**
+   * Points for visits that happened and paid shop orders, each once, then the reward emails. `{ visits, orders, rewards }`.
+   * Reads only what is new since the last sweep: `loyaltyState/main` keeps how far visits (`visitsTo`, by end) and
+   * orders (`ordersTo`, by paidAt) were read. A visit earns a day after it ends (LOYALTY_VISIT_WAIT_HOURS), so one marked
+   * a no-show the next morning never earns; an order earns an hour after it is paid. Switching points on reads back
+   * LOYALTY_WINDOW_DAYS at most. Off, or nothing to earn: nothing is read.
+   */
+  async function sweepLoyalty() {
+    const none = { visits: 0, orders: 0, rewards: 0 };
+    if (!(await featureOn())) return none;
+    const settings = await readSettings();
+    const s = cleanLoyalty(settings.loyalty);
+    if (!loyaltyEarns(s)) return none;
+    const nowMs = now().getTime();
+    const stateRef = db.collection("loyaltyState").doc("main");
+    const state = (await stateRef.get()).data() || {};
+    const oldest = new Date(nowMs - LOYALTY_WINDOW_DAYS * DAY).toISOString();
+    const startOf = (saved) => (typeof saved === "string" && saved > oldest ? saved : oldest);
+    const out = { ...none };
+    const pay = async (email, result, b) => {
+      for (const r of result.codes) { await tellReward(email, r.code, r.expiry, s, settings, b); out.rewards += 1; }
+    };
+    let budget = MAX_LOYALTY;
+
+    // Visits: ended after the last sweep's mark, up to a day ago.
+    const visitsUpTo = new Date(nowMs - LOYALTY_VISIT_WAIT_HOURS * HOUR).toISOString();
+    let visitsTo = startOf(state.visitsTo);
+    if (visitsTo < visitsUpTo) {
+      const snap = await bookings().where("end", ">", visitsTo).where("end", "<=", visitsUpTo).orderBy("end").limit(MAX_LOYALTY).get();
+      let stopped = false;
+      for (const doc of snap.docs) {
+        if (budget <= 0) { stopped = true; break; }
+        const b = doc.data();
+        const email = String(b?.customer?.email || "").trim().toLowerCase();
+        if (EMAIL.test(email) && visitHappened(b, nowMs)) {
+          // A visit paid with a pack earns only the visit bonus: the pack itself was paid when it was bought.
+          const paidMinor = b.pack ? 0 : Math.max(0, Number(b.priceMinor) || 0);
+          const points = visitPoints(s, paidMinor, dayOf(Date.parse(b.start), zone()));
+          if (points > 0) {
+            budget -= 1;
+            const result = await earnPoints(email, `visit_${doc.id}`, points, s, { kind: "visit", ref: doc.id, service: visitName(b), paidMinor });
+            if (result.added) { out.visits += 1; await pay(email, result, { id: doc.id, ...b }); }
+          }
+        }
+        visitsTo = b.end;
+      }
+      if (!stopped && snap.docs.length < MAX_LOYALTY) visitsTo = visitsUpTo;
+    }
+
+    // Paid shop orders: paid after the last mark, up to an hour ago (refunds are taken off what earns).
+    const ordersUpTo = new Date(nowMs - HOUR).toISOString();
+    let ordersTo = startOf(state.ordersTo);
+    if (s.onOrders && ordersTo < ordersUpTo) {
+      const snap = await db.collection("orders").where("paidAt", ">", ordersTo).where("paidAt", "<=", ordersUpTo).orderBy("paidAt")
+        .select("customer", "total", "refundedAmountMinor", "paymentStatus", "isTest", "sandboxPayment", "practiceOrder", "practice", "paidAt").limit(MAX_LOYALTY).get();
+      let stopped = false;
+      for (const doc of snap.docs) {
+        if (budget <= 0) { stopped = true; break; }
+        const o = doc.data();
+        const email = String(o?.customer?.email || "").trim().toLowerCase();
+        const real = o.paymentStatus === "paid" && !o.isTest && !o.sandboxPayment && !o.practiceOrder && !o.practice;
+        if (real && EMAIL.test(email)) {
+          const paidMinor = Math.max(0, Math.round((Number(o.total) || 0) * 100) - (Number(o.refundedAmountMinor) || 0));
+          const points = orderPoints(s, paidMinor, dayOf(Date.parse(o.paidAt), zone()));
+          if (points > 0) {
+            budget -= 1;
+            const result = await earnPoints(email, `order_${doc.id}`, points, s, { kind: "order", ref: doc.id, paidMinor });
+            if (result.added) { out.orders += 1; await pay(email, result, { customer: o.customer }); }
+          }
+        }
+        ordersTo = o.paidAt;
+      }
+      if (!stopped && snap.docs.length < MAX_LOYALTY) ordersTo = ordersUpTo;
+    } else if (!s.onOrders) {
+      ordersTo = ordersUpTo;
+    }
+    await stateRef.set({ visitsTo, ordersTo, at: new Date(nowMs).toISOString() }, { merge: true });
+    return out;
+  }
+
+  /** A client's points for the client card and their booking page: balance, to the next reward, newest rows. */
+  async function pointsOf(email, s, withRows = false) {
+    const who = String(email || "").trim().toLowerCase();
+    const snap = await loyaltyDoc(who).get();
+    const acc = snap.exists ? snap.data() : { points: 0, earned: 0, rewards: 0 };
+    const out = { points: acc.points || 0, earned: acc.earned || 0, rewards: acc.rewards || 0, toNext: pointsToNext(s, acc.points || 0), rewardPoints: s.rewardPoints, rewardMinor: s.rewardMinor };
+    if (!withRows) return out;
+    const rows = await loyaltyDoc(who).collection("entries").orderBy("at", "desc").limit(20).get();
+    return { ...out, rows: rows.docs.map((d) => { const r = d.data(); return { id: d.id, kind: r.kind, points: r.points, at: r.at, note: r.note || r.service || "", code: r.code || "" }; }) };
+  }
+
   /**
    * Minimum number to run (Classes, 17 November 2026). For each class time with a minimum whose decide time has come
    * (`runDecisionDue`: from `decideHours` before it starts), once: with at least `minPlaces` confirmed it runs; with fewer,
@@ -4682,7 +4880,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepLoyalty, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */

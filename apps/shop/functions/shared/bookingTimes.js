@@ -113,6 +113,7 @@ exports.cleanCheckInCode = cleanCheckInCode;
 exports.checkInCodeFrom = checkInCodeFrom;
 const bookingMessages_1 = require("./bookingMessages");
 const timeClock_1 = require("./timeClock");
+const loyalty_1 = require("./loyalty");
 /** How long a request waits for the owner's answer before its time is let go (plan 4, 2.5). */
 exports.APPROVAL_HOURS = 48;
 /** When a request made at `createdMs` for a visit at `startMs` must be answered by: APPROVAL_HOURS later, or the start. */
@@ -947,6 +948,7 @@ function cleanBookingSettings(raw) {
         ...(s.welcomeEmail === true ? { welcomeEmail: true } : {}),
         ...(s.birthdayEmail === true ? { birthdayEmail: true } : {}),
         ...(exports.MISS_YOU_WEEKS.includes(Number(s.missYouWeeks)) ? { missYouWeeks: Number(s.missYouWeeks) } : {}),
+        ...(s.loyalty && typeof s.loyalty === "object" ? { loyalty: (0, loyalty_1.cleanLoyalty)(s.loyalty) } : {}),
         ...(() => { const words = awayText(s.awayWords); return words ? { awayWords: words } : {}; })(),
         ...(() => { const messages = (0, bookingMessages_1.cleanMessages)(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
         ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),

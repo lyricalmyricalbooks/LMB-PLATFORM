@@ -126,6 +126,7 @@ export const BOOK_TIME_CSS = [
   `${S} .fm-book-confirm[data-confirm="done"]{display:block;font-weight:600;}`,
   `@media (max-width:480px){${S} .fm-book-confirm .fm-track-btn{width:100%;justify-content:center;}}`,
   `${S} .fm-book-checkin-done{margin:20px 0 0;padding-top:20px;border-top:1px dashed var(--t-rule);font-weight:600;}`,
+  `${S} .fm-book-points{margin:20px 0 0;padding-top:16px;border-top:1px dashed var(--t-rule);font-size:.9rem;line-height:1.5;}`,
   `@media (max-width:420px){${S} .fm-book-checkin{grid-template-columns:1fr;justify-items:start;}}`,
   `${S} .fm-book-actions .fm-track-link{text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px;}`,
   `${S} .fm-book-code{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 0;border-top:1px dashed var(--t-rule);border-bottom:1px dashed var(--t-rule);font-family:var(--t-mono);font-size:13px;letter-spacing:.06em;}`,

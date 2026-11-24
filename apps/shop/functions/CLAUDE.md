@@ -1509,6 +1509,18 @@ with nothing booked since and no `rebookSentAt`. The birthday ("MM-DD", `cleanBi
 only while `birthdayEmail` is on, and `bookingInfo.birthday` shows the form's month/day picker then. Each send is claimed first
 in `clientMail/<sha256(email)>` (`welcomeAt`, `birthdayYear`, `missYouFor`) inside a transaction; it is marketing mail, so
 `optedOut` clients are skipped and an unsubscribe line is added. Tests: bookings.test.js › keep in touch emails.
+**Loyalty points (Beta, 24 November 2026, plan 4 step 5.5).** Rules in `shared/loyalty.ts` (`cleanLoyalty`, `visitPoints`,
+`orderPoints`, `rewardsDue`). `bookingSweep` calls `sweepLoyalty`: visits that ended 24 h ago or more (`LOYALTY_VISIT_WAIT_HOURS`,
+so a next-morning no-show never earns; `visitHappened`; a pack visit earns only the per-visit bonus) and orders paid an hour
+ago or more (`paymentStatus` "paid", never test/sandbox/practice, refunds taken off), each at most 200 a sweep. Only what is
+new is read: `loyaltyState/main` keeps `visitsTo` / `ordersTo`, starting `LOYALTY_WINDOW_DAYS` back. `earnPoints` writes, in
+one transaction, `loyalty/<sha256(email)>` (`points`, `earned`, `spent`, `rewards`) and an entry under `entries/` keyed
+`visit_<id>` / `order_<id>` / `adjust_<random>` (a key already there earns nothing), and for each reward due (at most 3) a
+`discounts/{id}` code `THANKS-XXXXXX` (fixed money off, `usageLimit` 1, `onePerCustomer`, `allowedCustomerEmails` the
+client, `forBookings`, `expiryDate` `rewardDays` on, `loyaltyReward: true`) with a `reward_<discountId>` entry; the reward
+email (`tellReward`, kind `loyaltyReward`) follows. Rewards are owed mail, so they go to unsubscribed clients too. Admin ops
+`points` (front desk too) and `pointsAdjust` (owner, `cleanAdjust`); `bookingView` adds `points` while on. No rule change:
+only the server reads these records. Tests: bookings.test.js › loyalty points; `shared/loyalty.test.ts`.
 **Reviews of visits (17 November 2026, Services plan phase 7).** Bookings › Hours & rules › After the visit ›
 **Collect reviews for your website** saves `siteReviews`. With it on, `reviewOpen` (shared) lets a confirmed, started visit
 that wasn't a no-show be reviewed once from its booking page (`publicBooking.canReview` / `reviewed`). The thank-you and
