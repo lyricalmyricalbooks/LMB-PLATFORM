@@ -325,7 +325,7 @@ export function auditDocument(doc: Document, win: Window = doc.defaultView as Wi
     (fonts as any).forEach((face: FontFace) => {
       const family = String(face.family || "").replace(/["']/g, "");
       if (face.status === "error") add("fontfail", { category: "fonts", severity: "issue", owner: null, groupKey: family, title: `The font “${family}” didn't load`,
-        detail: "Text falls back to another font. Choose it again in Theme settings › Typography." });
+        detail: "Text falls back to another font. Choose it again in Style › Typography." });
       if (face.status === "loaded") families.add(family);
     });
     if (families.size > 4) add("fontcount", { category: "fonts", severity: "tip", owner: null, title: `${families.size} fonts on one page`,

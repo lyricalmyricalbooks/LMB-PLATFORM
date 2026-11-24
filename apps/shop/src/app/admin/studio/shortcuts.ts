@@ -6,14 +6,14 @@ export type ShortcutAction = "find" | "save" | "undo" | "redo" | "delete" | "dup
 
 /** "G then a letter" jumps to a Studio workspace (a two-key sequence, like Gmail or GitHub). */
 export const GO_KEYS = [
-  { key: "e", tab: "essentials", label: "Essentials" },
-  { key: "l", tab: "sections", label: "Page layout" },
-  { key: "t", tab: "style", label: "Theme settings" },
-  { key: "x", tab: "text", label: "Text & labels" },
-  { key: "n", tab: "menus", label: "Navigation" },
+  { key: "l", tab: "sections", label: "Page" },
+  { key: "t", tab: "style", label: "Style" },
+  { key: "e", tab: "essentials", label: "Basics" },
   { key: "p", tab: "pages", label: "Pages" },
+  { key: "n", tab: "menus", label: "Menus" },
+  { key: "h", tab: "themes", label: "Designs" },
+  { key: "x", tab: "text", label: "Text & labels" },
   { key: "m", tab: "media", label: "Media" },
-  { key: "h", tab: "themes", label: "Themes" },
 ] as const;
 export type GoTab = typeof GO_KEYS[number]["tab"];
 export type GoAction = `go:${GoTab}`;
@@ -36,9 +36,9 @@ export const SHORTCUTS: { action: ShortcutAction; keys: string; label: string; g
   { action: "help", keys: "?", label: "Show these shortcuts", group: "Everywhere" },
   { action: "workbench", keys: "W", label: "Open or close the Workbench (Health, Changes, Setup)", group: "Everywhere" },
   ...GO_KEYS.map(g => ({ action: `go:${g.tab}` as ShortcutAction, keys: `G then ${g.key.toUpperCase()}`, label: `Go to ${g.label}`, group: "Go to a workspace" })),
-  { action: "addSection", keys: "A", label: "Add a section to this page", group: "Page layout" },
-  { action: "prevSection", keys: "[", label: "Select the section above", group: "Page layout" },
-  { action: "nextSection", keys: "]", label: "Select the section below", group: "Page layout" },
+  { action: "addSection", keys: "A", label: "Add a section to this page", group: "Page" },
+  { action: "prevSection", keys: "[", label: "Select the section above", group: "Page" },
+  { action: "nextSection", keys: "]", label: "Select the section below", group: "Page" },
   { action: "duplicate", keys: "Ctrl/⌘ D", label: "Duplicate the selected section", group: "Selected section" },
   { action: "delete", keys: "Delete", label: "Delete the selected section (Undo brings it back)", group: "Selected section" },
   { action: "moveUp", keys: "Alt ↑", label: "Move the selected section up", group: "Selected section" },

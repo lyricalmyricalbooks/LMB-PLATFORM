@@ -29,11 +29,11 @@ const NOT_STYLE_CONTROLS = new Set([
   "colorSchemes", "hero", "headerLinks", "sectionPresets", "heroPage", "storefront", "productPage",
   "collectionPage", "cartPage", "page", "page404", "typeScale", "mobileOverrides", "themeLibraryPreset",
   "fontSize", "data", "id", "trim", "logoUrl", "footerBadges", "sharedBlocks",
-  // Section groups (Page layout › shared sections) and Announcement messages (their own Studio editor).
+  // Section groups (Page › shared sections) and Announcement messages (their own Studio editor).
   "headerSections", "overlaySections", "announcements",
-  // Alternate book/collection templates (Page layout › template card: create / rename / delete).
+  // Alternate book/collection templates (Page › template card: create / rename / delete).
   "alternateTemplates",
-  // Product page buy box order (Page layout › Buy box blocks).
+  // Product page buy box order (Page › Buy box blocks).
   "productInfoBlocks",
   // Shop language (Text & labels › Shop language: fills the French words into copy).
   "language",

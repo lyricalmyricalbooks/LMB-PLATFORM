@@ -20,7 +20,7 @@ describe("wordCatalog", () => {
     expect(list[0].title).toBe("Book cards");
   });
 
-  it("leaves no book word in Theme settings or Text & labels for a shop that doesn't sell books", () => {
+  it("leaves no book word in Style or Text & labels for a shop that doesn't sell books", () => {
     const left: string[] = [];
     for (const g of wordCatalog(STYLE_GROUPS, goodsWords)) {
       for (const text of [g.title, g.hint, ...g.fields.flatMap(f => [f.label, ...("options" in f ? f.options.map(o => o.label) : [])])]) if (text && BOOK_WORD.test(text)) left.push(text);

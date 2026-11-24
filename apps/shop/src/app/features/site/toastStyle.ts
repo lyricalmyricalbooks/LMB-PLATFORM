@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { designNumber } from "./designNumber";
 
 // The short messages that pop up for a moment ("Removed from your bag · Undo", "Link copied", an add-to-bag
-// problem, account sign-in notices). Studio › Theme settings › Site-wide design › Short notice messages sets
+// problem, account sign-in notices). Studio › Style › Site-wide design › Short notice messages sets
 // where they appear and how they look; with nothing set they look exactly as they always have.
 
 export type ToastPosition = "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";

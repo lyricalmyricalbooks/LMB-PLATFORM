@@ -83,7 +83,7 @@ describe("colour scheme edits", () => {
   });
 });
 
-describe("Theme settings › Colour schemes controls", () => {
+describe("Style › Colour schemes controls", () => {
   const group = STYLE_GROUPS.find((g) => g.id === "schemes")!;
   it("has a scheme choice for book cards, the buy card, the bag, the header and the footer", () => {
     expect(group.fields.map((f) => f.key)).toEqual(["elementSchemes.cards", "elementSchemes.buyCard", "elementSchemes.cartDrawer", "elementSchemes.header", "elementSchemes.footer"]);

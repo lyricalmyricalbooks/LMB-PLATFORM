@@ -18,7 +18,7 @@ export type PresetContent = {
   sections?: Record<string, PresetSectionSpec[]>;
   /** Studio › Pages starters this look comes with, by starter id (about, shipping, contact…). */
   starterPages?: string[];
-  /** The book page's buy box, top to bottom (Page layout › Buy box blocks); built-in and custom block types only. */
+  /** The book page's buy box, top to bottom (Page › Buy box blocks); built-in and custom block types only. */
   productBlocks?: { type: string; hidden?: boolean; settings?: Record<string, any> }[];
   /** A starter's own sample shop: products with their own photos, shown whenever the starter is previewed. */
   sampleProducts?: { title: string; maker?: string; price: number; photo: string }[];

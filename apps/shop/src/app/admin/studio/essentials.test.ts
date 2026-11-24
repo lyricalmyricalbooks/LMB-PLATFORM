@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { ESSENTIALS, essentialCopyField, essentialStyleField } from "./essentials";
-import { RAIL_TABS } from "./StudioRail";
+import { RAIL_TABS, railHome, workspaceGroup } from "./StudioRail";
 import { parseUiState } from "./studioUiState";
 import { parseStudioLocation } from "../../lib/studioLocation";
 import { GO_KEYS } from "./shortcuts";
 
 describe("Studio Essentials (plan 1.27)", () => {
-  it("uses only controls that also live in Theme settings or Text & labels", () => {
+  it("uses only controls that also live in Style or Text & labels", () => {
     for (const step of ESSENTIALS) {
       for (const key of step.style || []) expect(essentialStyleField(key), key).not.toBeNull();
       for (const key of step.copy || []) expect(essentialCopyField(key), key).not.toBeNull();
@@ -20,10 +20,14 @@ describe("Studio Essentials (plan 1.27)", () => {
     expect(new Set(ESSENTIALS.map((s) => s.id)).size).toBe(ESSENTIALS.length);
   });
 
-  it("is the first workspace, with everything else after it under All settings", () => {
-    expect(RAIL_TABS[0].id).toBe("essentials");
-    expect(RAIL_TABS.slice(1).map((t) => t.id)).toEqual(["sections", "style", "text", "menus", "pages", "media", "themes"]);
-    expect(RAIL_TABS[1].section).toBe("All settings");
+  it("opens inside Style, on the rail's four workspaces (Page, Style, Pages, Designs), with Words and Media under More", () => {
+    expect(RAIL_TABS.map((t) => t.id)).toEqual(["sections", "style", "pages", "themes", "text", "media"]);
+    expect(RAIL_TABS.map((t) => t.short)).toEqual(["Page", "Style", "Pages", "Designs", "Words", "Media"]);
+    expect(RAIL_TABS.find((t) => t.id === "text")?.section).toBe("More");
+    expect(railHome("essentials")).toBe("style");
+    expect(railHome("menus")).toBe("pages");
+    expect(workspaceGroup("essentials").map((w) => w.id)).toEqual(["essentials", "style"]);
+    expect(workspaceGroup("pages").map((w) => w.id)).toEqual(["pages", "menus"]);
   });
 
   it("can be remembered, linked to and reached with G then E", () => {

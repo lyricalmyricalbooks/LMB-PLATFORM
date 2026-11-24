@@ -134,7 +134,7 @@ export function describeUsage(design: any, path: Path, names: { surface: (id: st
     const section = design?.[top]?.sections?.[third];
     return { label: `${names.surface(top)} › ${section ? names.section(section) : "section"}`, templateId: top, sectionId: section?.id };
   }
-  return { label: `Theme settings › ${String(top ?? field).replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}` };
+  return { label: `Style › ${String(top ?? field).replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}` };
 }
 
 /** One entry per place, in order (several fields of one section count once). */

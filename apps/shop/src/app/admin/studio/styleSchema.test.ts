@@ -79,7 +79,7 @@ describe("Studio style schema structure", () => {
 });
 
 describe("link fields", () => {
-  it("shows a link picker, never a plain text box, for every Theme settings address", () => {
+  it("shows a link picker, never a plain text box, for every Style address", () => {
     const fields = STYLE_GROUPS.flatMap((g) => g.fields);
     const addressLike = fields.filter((f) => /(Link|Href|Path)$/.test(f.key) || (/Url$/.test(f.key) && f.kind !== "image"));
     const plain = addressLike.filter((f) => f.kind === "text" || f.kind === "textarea").map((f) => f.key);

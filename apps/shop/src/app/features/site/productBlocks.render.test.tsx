@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Studio 2.9: the buy card follows Page layout › Buy box blocks — order, hiding, added blocks and per-template lists.
+// Studio 2.9: the buy card follows Page › Buy box blocks — order, hiding, added blocks and per-template lists.
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router";

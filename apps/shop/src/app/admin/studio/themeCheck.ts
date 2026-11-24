@@ -3,8 +3,8 @@
 //
 // A theme here is a theme-library entry (themeLibrary.ts) and anything shaped like one, so each new theme file
 // (theme wave 1: Riso, Broadsheet, Imprint) passes the same check by being listed in THEME_LIBRARY. It checks:
-//   - top-level keys: theme metadata, or a key Apply copies (THEME_APPLIED_KEYS) that has a Theme settings control;
-//   - `global`: every key has a Theme settings control. Inside `copy`, every word is a Text & labels key; inside
+//   - top-level keys: theme metadata, or a key Apply copies (THEME_APPLIED_KEYS) that has a Style control;
+//   - `global`: every key has a Style control. Inside `copy`, every word is a Text & labels key; inside
 //     `elementSchemes`, every part has its "Parts of the shop that follow a scheme" control;
 //   - `palettePreset`: a palette Studio lists;
 //   - section lists (presetContent.ts): every section is one Studio can add, and every setting is one of its own
@@ -56,17 +56,17 @@ export function themeProblems(theme: any): string[] {
 
   for (const key of Object.keys(theme)) {
     if (THEME_META_KEYS.includes(key) || THEME_LEGACY_KEYS.includes(key)) continue;
-    if (!THEME_APPLIED_KEYS.includes(key)) problems.push(`${name}: "${key}" isn't something Apply copies (add it to THEME_APPLIED_KEYS with a Theme settings control, or move it into global)`);
-    else if (!style.has(key)) problems.push(`${name}: "${key}" has no Theme settings control`);
+    if (!THEME_APPLIED_KEYS.includes(key)) problems.push(`${name}: "${key}" isn't something Apply copies (add it to THEME_APPLIED_KEYS with a Style control, or move it into global)`);
+    else if (!style.has(key)) problems.push(`${name}: "${key}" has no Style control`);
   }
 
   for (const [key, value] of Object.entries(theme.global || {})) {
     if (key === "copy") {
       for (const word of Object.keys((value as any) || {})) if (!copy.has(word)) problems.push(`${name}: the words "${word}" aren't in Text & labels`);
     } else if (key === "elementSchemes") {
-      for (const part of Object.keys((value as any) || {})) if (!style.has(`elementSchemes.${part}`)) problems.push(`${name}: "${part}" can't follow a colour scheme in Theme settings`);
+      for (const part of Object.keys((value as any) || {})) if (!style.has(`elementSchemes.${part}`)) problems.push(`${name}: "${part}" can't follow a colour scheme in Style`);
     } else if (!style.has(key)) {
-      problems.push(`${name}: "${key}" has no Theme settings control`);
+      problems.push(`${name}: "${key}" has no Style control`);
     }
   }
 
@@ -103,7 +103,7 @@ export function themeProblems(theme: any): string[] {
 
 // ── Imported theme files (My themes › Import) ───────────────────────────────────────────────────────────────────
 // A theme file is a whole design (savedThemes.ts), not a library entry, so it is checked against what a design may
-// hold: Theme settings keys, Text & labels words, pages with their section lists, and the structured data Studio's
+// hold: Style keys, Text & labels words, pages with their section lists, and the structured data Studio's
 // other workspaces edit (sections, menus, categories, colour schemes…). Anything else would show in the shop with no
 // way to change it, so Import warns about it in plain words before adding the theme.
 
@@ -125,7 +125,7 @@ const quoted = (items: string[]) => {
 
 /**
  * Plain-words problems with an imported design: settings, words and sections Studio couldn't change afterwards.
- * `known` adds keys the shop's own starting design holds (they are Studio's own, even without a Theme settings row).
+ * `known` adds keys the shop's own starting design holds (they are Studio's own, even without a Style row).
  */
 export function importedThemeProblems(design: any, known: Iterable<string> = []): string[] {
   if (!design || typeof design !== "object" || Array.isArray(design)) return ["The file has no design in it."];

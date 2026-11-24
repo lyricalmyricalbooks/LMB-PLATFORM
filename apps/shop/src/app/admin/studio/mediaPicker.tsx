@@ -20,7 +20,7 @@ export const useMediaPicker = () => useContext(MediaPickerContext);
 /**
  * Upload for an image field. When the library is switched on the picture always goes into it (resized
  * copies + a `media/{id}` record, listed in Studio › Media). Section and block fields (which have
- * `onPatch`) also get the `__media` record that gives shoppers `srcset`; Theme settings images (logo,
+ * `onPatch`) also get the `__media` record that gives shoppers `srcset`; Style images (logo,
  * share image, favicon, placeholder…) are drawn as plain images, so they get the URL only, written
  * through the field's own `onChange` (which keeps the All pages / This page only scope).
  * Without the library: the plain Studio upload the field always had.

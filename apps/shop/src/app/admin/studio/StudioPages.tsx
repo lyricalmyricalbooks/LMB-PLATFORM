@@ -314,7 +314,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
               <p className="text-[11px] text-neutral-600">
                 {editing.seoImage ? "Shown when this page is shared on social media and in search results."
                   : firstBodyImage(editing.body || "") ? "Using the first picture on the page. Pick another to change it."
-                  : "None yet — the shop's share image (Theme settings › Logo & wordmark) is used."}
+                  : "None yet — the shop's share image (Style › Logo & wordmark) is used."}
               </p>
             </div>
             <div className="flex flex-wrap items-start gap-2">

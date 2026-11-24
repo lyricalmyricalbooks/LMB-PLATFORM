@@ -6,7 +6,7 @@ const at = (over: Partial<Place>): Place => ({ ...base, ...over });
 const T = COALESCE_MS + 100;
 
 const labels: PlaceLabels = {
-  workspace: tab => ({ sections: "Page layout", style: "Theme settings", text: "Text & labels", pages: "Pages" } as Record<string, string>)[tab] || tab,
+  workspace: tab => ({ sections: "Page", style: "Style", text: "Text & labels", pages: "Pages" } as Record<string, string>)[tab] || tab,
   styleCategory: id => ({ buttons: "Buttons" } as Record<string, string>)[id] || id,
   textCategory: id => id,
   page: p => (p.showGlobal ? "Every page · Above the footer" : p.templateId === "heroPage" ? "Home" : p.templateId),
@@ -108,7 +108,7 @@ describe("place history", () => {
   });
 
   it("hidden leftovers do not count as a move", () => {
-    // A Theme settings category left behind on another workspace is not part of the place there.
+    // A Style category left behind on another workspace is not part of the place there.
     const a = normalizePlace(at({ leftTab: "sections", styleCategory: "buttons", textCategory: "Footer" }));
     expect(a.styleCategory).toBeNull();
     expect(a.textCategory).toBeNull();
@@ -117,26 +117,26 @@ describe("place history", () => {
 });
 
 describe("place breadcrumb", () => {
-  it("Page layout › Home › Newsletter › Block 2", () => {
+  it("Page › Home › Newsletter › Block 2", () => {
     const p = at({ selectedId: "s1", blockId: "b2" });
     expect(placeCrumbs(p, labels).map(c => c.level)).toEqual(["workspace", "page", "section", "block"]);
-    expect(describePlace(p, labels)).toBe("Page layout › Home › Newsletter › Block 2");
+    expect(describePlace(p, labels)).toBe("Page › Home › Newsletter › Block 2");
   });
-  it("Theme settings › Buttons › the part being edited", () => {
-    expect(describePlace(at({ leftTab: "style", styleCategory: "buttons" }), labels)).toBe("Theme settings › Buttons");
-    expect(describePlace(at({ leftTab: "style", styleCategory: "buttons", styleFocus: { id: "buttons", label: "Primary button" } }), labels)).toBe("Theme settings › Buttons › Primary button");
+  it("Style › Buttons › the part being edited", () => {
+    expect(describePlace(at({ leftTab: "style", styleCategory: "buttons" }), labels)).toBe("Style › Buttons");
+    expect(describePlace(at({ leftTab: "style", styleCategory: "buttons", styleFocus: { id: "buttons", label: "Primary button" } }), labels)).toBe("Style › Buttons › Primary button");
   });
   it("names the workspace alone when there is no category, and the page for shared groups", () => {
     expect(describePlace(at({ leftTab: "pages" }), labels)).toBe("Pages");
-    expect(describePlace(at({ showGlobal: true }), labels)).toBe("Page layout › Every page · Above the footer");
+    expect(describePlace(at({ showGlobal: true }), labels)).toBe("Page › Every page · Above the footer");
     expect(describePlace(at({ leftTab: "text", textCategory: "Footer" }), labels)).toBe("Text & labels › Footer");
   });
   it("a page part opened from the preview ends the path, without repeating the focus card", () => {
     const element = { key: "k", label: "Header", target: "" };
-    expect(describePlace(at({ element }), labels)).toBe("Page layout › Home › Header");
-    expect(describePlace(at({ leftTab: "style", styleCategory: "buttons", styleFocus: { id: "b", label: "Header" }, element }), labels)).toBe("Theme settings › Buttons › Header");
+    expect(describePlace(at({ element }), labels)).toBe("Page › Home › Header");
+    expect(describePlace(at({ leftTab: "style", styleCategory: "buttons", styleFocus: { id: "b", label: "Header" }, element }), labels)).toBe("Style › Buttons › Header");
   });
   it("a section the labels cannot find is left out rather than shown as a blank", () => {
-    expect(describePlace(at({ selectedId: "gone", blockId: "b2" }), labels)).toBe("Page layout › Home");
+    expect(describePlace(at({ selectedId: "gone", blockId: "b2" }), labels)).toBe("Page › Home");
   });
 });

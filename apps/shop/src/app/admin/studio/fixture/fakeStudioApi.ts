@@ -15,7 +15,7 @@ export type StudioFixture = {
   redirects?: { from: string; to: string }[];
   /** Live sync (3.2): Studio's watchers, and a helper that acts like a save from another tab or device. */
   watchers?: ((remote: any) => void)[];
-  /** Studio › Themes share links (previewTokens). `previewDenied` acts as if their rules weren't deployed. */
+  /** Studio › Designs share links (previewTokens). `previewDenied` acts as if their rules weren't deployed. */
   previewLinks?: any[]; previewDenied?: boolean;
   /** Makes the next Save draft / Publish fail with this error (once), like a refused or dropped write. */
   saveError?: any;

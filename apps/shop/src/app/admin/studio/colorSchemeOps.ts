@@ -1,4 +1,4 @@
-// Pure edits behind Studio › Theme settings › Colour schemes (StudioColorSchemes.tsx).
+// Pure edits behind Studio › Style › Colour schemes (StudioColorSchemes.tsx).
 // Every function returns a new design (or list); nothing is mutated, so each edit is one undo step.
 import { writeDesignValue } from "../../features/site/designModel";
 import { DEFAULT_COLOR_SCHEMES, ELEMENT_SCHEME_TARGETS, schemeList, upgradeScheme, type ColorScheme, type SchemeRole } from "../../features/site/colorSchemes";

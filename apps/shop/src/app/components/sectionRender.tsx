@@ -449,7 +449,7 @@ export function TemplateSections({
 }
 
 /**
- * A section group (Studio › Page layout › section groups): `globalSections` above the footer,
+ * A section group (Studio › Page › section groups): `globalSections` above the footer,
  * `headerSections` under the header. Group stacks live at the design root, so every page shows the
  * same ones. `onCtaClick`/`onProductClick` are optional — standalone pages get router defaults.
  */

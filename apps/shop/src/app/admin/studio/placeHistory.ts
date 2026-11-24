@@ -1,7 +1,7 @@
 // Where the owner is in Studio, and the way back (wayfinding). Pure: no React, no storage, never design data.
 //
 // A "place" is the part of the editor's state the owner would call "where I am": the workspace on the left rail,
-// the Theme settings / Text & labels category, the page being previewed, and the section, block or page part that is
+// the Style / Text & labels category, the page being previewed, and the section, block or page part that is
 // open. StudioEditor watches its own state, so every way of moving (Find, a click in the preview, Show on page,
 // the rail, the page picker, a link followed in the preview) is recorded without each call site doing anything.
 // Back pops the last place; a section or block that has since been deleted is dropped from it, never restored.
@@ -9,11 +9,11 @@
 export type PlaceElement = { key: string; label: string; target: string; region?: string; text?: string };
 
 export type Place = {
-  /** Rail workspace: sections (Page layout), style (Theme settings), text, menus, pages, media, themes. */
+  /** Rail workspace: sections (Page), style (Style), text, menus, pages, media, themes. */
   leftTab: string;
   styleCategory: string | null;
   textCategory: string | null;
-  /** Theme settings › "Editing: <part>" card. */
+  /** Style › "Editing: <part>" card. */
   styleFocus: { id: string; label: string } | null;
   templateId: string;
   /** Editing a shared group (under the header, above the footer, pop-up) instead of a page. */
@@ -115,7 +115,7 @@ export type PlaceLabels = {
 };
 
 /**
- * "Theme settings › Buttons › Primary button" or "Page layout › Home › Newsletter › Block 2": the workspace, the
+ * "Style › Buttons › Primary button" or "Page › Home › Newsletter › Block 2": the workspace, the
  * category or page, then what is open. Every crumb but the last is somewhere to step back out to.
  */
 export function placeCrumbs(p: Place, labels: PlaceLabels): PlaceCrumb[] {

@@ -1,8 +1,8 @@
-// Colour schemes (Studio › Theme settings › Colour schemes).
+// Colour schemes (Studio › Style › Colour schemes).
 //
 // A scheme is a named set of colour ROLES. A section picks one with its Style tab › Colour scheme
 // (`settings.colorSchemeId`); the book cards, the product page buy card and the shopping bag can each
-// pick one in Theme settings (`design.elementSchemes`). `schemeCss()` — emitted on every storefront
+// pick one in Style (`design.elementSchemes`). `schemeCss()` — emitted on every storefront
 // surface by StorefrontOverrides — turns each scheme into `[data-scheme="<id>"]` CSS variables
 // (the same token names the rest of the storefront already reads: --bg-color, --fg-rgb, --surface,
 // --muted, --accent, --on-accent, --border-rgb, --btn-bg, --btn-text …), so anything inside a
@@ -177,7 +177,7 @@ export function findScheme(schemes: ColorScheme[] | undefined, id: unknown): Col
 // ── CSS ──────────────────────────────────────────────────────────────────────
 
 /**
- * Elements that can follow a scheme (Theme settings › Colour schemes) and the selector of their root.
+ * Elements that can follow a scheme (Style › Colour schemes) and the selector of their root.
  * The bag's root also carries data-fm-store / data-fm-checkout, which define the page tokens and the
  * checkout background on the same element, so its selector is more specific than those.
  */
@@ -191,7 +191,7 @@ export const ELEMENT_SCHEME_TARGETS = {
 export type ElementSchemeTarget = keyof typeof ELEMENT_SCHEME_TARGETS;
 
 /**
- * The scheme a part of the shop follows (Theme settings › Colour schemes), or null. While a part
+ * The scheme a part of the shop follows (Style › Colour schemes), or null. While a part
  * follows a scheme, the scheme's colours replace that part's own colour settings (cartDrawerStyle and
  * productPageStyle skip their palette keys; schemeCss outranks the card title/price colour), so
  * picking a scheme always shows.

@@ -1,4 +1,4 @@
-// The template-only controls in Theme settings › Print style & template details draw nothing while the shop uses
+// The template-only controls in Style › Print style & template details draw nothing while the shop uses
 // Riso Press or Standard. Without a word next to them, a press changes one, sees no change and thinks the designer is
 // broken, so each says so under the control until a template is picked.
 import { TEMPLATE_KNOBS, TEMPLATE_STYLES, templateStyleId } from "../../features/site/templateStyles";

@@ -984,7 +984,7 @@ export default function BookDetail() {
   }
 
   // ── page ───────────────────────────────────────────────────────────────────
-  // Blocks the owner added in Studio (Page layout › Buy box blocks). Their words can be connected to this book's
+  // Blocks the owner added in Studio (Page › Buy box blocks). Their words can be connected to this book's
   // details (2.7); with Hide when empty a block whose connected detail is missing is left out.
   const renderCustomBlock = (block: ProductBlock): React.ReactNode => {
     const resolved = resolveDynamicSettings(block.settings || {}, { book }, { preview: inPreview });

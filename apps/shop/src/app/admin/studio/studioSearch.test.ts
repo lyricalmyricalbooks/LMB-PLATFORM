@@ -164,7 +164,7 @@ describe("block commands (Block library 3.0)", () => {
 });
 
 // What a shop owner types in plain words, and where the first three results must lead. Each answer is a result id
-// (`style-group:` = a Theme settings category, `style:<group>:<key>` = one control, `copy-group:` = a Text & labels
+// (`style-group:` = a Style category, `style:<group>:<key>` = one control, `copy-group:` = a Text & labels
 // group); a trailing * accepts any id with that start. A query here that stops working is a real owner who gets lost.
 const PLAIN_WORDS: [string, string[]][] = [
   ["logo", ["style-group:logo"]],
@@ -318,9 +318,9 @@ describe("spelling correction stays sensible", () => {
 
 describe("click paths", () => {
   it("show where a control lives in the words used on screen", () => {
-    expect(index.find((e) => e.id === "style:header:logoHeight")?.trail).toBe("Theme settings › Top of every page › Header & announcement bar › Header layout");
-    expect(index.find((e) => e.id === "style-group:logo")?.trail).toBe("Theme settings › Top of every page");
-    expect(index.find((e) => e.id === "style-group:footer")?.trail).toBe("Theme settings › Bottom of every page");
+    expect(index.find((e) => e.id === "style:header:logoHeight")?.trail).toBe("Style › Top of every page › Header & announcement bar › Header layout");
+    expect(index.find((e) => e.id === "style-group:logo")?.trail).toBe("Style › Top of every page");
+    expect(index.find((e) => e.id === "style-group:footer")?.trail).toBe("Style › Bottom of every page");
     expect(index.find((e) => e.id === "copy-group:Newsletter")?.trail).toBe("Text & labels › Across the whole shop");
   });
 });

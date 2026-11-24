@@ -19,7 +19,7 @@ describe("Design page words", () => {
   });
 
   it("says where the waiting changes are, once per place", () => {
-    expect(waitingWhere([item("Home page"), item("Theme settings · Colors"), item("Home page"), item("Footer")])).toBe("Home page, theme settings, footer");
+    expect(waitingWhere([item("Home page"), item("Style · Colors"), item("Home page"), item("Footer")])).toBe("Home page, style, footer");
     expect(waitingWhere([item("A"), item("B"), item("C"), item("D")])).toBe("A, b, c and more");
     expect(waitingWhere([])).toBe("");
   });

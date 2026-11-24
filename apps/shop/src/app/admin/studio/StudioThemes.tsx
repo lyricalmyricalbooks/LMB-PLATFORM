@@ -1,4 +1,4 @@
-// Studio › Themes (3.4): one place for whole designs — the live theme, your draft, My themes (saved complete designs)
+// Studio › Designs (3.4): one place for whole designs — the live theme, your draft, My themes (saved complete designs)
 // and the ready-made looks — each with a drawn thumbnail. Preview shows a theme in the canvas without touching the
 // draft; Customize loads it into the draft (undoable); Publish… loads it and opens the usual Publish confirmation.
 // Share a preview link saves a design behind a private, expiring link (previewTokens, firestore.rules) so someone

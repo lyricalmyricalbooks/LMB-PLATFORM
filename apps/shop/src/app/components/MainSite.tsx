@@ -649,7 +649,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   const storefrontAccent = storefrontDesign?.primaryColor || "#e8402a";
   const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
   const storefrontButtonText = storefrontDesign?.buttonTextColor || "#100f0d";
-  // Book cards following a colour scheme use its button roles (Theme settings › Colour schemes).
+  // Book cards following a colour scheme use its button roles (Style › Colour schemes).
   const cardButton = schemeButtonColors(storefrontDesign, "cards", { bg: storefrontButtonBg, text: storefrontButtonText });
   const storefrontMaxWidth = contentMaxWidth(storefrontDesign);
   // Default legacy storefronts into the requested photo-reference design. The
@@ -659,7 +659,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   const isReferenceCatalog = storefrontDesign?.catalogLayoutStyle !== "modern";
   const storefrontMobileColumns = Math.max(1, Math.min(3, storefrontDesign?.productColumnsMobile ?? 1));
   const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? (isReferenceCatalog ? 3 : 4)));
-  // Theme settings › Design scales › Corner set, when chosen, gives shop cards its middle corner too.
+  // Style › Design scales › Corner set, when chosen, gives shop cards its middle corner too.
   const storefrontCardRadius = Math.max(0, Math.min(30, RADIUS_SCALES[storefrontDesign?.radiusScale]?.m ?? storefrontDesign?.cardRadius ?? 8));
   const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? 20));
   const storefrontHeaderMaxWidth = catalogHeaderMaxWidth(storefrontDesign);

@@ -1,4 +1,4 @@
-// Page layout › Buy box blocks (Studio 2.9): the order of the product page's buy card, per book-page template.
+// Page › Buy box blocks (Studio 2.9): the order of the product page's buy card, per book-page template.
 // Built-in blocks can be moved and hidden (title and Add to bag stay); added blocks (text, collapsible note, badge,
 // look-inside link, book detail) can be edited, connected to the book's details (2.7) and removed.
 // Data: features/site/productBlocks.ts; written to the template's own surface with writeDesignValue.

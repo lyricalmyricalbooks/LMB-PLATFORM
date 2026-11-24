@@ -1,4 +1,4 @@
-// One upload path for every Studio image (section/block images, Theme settings images,
+// One upload path for every Studio image (section/block images, Style images,
 // rich-text pictures). Files go under `assets/`, which storage.rules lets the admin write,
 // and are shrunk first so storefront pages stay light.
 import { adminApi } from "../api";
