@@ -12,6 +12,12 @@ Guidance for working in this repository.
 > `AGENTS.md` conflicts with this file, follow `CLAUDE.md` for repo facts and
 > `AGENTS.md` for how to work, and call out the conflict.
 
+> [!NOTE]
+> **This is the platform's copy of the shop** (`LMB-PLATFORM/apps/shop`), copied from the original press shop on 27 October
+> 2026 and changed freely since. Follow the repo root `CLAUDE.md` first: all shops share one Firebase project and each shop's
+> data lives only under `shops/<shopId>/` (`docs/shared-system.md`); use test projects (`lmb-test-shop`) and placeholders,
+> never a live project id, key or real email (`apps-isolation.test.js`). Run this folder's checks with pnpm from here.
+
 ## What this is
 
 An e-commerce storefront + admin for **Your Press**, a publisher.
@@ -28,17 +34,18 @@ originally generated from a Figma design ("Artsy Website for Publisher").
 ## Tech stack
 
 - **React 19 + TypeScript**, built with **Vite 8**.
-- **React Router 7** (`react-router`) — client-side routing in `src/app/App.tsx`.
+- **React Router 8** (`react-router`) — client-side routing in `src/app/App.tsx`.
 - **Tailwind CSS v4** (via `@tailwindcss/vite`) for styling. The admin's components are `src/app/admin/riso/components.tsx`;
   the unused shadcn/ui kit (`components/ui/`), its Radix packages and recharts were removed on 11 November 2026.
 - **motion** (Framer Motion successor) for animations (MUI/Emotion were removed in October 2026: nothing imported them).
-- **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
+- **Firebase 13** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
   `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
   `lmb-test-shop`). The inventory app's project (`lmb-test-stockroom`) is reached only by
   Cloud Functions for the inventory app link (see *Inventory app link* below). The shop switches (plan 1.17: an old
   stockroom sign-in, old-address forwarding and the stockroom's Gmail and old-shop tools) were retired on 14 November 2026.
-- **Stripe** for checkout, **Resend** for transactional email, **Shippo** for
-  address verification / shipping labels — all wired through Cloud Functions.
+- **Stripe** (or Square) for checkout, **Shippo** for address verification / shipping labels, all wired through Cloud
+  Functions. Shop emails go out from the functions (Resend or SMTP via nodemailer, loaded lazily in `functions/index.js`);
+  the platform's own emails (sign-up, bills) use `services/email` at the repo root (the Google Workspace mailbox).
 - **Vitest** for tests.
 
 ## Layout
@@ -88,15 +95,15 @@ before changing read/write shapes — rules are enforced server-side.
 
 This file holds the repo-wide facts and rules. Each area keeps its own guide next to its code, and Claude Code loads it
 when you work there. **Before changing an area, read its guide** (Grep across `**/CLAUDE.md` finds any topic).
-Add new notes to the guide of the area you changed, not here (`scripts/claudeGuides.test.ts` keeps this file under
+Add a new must-follow rule to the guide of the area you changed and feature detail to its `docs/agent-notes/` file, not here (`scripts/claudeGuides.test.ts` keeps this file under
 32 KB and checks the list below).
 
-- **`functions/CLAUDE.md`**: Cloud Functions, payments, email and server rules. Sections: Cloud Functions · Shipping engine · Discount codes: start date and one-use-per-customer · Customer bug sweep · Bug sweep #2 · Paid-but-unpaid recovery + Riso order tracking · Stripe ↔ shop payment sync hardening · Payments & shipping panel repair · reCAPTCHA / App Check · Bug sweep #3 — ready for sales · Email abuse budget and proof of owner · Anonymous-abuse hardening · Bug sweep #4 · Readiness fixes from the 5-agent audit · Commerce access, navigation and merchandising · Cart estimates, returns and catalog review · Bug sweep #5 · Bug sweep #6 + shop filters · Bug sweep #7 · Pre-orders · Gift cards, box sets, automatic discounts, add-ons and scheduled sales · Shop errors · Payment-integrity audit fixes · Round-2 payment fixes · Orders, returns and Shippo labels · Privacy and newsletter · Round-2 security: private book fields, public endpoints, rules · Round-2 digital downloads · Payments module · Email module · Data changes · Platform support visits · Newsletter sending · Running low in the 8am email · Ship part of an order now.
-- **`src/app/admin/CLAUDE.md`**: Admin dashboard. Sections: Inventory app link · Riso Press admin design system · Publisher fulfillment desk · Fulfillment workspace UX repair · Admin improvement pass · Reports, analytics and performance · Overview analytics 2.0 + Google Analytics · Overview analytics 3.0 + your own visits · Round-2 catalog and settings · AI writing assistant · URL redirects · Bring your shop with you · Set up your shop.
-- **`src/app/admin/studio/CLAUDE.md`**: Studio (the theme editor). Sections: Theme editor · Studio organization · Public designer coverage · Template designer coverage · Responsive public element editing.
+- **`functions/CLAUDE.md`**: Cloud Functions, payments, email and server rules. Standing rules here; dated feature notes in `docs/agent-notes/functions.md`.
+- **`src/app/admin/CLAUDE.md`**: Admin dashboard. Standing rules here; dated feature notes in `docs/agent-notes/admin.md`.
+- **`src/app/admin/studio/CLAUDE.md`**: Studio (the theme editor). Standing rules here; dated feature notes in `docs/agent-notes/studio.md`.
 - **`.github/CLAUDE.md`**: Deployment and CI workflows. Sections: Deployment.
 - **`src/shared/CLAUDE.md`**: Rules shared by the shop and the server (one TypeScript source, a generated copy in `functions/shared/`).
-- **`src/app/features/site/CLAUDE.md`**: Storefront (shop pages, checkout, SEO, photos). Sections: Public storefront readiness repairs · Checkout order slip · Checkout carrier delivery estimates · Storefront bundle · Prerendered page hand-over · Storefront loading performance · Stripe checkout payment section · Book SEO pane · Crawlable public HTML · Collection indexing · Automatic SEO refresh and catalog search controls · Coming soon books · Search drawer · Pickup availability on book pages · Free-shipping line on book pages · Second photo on hover · Formats on shop cards · Author line on shop cards · Shipping & returns tab on book pages · Ships-by line on book pages · Back to top button · Footer currency picker · Header hides on scroll down · Sale countdown on book pages · Added-to-bag notice · Discount code box in the bag · Order note in the bag · Terms checkbox in the bag · Save for later in the bag · Announcement countdown · Checkout experience + stock-hold tuning · Checkout address finder · High-quality photos · Storage bandwidth · Catalog file on Hosting · Book videos · Page translation · Ask a question on book pages · Pop-up trigger · Sold-out books last · Books load as shoppers scroll · Zoom follows the mouse on book photos · Already in your bag on book pages · Sale savings in the bag · Suggestions in an empty bag · Tab reminder · Release countdown on pre-orders · Announcement bar close button · Tax & shipping note on book pages · Star ratings on shop cards · Shop filters in the address · Read more for long descriptions · Ships-by line in the bag · More by this artist on book pages · Payment icons on book pages · Shop profile read at page open · Instagram, Facebook and Pinterest file · Newsletter tick on free downloads · Listen and watch · Free samples on product pages.
+- **`src/app/features/site/CLAUDE.md`**: Storefront (shop pages, checkout, SEO, photos). Standing rules here; dated feature notes in `docs/agent-notes/site.md`.
 
 Cross-cutting rules that live in those guides and apply everywhere:
 - Everything shopper-facing must be editable in Studio, with words in Text & labels and no hard-coded colours
@@ -188,7 +195,7 @@ npm run logs
   problem fails CI. React
   Compiler rules and `exhaustive-deps` are off on purpose (fixing them changes behaviour). Functions named `use…` are hooks
   to the linter: don't name a plain helper that way.
-- Use `pnpm install` (the lockfile pins `react`/`react-dom` 18.3.1, which are optional peer deps —
+- Use `pnpm install` (`react`/`react-dom` 19.3.1 are optional peer deps that pnpm installs from the lockfile —
   a plain `npm install` leaves them out). Vitest also runs `functions/*.test.js`, so run
   `npm ci` in `functions/` first.
 - Older page-level visual checks used a throwaway harness that mounts a page with mocked
@@ -275,14 +282,5 @@ Angles worth scanning each time: bug/edge case the change introduced · the next
 - If the user asks for something, assume they know what they want.
 - Only ask clarifying questions if the request is genuinely ambiguous.
 
-Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.
-
 ## App release notes
 Every PR must add one release-note file, `src/app/admin/updates/YYYY-MM-DD-NN-<id>.ts` (`export default { … } satisfies AppUpdate`; NN = the next number for that day, so the newest note of a day sorts first; `appUpdates.ts` collects the files with `import.meta.glob`, newest first, and `app-release-notes.yml` fails a PR that adds none). Never edit another PR's note file — separate files are why parallel PRs no longer conflict. A branch started before this change that still prepends to `appUpdates.ts` fails `appUpdates.test.ts` and conflicts with `main`: keep `main`'s `appUpdates.ts` (the collector) and run `node scripts/split-app-updates.mjs <your copy of the old file>` (or with no argument on the working tree) to move your note into its own file. Each note has a stable unique ID, date (YYYY-MM-DD), plain-language title and summary, and shortcuts to the affected admin screens (`tab`, optional `settingsTab`, using IDs from `riso/nav.ts`). Explain user-visible benefits honestly; do not claim a backend deployment or live provider verification from local checks. For maintenance-only PRs, say what reliability changed and link to its relevant workspace. Keep older entries for View all updates. The admin sidebar's What's new box shows the newest entry bundled with the deployed frontend; it is not a live GitHub feed.
-
-Checkout country dropdowns pair option backgrounds and text with Studio's Checkout field colours, including Stripe's Windows dropdown; highlighted Stripe options use contrasting text on the checkout accent.
-Stripe payment fields retain Studio colours when readable and choose contrasting black/white text for insufficient-contrast pairs; labels follow the surrounding checkout text.
-
-Custom-page navigation resolves published bodies from useSiteData's shared snapshot, including Studio preview updates. Avoid separate slug fetches that clear the header/content on each link; cold custom-page loading retains the shared header.
-Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
-**Footer layout (12 October 2026):** `StoreFooter` puts every band in one padded column (dividers line up with the text), link groups on the right by default (Style › Footer & social links › **Where the link groups sit**), and a bottom-bar **Admin** link (`showFooterAdminLink`, words Text & labels › Footer › `footerAdmin`). Spacing/text/colour/divider controls (`footerPaddingY*`, `footerColumnGap`, `footerLinkGap`, `footerTextSize`, `footer*Color`, `showFooterDividers`) become CSS in `features/site/footerStyle.ts`; the bands are regions `footerBrand`/`footerLinks`/`footerLegal`/`footerBottom`/`footerAdmin` for per-device element styling.

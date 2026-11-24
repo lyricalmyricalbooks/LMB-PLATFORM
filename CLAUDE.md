@@ -5,6 +5,32 @@ services. Shops sign up as a Bookshop, a General shop or a Services shop. Every 
 project, each in its own folder** (`docs/shared-system.md`, decided 10 November 2026; it replaced one project per shop).
 `apps/` holds the platform's copies of the shop and stockroom (see `apps/README.md`); the folder map is in `README.md`.
 
+## Where things are
+
+- `README.md` › *What lives here* is the folder map (every top-level folder in one line; `repo-layout.test.js` keeps it
+  honest). Read it before adding a folder, and add the new folder's line there.
+- `apps/shop/CLAUDE.md` and `apps/stockroom/CLAUDE.md` guide the two app copies; each area of the shop has its own short
+  guide next to its code, with dated feature notes in `apps/shop/docs/agent-notes/`.
+- `docs/decisions.md` (choices made and why), `docs/shared-system.md` (one folder per shop), `docs/run-book.md` (what to do
+  about each alert), `docs/updating.md` (how a release reaches shops), `docs/test-shop.md`, `docs/code-plan.md`.
+
+## Commands
+
+```bash
+npm test                  # every platform test (node --test; the list of folders is in package.json)
+npm run walkthrough       # every platform page on made-up data, no emulators (walkthrough:all also starts the demo)
+npm run demo              # test shop, admin, Studio and stockroom against the Firebase emulators (docs/demo-shop.md)
+cd apps/shop && pnpm install --frozen-lockfile && pnpm test && pnpm run typecheck && pnpm run lint   # shop copy
+cd apps/shop/functions && npm ci                                                                     # before shop tests
+cd apps/stockroom && npm ci && npm test && npm run lint && npm run typecheck                         # stockroom copy
+```
+
+Only the root `.github/workflows/ci.yml` runs (the copies' own workflows never do). Its jobs: `test` (platform),
+`shop`, `shop-studio`, `shop-accessibility`, `shop-admin-phone`, `shop-speed`, `stockroom`, `stockroom-phone`, `windows`,
+the rules jobs (`shop-rules`, `stockroom-rules`, `waitlist-rules`: the real rules engine via
+`apps/shop/scripts/firestore-rules-emulator.mjs` and `apps/stockroom/scripts/rules-emulator.mjs`), and the browser checks
+(`release-check-browser`, `walkthrough-browser`, `demo-keeps-stockroom`).
+
 ## Rules
 
 - **Never change Julian's own repos for the platform.** `LyricalmyricalWebsite` and `lyrical-inventory` must keep working in

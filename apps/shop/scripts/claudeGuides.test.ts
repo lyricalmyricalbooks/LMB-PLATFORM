@@ -12,6 +12,13 @@ describe('agent guides', () => {
   it('keeps the root guide under its size budget', () => {
     expect(guide.length, 'Move area notes into that folder\'s CLAUDE.md').toBeLessThan(32_000);
   });
+  it('keeps every area guide short (feature detail goes in docs/agent-notes/)', () => {
+    // An area guide is loaded in full whenever work happens in its folder, so it holds standing rules only.
+    for (const [, path] of index.matchAll(/^- \*\*`([^`]+CLAUDE\.md)`\*\*/gm)) {
+      expect(readFileSync(join(root, path), 'utf8').length, `${path}: move feature detail to docs/agent-notes/`)
+        .toBeLessThan(32_000);
+    }
+  });
   it('lists only area guides that exist, and every one that does', () => {
     const listed = [...index.matchAll(/^- \*\*`([^`]+CLAUDE\.md)`\*\*/gm)].map(m => m[1]);
     expect(listed.length).toBeGreaterThan(0);

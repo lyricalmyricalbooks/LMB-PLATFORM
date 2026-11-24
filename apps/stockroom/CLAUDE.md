@@ -1,5 +1,45 @@
 # CLAUDE.md — stockroom
 
+> [!NOTE]
+> **This is the platform's copy of the stockroom** (`LMB-PLATFORM/apps/stockroom`), copied on 27 October 2026 and changed
+> freely since. Follow the repo root `CLAUDE.md` first: all shops share one Firebase project and each shop's data lives only
+> under `shops/<shopId>/` (`docs/shared-system.md`); use test projects (`lmb-test-stockroom`) and placeholders, never a live
+> project id, key or real email (`apps-isolation.test.js`). Where this file says "GitHub Pages", the platform serves the
+> stockroom from Firebase Hosting instead (`npm run check:hosting`, `scripts/hostingCheck.mjs`).
+
+## Commands
+
+Run from `apps/stockroom` with npm:
+
+```bash
+npm ci                 # install (package-lock.json)
+npm run dev            # Vite dev server
+npm test               # Vitest, once (tests/*.test.js)
+npm run lint           # ESLint over src; lint:contrast and lint:tokens are the colour and token ratchets
+npm run typecheck      # tsc over the JS (JSDoc types)
+npm run build          # Vite build, then npm run check:hosting (Hosting settings) and check:size (bundle budget)
+npm run e2e            # browser walk-through (scripts/e2e/); e2e:phone checks every screen at phone width
+```
+
+Only the repo root's `.github/workflows/ci.yml` runs (jobs `stockroom` and `stockroom-phone`: lint, typecheck, test, build,
+check:hosting, phone screens). This folder's own `.github/` workflows never run; they are kept for tests that read them.
+
+## Layout
+
+```
+index.html              App shell (single page, offline PWA)
+src/main.js             App wiring, tabs and most screens (large; search before adding)
+src/core/store.js       Local state + offline queue
+src/features/           One file per screen or workflow (pos, receipts, invoices, taxcentre, shipping, sales-ledger...)
+src/lib/                Shared helpers (cents.js for money, csv, carriers/ for Canada Post, consignment, barcode-scan...)
+src/firebase.js         Firestore + Auth
+src/style.css           Riso Press palette (:root); src/styles/system.css scales, theme-dark.css night mode
+apps-script/            Google Apps Script (Code.gs; copy verbatim to public/gas-code.txt)
+backend/server.js       Optional local Node helper for development; not deployed
+tests/                  Vitest tests;  scripts/rules-emulator.mjs  two-shop rules checks
+firestore.rules, database.rules.json, storage.rules   Security rules
+```
+
 ## Your job after every change
 After completing any code enhancement, end your turn with a short "Next moves" list: 5 genuinely high-value suggestions for improving the app, ranked best-first.
 
