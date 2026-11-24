@@ -15,6 +15,7 @@ import type { Booking } from "./bookingsApi";
 import { dayText, listTag, timeText } from "./bookingsView";
 import { teamDeskData, type DeskAnswer, type DeskClock } from "./teamDeskApi";
 import { hoursText, type ClockStep } from "../../shared/timeClock";
+import { DeskPlans } from "./DeskPlans";
 import "./bookings.css";
 
 const ZONE = shopTimeZone();
@@ -196,6 +197,7 @@ export function TeamDesk({ email, role, appearance }: { email: string; role: "fr
               )}
             </>
           )}
+        {answer && (answer.rota || answer.timeOff) && <DeskPlans rota={answer.rota || []} timeOff={answer.timeOff || []} today={today} onChanged={() => void load(day)} />}
       </main>
       {creating && answer && <DeskBookingDialog day={day} answer={answer} onClose={() => setCreating(false)} onDone={() => { setCreating(false); void load(day); }} />}
       {confirmNode}

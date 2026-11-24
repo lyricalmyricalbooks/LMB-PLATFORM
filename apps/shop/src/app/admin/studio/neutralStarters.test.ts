@@ -1,10 +1,10 @@
 // Neutral starter websites (24 November 2026, the owner's approved plan): a starter keeps its Figma look, but its words
 // describe what goes in each spot, its products are "Example product" samples and it never names its own brand, a
-// person or a made-up review. Add a starter to NEUTRAL once its words are rewritten (Slow Season and Catalogue next).
+// person or a made-up review. Add a starter to NEUTRAL once its words are rewritten .
 import { describe, expect, it } from "vitest";
 import { THEME_LIBRARY } from "./themeLibrary";
 
-const NEUTRAL = ["aurel-editorial"];
+const NEUTRAL = ["aurel-editorial", "juniper-slow-season", "juniper-catalogue"];
 const BRANDS = /\b(aurel|juniper)\b/i;
 
 describe.each(NEUTRAL.map((id) => [id]))("starter %s is neutral", (id) => {

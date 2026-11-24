@@ -17,6 +17,7 @@ export const GOVERNING_LAW_FR = "la province de l'Ontario et les lois du Canada 
 export const HELPERS_FR = Object.freeze([
   "Google Cloud et Google Workspace : gardent chaque boutique en ligne, conservent ses renseignements, gèrent la connexion, font fonctionner l'aide à la rédaction et envoient les courriels de votre boutique et les nôtres. Travaillent depuis le Canada (Montréal), avec certains services, dont le courriel, aux États-Unis.",
   "Stripe : reçoit les paiements par carte pour votre boutique et pour votre forfait Colophon. Travaille depuis les États-Unis et le Canada.",
+  "Twilio : envoie les rappels de réservation par texto, seulement pour les boutiques et les clients qui les activent. Voit le numéro de cellulaire et le message. Travaille depuis les États-Unis.",
   "Shippo et Postes Canada : tarifs et étiquettes d'expédition, seulement si vous les activez. Travaillent depuis les États-Unis et le Canada.",
 ]);
 
@@ -36,10 +37,15 @@ export const SECTIONS_FR = Object.freeze([
     title: "Conditions d'utilisation",
     paragraphs: [
       `Ces conditions lient votre maison d'édition et ${OPERATOR_NAME}, l'entreprise qui exploite Colophon, au ${OPERATOR_ADDRESS_FR}. La personne qui coche la case à l'inscription accepte au nom de la maison et confirme qu'elle en a le droit.`,
-      "Colophon donne à votre maison un seul forfait qui comprend tout : un site web et une réserve. Le service est fait pour les entreprises du Canada et des États-Unis, pas pour des personnes qui achètent pour elles-mêmes.",
+      "Colophon donne à votre maison un seul forfait qui comprend tout : un site web, une réserve, les réservations et toutes les façons de vendre. Le service est fait pour les entreprises du Canada et des États-Unis, pas pour des personnes qui achètent pour elles-mêmes.",
       "Votre boutique est votre propre entreprise. Votre maison est le vendeur auprès de vos clients, fixe ses prix et ses politiques, et respecte les lois sur la vente, la vie privée et les taxes des endroits où elle vend.",
       "Vous êtes responsable de ce que vous vendez et des textes et images de votre boutique. N'utilisez pas Colophon pour vendre quoi que ce soit d'illégal là où vous êtes ou là où sont vos acheteurs.",
-      "Vos livres, vos textes et vos images restent à vous. Vous nous permettez de les copier et de les montrer seulement pour faire fonctionner votre boutique, et cela prend fin quand elle est supprimée.",
+      "Une nouvelle boutique commence avec des textes, des photos et des produits d'exemple, pour montrer à quoi elle peut ressembler. Modifiez-les ou retirez-les avant d'ouvrir : ce qui reste dans votre boutique relève de vous.",
+      "Les paiements de vos clients vont directement dans le compte Stripe ou Square de votre maison. Colophon ne détient jamais votre argent, et les conditions de cette entreprise régissent votre compte chez elle.",
+      "Certaines façons de vendre ont leurs propres règles : abonnements et autres paiements répétés, réservations, cours et événements, locations et dépôts, dons, et téléchargements numériques. Votre maison fixe ces conditions, les montre avant qu'un acheteur paie et respecte les lois qui s'appliquent.",
+      "Quand vous apportez des clients, des commandes ou une liste d'infolettre d'ailleurs, vous confirmez en avoir le droit, et que les personnes de la liste ont accepté d'avoir de vos nouvelles.",
+      "Si votre boutique envoie des rappels de réservation par texto, elle ne les envoie qu'aux clients qui les ont demandés, et un client peut les arrêter en tout temps en répondant STOP.",
+      "Vos produits, vos textes et vos images restent à vous. Vous nous permettez de les copier et de les montrer seulement pour faire fonctionner votre boutique, et cela prend fin quand elle est supprimée.",
       "Gardez votre connexion en sécurité et dites-nous tout de suite si vous croyez que quelqu'un d'autre l'a utilisée.",
       "Nous pouvons fermer une boutique qui vend quelque chose d'illégal, reçoit des paiements frauduleux, envoie des courriels non sollicités ou met d'autres boutiques en danger. Nous vous en donnons la raison par écrit, et la façon de demander un réexamen.",
       "Nous travaillons fort pour garder chaque boutique ouverte, et notre page d'état montre comment va le service. Nous ne pouvons pas promettre qu'il ne s'arrêtera jamais un moment.",
@@ -54,7 +60,8 @@ export const SECTIONS_FR = Object.freeze([
     paragraphs: [
       "Votre forfait commence par un essai gratuit, et nous ne demandons jamais de carte pour le commencer. Il dure le nombre de jours affiché sur la page d'inscription le jour de votre inscription. Si l'essai se termine sans carte, votre boutique est mise en pause et rien n'est facturé.",
       "Une fois votre carte ajoutée, votre forfait se renouvelle chaque mois jusqu'à ce que vous annuliez. Chaque mois, nous débitons cette carte des frais du forfait et de ce qu'a coûté le fonctionnement de votre boutique le mois précédent (stockage, trafic web, tâches de fond et courriels), à ce qu'il nous coûte, sans rien ajouter. Nous le calculons à partir du relevé de l'usage de chaque boutique tenu par notre fournisseur infonuagique, et le vérifions avec la facture de ce fournisseur avant de vous facturer. Les mois d'essai ne coûtent rien. Votre page de facturation montre le coût à ce jour, et nous vous écrivons quand un mois semble devoir dépasser le montant que vous y choisissez (25 $ si vous ne le changez pas).",
-      "Une maison aux États-Unis paie en dollars américains, et une maison au Canada en dollars canadiens. Le coût de fonctionnement est calculé en dollars canadiens et, pour une maison qui paie en dollars américains, nous le convertissons au taux de change du jour, sans rien ajouter. Les prix sont affichés avant taxes. Nous ajoutons les taxes de vente de l'endroit où se trouve votre maison, sa province ou son État, et votre facture les indique. Vous pouvez télécharger chaque facture depuis Réglages, sous Facturation.",
+      "Si votre boutique envoie des textos, ce que coûte chaque texto va sur votre prochaine facture, sur sa propre ligne, au prix coûtant, sans rien ajouter.",
+      "Une maison aux États-Unis paie en dollars américains, et une maison au Canada en dollars canadiens. Le coût de fonctionnement est calculé en dollars canadiens et, pour une maison qui paie en dollars américains, nous le convertissons au taux de change du jour, sans rien ajouter. Les prix sont affichés avant taxes. Nous ajoutons les taxes de vente de l'endroit où se trouve votre maison, sa province ou son État, calculées par Stripe Tax à partir de l'adresse de votre maison, et votre facture les indique. Vous pouvez télécharger chaque facture depuis Réglages, sous Facturation.",
       "Une maison qui paie déjà une part des ventes de son site au lieu d'un prix mensuel continue de payer ainsi jusqu'à ce qu'elle change. Ce choix n'est pas offert aux nouvelles maisons.",
       "L'offre fondatrice donne aux premières maisons des frais de plateforme réduits tant qu'elles gardent leur forfait. Elle ne réduit pas le coût de fonctionnement. Si une maison fondatrice annule avant son premier paiement, sa place passe à la maison suivante.",
       `Si nous augmentons un prix ou changeons la façon de le calculer, nous vous écrivons au moins ${CHANGE_NOTICE_DAYS} jours avant votre premier paiement au nouveau prix, et vous pouvez annuler avant sans rien payer de plus.`,
@@ -73,6 +80,7 @@ export const SECTIONS_FR = Object.freeze([
       `${OPERATOR_NAME} est responsable des renseignements que nous gardons sur vous. Notre responsable de la protection des renseignements personnels en répond, à ${PRIVACY_CONTACT}.`,
       "Nous gardons votre nom, votre adresse courriel, le nom de votre maison, votre forfait, vos réponses à l'inscription et tout design de boutique fait avant la création de votre boutique. Nous les utilisons pour faire fonctionner votre boutique, facturer votre forfait et vous écrire au sujet de votre compte.",
       "Les numéros de carte sont gardés par notre entreprise de paiement. Nous ne voyons que la marque de la carte, ses quatre derniers chiffres et sa date d'expiration.",
+      "Si vous reliez Google Agenda, nous utilisons cet accès seulement pour mettre vos réservations dans votre agenda. Vous pouvez le débrancher en tout temps depuis vos réglages.",
       "Nous gardons aussi une trace des connexions, des nouveaux appareils et de ce que notre équipe fait dans votre boutique, pour protéger les comptes.",
       "Nous utilisons vos renseignements parce que nous en avons besoin pour vous offrir le service choisi, parce que la loi nous oblige à garder certains documents, et pour protéger Colophon contre la fraude.",
       "Nous vous écrivons au sujet de votre compte, de votre forfait et de votre boutique. Pour le reste, comme les nouvelles de Colophon, seulement si vous le demandez, et chacun de ces courriels permet de les arrêter.",
@@ -80,7 +88,7 @@ export const SECTIONS_FR = Object.freeze([
       "Toutes les boutiques fonctionnent sur un seul système Colophon partagé, stocké au Canada. Les renseignements de chaque boutique sont derrière leur propre mur, qu'aucune autre maison ne peut franchir. Pour calculer le coût de fonctionnement de chaque boutique, nous comptons son usage (pages servies, fichiers stockés, tâches et courriels) à partir des relevés de notre fournisseur infonuagique, et rien de plus. Certaines des entreprises nommées plus bas travaillent aux États-Unis, dont les lois peuvent permettre aux autorités d'y accéder.",
       `Chaque copie de sauvegarde est gardée ${BACKUP_KEEP_DAYS} jours, puis supprimée. Si votre boutique est supprimée, ses sauvegardes sont gardées ${BACKUP_KEEP_DAYS} jours de plus, puis disparaissent aussi.`,
       "L'historique de ce qui s'est passé dans votre boutique est supprimé après deux ans. Les factures et documents fiscaux sont gardés au moins six ans, comme le demandent les lois fiscales.",
-      "Vous pouvez nous demander une copie de ce que nous détenons sur vous, ou nous demander de le corriger ou de le supprimer. Écrivez-nous depuis la page de votre compte; nous répondons dans les 30 jours.",
+      "Vous pouvez nous demander une copie de ce que nous détenons sur vous, ou nous demander de le corriger ou de le supprimer. Écrivez-nous depuis la page de votre compte; nous répondons dans les 30 jours. Ces droits sont les vôtres où que vous viviez, au Canada ou aux États-Unis.",
       `Pour toute question sur la vie privée, écrivez à ${PRIVACY_CONTACT}. Si nous ne pouvons pas régler la situation, vous pouvez porter plainte auprès du commissaire à la protection de la vie privée de chez vous; au Québec, la Commission d'accès à l'information.`,
     ],
   },
@@ -88,7 +96,7 @@ export const SECTIONS_FR = Object.freeze([
     id: "data",
     title: "Vos données et celles de vos clients",
     paragraphs: [
-      "Vos livres, commandes, clients et liste d'infolettre appartiennent à votre maison. Nous les gardons pour vous et ne les utilisons que pour faire fonctionner votre boutique. Vous pouvez tout télécharger en tout temps depuis Réglages, sous Télécharger votre boutique.",
+      "Vos produits, services, commandes, réservations, clients et liste d'infolettre appartiennent à votre maison. Nous les gardons pour vous et ne les utilisons que pour faire fonctionner votre boutique. Vous pouvez tout télécharger en tout temps depuis Réglages, sous Télécharger votre boutique.",
       "Quand un client achète chez vous, votre maison décide de ce qui est gardé sur lui. Nous le gardons en votre nom et suivons vos instructions, données par vos réglages et vos demandes.",
       "Si une loi nous obligeait un jour à faire autre chose de ces données, nous vous le dirions d'abord, sauf si cette loi l'interdit.",
       "Toutes les personnes de notre équipe qui peuvent voir vos données se sont engagées à les garder confidentielles. Notre équipe n'entre dans votre boutique que si vous demandez de l'aide, et seulement le temps nécessaire. Chaque visite est consignée.",
@@ -122,7 +130,7 @@ export const SECTIONS_FR = Object.freeze([
     title: "Si Colophon ferme un jour",
     paragraphs: [
       `Nous vous préviendrons au moins ${SHUTDOWN_NOTICE_DAYS} jours avant l'arrêt de Colophon, par courriel et sur la page de votre compte. Votre boutique continue de fonctionner pendant ces ${SHUTDOWN_NOTICE_DAYS} jours.`,
-      "Vous pouvez télécharger toute votre boutique en tout temps depuis Réglages, avec ses livres, commandes, clients, images et réglages, y compris pendant ces jours.",
+      "Vous pouvez télécharger toute votre boutique en tout temps depuis Réglages, avec ses produits, commandes, réservations, clients, images et réglages, y compris pendant ces jours.",
       "Les données de votre boutique sont gardées à part de celles de toutes les autres maisons. Si vous voulez la garder en marche, nous faisons une copie complète des données et fichiers de votre boutique et remettons cette copie à votre maison, avec ses livres, commandes, clients et réglages, sans frais.",
       `Il en va de même si vous nous quittez : pendant les ${DOWNLOAD_DAYS} jours qui suivent la fermeture de votre boutique, vous gardez vos fichiers et pouvez demander votre propre copie.`,
     ],

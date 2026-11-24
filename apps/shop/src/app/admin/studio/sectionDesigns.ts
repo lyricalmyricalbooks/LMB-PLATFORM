@@ -24,7 +24,7 @@ const KIND_OF: Record<string, SectionKind> = {
   ProductGridHeaderSection: "products", ProductShowcaseGridSection: "products", ProductCoverCarouselSection: "products",
   FeaturedProductSection: "products", FeaturedCollectionSection: "products", BookSpotlightSection: "products",
   CollectionListSection: "products", StaffNotesTableSection: "products", PricingTableSection: "products", StickyAddToBagSection: "products",
-  PageContentSection: "words", TextContentSection: "words", RichTextSection: "words", ImageWithTextSection: "words", SplitOpeningSection: "opening",
+  PageContentSection: "words", TextContentSection: "words", RichTextSection: "words", ImageWithTextSection: "words", SplitOpeningSection: "opening", PhotoOpeningSection: "opening", BigIntroSection: "words", FeatureDuoSection: "words", StoryOrbitSection: "words",
   MulticolumnSection: "words", FeatureGridSection: "words", FAQSection: "words", CollapsibleSection: "words", BlogPostsSection: "words",
   GallerySection: "pictures", ImageCollageSection: "pictures", VideoSection: "pictures", MapSection: "pictures",
   TestimonialsSection: "trust", PraiseQuotesSection: "trust", ClientReviewsSection: "trust", LogoListSection: "trust", StatsCounterSection: "trust",

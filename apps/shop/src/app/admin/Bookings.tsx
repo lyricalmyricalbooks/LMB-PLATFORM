@@ -16,10 +16,11 @@ import {
 import { ClientFormFacts } from "./clientForm";
 import { bookingsAdmin, followBookings, followRequests, readBookingSetup, readBookingsBetween, type Booking, type PackRow, type Waiting } from "./bookingsApi";
 import { ShiftsPanel } from "./ShiftsPanel";
+import { RotaPanel } from "./RotaPanel";
 import type { ShiftRow } from "./shifts";
 import { hoursText } from "../../shared/timeClock";
 import { answerWithin, requestsWaiting, expandParts, packLeftText, packList, packState, bookingFigures, bookingList, LIST_AHEAD_DAYS, LIST_BACK_DAYS, listRange, listTag, type ListMode, lastMonths, monthText, moneyShort, teamPay, teamPayRows, CLOCK_ONLY, type PayLine, bookingShareLink, bookButtonHtml, bookButtonScript, bookingPosterHtml, bookedThrough, SOCIAL_PLACES, type BookingFigures, byDay, cardText, classCount, dayList, dayListRows, heldPlaces, placeHolds, waitingByDay, waitingText, dayText, hoursLine, specialHoursLine, teamDay, hourLabel, moneyText, nextUp, paymentText, timeText, weekDays, WEEKDAYS, weekFigures, weekGrid, tappedTime, draggedTo, draggable, DRAG_SLOP_PX, blockedBands, blockHours, blockWhen, processingBand, processingText, type BlockedBand, type WeekBlock, type HeldPlace, weekStartOf, weekText, whenFromNow } from "./bookingsView";
-import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
+import { addDays, zonedTime, DAILY_CAPS, hoursOnDay, specialOn, MAX_SPECIAL_HOURS, MAX_SPECIAL_DAYS, type SpecialHours, balanceDue, BOOKING_STEPS, cardAsk, cardTaken, dayOf, depositOf, feeChargeable, restPayable, MAX_FREE_LATE_FEE, REMINDER_HOURS, SECOND_REMINDER_HOURS, WAIT_HOLD_MINUTES, PICKUP_SLOT_MINUTES, MAX_PICKUP_PER_SLOT, cleanTipPercents, commissionOf, cleanCommissionSteps, MAX_COMMISSION_STEPS, commissionStepsText, reviewLink, tipTaken, offersPack, MAX_PACK_VISITS, MAX_PACK_DAYS, DEFAULT_BOOKING_SETTINGS, MAX_CLASS_TIMES, MAX_COURSE_DATES, MAX_PLACES, DECIDE_HOURS, MAX_QUESTIONS, MAX_STAFF, MAX_ROOMS, ROOM_UNIT_CHOICES, roomUnitsText, staffFor, booksByPerson, runsOnline, MAX_RUN_VISITS, MAX_RUN_WEEKS, MAX_RUN_DAYS, MAX_EXTRAS, MAX_EXTRA_MINUTES, MAX_LENGTHS, MAX_GROUP_LENGTH, groupServices, lengthName, withLength, withExtras, forPerson, processingStretch, visitName, visitPlan, type BookingExtra, type BookingService, type BookingSettings, type HoursWindow, type StaffMember, type PersonRate, type BookingRoom, type IntakeForm, type TimeBlock, MAX_FORM_TEXT, MAX_FORMS, FORM_RENEW_CHOICES, MAX_BIO_LENGTH, type TeamShown, approvalAllowed, APPROVAL_HOURS, cleanAreas, confirmState } from "../../shared/bookingTimes";
 import { shopTimeZone } from "../../shared/shopTimeZone";
 import { MONEY_SIGN, SHOP_CURRENCY } from "./moneySign";
 import { paysOnSquare } from "../../lib/shopProfile";
@@ -32,7 +33,7 @@ import { PhotoField } from "./PhotoField";
 import { ServiceImportDialog } from "./ServiceImportDialog";
 import "./bookings.css";
 
-type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures" | "pay";
+type Tab = "calendar" | "services" | "packs" | "team" | "hours" | "figures" | "pay" | "rota";
 type CalendarView = "week" | "day" | "list";
 const VIEW_KEY = "colophon.bookings.view";
 const ZONE = shopTimeZone();
@@ -173,7 +174,7 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
         tabs={[{ id: "calendar", label: "Calendar" }, { id: "services", label: "Services", count: setup.services.length },
           ...(sellsPacks ? [{ id: "packs" as const, label: "Packs" }] : []),
           { id: "team", label: "Team & rooms", ...(setup.settings.staff.length ? { count: setup.settings.staff.filter((p) => p.active).length } : {}) }, { id: "hours", label: "Hours & rules" }, { id: "figures", label: "Figures" },
-          ...(setup.settings.staff.length ? [{ id: "pay" as const, label: "Team pay" }] : [])]} />
+          ...(setup.settings.staff.length ? [{ id: "rota" as const, label: "Shifts & time off" }, { id: "pay" as const, label: "Team pay" }] : [])]} />
 
       <TabPanel tabId="calendar" active={tab === "calendar"}>
         {noServices ? (
@@ -205,6 +206,11 @@ export function Bookings({ shopName = "" }: { shopName?: string } = {}) {
       <TabPanel tabId="figures" active={tab === "figures"}>
         {tab === "figures" && <FiguresPanel />}
       </TabPanel>
+      {setup.settings.staff.length > 0 && (
+        <TabPanel tabId="rota" active={tab === "rota"}>
+          {tab === "rota" && <RotaPanel today={today()} onSettingsChanged={reloadSetup} />}
+        </TabPanel>
+      )}
       {setup.settings.staff.length > 0 && (
         <TabPanel tabId="pay" active={tab === "pay"}>
           {tab === "pay" && <PayPanel staff={setup.settings.staff} onEditTeam={() => setTab("team")} />}
@@ -1262,7 +1268,7 @@ function PayPanel({ staff, onEditTeam }: { staff: StaffMember[]; onEditTeam: () 
     { key: "name", header: "Person", lead: true, render: (l: PayLine) => <span className={l.id ? undefined : "bkg-pay-nobody"}>{l.name}</span> },
     { key: "visits", header: "Visits", numeric: true, render: (l: PayLine) => l.visits },
     { key: "taken", header: "Taken before tax", numeric: true, render: (l: PayLine) => money(l.takenMinor) },
-    { key: "percent", header: "Commission", numeric: true, render: (l: PayLine) => (l.id && !l.id.startsWith(CLOCK_ONLY) ? (l.percent ? <>{money(l.commissionMinor)} <span className="bkg-pay-pct">at {l.percent}%</span></> : <span className="bkg-pay-pct">No share set</span>) : "") },
+    { key: "percent", header: "Commission", numeric: true, render: (l: PayLine) => (l.id && !l.id.startsWith(CLOCK_ONLY) ? (l.percent ? <span className="bkg-pay-cell">{money(l.commissionMinor)}<span className="bkg-pay-pct">at {l.percent}%{l.steps.map((x) => `, then ${x.percent}% over ${money(x.overMinor)}`).join("")}</span></span> : <span className="bkg-pay-pct">No share set</span>) : "") },
     { key: "tips", header: "Tips", numeric: true, render: (l: PayLine) => money(l.tipsMinor) },
     ...(clocked ? [{ key: "hours", header: "Hours", numeric: true, render: (l: PayLine) => (l.id ? <>{hoursText(l.minutes)}{l.hourlyMinor ? <span className="bkg-pay-pct"> at {money(l.hourlyMinor)}/h</span> : null}</> : "") }] : []),
     { key: "total", header: "To pay them", numeric: true, render: (l: PayLine) => (l.id ? <strong>{money(l.commissionMinor + l.tipsMinor + l.wagesMinor)}</strong> : "") },
@@ -3135,22 +3141,26 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
   // Their commission share as typed (blank = none): shown on Team pay, never paid from the shop.
   const [share, setShare] = useState(person.commissionPercent ? String(person.commissionPercent) : "");
   const shareProblem = share.trim() && (!commissionOf(share) || Number(share) > 100) ? "A share from 0.5 to 100, like 40." : "";
+  // A higher share over an amount a month (plan 4, 4.4), as typed: rows of "over" (in the shop's money) and "percent".
+  const [steps, setSteps] = useState<{ over: string; percent: string }[]>((person.commissionSteps || []).map((x) => ({ over: String(x.overMinor / 100), percent: String(x.percent) })));
+  const stepsClean = cleanCommissionSteps(steps.map((x) => ({ overMinor: Math.round(Number(x.over) * 100), percent: Number(x.percent) })));
+  const stepsProblem = steps.length && stepsClean.length !== steps.length ? "Each step needs a bigger amount than the one before and a share from 0.5 to 100." : "";
   // Their hourly rate as typed (plan 4, 4.2; blank = none): Team pay multiplies their hours on the clock by it.
   const [hourly, setHourly] = useState(person.hourlyMinor ? (person.hourlyMinor / 100).toFixed(2) : "");
   const hourlyProblem = hourly.trim() && !(Number(hourly) > 0 && Number(hourly) <= 1000) ? "An amount an hour, like 22.50." : "";
   const save = async () => {
     setSaving(true);
     try {
-      const { commissionPercent: _old, hourlyMinor: _oldHourly, ...rest } = form;
+      const { commissionPercent: _old, hourlyMinor: _oldHourly, commissionSteps: _oldSteps, ...rest } = form;
       const percent = commissionOf(share);
       const hourlyMinor = hourly.trim() ? Math.round(Number(hourly) * 100) : 0;
-      await onSave({ ...rest, name: form.name.trim(), rates: rates(), ...(percent ? { commissionPercent: percent } : {}), ...(hourlyMinor > 0 ? { hourlyMinor } : {}) });
+      await onSave({ ...rest, name: form.name.trim(), rates: rates(), ...(percent ? { commissionPercent: percent, ...(stepsClean.length ? { commissionSteps: stepsClean } : {}) } : {}), ...(hourlyMinor > 0 ? { hourlyMinor } : {}) });
     } finally { setSaving(false); }
   };
   return (
     <Dialog open onClose={onClose} title={person.id ? `Edit ${person.name}` : "Add a person"}
       footerStart={onRemove ? <DestructiveButton onClick={() => void onRemove()} disabled={saving}>Remove</DestructiveButton> : undefined}
-      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving} disabled={!form.name.trim() || (!!form.email && !EMAIL_SHAPE.test(form.email)) || !!shareProblem || !!hourlyProblem}>Save</PrimaryButton></>}>
+      footer={<><SecondaryButton onClick={onClose}>Cancel</SecondaryButton><PrimaryButton onClick={() => void save()} busy={saving} disabled={!form.name.trim() || (!!form.email && !EMAIL_SHAPE.test(form.email)) || !!shareProblem || !!hourlyProblem || !!stepsProblem}>Save</PrimaryButton></>}>
       <div className="bkg-form">
         <TextField label="Name" placeholder="Sam" hint="Clients see it when they book." value={form.name} maxLength={60} onChange={(e) => set("name", e.target.value)} />
         <Toggle label="Taking bookings" checked={form.active} onChange={(v) => set("active", v)} />
@@ -3192,6 +3202,24 @@ function PersonDialog({ person, services, onClose, onSave, onRemove }: {
           <TextField label="Commission (%)" type="number" inputMode="decimal" min={0.5} max={100} step={0.5} placeholder="40" className="bkg-share"
             value={share} onChange={(e) => setShare(e.target.value)} error={shareProblem || undefined}
             hint="Their share of what their bookings take before tax. Team pay adds it up with their tips each month. Leave empty for none." />
+          {commissionOf(share) > 0 && (
+            <div className="bkg-steps">
+              {steps.map((x, i) => (
+                <div className="bkg-step" key={i}>
+                  <TextField label={`Over (${MONEY_SIGN})`} type="number" inputMode="decimal" min={1} step={1} placeholder={i ? "6000" : "3000"} value={x.over}
+                    onChange={(e) => setSteps(steps.map((y, j) => (j === i ? { ...y, over: e.target.value } : y)))} />
+                  <TextField label="Share (%)" type="number" inputMode="decimal" min={0.5} max={100} step={0.5} placeholder={i ? "55" : "50"} value={x.percent}
+                    onChange={(e) => setSteps(steps.map((y, j) => (j === i ? { ...y, percent: e.target.value } : y)))} />
+                  <GhostButton icon={<Trash2 size={16} aria-hidden />} aria-label="Remove this step" onClick={() => setSteps(steps.filter((_, j) => j !== i))} />
+                </div>
+              ))}
+              {stepsProblem && <p className="bkg-shift-error" role="alert">{stepsProblem}</p>}
+              {steps.length < MAX_COMMISSION_STEPS && (
+                <GhostButton icon={<Plus size={16} aria-hidden />} onClick={() => setSteps([...steps, { over: "", percent: "" }])}>{steps.length ? "Add another step" : "Pay a higher share in a good month"}</GhostButton>
+              )}
+              {stepsClean.length > 0 && <p className="bkg-questions-hint">{commissionStepsText(commissionOf(share), stepsClean, MONEY_SIGN)} Each share is only on the part above its amount.</p>}
+            </div>
+          )}
           <TextField label={`Hourly rate (${MONEY_SIGN})`} type="number" inputMode="decimal" min={0.01} max={1000} step={0.01} placeholder="22.50" className="bkg-share"
             value={hourly} onChange={(e) => setHourly(e.target.value)} error={hourlyProblem || undefined}
             hint="For people paid by the hour. They clock in and out on their own sign-in, and Team pay adds up their hours. Leave empty for none." />

@@ -23,6 +23,7 @@ import { receiptInboxApi, type InboxView, type WaitingReceipt } from "../app/adm
 import { bankFeedApi, type BankLine, type BankView } from "../app/admin/stockroom/bankFeedApi";
 import { bookingsData, type Booking, type PackRow } from "../app/admin/bookingsApi";
 import { teamDeskData, type DeskClock } from "../app/admin/teamDeskApi";
+import { cleanRotaShift, cleanTimeOff, type RotaShift, type TimeOff } from "../shared/teamRota";
 import { cleanShift, clockState, clockStep, forgotten, shiftMinutes, type ClockStep, type Shift } from "../shared/timeClock";
 import { DEFAULT_BOOKING_SETTINGS, addDays, cleanBlocks, dayOf, zonedTime, type BookingService, type BookingSettings } from "../shared/bookingTimes";
 import { shopTimeZone } from "../shared/shopTimeZone";
@@ -545,7 +546,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     ...(TEAM ? {
       rooms: [{ id: "printroom", name: "Print room", units: 2 }, { id: "chair1", name: "Chair by the window" }],
       staff: [
-        { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "ana@example.com", commissionPercent: 40, photo: samplePhoto("#f4d9c6", "#c25d3b"), bio: "Ten years at the press. Ask her about paper." },
+        { id: "ana", name: "Ana Example", active: true, serviceIds: [], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "ana@example.com", commissionPercent: 40, commissionSteps: [{ overMinor: 300000, percent: 50 }], photo: samplePhoto("#f4d9c6", "#c25d3b"), bio: "Ten years at the press. Ask her about paper." },
         { id: "ben", name: "Ben Example", active: true, hourlyMinor: 2250, serviceIds: ["riso", "workshop"], ownHours: true, hours: [[], [{ start: "12:00", end: "18:00" }], [{ start: "12:00", end: "18:00" }], [], [{ start: "10:00", end: "14:00" }], [], []], daysOff: [], email: "" },
         { id: "cy", name: "Cy Example", active: false, serviceIds: ["review"], ownHours: false, hours: DEFAULT_BOOKING_SETTINGS.hours, daysOff: [], email: "" },
       ],
@@ -678,6 +679,19 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     return () => void watchers.delete(send);
   };
   bookingsData.range = async (from, to) => [...rows, ...history].filter((b) => b.start >= from && b.start < to);
+  // The rota (plan 4, 4.3): this week planned for Ben and Sam, Ana's day off approved, and two asks to answer.
+  const rotaMonday = (() => { const d = dayOf(Date.now(), shopTimeZone()); const wd = new Date(`${d}T12:00:00Z`).getUTCDay(); return addDays(d, wd === 0 ? -6 : 1 - wd); })();
+  const rotaPeople = [{ email: "ana@example.com", name: "Ana Example", staffId: "ana" }, { email: "ben@example.com", name: "Ben Example", staffId: "ben" }, { email: "sam@example.com", name: "Sam Example", staffId: "" }];
+  let rotaRows: (RotaShift & { id: string })[] = TEAM ? [
+    ...[1, 2, 4].map((i) => ({ id: `rb${i}`, email: "ben@example.com", name: "Ben Example", staffId: "ben", day: addDays(rotaMonday, i), start: "12:00", end: "18:00" })),
+    ...[0, 1, 2, 3, 4].map((i) => ({ id: `rs${i}`, email: "sam@example.com", name: "Sam Example", day: addDays(rotaMonday, i), start: "09:00", end: i === 4 ? "13:00" : "17:00", ...(i === 0 ? { note: "Opening" } : {}) })),
+    ...[0, 1, 3].map((i) => ({ id: `ra${i}`, email: "ana@example.com", name: "Ana Example", staffId: "ana", day: addDays(rotaMonday, i), start: "10:00", end: "16:00" })),
+  ] : [];
+  let offRows: (TimeOff & { id: string; clashes?: number })[] = TEAM ? [
+    { id: "t1", email: "ana@example.com", name: "Ana Example", staffId: "ana", from: addDays(rotaMonday, 4), to: addDays(rotaMonday, 4), status: "approved", answer: "Enjoy!" },
+    { id: "t2", email: "ben@example.com", name: "Ben Example", staffId: "ben", from: addDays(rotaMonday, 9), to: addDays(rotaMonday, 11), note: "Visiting my sister", status: "waiting", clashes: 2 },
+    { id: "t3", email: "sam@example.com", name: "Sam Example", from: addDays(rotaMonday, 8), to: addDays(rotaMonday, 8), start: "14:00", end: "17:00", note: "Dentist", status: "waiting", clashes: 0 },
+  ] : [];
   // Shifts on the clock (plan 4, 4.2): Ben's month so far, Sam on the front desk, and one clock-out Ana forgot.
   const shiftAt = (days: number, hour: number, minute = 0) => at(-days, hour, minute);
   let shiftRows: (Shift & { id: string })[] = TEAM ? [
@@ -711,6 +725,23 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       return { ok: true };
     }
     if (op === "removeShift") { shiftRows = shiftRows.filter((x) => x.id !== id); return { ok: true }; }
+    // Shifts and time off (plan 4, 4.3): a planned week and two asks waiting.
+    if (op === "rota") return { shifts: rotaRows.filter((x) => x.day >= String(body.from) && x.day <= String(body.to)), timeOff: offRows.filter((t) => t.status === "approved"), people: rotaPeople };
+    if (op === "saveRota") {
+      const made = cleanRotaShift(body.shift);
+      if ("error" in made) throw new Error(made.error);
+      const rid = String((body.shift as { id?: string }).id || `r${Date.now().toString(36)}`);
+      rotaRows = [...rotaRows.filter((x) => x.id !== rid), { ...made.shift, id: rid }];
+      return { ok: true };
+    }
+    if (op === "removeRota") { rotaRows = rotaRows.filter((x) => x.id !== id); return { ok: true }; }
+    if (op === "copyRota") {
+      const moved = rotaRows.filter((x) => x.day >= String(body.from) && x.day <= addDays(String(body.from), 6)).map((x) => ({ ...x, id: `r${Math.random().toString(36).slice(2, 9)}`, day: addDays(x.day, 7) }));
+      rotaRows = [...rotaRows, ...moved];
+      return { copied: moved.length };
+    }
+    if (op === "timeOff") return { timeOff: [...offRows].reverse() };
+    if (op === "answerTimeOff") { offRows = offRows.map((t) => (t.id === id ? { ...t, status: body.yes ? "approved" : "declined", answer: String(body.answer || "") || undefined } : t)); return { ok: true }; }
     if (op === "cancel") rows = rows.map((b) => (b.id === id ? { ...b, status: "cancelled", ...(b.pack && body.packBack !== false ? { pack: { ...b.pack, returned: true } } : {}) } : b));
     if (op === "waitlist") return { waiting: waiting.filter((w) => w.day >= String(body.from) && w.day <= String(body.to)) };
     if (op === "packs") return { packs: packRows };
@@ -830,8 +861,17 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     : { email: "sam@example.com", name: "Sam Example", day: dayOf(Date.now(), shopTimeZone()), in: new Date(Date.now() - 140 * 60_000).toISOString(), out: null, breaks: [{ start: new Date(Date.now() - 12 * 60_000).toISOString(), end: null }] };
   const deskClock = () => ({ ...clockState(deskShift), minutes: deskShift ? shiftMinutes(deskShift, Date.now()) : 0 }) as DeskClock;
   const deskDay = teamDeskData.day;
-  teamDeskData.day = async (day) => ({ ...(await deskDay(day)), clock: deskClock() });
+  teamDeskData.day = async (day) => ({ ...(await deskDay(day)), clock: deskClock(),
+    rota: rotaRows.filter((x) => x.email === (deskRole === "provider" ? "ben@example.com" : "sam@example.com") && x.day >= dayOf(Date.now(), shopTimeZone())).sort((a, b) => a.day.localeCompare(b.day)),
+    timeOff: offRows.filter((t) => t.email === (deskRole === "provider" ? "ben@example.com" : "sam@example.com")) });
   teamDeskData.act = async (op, body) => {
+    if (op === "askTimeOff") {
+      const made = cleanTimeOff({ ...(body.ask as object), email: "sam@example.com", name: "Sam Example" }, dayOf(Date.now(), shopTimeZone()));
+      if ("error" in made) throw new Error(made.error);
+      offRows = [...offRows, { ...made.ask, id: `t${Date.now().toString(36)}` }];
+      return { ok: true };
+    }
+    if (op === "withdrawTimeOff") { offRows = offRows.map((t) => (t.id === body.id ? { ...t, status: "withdrawn" } : t)); return { ok: true }; }
     if (op !== "clock") return bookingsData.admin(op as never, body);
     const next = clockStep(deskShift, body.step as ClockStep, new Date().toISOString(), { email: "sam@example.com", name: "Sam Example", day: dayOf(Date.now(), shopTimeZone()) });
     if ("error" in next) throw new Error(next.error);

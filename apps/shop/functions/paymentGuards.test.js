@@ -43,6 +43,8 @@ test('only live, published books (as an edition when they have editions) can be 
   // Coming soon books are shown but never sold, whatever the browser sends.
   expect(purchaseProblem({ status: 'published', comingSoon: true }, null, now)).toBe('unavailable');
   expect(purchaseProblem({ status: 'published', comingSoon: true, variants: [{ id: 'pb' }] }, 'pb', now)).toBe('unavailable');
+  // Example products fill a new shop and are never sold.
+  expect(purchaseProblem({ status: 'published', isExample: true }, null, now)).toBe('unavailable');
   expect(purchaseProblem({ status: 'published', comingSoon: false }, null, now)).toBeNull();
 });
 

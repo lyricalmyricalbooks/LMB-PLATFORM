@@ -77,6 +77,7 @@ const {
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
 const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
+const { cleanRotaShift, cleanTimeOff, daysBetween, timeOffWhen, MAX_ROTA_WEEK, MAX_NOTE } = require("./shared/teamRota");
 const { emailWords, textWords, fillMessage, messageLanguage } = require("./shared/bookingMessages");
 const { shopLanguage } = require("./emailFrench");
 const { bookingDiscountMinor, tooSmallForCard, BookingCodeProblem } = require("./bookingDiscount");
@@ -418,6 +419,10 @@ function bookingActions({
   // Clock in and out (plan 4, 4.2): timeClock/{id} { email, name, staffId?, day, in, out | null, breaks[], open, by,
   // updatedAt }. Written only here; `open` is true while the person is on the clock (at most one each).
   const shifts = () => db.collection("timeClock");
+  // Shifts and time off (plan 4, 4.3): rota/{id} { email, name, staffId?, day, start, end, note? } planned by the owner;
+  // timeOff/{id} { email, name, staffId?, from, to, start?, end?, note?, status, answer?, createdAt, answeredAt? }.
+  const rota = () => db.collection("rota");
+  const timeOffs = () => db.collection("timeOff");
 
   // On when the platform turned Bookings on for the shop, or when the shop sells Classes (a way to sell, both of its
   // switches on): classes run on this same engine, so they bring its hours, team, rooms and Book a time page with them.
@@ -3018,6 +3023,95 @@ function bookingActions({
         await shifts().doc(id).delete();
         return res.status(200).json({ ok: true });
       }
+      // The rota (plan 4, 4.3): planned shifts for a stretch of days, and who can be on it.
+      if (op === "rota") {
+        const from = String(req.body?.from || ""), to = String(req.body?.to || "");
+        if (!isDay(from) || !isDay(to) || to < from || daysBetween(from, to).length > 42) return fail(res, 400, "Pick the days.");
+        const snap = await rota().where("day", ">=", from).where("day", "<=", to).limit(MAX_ROTA_WEEK * 6).get();
+        const asks = await timeOffs().where("to", ">=", from).limit(500).get();
+        return res.status(200).json({
+          shifts: snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.day.localeCompare(b.day) || a.start.localeCompare(b.start)),
+          timeOff: asks.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => t.status === "approved" && t.from <= to),
+          people: await rotaPeople(settings),
+        });
+      }
+      if (op === "saveRota") {
+        const made = cleanRotaShift(req.body?.shift);
+        if ("error" in made) return fail(res, 400, made.error);
+        const id = req.body?.shift?.id ? String(req.body.shift.id) : `r${crypto.randomBytes(8).toString("hex")}`;
+        if (!ID.test(id)) return fail(res, 400, "Unknown shift.");
+        await rota().doc(id).set({ ...made.shift, updatedAt: now().toISOString(), updatedBy: by });
+        return res.status(200).json({ ok: true, shift: { id, ...made.shift } });
+      }
+      if (op === "removeRota") {
+        const id = String(req.body?.id || "");
+        if (!ID.test(id)) return fail(res, 400, "Unknown shift.");
+        await rota().doc(id).delete();
+        return res.status(200).json({ ok: true });
+      }
+      // Copy one week's plan onto another (each shift moved by whole weeks); a shift already there isn't doubled.
+      if (op === "copyRota") {
+        const from = String(req.body?.from || ""), to = String(req.body?.to || "");
+        if (!isDay(from) || !isDay(to) || from === to) return fail(res, 400, "Pick the weeks.");
+        const shift = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+        if (shift % 7 !== 0) return fail(res, 400, "Pick the weeks.");
+        const src = await rota().where("day", ">=", from).where("day", "<=", addDays(from, 6)).limit(MAX_ROTA_WEEK).get();
+        const there = await rota().where("day", ">=", to).where("day", "<=", addDays(to, 6)).limit(MAX_ROTA_WEEK).get();
+        const key = (x) => `${x.email}|${x.day}|${x.start}|${x.end}`;
+        const have = new Set(there.docs.map((d) => key(d.data())));
+        let copied = 0;
+        for (const d of src.docs) {
+          const x = d.data();
+          const next = { ...x, day: addDays(x.day, shift), updatedAt: now().toISOString(), updatedBy: by };
+          if (have.has(key(next))) continue;
+          await rota().doc(`r${crypto.randomBytes(8).toString("hex")}`).set(next);
+          copied++;
+        }
+        return res.status(200).json({ ok: true, copied });
+      }
+      // Time off (plan 4, 4.3): the asks, newest first, with how many bookings each waiting one would clash with.
+      if (op === "timeOff") {
+        const snap = await timeOffs().orderBy("createdAt").limit(500).get();
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse().slice(0, 100);
+        for (const t of list) if (t.status === "waiting") t.clashes = (await clashesFor(t)).length;
+        return res.status(200).json({ timeOff: list });
+      }
+      if (op === "answerTimeOff") {
+        const id = String(req.body?.id || "");
+        if (!ID.test(id)) return fail(res, 400, "Unknown request.");
+        const yes = req.body?.yes === true;
+        const answer = typeof req.body?.answer === "string" ? req.body.answer.replace(/\s+/g, " ").trim().slice(0, MAX_NOTE) : "";
+        const result = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(timeOffs().doc(id));
+          if (!snap.exists) return { error: "This request was removed." };
+          const t = snap.data();
+          if (t.status !== "waiting") return { error: "This request was already answered." };
+          // Approved for someone on Team & rooms: their days off or blocked time, so clients can't book them.
+          let applied = "";
+          const set = await tx.get(settingsRef());
+          const stored = cleanBookingSettings(set.exists ? set.data() : null);
+          const person = (stored.staff || []).find((p) => (t.staffId && p.id === t.staffId) || (p.email && p.email.toLowerCase() === t.email));
+          if (yes && person) {
+            if (t.start && t.end) {
+              const blocks = cleanBlocks(stored.blocks, dayOf(now().getTime(), zone()));
+              if (blocks.length >= MAX_BLOCKS) return { error: `You can keep up to ${MAX_BLOCKS} blocks. Remove an old one first.` };
+              const [made] = cleanBlocks([{ id: `b${crypto.randomBytes(6).toString("hex")}`, title: "Time off", staffId: person.id, day: t.from, start: t.start, end: t.end, weekly: false, until: "" }]);
+              tx.set(settingsRef(), { blocks: [...blocks, made], updatedAt: now().toISOString(), updatedBy: by }, { merge: true });
+              applied = "block";
+            } else {
+              const staff = stored.staff.map((p) => (p.id === person.id ? { ...p, daysOff: [...new Set([...(p.daysOff || []), ...daysBetween(t.from, t.to)])].sort() } : p));
+              tx.set(settingsRef(), { staff, updatedAt: now().toISOString(), updatedBy: by }, { merge: true });
+              applied = "daysOff";
+            }
+          }
+          const next = { ...t, status: yes ? "approved" : "declined", ...(answer ? { answer } : {}), answeredAt: now().toISOString(), answeredBy: by, ...(applied ? { applied } : {}) };
+          tx.set(timeOffs().doc(id), next);
+          return { t: next };
+        });
+        if (result.error) return fail(res, 409, result.error);
+        await tellTimeOff(result.t);
+        return res.status(200).json({ ok: true, timeOff: { id, ...result.t } });
+      }
       if (op === "addBlock" || op === "removeBlock") {
         // Block time on the calendar (plan 4, 1.3): lunch, a dentist visit, a weekly meeting. Clients can't book it; the
         // owner still can. Read and written in one go, so two tabs adding blocks never lose one.
@@ -4230,6 +4324,75 @@ function bookingActions({
     return { id, ...rest, card: card ? { brand: card.brand || "", last4: card.last4 || "" } : null };
   };
 
+  /** Who can be on the rota: people on Team & rooms with a sign-in email, and Front desk and Service provider members. */
+  async function rotaPeople(settings) {
+    const out = new Map();
+    for (const p of settings.staff || []) {
+      const email = String(p.email || "").trim().toLowerCase();
+      if (email && p.active !== false) out.set(email, { email, name: p.name, staffId: p.id });
+    }
+    const members = await db.collection("members").limit(300).get();
+    for (const d of members.docs) {
+      const m = d.data() || {};
+      if (!["frontDesk", "provider"].includes(m.role) || out.has(d.id)) continue;
+      out.set(d.id, { email: d.id, name: String(m.name || "").trim() || nameFromEmail(d.id), staffId: "" });
+    }
+    return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  /** The bookings a time off ask would leave without their person: confirmed or waiting visits they take then. */
+  async function clashesFor(t) {
+    if (!t.staffId) return [];
+    const from = new Date(zonedTime(t.from, t.start || "00:00", zone())).toISOString();
+    const to = new Date(t.end ? zonedTime(t.from, t.end, zone()) : zonedTime(addDays(t.to, 1), "00:00", zone())).toISOString();
+    const snap = await bookings().where("start", ">=", new Date(Date.parse(from) - 12 * 3_600_000).toISOString()).where("start", "<", to).orderBy("start").limit(300).get();
+    return snap.docs.map((d) => d.data()).filter((b) => ["confirmed", "requested"].includes(b.status) && b.end > from && takes(b, t.staffId));
+  }
+  /** The desk person's own planned shifts for the next two weeks and their time off asks from the last month on. */
+  async function myRotaAndTimeOff(email) {
+    if (!email) return { rota: [], timeOff: [] };
+    const today = dayOf(now().getTime(), zone());
+    const mine = await rota().where("email", "==", email).limit(400).get();
+    const asks = await timeOffs().where("email", "==", email).limit(200).get();
+    return {
+      rota: mine.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.day >= today && x.day <= addDays(today, 13)).sort((a, b) => a.day.localeCompare(b.day) || a.start.localeCompare(b.start)).map(({ updatedBy: _u, ...x }) => x),
+      timeOff: asks.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => t.to >= addDays(today, -30)).sort((a, b) => b.from.localeCompare(a.from)).map(({ answeredBy: _a, ...t }) => t),
+    };
+  }
+  /** The owner hears of a new time off ask. Never throws. */
+  async function tellOwnerTimeOff(t) {
+    try {
+      const to = ownerEmail();
+      if (!to) return;
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const html = risoLayout(`
+        <h4 style="margin:0 0 8px;">Time off to answer</h4>
+        <h2 style="margin:0 0 12px;">${escapeHtml(t.name)} asked for ${escapeHtml(timeOffWhen(t))}</h2>
+        ${t.note ? `<p style="margin:0 0 16px;">“${escapeHtml(t.note)}”</p>` : ""}
+        ${risoButton(escapeHtml(siteLink("/admin#bookings")), "Approve or decline", brand.accent, brand.theme)}
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to, subject: `${t.name} asked for time off`, html });
+    } catch (err) {
+      console.error("bookings: time off email to the owner failed:", err?.message || err);
+    }
+  }
+  /** The person hears the owner's answer. Never throws. */
+  async function tellTimeOff(t) {
+    try {
+      const brand = await emailBrand();
+      const shop = brand.shopName || shopName() || "the shop";
+      const yes = t.status === "approved";
+      const html = risoLayout(`
+        <h4 style="margin:0 0 8px;">Your time off</h4>
+        <h2 style="margin:0 0 12px;">${yes ? "Approved" : "Not this time"}: ${escapeHtml(timeOffWhen(t))}</h2>
+        ${t.answer ? `<p style="margin:0 0 16px;">“${escapeHtml(t.answer)}”</p>` : ""}
+        <p style="margin:0 0 16px;">${yes ? "Enjoy it. Clients can't book you then." : `Talk to ${escapeHtml(shop)} if you'd like to ask for other days.`}</p>
+      `, { logoUrl: brand.logoUrl || "", accent: brand.accent || "", theme: brand.theme || "light", shopName: shop });
+      await sendEmail({ to: t.email, subject: yes ? "Your time off is approved" : "About your time off", html });
+    } catch (err) {
+      console.error("bookings: time off answer email failed:", err?.message || err);
+    }
+  }
   /** A name for someone on the desk with no Team & rooms entry: the part of their email before the @. */
   const nameFromEmail = (email) => String(email).split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 80);
   /** The person's open shift, or null. */
@@ -4279,6 +4442,33 @@ function bookingActions({
         if (done.error) return fail(res, 409, done.error, done.code);
         return res.status(200).json({ ok: true, clock: clockView(done.shift.out ? null : done.shift) });
       }
+      // Time off (plan 4, 4.3): anyone on the desk asks for days off or part of a day, and can withdraw a waiting ask.
+      if (op === "askTimeOff") {
+        if (role === "admin") return fail(res, 403, "Plan your own time off with blocked time on the calendar.", "desk_only");
+        const made = cleanTimeOff({ ...(req.body?.ask || {}), email, name: me?.name || nameFromEmail(email), staffId: me?.id || "" }, dayOf(now().getTime(), zone()));
+        if ("error" in made) return fail(res, 400, made.error);
+        const open = await timeOffs().where("email", "==", email).where("status", "==", "waiting").limit(21).get();
+        if (open.docs.length >= 20) return fail(res, 409, "You have 20 requests waiting. Ask the owner to answer some first.", "too_many");
+        const id = `t${crypto.randomBytes(8).toString("hex")}`;
+        const ask = { ...made.ask, createdAt: now().toISOString() };
+        await timeOffs().doc(id).set(ask);
+        await tellOwnerTimeOff(ask);
+        return res.status(200).json({ ok: true, timeOff: { id, ...ask } });
+      }
+      if (op === "withdrawTimeOff") {
+        if (role === "admin") return fail(res, 403, "Answer it in Bookings instead.", "desk_only");
+        const id = String(req.body?.id || "");
+        if (!ID.test(id)) return fail(res, 400, "Unknown request.");
+        const done = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(timeOffs().doc(id));
+          if (!snap.exists || snap.data().email !== email) return { error: "This request isn't one of yours.", code: "not_yours" };
+          if (snap.data().status !== "waiting") return { error: "The owner already answered this one. Ask them to change it.", code: "answered" };
+          tx.set(timeOffs().doc(id), { ...snap.data(), status: "withdrawn", answeredAt: now().toISOString() });
+          return { ok: true };
+        });
+        if (done.error) return fail(res, done.code === "not_yours" ? 404 : 409, done.error, done.code);
+        return res.status(200).json({ ok: true });
+      }
       if (op === "desk") {
         const day = isDay(String(req.body?.day || "")) ? req.body.day : dayOf(now().getTime(), zone());
         const days = Math.min(7, Math.max(1, Math.round(Number(req.body?.days) || 1)));
@@ -4297,6 +4487,7 @@ function bookingActions({
           services: role === "provider" ? [] : svc.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, minutes: x.minutes, places: x.places || 1 })),
           bookings: list,
           clock: role === "admin" ? null : clockView(await openShiftOf(email)),
+          ...(role === "admin" ? {} : await myRotaAndTimeOff(email)),
         });
       }
       if (role === "admin") return runAdmin(req, res, by);

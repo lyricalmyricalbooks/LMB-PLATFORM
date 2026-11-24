@@ -13,9 +13,9 @@ import { DOWNLOAD_DAYS as CLOSING_DOWNLOAD_DAYS, PAUSED_DAYS as CLOSING_PAUSED_D
 // version's line (never change an old one) so a stored acceptance always names the words the press saw.
 const FINGERPRINTS = { "2026-10-28-draft": "646ebc6599507d9f", "2026-10-28-draft.2": "55b1600cfb4bed2d", "2026-11-03-draft": "d24470c450ff75b7", "2026-11-03-draft.2": "7bb1fcbcadafff47",
   "2026-11-03-draft.3": "04dcb865d6843efc", "2026-11-10-draft": "1ce24128fb9616a5", "2026-11-10-draft.2": "493114853d48e35a", "2026-11-10-draft.3": "cc73b9bb17e01e02",
-  "2026-11-10-draft.4": "274b05d1325f8052", "2026-11-10-draft.5": "e970c3a93440e3bd", "2026-11-12": "b3fe1f3d879ce01e", "2026-11-12.2": "470137bb7048ee0c" };
+  "2026-11-10-draft.4": "274b05d1325f8052", "2026-11-10-draft.5": "e970c3a93440e3bd", "2026-11-12": "b3fe1f3d879ce01e", "2026-11-12.2": "470137bb7048ee0c", "2026-11-24": "727db23f97bb4cc2" };
 // The French words (termsFr.js), from the version that first had them. Same rule: new words, new version.
-const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d", "2026-11-10-draft": "af16ec68088f677e", "2026-11-10-draft.2": "fa32499e0449ddc2", "2026-11-10-draft.3": "c9a414ff8210f469", "2026-11-10-draft.4": "77f60696305326f6", "2026-11-10-draft.5": "068f6bef1ff56db4", "2026-11-12": "da29380ebc636e7d", "2026-11-12.2": "10d52f119dddc31f" };
+const FINGERPRINTS_FR = { "2026-11-03-draft.2": "4744335b4ee3a2ca", "2026-11-03-draft.3": "574ba843f7eba85d", "2026-11-10-draft": "af16ec68088f677e", "2026-11-10-draft.2": "fa32499e0449ddc2", "2026-11-10-draft.3": "c9a414ff8210f469", "2026-11-10-draft.4": "77f60696305326f6", "2026-11-10-draft.5": "068f6bef1ff56db4", "2026-11-12": "da29380ebc636e7d", "2026-11-12.2": "10d52f119dddc31f", "2026-11-24": "2961754736be31bb" };
 
 const text = SECTIONS.flatMap((s) => [s.title, ...s.paragraphs]).join(" ");
 

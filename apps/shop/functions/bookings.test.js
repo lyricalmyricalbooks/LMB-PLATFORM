@@ -2302,6 +2302,9 @@ describe("staff and rooms", () => {
     expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([]);
     await team(t);
     expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([{ id: "ana", name: "Ana", serviceIds: [] }, { id: "ben", name: "Ben", serviceIds: ["visit"] }]);
+    // Pay never reaches the public page (plan 4, 4.4).
+    await team(t, { staff: [{ id: "ana", name: "Ana", commissionPercent: 40, commissionSteps: [{ overMinor: 300_000, percent: 50 }], hourlyMinor: 2_000 }] });
+    expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([{ id: "ana", name: "Ana", serviceIds: [] }]);
   });
 
   test("booking with anyone free assigns someone, and two bookings at once go to two people", async () => {
@@ -4358,5 +4361,72 @@ describe("clock in and out (plan 4, 4.2)", () => {
       expect((await t.dsk(FRONT, body)).body.code).toBe("desk_only");
     }
     expect((await t.dsk({ role: "admin", email: "owner@example.com" }, { op: "clock", step: "in" })).body.code).toBe("desk_only");
+  });
+});
+
+describe("shifts and time off (plan 4, 4.3)", () => {
+  const ANA = { role: "provider", email: "ana@example.com" };
+  const SAM = { role: "frontDesk", email: "sam@example.com" };
+  const setupRota = async () => {
+    const t = setup({ now: "2026-11-17T14:00:00Z" });
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0, staff: [{ id: "ana", name: "Ana", email: "ana@example.com", daysOff: [] }] });
+    await t.db.collection("members").doc("sam@example.com").set({ role: "frontDesk", name: "Sam Desk" });
+    await t.db.collection("members").doc("ed@example.com").set({ role: "staff" });
+    return t;
+  };
+
+  test("the owner plans shifts for team members and front desk alike, and copies a week", async () => {
+    const t = await setupRota();
+    const r = await t.adm({ op: "rota", from: "2026-11-16", to: "2026-11-22" });
+    expect(r.body.people.map((p) => p.email)).toEqual(["ana@example.com", "sam@example.com"]);
+    expect((await t.adm({ op: "saveRota", shift: { email: "sam@example.com", name: "Sam Desk", day: "2026-11-18", start: "09:00", end: "13:00" } })).statusCode).toBe(200);
+    expect((await t.adm({ op: "saveRota", shift: { email: "sam@example.com", day: "2026-11-18", start: "13:00", end: "09:00" } })).statusCode).toBe(400);
+    const copied = await t.adm({ op: "copyRota", from: "2026-11-16", to: "2026-11-23" });
+    expect(copied.body.copied).toBe(1);
+    expect((await t.adm({ op: "copyRota", from: "2026-11-16", to: "2026-11-23" })).body.copied).toBe(0);
+    const next = await t.adm({ op: "rota", from: "2026-11-23", to: "2026-11-29" });
+    expect(next.body.shifts.map((s) => `${s.day} ${s.start}`)).toEqual(["2026-11-25 09:00"]);
+    const desk = await t.dsk(SAM, { op: "desk", day: "2026-11-17" });
+    expect(desk.body.rota.map((s) => s.day)).toEqual(["2026-11-18", "2026-11-25"]);
+  });
+
+  test("a provider asks for days off, the owner sees the clash and approves: the days become days off and both hear", async () => {
+    const t = await setupRota();
+    await t.adm({ op: "create", serviceId: "visit", staffId: "ana", start: at("2026-11-20", "10:00"), name: "Bo", email: "bo@example.com", sendEmail: false });
+    t.emails.length = 0;
+    const ask = await t.dsk(ANA, { op: "askTimeOff", ask: { from: "2026-11-20", to: "2026-11-21", note: "Family visit" } });
+    expect(ask.statusCode).toBe(200);
+    expect(t.emails.map((m) => m.to)).toEqual(["owner@example.com"]);
+    expect((await t.dsk(ANA, { op: "askTimeOff", ask: { from: "2026-11-10" } })).statusCode).toBe(400);
+    const list = await t.adm({ op: "timeOff" });
+    expect(list.body.timeOff[0]).toMatchObject({ name: "Ana", staffId: "ana", status: "waiting", clashes: 1 });
+    const yes = await t.adm({ op: "answerTimeOff", id: ask.body.timeOff.id, yes: true, answer: "Have fun" });
+    expect(yes.body.timeOff).toMatchObject({ status: "approved", applied: "daysOff" });
+    expect(t.db.store.get("bookingSettings/main").staff[0].daysOff).toEqual(["2026-11-20", "2026-11-21"]);
+    expect(t.emails.at(-1).to).toBe("ana@example.com");
+    expect((await t.adm({ op: "answerTimeOff", id: ask.body.timeOff.id, yes: false })).statusCode).toBe(409);
+    const desk = await t.dsk(ANA, { op: "desk", day: "2026-11-17" });
+    expect(desk.body.timeOff[0]).toMatchObject({ status: "approved", answer: "Have fun" });
+  });
+
+  test("part of a day becomes blocked time; a front desk's approved ask changes no booking hours; asks can be withdrawn", async () => {
+    const t = await setupRota();
+    const part = await t.dsk(ANA, { op: "askTimeOff", ask: { from: "2026-11-19", start: "14:00", end: "16:00" } });
+    await t.adm({ op: "answerTimeOff", id: part.body.timeOff.id, yes: true });
+    expect(t.db.store.get("bookingSettings/main").blocks).toEqual([expect.objectContaining({ title: "Time off", staffId: "ana", day: "2026-11-19", start: "14:00", end: "16:00" })]);
+    const sam = await t.dsk(SAM, { op: "askTimeOff", ask: { from: "2026-11-24" } });
+    expect((await t.adm({ op: "answerTimeOff", id: sam.body.timeOff.id, yes: true })).body.timeOff.applied).toBeUndefined();
+    const again = await t.dsk(SAM, { op: "askTimeOff", ask: { from: "2026-11-26" } });
+    expect((await t.dsk(ANA, { op: "withdrawTimeOff", id: again.body.timeOff.id })).body.code).toBe("not_yours");
+    expect((await t.dsk(SAM, { op: "withdrawTimeOff", id: again.body.timeOff.id })).statusCode).toBe(200);
+    expect((await t.dsk(SAM, { op: "withdrawTimeOff", id: sam.body.timeOff.id })).body.code).toBe("answered");
+  });
+
+  test("the desk can't see the rota of others or answer time off", async () => {
+    const t = await setupRota();
+    for (const body of [{ op: "rota", from: "2026-11-16", to: "2026-11-22" }, { op: "saveRota", shift: {} }, { op: "copyRota" }, { op: "timeOff" }, { op: "answerTimeOff", id: "t1234567", yes: true }]) {
+      expect((await t.dsk(SAM, body)).body.code).toBe("desk_only");
+    }
   });
 });

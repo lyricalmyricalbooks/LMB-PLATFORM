@@ -26,6 +26,6 @@ describe("designing before the store exists", () => {
   it("gives sample products that are never real", () => {
     const books = sampleShopBooks("books");
     expect(books.length).toBeGreaterThan(0);
-    expect(books.every(b => b.id.startsWith("sample-") && b.photos[0].url.startsWith("data:image/svg+xml"))).toBe(true);
+    expect(books.every(b => b.id.startsWith("sample-") && /\/samples\/books\/[\w-]+\.webp$/.test(b.photos[0].url))).toBe(true);
   });
 });

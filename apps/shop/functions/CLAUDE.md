@@ -1842,3 +1842,9 @@ each role may run (403 `desk_only`); a provider needs a staff row with their ema
 Desk op `clock` {step in|break|back|out} for frontDesk/provider (an admin gets `desk_only`), in a transaction that finds
 the one `open` shift by email (equality filters only, no index). Owner ops `shifts` {from,to} (plus every open shift),
 `saveShift` (409 when a second open shift for one person), `removeShift`; all three are refused from the desk.
+
+**Shifts and time off (23 November 2026, Bookings plan 4 step 4.3).** `rota/{id}` and `timeOff/{id}` (server only),
+rules in `shared/teamRota.js`. `rotaPeople` = Team & rooms entries with an email plus `members` with role frontDesk or
+provider. `answerTimeOff` runs in one transaction with the settings: approved whole days join the person's `daysOff`,
+part of a day becomes a `Time off` block (`applied`), someone not on Team & rooms changes nothing. `clashesFor` counts
+their confirmed or waiting bookings then. Emails: `tellOwnerTimeOff` (new ask), `tellTimeOff` (the answer).

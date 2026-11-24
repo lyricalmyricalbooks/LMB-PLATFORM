@@ -40,7 +40,7 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
-import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, starterSampleBooks, wordedSettings } from "./presetContent";
+import { applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, sampleSectionsLeft, starterSampleBooks, wordedSettings } from "./presetContent";
 import { applyStarter } from "./starterDesign";
 import { useCatalogWords, useShopWords } from "../shopWords";
 import { applyThemeKeysToSurfaces } from "../themeScope";
@@ -2948,6 +2948,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
               <ul className="list-disc pl-5 text-sm space-y-1">{summary.lines.map(x => <li key={x}>{x}</li>)}</ul>
             </>;
+          })()}
+          {confirmAction === "publish" && (() => {
+            const left = sampleSectionsLeft(design);
+            return left > 0 && <p className="text-sm studio-dialog-warn" role="status" data-publish-samples>{left === 1 ? "1 section still shows" : `${left} sections still show`} the starter's sample words and pictures. Shoppers will see {left === 1 ? "it" : "them"} as they are. In Page layout, each one is marked Sample until you change it.</p>;
           })()}
           {liveCheckFailed && <p className="text-sm font-bold studio-dialog-warn" role="status" data-publish-live-check-failed>Couldn't check the live shop just now. The list above compares with the last version Studio saw, so it may miss changes made elsewhere.</p>}
           {confirmAction === "publish" && !publishHealth && <p className="studio-health-publish" data-publish-health-pending>
