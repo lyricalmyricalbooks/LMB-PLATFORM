@@ -60,7 +60,7 @@ function res() {
   return out;
 }
 
-function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null, shopTax = null, texts = null } = {}) {
+function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13:00:00Z", admin = true, provider = "stripe", decline = null, calendar = null, findDiscount = null, shopTax = null, texts = null, fetchFeed = undefined } = {}) {
   const db = fakeDb();
   const clock = { now: new Date(now) };
   const emails = [];
@@ -138,7 +138,7 @@ function setup({ on = true, live = true, checkout = "card", now = "2026-11-16T13
   let n = 0;
   const optOuts = new Set();
   const desk = bookingActions({
-    db, calendar, findDiscount, shopTax, texts,
+    db, calendar, findDiscount, shopTax, texts, ...(fetchFeed ? { fetchFeed } : {}),
     identify: async (req) => req.who || null,
     optedOut: async (e) => optOuts.has(e),
     unsubscribeUrl: (e) => `https://press.example/track?unsubscribe=1&e=${e}`,
@@ -2601,6 +2601,66 @@ describe("staff and rooms", () => {
     await team(t);
     expect(await t.desk.sweepStaffDays()).toEqual({ sent: 0 });
     expect(t.db.store.get("bookingSettings/staffSummary")).toBeUndefined();
+  });
+
+  describe("Outlook, Apple and other calendars (plan 4, 5.7)", () => {
+    const icsAt = (...spans) => ["BEGIN:VCALENDAR", ...spans.flatMap(([s, e], i) => ["BEGIN:VEVENT", `UID:e${i}`, `DTSTART:${s.replace(/[-:]/g, "").replace(/\.\d+/, "")}`, `DTEND:${e.replace(/[-:]/g, "").replace(/\.\d+/, "")}`, "END:VEVENT"]), "END:VCALENDAR"].join("\r\n");
+    const utc = (day, time) => new Date(Date.parse(at(day, time))).toISOString().replace(".000", "");
+    const OUTLOOK = "https://outlook.office365.com/owa/calendar/abc/def/calendar.ics";
+    const APPLE = "webcal://p42-caldav.icloud.com/published/2/xyz";
+
+    test("a shop calendar closes the time for everyone, a person's only for them, and the link is never shown", async () => {
+      const feeds = { [OUTLOOK]: icsAt([utc("2026-11-18", "10:00"), utc("2026-11-18", "11:00")]), "https://p42-caldav.icloud.com/published/2/xyz": icsAt([utc("2026-11-18", "13:00"), utc("2026-11-18", "14:00")]) };
+      const asked = [];
+      const fetchFeed = async (url) => { asked.push(url); return feeds[url] ? { ok: true, text: feeds[url] } : { ok: false, status: 404 }; };
+      const t = setup({ fetchFeed, now: "2026-11-17T12:00:00Z" });
+      await team(t, { staff: [{ id: "ana", name: "Ana" }, { id: "ben", name: "Ben" }] });
+      const shop = await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK, name: "My Outlook" });
+      expect(shop.statusCode).toBe(200);
+      const ana = await t.adm({ op: "otherCalendars", step: "add", url: APPLE, who: "ana" });
+      expect(ana.body.feeds).toEqual([
+        expect.objectContaining({ kind: "outlook", name: "My Outlook", who: "", ok: true, count: 1 }),
+        expect.objectContaining({ kind: "apple", who: "ana", ok: true, count: 1 }),
+      ]);
+      expect(JSON.stringify(ana.body)).not.toContain("office365");
+      expect(JSON.stringify(ana.body)).not.toContain("icloud");
+      const times = async (staffId) => (await t.pub({ action: "bookingTimes", serviceId: "visit", from: "2026-11-18", days: 1, ...(staffId ? { staffId } : {}) })).body.days["2026-11-18"];
+      expect(await times("ben")).not.toContain(at("2026-11-18", "10:00"));
+      expect(await times("ana")).not.toContain(at("2026-11-18", "13:00"));
+      expect(await times("ben")).toContain(at("2026-11-18", "13:00"));
+      // A booking on the same day keeps its item when the busy times change; removing a calendar opens its times.
+      const kept = await book(t, at("2026-11-18", "15:00"), { staffId: "ben" });
+      expect(kept.statusCode).toBe(200);
+      const items = Object.keys(t.db.store.get("bookingDays/2026-11-18").items);
+      expect(items.filter((k) => k.startsWith("ical~"))).toHaveLength(2);
+      await t.adm({ op: "otherCalendars", step: "remove", id: shop.body.added });
+      expect(await times("ben")).toContain(at("2026-11-18", "10:00"));
+      expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items).some((k) => k.startsWith(kept.body.id))).toBe(true);
+      // Read again only every 15 minutes.
+      const before = asked.length;
+      expect(await t.desk.sweepOtherCalendars()).toEqual({ days: 0 });
+      expect(asked).toHaveLength(before);
+    });
+
+    test("a wrong link is refused at once, and a calendar that stops answering keeps its times", async () => {
+      let answer = { ok: true, text: icsAt([utc("2026-11-18", "10:00"), utc("2026-11-18", "11:00")]) };
+      const t = setup({ fetchFeed: async () => answer, now: "2026-11-17T12:00:00Z" });
+      await t.seed();
+      expect((await t.adm({ op: "otherCalendars", step: "add", url: "https://evil.example/cal.ics" })).statusCode).toBe(400);
+      answer = { ok: true, text: "<html>Sign in</html>" };
+      const notCal = await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK });
+      expect(notCal.statusCode).toBe(400);
+      expect(notCal.body.error).toMatch(/can't be read/);
+      answer = { ok: true, text: icsAt([utc("2026-11-18", "10:00"), utc("2026-11-18", "11:00")]) };
+      expect((await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK })).statusCode).toBe(200);
+      expect((await t.adm({ op: "otherCalendars", step: "add", url: OUTLOOK })).statusCode).toBe(400);
+      answer = { ok: false, status: 500 };
+      t.clock.now = new Date(Date.parse("2026-11-17T12:20:00Z"));
+      expect(await t.desk.sweepOtherCalendars()).toEqual({ days: 0 });
+      const list = (await t.adm({ op: "otherCalendars", step: "list" })).body.feeds;
+      expect(list[0]).toMatchObject({ ok: false, problem: expect.stringMatching(/didn't answer/) });
+      expect(Object.keys(t.db.store.get("bookingDays/2026-11-18").items).some((k) => k.startsWith("ical~"))).toBe(true);
+    });
   });
 });
 

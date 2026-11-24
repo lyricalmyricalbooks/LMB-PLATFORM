@@ -658,6 +658,11 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     id: id.repeat(40).slice(0, 40), last4: name.slice(0, 2).toUpperCase() + "7Q", serviceId: "riso", serviceName: "Risograph printing session", name, email: `${name.split(" ")[0].toLowerCase()}@example.com`,
     visits: 5, left, status: "active", priceMinor: 18000, currency: "CAD", expiresOn: dayAhead(300), paidAt: at(-20, 10), refundMinor: 0, uses: [], ...extra,
   });
+  // Other calendars (plan 4, 5.7): one Outlook calendar for the whole shop and one Apple calendar that stopped answering.
+  let fixtureFeeds: Array<Record<string, unknown>> = [
+    { id: "f1", kind: "outlook", name: "Work calendar", who: "", ok: true, problem: "", readAt: "2026-11-24T14:45:00.000Z", count: 12, addedAt: "2026-11-20T15:00:00.000Z" },
+    { id: "f2", kind: "apple", name: "", who: "", ok: false, problem: "The calendar can't be read. Check it's still shared or published, then copy its link again.", readAt: "2026-11-23T10:00:00.000Z", count: 0, addedAt: "2026-11-21T15:00:00.000Z" },
+  ];
   const fixturePromos: Array<Record<string, unknown>> = [{ id: "p1", text: "Two openings this Saturday morning. Book online any time.", group: "recent", serviceId: "", at: "2026-11-17T15:00:00.000Z", status: "sent", people: 9, sent: 9, failed: 0, stopped: 0 }];
   const fixturePoints: Record<string, number> = {};
   let packRows: PackRow[] = mode === "on" ? [
@@ -784,6 +789,15 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     if (op === "promoAudience") return { available: !textsSoon, price: "1.6¢", count: body.group === "recent" ? 9 : body.group === "service" ? 4 : 14, open: true, lastAt: fixturePromos[0]?.at || null, nextAt: null };
     if (op === "promoSend") { fixturePromos.unshift({ id: `p${fixturePromos.length + 1}`, text: String(body.text || ""), group: String(body.group || "all"), serviceId: String(body.serviceId || ""), at: new Date().toISOString(), status: "sent", people: 14, sent: 13, failed: 0, stopped: 1 }); return { sent: 13, failed: 0, stopped: 1 }; }
     if (op === "promoHistory") return { promos: fixturePromos };
+    if (op === "otherCalendars") {
+      if (body.step === "add") {
+        const url = String(body.url || "");
+        const kind = /icloud/i.test(url) ? "apple" : /google/i.test(url) ? "google" : /outlook|office|live\./i.test(url) ? "outlook" : "other";
+        fixtureFeeds = [...fixtureFeeds, { id: `f${fixtureFeeds.length + 1}`, kind, name: String(body.name || ""), who: String(body.who || ""), ok: true, problem: "", readAt: new Date().toISOString(), count: 5, addedAt: new Date().toISOString() }];
+      }
+      if (body.step === "remove") fixtureFeeds = fixtureFeeds.filter((f) => f.id !== body.id);
+      return { feeds: fixtureFeeds };
+    }
     if (op === "packClose") { packRows = packRows.map((p) => (p.id === id ? { ...p, status: "closed", refundMinor: Number(body.refundMinor || 0) } : p)); return { ok: true }; }
     if (op === "removeWaiting") { waiting = waiting.filter((w) => w.id !== id); return { ok: true }; }
     if (op === "calendarFeed") return { path: `/calendar/${"c".repeat(48)}.ics` };

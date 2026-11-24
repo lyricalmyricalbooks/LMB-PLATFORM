@@ -5139,6 +5139,9 @@ exports.bookingSweep = onSchedule({ schedule: "every 5 minutes", name: "bookingS
   // Each team member's own Google Calendar: their busy times close those times for them (at most every 15 minutes).
   const team = await bookingDesk.sweepTeamCalendars().catch(err => { console.warn("bookingSweep: team calendars failed:", err?.message || err); return {}; });
   if (team.days) console.log(`bookingSweep: team busy times changed on ${team.days} days`);
+  // Outlook, Apple and other calendars (plan 4, 5.7): their busy times close those times (at most every 15 minutes).
+  const feeds = await bookingDesk.sweepOtherCalendars().catch(err => { console.warn("bookingSweep: other calendars failed:", err?.message || err); return {}; });
+  if (feeds.days) console.log(`bookingSweep: other calendars' busy times changed on ${feeds.days} days`);
   // Classes with a minimum number to run: decided once, cancelled and refunded when too few signed up.
   const minimum = await bookingDesk.sweepMinimum();
   if (minimum.cancelled || minimum.ran) console.log(`bookingSweep: ${minimum.ran} class times run, ${minimum.cancelled} cancelled for too few people`);

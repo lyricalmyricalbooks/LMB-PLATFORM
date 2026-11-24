@@ -77,6 +77,7 @@ const {
   cleanBirthday, birthdaysOn, visitHappened, WELCOME_AFTER_HOURS, KEEP_IN_TOUCH_WINDOW_DAYS,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { cleanFeedUrl, feedHostAllowed, busyFromIcs, looksLikeCalendar, MAX_FEEDS, FEED_DAYS } = require("./shared/calendarFeeds");
 const { cleanPromo, cleanGroup, promoBody, promoHours, phoneKey, RECENT_DAYS, MAX_PROMO_TEXTS, PROMO_GAP_HOURS, PROMO_FROM_HOUR, PROMO_UNTIL_HOUR } = require("./shared/promoTexts");
 const { cleanLoyalty, loyaltyEarns, visitPoints, orderPoints, rewardsDue, pointsToNext, rewardCode, cleanAdjust, LOYALTY_WINDOW_DAYS } = require("./shared/loyalty");
 const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
@@ -209,6 +210,47 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const GCAL = "gcal~";
 const TEAM_BUSY_EVERY_MS = 15 * 60_000;
 const TEAM_BUSY_DAYS = 60;
+// Outlook, Apple and other calendars (plan 4, 5.7): busy times copied the same way as `ical~<feed>~<start>~<end>` (`g:
+// true`, `p` only for a person's calendar; none closes the time for everyone). The addresses are secrets, kept only in
+// server-only `bookingCalendars/main`.
+const ICAL = "ical~";
+const FEED_EVERY_MS = 15 * 60_000;
+const FEED_MAX_BYTES = 3 * 1024 * 1024;
+const FEED_TIMEOUT_MS = 10_000;
+
+/**
+ * Reads one calendar address: `{ ok: true, text }`, `{ ok: false, status }`, or throws when it can't be reached. Only
+ * https to the calendars `feedHostAllowed` names, on every redirect too (at most three), 10 seconds, 3 MB.
+ */
+async function readFeed(url) {
+  let at = url;
+  for (let hop = 0; hop < 4; hop += 1) {
+    const u = new URL(at);
+    if (u.protocol !== "https:" || u.username || u.password || u.port || !feedHostAllowed(u.hostname)) throw new Error("not_allowed");
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FEED_TIMEOUT_MS);
+    try {
+      const res = await fetch(at, { redirect: "manual", signal: ctrl.signal, headers: { accept: "text/calendar, text/plain;q=0.5" } });
+      const next = res.headers.get("location");
+      if (res.status >= 300 && res.status < 400 && next) { at = new URL(next, at).toString(); continue; }
+      if (!res.ok || !res.body) return { ok: false, status: res.status };
+      const reader = res.body.getReader();
+      const parts = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > FEED_MAX_BYTES) { await reader.cancel().catch(() => {}); return { ok: false, status: 413 }; }
+        parts.push(Buffer.from(value));
+      }
+      return { ok: true, text: Buffer.concat(parts).toString("utf8") };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error("too_many_redirects");
+}
 
 const text = (value, max) => (typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, max) : "");
 const hash = (key) => crypto.createHash("sha256").update(String(key)).digest("hex");
@@ -230,8 +272,8 @@ function busyFrom(daySnaps, nowMs, except = "") {
         ...(typeof item.p === "string" && item.p ? { staffId: item.p } : {}), ...(typeof item.r === "string" && item.r ? { roomId: item.r } : {}),
         // A class time cancelled for too few people (sweepMinimum): it closes that class then, nothing else.
         ...(item.closed === true ? { closed: true } : {}),
-        // A person's own calendar busy time (`gcal~…`): not a booking, so it never counts towards the daily limit.
-        ...(item.g === true || id.startsWith(GCAL) ? { away: true } : {}),
+        // A calendar busy time (`gcal~…`, `ical~…`): not a booking, so it never counts towards the daily limit.
+        ...(item.g === true || id.startsWith(GCAL) || id.startsWith(ICAL) ? { away: true } : {}),
         // Processing time inside it (plan 4, 1.5): the person is free for a booking that fits wholly in there.
         ...(Array.isArray(item.g) && Number.isFinite(item.g[0]) && Number.isFinite(item.g[1]) && item.g[0] < item.g[1] ? { free: { start: item.g[0], end: item.g[1] } } : {}) });
     }
@@ -370,6 +412,8 @@ function bookingActions({
   // Discount codes on bookings: (code, email) → the shop's discount, checked like checkout's (on, dates, usage limit,
   // who may use it, one use per customer across orders), or throws with the customer's words. None: codes are refused.
   findDiscount = null,
+  // Outlook, Apple and other calendars (plan 4, 5.7): (url) → { ok, text } | { ok: false, status }; tests pass a fake.
+  fetchFeed = readFeed,
   // Sales tax on services (index.js): async () → (amountMinor) → { taxMinor, taxLines } at the shop's rate for where it
   // is (Settings › Taxes matched to Settings › General › Location), or null when the shop collects none. None: no tax.
   shopTax = null,
@@ -2927,6 +2971,52 @@ function bookingActions({
         await tellWebsite(settings.live);
         return res.status(200).json({ ok: true });
       }
+      if (op === "otherCalendars") {
+        // Outlook, Apple and other calendars (plan 4, 5.7). step "list"; "add" { url, who, name } (read once first, so a
+        // wrong link is refused at once); "remove" { id }; "refresh". Owner only: the addresses are secret links.
+        const step = String(req.body?.step || "list");
+        if (step === "list") return res.status(200).json({ feeds: await feedsView() });
+        if (step === "refresh") {
+          await sweepOtherCalendars({ force: true });
+          return res.status(200).json({ feeds: await feedsView() });
+        }
+        if (step === "add") {
+          const clean = cleanFeedUrl(req.body?.url);
+          if ("problem" in clean) return fail(res, 400, clean.problem);
+          const who = String(req.body?.who || "");
+          if (who && !(settings.staff || []).some((p) => p.id === who && p.active)) return fail(res, 400, "That person isn't taking bookings.");
+          const name = text(req.body?.name, 60);
+          const ref = calendarsDoc();
+          const snap = await ref.get();
+          const feeds = snap.exists && Array.isArray(snap.data()?.feeds) ? snap.data().feeds : [];
+          if (feeds.length >= MAX_FEEDS) return fail(res, 400, `You can add up to ${MAX_FEEDS} calendars.`);
+          if (feeds.some((f) => f.url === clean.url && (f.who || "") === who)) return fail(res, 400, "That calendar is already added.");
+          const nowMs = now().getTime();
+          const from = zonedTime(dayOf(nowMs, zone()), "00:00", zone());
+          const tried = await readOne({ url: clean.url }, from, from + FEED_DAYS * DAY);
+          if (tried.problem) return fail(res, 400, tried.problem);
+          const id = `f${hash(`${clean.url}|${who}`).slice(0, 10)}`;
+          await db.runTransaction(async (tx) => {
+            const cur = await tx.get(ref);
+            const data = cur.exists ? cur.data() || {} : {};
+            const list = Array.isArray(data.feeds) ? data.feeds.filter((f) => f.id !== id) : [];
+            tx.set(ref, { ...data, feeds: [...list, { id, url: clean.url, kind: clean.kind, name, who, addedAt: new Date(nowMs).toISOString(), ok: true, problem: "", count: tried.spans.length }], at: "" });
+          });
+          await sweepOtherCalendars({ force: true });
+          return res.status(200).json({ feeds: await feedsView(), added: id });
+        }
+        if (step === "remove") {
+          const id = String(req.body?.id || "");
+          await db.runTransaction(async (tx) => {
+            const cur = await tx.get(calendarsDoc());
+            const data = cur.exists ? cur.data() || {} : {};
+            tx.set(calendarsDoc(), { ...data, feeds: (Array.isArray(data.feeds) ? data.feeds : []).filter((f) => f.id !== id) });
+          });
+          await sweepOtherCalendars({ force: true });
+          return res.status(200).json({ feeds: await feedsView() });
+        }
+        return fail(res, 400, "Unknown step.");
+      }
       if (op === "teamCalendar") {
         // A person's own Google Calendar (Services plan 2, B6). step "status": who is linked (and busy times read again
         // when a minute has passed); "link": a one-use link for them, emailed when `send` and they have an email;
@@ -4061,6 +4151,98 @@ function bookingActions({
     return { days: changed.length };
   }
 
+  // ── Outlook, Apple and other calendars (Bookings plan 4, step 5.7) ───────────────────────────────────────────
+  // `bookingCalendars/main` (server only, no rule): `feeds` [{ id, url, kind, name, who, addedAt, readAt, ok, problem,
+  // count }] and `spans` { feedId: [{ s, e }] }, what was last written into the day records. Rules: shared/calendarFeeds.ts.
+  const calendarsDoc = () => db.collection("bookingCalendars").doc("main");
+
+  /** A calendar's problem in plain words, from what reading it gave. */
+  function feedProblem(got) {
+    if (got?.ok && looksLikeCalendar(got.text)) return "";
+    if (got?.ok || [401, 403, 404, 410].includes(got?.status)) return "The calendar can't be read. Check it's still shared or published, then copy its link again.";
+    if (got?.status === 413) return "The calendar is too big to read. Share a smaller calendar.";
+    return "The calendar didn't answer. It will be tried again soon.";
+  }
+
+  async function readOne(feed, from, to) {
+    const got = await fetchFeed(feed.url).catch((err) => ({ ok: false, status: err?.message === "not_allowed" ? 403 : 0 }));
+    const problem = feedProblem(got);
+    return problem ? { problem } : { spans: busyFromIcs(got.text, from, to, zone()) };
+  }
+
+  /** The day records' items for the calendars' busy times: day → { key: item }. */
+  function feedBusyItems(feeds, spans) {
+    const days = new Map();
+    for (const f of feeds) {
+      for (const x of Array.isArray(spans?.[f.id]) ? spans[f.id] : []) {
+        if (!Number.isFinite(x?.s) || !Number.isFinite(x?.e) || x.e <= x.s) continue;
+        for (const d of daysTouched(x.s, x.e, zone())) {
+          if (!days.has(d)) days.set(d, {});
+          days.get(d)[`${ICAL}${f.id}~${x.s}~${x.e}`] = { start: x.s, end: x.e, g: true, ...(f.who ? { p: f.who } : {}) };
+        }
+      }
+    }
+    return days;
+  }
+
+  /**
+   * Reads every calendar again (at most every 15 minutes unless `force`) and writes only the days whose busy times
+   * changed, each in a transaction that leaves every booking's item as it is. A calendar that can't be read keeps the
+   * busy times it had and shows its problem; one whose person left the team stops closing times.
+   */
+  async function sweepOtherCalendars({ force = false } = {}) {
+    if (!(await featureOn())) return { days: 0 };
+    const ref = calendarsDoc();
+    const snap = await ref.get();
+    const before = snap.exists ? snap.data() || {} : {};
+    const feeds = Array.isArray(before.feeds) ? before.feeds : [];
+    const old = before.spans && typeof before.spans === "object" ? before.spans : {};
+    if (!feeds.length && !Object.keys(old).length) return { days: 0 };
+    const nowMs = now().getTime();
+    const last = Date.parse(before.at || "");
+    if (!force && Number.isFinite(last) && nowMs - last < FEED_EVERY_MS) return { days: 0 };
+    const settings = await readSettings();
+    const team = new Set((settings.staff || []).filter((p) => p.active).map((p) => p.id));
+    const from = zonedTime(dayOf(nowMs, zone()), "00:00", zone());
+    const to = from + FEED_DAYS * DAY;
+    const spans = {};
+    const read = new Date(nowMs).toISOString();
+    const nextFeeds = [];
+    for (const f of feeds) {
+      if (f.who && !team.has(f.who)) { nextFeeds.push({ ...f, ok: false, problem: "That person isn't taking bookings, so this calendar is paused." }); continue; }
+      const got = await readOne(f, from, to);
+      if (got.problem) {
+        if (Array.isArray(old[f.id]) && old[f.id].length) spans[f.id] = old[f.id];
+        nextFeeds.push({ ...f, ok: false, problem: got.problem });
+      } else {
+        if (got.spans.length) spans[f.id] = got.spans;
+        nextFeeds.push({ ...f, ok: true, problem: "", readAt: read, count: got.spans.length });
+      }
+    }
+    // What was written before, by every calendar that had busy times (one just removed included).
+    const was = feedBusyItems(Object.keys(old).map((id) => ({ id, who: feeds.find((f) => f.id === id)?.who || "" })), old);
+    const will = feedBusyItems(nextFeeds.filter((f) => !f.who || team.has(f.who)), spans);
+    const keysOf = (items) => Object.keys(items || {}).sort().join("|");
+    const today = dayOf(nowMs, zone());
+    const changed = [...new Set([...was.keys(), ...will.keys()])].filter((d) => d >= today && keysOf(was.get(d)) !== keysOf(will.get(d))).sort();
+    for (const d of changed) {
+      await db.runTransaction(async (tx) => {
+        const daySnap = await tx.get(dayRef(d));
+        const items = Object.fromEntries(Object.entries((daySnap.exists ? daySnap.data()?.items : null) || {}).filter(([k]) => !k.startsWith(ICAL)));
+        tx.set(dayRef(d), { items: { ...items, ...(will.get(d) || {}) } });
+      });
+    }
+    await ref.set({ feeds: nextFeeds, spans, at: read });
+    return { days: changed.length };
+  }
+
+  /** The calendars as the admin sees them: never the address (it is a secret link). */
+  async function feedsView() {
+    const snap = await calendarsDoc().get();
+    const feeds = snap.exists && Array.isArray(snap.data()?.feeds) ? snap.data().feeds : [];
+    return feeds.map((f) => ({ id: f.id, kind: f.kind, name: f.name || "", who: f.who || "", ok: f.ok !== false, problem: f.problem || "", readAt: f.readAt || null, count: f.count || 0, addedAt: f.addedAt || null }));
+  }
+
   /** The email with a team member's own link to share their busy times. */
   async function sendCalendarLink(person, url) {
     const brand = await emailBrand();
@@ -4978,7 +5160,7 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepLoyalty, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
+  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepKeepInTouch, sweepLoyalty, sweepMinimum, sweepTeamCalendars, sweepOtherCalendars, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
