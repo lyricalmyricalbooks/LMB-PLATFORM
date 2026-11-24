@@ -13,7 +13,11 @@ const { shopConfig } = require("./shopConfig");
 
 // The current shop's owner (shopConfig is per shop in the shared system); an array so older callers keep `.includes`.
 const OWNER_EMAILS = new Proxy([], { get: (_, prop) => { const list = [shopConfig.ownerEmail].filter(Boolean); const v = list[prop]; return typeof v === "function" ? v.bind(list) : v; } });
-const ROLES = ["owner", "staff", "author", "bookkeeper", "fairHelper"];
+// "frontDesk" and "provider" (plan 4, 4.1, Beta) open the team desk instead of the admin (admin/TeamDesk.tsx): a front desk
+// books for everyone; a service provider sees only their own bookings. They read nothing from the database themselves
+// (no rule lets them in): every read and action is the server's bookingsDesk (bookings.js handleDesk, DESK_OPS).
+const ROLES = ["owner", "staff", "author", "bookkeeper", "fairHelper", "frontDesk", "provider"];
+const DESK_ROLES = ["frontDesk", "provider"];
 const ADMIN_ROLES = ["owner", "staff"];
 
 const normEmail = v => String(v || "").trim().toLowerCase();
@@ -52,6 +56,12 @@ function adminRole(token) {
 function booksReader(token) {
   if (adminRole(token) || supportOf(token)) return "admin";
   return token?.email_verified === true && token.role === "bookkeeper" ? "bookkeeper" : null;
+}
+
+/** The team desk role on a verified sign-in pass: "frontDesk", "provider", or null (support visits never). */
+function deskRole(token) {
+  if (supportOf(token) || !token || token.email_verified !== true) return null;
+  return DESK_ROLES.includes(token.role) && !OWNER_EMAILS.includes(normEmail(token.email)) ? token.role : null;
 }
 
 /** Checks one Team entry an owner writes. */
@@ -124,4 +134,4 @@ async function stampTeamSignIn(db, email, now = new Date()) {
   return true;
 }
 
-module.exports = { OWNER_ONLY_MESSAGE, stampTeamSignIn, removeExpiredMembers, OWNER_EMAILS, ROLES, ADMIN_ROLES, adminRole, booksReader, supportOf, memberId, memberProblem, syncMemberRole };
+module.exports = { OWNER_ONLY_MESSAGE, stampTeamSignIn, removeExpiredMembers, OWNER_EMAILS, ROLES, ADMIN_ROLES, DESK_ROLES, adminRole, booksReader, deskRole, supportOf, memberId, memberProblem, syncMemberRole };

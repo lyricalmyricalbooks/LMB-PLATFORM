@@ -101,6 +101,7 @@ const BookCatalog = lazy(() => import("./BookCatalog").then(m => ({ default: m.B
 const AllSales = lazy(() => import("./AllSales").then(m => ({ default: m.AllSales })));
 const ReorderList = lazy(() => import("./ReorderPanel").then(m => ({ default: m.ReorderList })));
 const BookkeeperDesk = lazy(() => import("./BookkeeperDesk").then(m => ({ default: m.BookkeeperDesk })));
+const TeamDesk = lazy(() => import("./TeamDesk").then(m => ({ default: m.TeamDesk })));
 const PlanDesk = lazy(() => import("./PlanParts").then(m => ({ default: m.PlanDesk })));
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
@@ -157,6 +158,8 @@ export function Dashboard() {
   const [bookkeeper, setBookkeeper] = useState<{ email: string | null } | null>(null);
   // Signed in with the Team's fair helper role: the Fair till instead of the admin (FairHelperDesk.tsx).
   const [fairHelper, setFairHelper] = useState<{ email: string } | null>(null);
+  // Signed in as the Team's front desk or a service provider: the team desk instead of the admin (TeamDesk.tsx, plan 4, 4.1).
+  const [teamDesk, setTeamDesk] = useState<{ email: string; role: "frontDesk" | "provider" } | null>(null);
   // Platform support signed in from the platform's control room (supportSession.ts); null for everyone else.
   const [supportVisit, setSupportVisit] = useState<SupportVisit | null>(null);
   // The shop's plan on the platform (platform/plan, plan 6.6): banners, and a paused or closed plan opens on Plan &
@@ -516,6 +519,13 @@ export function Dashboard() {
         setLoading(false);
         return;
       }
+      const desk = u ? await Promise.resolve(adminApi.teamDeskSignIn?.()).catch(() => null) : null;
+      setTeamDesk(desk ?? null);
+      if (desk) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
       setUser(u);
       if (!u) { setLoading(false); return; }
       void adminApi.supportVisit().then(setSupportVisit).catch(() => setSupportVisit(null));
@@ -663,6 +673,10 @@ export function Dashboard() {
 
   if (fairHelper) {
     return <Suspense fallback={null}><FairHelperDesk email={fairHelper.email} appearance={adminTheme === "dark" ? "dark" : "light"} /></Suspense>;
+  }
+
+  if (teamDesk) {
+    return <Suspense fallback={<div className="rp" data-rp-appearance={adminTheme === "dark" ? "dark" : "light"}><PageSkeleton label="Opening your day…" /></div>}><TeamDesk email={teamDesk.email} role={teamDesk.role} appearance={adminTheme === "dark" ? "dark" : "light"} /></Suspense>;
   }
 
   // A paused or closed plan: Plan & billing and the downloads only, until the plan is open again (plan 6.7).

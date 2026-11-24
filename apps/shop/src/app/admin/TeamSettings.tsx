@@ -10,6 +10,7 @@ import { type AdminRole, type TeamRole } from "./adminAccess";
 import { hasStockroom } from "../../lib/shopProfile";
 import { combinedAdmin } from "./combined";
 import { copyText } from "./clipboard";
+import { useBookingsOn } from "./bookingsApi";
 import { endOfToday, selfDemotion, signInWords, teamApi, teamEmail, teamMemberProblem, type TeamMember } from "./teamApi";
 
 // Admin-only words (the Studio rule covers shopper-facing words).
@@ -25,6 +26,9 @@ const ROLE_WORDS: Record<TeamRole, RoleWords> = {
   author: { label: "Author", detail: "Can't open this admin. In the stockroom, they see and update only the books that name them as the author." },
   fairHelper: { label: "Fair helper", detail: "Only the Fair till: they ring up sales and see their own. Never your money, settings or customers." },
   // The role id stays "bookkeeper" (saved on every Team entry and sign-in pass); people see "Accountant".
+  // Bookings plan 4, 4.1 (Beta): the team desk instead of the admin (TeamDesk.tsx; the server holds them to it).
+  frontDesk: { label: "Front desk", detail: "Bookings only: every calendar, booking and cancelling for anyone, checking people in. Never your money, reports or settings." },
+  provider: { label: "Service provider", detail: "Bookings only: their own day and clients, and checking them in. Add the same email to their entry in Bookings › Team & rooms." },
   bookkeeper: { label: "Accountant", detail: `Reads and downloads the books: sales, tax collected${STOCKROOM ? ", expenses with their receipts, the ledger, profit and loss" : ""} and payouts. Changes nothing.` },
 };
 
@@ -53,11 +57,17 @@ export function signInLink(member: Pick<TeamMember, "email" | "role">, origin = 
 }
 
 const ROLE_ORDER: TeamRole[] = ["staff", "owner", "bookkeeper", ...(STOCKROOM ? ["author" as const] : []), ...(FAIR_HELPERS ? ["fairHelper" as const] : [])];
+/** The roles the Team offers: the booking roles only while the booking engine runs (an existing one always shows). */
+export function roleChoices(bookingsOn: boolean, current?: TeamRole): TeamRole[] {
+  const desk: TeamRole[] = ["frontDesk", "provider"];
+  return [...ROLE_ORDER, ...desk.filter((r) => bookingsOn || r === current)];
+}
 
 // Settings › Team. Owners invite people by their Google email; each gets an email and signs in with that account.
 export function TeamSettings() {
   const w = useShopWords();
   const roles = wordedRoles(w);
+  const bookingsOn = useBookingsOn(true);
   const [ask, confirmNode] = useConfirm();
   const [myRole, setMyRole] = useState<AdminRole | null | undefined>(undefined);
   const [members, setMembers] = useState<TeamMember[] | null>(null);
@@ -182,7 +192,7 @@ export function TeamSettings() {
                   </span>
                   <select className="rp-team-pick" aria-label={`Role for ${m.name || m.email}`} value={m.role} disabled={!!busy}
                     onChange={e => void changeRole(m, e.target.value as TeamRole)}>
-                    {(ROLE_ORDER.includes(m.role) ? ROLE_ORDER : [...ROLE_ORDER, m.role]).map(r => <option key={r} value={r}>{roles[r].label}</option>)}
+                    {(() => { const list = roleChoices(bookingsOn, m.role); return list.includes(m.role) ? list : [...list, m.role]; })().map(r => <option key={r} value={r}>{roles[r].label}</option>)}
                   </select>
                   <ActionMenu label={`More for ${m.name || m.email}`} actions={menuFor(m)} />
                 </li>
@@ -202,7 +212,7 @@ export function TeamSettings() {
           </div>
           <TextField label="Name" hint="Optional" autoComplete="off" value={name} maxLength={80} onChange={e => setName(e.target.value)} />
           <SelectField label="Role" value={role} onChange={e => setRole(e.target.value as TeamRole)}>
-            {ROLE_ORDER.map(r => <option key={r} value={r}>{roles[r].label}</option>)}
+            {roleChoices(bookingsOn).map(r => <option key={r} value={r}>{roles[r].label}</option>)}
           </SelectField>
           <p className="rp-hint rp-team-role-detail" aria-live="polite">{roles[role].detail}</p>
           {role === "fairHelper" && (

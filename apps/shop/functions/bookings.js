@@ -84,6 +84,15 @@ const { findCountry, regionCode } = require("./shared/shippingZones");
 const { giftCardId, last4, giftCardProblem, availableMinor, withHistory, GIFT_CARD_MESSAGES } = require("./giftCards");
 
 const HOLD_MINUTES = 10;
+/**
+ * What each team desk role may do (plan 4, 4.1): a front desk books, moves, cancels and checks people in for everyone,
+ * never services, settings, reports, packs, readers' set-up or the missed-visit fee; a service provider checks their own
+ * clients in and marks their own no-shows.
+ */
+const DESK_OPS = Object.freeze({
+  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm"]),
+  provider: Object.freeze(["checkIn", "noShow"]),
+});
 /** How long a pack's card page stays open. An unpaid pack is forgotten once it closes. */
 const PACK_PAGE_MINUTES = 60;
 /** A pack's code: 12 letters and digits with nothing that reads two ways, as "ABCD-EFGH-JKLM". */
@@ -342,7 +351,7 @@ function publicBooking(id, booking, settings, nowMs) {
 }
 
 function bookingActions({
-  db, requireAdmin, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", zone, currency,
+  db, requireAdmin, requireBookingsTeam = null, payments, shopTestMode, hitLimit, LIMITS, siteLink, shopName = () => "", zone, currency,
   // My bookings in the customer account (plan 4, 2.10): (req) → { email } for a signed-in customer with a verified
   // email, else null. None: the account shows no bookings.
   identify = async () => null,
@@ -2829,8 +2838,12 @@ function bookingActions({
   async function handleAdmin(req, res) {
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
+    return runAdmin(req, res, adminUser.email || "admin");
+  }
+
+  /** One owner action, `by` the person signed in (the owner, staff, or a front desk or service provider through handleDesk). */
+  async function runAdmin(req, res, by) {
     const op = req.body?.op;
-    const by = adminUser.email || "admin";
     try {
       // The owner flipped a Ways to sell switch (Settings › General): the website's links follow. Answered whether the
       // engine is on or not, so switching Classes off takes its link down too.
@@ -4162,7 +4175,71 @@ function bookingActions({
     }
   }
 
-  return { handlePublic, handleAdmin, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
+  // ── The team desk (plan 4, 4.1, Beta) ───────────────────────────────────────────────────────────────────────────
+  // Team roles "frontDesk" and "provider" (functions/roles.js deskRole) open the team desk instead of the admin
+  // (admin/TeamDesk.tsx). They read nothing from the database themselves: every read and action comes through here.
+  // A front desk sees every calendar and books for everyone, with no reports or settings (DESK_OPS); a service provider
+  // sees only their own bookings (the staff member whose email is their sign-in) and checks their own clients in.
+
+  /** The bookings one desk may see: a provider's are the ones they take (the visit's lead or one of its parts). */
+  const takes = (b, staffId) => !!staffId && (b.staffId === staffId || (b.parts || []).some((p) => p.staffId === staffId) || (b.course?.staff || []).includes(staffId));
+  /** A booking as the desk sees it: no link keys, saved card, pay key or check-in code hashes. */
+  const deskBooking = (id, b) => {
+    const { manageKeyHash, reminderKeyHash, reminder2KeyHash, payKey, card, pendingKey, offerKeyHash, restPages, ...rest } = b || {};
+    return { id, ...rest, card: card ? { brand: card.brand || "", last4: card.last4 || "" } : null };
+  };
+
+  async function handleDesk(req, res) {
+    const who = requireBookingsTeam ? await requireBookingsTeam(req, res) : (fail(res, 403, "Admin access required"), null);
+    if (!who) return;
+    const role = who.role; // "admin" | "frontDesk" | "provider"
+    const op = String(req.body?.op || "");
+    const by = who.email || role;
+    try {
+      if (!(await featureOn())) return fail(res, 403, "Bookings aren't turned on for this shop.", "off");
+      const settings = await readSettings();
+      const email = String(who.email || "").trim().toLowerCase();
+      const me = (settings.staff || []).find((p) => email && String(p.email || "").trim().toLowerCase() === email) || null;
+      if (op === "desk") {
+        const day = isDay(String(req.body?.day || "")) ? req.body.day : dayOf(now().getTime(), zone());
+        const days = Math.min(7, Math.max(1, Math.round(Number(req.body?.days) || 1)));
+        const from = new Date(zonedTime(day, "00:00", zone())).toISOString();
+        const to = new Date(zonedTime(addDays(day, days), "00:00", zone())).toISOString();
+        const snap = await bookings().where("start", ">=", from).where("start", "<", to).orderBy("start").limit(500).get();
+        const list = snap.docs
+          .map((d) => ({ id: d.id, b: d.data() }))
+          .filter(({ b }) => b.status !== "held" && (role !== "provider" || takes(b, me?.id)))
+          .map(({ id, b }) => deskBooking(id, b));
+        const svc = await services().limit(MAX_SERVICES + 1).get();
+        return res.status(200).json({
+          role, day, days, zone: zone(),
+          me: me ? { id: me.id, name: me.name } : null,
+          staff: (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name })),
+          services: role === "provider" ? [] : svc.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, minutes: x.minutes, places: x.places || 1 })),
+          bookings: list,
+        });
+      }
+      if (role === "admin") return runAdmin(req, res, by);
+      if (role === "frontDesk") {
+        if (!DESK_OPS.frontDesk.includes(op)) return fail(res, 403, "Ask the owner to do this.", "desk_only");
+        return runAdmin(req, res, by);
+      }
+      // A service provider: only their own bookings, and only checking in or marking a no-show.
+      if (!DESK_OPS.provider.includes(op)) return fail(res, 403, "Ask the owner or the front desk to do this.", "desk_only");
+      if (!me) return fail(res, 403, "Ask the owner to add your email to your entry on the Team & rooms tab.", "not_on_team");
+      if (req.body?.code) return fail(res, 400, "Open the booking from your list to check them in.", "no_code");
+      const id = String(req.body?.id || "");
+      if (!ID.test(id)) return fail(res, 400, "Unknown booking.");
+      const snap = await bookings().doc(id).get();
+      if (!snap.exists || !takes(snap.data(), me.id)) return fail(res, 404, "This booking isn't one of yours.", "not_yours");
+      return runAdmin(req, res, by);
+    } catch (err) {
+      console.error("bookingsDesk failed:", op, err?.message || err);
+      return fail(res, 502, "That didn't go through just now. Please try again.");
+    }
+  }
+
+  return { handlePublic, handleAdmin, handleDesk, sweepHolds, sweepReminders, sweepSecondReminders, sweepTextReplies, sweepSummary, sweepStaffDays, sweepWaitlist, sweepTips, sweepThanks, sweepRebook, sweepMinimum, sweepTeamCalendars, featureOn, pickupCheck };
 }
 
 /** A pickup time checkout can't take; `code` goes back to the shop's page with the words. */
@@ -4326,4 +4403,4 @@ const REMINDER_SKIP_HOURS = 6;
 
 const PUBLIC_BOOKING_ACTIONS = Object.freeze(["bookingMine", "bookingOpen", "bookingInfo", "bookingTimes", "bookingRunCheck", "bookingCode", "bookingGiftCard", "bookingStart", "bookingView", "bookingCancel", "bookingMove", "bookingWait", "bookingEarlier", "bookingEarlierView", "bookingEarlierTake", "bookingConfirm", "bookingForm", "bookingPayRest", "bookingTip", "bookingReview", "bookingPackBuy", "bookingPackView", "bookingPack", "pickupTimes"]);
 
-module.exports = { PickupTimeProblem, engineOn, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
+module.exports = { PickupTimeProblem, engineOn, DESK_OPS, bookingsFeed, customerBookingIcs, bookingActions, busyFrom, cleanCustomer, publicBooking, PUBLIC_BOOKING_ACTIONS, HOLD_MINUTES };
