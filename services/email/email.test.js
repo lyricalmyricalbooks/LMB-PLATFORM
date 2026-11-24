@@ -328,3 +328,15 @@ test("a platform email keeps what it said for the control room, except emails th
   assert.equal(code.copy, "withheld");
   assert.equal(code.text, undefined);
 });
+
+test("an email that already asks for a reply doesn't ask again in its footer; a code email shows the code large", () => {
+  const settings = { platformName: "Colophon" };
+  const tips = TEMPLATES["first-sale-tips"]({}, { settings, pressName: "Moth Press" });
+  assert.equal((tips.text.match(/reply to this email/gi) ?? []).length, 1);
+  assert.match(tips.text, /\n\nSent by Colophon\.$/);
+  const plain = TEMPLATES["payment-failed"]({ price: "$39.00", nextTry: "17 November 2026", link: "https://platform.example/b" }, { settings, pressName: "Moth Press" });
+  assert.match(plain.text, /Sent by Colophon\. Reply to this email if you need a hand\.$/);
+  const code = TEMPLATES["sign-in-code"]({ code: "042917" }, { settings });
+  assert.match(code.html, /font-size:32px[^>]*>042917<\/div>/);
+  assert.doesNotMatch(plain.html, /font-size:32px/);
+});

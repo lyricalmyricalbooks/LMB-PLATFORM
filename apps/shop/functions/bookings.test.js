@@ -2305,6 +2305,11 @@ describe("staff and rooms", () => {
     // Pay never reaches the public page (plan 4, 4.4).
     await team(t, { staff: [{ id: "ana", name: "Ana", commissionPercent: 40, commissionSteps: [{ overMinor: 300_000, percent: 50 }], hourlyMinor: 2_000 }] });
     expect((await t.pub({ action: "bookingInfo" })).body.staff).toEqual([{ id: "ana", name: "Ana", serviceIds: [] }]);
+    // Nor does what a service's product costs (plan 4, 4.5).
+    const [first] = [...t.db.store.keys()].filter((k) => k.startsWith("bookingServices/"));
+    expect(first).toBeTruthy();
+    t.db.store.set(first, { ...t.db.store.get(first), costMinor: 900 });
+    expect((await t.pub({ action: "bookingInfo" })).body.services.some((x) => "costMinor" in x)).toBe(false);
   });
 
   test("booking with anyone free assigns someone, and two bookings at once go to two people", async () => {
@@ -4296,6 +4301,55 @@ describe("the team desk: front desk and service providers (plan 4, 4.1)", () => 
     expect(r.body.me).toBeNull();
     expect(r.body.bookings).toEqual([]);
     expect((await t.dsk(stranger, { op: "checkIn", id: anaId })).body.code).toBe("not_on_team");
+  });
+});
+
+describe("my day on a phone (plan 4, 4.6)", () => {
+  const ANA = { role: "provider", email: "ana@example.com" };
+  const setupDay = async () => {
+    const t = setup({ now: "2026-11-17T12:00:00Z" });
+    await t.seed();
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 60, gapAfter: 0, payment: "atShop", priceMinor: 5000 });
+    await t.db.collection("bookingSettings").doc("main").set({
+      ...DEFAULT_BOOKING_SETTINGS, live: true, minNoticeHours: 0,
+      staff: [{ id: "ana", name: "Ana", email: "ana@example.com" }, { id: "ben", name: "Ben", email: "ben@example.com" }],
+    });
+    const a = await t.adm({ op: "create", serviceId: "cut", staffId: "ana", start: at("2026-11-18", "10:00"), ...CUSTOMER });
+    const b = await t.adm({ op: "create", serviceId: "cut", staffId: "ben", start: at("2026-11-18", "13:00"), name: "Bo Client", email: "bo@example.com" });
+    return { t, anaId: a.body.id, benId: b.body.id };
+  };
+
+  test("a provider takes payment for their own visit: a pay link or paid at the shop, never someone else's", async () => {
+    const { t, anaId, benId } = await setupDay();
+    const link = await t.dsk(ANA, { op: "payLink", id: anaId });
+    expect(link.statusCode).toBe(200);
+    expect(link.body.dueMinor).toBe(5000);
+    expect((await t.dsk(ANA, { op: "payLink", id: benId })).statusCode).toBe(404);
+    expect((await t.dsk(ANA, { op: "paidAtShop", id: anaId })).statusCode).toBe(200);
+    expect(t.db.store.get(`bookings/${anaId}`).paid).toBe(true);
+    expect((await t.dsk(ANA, { op: "paidAtShop", id: benId })).statusCode).toBe(404);
+    expect(t.db.store.get(`bookings/${benId}`).paid).toBeFalsy();
+    expect((await t.dsk(ANA, { op: "cancel", id: anaId })).statusCode).toBe(403);
+  });
+
+  test("a visit note goes on the client card, changes when written again, and shows as last time on their next visit", async () => {
+    const { t, anaId, benId } = await setupDay();
+    expect((await t.dsk(ANA, { op: "visitNote", id: anaId, note: "  6N with 20 vol, 35 min  " })).statusCode).toBe(200);
+    expect((await t.dsk(ANA, { op: "visitNote", id: anaId, note: "6N with 20 vol, 30 min" })).statusCode).toBe(200);
+    const saved = t.db.store.get(`clientVisits/bk-${anaId}`);
+    expect(saved).toMatchObject({ email: "ada@example.com", day: "2026-11-18", note: "6N with 20 vol, 30 min", photos: [] });
+    expect(saved.client).toMatch(/^[0-9a-f]{64}$/);
+    expect([...t.db.store.keys()].filter((k) => k.startsWith("clientVisits/"))).toHaveLength(1);
+    expect((await t.dsk(ANA, { op: "visitNote", id: benId, note: "x" })).statusCode).toBe(404);
+    expect((await t.dsk(ANA, { op: "visitNote", id: anaId, note: "x".repeat(4001) })).statusCode).toBe(400);
+    const same = await t.dsk(ANA, { op: "desk", day: "2026-11-18" });
+    expect(same.body.bookings[0]).toMatchObject({ visitNote: "6N with 20 vol, 30 min" });
+    expect(same.body.bookings[0].lastVisit).toBeUndefined();
+    const next = await t.adm({ op: "create", serviceId: "cut", staffId: "ana", start: at("2026-11-25", "10:00"), ...CUSTOMER });
+    const later = await t.dsk(ANA, { op: "desk", day: "2026-11-25" });
+    expect(later.body.bookings.find((b) => b.id === next.body.id)).toMatchObject({ visitNote: "", lastVisit: { day: "2026-11-18", note: "6N with 20 vol, 30 min" } });
+    expect((await t.dsk(ANA, { op: "visitNote", id: anaId, note: "" })).statusCode).toBe(200);
+    expect(t.db.store.has(`clientVisits/bk-${anaId}`)).toBe(false);
   });
 });
 

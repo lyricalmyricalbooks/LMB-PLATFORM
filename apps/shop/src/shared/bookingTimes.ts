@@ -27,6 +27,8 @@ export type BookingService = {
   gapBefore?: number;
   /** In the shop's smallest money unit (cents). 0 with payment "free". */
   priceMinor: number;
+  /** Product used per visit, like colour or wax (plan 4, 4.5): taken off a person's takings before commission. Never shown to clients. */
+  costMinor?: number;
   payment: BookingPayment;
   /** With payment "deposit": the deposit as an amount (cents), or 0 when it is a share of the price. */
   depositMinor: number;
@@ -823,6 +825,9 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
   const approval = s.approval === true && approvalAllowed({ places, courseDates, payment, holdCard });
   // At the client's address: one person's visit, never a class or a course.
   const atClient = s.atClient === true && places === 1 && !courseDates.length;
+  // Product used per visit: only on a priced service, and never more than the price.
+  const costMinor = priceMinor > 0 ? whole(s.costMinor, 0, 1_000_000, 0) : 0;
+  if (costMinor > priceMinor) return { problem: "The product used can't cost more than the price." };
   if (processMinutes && (processMinutes < MIN_PROCESS_MINUTES || processAfter < MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
     return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
   }
@@ -834,6 +839,7 @@ export function cleanService(raw: unknown, id = ""): BookingService | { problem:
     gapAfter: whole(s.gapAfter, 0, 120, 0),
     ...(gapBefore ? { gapBefore } : {}),
     priceMinor,
+    ...(costMinor ? { costMinor } : {}),
     payment,
     depositMinor,
     depositPercent,

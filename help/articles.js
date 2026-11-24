@@ -97,6 +97,8 @@ export const ARTICLES = Object.freeze([
       "Plan who works when under Bookings › Shifts & time off, and copy last week to save typing. Your team sees their shifts when they sign in.",
       "Your team asks for time off from their own sign-in. Approve it under Shifts & time off, and clients can't book them on those days.",
       "To pay a higher share in a good month, open a person in Team & rooms and add a step under Their pay. The higher share counts only on takings above that amount.",
+      "If a service uses product, like colour or wax, add what it costs per visit in the service. Team pay takes it off before working out commission.",
+      "On a phone, a service provider's own day shows their next client first. They can check them in, take payment and keep a note on the visit.",
     ],
   },
   {

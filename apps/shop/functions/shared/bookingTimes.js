@@ -643,6 +643,10 @@ function cleanService(raw, id = "") {
     const approval = s.approval === true && approvalAllowed({ places, courseDates, payment, holdCard });
     // At the client's address: one person's visit, never a class or a course.
     const atClient = s.atClient === true && places === 1 && !courseDates.length;
+    // Product used per visit: only on a priced service, and never more than the price.
+    const costMinor = priceMinor > 0 ? whole(s.costMinor, 0, 1_000_000, 0) : 0;
+    if (costMinor > priceMinor)
+        return { problem: "The product used can't cost more than the price." };
     if (processMinutes && (processMinutes < exports.MIN_PROCESS_MINUTES || processAfter < exports.MIN_PROCESS_AFTER || processAfter + processMinutes >= minutes)) {
         return { problem: "Processing time starts at least 5 minutes in, lasts at least 10 minutes and ends before the service does." };
     }
@@ -654,6 +658,7 @@ function cleanService(raw, id = "") {
         gapAfter: whole(s.gapAfter, 0, 120, 0),
         ...(gapBefore ? { gapBefore } : {}),
         priceMinor,
+        ...(costMinor ? { costMinor } : {}),
         payment,
         depositMinor,
         depositPercent,

@@ -855,3 +855,16 @@ licence (only `images.unsplash.com` photos, never paid `plus.` ones), each liste
 `starterSamples.test.ts` fails on a missing, oversized, unlisted or unused photo and on non-neutral names.
 `lookGallery.sampleProducts` (look previews, design-before-the-store) now reads the shop's set. **A new kind of shop** only
 needs a new set here plus its photos and licence lines; any starter can show any set.
+
+## Starters and Studio rethink, step 2: starters arrive with samples (24 November 2026)
+`applyStarter` / `applyPresetSections` take an optional `StarterPhotos` (`studio/starterPhotos.ts` `starterPhotos(sells)`):
+the shop's sample photos (`samplePhotosFor`: band photos, then item photos) and each section type's main picture field
+(`mainPictureKeys`, the `imageUrl` image field of `getSectionFields`). `samplePhotoFiller` fills empty ones in turn, plus empty
+`imageUrl` items in a section's lists, and an empty matching alt; a photo the starter brings is kept. Choose your look,
+design-before-the-store, Themes › Use layout and the starter preview pass it. Example products come from the same set and
+are never sold (`features/site/comingSoon.ts` `notForSale`, server `purchaseProblem`). Publish says how many sections still
+carry `sample: true` (`sampleSectionsLeft`).
+**Service shops (same day):** `starterForShop(theme, sells)` (starterDesign.ts) gives a services shop its version of any
+starter: the first product row becomes the price list (`ServiceMenuSection`), the second the Book a time cards
+(`BookTimeSection`), other product rows (`PRODUCT_SECTIONS`) go, and opening hours go before the sign-up band. The same four
+callers pass it. Booking sections are never re-worded (`SERVICES_WORDED` in presetContent.ts: "Book" is their verb).

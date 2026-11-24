@@ -517,7 +517,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   const samplePhoto = (a: string, b: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${a}"/><circle cx="78" cy="46" r="30" fill="${b}"/><rect x="14" y="70" width="70" height="36" fill="${b}" opacity=".7"/></svg>`)}`;
   let services: BookingService[] = mode === "new" ? [] : [
     service("review", "Portfolio review", 30, 0, 0, { group: "Advice", description: "Bring your zine or dummy for honest notes.", holdCard: true, lateFeeMinor: 2000, meet: true }),
-    service("riso", "Risograph printing session", 60, 4500, 1, { group: "Printing", photo: samplePhoto("#ff48b0", "#0078bf"), location: "Print room", gapBefore: 15, chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
+    service("riso", "Risograph printing session", 60, 4500, 1, { group: "Printing", photo: samplePhoto("#ff48b0", "#0078bf"), location: "Print room", costMinor: 600, gapBefore: 15, chargeTax: true, packVisits: 5, packPriceMinor: 18000, packDays: 365, questions: [{ id: "q1", label: "What are you printing?", long: true, required: true }, { id: "q2", label: "How many copies?", long: false, required: false }] }),
     // With Classes on (`?ways=classes&page=classes`) the class is live and a second one runs two evenings a week.
     service("binding", "Bookbinding class", 90, 3000, 2, { active: CLASSES, places: 6, classTimes: [{ weekday: 6, time: "14:00" }] }),
     service("workshop", "Half-day workshop", 180, 12000, 3, { group: "Printing", payment: "deposit", depositPercent: 25, processAfter: 60, processMinutes: 60 }),
@@ -844,6 +844,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
   // The team desk (?desk=frontDesk|provider, plan 4, 4.1): the same sample day, trimmed the way the server's
   // handleDesk trims it. Sam is the front desk; as a provider the page signs in as Ben and sees only his bookings.
   const deskRole = new URLSearchParams(window.location.search).get("desk") === "provider" ? "provider" : "frontDesk";
+  const deskNotes = new Map<string, string>();
   teamDeskData.day = async (day) => {
     const staff = (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name }));
     const me = deskRole === "provider" ? { id: "ben", name: "Ben Example" } : null;
@@ -851,9 +852,12 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
     const bookings = rows.filter((b) => dayOf(Date.parse(b.start), zone) === day && b.status !== "held")
       .filter((b) => !me || b.staffId === me.id)
       .sort((a, b) => a.start.localeCompare(b.start));
+    // My day (plan 4, 4.6): notes written at the desk, and a note from last time on the day's first client.
+    const notes = bookings.map((b, n) => ({ ...b, visitNote: deskNotes.get(b.id) || "",
+      ...(n === 0 ? { lastVisit: { day: dayOf(Date.now() - 28 * 86_400_000, zone), note: "Root touch-up, 6N + 20 vol, 35 min. Next time try 7N, a little dark." } } : {}) }));
     return { role: deskRole, day, days: 60, zone, me, staff,
       services: deskRole === "provider" ? [] : services.filter((s) => s.active !== false).map((s) => ({ id: s.id, name: s.name, minutes: s.minutes, places: s.places || 1 })),
-      bookings };
+      bookings: notes };
   };
   // The desk person's own clock: Sam is on a break, Ben is working.
   let deskShift: Shift | null = deskRole === "provider"
@@ -871,6 +875,7 @@ if (/page=stockroom(\/|%2F)qrcodes/.test(window.location.search) && !EMPTY_STOCK
       offRows = [...offRows, { ...made.ask, id: `t${Date.now().toString(36)}` }];
       return { ok: true };
     }
+    if (op === "visitNote") { const note = String(body.note || "").trim(); if (note) deskNotes.set(String(body.id), note); else deskNotes.delete(String(body.id)); return { ok: true, note }; }
     if (op === "withdrawTimeOff") { offRows = offRows.map((t) => (t.id === body.id ? { ...t, status: "withdrawn" } : t)); return { ok: true }; }
     if (op !== "clock") return bookingsData.admin(op as never, body);
     const next = clockStep(deskShift, body.step as ClockStep, new Date().toISOString(), { email: "sam@example.com", name: "Sam Example", day: dayOf(Date.now(), shopTimeZone()) });
@@ -1978,6 +1983,8 @@ if (new URLSearchParams(location.search).has("desk")) {
   const { createElement } = await import("react");
   const { createRoot } = await import("react-dom/client");
   const { TeamDesk } = await import("../app/admin/TeamDesk");
+  // The admin's look, as Dashboard sets it before it shows the desk.
+  (await import("../app/admin/riso/adminLook")).applyAdminLook();
   await import("../styles/index.css");
   createRoot(document.getElementById("root")!).render(createElement(TeamDesk, { email: role === "provider" ? "ben@example.com" : "sam@example.com", role, appearance: "light" }));
   helperShown = true;

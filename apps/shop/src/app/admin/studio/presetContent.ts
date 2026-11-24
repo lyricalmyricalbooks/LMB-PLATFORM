@@ -108,15 +108,56 @@ export function wordedSettings(settings: Record<string, any>, w: (text: string) 
   return word("", settings);
 }
 
+/** Sections whose words are already a services shop's (Book a time, price list, team, hours, reviews). */
+const SERVICES_WORDED = new Set(["BookTimeSection", "ServiceMenuSection", "BookingTeamSection", "BookCallSection", "BookingHoursSection", "ClientReviewsSection"]);
+
+/** A sample photo for a starter's empty picture spots (starterSamples.ts `samplePhotosFor`). */
+export type SamplePhoto = { url: string; alt: string };
+/** The sample photos and, per section type, the picture fields they may fill (`starterPhotos.ts`). */
+export type StarterPhotos = { photos: SamplePhoto[]; imageKeys: (type: string) => string[] };
+
+/**
+ * Fills a new section's empty pictures with the shop's sample photos, in turn (24 November 2026, rethink step 2): the
+ * section type's own picture fields (`imageKeys`) and the `imageUrl` of each item in its lists (columns, slides,
+ * cards). A picture the starter brings is kept, and alt text is set only where it is empty. No photos = unchanged.
+ */
+export function samplePhotoFiller(samples?: StarterPhotos): (type: string, settings: Record<string, any>) => Record<string, any> {
+  const photos = samples?.photos || [];
+  let turn = 0;
+  const next = () => photos[turn++ % photos.length];
+  const fillKey = (item: Record<string, any>, key: string) => {
+    if (item[key]) return item;
+    const photo = next();
+    const alt = key.replace(/Url$/, "Alt");
+    return { ...item, [key]: photo.url, ...(alt !== key && !item[alt] ? { [alt]: photo.alt } : {}) };
+  };
+  return (type, settings) => {
+    if (!photos.length || !settings || typeof settings !== "object") return settings;
+    let out: Record<string, any> = settings;
+    for (const key of samples!.imageKeys(type)) out = fillKey(out, key);
+    for (const [key, value] of Object.entries(out)) {
+      if (Array.isArray(value) && value.some(v => v && typeof v === "object" && "imageUrl" in v)) {
+        out = { ...out, [key]: value.map(v => (v && typeof v === "object" && "imageUrl" in v ? fillKey(v, "imageUrl") : v)) };
+      }
+    }
+    return out;
+  };
+}
+
 /**
  * The draft with the preset's section lists in place of those templates' sections. Everything else is kept. `w` is the
  * shop's words (useShopWords): a books shop's layouts come in exactly as written.
  */
-export function applyPresetSections(design: any, preset: PresetLike, meta: (type: string) => any, w: (text: string) => string = (t) => t): any {
+export function applyPresetSections(design: any, preset: PresetLike, meta: (type: string) => any, w: (text: string) => string = (t) => t, samples?: StarterPhotos): any {
   let next = design;
+  const fill = samplePhotoFiller(samples);
   for (const [id, specs] of Object.entries(presetSections(preset))) {
     // Marked as the starter's sample until the owner edits it (Studio's Sample badge).
-    const sections = specs.map(s => ({ ...makeSection(s.type, wordedSettings({ ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) }, w)), sample: true }));
+    // Booking sections are written in services words already ("Book" is the verb there), so they are never re-worded.
+    const sections = specs.map(s => {
+      const settings = { ...(meta(s.type)?.defaults || {}), ...(s.settings || {}) };
+      return { ...makeSection(s.type, fill(s.type, SERVICES_WORDED.has(s.type) ? settings : wordedSettings(settings, w))), sample: true };
+    });
     next = setSections(next, targetOf(id), sections);
   }
   const blocks = preset?.content?.productBlocks;

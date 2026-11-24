@@ -89,12 +89,14 @@ const HOLD_MINUTES = 10;
 /**
  * What each team desk role may do (plan 4, 4.1): a front desk books, moves, cancels and checks people in for everyone,
  * never services, settings, reports, packs, readers' set-up or the missed-visit fee; a service provider checks their own
- * clients in and marks their own no-shows.
+ * clients in, marks their own no-shows and (My day, 4.6) takes payment and keeps a note on their own visits.
  */
 const DESK_OPS = Object.freeze({
-  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm"]),
-  provider: Object.freeze(["checkIn", "noShow"]),
+  frontDesk: Object.freeze(["times", "create", "move", "cancel", "accept", "decline", "checkIn", "noShow", "paidAtShop", "walkIn", "payLink", "waitlist", "removeWaiting", "addBlock", "removeBlock", "clientForm", "visitNote"]),
+  provider: Object.freeze(["checkIn", "noShow", "paidAtShop", "payLink", "visitNote"]),
 });
+/** A visit note's longest length, as the client card's (src/app/admin/clientVisits.ts MAX_VISIT_NOTE, firestore.rules). */
+const MAX_VISIT_NOTE = 4000;
 /** How long a pack's card page stays open. An unpaid pack is forgotten once it closes. */
 const PACK_PAGE_MINUTES = 60;
 /** A pack's code: 12 letters and digits with nothing that reads two ways, as "ABCD-EFGH-JKLM". */
@@ -3408,6 +3410,25 @@ function bookingActions({
         }
         return res.status(200).json({ ok: true, url: manageUrl(id, key), dueMinor: balanceDue(b), sent: req.body?.send === true });
       }
+      if (op === "visitNote") {
+        // A note on this visit (plan 4, 4.6 My day): kept on the client card with the owner's visit notes, one per booking
+        // (id bk-<booking>), so writing it again changes it and sending it twice is harmless. Empty takes it off.
+        const email = String(b.customer?.email || "").trim().toLowerCase();
+        if (!EMAIL.test(email)) return fail(res, 400, "This booking has no client email to keep a note under.");
+        const note = String(req.body?.note || "").trim();
+        if (note.length > MAX_VISIT_NOTE) return fail(res, 400, `Keep the note under ${MAX_VISIT_NOTE} characters.`);
+        const ref = db.collection("clientVisits").doc(`bk-${id}`);
+        const had = await ref.get();
+        const old = had.exists ? had.data() : null;
+        const at = now().toISOString();
+        if (!note && !(old?.photos || []).length) {
+          if (old) await ref.delete();
+        } else {
+          await ref.set({ client: hash(email), email, day: dayOf(Date.parse(b.start), zone()), note, photos: old?.photos || [], createdAt: old?.createdAt || at, updatedAt: at });
+        }
+        await bookings().doc(id).set({ history: [...(b.history || []), { at, what: note ? "visit note saved" : "visit note taken off", by }].slice(-20) }, { merge: true });
+        return res.status(200).json({ ok: true, note });
+      }
       // Owner approves (plan 4, 2.5): accept turns a request into a booking; decline lets the time go and tells them.
       if (op === "accept") {
         if (b.status === "confirmed") return res.status(200).json({ ok: true });
@@ -4324,6 +4345,28 @@ function bookingActions({
     return { id, ...rest, card: card ? { brand: card.brand || "", last4: card.last4 || "" } : null };
   };
 
+  /**
+   * Visit notes for the desk's list (plan 4, 4.6 My day): this visit's own note, and the client's latest note from an
+   * earlier day ("Last time…"), so the person taking them sees the formula before they sit down. At most 40 clients read.
+   */
+  async function deskNotes(list) {
+    const out = new Map();
+    const emails = [...new Set(list.map((b) => String(b.customer?.email || "").trim().toLowerCase()).filter((e) => EMAIL.test(e)))].slice(0, 40);
+    const byClient = new Map(await Promise.all(emails.map(async (e) => {
+      const snap = await db.collection("clientVisits").where("client", "==", hash(e)).limit(60).get();
+      return [e, snap.docs.map((d) => ({ id: d.id, ...d.data() }))];
+    })));
+    for (const b of list) {
+      const visits = byClient.get(String(b.customer?.email || "").trim().toLowerCase());
+      if (!visits) continue;
+      const day = dayOf(Date.parse(b.start), zone());
+      const own = visits.find((v) => v.id === `bk-${b.id}`);
+      const last = visits.filter((v) => v.day < day && String(v.note || "").trim()).sort((x, y) => y.day.localeCompare(x.day) || String(y.updatedAt).localeCompare(String(x.updatedAt)))[0];
+      out.set(b.id, { visitNote: own?.note || "", ...(last ? { lastVisit: { day: last.day, note: String(last.note).slice(0, 600) } } : {}) });
+    }
+    return out;
+  }
+
   /** Who can be on the rota: people on Team & rooms with a sign-in email, and Front desk and Service provider members. */
   async function rotaPeople(settings) {
     const out = new Map();
@@ -4479,13 +4522,14 @@ function bookingActions({
           .map((d) => ({ id: d.id, b: d.data() }))
           .filter(({ b }) => b.status !== "held" && (role !== "provider" || takes(b, me?.id)))
           .map(({ id, b }) => deskBooking(id, b));
+        const notes = await deskNotes(list);
         const svc = await services().limit(MAX_SERVICES + 1).get();
         return res.status(200).json({
           role, day, days, zone: zone(),
           me: me ? { id: me.id, name: me.name } : null,
           staff: (settings.staff || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name })),
           services: role === "provider" ? [] : svc.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, minutes: x.minutes, places: x.places || 1 })),
-          bookings: list,
+          bookings: list.map((b) => ({ ...b, ...notes.get(b.id) })),
           clock: role === "admin" ? null : clockView(await openShiftOf(email)),
           ...(role === "admin" ? {} : await myRotaAndTimeOff(email)),
         });
@@ -4495,7 +4539,7 @@ function bookingActions({
         if (!DESK_OPS.frontDesk.includes(op)) return fail(res, 403, "Ask the owner to do this.", "desk_only");
         return runAdmin(req, res, by);
       }
-      // A service provider: only their own bookings, and only checking in or marking a no-show.
+      // A service provider: only their own bookings: checking in, no-shows, taking payment and visit notes (DESK_OPS).
       if (!DESK_OPS.provider.includes(op)) return fail(res, 403, "Ask the owner or the front desk to do this.", "desk_only");
       if (!me) return fail(res, 403, "Ask the owner to add your email to your entry on the Team & rooms tab.", "not_on_team");
       if (req.body?.code) return fail(res, 400, "Open the booking from your list to check them in.", "no_code");

@@ -1854,3 +1854,11 @@ rules in `shared/teamRota.js`. `rotaPeople` = Team & rooms entries with an email
 provider. `answerTimeOff` runs in one transaction with the settings: approved whole days join the person's `daysOff`,
 part of a day becomes a `Time off` block (`applied`), someone not on Team & rooms changes nothing. `clashesFor` counts
 their confirmed or waiting bookings then. Emails: `tellOwnerTimeOff` (new ask), `tellTimeOff` (the answer).
+
+**My day (23 November 2026, Bookings plan 4 step 4.6).** A provider may also run `paidAtShop`, `payLink` and `visitNote`
+on bookings they take (same `takes` check); the front desk gets `visitNote`. Op `visitNote` {id, note ≤ 4000} writes
+`clientVisits/bk-<bookingId>` (the client card's visit notes: `client` = sha256 of the lower-case email, booking's shop
+day, photos kept), so a second save changes it and an empty note deletes it unless it has photos; it adds a history
+line. Op `desk` adds `visitNote` and `lastVisit` {day, note} (latest note from an earlier day) to each booking
+(`deskNotes`: one equality query per client, at most 40 clients, no index).
+

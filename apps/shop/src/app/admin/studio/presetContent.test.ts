@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { PAGE_STARTERS } from "./pageStarters";
 import {
-  PRESET_SECTION_TEMPLATES, applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, presetStarterPages, sampleSectionsLeft, wordedSettings,
+  PRESET_SECTION_TEMPLATES, applyPresetSections, hasPresetContent, presetContentSummary, presetPagesToAdd, presetSections, presetStarterPages, sampleSectionsLeft, samplePhotoFiller, wordedSettings,
 } from "./presetContent";
 import { getSections } from "./studioModel";
 import { THEME_LIBRARY } from "./themeLibrary";
@@ -100,5 +100,24 @@ describe("sample sections left before Publish", () => {
     expect(sampleSectionsLeft(design)).toBe(2);
     expect(sampleSectionsLeft({})).toBe(0);
     expect(sampleSectionsLeft(null)).toBe(0);
+  });
+});
+
+describe("sample photos fill a starter's empty pictures", () => {
+  const samples = { photos: [{ url: "/samples/home/opening.webp", alt: "Bowls" }, { url: "/samples/home/story.webp", alt: "Hands" }], imageKeys: (type: string) => (type === "Pictured" ? ["imageUrl"] : []) };
+  it("fills the type's empty picture and item pictures in turn, keeps the starter's own, and sets only empty alt text", () => {
+    const fill = samplePhotoFiller(samples);
+    expect(fill("Pictured", { title: "Hi" })).toEqual({ title: "Hi", imageUrl: "/samples/home/opening.webp", imageAlt: "Bowls" });
+    expect(fill("Pictured", { imageUrl: "/starters/aurel/1.webp", imageAlt: "" })).toEqual({ imageUrl: "/starters/aurel/1.webp", imageAlt: "" });
+    expect(fill("Plain", { items: [{ title: "A", imageUrl: "" }, { title: "B", imageUrl: "", imageAlt: "Mine" }, { title: "C" }], heading: "x" })).toEqual({
+      items: [{ title: "A", imageUrl: "/samples/home/story.webp", imageAlt: "Hands" }, { title: "B", imageUrl: "/samples/home/opening.webp", imageAlt: "Mine" }, { title: "C" }], heading: "x",
+    });
+    expect(fill("Plain", { title: "No picture here" })).toEqual({ title: "No picture here" });
+  });
+  it("changes nothing without photos, and applyPresetSections passes them on", () => {
+    expect(samplePhotoFiller()("Pictured", {})).toEqual({});
+    const preset = { content: { sections: { heroPage: [{ type: "Pictured", settings: {} }] } } };
+    const out = applyPresetSections({}, preset as any, () => ({ defaults: {} }), (t) => t, samples);
+    expect(JSON.stringify(out)).toContain("/samples/home/opening.webp");
   });
 });

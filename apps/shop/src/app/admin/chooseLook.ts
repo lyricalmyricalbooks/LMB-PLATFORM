@@ -6,7 +6,8 @@
 // `firstWeek/start` so the welcome never shows again; Studio's theme switcher changes it later. Skip takes the first
 // suggestion. A shop with no `firstWeek/start` (made before this, or by hand) and a stockroom-only plan never see it.
 
-import { applyStarter, starterPagesToAdd } from "./studio/starterDesign";
+import { starterPhotos } from "./studio/starterPhotos";
+import { applyStarter, starterForShop, starterPagesToAdd } from "./studio/starterDesign";
 import { wordsFor } from "../../shared/shopSells";
 // Only Choose your look loads this file, on a click (ChooseLookWelcome imports it lazily), so the section list stays out of Home.
 import { getSectionMeta } from "./ThemeEditorExtensions";
@@ -29,7 +30,7 @@ export async function applyChosenLook(theme: LibraryTheme, settings: any, publis
   for (let attempt = 0; ; attempt++) {
     const ws = await openWorkspace(settings);
     try {
-      await saveDraft(ws, withStarterWords(applyStarter(ws.draft || {}, theme, getSectionMeta, w), publishes), ws.rev);
+      await saveDraft(ws, withStarterWords(applyStarter(ws.draft || {}, starterForShop(theme, publishes), getSectionMeta, w, starterPhotos(publishes)), publishes), ws.rev);
       break;
     } catch (error) {
       if (!(error instanceof ThemeConflictError) || attempt >= 1) throw error;

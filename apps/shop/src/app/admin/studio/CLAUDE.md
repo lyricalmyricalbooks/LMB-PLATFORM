@@ -23,6 +23,7 @@ Studio is the only designer. Read `docs/THEME_EDITOR.md` too before changing it.
 - Templates (`features/site/templateStyles.ts`): read `var(--tpl-…, own look)`, write no colour, font or words, answer every knob, and use `template*` keys, never the Riso ones (`templateCoverage.test.ts`). To add one: `TEMPLATE_STYLES` + `TEMPLATE_CSS`/`lookCss`, `PALETTES`, a `THEME_LIBRARY` look, a home layout, a `lookFeel`.
 - Changing a shipped theme offers an update to every shop using it: change themes on purpose. Studio › Themes changes only the look; layouts and pages are a separate undoable step. Starters apply whole only to new shops and must stay neutral (`neutralStarters.test.ts`); `starterDesign.test.ts` applies each twice.
 - Starter content comes from sample sets (`admin/starterSamples.ts`, chosen by `sampleSetFor(sells)`): neutral "Example …" words, no made-up makers or reviews, photos in `public/samples/<set>/` from Unsplash's free licence only, each listed in `public/samples/LICENSE.md` (`starterSamples.test.ts`). A new kind of shop needs only a new set.
+- Starters fill empty pictures from the shop's sample set (`studio/starterPhotos.ts`) and never replace a photo the starter brings; example products are never sold (`comingSoon.ts` `notForSale`, server `purchaseProblem`). Services shops get `starterForShop(theme, sells)`; booking sections are never re-worded (`SERVICES_WORDED`).
 - A new structural design key goes in `DESIGN_STRUCTURE_KEYS` (`themeImportCheck.test.ts`) and, if it has its own editor, `designDiff.ts` `STRUCTURAL`.
 - Section designs only set the section's own fields with values its controls offer; a new section type must be placed in a kind in `studio/sectionDesigns.ts` (`sectionDesigns.test.ts`). Bands use colour schemes, never a colour. Never replace an owner's own schemes (`fromLook`).
 
@@ -73,3 +74,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Studio look and phone top bar (13 November 2026)
 - Starter websites (23 November 2026, plan "Editable starter websites", step 1)
 - Starters and Studio rethink, step 1: sample sets (24 November 2026)
+- Starters and Studio rethink, step 2: starters arrive with samples (24 November 2026)

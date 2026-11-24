@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SAMPLE_SETS, SAMPLE_SET_IDS, sampleSetFor, sampleSetsFor, samplePhotoUrl, samplePrice } from "./starterSamples";
+import { SAMPLE_SETS, SAMPLE_SET_IDS, sampleSetFor, sampleSetsFor, samplePhotoUrl, samplePrice, samplePhotosFor } from "./starterSamples";
 
 const PUBLIC = join(__dirname, "../../../public/samples");
 const LICENSE = readFileSync(join(PUBLIC, "LICENSE.md"), "utf8");
@@ -73,5 +73,15 @@ describe("starter sample sets", () => {
     expect(samplePhotoUrl("home", "mug", "/shop")).toBe("/shop/samples/home/mug.webp");
     expect(samplePrice(28)).toBe("CA$ 28.00");
     expect(samplePrice(28, "USD")).toBe("US$ 28.00");
+  });
+});
+
+describe("photos for a starter's pictures", () => {
+  it("lists the four band photos first, then the set's own items, all with alt text", () => {
+    const photos = samplePhotosFor("clothing", "/");
+    expect(photos.slice(0, 4).map((p) => p.url)).toEqual(["opening", "story", "about", "banner"].map((n) => `/samples/clothing/${n}.webp`));
+    expect(photos).toHaveLength(12);
+    expect(photos.every((p) => p.alt.length > 0)).toBe(true);
+    expect(samplePhotosFor("hair", "/")[4].url).toBe("/samples/studio/wheel-lesson.webp");
   });
 });
