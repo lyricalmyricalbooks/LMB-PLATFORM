@@ -30,7 +30,7 @@ export const ARTICLES = Object.freeze([
     topic: "Selling",
     question: "What do I need to sell within the law?",
     answer: [
-      "Your press is the seller, so the shopping, privacy and tax rules of the places you sell to apply to you. This is a short list of what most presses need, not legal advice.",
+      "Your press is the seller, so the shopping, privacy and tax rules of the places you sell to apply to you. This is a short list of what most presses need.",
       "Fill in your own name, address and email under Settings › Your shop. Every order email and shipping label shows them, and the law asks for them.",
       "Write your shipping, returns, privacy and terms pages. Each has a Start from our wording button, and your shop won't open until all four have words.",
       "Your returns page can say no to change-of-mind returns, but shoppers always keep their rights for faulty items. Shoppers in Europe and the United Kingdom can cancel within 14 days of delivery.",
