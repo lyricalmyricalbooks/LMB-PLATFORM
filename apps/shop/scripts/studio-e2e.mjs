@@ -8,7 +8,7 @@
 //                                           independent, each opens its own page, so shards can run on separate machines)
 import { chromium } from "playwright";
 import { createServer } from "vite";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 let server;
@@ -1459,6 +1459,51 @@ await check("Try this starter keeps the design as it was in My themes, then puts
   await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 5000 });
   await panel.locator("[data-theme-card]", { hasText: "Before " }).first().waitFor({ timeout: 5000 });
 });
+
+// Every starter on every kind of shop (next starters plan, phase 1): a starter listed in lookGallery.ts STARTER_SITES is
+// tried as a bookshop, a clothing shop and a salon, at desktop and phone. Its look must load, nothing may scroll
+// sideways, the shop name must stay clear of the header's buttons, and a shop that sells no books must not show the
+// books menu. A new starter is checked here by being listed, with nothing to add.
+const STARTERS = JSON.parse(/export const STARTER_SITES = (\[[^\]]*\])/.exec(readFileSync(new URL("../src/app/admin/lookGallery.ts", import.meta.url), "utf8"))[1]);
+for (const starter of STARTERS) for (const sells of ["books", "clothing", "hair"]) {
+  await check(`starter ${starter} as a ${sells} shop: styled, no sideways scroll, name clear of the buttons, the right menu`, desktop, async page => {
+    await expectText(page, "Preview connected", 30000);
+    const card = page.locator(`[data-studio-panel='themes'] [data-theme-card='preset:${starter}']`);
+    await card.scrollIntoViewIfNeeded();
+    await card.getByRole("button", { name: "Try this starter" }).click();
+    await page.locator("[data-studio-status=\"unsaved\"]").waitFor({ timeout: 10000 });
+    const frame = page.frameLocator("iframe").first();
+    await frame.locator(".fm-hdr-row").first().waitFor({ timeout: 10000 });
+    await page.waitForTimeout(1500);
+    const look = async (where) => {
+      const f = page.frames().find(fr => fr !== page.mainFrame() && fr.url().includes("preview=true"));
+      if (!f) throw new Error("the preview isn't open");
+      const seen = await f.evaluate(() => {
+        const row = document.querySelector(".fm-hdr-row");
+        const logo = row?.querySelector('a[href="/"]');
+        const box = (el) => el.getBoundingClientRect();
+        const l = logo ? box(logo) : null;
+        const clash = l ? [...row.querySelectorAll("button")].filter(b => !logo.contains(b)).map(box)
+          .some(b => b.width > 0 && b.left < l.right - 1 && b.right > l.left + 1 && b.top < l.bottom && b.bottom > l.top) : false;
+        return {
+          styled: getComputedStyle(document.body).fontFamily !== "\"Times New Roman\"" && document.styleSheets.length > 3,
+          sideways: document.documentElement.scrollWidth > innerWidth + 1,
+          clash,
+          nav: [...document.querySelectorAll("header a, nav a, .fm-hdr-row a")].map(a => a.textContent.trim().toUpperCase()),
+        };
+      });
+      if (!seen.styled) throw new Error(`${where}: the starter's look didn't load`);
+      if (seen.sideways) throw new Error(`${where}: the page scrolls sideways`);
+      if (seen.clash) throw new Error(`${where}: the shop name sits under the header's buttons`);
+      return seen;
+    };
+    const wide = await look("desktop");
+    if (sells !== "books" && wide.nav.some(t => ["PUBLICATIONS", "ZINES", "OUT OF PRINT"].includes(t))) throw new Error(`a ${sells} shop shows the books menu (${wide.nav.join(", ")})`);
+    await page.getByRole("button", { name: "Phone preview" }).click();
+    await page.waitForTimeout(1500);
+    await look("phone");
+  }, `?sells=${sells}#designer?tab=themes`);
+}
 
 await check("switching looks lists what carried over, Bring back restores a replaced change, and Done closes the list", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
