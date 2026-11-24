@@ -563,11 +563,14 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
   const headerRowRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
+  const navRightRef = useRef<HTMLElement>(null);
   // Header layout › Centred puts the links in their own row; Minimal moves them behind the Menu button.
   const layout = headerLayout(sf);
   const centered = layout === "centered";
   const minimal = layout === "minimal";
-  const navBelow = useNavBelow(centered ? { ...sf, navPlacement: "below" } : sf, headerRowRef, navRef);
+  // Links split around a centred logo sit inline beside it (each half is short), unless the owner picked "below".
+  const splitInline = !centered && sf?.navAroundLogo === true && shop.logoPosition === "center" && (sf?.navPlacement || "auto") === "auto";
+  const navBelow = useNavBelow(centered ? { ...sf, navPlacement: "below" } : splitInline ? { ...sf, navPlacement: "inline" } : sf, headerRowRef, navRef);
   const logoPosition = centered ? "center" : shop.logoPosition;
   const navFit = useNavFit(sf, navRef, navBelow);
   const line = navLineProps(sf, navBelow, navFit);
@@ -617,10 +620,11 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const headerBorderColor = isHeaderTransparent ? "transparent" : headerScheme ? "var(--border-color)" : (sf?.headerColor ? `${sf.headerColor}1a` : `${storefrontText}1a`);
   const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
 
-  const navBar = (
+  const primaryNav = splitNavigation(navItems, sf).primary;
+  const barOf = (items: typeof primaryNav, ref: typeof navRef) => (
     <CategoryBar
-      navRef={navRef}
-      items={splitNavigation(navItems, sf).primary}
+      navRef={ref}
+      items={items}
       design={sf}
       copyDesign={design}
       color={headerTextColor}
@@ -631,6 +635,9 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       childTarget={(k) => ({ key: `cat:${k.id}`, label: k.name, to: collectionPath(k.name), active: activeName === k.name, onSelect: () => pick(categories.find((c: any) => c.id === k.id) || k) })}
     />
   );
+  const navBar = barOf(primaryNav, navRef);
+  // Style › Header layout › links on both sides of a centred logo: the first half sits left, the rest right (computers).
+  const around = aroundLogo(sf, logoPosition, minimal, navBelow, primaryNav);
   const logo = (
     <Link to="/" state={HOME_LINK_STATE} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
       <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
@@ -728,15 +735,16 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <div style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
           </div>
         ) : (
-          <div ref={headerRowRef} className="fm-hdr-row mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth }}>
+          <div ref={headerRowRef} className={`fm-hdr-row mx-auto px-6 py-4 items-center gap-4 ${around ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : "flex flex-nowrap justify-between"}`} style={{ maxWidth }}>
             <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
               {minimal && <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} everywhere />}
               {logoPosition === "left" && logo}
-              {!navBelow && !minimal && navBar}
+              {around ? barOf(around.left, navRef) : !navBelow && !minimal && navBar}
             </div>
-            {logoPosition === "center" && <div className="flex-1 flex justify-center">{logo}</div>}
+            {logoPosition === "center" && <div className={`${around ? "" : "flex-1 "}flex justify-center`}>{logo}</div>}
             <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
               {logoPosition === "right" && logo}
+              {around && <div className="mr-auto pl-6 md:pl-10">{barOf(around.right, navRightRef)}</div>}
               {sf?.menus?.header?.length > 0 && (
                 <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={sf.menus.header} design={sf} /></div>
               )}
@@ -791,4 +799,11 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       </header>
     </>
   );
+}
+
+/** Links on both sides of a centred logo (`navAroundLogo`): the first half on the left, the rest on the right; null when off. */
+export function aroundLogo<T>(sf: any, logoPosition: string, minimal: boolean, navBelow: boolean, items: T[]) {
+  if (sf?.navAroundLogo !== true || logoPosition !== "center" || minimal || navBelow || items.length < 2) return null;
+  const half = Math.ceil(items.length / 2);
+  return { left: items.slice(0, half), right: items.slice(half) };
 }
