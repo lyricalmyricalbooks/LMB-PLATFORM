@@ -832,3 +832,10 @@ starter. A starter may carry `content.sampleProducts` (title, maker, price, phot
 `starterPreview` (StudioEditor): look + layouts (`applyStarter`) and its sample products in place of the shop's, never
 saved. Design-before-the-store uses them too (`sampleShopBooks(sells, look)`). Photos are made for each starter (Julian's
 choice, 23 November 2026); keep each under ~150 KB.
+**Starters match their Figma design and stay neutral (24 November 2026).** A starter is a template style plus its own
+sections, never only generic sections: Aurel is `themeStyle: "aurel"` (`AUREL_CSS`, lookCss in templateStyles.ts: thin
+banner, centred spaced wordmark, untinted numbered photos, wide first product) and `SplitOpeningSection` (big headline +
+italic `accentWord`, edge-to-edge photo, caption, round + link, underlined link; CSS `.fm-split*` in styles/index.css, sizes
+`titleSizePx`/`titleSizePxMobile`). Words describe the spot ("Your headline,"), products are "Example product N" by
+"Sample", and the wordmark is the shop's own name; `neutralStarters.test.ts` checks every starter in its NEUTRAL list
+(add Slow Season and Catalogue once rewritten). Plan: https://claude.ai/artifact/PKepfF8oXL3jZ5Ewo7S4Wv.

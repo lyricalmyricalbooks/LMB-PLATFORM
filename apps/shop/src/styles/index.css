@@ -67,3 +67,31 @@
 .fm-mobile-tabs::-webkit-scrollbar { display: none; }
 /* Fade the right edge so shoppers can tell the row scrolls; the end padding keeps the last tab clear of it. */
 .fm-mobile-tabs { padding-right: 48px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+
+/* Split opening (SplitOpeningSection, the Aurel starter's front): a big serif headline beside one edge-to-edge photo.
+   Colours and fonts come from the theme tokens; sizes from the section's own fields (--fm-split-*). */
+.fm-split { display: grid; grid-template-columns: 46% 54%; min-height: max(610px, calc(100vh - 245px)); }
+.fm-split.fm-split-flip { grid-template-columns: 54% 46%; }
+.fm-split.fm-split-flip .fm-split-copy { order: 2; }
+.fm-split-copy { display: flex; flex-direction: column; align-items: flex-start; padding: clamp(54px, 8vw, 120px) 6vw 45px; }
+.fm-split-eyebrow { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+.fm-split-title { margin: 24px 0; font-family: var(--heading-font); font-weight: var(--rp-heading-weight, 500); font-size: var(--fm-split-title, clamp(74px, 9vw, 142px)); line-height: .82; letter-spacing: -.06em; text-transform: none; }
+.fm-split-accent { color: var(--fm-split-accent); font-style: italic; font-weight: inherit; }
+.fm-split-foot { margin-top: auto; width: min(390px, 95%); }
+.fm-split-body { margin-bottom: 36px; font-size: 13px; line-height: 1.65; color: rgba(var(--fg-rgb), .78); }
+.fm-split-link { display: flex; justify-content: space-between; align-items: center; gap: 50px; padding-bottom: 12px; border-bottom: 1px solid currentColor; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; transition: color .25s, gap .25s; }
+.fm-split-link:hover { color: var(--fm-split-accent); gap: 65px; }
+.fm-split-photo { position: relative; overflow: hidden; min-height: 420px; background: var(--fm-split-photo-bg, var(--surface)); }
+.fm-split-photo > div:first-child { position: absolute; inset: 0; }
+.fm-split-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .5; }
+.fm-split-caption { position: absolute; left: 26px; bottom: 22px; display: flex; gap: 25px; font-size: 10px; line-height: 1.45; letter-spacing: .04em; text-transform: uppercase; white-space: pre-line; }
+.fm-split-plus { position: absolute; right: 24px; bottom: 22px; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: var(--fm-split-accent); color: var(--btn-text, var(--bg-color)); transition: transform .25s; }
+.fm-split-plus:hover { transform: rotate(90deg) scale(1.06); }
+@media (max-width: 767px) {
+  .fm-split, .fm-split.fm-split-flip { grid-template-columns: 1fr; min-height: 0; }
+  .fm-split.fm-split-flip .fm-split-copy { order: 0; }
+  .fm-split-copy { min-height: 480px; padding: 60px 28px 36px; }
+  .fm-split-title { font-size: var(--fm-split-title-phone, 74px); }
+  .fm-split-photo { height: 490px; }
+}
+@media (prefers-reduced-motion: reduce) { .fm-split-link, .fm-split-plus { transition: none; } }

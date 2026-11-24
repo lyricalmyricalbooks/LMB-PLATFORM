@@ -46,6 +46,7 @@ export const TEMPLATE_STYLES = [
   { id: "picnic", label: "Picnic (bubbly, rounded cards)" },
   { id: "cutout", label: "Cutout (paper collage, tilted blocks)" },
   { id: "reel", label: "Reel (cinematic, condensed titles)" },
+  { id: "aurel", label: "Aurel (editorial, centred wordmark, numbered photos)" },
 ] as const;
 export const TEMPLATE_STYLE_IDS = TEMPLATE_STYLES.map((t) => t.id);
 export type TemplateStyleId = (typeof TEMPLATE_STYLES)[number]["id"];
@@ -571,11 +572,31 @@ export const REEL_CSS = lookCss({
   btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.12em;", corner: "0px", footLine: HAIR_N,
 });
 
+const HAIR_U = "rgba(var(--fg-rgb),.14)";
+/** Aurel (24 November 2026, the owner's Figma "Aurel" design): a thin still banner, a centred spaced wordmark, small capital
+ * links, untinted 4:5 photos numbered 01, 02… in the corner, a wide first product, underlined text-link buttons. */
+export const AUREL_CSS = lookCss({
+  hWeight: "500", hLine: ".9", hSpace: "-.04em", navLine: `color-mix(in srgb, var(--accent) 20%, transparent)`,
+  titleCss: "font-weight:500;font-size:1.35rem;letter-spacing:-.01em;", priceCss: "font-size:.8rem;letter-spacing:.04em;",
+  btnRadius: "0px", btnCase: "uppercase", btnCss: "letter-spacing:.12em;font-size:.72rem;font-weight:600;", corner: "0px", footLine: HAIR_U,
+  extra: `
+${S} .fm-announce{font-size:9px;letter-spacing:.12em;padding-top:.45rem !important;padding-bottom:.45rem !important;}
+${S} header[data-section="navigation"] .fm-logo{font-family:var(--heading-font);font-weight:500;letter-spacing:.22em;text-transform:uppercase;}
+${S} header[data-section="navigation"] nav a,${S} header[data-section="navigation"] nav button{font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+${S} .fm-card .fm-photo-frame img{filter:none;}
+${S} [data-studio-label="Product grid"]{counter-reset:aurel;}
+${S} [data-studio-label="Product grid"] > .fm-card{counter-increment:aurel;}
+${S} [data-studio-label="Product grid"] > .fm-card .fm-photo-frame::after{content:counter(aurel, decimal-leading-zero);position:absolute;left:14px;bottom:12px;font-size:10px;letter-spacing:.08em;color:rgb(var(--fg-rgb));z-index:2;}
+@media (min-width:1024px){${S} [data-studio-label="Product grid"] > .fm-card:first-child{grid-column:span 2;grid-row:span 2;}}
+${S} .fm-card-meta{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;}
+`,
+});
+
 /** Each template's own stylesheet, by id. A template missing here fails the coverage test. */
 export const TEMPLATE_CSS: Record<TemplateStyleId, string> = {
   marquee: MARQUEE_CSS, shelf: SHELF_CSS, atlas: ATLAS_CSS, mosaic: MOSAIC_CSS, arch: ARCH_CSS, market: MARKET_CSS, index: INDEX_CSS,
   folio: FOLIO_CSS, lantern: LANTERN_CSS, gutter: GUTTER_CSS, signal: SIGNAL_CSS, kiln: KILN_CSS, almanac: ALMANAC_CSS, console: CONSOLE_CSS,
-  picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS,
+  picnic: PICNIC_CSS, cutout: CUTOUT_CSS, reel: REEL_CSS, aurel: AUREL_CSS,
 };
 
 /** Which template a design draws, or "" for any other look. */

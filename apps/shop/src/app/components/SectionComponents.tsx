@@ -881,6 +881,64 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
 }
 
 // ──────────────────────────────
+// SPLIT OPENING (editorial starter: big serif headline beside one edge-to-edge photo)
+// ──────────────────────────────
+
+export function SplitOpeningSection({ settings, enableAnimations }: any) {
+  const sc = useSectionCopy();
+  const accent = settings.accentColor || "var(--accent, #183dce)";
+  const size = Number(settings.titleSizePx) || 0;
+  const sizeMobile = Number(settings.titleSizePxMobile) || 0;
+  const photoRight = settings.layout !== "image-left";
+  const vars: Record<string, string> = {
+    "--fm-split-accent": accent,
+    ...(size ? { "--fm-split-title": `${size}px` } : {}),
+    ...(sizeMobile ? { "--fm-split-title-phone": `${sizeMobile}px` } : {}),
+    ...(settings.photoBgColor ? { "--fm-split-photo-bg": settings.photoBgColor } : {}),
+  };
+  return (
+    <section className={`fm-split ${photoRight ? "" : "fm-split-flip"}`} style={{ ...bgStyle(settings), ...vars }}>
+      <div className="fm-split-copy" data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.eyebrow && <p className="fm-split-eyebrow" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>}
+          <h1 className="fm-split-title" style={hStyle(settings)}>
+            <span data-theme-field="title">{settings.title ?? fb("SplitOpeningSection.title")}</span>
+            {settings.accentWord && <><br /><i className="fm-split-accent" data-theme-field="accentWord">{settings.accentWord}</i></>}
+          </h1>
+        </AnimationContainer>
+        <div className="fm-split-foot">
+          {settings.body && <p className="fm-split-body" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
+          {settings.ctaText && (
+            <a href={siteHref(settings.ctaUrl)} className="fm-split-link">
+              <span data-theme-field="ctaText">{settings.ctaText}</span>
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="fm-split-photo">
+        {settings.imageUrl ? (
+          <StyledImage src={settings.imageUrl} settings={settings} fieldKey="imageUrl" loading="eager" decoding="async" fetchPriority="high" sizes="(min-width: 768px) 54vw, 100vw" alt={settings.imageAlt || ""} />
+        ) : (
+          <div className="fm-split-empty">{sc("sectionNoImage")}</div>
+        )}
+        {(settings.captionNumber || settings.captionText) && (
+          <div className="fm-split-caption">
+            {settings.captionNumber && <span data-theme-field="captionNumber">{settings.captionNumber}</span>}
+            {settings.captionText && <span data-theme-field="captionText">{settings.captionText}</span>}
+          </div>
+        )}
+        {settings.plusUrl && (
+          <a href={siteHref(settings.plusUrl)} className="fm-split-plus" aria-label={settings.plusLabel || settings.captionText || "View"}>
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
 // RICH TEXT
 // ──────────────────────────────
 
