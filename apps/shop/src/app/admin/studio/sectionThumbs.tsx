@@ -4,7 +4,7 @@ const KIND: Record<string, string> = {
   HeroSection: "hero", ImageBannerSection: "hero", VideoHeroSection: "hero", SlideshowSection: "hero",
   ProductGridHeaderSection: "books", ProductShowcaseGridSection: "books", FeaturedCollectionSection: "books", CollectionListSection: "books",
   ProductCoverCarouselSection: "carousel",
-  FeaturedProductSection: "spotlight", BookSpotlightSection: "spotlight", ImageWithTextSection: "spotlight", SplitOpeningSection: "hero",
+  FeaturedProductSection: "spotlight", BookSpotlightSection: "spotlight", ImageWithTextSection: "spotlight", SplitOpeningSection: "hero", PhotoOpeningSection: "hero", BigIntroSection: "spotlight", FeatureDuoSection: "spotlight", StoryOrbitSection: "spotlight",
   FeatureGridSection: "columns", MulticolumnSection: "columns", StatsCounterSection: "columns", PricingTableSection: "columns", LogoListSection: "logos", FollowUsSection: "logos", BlogPostsSection: "columns",
   TestimonialsSection: "quotes", PraiseQuotesSection: "quotes",
   TextContentSection: "text", RichTextSection: "text", PageContentSection: "text", CustomHTMLSection: "code",

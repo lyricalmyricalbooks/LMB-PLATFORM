@@ -840,4 +840,18 @@ banner, centred spaced wordmark, untinted numbered photos, wide first product) a
 italic `accentWord`, edge-to-edge photo, caption, round + link, underlined link; CSS `.fm-split*` in styles/index.css, sizes
 `titleSizePx`/`titleSizePxMobile`). Words describe the spot ("Your headline,"), products are "Example product N" by
 "Sample", and the wordmark is the shop's own name; `neutralStarters.test.ts` checks every starter in its NEUTRAL list
-(add Slow Season and Catalogue once rewritten). Plan: https://claude.ai/artifact/PKepfF8oXL3jZ5Ewo7S4Wv.
+(Slow Season added 24 November 2026; Catalogue next). Slow Season is `themeStyle: "slowseason"` (`SLOWSEASON_CSS`) with
+`PhotoOpeningSection`, `BigIntroSection`, `FeatureDuoSection` and `StoryOrbitSection` (CSS `.fm-po*`, `.fm-bi*`, `.fm-duo*`,
+`.fm-orbit*`; a two-line title is typed with a new line; `accentFont` loads a Google font for the quote/accent word).
+Showcase grids get the template's 01, 02… numbers through `[class*="showcase-grid-"]`. Plan: https://claude.ai/artifact/PKepfF8oXL3jZ5Ewo7S4Wv.
+
+## Starters and Studio rethink, step 1: sample sets (24 November 2026)
+A starter is a design; a **sample set** is the content that fills it (`admin/starterSamples.ts`): photos for the page
+bands (`opening`, `story`, `about`, `banner`), example products or example services, in neutral "Example …" words with no
+made-up makers, stories or reviews. Four sets: `home`, `clothing`, `books`, `studio` (services). `sampleSetFor(sells)`
+picks the shop's own set from its sign-up answer; `sampleSetsFor` lists the sets that suit its kind (for the gallery's
+"Show with" picker). Photos live in `public/samples/<set>/*.webp` (about 1200px, under 250 KB) from Unsplash's free
+licence (only `images.unsplash.com` photos, never paid `plus.` ones), each listed in `public/samples/LICENSE.md`;
+`starterSamples.test.ts` fails on a missing, oversized, unlisted or unused photo and on non-neutral names.
+`lookGallery.sampleProducts` (look previews, design-before-the-store) now reads the shop's set. **A new kind of shop** only
+needs a new set here plus its photos and licence lines; any starter can show any set.

@@ -58,6 +58,7 @@ export const COMPANIES = Object.freeze([
   { name: "Google", handles: "Your shop's website, records and photos, and the sign-in you use. Hosted in Montréal." },
   { name: "Stripe or Square", handles: "Your customers' card payments, into your own account with them. Colophon does not hold your money." },
   { name: "Our email sender", handles: "Order and account emails sent in your press's name: the recipient's address and the message." },
+  { name: "Twilio (only if you turn on text reminders)", handles: "The client's mobile number and the reminder text." },
   { name: "Shippo (only if you turn on shipping labels)", handles: "The delivery address of the order being shipped." },
 ]);
 

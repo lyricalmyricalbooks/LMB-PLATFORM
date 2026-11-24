@@ -1516,3 +1516,5 @@ Tab **Shifts & time off** (id `rota`, with Team pay while there is a team): `Rot
 (`answerTimeOff`, then reloads the setup because days off or blocks changed), plans the week (`rotaGrid`, `saveRota`,
 `removeRota`, `copyRota`). On the team desk, `DeskPlans.tsx` shows the person's shifts and asks (`askTimeOff`,
 `withdrawTimeOff`). Planned shifts never change booking times; approved time off does (days off or a block).
+
+**Steps up (Beta, 23 November 2026, plan 4 step 4.4):** a person can have `commissionSteps` (up to 4 `{ overMinor, percent }`, kept only with `commissionPercent`); `commissionFor` (shared `bookingTimes.ts`) pays each share only on the month's takings above its amount. The person dialog edits them (`.bkg-steps`) with `commissionStepsText` as a summary; Team pay and its spreadsheet show them. Never on the public staff list. Fixture: Ana, 40% then 50% over $3,000.

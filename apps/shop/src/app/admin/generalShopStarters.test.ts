@@ -23,12 +23,12 @@ describe("shipping starters by what the shop sells", () => {
 
 describe("example products by what the shop sells", () => {
   it("keeps the original three for books and no answer", () => {
-    expect(exampleProducts().map((p) => p.title)).toEqual(["Example tote bag", "Example enamel pin", "Example art print"]);
+    expect(exampleProducts().map((p) => p.title)).toEqual(["Example clothbound book", "Example hardcover", "Example paperback", "Example small book"]);
     expect(exampleProducts("books").map((p) => p.title)).toEqual(exampleProducts().map((p) => p.title));
   });
   it("shows a clothing shop clothing, flagged as examples", () => {
     const list = exampleProducts("clothing");
-    expect(list).toHaveLength(3);
+    expect(list).toHaveLength(4);
     for (const p of list) {
       expect(p.isExample).toBe(true);
       expect(productKind(p)).toBe("clothing");

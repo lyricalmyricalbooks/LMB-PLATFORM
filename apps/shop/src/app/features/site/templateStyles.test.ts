@@ -23,7 +23,7 @@ describe("full storefront templates", () => {
   });
 
   it("names exactly the templates it draws", () => {
-    expect([...TEMPLATE_STYLE_IDS]).toEqual(["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index", "folio", "lantern", "gutter", "signal", "kiln", "almanac", "console", "picnic", "cutout", "reel", "aurel"]);
+    expect([...TEMPLATE_STYLE_IDS]).toEqual(["marquee", "shelf", "atlas", "mosaic", "arch", "market", "index", "folio", "lantern", "gutter", "signal", "kiln", "almanac", "console", "picnic", "cutout", "reel", "aurel", "slowseason", "catalogue"]);
     expect(templateStyleId({ themeStyle: "shelf" })).toBe("shelf");
     expect(templateStyleId({ themeStyle: "riso" })).toBe("");
   });

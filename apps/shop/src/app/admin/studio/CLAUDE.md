@@ -22,6 +22,7 @@ Studio is the only designer. Read `docs/THEME_EDITOR.md` too before changing it.
 - Every theme stays readable: `themeReadability.test.tsx` checks every look, section and buy-box block. Fix the colour, never loosen the check. A look's fonts must be `FONT_CHOICES` families in listed weights (`themeFonts.test.ts`).
 - Templates (`features/site/templateStyles.ts`): read `var(--tpl-…, own look)`, write no colour, font or words, answer every knob, and use `template*` keys, never the Riso ones (`templateCoverage.test.ts`). To add one: `TEMPLATE_STYLES` + `TEMPLATE_CSS`/`lookCss`, `PALETTES`, a `THEME_LIBRARY` look, a home layout, a `lookFeel`.
 - Changing a shipped theme offers an update to every shop using it: change themes on purpose. Studio › Themes changes only the look; layouts and pages are a separate undoable step. Starters apply whole only to new shops and must stay neutral (`neutralStarters.test.ts`); `starterDesign.test.ts` applies each twice.
+- Starter content comes from sample sets (`admin/starterSamples.ts`, chosen by `sampleSetFor(sells)`): neutral "Example …" words, no made-up makers or reviews, photos in `public/samples/<set>/` from Unsplash's free licence only, each listed in `public/samples/LICENSE.md` (`starterSamples.test.ts`). A new kind of shop needs only a new set.
 - A new structural design key goes in `DESIGN_STRUCTURE_KEYS` (`themeImportCheck.test.ts`) and, if it has its own editor, `designDiff.ts` `STRUCTURAL`.
 - Section designs only set the section's own fields with values its controls offer; a new section type must be placed in a kind in `studio/sectionDesigns.ts` (`sectionDesigns.test.ts`). Bands use colour schemes, never a colour. Never replace an owner's own schemes (`fromLook`).
 
@@ -71,3 +72,4 @@ Details of each feature live in [`docs/agent-notes/studio.md`](../../../../docs/
 - Responsive public element editing (4 October 2026)
 - Studio look and phone top bar (13 November 2026)
 - Starter websites (23 November 2026, plan "Editable starter websites", step 1)
+- Starters and Studio rethink, step 1: sample sets (24 November 2026)

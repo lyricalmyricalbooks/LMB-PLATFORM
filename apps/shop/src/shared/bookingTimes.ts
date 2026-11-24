@@ -237,6 +237,11 @@ export type StaffMember = {
   rates?: PersonRate[];
   /** Their share of what their visits take, 0.5 to 100 (Services plan 2, team pay). Shown on the pay report, never paid out. */
   commissionPercent?: number;
+  /**
+   * A higher share once their month's takings pass an amount (plan 4, 4.4), like 50% over $3,000: each step's share
+   * applies only to the part above it, so a better month never pays less. Lowest first; left out for none.
+   */
+  commissionSteps?: CommissionStep[];
   /** What they earn an hour on the clock, in cents (plan 4, 4.2). Team pay multiplies their hours by it. Left out for none. */
   hourlyMinor?: number;
   /** Their photo (an https link) and a few words about them for the booking page (plan 4, 2.4). Left out when empty. */
@@ -1366,12 +1371,62 @@ export function cleanStaff(raw: unknown, shopHours: HoursWindow[][] = DEFAULT_BO
       email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : "",
       rates: cleanRates(p.rates),
       ...(commissionOf(p.commissionPercent) ? { commissionPercent: commissionOf(p.commissionPercent) } : {}),
+      ...(commissionOf(p.commissionPercent) && cleanCommissionSteps(p.commissionSteps).length ? { commissionSteps: cleanCommissionSteps(p.commissionSteps) } : {}),
       ...(hourlyOf(p.hourlyMinor) ? { hourlyMinor: hourlyOf(p.hourlyMinor) } : {}),
       ...(servicePhoto(p.photo) ? { photo: servicePhoto(p.photo) } : {}),
       ...(personBio(p.bio) ? { bio: personBio(p.bio) } : {}),
     });
   }
   return out;
+}
+
+/** One step up in commission: `percent` on the month's takings over `overMinor` (plan 4, 4.4). */
+export type CommissionStep = { overMinor: number; percent: number };
+export const MAX_COMMISSION_STEPS = 4;
+/** A month's takings a step can start at: at most $1,000,000. */
+export const MAX_STEP_MINOR = 100_000_000;
+
+/** Steps as typed: each over a bigger amount than the one before, a share from 0.5 to 100; at most four. */
+export function cleanCommissionSteps(raw: unknown): CommissionStep[] {
+  const out: CommissionStep[] = [];
+  for (const x of Array.isArray(raw) ? raw : []) {
+    const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+    const over = Math.round(Number(r.overMinor));
+    const percent = commissionOf(r.percent);
+    if (!Number.isFinite(over) || over <= 0 || over > MAX_STEP_MINOR || !percent || Number(r.percent) > 100) continue;
+    if (out.length && over <= out[out.length - 1].overMinor) continue;
+    out.push({ overMinor: over, percent });
+    if (out.length === MAX_COMMISSION_STEPS) break;
+  }
+  return out;
+}
+
+/**
+ * A month's commission on `takenMinor`: `percent` up to the first step, then each step's share on the part above it.
+ * Rounded once, to the cent. A refund that leaves the month below zero earns nothing back.
+ */
+export function commissionFor(takenMinor: number, percent: number, steps: readonly CommissionStep[] = []): number {
+  if (!(takenMinor > 0) || !percent) return 0;
+  let total = 0;
+  let from = 0;
+  let share = percent;
+  for (const s of steps) {
+    if (takenMinor <= s.overMinor) break;
+    total += (s.overMinor - from) * share;
+    from = s.overMinor;
+    share = s.percent;
+  }
+  total += (takenMinor - from) * share;
+  return Math.round(total / 100);
+}
+
+/** "40% up to $3,000 a month, then 50%.": commission steps in plain words. `sign` is the shop's money sign. */
+export function commissionStepsText(percent: number, steps: readonly CommissionStep[], sign = "$"): string {
+  const money = (minor: number) => `${sign}${(minor / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  if (!steps.length) return `${percent}% of the month.`;
+  const parts = [`${percent}% up to ${money(steps[0].overMinor)} a month`];
+  steps.forEach((s, i) => parts.push(i + 1 < steps.length ? `${s.percent}% up to ${money(steps[i + 1].overMinor)}` : `${s.percent}%`));
+  return `${parts.join(", then ")}.`;
 }
 
 /** A commission share: a number from 0.5 to 100 in half steps; anything else is none (0). */

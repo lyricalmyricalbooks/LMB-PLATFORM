@@ -82,6 +82,8 @@ function purchaseProblem(book, variantId, nowISO = new Date().toISOString()) {
   if (!releaseArrived(book.scheduleDate, nowISO)) return "unavailable";
   // Coming soon (Books › edit › Inventory): shown on the shop, not for sale yet (features/site/comingSoon.ts).
   if (book.comingSoon === true) return "unavailable";
+  // Example products (admin/exampleProducts.ts) fill a new shop and are never sold (features/site/comingSoon.ts).
+  if (book.isExample === true) return "unavailable";
   if (!variantId && Array.isArray(book.variants) && book.variants.length) return "choose_edition";
   return null;
 }

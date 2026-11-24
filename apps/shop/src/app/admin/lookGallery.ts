@@ -7,6 +7,7 @@ import { THEME_LIBRARY } from "./studio/themeLibrary";
 import { TEMPLATE_STYLE_IDS } from "../features/site/templateStyles";
 import { themedDesign } from "./studio/themeLook";
 import type { Sells } from "./sells";
+import { SAMPLE_SETS, sampleSetFor, samplePhotoUrl, samplePrice } from "./starterSamples";
 
 /** The sign-up answers to "What do you sell?" (signup/form.js, plans 6.2 and 10.1; sells.ts SELLS). */
 export type Publishes = Sells;
@@ -204,80 +205,16 @@ export type ProductKind = "book" | "print" | "tee" | "tote" | "sweatshirt" | "ca
 export type PreviewProduct = { title: string; photo: string; maker?: string; price?: string; kind?: ProductKind };
 
 /**
- * Made-up products for the try-on when the press has none yet, worded for what they sell (the sign-up answer). Prices
- * are examples only; the covers are drawn in each look's own colours.
+ * Sample products for the try-on when the shop has none yet: the sample set that suits what it sells (the sign-up
+ * answer), with its own photos, neutral "Example …" names and example prices (`starterSamples.ts`). A services shop sees
+ * its example services as the cards.
  */
-const SAMPLES: Record<"books" | "general" | "clothing" | "jewelry" | "music" | "prints", PreviewProduct[]> = {
-  books: [
-    { title: "Salt Hours", maker: "Zoe Moss", photo: "", kind: "book", price: "CA$ 22.00" },
-    { title: "Night Songs", maker: "A. Poet", photo: "", kind: "book", price: "CA$ 18.00" },
-    { title: "Paper Weather", maker: "R. Lane", photo: "", kind: "book", price: "CA$ 30.00" },
-    { title: "The Long Field", maker: "M. Okafor", photo: "", kind: "book", price: "CA$ 26.00" },
-    { title: "Small Rooms", maker: "J. Tran", photo: "", kind: "book", price: "CA$ 15.00" },
-    { title: "Blue Hour", maker: "S. Ferris", photo: "", kind: "book", price: "CA$ 24.00" },
-    { title: "Field Notes", maker: "L. Haddad", photo: "", kind: "book", price: "CA$ 12.00" },
-    { title: "Ink & Bone", maker: "P. Ruiz", photo: "", kind: "book", price: "CA$ 28.00" },
-  ],
-  prints: [
-    { title: "Harbour at Dusk", maker: "Riso print", photo: "", kind: "print", price: "CA$ 40.00" },
-    { title: "Two Moons", maker: "Screen print", photo: "", kind: "print", price: "CA$ 55.00" },
-    { title: "Fern Study", maker: "Risograph", photo: "", kind: "print", price: "CA$ 30.00" },
-    { title: "Night Market", maker: "Giclée", photo: "", kind: "print", price: "CA$ 65.00" },
-    { title: "Paper Birds", maker: "Linocut", photo: "", kind: "print", price: "CA$ 45.00" },
-    { title: "Tide Chart", maker: "Riso print", photo: "", kind: "print", price: "CA$ 35.00" },
-    { title: "City Grid", maker: "Screen print", photo: "", kind: "print", price: "CA$ 50.00" },
-    { title: "Wild Garden", maker: "Risograph", photo: "", kind: "print", price: "CA$ 30.00" },
-  ],
-  clothing: [
-    { title: "Heavy Tee", maker: "Organic cotton", photo: "", kind: "tee", price: "CA$ 38.00" },
-    { title: "Canvas Tote", maker: "Natural", photo: "", kind: "tote", price: "CA$ 24.00" },
-    { title: "Crew Sweatshirt", maker: "Brushed fleece", photo: "", kind: "sweatshirt", price: "CA$ 72.00" },
-    { title: "Work Cap", maker: "Washed twill", photo: "", kind: "cap", price: "CA$ 30.00" },
-    { title: "Field Jacket", maker: "Waxed cotton", photo: "", kind: "sweatshirt", price: "CA$ 140.00" },
-    { title: "Rib Socks", maker: "Merino", photo: "", kind: "tee", price: "CA$ 16.00" },
-    { title: "Long Sleeve", maker: "Garment dyed", photo: "", kind: "sweatshirt", price: "CA$ 46.00" },
-    { title: "Wool Beanie", maker: "Hand knit", photo: "", kind: "cap", price: "CA$ 34.00" },
-  ],
-  jewelry: [
-    { title: "Moon Hoops", maker: "Gold vermeil", photo: "", kind: "ring", price: "CA$ 85.00" },
-    { title: "Seed Ring", maker: "Sterling silver", photo: "", kind: "ring", price: "CA$ 60.00" },
-    { title: "Pearl Drop", maker: "Freshwater pearl", photo: "", kind: "ring", price: "CA$ 95.00" },
-    { title: "Chain Bracelet", maker: "Recycled silver", photo: "", kind: "ring", price: "CA$ 70.00" },
-    { title: "Signet", maker: "Brass", photo: "", kind: "ring", price: "CA$ 55.00" },
-    { title: "Star Studs", maker: "Gold fill", photo: "", kind: "ring", price: "CA$ 40.00" },
-    { title: "Pebble Pendant", maker: "Sterling silver", photo: "", kind: "ring", price: "CA$ 75.00" },
-    { title: "Twist Cuff", maker: "Bronze", photo: "", kind: "ring", price: "CA$ 65.00" },
-  ],
-  music: [
-    { title: "Low Tide", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 32.00" },
-    { title: "Night Drive", maker: "Cassette", photo: "", kind: "tape", price: "CA$ 12.00" },
-    { title: "Glass Garden", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 30.00" },
-    { title: "Static Hearts", maker: "7-inch", photo: "", kind: "vinyl", price: "CA$ 10.00" },
-    { title: "Northern Lines", maker: "CD", photo: "", kind: "vinyl", price: "CA$ 15.00" },
-    { title: "Slow Rooms", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 28.00" },
-    { title: "Paper Planes", maker: "Cassette", photo: "", kind: "tape", price: "CA$ 12.00" },
-    { title: "Heat Wave", maker: "LP", photo: "", kind: "vinyl", price: "CA$ 34.00" },
-  ],
-  general: [
-    { title: "Linen Napkins", maker: "Set of four", photo: "", kind: "towel", price: "CA$ 32.00" },
-    { title: "Stoneware Mug", maker: "Handmade", photo: "", kind: "mug", price: "CA$ 28.00" },
-    { title: "Beeswax Candle", maker: "Hand poured", photo: "", kind: "mug", price: "CA$ 22.00" },
-    { title: "Wool Throw", maker: "Woven", photo: "", kind: "towel", price: "CA$ 120.00" },
-    { title: "Field Notebook", maker: "Recycled paper", photo: "", kind: "book", price: "CA$ 14.00" },
-    { title: "Ceramic Vase", maker: "Glazed", photo: "", kind: "mug", price: "CA$ 48.00" },
-    { title: "Tea Towel", maker: "Printed cotton", photo: "", kind: "towel", price: "CA$ 18.00" },
-    { title: "Wooden Spoon", maker: "Cherry wood", photo: "", kind: "mug", price: "CA$ 20.00" },
-  ],
-};
-
 export function sampleProducts(publishes?: string | null): PreviewProduct[] {
-  const p = String(publishes || "");
-  if (p === "prints") return SAMPLES.prints;
-  if (p === "clothing" || p === "shoes") return SAMPLES.clothing;
-  if (p === "jewelry") return SAMPLES.jewelry;
-  if (p === "music") return SAMPLES.music;
-  if (p === "other") return SAMPLES.general;
-  return SAMPLES.books;
+  const set = SAMPLE_SETS[sampleSetFor(publishes)];
+  const items = set.products.length
+    ? set.products.map((p) => ({ title: p.title, photo: p.photo, price: p.price }))
+    : set.services.map((s) => ({ title: s.name, photo: s.photo, price: s.price }));
+  return items.map((p) => ({ title: p.title, photo: samplePhotoUrl(set.id, p.photo), maker: "Sample", price: samplePrice(p.price) }));
 }
 
 /**

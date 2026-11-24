@@ -131,6 +131,28 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "slow-season",
+    name: "Slow Season",
+    description: "A full-photo opening in huge capitals, a big introduction, a feature with a quote, the collection and a dark story band.",
+    sections: [
+      { type: "PhotoOpeningSection", settings: { eyebrow: "New season", title: "Your big\nheadline.", body: "Say what makes your shop special.", ctaText: "Explore the collection", ctaUrl: "/collections/all" } },
+      { type: "BigIntroSection", settings: { eyebrow: "Look 01", title: "Your\ncollection", body: "Introduce this season in a few lines." } },
+      { type: "FeatureDuoSection", settings: { number: "01", detail: "A short detail about this product", buttonText: "Shop now", kicker: "What we believe", quote: "A short line that sums up your shop." } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Shop the collection" } },
+      { type: "StoryOrbitSection", settings: { eyebrow: "Our approach", title: "Your story,\ntold", accentWord: "well.", body: "Share who you are and why you started.", ctaText: "Read our story" } },
+    ],
+  },
+  {
+    id: "catalogue",
+    name: "Catalogue",
+    description: "A numbered collection: a serif headline beside one photo, a dark ticker, then every product tagged by number.",
+    sections: [
+      { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline,", accentWord: "in a few words.", body: "Say what you sell.", ctaText: "Enter the collection", ctaUrl: "/collections/all", captionText: "A short caption" } },
+      { type: "MarqueeSection", settings: { text: "Your first message  \u25cf  A second short line" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Everything in the shop" } },
+    ],
+  },
+  {
     id: "aurel-editorial",
     name: "Aurel",
     description: "An editorial front: a big serif headline beside one edge-to-edge photo, a quiet ticker, then the collection.",

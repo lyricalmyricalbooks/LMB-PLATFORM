@@ -164,6 +164,7 @@ export const FRENCH_COPY: Record<string, string> = {
   saleBadgePercent: "{label} −{percent} %",
   preorderBadge: "Précommande",
   pdpComingSoon: "Bientôt disponible",
+  exampleNotForSale: "Exemple · pas en vente",
   pdpComingSoonDate: "Disponible le {date}",
   comingSoonButton: "BIENTÔT · M'AVERTIR",
   comingSoonBadge: "Bientôt disponible",

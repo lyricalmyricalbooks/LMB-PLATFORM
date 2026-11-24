@@ -153,3 +153,22 @@ export function presetContentSummary(design: any, preset: PresetLike, pages: { s
   if (kept.length) lines.push(`Kept as they are: your own ${kept.map(s => s.title).join(", ")} page${kept.length === 1 ? "" : "s"}`);
   return lines;
 }
+
+/**
+ * How many sections in the draft still carry a starter's sample words and pictures (`sample: true`, dropped on the
+ * owner's first edit). Publish warns about them so a shop never goes live with sample content by accident.
+ */
+export function sampleSectionsLeft(design: unknown): number {
+  let count = 0;
+  const seen = new Set<unknown>();
+  const walk = (value: unknown) => {
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) { value.forEach(walk); return; }
+    const item = value as Record<string, unknown>;
+    if (item.sample === true && typeof item.type === "string" && item.settings && typeof item.settings === "object") { count++; return; }
+    Object.values(item).forEach(walk);
+  };
+  walk(design);
+  return count;
+}
