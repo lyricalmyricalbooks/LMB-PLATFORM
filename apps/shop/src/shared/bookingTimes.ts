@@ -7,6 +7,8 @@
 // customers may book, and overlaps no other booking (with its rest after it). One customer at a time, unless the service is a group class
 // (`places` above 1): then several people share one start, up to its places.
 
+import { cleanMessages, type BookingMessages } from "./bookingMessages";
+
 /**
  * When the customer pays: nothing ("free"), all of it by card when booking ("full"), part of it by card when booking and
  * the rest at the visit ("deposit"), or all of it at the visit ("atShop").
@@ -316,6 +318,8 @@ export type BookingSettings = {
   textReminders?: boolean;
   /** Clients answer a reminder text with Y, C or M (plan 4, 3.4). Needs textReminders and the platform's replies. */
   textReplies?: boolean;
+  /** The owner's own words for booking emails and texts (plan 4, 3.5; bookingMessages.ts). Absent: the standard words. */
+  messages?: BookingMessages;
   /**
    * Confirm requests (plan 4, 3.3): the reminder email asks the client to tap "Yes, I'll be there", and the calendar shows
    * who has and who hasn't yet. Needs the reminder email on.
@@ -1091,6 +1095,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     textReminders: s.textReminders === true,
     textReplies: s.textReplies === true,
     askToConfirm: s.askToConfirm === true,
+    ...(() => { const messages = cleanMessages(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
     ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
     ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
     ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),

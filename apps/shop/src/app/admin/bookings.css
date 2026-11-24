@@ -668,3 +668,10 @@
 /* Confirm requests (plan 4, 3.3) */
 .rp .bkg-slot-tag[data-confirm="confirmed"] { background: var(--rp-tile-mint); color: var(--rp-on-tile); }
 .rp .bkg-slot-tag[data-confirm="waiting"] { background: var(--rp-tile-apricot); color: var(--rp-on-tile); }
+
+/* Emails and texts to clients (plan 4, 3.5) */
+.rp .bkg-msg { display: grid; gap: 14px; }
+.rp .bkg-msg-fill { margin: 0; font-size: 13px; color: var(--rp-text-muted); }
+.rp .bkg-msg-fill code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--rp-surface-2); }
+.rp .bkg-msg-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rp .bkg-msg-foot .bkg-cal-text { margin: 0; }

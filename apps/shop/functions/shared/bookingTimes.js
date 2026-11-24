@@ -103,6 +103,7 @@ exports.pickupSlots = pickupSlots;
 exports.pickupTimeProblem = pickupTimeProblem;
 exports.cleanCheckInCode = cleanCheckInCode;
 exports.checkInCodeFrom = checkInCodeFrom;
+const bookingMessages_1 = require("./bookingMessages");
 /** How long a request waits for the owner's answer before its time is let go (plan 4, 2.5). */
 exports.APPROVAL_HOURS = 48;
 /** When a request made at `createdMs` for a visit at `startMs` must be answered by: APPROVAL_HOURS later, or the start. */
@@ -927,6 +928,7 @@ function cleanBookingSettings(raw) {
         textReminders: s.textReminders === true,
         textReplies: s.textReplies === true,
         askToConfirm: s.askToConfirm === true,
+        ...(() => { const messages = (0, bookingMessages_1.cleanMessages)(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
         ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),
         ...(() => { const blocks = cleanBlocks(s.blocks); return blocks.length ? { blocks } : {}; })(),
         ...(() => { const specialHours = cleanSpecialHours(s.specialHours); return specialHours.length ? { specialHours } : {}; })(),

@@ -31,6 +31,13 @@ type Copy = (key: string, vars?: Record<string, string | number>) => string;
 const ask = askBooking;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** The page's language ("fr-CA", "en"), so the booking's emails and texts are in it (plan 4, 3.5). */
+const bookingLocale = (): { locale?: string } => {
+  try {
+    const lang = document.documentElement.lang || "";
+    return /^[a-z]{2}(-[A-Za-z]{2})?$/.test(lang) ? { locale: lang } : {};
+  } catch { return {}; }
+};
 
 /** True while the page is framed on another website by the Book button (bookEmbed.ts). */
 const Embedded = createContext(false);
@@ -246,7 +253,7 @@ function NewBooking({ c }: { c: Copy }) {
     try {
       const from = bookingFrom(window.location.search, embedded);
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...bookingLocale(), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {

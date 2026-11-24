@@ -1467,7 +1467,7 @@ describe("card on file and the missed-booking fee", () => {
     expect(t.db.store.get("bookings/booking001")).toMatchObject({ fee: { intent: "pi_fee_1", amountMinor: 2000, reason: "missed booking" }, feeCharging: null });
     const receipt = t.emails.at(-1);
     expect(receipt).toMatchObject({ to: "ada@example.com", subject: expect.stringMatching(/^Fee charged: Cut/) });
-    expect(receipt.html).toMatch(/charged \$20\.00 to your card ending 4242 for missing this booking/);
+    expect(receipt.html).toMatch(/charged \$20\.00 to your card for this booking, as agreed when you booked\. Questions\? Just reply to this email\. It went on your Visa ending 4242\./);
     expect((await t.adm({ op: "chargeFee", id: r.body.id })).body.code).toBe("charged");
     expect(t.charges).toHaveLength(1);
   });
@@ -1887,7 +1887,7 @@ describe("tips", () => {
     const after = (await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.booking;
     expect(after).toMatchObject({ dueMinor: 0, restPaidMinor: 10500, tipMinor: 2100, canTip: false, tipPercents: [15, 20] });
     expect(t.db.store.get("bookings/booking001")).toMatchObject({ rest: { amountMinor: 10500, paymentIntent: "pi_rest" }, tip: { amountMinor: 2100, paymentIntent: "pi_rest" } });
-    expect(t.emails.find((e) => e.subject.startsWith("Paid in full")).html).toMatch(/with a \$21\.00 tip/);
+    expect(t.emails.find((e) => e.subject.startsWith("Paid in full")).html).toMatch(/That includes your \$21\.00 tip\./);
     // A full refund gives back the price, and the tip stays with the team.
     const c = await t.adm({ op: "cancel", id: r.body.id, refund: true });
     expect(c.body).toMatchObject({ refunded: true, refundMinor: 14000 });
@@ -3078,7 +3078,7 @@ describe("classes: a minimum number to run", () => {
     expect(t.db.store.get(`bookings/${bid}`)).toMatchObject({ status: "cancelled", cancelledFor: "minimum", cancelledBy: "minimum" });
     expect(t.refunds).toEqual([expect.objectContaining({ paymentIntentId: "pi_1", amountMinor: 3000 })]);
     expect(t.emails.map((e) => e.to).sort()).toEqual(["owner@example.com", "p1@example.com"]);
-    expect(t.emails.find((e) => e.to === "p1@example.com").html).toContain("Not enough people signed up for this class to run");
+    expect(t.emails.find((e) => e.to === "p1@example.com").html).toContain("Not enough people signed up for Life drawing to run");
     expect(t.emails.find((e) => e.to === "owner@example.com").subject).toContain("Not enough people: Life drawing");
     expect(t.db.store.get(`bookingRuns/${id}~${Date.parse(wed)}`)).toMatchObject({ decision: "cancelled", count: 1, minPlaces: 2 });
     // Decided once; the time is neither offered nor full (no waiting list), and signing up is refused.
@@ -3126,7 +3126,7 @@ describe("classes: a minimum number to run", () => {
     t.emails.length = 0;
     expect(await t.desk.sweepMinimum()).toEqual({ cancelled: 1, ran: 0 });
     expect(t.db.store.get(`bookings/${bid}`).status).toBe("cancelled");
-    expect(t.emails.find((e) => e.to === "p1@example.com").html).toContain("for this course to run");
+    expect(t.emails.find((e) => e.to === "p1@example.com").html).toMatch(/Not enough people signed up for .+ to run/);
     const second = Object.values(t.db.store.get("bookingDays/2026-12-05").items);
     expect(second).toEqual([expect.objectContaining({ s: id, closed: true })]);
   });
@@ -4186,5 +4186,40 @@ describe("confirm requests (plan 4, 3.3)", () => {
     const moved = await t.pub({ action: "bookingMove", id: r.body.id, key: r.body.key, start: at("2026-11-19", "11:00") });
     expect(moved.body.booking).toMatchObject({ clientConfirmed: false, askConfirm: true });
     expect(t.db.store.get(`bookings/${r.body.id}`).clientConfirmedAt).toBeNull();
+  });
+});
+
+describe("the shop's own words in every message (plan 4, 3.5)", () => {
+  test("a client who booked on the French page gets French words", async () => {
+    const t = setup();
+    await t.seed();
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "10:00"), ...CUSTOMER, locale: "fr-CA" });
+    expect(t.db.store.get("bookings/booking001").locale).toBe("fr-CA");
+    const mail = t.emails[0];
+    expect(mail.to).toBe("ada@example.com");
+    expect(mail.subject).toMatch(/^Réservé : Studio visit/);
+    expect(mail.html).toContain("mardi");
+    // The owner's copy stays in English.
+    expect(t.emails[1].subject).not.toMatch(/Réservé/);
+  });
+
+  test("the owner's words replace the standard ones, with the placeholders filled in", async () => {
+    const t = setup();
+    await t.seed();
+    const settings = t.db.store.get("bookingSettings/main");
+    await t.adm({ op: "saveSettings", settings: { ...settings, messages: { en: { booked: { subject: "See you, {client}!", lead: "{service} is in the book.\n\nBring nothing." } } } } });
+    await t.pub({ action: "bookingStart", serviceId: "visit", start: at("2026-11-17", "10:00"), ...CUSTOMER });
+    expect(t.emails[0].subject).toBe("See you, Ada!");
+    expect(t.emails[0].html).toContain("Studio visit is in the book.<br><br>Bring nothing.");
+    // Fields left blank keep the standard words.
+    expect(t.emails[0].html).toContain("Booking confirmed");
+  });
+
+  test("words that aren't a known message or language are dropped when saved", async () => {
+    const t = setup();
+    await t.seed();
+    const settings = t.db.store.get("bookingSettings/main");
+    await t.adm({ op: "saveSettings", settings: { ...settings, messages: { de: { booked: { subject: "Hallo" } }, en: { nope: { subject: "x" }, booked: { subject: "  " } } } } });
+    expect(t.db.store.get("bookingSettings/main")).not.toHaveProperty("messages");
   });
 });
