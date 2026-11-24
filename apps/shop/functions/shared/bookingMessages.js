@@ -6,7 +6,8 @@
 // shop's own (Studio › Text & labels › Shop language).
 //
 // Saved in bookingSettings/main as `messages`: { en?: { [kind]: { subject?, heading?, lead? } | { text? } }, fr?: … }.
-// Placeholders: {client} (first name), {service}, {when}, {shop}, {amount} (only where the kind has an amount) and,
+// Placeholders: {client} (first name), {service}, {when}, {shop}, {amount} (only where the kind has an amount), {code}
+// (the points reward's code) and,
 // in texts, {with} ("with Ana", or nothing). Sentences the server adds by itself (a refund, a review link, the answer-by
 // date) follow the owner's words, in the same language. The details under the words (when, how long, what's paid,
 // the buttons) are not edited here.
@@ -39,6 +40,7 @@ exports.MESSAGE_LIST = [
     { kind: "welcome", label: "Welcome", when: "Sent the day after a client's first visit, while Keep in touch › Welcome is on." },
     { kind: "birthday", label: "Happy birthday", when: "Sent on a client's birthday, while Keep in touch › Birthdays is on." },
     { kind: "missYou", label: "We miss you", when: "Sent when a client hasn't been back for the weeks set under Keep in touch. {when} is their last visit." },
+    { kind: "loyaltyReward", label: "Points reward", amount: true, when: "Sent when a client's points reach a reward. {amount} is what it takes off, {code} the code and {when} the last day it works." },
     { kind: "textReminder", label: "Reminder text", when: "The reminder by text, while Text reminders are on.", text: true },
     { kind: "textSoon", label: "Second reminder text", when: "The second reminder by text.", text: true },
 ];
@@ -70,6 +72,7 @@ exports.DEFAULT_MESSAGES = {
         welcome: { subject: "Welcome to {shop}", heading: "Welcome", lead: "Hi {client}, thank you for your first visit to {shop}. We loved having you, and we hope to see you again soon." },
         birthday: { subject: "Happy birthday from {shop}", heading: "Happy birthday", lead: "Hi {client}, everyone at {shop} wishes you a very happy birthday. Treat yourself to something nice today." },
         missYou: { subject: "We miss you at {shop}", heading: "We miss you", lead: "Hi {client}, it's been a while since your last visit to {shop} on {when}. Whenever you're ready, you can pick your next time online." },
+        loyaltyReward: { subject: "You've earned {amount} off at {shop}", heading: "Your points earned a reward", lead: "Thank you for coming back, {client}. Your points add up to {amount} off your next visit or order. Type the code below when you book or pay. It works until {when}." },
         textReminder: { text: "Reminder: {service} at {shop}, {when} {with}." },
         textSoon: { text: "Soon: {service} at {shop}, {when} {with}." },
     },
@@ -93,6 +96,7 @@ exports.DEFAULT_MESSAGES = {
         welcome: { subject: "Bienvenue chez {shop}", heading: "Bienvenue", lead: "Bonjour {client}, merci pour votre première visite chez {shop}. Ce fut un plaisir de vous accueillir, et on espère vous revoir bientôt." },
         birthday: { subject: "Joyeux anniversaire de la part de {shop}", heading: "Joyeux anniversaire", lead: "Bonjour {client}, toute l'équipe de {shop} vous souhaite un très joyeux anniversaire. Faites-vous plaisir aujourd'hui." },
         missYou: { subject: "Vous nous manquez chez {shop}", heading: "Vous nous manquez", lead: "Bonjour {client}, votre dernière visite chez {shop} remonte au {when}. Quand vous le voudrez, vous pouvez choisir votre prochaine heure en ligne." },
+        loyaltyReward: { subject: "{amount} de rabais chez {shop}", heading: "Vos points vous offrent une récompense", lead: "Merci de votre fidélité, {client}. Vos points vous donnent {amount} de rabais sur votre prochaine visite ou commande. Entrez le code ci-dessous au moment de réserver ou de payer. Il est valable jusqu'au {when}." },
         textReminder: { text: "Rappel : {service} chez {shop}, {when} {with}." },
         textSoon: { text: "Bientôt : {service} chez {shop}, {when} {with}." },
     },
@@ -162,7 +166,7 @@ exports.ownWords = ownWords;
 /** Fills the placeholders; an unknown one is left as typed, and an empty one takes the space before it away. Pure. */
 function fillMessage(template, values) {
     return String(template || "")
-        .replace(/([ \t]?)\{(client|service|when|shop|amount|with)\}/g, (_m, space, name) => {
+        .replace(/([ \t]?)\{(client|service|when|shop|amount|with|code)\}/g, (_m, space, name) => {
         const value = String(values[name] ?? "");
         return value ? space + value : "";
     })
@@ -174,5 +178,7 @@ function placeholdersFor(kind) {
     const entry = exports.MESSAGE_LIST.find((m) => m.kind === kind);
     if (entry?.text)
         return ["{service}", "{when}", "{shop}", "{with}"];
+    if (kind === "loyaltyReward")
+        return ["{client}", "{amount}", "{code}", "{when}", "{shop}"];
     return ["{client}", "{service}", "{when}", "{shop}", ...(entry?.amount ? ["{amount}"] : [])];
 }

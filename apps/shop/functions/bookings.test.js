@@ -7,6 +7,7 @@ import { createRequire } from "module";
 const realRequire = createRequire(import.meta.url);
 const { bookingActions, busyFrom } = realRequire("./bookings");
 const { zonedTime, DEFAULT_BOOKING_SETTINGS, cleanBookingSettings, cleanRates, cleanBirthday, birthdaysOn } = realRequire("./shared/bookingTimes");
+const { cleanLoyalty, rewardsDue } = realRequire("./shared/loyalty");
 
 const ZONE = "America/Toronto";
 const at = (day, hhmm) => new Date(zonedTime(day, hhmm, ZONE)).toISOString();
@@ -20,24 +21,29 @@ function fakeDb() {
     async get() { return snapOf(c, id); },
     async set(data, opts) { store.set(key(c, id), opts?.merge ? { ...(store.get(key(c, id)) || {}), ...structuredClone(data) } : structuredClone(data)); },
     async delete() { store.delete(key(c, id)); },
+    collection: (n) => coll(`${c}/${id}/${n}`),
   });
-  const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`)).map((k) => snapOf(c, k.slice(c.length + 1)));
+  // Only the collection's own documents, never those of a sub-collection under them.
+  const list = (c) => [...store.keys()].filter((k) => k.startsWith(`${c}/`) && !k.slice(c.length + 1).includes("/")).map((k) => snapOf(c, k.slice(c.length + 1)));
   const query = (c, filters = [], n = 1000, by = "") => ({
     where: (f, op, v) => query(c, [...filters, [f, v, op]], n, by),
     limit: (m) => query(c, filters, m, by),
     orderBy: (f) => query(c, filters, n, f),
+    select: () => query(c, filters, n, by),
     async get() {
-      const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = f.split(".").reduce((o, k) => o?.[k], d.data()); return op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
+      const hits = list(c).filter((d) => filters.every(([f, v, op]) => { const x = f.split(".").reduce((o, k) => o?.[k], d.data()); return op === "in" ? v.includes(x) : op === "<" ? x < v : op === "<=" ? x <= v : op === ">" ? x > v : op === ">=" ? x >= v : x === v; }));
       if (by) hits.sort((a, b) => String(a.data()[by]).localeCompare(String(b.data()[by])));
       const docs = hits.slice(0, n);
       return { docs, empty: docs.length === 0 };
     },
   });
+  let made = 0;
+  const coll = (c) => ({ doc: (id) => ref(c, id ?? `auto${String(++made).padStart(4, "0")}`), ...query(c) });
   // Transactions run one after another, which is what Firestore's retries amount to for these tests.
   let queue = Promise.resolve();
   return {
     store,
-    collection: (c) => ({ doc: (id) => ref(c, id), ...query(c) }),
+    collection: (c) => coll(c),
     runTransaction(fn) {
       const run = queue.then(() => fn({ get: (r) => r.get(), set: (r, d, o) => r.set(d, o), delete: (r) => r.delete() }));
       queue = run.catch(() => {});
@@ -2865,6 +2871,112 @@ describe("keep in touch emails (plan 4, 5.4)", () => {
     expect(birthdaysOn("2028-02-28")).toEqual(["02-28"]);
     expect(cleanBookingSettings({ missYouWeeks: 5 }).missYouWeeks).toBeUndefined();
     expect(cleanBookingSettings({ missYouWeeks: 8, welcomeEmail: true }).missYouWeeks).toBe(8);
+  });
+});
+
+describe("loyalty points (plan 4, 5.5)", () => {
+  const LOYAL = { on: true, perDollar: 1, perVisit: 5, onOrders: true, rewardPoints: 100, rewardMinor: 1000, rewardDays: 90, bonusWeeks: [] };
+  const seedPoints = async (t, loyalty = {}) => {
+    await t.seed();
+    await t.db.collection("bookingSettings").doc("main").set({ loyalty: { ...LOYAL, ...loyalty } }, { merge: true });
+    await t.db.collection("bookingServices").doc("cut").set({ name: "Cut", minutes: 30, gapAfter: 0, payment: "atShop", priceMinor: 6000 });
+  };
+  const book = (t, day, extra = {}) => t.pub({ action: "bookingStart", serviceId: "cut", start: at(day, "15:00"), ...CUSTOMER, ...extra });
+  const after = (t, day, hours) => { t.clock.now = new Date(Date.parse(at(day, "15:30")) + hours * 3_600_000); };
+  const account = (t) => [...t.db.store.entries()].find(([k]) => /^loyalty\/[a-f0-9]{64}$/.test(k))?.[1];
+  const rewards = (t) => [...t.db.store.entries()].filter(([k, v]) => k.startsWith("discounts/") && v.loyaltyReward).map(([, v]) => v);
+
+  test("a visit earns a day after it ends, once; a no-show never earns", async () => {
+    const t = setup();
+    await seedPoints(t);
+    await book(t, "2026-11-18");
+    after(t, "2026-11-18", 5);
+    expect((await t.desk.sweepLoyalty()).visits).toBe(0);
+    after(t, "2026-11-18", 25);
+    expect(await t.desk.sweepLoyalty()).toEqual({ visits: 1, orders: 0, rewards: 0 });
+    expect(account(t)).toMatchObject({ email: CUSTOMER.email, points: 65, earned: 65 });
+    // The mark moved on, and the entry key keeps it once even if read again.
+    expect((await t.desk.sweepLoyalty()).visits).toBe(0);
+    t.db.store.delete("loyaltyState/main");
+    expect((await t.desk.sweepLoyalty()).visits).toBe(0);
+    expect(account(t).points).toBe(65);
+
+    const missed = setup();
+    await seedPoints(missed);
+    await book(missed, "2026-11-18");
+    await missed.db.collection("bookings").doc("booking001").set({ noShow: true }, { merge: true });
+    after(missed, "2026-11-18", 25);
+    expect((await missed.desk.sweepLoyalty()).visits).toBe(0);
+  });
+
+  test("points become a one-use code for that client only, emailed with the code", async () => {
+    const t = setup();
+    await seedPoints(t);
+    await book(t, "2026-11-18");
+    await book(t, "2026-11-19");
+    after(t, "2026-11-19", 25);
+    expect(await t.desk.sweepLoyalty()).toEqual({ visits: 2, orders: 0, rewards: 1 });
+    expect(account(t)).toMatchObject({ points: 30, earned: 130, spent: 100, rewards: 1 });
+    const [code] = rewards(t);
+    expect(code).toMatchObject({ type: "fixed", value: 10, usageLimit: 1, onePerCustomer: true, forBookings: true, allowedCustomerEmails: CUSTOMER.email, isActive: true, method: "code" });
+    expect(code.code).toMatch(/^THANKS-[A-Z2-9]{6}$/);
+    expect(code.expiryDate).toBe("2027-02-18");
+    const mail = t.emails.find((e) => /earned/.test(e.subject));
+    expect(mail.to).toBe(CUSTOMER.email);
+    expect(mail.subject).toBe("You've earned $10.00 off at Moth Press");
+    expect(mail.html).toContain(code.code);
+  });
+
+  test("bonus weeks multiply, and paid shop orders earn unless they are tests, refunded or switched off", async () => {
+    const t = setup();
+    await seedPoints(t, { perVisit: 0, rewardPoints: 10000, bonusWeeks: [{ from: "2026-11-16", to: "2026-11-22", times: 3 }] });
+    await book(t, "2026-11-18");
+    const orders = t.db.collection("orders");
+    await orders.doc("o1").set({ paymentStatus: "paid", paidAt: "2026-11-24T15:00:00.000Z", total: 25.5, customer: { email: "Ada@Example.com" } });
+    await orders.doc("o2").set({ paymentStatus: "paid", paidAt: "2026-11-24T16:00:00.000Z", total: 40, isTest: true, customer: { email: CUSTOMER.email } });
+    await orders.doc("o3").set({ paymentStatus: "refunded", paidAt: "2026-11-24T16:10:00.000Z", total: 40, customer: { email: CUSTOMER.email } });
+    await orders.doc("o4").set({ paymentStatus: "paid", paidAt: "2026-11-24T16:20:00.000Z", total: 30, refundedAmountMinor: 1000, customer: { email: CUSTOMER.email } });
+    t.clock.now = new Date("2026-11-24T20:00:00Z");
+    expect(await t.desk.sweepLoyalty()).toEqual({ visits: 1, orders: 2, rewards: 0 });
+    // 60 × 3 for the visit in the bonus week, then 25 and 20 for the orders.
+    expect(account(t).points).toBe(180 + 25 + 20);
+
+    const off = setup();
+    await seedPoints(off, { onOrders: false });
+    await off.db.collection("orders").doc("o1").set({ paymentStatus: "paid", paidAt: "2026-11-24T15:00:00.000Z", total: 25, customer: { email: CUSTOMER.email } });
+    off.clock.now = new Date("2026-11-24T20:00:00Z");
+    expect((await off.desk.sweepLoyalty()).orders).toBe(0);
+  });
+
+  test("the client card shows points; the owner adds or takes them, the front desk only looks", async () => {
+    const t = setup();
+    await seedPoints(t);
+    expect((await t.adm({ op: "points", email: "ADA@example.com" })).body).toMatchObject({ on: true, points: 0, toNext: 100, rows: [] });
+    expect((await t.adm({ op: "pointsAdjust", email: CUSTOMER.email, points: 0 })).statusCode).toBe(400);
+    const added = (await t.adm({ op: "pointsAdjust", email: CUSTOMER.email, points: 120, note: "Welcome gift" })).body;
+    expect(added).toMatchObject({ points: 20, rewardsSent: 1 });
+    expect(added.rows.map((r) => r.kind).sort()).toEqual(["adjust", "reward"]);
+    expect((await t.adm({ op: "pointsAdjust", email: CUSTOMER.email, points: -50 })).body.points).toBe(0);
+    const FRONT = { role: "frontDesk", email: "desk@example.com" };
+    expect((await t.dsk(FRONT, { op: "points", email: CUSTOMER.email })).statusCode).toBe(200);
+    expect((await t.dsk(FRONT, { op: "pointsAdjust", email: CUSTOMER.email, points: 10 })).statusCode).toBe(403);
+  });
+
+  test("the booking page shows the client's points while points are on", async () => {
+    const t = setup();
+    await seedPoints(t);
+    const r = await book(t, "2026-11-18");
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.points).toEqual({ points: 0, toNext: 100, rewardMinor: 1000 });
+    await t.db.collection("bookingSettings").doc("main").set({ loyalty: { ...LOYAL, on: false } }, { merge: true });
+    expect((await t.pub({ action: "bookingView", id: r.body.id, key: r.body.key })).body.points).toBeUndefined();
+  });
+
+  test("the rules keep every setting inside its limits", () => {
+    const s = cleanLoyalty({ on: true, perDollar: 99, rewardPoints: 5, rewardDays: 7, bonusWeeks: [{ from: "2026-02-30", to: "2026-03-01" }, { from: "2026-03-01", to: "2026-03-07", times: 9 }] });
+    expect(s).toMatchObject({ perDollar: 1, rewardPoints: 100, rewardDays: 180, bonusWeeks: [{ from: "2026-03-01", to: "2026-03-07", times: 2 }] });
+    expect(rewardsDue(s, 450)).toEqual({ rewards: 3, left: 150 });
+    expect(cleanBookingSettings({}).loyalty).toBeUndefined();
+    expect(cleanBookingSettings({ loyalty: { on: false, perDollar: 3 } }).loyalty).toMatchObject({ on: false, perDollar: 3 });
   });
 });
 

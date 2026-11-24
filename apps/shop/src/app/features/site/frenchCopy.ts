@@ -1492,6 +1492,7 @@ export const FRENCH_COPY: Record<string, string> = {
   bookTimeCheckInText: "Montrez-le à l'accueil en arrivant. On peut le scanner ou le saisir.",
   bookTimeCheckInQr: "Code QR de votre code d'arrivée",
   bookTimeCheckedIn: "Votre arrivée est enregistrée. Bienvenue!",
+  bookTimePoints: "Vous avez {points} points. Encore {more} et vous obtenez {amount} de rabais.",
   bookTimePaid: "Paiement",
   bookTimePaidAmount: "{amount} payé",
   bookTimeAddCalendar: "Calendrier Apple",

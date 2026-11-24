@@ -107,6 +107,7 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "bookingsEarlierOffer", label: "An earlier time held for you", required: true },
     { id: "bookingsTip", label: "Your booking: tip choices", required: true },
     { id: "bookingsReview", label: "Your booking: review your visit", required: true },
+    { id: "bookingsPoints", label: "Your booking: loyalty points" },
     { id: "bookingsNotice", label: "Bookings closed message", required: true },
     { id: "bookingsGlow", label: "Booking page top strip" },
   ] },

@@ -27,6 +27,7 @@ import { SHOP_CURRENCY } from "./moneySign";
 import "./clientCard.css";
 import { ClientFormFacts } from "./clientForm";
 import { ClientVisits } from "./ClientVisits.tsx";
+import { ClientPoints } from "./ClientPoints.tsx";
 import { ClientFiles } from "./ClientFiles.tsx";
 import { emailHash } from "./emailHash";
 import { dayOf } from "../../shared/bookingTimes";
@@ -404,6 +405,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
         <div className="rp-stack">
           {hasCard && <ClientCardView card={card} phone={phone} email={c.email} again={card.again && onBookAgain ? () => onBookAgain({ ...card.again!, name: c.name, email: c.email, phone }) : undefined}
             bookFirst={!card.again && onBookAgain ? () => onBookAgain({ serviceId: "", staffId: "", name: c.name, email: c.email, phone }) : undefined} />}
+          {hasCard && services && <ClientPoints email={c.key} />}
           {hasCard && services && <ClientVisits email={c.key} />}
           {hasCard && services && <ClientFiles email={c.key} />}
           {(!services || c.orderCount > 0 || !hasCard || c.segment === "moved") && <p className="rp-hint" style={{ margin: 0 }}>

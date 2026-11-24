@@ -1281,6 +1281,13 @@ Welcome new clients, Wish clients a happy birthday (adds a month/day picker, reg
 Send "we miss you" (Never or `MISS_YOU_WEEKS`). Words are in Messages (welcome, birthday, missYou); sending is
 `functions/CLAUDE.md` › Keep in touch.
 
+**Loyalty points (Beta, 24 November 2026, plan 4 step 5.5):** Hours & rules › `LoyaltyTile` (its own file, after Keep in
+touch) edits `settings.loyalty` (shared `loyalty.ts`; kept while off so the numbers survive): points per dollar, extra per
+visit, reward level, reward money, code life, orders earn too, up to `MAX_BONUS_WEEKS` double/triple stretches (rows show as
+typed; saving cleans them). Customers › client card › `ClientPoints` (above visit notes) reads op `points` (front desk may)
+and writes op `pointsAdjust` (owner only) with `AdjustDialog`. The admin fixture answers both and turns points on in the full
+sample. The reward email's words are Messages › Points reward (`loyaltyReward`, placeholder `{code}`).
+
 **Their Google Calendar (Beta, 17 November 2026, B6, `tasks/todo/2026-11-17-team-google-calendars.md`):** a saved
 person's dialog has `PersonGoogle`: op `teamCalendar` steps `status` (Linked / Needs linking again, the account),
 `link` (`send: true` emails it to the person's address; else Copy a link) and `unlink` (asks first). "Coming soon" while

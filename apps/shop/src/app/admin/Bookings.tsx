@@ -5,6 +5,7 @@
 import { serviceFromText } from "./bookFromMessage";
 import { BookingMessagesTile } from "./BookingMessagesTile";
 import { AwayReplyTile } from "./AwayReplyTile";
+import { LoyaltyTile } from "./LoyaltyTile";
 import { PastVisitsDialog } from "./PastVisitsDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, CalendarOff, CheckCircle2, CircleHelp, CalendarPlus, DoorOpen, UserRound, UserPlus, ChevronLeft, ChevronRight, ClipboardList, Clock, Copy, Download, ExternalLink, FileSpreadsheet, Hourglass, Mail, MapPin, Plus, Printer, QrCode, Trash2, Video, X } from "lucide-react";
@@ -3089,6 +3090,7 @@ function HoursPanel({ settings, services, saved, onSaved, active }: { settings: 
         <TipsTile tips={form.tips} percents={form.tipPercents} onChange={(tips, tipPercents) => setForm({ ...form, tips, tipPercents })} />
         <ThanksTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
         <KeepInTouchTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+        <LoyaltyTile form={form} zone={ZONE} onChange={(patch) => setForm({ ...form, ...patch })} />
         <FormsTile forms={form.intakeForms || []} services={services} onChange={(intakeForms) => setForm({ ...form, intakeForms })} />
         <BookingMessagesTile messages={form.messages} onChange={(messages) => setForm({ ...form, messages })} />
         <PickupTile form={form} onChange={(patch) => setForm({ ...form, ...patch })} />

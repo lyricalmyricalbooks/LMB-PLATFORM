@@ -9,6 +9,7 @@
 
 import { cleanMessages, type BookingMessages } from "./bookingMessages";
 import { hourlyOf } from "./timeClock";
+import { cleanLoyalty, type LoyaltySettings } from "./loyalty";
 
 /**
  * When the customer pays: nothing ("free"), all of it by card when booking ("full"), part of it by card when booking and
@@ -348,6 +349,8 @@ export type BookingSettings = {
   birthdayEmail?: boolean;
   /** Keep in touch: a "we miss you" email this many weeks after a client's last visit (MISS_YOU_WEEKS); 0 or left out: off. */
   missYouWeeks?: number;
+  /** Loyalty points (plan 4 step 5.5, shared/loyalty.ts). Kept while off too, so switching back on keeps the numbers. */
+  loyalty?: LoyaltySettings;
   /** The most bookings clients can make online on one day (plan 4, 1.8); 0 or left out: no limit. The owner can add more. */
   dailyCap?: number;
   /**
@@ -1127,6 +1130,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     ...(s.welcomeEmail === true ? { welcomeEmail: true } : {}),
     ...(s.birthdayEmail === true ? { birthdayEmail: true } : {}),
     ...((MISS_YOU_WEEKS as readonly number[]).includes(Number(s.missYouWeeks)) ? { missYouWeeks: Number(s.missYouWeeks) } : {}),
+    ...(s.loyalty && typeof s.loyalty === "object" ? { loyalty: cleanLoyalty(s.loyalty) } : {}),
     ...(() => { const words = awayText(s.awayWords); return words ? { awayWords: words } : {}; })(),
     ...(() => { const messages = cleanMessages(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
     ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),

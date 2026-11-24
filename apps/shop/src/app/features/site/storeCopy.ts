@@ -1176,6 +1176,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "bookTimeCheckInText", label: "Check-in code note", default: "Show this at the desk when you arrive. They can scan it or type it." },
       { key: "bookTimeCheckInQr", label: "Check-in QR code description", default: "QR code of your check-in code" },
       { key: "bookTimeCheckedIn", label: "Checked in", default: "You're checked in. Welcome!" },
+      { key: "bookTimePoints", label: "Loyalty points line", default: "You have {points} points. {more} more and you get {amount} off.", hint: "Use {points} for their points, {more} for the points still to earn and {amount} for the reward." },
       { key: "bookTimePaid", label: "Payment label", default: "Payment" },
       { key: "bookTimePaidAmount", label: "Paid amount", default: "Paid {amount}", hint: "Use {amount} for what was paid." },
       { key: "bookTimeAddCalendar", label: "Apple Calendar button", default: "Apple Calendar" },
