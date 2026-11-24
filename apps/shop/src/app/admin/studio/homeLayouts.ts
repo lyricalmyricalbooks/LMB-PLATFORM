@@ -143,6 +143,16 @@ export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
     ],
   },
   {
+    id: "catalogue",
+    name: "Catalogue",
+    description: "A numbered collection: a serif headline beside one photo, a dark ticker, then every product tagged by number.",
+    sections: [
+      { type: "SplitOpeningSection", settings: { eyebrow: "A short line about your shop", title: "Your headline,", accentWord: "in a few words.", body: "Say what you sell.", ctaText: "Enter the collection", ctaUrl: "/collections/all", captionText: "A short caption" } },
+      { type: "MarqueeSection", settings: { text: "Your first message  \u25cf  A second short line" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Everything in the shop" } },
+    ],
+  },
+  {
     id: "aurel-editorial",
     name: "Aurel",
     description: "An editorial front: a big serif headline beside one edge-to-edge photo, a quiet ticker, then the collection.",
