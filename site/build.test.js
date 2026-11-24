@@ -69,6 +69,16 @@ test("the designer before a store exists: Studio at /design/studio, its shop pag
   assert.deepEqual(firebaseJson({ api: false, app: true }).hosting.headers[0].source, "**");
 });
 
+test("the live demo shops: every address under /demo/ is the one demo page, its built files kept", () => {
+  const json = firebaseJson({ api: false, app: true, designer: true, demo: true });
+  assert.equal(json.hosting.rewrites.find((r) => r.source === "/demo/**")?.destination, "/demo/demo.html");
+  assert.ok(json.hosting.headers.some((h) => h.source === "/demo/assets/**" && h.headers[0].value.includes("immutable")));
+  // A demo page is never framed (it isn't the designer's folder).
+  assert.ok(new RegExp(json.hosting.headers[0].regex).test("/demo/products/example"));
+  // Without a built demo nothing changes.
+  assert.equal(firebaseJson({ api: false, app: true }).hosting.rewrites.some((r) => r.source === "/demo/**"), false);
+});
+
 test("a build writes the pages, firebase.json and the platform's rules", () => {
   const out = mkdtempSync(join(tmpdir(), "site-"));
   const { files } = buildSite({ out });

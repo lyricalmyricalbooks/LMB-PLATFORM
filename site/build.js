@@ -7,6 +7,8 @@
 //   /app/        setup mode, the shop admin before a shop exists (apps/shop, `pnpm run build:setup`), when it is built
 //   /design/     the designer before a store exists (apps/shop vite.design.config.ts, built by the same command):
 //                /design/studio is Studio, every other /design/ address the shop's pages it previews
+//   /demo/       the live demo shops: every starter as a sample shop (apps/shop vite.demo.config.ts, the same command),
+//                /demo/?starter=<id>&style=<style>&sells=<clothing|home|books|studio>
 //   /api/**      the platform's server (Cloud Run platform-api), only with --api
 //
 // Only what a page actually loads is copied: each page's index.html (or other .html) and every file it reaches through
@@ -28,6 +30,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const SETUP_ADMIN_FOLDER = "apps/shop/dist-setup";
 /** Where the designer before a store exists lands (apps/shop/vite.design.config.ts). */
 export const DESIGNER_FOLDER = "apps/shop/dist-design";
+/** Where the live demo shops land (apps/shop/vite.demo.config.ts). */
+export const DEMO_FOLDER = "apps/shop/dist-demo";
 export const REGION = "northamerica-northeast1";
 export const API_SERVICE = "platform-api";
 
@@ -153,13 +157,15 @@ export function liveConfig(file, text, { api, app }) {
 }
 
 /** firebase.json for the built site. The /api addresses go to the server only when it is live (`api`). */
-export function firebaseJson({ api, app, designer = false }) {
+export function firebaseJson({ api, app, designer = false, demo = false }) {
   const run = (source) => ({ source, run: { serviceId: API_SERVICE, region: REGION } });
   const rewrites = [
     ...(api ? ["/api/**", "/tips/off", "/checkup/off"].map(run) : []),
     ...Object.entries(EXTRA_PAGES).map(([source, destination]) => ({ source, destination })),
     ...(app ? [{ source: "/app/**", destination: "/app/setup.html" }] : []),
     ...(designer ? [{ source: "/design/studio", destination: "/design/design.html" }, { source: "/design/**", destination: "/design/design-shop.html" }] : []),
+    // Every address inside a sample shop (its product and collection pages) is the one demo page.
+    ...(demo ? [{ source: "/demo/**", destination: "/demo/demo.html" }] : []),
   ];
   return {
     firestore: { rules: "firestore.rules" },
@@ -178,12 +184,13 @@ export function firebaseJson({ api, app, designer = false }) {
         { source: "**/*.@(svg|png|ico|webp|jpg|jpeg|gif|woff|woff2)", headers: [{ key: "Cache-Control", value: "public, max-age=86400" }] },
         ...(app ? [{ source: "/app/assets/**", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }] : []),
         ...(designer ? [{ source: "/design/assets/**", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }] : []),
+        ...(demo ? [{ source: "/demo/assets/**", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }] : []),
       ],
     },
   };
 }
 
-/** Builds the site into `out`. Returns { files, api, app } (files: published paths). */
+/** Builds the site into `out`. Returns { files, api, app, designer, demo } (files: published paths). */
 export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = false, requireApp = false } = {}) {
   const appDir = join(root, SETUP_ADMIN_FOLDER);
   const app = existsSync(join(appDir, "setup.html"));
@@ -191,6 +198,9 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
   const designerDir = join(root, DESIGNER_FOLDER);
   const designer = existsSync(join(designerDir, "design.html"));
   if (requireApp && !designer) throw new Error("The designer isn't built: run `pnpm install && pnpm run build:setup` in apps/shop first");
+  const demoDir = join(root, DEMO_FOLDER);
+  const demo = existsSync(join(demoDir, "demo.html"));
+  if (requireApp && !demo) throw new Error("The demo shops aren't built: run `pnpm install && pnpm run build:setup` in apps/shop first");
   rmSync(out, { recursive: true, force: true });
   const publicDir = join(out, "public");
   mkdirSync(publicDir, { recursive: true });
@@ -220,14 +230,18 @@ export function buildSite({ root = ROOT, out = join(ROOT, "site", "out"), api = 
     cpSync(designerDir, join(publicDir, "design"), { recursive: true });
     for (const path of listFiles(designerDir)) files.push(`/design/${relative(designerDir, path).split(sep).join("/")}`);
   }
+  if (demo) {
+    cpSync(demoDir, join(publicDir, "demo"), { recursive: true });
+    for (const path of listFiles(demoDir)) files.push(`/demo/${relative(demoDir, path).split(sep).join("/")}`);
+  }
   // What search engines read: the share picture, which pages to skip, and the map of the ones to list (site/seo.js).
   cpSync(join(root, "site", "share.png"), join(publicDir, SHARE_IMAGE));
   writeFileSync(join(publicDir, "robots.txt"), robotsTxt());
   writeFileSync(join(publicDir, "sitemap.xml"), sitemapXml(listed));
   files.push(SHARE_IMAGE, "/robots.txt", "/sitemap.xml");
-  writeFileSync(join(out, "firebase.json"), `${JSON.stringify(firebaseJson({ api, app, designer }), null, 2)}\n`);
+  writeFileSync(join(out, "firebase.json"), `${JSON.stringify(firebaseJson({ api, app, designer, demo }), null, 2)}\n`);
   cpSync(join(root, "waitlist", "firestore.rules"), join(out, "firestore.rules"));
-  return { files: files.sort(), api, app, designer };
+  return { files: files.sort(), api, app, designer, demo };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
