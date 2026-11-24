@@ -91,13 +91,13 @@ describe("Choose your look as a theme store", () => {
     expect(dialog()!.querySelector("img[src='https://cdn.example/m.jpg']")).not.toBeNull();
     await click(button("Samples", dialog()!));
     expect(dialog()!.querySelector("img[src='https://cdn.example/m.jpg']")).toBeNull();
-    expect(dialog()!.textContent).toContain("Salt Hours");
+    expect(dialog()!.textContent).toContain("Example clothbound book");
   });
 
   it("a shop that doesn't sell books sees samples and words for what it sells", async () => {
     await mount({ publishes: "clothing" });
-    expect(document.body.textContent).toContain("Heavy Tee");
-    expect(document.body.textContent).not.toContain("Salt Hours");
+    expect(document.body.textContent).toContain("Example wool sweater");
+    expect(document.body.textContent).not.toContain("Example clothbound book");
     await click(button(`Try on ${builtLooks()[0].name}`));
     await click(button("Product page", dialog()!));
     expect(dialog()!.textContent).toContain("Gift wrapped");
@@ -111,7 +111,7 @@ describe("Choose your look as a theme store", () => {
     expect(stage().hasAttribute("data-live")).toBe(true);
     await click(stage().querySelector("[data-go='product:1']") as HTMLElement);
     expect(button("Product page", dialog()!).getAttribute("aria-pressed")).toBe("true");
-    expect(dialog()!.textContent).toContain("Canvas Tote");
+    expect(dialog()!.textContent).toContain("Example ribbed knit");
     await click(stage().querySelector("[data-go='bag']") as HTMLElement);
     expect(button("Bag", dialog()!).getAttribute("aria-pressed")).toBe("true");
     expect(dialog()!.textContent).toContain("Your bag");

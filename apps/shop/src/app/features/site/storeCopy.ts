@@ -230,6 +230,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "preorderBadge", label: "Pre-order badge (book cards)", default: "Pre-order", hint: "Small badge on shop cards. Turn it off in Theme settings › Badges & shop labels." },
       { key: "pdpComingSoon", label: "Stock line (coming soon)", default: "Coming soon", hint: "Shown while a book is set to Coming soon (Books › Inventory › Coming soon) and has no publication date." },
       { key: "pdpComingSoonDate", label: "Stock line (coming soon, with a date)", default: "Coming {date}", hint: "Shown for a Coming soon book with a publication date. Use {date} for the date." },
+      { key: "exampleNotForSale", label: "Example product button", default: "Example · not for sale", hint: "Replaces the Add to bag button and the stock line on an example product, the ones that fill a new shop until you add your own." },
       { key: "comingSoonButton", label: "Coming soon button", default: "COMING SOON · NOTIFY ME", hint: "Replaces the Add to bag button while a book is Coming soon. Pressing it opens the email signup below it. With that signup turned off (Theme settings › Product page), the button shows the Coming soon stock line instead." },
       { key: "comingSoonBadge", label: "Coming soon badge (book cards)", default: "Coming soon", hint: "Small badge on shop cards. Turn it off in Theme settings › Badges & shop labels." },
       { key: "comingSoonAlertHeading", label: "Coming soon signup: heading", default: "Email me when it's out" },

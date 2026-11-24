@@ -26,7 +26,7 @@ import { ShareMenu } from "./ShareMenu";
 import { OptionPicker, variantBuyable } from "./OptionPicker";
 import { findVariant, isBookKind, picksPossible, productKind, productOptions, usesOptionPicker, variantPicks, type OptionPicks } from "../../../shared/productOptions";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
-import { comingSoonActive } from "./comingSoon";
+import { comingSoonActive, exampleProductOnly } from "./comingSoon";
 import { designNumber } from "./designNumber";
 import { placeholderImage } from "./constants";
 import type { Book } from "./types";
@@ -695,7 +695,9 @@ export default function BookDetail() {
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
   // Coming soon (Books › Inventory › Coming soon): not for sale yet, so never "sold out" — the buy button opens the signup instead.
   const isComingSoon  = comingSoonActive(book);
-  const isOutOfStock  = !isComingSoon && (Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined))));
+  // An example product (fills a new shop) shows like a sold-out one, with its own words, and is never sold.
+  const isExample     = !isComingSoon && exampleProductOnly(book);
+  const isOutOfStock  = !isComingSoon && (isExample || Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined))));
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   // Only while the sale is on (inside its optional start/end dates) — the price the server charges.
@@ -758,6 +760,8 @@ export default function BookDetail() {
   const madeTime      = madeToOrderTime(book);
   const stockText     = isComingSoon
     ? (comingDate ? getCopy(settings?.design, "pdpComingSoonDate", { date: comingDate }) : getCopy(settings?.design, "pdpComingSoon"))
+    : isExample
+    ? getCopy(settings?.design, "exampleNotForSale")
     : isOutOfStock
     ? getCopy(settings?.design, "soldOutLabel")
     : isPreorder ? (preorderDate ? getCopy(settings?.design, "pdpPreorder", { date: preorderDate }) : getCopy(settings?.design, "pdpPreorderTba"))
@@ -1291,7 +1295,7 @@ export default function BookDetail() {
                       }
                     >
                       {isOutOfStock ? (
-                        getCopy(settings?.design, "soldOutLabel")
+                        getCopy(settings?.design, isExample ? "exampleNotForSale" : "soldOutLabel")
                       ) : isComingSoon ? (
                         <><Bell size={14} /> {getCopy(settings?.design, showComingSoonSignup ? "comingSoonButton" : "pdpComingSoon")}</>
                       ) : added ? (
@@ -1629,7 +1633,7 @@ export default function BookDetail() {
                       )}
 
                       {/* Sold out: Studio › Style › Product cards & grid › Sold-out badge (not over a video's controls) */}
-                      {isOutOfStock && !shownVideo && (
+                      {isOutOfStock && !isExample && !shownVideo && (
                         <>
                           <SoldOutVeil design={settings?.design} />
                           <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} scale={1.5} />
@@ -1748,7 +1752,7 @@ export default function BookDetail() {
                         ? <video src={photo.videoUrl} poster={photo.url} controls muted ref={muteVideo} playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
                         : <img loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} decoding="async" className={`w-full h-full ${productImageFitClass}`} style={framingStyle(photo)} />}
                       <PhotoToneDefs photo={photo} />
-                      {i === 0 && isOutOfStock && (
+                      {i === 0 && isOutOfStock && !isExample && (
                         <>
                           <SoldOutVeil design={settings?.design} />
                           <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} scale={1.5} />

@@ -3,7 +3,7 @@ import { emitShopSignal } from "./lib/shopSignals";
 import { useStudioOverlay } from "./features/site/studioOverlay";
 import { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from "react";
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
-import { comingSoonActive } from "./features/site/comingSoon";
+import { notForSale } from "./features/site/comingSoon";
 import { clearBagNote } from "./features/site/bagNote";
 import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, saleActive, type GiftCardDetails } from "./features/site/promotions";
 import { smallPhotoUrl } from "./features/site/photoSources";
@@ -159,7 +159,7 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
     const stock = Number(variant ? (variant.stock ?? variant.stockLevel) : book.stockLevel);
     const stockLimit = tracked && Number.isFinite(stock) ? Math.max(0, stock) : 999;
     // A book switched back to Coming soon can't be bought until it is out (the server refuses it too).
-    if (stockLimit === 0 || comingSoonActive(book)) { drop(line); continue; }
+    if (stockLimit === 0 || notForSale(book)) { drop(line); continue; }
     // Sold by amount: the line follows the product's current step and smallest amount (raised to it when needed).
     const amount = soldAmount(book) || undefined;
     const least = minSteps(amount || null);
@@ -291,8 +291,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const addToCart = (product: any, variant?: any, quantity: number = 1, options?: CartLineOptions): boolean => {
-    // Coming soon books are shown, never sold (Books › edit › Inventory › Coming soon).
-    if (!product || comingSoonActive(product)) return false;
+    // Coming soon books and example products are shown, never sold (Books › edit › Inventory › Coming soon).
+    if (!product || notForSale(product)) return false;
     const giftCard = isGiftCardProduct(product);
     // Gift cards have no stock; backorderable lines have no stock cap (same rule as repriceCart and the server).
     const stockLimit = giftCard || backorderable(product, variant) ? undefined : (variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel);

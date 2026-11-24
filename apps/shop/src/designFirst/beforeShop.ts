@@ -50,7 +50,7 @@ export function sampleShopBooks(sells?: string | null, look?: string | null): an
     id: `sample-${i + 1}`, slug: slugOf(p.title), title: p.title, authorName: p.maker || "", author: p.maker || "",
     retailPrice: priceOf(p.price), stockLevel: i === 5 ? 0 : 8, status: "published",
     isFeatured: i < 4, featured: i < 4, categories: [i % 2 ? "New" : "Featured"],
-    photos: [{ id: `p${i + 1}`, url: cover(FILLS[i % FILLS.length]), alt: p.title }],
+    photos: [{ id: `p${i + 1}`, url: p.photo || cover(FILLS[i % FILLS.length]), alt: p.title }],
     description: `<p>A sample to show how your pages look. Your own will be here once your store is made.</p>`,
     createdAt: new Date(Date.UTC(2026, 10, 10 - i)).toISOString(),
     ...(p.kind ? { kind: p.kind } : {}),
