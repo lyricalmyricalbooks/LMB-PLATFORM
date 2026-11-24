@@ -351,6 +351,8 @@ export type BookingSettings = {
   missYouWeeks?: number;
   /** Loyalty points (plan 4 step 5.5, shared/loyalty.ts). Kept while off too, so switching back on keeps the numbers. */
   loyalty?: LoyaltySettings;
+  /** Promo texts (plan 4 step 5.6): the booking form asks "Text me offers", and the owner can send one to a group. */
+  promoTexts?: boolean;
   /** The most bookings clients can make online on one day (plan 4, 1.8); 0 or left out: no limit. The owner can add more. */
   dailyCap?: number;
   /**
@@ -1131,6 +1133,7 @@ export function cleanBookingSettings(raw: unknown): BookingSettings {
     ...(s.birthdayEmail === true ? { birthdayEmail: true } : {}),
     ...((MISS_YOU_WEEKS as readonly number[]).includes(Number(s.missYouWeeks)) ? { missYouWeeks: Number(s.missYouWeeks) } : {}),
     ...(s.loyalty && typeof s.loyalty === "object" ? { loyalty: cleanLoyalty(s.loyalty) } : {}),
+    ...(s.promoTexts === true ? { promoTexts: true } : {}),
     ...(() => { const words = awayText(s.awayWords); return words ? { awayWords: words } : {}; })(),
     ...(() => { const messages = cleanMessages(s.messages); return Object.keys(messages).length ? { messages } : {}; })(),
     ...(() => { const forms = cleanIntakeForms(s.intakeForms, s.intakeForm); return forms.length ? { intakeForms: forms } : {}; })(),

@@ -1531,6 +1531,15 @@ name shortened to "Ada R.") writes, in one transaction, `reviews/{id}` (`source:
 try is 409 `reviewed`. The owner gets a `[REVIEW]` email and approves it in Reviews. `bookingInfo.reviews` lists the newest 12
 approved ones (`visitReviews`: one `source ==` query, no index) only while `siteReviews` is on, for the Client reviews section.
 
+**Promo texts (Beta, 24 November 2026, plan 4 step 5.6).** Rules in `shared/promoTexts.ts`. `cleanCustomer` reads
+`promoOk` (needs a phone); `bookingStart` keeps it only while `settings.promoTexts`; `bookingInfo` says `promoTexts: true`
+when that switch is on and texts are open. `promoAudience` reads bookings with `customer.promoOk == true` (≤ 3,000), one per
+phone (`phoneKey`), for all, the last `RECENT_DAYS`, or one service, at most `MAX_PROMO_TEXTS`. `sendPromo` refuses when off,
+closed, outside 9 to 8 on the shop's clock, bad words or nobody, then claims `promoTexts/{id}` in a transaction that refuses
+within `PROMO_GAP_HOURS` of the last one; sends ten at a time (kind `booking-promo`, key `promo-<id>-<phone>`), and a STOP
+answer sets `promoOk` and `textOk` false on all that person's bookings. Ops `promoAudience`, `promoSend` (409 too_soon or
+nobody), `promoHistory` (owner only). `promoTexts` is server-only (no rule). Tests: "promo texts (plan 4, 5.6)".
+
 **Standing appointments (17 November 2026, Services plan 2 B1, `tasks/todo/2026-11-17-standing-appointments.md`).** A
 one-to-one service may set `repeats` (`cleanService`: never a class or course; Bookings › Services › edit › **Clients can book a
 standing appointment**). Clients can book a run only when `runsOnline` (shared: repeats, free or paid at the visit, no card on

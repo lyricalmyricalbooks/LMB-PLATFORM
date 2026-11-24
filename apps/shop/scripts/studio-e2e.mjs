@@ -2262,12 +2262,16 @@ await check("the Book a time form offers Text me reminders, which needs a phone 
   await frame.locator("[data-store-region=bookingsService]").nth(1).click();
   await frame.locator("[data-store-region=bookingsTimes] .fm-book-time").first().click({ timeout: 10000 });
   await frame.locator("[data-store-region=bookingsTimes] button.fm-track-btn:not([disabled])").first().click();
-  const box = frame.locator("[data-store-region=bookingsTexts] input[type=checkbox]");
+  // The region holds the reminders box and, when promo texts are on, a separate "Text me offers" box.
+  const box = frame.locator("[data-store-region=bookingsTexts] #bt-text-ok");
+  const promo = frame.locator("[data-store-region=bookingsTexts] #bt-promo-ok");
   await box.waitFor({ timeout: 10000 });
   if (!(await box.isDisabled())) throw new Error("the tick box works before a phone number is given");
+  if ((await promo.count()) && !(await promo.isDisabled())) throw new Error("the offers tick box works before a phone number is given");
   await frame.locator("#bt-phone").fill("416 555 0199");
   await box.check();
   if (!(await box.isChecked())) throw new Error("the tick box didn't tick");
+  if ((await promo.count()) && (await promo.isChecked())) throw new Error("ticking reminders also said yes to offers");
   if (process.env.STUDIO_SHOTS) await frame.locator("[data-store-region=bookingsForm]").screenshot({ path: `${process.env.STUDIO_SHOTS}/booking-texts.png` });
 }, "?bookings=1#designer?t=bookingsPage&tab=sections");
 

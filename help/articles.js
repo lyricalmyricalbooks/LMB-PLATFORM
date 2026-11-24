@@ -104,6 +104,7 @@ export const ARTICLES = Object.freeze([
       "Bookings › Figures › No-shows shows who missed a booking, what it cost and which days it happens. Clients who miss twice or more are marked.",
       "Bookings › Hours & rules › Keep in touch sends a welcome after a first visit, a birthday note and a \"we miss you\" email. Clients who unsubscribed get none.",
       "Bookings › Hours & rules › Loyalty points gives clients points for visits and orders. At the level you set, they get a money-off code by email.",
+      "Bookings › Hours & rules › Promo texts sends one text to clients who ticked \"Text me offers\". It goes out in the daytime, at most once a day.",
     ],
   },
   {

@@ -855,3 +855,14 @@
 .rp .bkg-loyalty-weeks { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; }
 .rp .bkg-loyalty-week { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 12px; align-items: end; padding: 12px; border-radius: 14px; background: var(--rp-surface-2); }
 .rp .bkg-loyalty-week > :last-child { justify-self: end; }
+
+/* Promo texts (plan 4, 5.6) */
+.rp .bkg-promo-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; border-top: 1px solid var(--rp-border); }
+.rp .bkg-promo-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--rp-border); font-size: 14px; }
+.rp .bkg-promo-row:last-child { border-bottom: 0; }
+.rp .bkg-promo-text { min-width: 0; overflow-wrap: anywhere; }
+.rp .bkg-promo-text small, .rp .bkg-promo-sent small { display: block; margin-top: 2px; font-size: 12px; color: var(--rp-text-muted); }
+.rp .bkg-promo-sent { text-align: right; white-space: nowrap; font: 600 14px/1.2 var(--rp-font-mono); font-variant-numeric: tabular-nums; }
+.rp .bkg-promo-preview { padding: 12px 14px; border-radius: 14px; background: var(--rp-surface-2); }
+.rp .bkg-promo-preview-label { margin: 0 0 6px; font: 500 12px/1.3 var(--rp-font-mono); color: var(--rp-text-muted); }
+.rp .bkg-promo-bubble { margin: 0; max-width: 34ch; padding: 10px 14px; border-radius: 18px 18px 18px 4px; background: var(--rp-tile-mint); color: var(--rp-on-tile); font: 400 14px/1.45 var(--rp-font-body); overflow-wrap: anywhere; }

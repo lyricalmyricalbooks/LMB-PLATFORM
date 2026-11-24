@@ -77,6 +77,7 @@ const {
   cleanBirthday, birthdaysOn, visitHappened, WELCOME_AFTER_HOURS, KEEP_IN_TOUCH_WINDOW_DAYS,
 } = require("./shared/bookingTimes");
 const { waysAllowed, waysOn } = require("./shared/waysToSell");
+const { cleanPromo, cleanGroup, promoBody, promoHours, phoneKey, RECENT_DAYS, MAX_PROMO_TEXTS, PROMO_GAP_HOURS, PROMO_FROM_HOUR, PROMO_UNTIL_HOUR } = require("./shared/promoTexts");
 const { cleanLoyalty, loyaltyEarns, visitPoints, orderPoints, rewardsDue, pointsToNext, rewardCode, cleanAdjust, LOYALTY_WINDOW_DAYS } = require("./shared/loyalty");
 const { cleanShift, clockState, clockStep, shiftMinutes, MAX_SHIFT_HOURS } = require("./shared/timeClock");
 const { cleanRotaShift, cleanTimeOff, daysBetween, timeOffWhen, MAX_ROTA_WEEK, MAX_NOTE } = require("./shared/teamRota");
@@ -280,7 +281,7 @@ function cleanCustomer(body) {
   if (!EMAIL.test(email)) return { problem: "Please add an email address we can send your booking to." };
   const phone = text(body?.phone, 40);
   // Text reminders only with a number and the client's own tick (the shop's switch is checked when sending).
-  return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "", birthday: cleanBirthday(body?.birthday) };
+  return { name, email, phone, textOk: body?.textOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), promoOk: body?.promoOk === true && /\d{7}/.test(phone.replace(/\D/g, "")), note: typeof body?.note === "string" ? body.note.trim().slice(0, 1000) : "", birthday: cleanBirthday(body?.birthday) };
 }
 
 /** A booking's add-ons in words ("Deep conditioning, Long hair"), "" with none. */
@@ -2124,6 +2125,8 @@ function bookingActions({
           reviews: settings.siteReviews ? await visitReviews() : [],
           // Whether the form offers "Text me reminders": the owner's switch, and the platform sending texts.
           texts: !!settings.textReminders && (await textsOpen()),
+          // Whether the form offers "Text me offers" (plan 4, 5.6): the owner's promo switch, and the platform sending texts.
+          ...(settings.promoTexts && (await textsOpen()) ? { promoTexts: true } : {}),
           // Whether the form asks for a birthday (plan 4, 5.4): only while the shop sends birthday emails.
           ...(settings.birthdayEmail ? { birthday: true } : {}),
           // The people a client can pick (the "With" choice); none when the shop books as one calendar.
@@ -2485,7 +2488,7 @@ function bookingActions({
           // A visit at the client's place happens at their address: emails, calendars and the day list all show it.
           location: visitAt ? addressLine(visitAt) : service.location, ...(visitAt ? { atClient: true } : {}),
           // A birthday (month and day only) is kept only while the shop sends birthday emails (plan 4, 5.4).
-          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}), ...(customer.birthday && settings.birthdayEmail ? { birthday: customer.birthday } : {}) }, note: customer.note, answers: answered.answers,
+          customer: { name: customer.name, email: customer.email, phone: customer.phone, ...(customer.textOk ? { textOk: true } : {}), ...(customer.promoOk && settings.promoTexts ? { promoOk: true } : {}), ...(customer.birthday && settings.birthdayEmail ? { birthday: customer.birthday } : {}) }, note: customer.note, answers: answered.answers,
           status: paid ? "held" : asking ? "requested" : "confirmed", payment: pack ? "pack" : deposit ? "deposit" : upFront > 0 ? "card" : price > 0 ? "atShop" : "free",
           priceMinor: price, ...taxFields(tax), ...(deposit ? { depositMinor: upFront, depositPaid: false } : {}), currency: currency(),
           ...(priced ? { discount: priced.discount, listPriceMinor: service.priceMinor } : {}),
@@ -3187,6 +3190,24 @@ function bookingActions({
         const staffId = keptPerson(settings, service.id, req.body?.staffId);
         const starts = runStarts(start, run, zone());
         return res.status(200).json({ visits: [{ start: new Date(start).toISOString(), free: true }, ...(await runPlan({ service, settings, starts: starts.slice(1), staffId, owner: true }))] });
+      }
+      if (op === "promoAudience") {
+        // Send a promo text: how many it reaches, what one text costs, and when the last one went.
+        const group = cleanGroup(req.body?.group);
+        const people = await promoAudience(group, String(req.body?.serviceId || ""), now().getTime());
+        const status = texts ? await texts.status().catch(() => ({ available: false, price: "" })) : { available: false, price: "" };
+        const last = await lastPromo();
+        return res.status(200).json({ available: status.available === true, price: status.price || "", count: people.length, open: promoHours(now().getTime(), zone()),
+          lastAt: last?.at || null, nextAt: last ? new Date(Date.parse(last.at) + PROMO_GAP_HOURS * HOUR).toISOString() : null });
+      }
+      if (op === "promoSend") {
+        const r = await sendPromo({ settings, group: cleanGroup(req.body?.group), serviceId: String(req.body?.serviceId || ""), text: req.body?.text, by });
+        if (r.problem) return fail(res, r.code === "too_soon" || r.code === "nobody" ? 409 : 400, r.problem, r.code);
+        return res.status(200).json(r);
+      }
+      if (op === "promoHistory") {
+        const snap = await promoLog().orderBy("at", "desc").limit(10).get();
+        return res.status(200).json({ promos: snap.docs.map((d) => { const p = d.data(); return { id: d.id, text: p.text, group: p.group, serviceId: p.serviceId || "", at: p.at, status: p.status, people: p.people || 0, sent: p.sent || 0, failed: p.failed || 0, stopped: p.stopped || 0 }; }) });
       }
       if (op === "points" || op === "pointsAdjust") {
         // A client's loyalty points (client card): the balance and newest rows; pointsAdjust adds or takes points by hand.
@@ -4327,6 +4348,83 @@ function bookingActions({
     } catch (err) {
       console.error(`bookings: ${kind} email failed:`, err?.message || err);
     }
+  }
+
+  // ── Promo texts (Bookings plan 4, step 5.6) ────────────────────────────────────────────────────────────────────
+  // One text to a group of clients who ticked "Text me offers" (`customer.promoOk`, its own yes, apart from reminder
+  // texts). Each promo is kept in `promoTexts/{id}` ({ text, group, serviceId, at, by, status, sent, failed, stopped });
+  // the record is made first, in a transaction that also checks the last one was PROMO_GAP_HOURS ago, so two clicks
+  // can't send twice. Rules: shared/promoTexts.ts.
+  const promoLog = () => db.collection("promoTexts");
+
+  /** The clients a promo reaches, one per phone number: `[{ phone, ids, b }]` (`b`, their newest booking). */
+  async function promoAudience(group, serviceId, nowMs) {
+    const snap = await bookings().where("customer.promoOk", "==", true).limit(3000).get();
+    const byPhone = new Map();
+    for (const doc of snap.docs) {
+      const b = doc.data();
+      const key = phoneKey(b.customer?.phone);
+      if (key.length < 10) continue;
+      const start = Date.parse(b.start);
+      const fits = group === "all"
+        || (group === "recent" && b.status === "confirmed" && !b.noShow && start <= nowMs && start >= nowMs - RECENT_DAYS * DAY)
+        || (group === "service" && b.status !== "cancelled" && b.serviceId === serviceId);
+      const had = byPhone.get(key) || { phone: b.customer.phone, ids: [], b, fits: false };
+      had.ids.push(doc.id);
+      had.fits = had.fits || fits;
+      if (String(b.start) > String(had.b.start)) { had.b = b; had.phone = b.customer.phone; }
+      byPhone.set(key, had);
+    }
+    return [...byPhone.values()].filter((c) => c.fits).slice(0, MAX_PROMO_TEXTS);
+  }
+
+  /** The last promo sent, or null. */
+  async function lastPromo() {
+    const snap = await promoLog().orderBy("at", "desc").limit(1).get();
+    return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+  }
+
+  /**
+   * Sends one promo: `{ sent, failed, stopped }`, or `{ problem, code }` when it can't go (texts not open, off, at night,
+   * too soon after the last, nobody to send to, wrong words).
+   */
+  async function sendPromo({ settings, group, serviceId, text, by }) {
+    if (!settings.promoTexts) return { problem: "Turn on promo texts first.", code: "off" };
+    if (!(await textsOpen())) return { problem: "Texts aren't open for your shop yet.", code: "closed" };
+    const nowMs = now().getTime();
+    if (!promoHours(nowMs, zone())) return { problem: `Promo texts go out between ${PROMO_FROM_HOUR} a.m. and ${PROMO_UNTIL_HOUR - 12} p.m. your time.`, code: "hours" };
+    const words = cleanPromo(text);
+    if ("problem" in words) return { problem: words.problem, code: "words" };
+    const people = await promoAudience(group, serviceId, nowMs);
+    if (!people.length) return { problem: "Nobody in this group has said yes to texts yet.", code: "nobody" };
+    const ref = promoLog().doc();
+    const at = new Date(nowMs).toISOString();
+    const claimed = await db.runTransaction(async (tx) => {
+      const last = await tx.get(promoLog().orderBy("at", "desc").limit(1));
+      const lastAt = last.empty ? 0 : Date.parse(last.docs[0].data().at);
+      if (nowMs - lastAt < PROMO_GAP_HOURS * HOUR) return false;
+      tx.set(ref, { text: words.text, group, serviceId: group === "service" ? serviceId : "", at, by, status: "sending", people: people.length, sent: 0, failed: 0, stopped: 0 });
+      return true;
+    });
+    if (!claimed) return { problem: "You sent a promo text in the last day. You can send the next one tomorrow.", code: "too_soon" };
+    const brand = await emailBrand().catch(() => ({}));
+    const shop = brand.shopName || shopName() || "";
+    const out = { sent: 0, failed: 0, stopped: 0 };
+    // Ten at a time: quick enough for 500 people, gentle on the text company.
+    for (let i = 0; i < people.length; i += 10) {
+      await Promise.all(people.slice(i, i + 10).map(async (c) => {
+        const lang = await clientLanguage(c.b).catch(() => "en");
+        const sent = await texts.send({ to: c.phone, body: promoBody(words.text, shop, lang), kind: "booking-promo", idempotencyKey: `promo-${ref.id}-${phoneKey(c.phone)}` }).catch(() => null);
+        if (sent?.optedOut) {
+          out.stopped += 1;
+          // They texted STOP: no more promos to them, on any of their bookings.
+          await Promise.all(c.ids.map((id) => bookings().doc(id).get().then((d) => d.exists && bookings().doc(id).set({ customer: { ...d.data().customer, promoOk: false, textOk: false } }, { merge: true }))));
+        } else if (sent?.ok) out.sent += 1;
+        else out.failed += 1;
+      }));
+    }
+    await ref.set({ ...out, status: "sent", doneAt: now().toISOString() }, { merge: true });
+    return out;
   }
 
   // ── Loyalty points (Bookings plan 4, step 5.5) ─────────────────────────────────────────────────────────────────

@@ -137,7 +137,7 @@ function NewBooking({ c }: { c: Copy }) {
     });
     return withVisit(first, more);
   }, [listed, info, staffId, picked.join(","), alsoKey, lengthId]);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false, month: "", day: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", note: "", textOk: false, promoOk: false, month: "", day: "" });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [problems, setProblems] = useState<{ name?: string; email?: string; address?: string; answers?: Record<string, string> }>({});
   // A visit at the client's place (plan 4, 2.8): where to go.
@@ -261,7 +261,7 @@ function NewBooking({ c }: { c: Copy }) {
     try {
       const from = bookingFrom(window.location.search, embedded);
       const held = service.id === wanted.service && wanted.offer ? { offer: wanted.offer, offerKey: wanted.offerKey } : {};
-      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), ...(info.birthday && form.month && form.day ? { birthday: `${form.month}-${form.day}` } : {}), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...bookingLocale(), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
+      const answer = await ask("bookingStart", { serviceId: service.id, start, ...alsoBody, ...(picked.length ? { extras: picked } : {}), ...(staffId ? { staffId } : {}), ...form, textOk: form.textOk && !!form.phone.trim(), promoOk: form.promoOk && !!form.phone.trim(), ...(info.birthday && form.month && form.day ? { birthday: `${form.month}-${form.day}` } : {}), answers, ...(service.atClient ? { address: place } : {}), ...(view !== zone ? { zone: view } : {}), ...bookingLocale(), ...held, ...(from ? { from } : {}), ...(run ? { run } : {}), ...(pack ? { pack: pack.code } : { ...(applied ? { code: applied.code } : {}), ...(gift ? { giftCard: gift.code } : {}) }) });
       if (answer.url) { goToPayment(answer.url, embedded); return; }
       navigate(`/book?booking=${encodeURIComponent(answer.id)}&key=${answer.key}`, { replace: true });
     } catch (err: any) {
@@ -450,8 +450,9 @@ function NewBooking({ c }: { c: Copy }) {
                 {problems.address && <p id="bt-address-err" className="fm-book-error">{problems.address}</p>}
               </fieldset>
             )}
-            {info.texts && (
-              <div {...regionProps("bookingsTexts")} className="text-sm leading-6">
+            {(info.texts || info.promoTexts) && (
+              <div {...regionProps("bookingsTexts")} className="text-sm leading-6 space-y-3">
+                {info.texts && <div>
                 <label htmlFor="bt-text-ok" className="flex items-start gap-2.5">
                   <input id="bt-text-ok" type="checkbox" checked={form.textOk} disabled={!form.phone.trim()}
                     onChange={(e) => setForm({ ...form, textOk: e.target.checked })}
@@ -459,6 +460,16 @@ function NewBooking({ c }: { c: Copy }) {
                   <span>{c("bookTimeTextOk")}</span>
                 </label>
                 <p id="bt-text-ok-hint" className="fm-muted text-xs mt-1">{c(form.phone.trim() ? "bookTimeTextOkHint" : "bookTimeTextOkNeedsPhone")}</p>
+                </div>}
+                {info.promoTexts && <div>
+                  <label htmlFor="bt-promo-ok" className="flex items-start gap-2.5">
+                    <input id="bt-promo-ok" type="checkbox" checked={form.promoOk} disabled={!form.phone.trim()}
+                      onChange={(e) => setForm({ ...form, promoOk: e.target.checked })}
+                      aria-describedby="bt-promo-ok-hint" className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--accent)]" />
+                    <span>{c("bookTimePromoOk")}</span>
+                  </label>
+                  <p id="bt-promo-ok-hint" className="fm-muted text-xs mt-1">{c(form.phone.trim() ? "bookTimePromoOkHint" : "bookTimePromoOkNeedsPhone")}</p>
+                </div>}
               </div>
             )}
             {info.birthday && (
