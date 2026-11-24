@@ -22,14 +22,14 @@ const p = (t: string) => `<p>${t}</p>`;
 export const PAGE_STARTERS: PageStarter[] = [
   { id: "blank", label: "Blank page", summary: "Start from an empty page.", outline: [], title: "", slug: "", body: "", showInNav: true },
   {
-    id: "about", label: "About", summary: "Who you are and what you publish.", outline: ["Who we are", "What we publish", "How we work"],
+    id: "about", label: "About", summary: "Who you are and what you make or sell.", outline: ["Who we are", "What we make", "How we work"],
     title: "About", slug: "about", showInNav: true,
-    body: [h2("Who we are"), p("[Say who runs the press and how it started.]"), h2("What we publish"), p("[Describe the books you make and who they are for.]"), h2("How we work"), p("[Printing, paper, editions — whatever makes your books yours.]")].join(""),
+    body: [h2("Who we are"), p("[Say who runs the shop and how it started.]"), h2("What we make"), p("[Describe what you make or sell and who it is for.]"), h2("How we work"), p("[Materials, makers, small runs — whatever makes your products yours.]")].join(""),
   },
   {
     id: "shipping", label: "Shipping & returns", summary: "Delivery times, costs and how returns work.", outline: ["Shipping", "Delivery times", "Returns", "Damaged or missing parcels"],
     title: "Shipping & returns", slug: "shipping-returns", showInNav: false,
-    body: [h2("Shipping"), p("[Where you ship to and how prices are worked out.]"), h2("Delivery times"), p("[How long parcels usually take, by region.]"), h2("Returns"), p("[How long shoppers have, what condition books must be in, and who pays return postage.]"), h2("Damaged or missing parcels"), p("[What to do and how to reach you.]")].join(""),
+    body: [h2("Shipping"), p("[Where you ship to and how prices are worked out.]"), h2("Delivery times"), p("[How long parcels usually take, by region.]"), h2("Returns"), p("[How long shoppers have, what condition items must be in, and who pays return postage.]"), h2("Damaged or missing parcels"), p("[What to do and how to reach you.]")].join(""),
   },
   {
     id: "faq", label: "FAQ", summary: "Answers to the questions you hear most.", outline: ["Orders", "Shipping", "Books & editions"],
@@ -37,9 +37,9 @@ export const PAGE_STARTERS: PageStarter[] = [
     body: [h2("Orders"), `<h3>[A question shoppers ask]</h3>`, p("[Your answer.]"), h2("Shipping"), `<h3>[A question shoppers ask]</h3>`, p("[Your answer.]"), h2("Books & editions"), `<h3>[A question shoppers ask]</h3>`, p("[Your answer.]")].join(""),
   },
   {
-    id: "contact", label: "Contact", summary: "How shoppers, authors and stores can reach you.", outline: ["Get in touch", "Wholesale & stockists", "Press"],
+    id: "contact", label: "Contact", summary: "How shoppers, stores and the press can reach you.", outline: ["Get in touch", "Wholesale & stockists", "Press"],
     title: "Contact", slug: "contact", showInNav: true,
-    body: [h2("Get in touch"), p("[Your email address and when you usually reply.]"), h2("Wholesale & stockists"), p("[How bookshops can order from you.]"), h2("Press"), p("[Who to contact for review copies and interviews.]")].join(""),
+    body: [h2("Get in touch"), p("[Your email address and when you usually reply.]"), h2("Wholesale & stockists"), p("[How other shops can order from you to sell.]"), h2("Press"), p("[Who to contact for review copies and interviews.]")].join(""),
   },
   {
     id: "stockists", label: "Stockists", summary: "The bookshops that carry your books, linked from the footer only.", outline: ["Where to find our books", "[City]", "Stock our books"],
