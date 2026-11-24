@@ -2381,6 +2381,7 @@ await check("the four services sections (price list, team, big Book button, hour
   const big = await frame.locator(".fm-svc-call a").first().getAttribute("href");
   if (!/\/book(\?preview=true)?$/.test(big || "")) throw new Error(`the big Book button points at ${big}`);
   const days = frame.locator(".fm-svc-hours dt");
+  await days.first().waitFor({ timeout: 10000 });
   if (await days.count() !== 7) throw new Error(`the hours list shows ${await days.count()} days`);
   if (process.env.STUDIO_SHOTS) for (const [, part] of picks) await frame.locator(`.fm-svc-${part}`).first().screenshot({ path: `${process.env.STUDIO_SHOTS}/services-${part}.png` });
 });
